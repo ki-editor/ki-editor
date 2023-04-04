@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 cc = "*"
+crossterm = "0.26.1"
 log = "0.4.17"
+ropey = "1.6.0"
 simple-logging = "2.0.2"
 termion = "2.0.1"
 tree-sitter = "0.20.9"
