@@ -1,15 +1,11 @@
 mod engine;
 
+use crossterm::event::KeyModifiers;
 use log::LevelFilter;
 
 use engine::{CharIndex, State};
-use std::io::{stdin, stdout, Write};
-use termion::cursor::Goto;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
-use termion::{clear, color, cursor, style};
-use tree_sitter::{Node, Parser, Point};
+use std::io::{stdout, Write};
+use tree_sitter::Parser;
 
 fn main() {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info).unwrap();
@@ -30,8 +26,15 @@ console.log(x);
     handle_event(source_code)
 }
 
-fn render(code: &str, state: &State, stdout: &mut impl Write) {
-    write!(stdout, "{}", clear::All).unwrap();
+use crossterm::{
+    cursor::MoveTo,
+    style::{Color, ResetColor, SetBackgroundColor},
+    terminal::{Clear, ClearType},
+    ExecutableCommand,
+};
+
+fn render(state: &State, stdout: &mut impl Write) {
+    stdout.execute(Clear(ClearType::All)).unwrap();
 
     let selection = &state.selection;
     let start_point = selection.start.0;
@@ -43,29 +46,29 @@ fn render(code: &str, state: &State, stdout: &mut impl Write) {
         .for_each(|(index, c)| {
             let point = CharIndex(index).to_point(&state.source_code);
 
-            write!(
-                stdout,
-                "{}",
-                Goto((point.column + 1) as u16, (point.row + 1) as u16)
-            )
-            .unwrap();
+            stdout
+                .execute(MoveTo(point.column as u16 + 1, point.row as u16 + 1))
+                .unwrap();
 
             if start_point <= index && index < end_point {
-                write!(stdout, "{}{}", color::Bg(color::LightGreen), c).unwrap();
+                stdout.execute(SetBackgroundColor(Color::Green)).unwrap();
             } else {
-                write!(stdout, "{}{}", color::Bg(color::Reset), c).unwrap();
-            };
+                stdout.execute(ResetColor).unwrap();
+            }
+            write!(stdout, "{}", c).unwrap();
         });
-    write!(stdout, "{}", style::Reset).unwrap();
+    stdout.execute(ResetColor).unwrap();
 
     let point = state.get_cursor_point();
-    write!(
-        stdout,
-        "{}",
-        Goto((point.column + 1) as u16, (point.row + 1) as u16,)
-    )
-    .unwrap();
+    stdout
+        .execute(MoveTo(point.column as u16 + 1, point.row as u16 + 1))
+        .unwrap();
 }
+
+use crossterm::{
+    event::{read, Event, KeyCode},
+    terminal::{disable_raw_mode, enable_raw_mode},
+};
 
 fn handle_event(source_code: &str) {
     let mut parser = Parser::new();
@@ -73,29 +76,32 @@ fn handle_event(source_code: &str) {
         .set_language(tree_sitter_javascript::language())
         .unwrap();
     let tree = parser.parse(source_code, None).unwrap();
-    let stdin = stdin();
-    let mut stdout = stdout().into_raw_mode().unwrap();
+    let mut stdout = stdout();
+    enable_raw_mode().unwrap();
     let mut state = State::new(source_code.into(), tree.root_node());
-    render(&source_code, &state, &mut stdout);
-    let root_node = tree.root_node();
-    for c in stdin.keys() {
-        match c.unwrap() {
-            Key::Char('p') => {
-                state.select_parent();
-            }
-            Key::Char('k') => {
-                state.select_child();
-            }
-            Key::Char('s') => {
-                state.select_sibling();
-            }
-            Key::Char('l') => state.select_line(),
-            Key::Char('b') => state.select_backward(),
-            Key::Char('o') => state.change_cursor_direction(),
-            Key::Ctrl('c') => break,
+    render(&state, &mut stdout);
+    loop {
+        match read().unwrap() {
+            Event::Key(event) => match event.code {
+                KeyCode::Char('p') => {
+                    state.select_parent();
+                }
+                KeyCode::Char('k') => {
+                    state.select_child();
+                }
+                KeyCode::Char('s') => {
+                    state.select_sibling();
+                }
+                KeyCode::Char('l') => state.select_line(),
+                KeyCode::Char('b') => state.select_backward(),
+                KeyCode::Char('o') => state.change_cursor_direction(),
+                KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => break,
+                _ => {}
+            },
             _ => {}
         }
-        render(&source_code, &state, &mut stdout);
+        render(&state, &mut stdout);
         stdout.flush().unwrap();
     }
+    disable_raw_mode().unwrap();
 }
