@@ -1,5 +1,7 @@
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
+use std::ops::Range;
 use tree_sitter::{Node, Point};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(PartialEq)]
 pub struct Selection {
@@ -28,9 +30,11 @@ pub struct State<'a> {
     pub root_node: Node<'a>,
 }
 
+#[derive(Debug)]
 enum SelectionMode {
     Line,
     Node,
+    NamedToken,
     Word,
 }
 
@@ -39,6 +43,7 @@ pub enum CursorDirection {
     End,
 }
 
+#[derive(Debug, Clone, Copy)]
 enum Direction {
     Forward,
     Backward,
@@ -55,7 +60,7 @@ impl<'a> State<'a> {
         }
     }
     pub fn select_parent(&mut self) {
-        self.select_node(|node| node.parent());
+        self.select_node(|node| get_named_parent(node));
     }
 
     pub fn select_child(&mut self) {
@@ -70,13 +75,77 @@ impl<'a> State<'a> {
         self.move_by_line(Direction::Forward);
     }
 
+    pub fn select_word(&mut self) {
+        todo!()
+    }
+
     pub fn select_backward(&mut self) {
         match self.selection_mode {
             SelectionMode::Word => {
-                self.move_by_word(Direction::Backward);
+                todo!()
             }
             SelectionMode::Line => self.move_by_line(Direction::Backward),
             SelectionMode::Node => self.select_node(|node| node.prev_named_sibling()),
+            SelectionMode::NamedToken => self.move_to_named_token(Direction::Backward),
+        }
+    }
+
+    fn move_to_named_token(&mut self, direction: Direction) {
+        self.select_node(|node| Self::named_token(node, direction));
+        self.selection_mode = SelectionMode::NamedToken;
+    }
+
+    fn named_token(node: Node, direction: Direction) -> Option<Node> {
+        if let Some(node) = match direction {
+            Direction::Forward => node.next_named_sibling(),
+            Direction::Backward => node.prev_named_sibling(),
+        } {
+            Self::get_named_token(node, direction)
+        } else if let Some(node) = node.parent() {
+            Self::named_token(node, direction)
+        } else {
+            None
+        }
+    }
+
+    fn get_named_token(node: Node, direction: Direction) -> Option<Node> {
+        let mut node = node;
+        let node = match direction {
+            Direction::Forward => {
+                while let Some(child) = node.named_child(0) {
+                    node = child
+                }
+                node
+            }
+            Direction::Backward => {
+                fn goto_last_child(node: Node) -> Node {
+                    if let Some(child) =
+                        node.named_child(node.named_child_count().saturating_sub(1))
+                    {
+                        goto_last_child(child)
+                    } else {
+                        node
+                    }
+                }
+                goto_last_child(node)
+            }
+        };
+        if node.is_named() {
+            Some(node)
+        } else {
+            Self::named_token(node, Direction::Forward)
+        }
+    }
+
+    pub fn select_named_token(&mut self) {
+        match self.selection_mode {
+            SelectionMode::NamedToken => {
+                self.move_to_named_token(Direction::Forward);
+            }
+            _ => {
+                self.select_node(|node| Self::get_named_token(node, Direction::Forward));
+                self.selection_mode = SelectionMode::NamedToken;
+            }
         }
     }
 
@@ -91,11 +160,19 @@ impl<'a> State<'a> {
     where
         F: Fn(Node) -> Option<Node>,
     {
+        let cursor_pos = self.get_cursor_index();
+        let (start, end) = match self.selection_mode {
+            SelectionMode::Line | SelectionMode::Word => ((cursor_pos.0), (cursor_pos.0)),
+            SelectionMode::Node | SelectionMode::NamedToken => (
+                self.selection.start.0,
+                self.selection.end.0.saturating_sub(1),
+            ),
+        };
         let current_node = self
             .root_node
-            .named_descendant_for_byte_range(
-                self.source_code.char_to_byte(self.selection.start.0),
-                self.source_code.char_to_byte(self.selection.end.0),
+            .descendant_for_byte_range(
+                self.source_code.char_to_byte(start),
+                self.source_code.char_to_byte(end),
             )
             .unwrap_or(self.root_node);
         log::info!("current_node_name = {}", current_node.kind());
@@ -108,11 +185,14 @@ impl<'a> State<'a> {
     fn move_by_line(&mut self, direction: Direction) {
         fn get_selection(source_code: &Rope, start: CharIndex) -> Selection {
             let end = CharIndex(
-                start.0.saturating_add(
-                    source_code
-                        .line(source_code.char_to_line(start.0))
-                        .len_chars(),
-                ),
+                start
+                    .0
+                    .saturating_add(
+                        source_code
+                            .line(source_code.char_to_line(start.0))
+                            .len_chars(),
+                    )
+                    .saturating_sub(1),
             );
 
             Selection {
@@ -157,30 +237,32 @@ impl<'a> State<'a> {
         self.selection_mode = SelectionMode::Line;
     }
 
-    fn move_by_word(&mut self, direction: Direction) {
-        if matches!(self.selection_mode, SelectionMode::Word) {
-            // match direction {}
-        } else {
-            self.select_current_word()
+    pub fn get_cursor_point(&self) -> Point {
+        self.get_cursor_index().to_point(&self.source_code)
+    }
+
+    fn get_cursor_index(&self) -> CharIndex {
+        match self.cursor_direction {
+            CursorDirection::Start => self.selection.start.clone(),
+            CursorDirection::End => CharIndex(self.selection.end.0.saturating_sub(1)),
         }
     }
 
-    fn select_current_word(&mut self) {
-        self.selection = self.get_current_word_selection()
-    }
-
-    fn get_current_word_selection(&self) -> Selection {
+    pub(crate) fn select_token(&self) {
         todo!()
     }
-
-    pub fn get_cursor_point(&self) -> Point {
-        match self.cursor_direction {
-            CursorDirection::Start => &self.selection.start,
-            CursorDirection::End => &self.selection.end,
-        }
-        .to_point(&self.source_code)
-    }
 }
+
+fn get_named_parent(node: Node) -> Option<Node> {
+    node.parent().and_then(|parent| {
+        if parent.is_named() {
+            Some(parent)
+        } else {
+            get_named_parent(parent)
+        }
+    })
+}
+
 fn to_selection(node: Node, source_code: &Rope) -> Selection {
     Selection {
         start: CharIndex(source_code.byte_to_char(node.start_byte())),

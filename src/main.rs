@@ -22,6 +22,12 @@ function fibonacci(n) {
 
 const x = fibonacci(10);
 console.log(x);
+
+    const interval = setInterval(() => {
+           fetchData()
+ }, 60 * 1000)
+
+ import { test_displayRelatedProjectUnit } from './project/test-display-related-project-units'
         ";
     handle_event(source_code)
 }
@@ -92,10 +98,22 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('s') => {
                     state.select_sibling();
                 }
+                KeyCode::Char('w') => {
+                    state.select_word();
+                }
+                KeyCode::Char('c') => {
+                    todo!("select all children");
+                    todo!("with this we can do select first and last children")
+                }
+                KeyCode::Char('t') => state.select_token(),
+                KeyCode::Char('n') => state.select_named_token(),
                 KeyCode::Char('l') => state.select_line(),
                 KeyCode::Char('b') => state.select_backward(),
                 KeyCode::Char('o') => state.change_cursor_direction(),
-                KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => break,
+                KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
+                    stdout.execute(Clear(ClearType::All)).unwrap();
+                    break;
+                }
                 _ => {}
             },
             _ => {}
