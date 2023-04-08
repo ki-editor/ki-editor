@@ -32,10 +32,10 @@ pub struct State {
 #[derive(Debug)]
 enum SelectionMode {
     Line,
-    Node,
-    NamedToken,
-    Token,
     Word,
+    Node { node_id: usize },
+    NamedToken { node_id: usize },
+    Token { node_id: usize },
 }
 
 pub enum CursorDirection {
@@ -68,7 +68,7 @@ impl State {
     }
 
     pub fn select_sibling(&mut self) {
-        self.select_node(|node| node.next_sibling());
+        self.select_node(|node| node.next_named_sibling());
     }
 
     pub fn select_line(&mut self) {
@@ -85,9 +85,9 @@ impl State {
                 todo!()
             }
             SelectionMode::Line => self.move_by_line(Direction::Backward),
-            SelectionMode::Node => self.select_node(|node| node.prev_named_sibling()),
-            SelectionMode::NamedToken => self.move_to_prev_token(true),
-            SelectionMode::Token => self.move_to_prev_token(false),
+            SelectionMode::Node { .. } => self.select_node(|node| node.prev_named_sibling()),
+            SelectionMode::NamedToken { .. } => self.move_to_prev_token(true),
+            SelectionMode::Token { .. } => self.move_to_prev_token(false),
         }
     }
 
@@ -101,8 +101,8 @@ impl State {
 
     fn select_token_(&mut self, is_named: bool) {
         let position = match self.selection_mode {
-            SelectionMode::NamedToken if is_named => self.selection.end.clone(),
-            SelectionMode::Token if !is_named => self.selection.end.clone(),
+            SelectionMode::NamedToken { .. } if is_named => self.selection.end.clone(),
+            SelectionMode::Token { .. } if !is_named => self.selection.end.clone(),
             _ => self.get_cursor_char_index(),
         };
         self.move_to_next_token(position, is_named)
@@ -116,9 +116,9 @@ impl State {
             {
                 self.selection = to_selection(node, &self.source_code);
                 self.selection_mode = if is_named {
-                    SelectionMode::NamedToken
+                    SelectionMode::NamedToken { node_id: node.id() }
                 } else {
-                    SelectionMode::Token
+                    SelectionMode::Token { node_id: node.id() }
                 };
                 return;
             }
@@ -151,26 +151,26 @@ impl State {
     where
         F: Fn(Node) -> Option<Node>,
     {
-        let cursor_pos = self.get_cursor_char_index();
-        let (start, end) = match self.selection_mode {
-            SelectionMode::Line | SelectionMode::Word => ((cursor_pos.0), (cursor_pos.0)),
-            SelectionMode::Node | SelectionMode::NamedToken | SelectionMode::Token => (
-                self.selection.start.0,
-                self.selection.end.0.saturating_sub(1),
-            ),
-        };
-        let current_node = self
-            .tree
-            .root_node()
-            .descendant_for_byte_range(
-                self.source_code.char_to_byte(start),
-                self.source_code.char_to_byte(end),
-            )
-            .unwrap_or(self.tree.root_node());
+        let current_node = match self.selection_mode {
+            SelectionMode::Line | SelectionMode::Word => {
+                let cursor_pos = self.get_cursor_char_index();
+                self.tree.root_node().descendant_for_byte_range(
+                    self.source_code.char_to_byte(cursor_pos.0),
+                    self.source_code.char_to_byte(cursor_pos.0),
+                )
+            }
+            SelectionMode::Node { node_id }
+            | SelectionMode::NamedToken { node_id }
+            | SelectionMode::Token { node_id } => {
+                traverse(self.tree.walk(), Order::Pre).find(|node| node.id() == node_id)
+            }
+        }
+        .unwrap_or(self.tree.root_node());
+
         log::info!("current_node_name = {}", current_node.kind());
         if let Some(node) = f(current_node) {
             self.selection = to_selection(node, &self.source_code);
-            self.selection_mode = SelectionMode::Node;
+            self.selection_mode = SelectionMode::Node { node_id: node.id() };
         }
     }
 

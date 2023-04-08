@@ -44,7 +44,7 @@ use crossterm::{
     ExecutableCommand,
 };
 
-fn render(state: &State, stdout: &mut impl Write) {
+fn render<'a>(state: &State, stdout: &mut impl Write) {
     stdout.execute(Clear(ClearType::All)).unwrap();
 
     let selection = &state.selection;
