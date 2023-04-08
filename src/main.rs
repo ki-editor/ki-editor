@@ -16,9 +16,14 @@ function fibonacci(n) {
     } else if (n === 1) {
         return 1;
     } else {
-        return fibonacci(n - 1) + fibonacci(n - 2);
+        return fibonacci(n - 1) + fibonacci(n - 2, a, break);
     }
 }
+
+const x = [{a: 1, b: 2}, {c: 1}, {d: 1}]
+
+/* Hello world
+ This is a comment */
 
 const x = fibonacci(10);
 console.log(x);
@@ -84,12 +89,12 @@ fn handle_event(source_code: &str) {
     let tree = parser.parse(source_code, None).unwrap();
     let mut stdout = stdout();
     enable_raw_mode().unwrap();
-    let mut state = State::new(source_code.into(), tree.root_node());
+    let mut state = State::new(source_code.into(), tree);
     render(&state, &mut stdout);
     loop {
         match read().unwrap() {
             Event::Key(event) => match event.code {
-                KeyCode::Char('p') => {
+                KeyCode::Char('a') => {
                     state.select_parent();
                 }
                 KeyCode::Char('k') => {
