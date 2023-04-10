@@ -1,6 +1,7 @@
 mod engine;
 
-use crossterm::event::KeyModifiers;
+use crossterm::queue;
+use crossterm::{event::KeyModifiers, style::Print};
 use log::LevelFilter;
 
 use engine::{CharIndex, State};
@@ -45,35 +46,37 @@ use crossterm::{
 };
 
 fn render<'a>(state: &State, stdout: &mut impl Write) {
-    stdout.execute(Clear(ClearType::All)).unwrap();
+    fn render<'a>(state: &State, stdout: &mut impl Write) -> Result<(), anyhow::Error> {
+        queue!(stdout, Clear(ClearType::All))?;
 
-    let selection = &state.selection;
-    let start_point = selection.start.0;
-    let end_point = selection.end.0;
-    state
-        .source_code
-        .chars()
-        .enumerate()
-        .for_each(|(index, c)| {
+        let selection = &state.selection;
+        let start_point = selection.start.0;
+        let end_point = selection.end.0;
+        for (index, c) in state.source_code.chars().enumerate() {
             let point = CharIndex(index).to_point(&state.source_code);
 
-            stdout
-                .execute(MoveTo(point.column as u16 + 1, point.row as u16 + 1))
-                .unwrap();
+            queue!(
+                stdout,
+                MoveTo(point.column as u16 + 1, point.row as u16 + 1)
+            )?;
 
             if start_point <= index && index < end_point {
-                stdout.execute(SetBackgroundColor(Color::Green)).unwrap();
+                queue!(stdout, SetBackgroundColor(Color::Green))?;
             } else {
-                stdout.execute(ResetColor).unwrap();
+                queue!(stdout, SetBackgroundColor(Color::Reset))?;
             }
-            write!(stdout, "{}", c).unwrap();
-        });
-    stdout.execute(ResetColor).unwrap();
+            queue!(stdout, Print(c))?;
+        }
+        queue!(stdout, ResetColor)?;
 
-    let point = state.get_cursor_point();
-    stdout
-        .execute(MoveTo(point.column as u16 + 1, point.row as u16 + 1))
-        .unwrap();
+        let point = state.get_cursor_point();
+        queue!(
+            stdout,
+            MoveTo(point.column as u16 + 1, point.row as u16 + 1)
+        )?;
+        Ok(())
+    }
+    render(state, stdout).unwrap();
 }
 
 use crossterm::{
@@ -83,9 +86,7 @@ use crossterm::{
 
 fn handle_event(source_code: &str) {
     let mut parser = Parser::new();
-    parser
-        .set_language(tree_sitter_javascript::language())
-        .unwrap();
+    parser.set_language(tree_sitter_rust::language()).unwrap();
     let tree = parser.parse(source_code, None).unwrap();
     let mut stdout = stdout();
     enable_raw_mode().unwrap();
@@ -106,10 +107,6 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('w') => {
                     state.select_word();
                 }
-                KeyCode::Char('c') => {
-                    todo!("select all children");
-                    todo!("with this we can do select first and last children")
-                }
                 KeyCode::Char('t') => state.select_token(),
                 KeyCode::Char('n') => state.select_named_token(),
                 KeyCode::Char('l') => state.select_line(),
@@ -118,6 +115,10 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                     stdout.execute(Clear(ClearType::All)).unwrap();
                     break;
+                }
+                KeyCode::Char('c') => {
+                    todo!("select all children");
+                    todo!("with this we can do select first and last children")
                 }
                 _ => {}
             },
@@ -128,3 +129,13 @@ fn handle_event(source_code: &str) {
     }
     disable_raw_mode().unwrap();
 }
+
+// fn test() {
+//     let mut child = Command::new("/bin/bash")
+//         .arg("-i")
+//         .spawn()
+//         .expect("Failed to execute command");
+
+//     let status = child.wait().expect("Failed to wait on child");
+//     println!("Child exited with status: {}", status);
+// }
