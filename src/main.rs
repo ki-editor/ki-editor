@@ -1,5 +1,6 @@
 mod engine;
 
+use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
 use crossterm::{event::KeyModifiers, style::Print};
 use log::LevelFilter;
@@ -17,15 +18,19 @@ function fibonacci(n) {
     } else if (n === 1) {
         return 1;
     } else {
-        return fibonacci(n - 1) + fibonacci(n - 2, a, break);
+        return fibonacci(n - 1) + fibonacci(n - 2, a, lol);
     }
 }
+
+const x = <div height='24' width='24'>hello world</div>
+
+f(yo, waw)
 
 const x = [{a: 1, b: 2}, {c: 1}, {d: 1}]
 
 /* Hello world
  This is a comment */
-
+const y = `who lives in a pineapple under the sea? ${answer + `${answer + 2} hello`}`
 const x = fibonacci(10);
 console.log(x);
 
@@ -34,6 +39,7 @@ console.log(x);
  }, 60 * 1000)
 
  import { test_displayRelatedProjectUnit } from './project/test-display-related-project-units'
+
         ";
     handle_event(source_code)
 }
@@ -52,6 +58,7 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
         let selection = &state.selection;
         let start_point = selection.start.0;
         let end_point = selection.end.0;
+
         for (index, c) in state.source_code.chars().enumerate() {
             let point = CharIndex(index).to_point(&state.source_code);
 
@@ -86,15 +93,20 @@ use crossterm::{
 
 fn handle_event(source_code: &str) {
     let mut parser = Parser::new();
-    parser.set_language(tree_sitter_rust::language()).unwrap();
+    parser
+        .set_language(tree_sitter_javascript::language())
+        .unwrap();
     let tree = parser.parse(source_code, None).unwrap();
     let mut stdout = stdout();
     enable_raw_mode().unwrap();
+
+    stdout.execute(SetCursorStyle::BlinkingBar).unwrap();
     let mut state = State::new(source_code.into(), tree);
     render(&state, &mut stdout);
     loop {
         match read().unwrap() {
             Event::Key(event) => match event.code {
+                // Objects
                 KeyCode::Char('a') => {
                     state.select_parent();
                 }
@@ -112,15 +124,20 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('l') => state.select_line(),
                 KeyCode::Char('b') => state.select_backward(),
                 KeyCode::Char('o') => state.change_cursor_direction(),
+                // Actions
+                KeyCode::Char('d') => state.delete_current_selection(),
                 KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                     stdout.execute(Clear(ClearType::All)).unwrap();
                     break;
                 }
-                KeyCode::Char('c') => {
-                    todo!("select all children");
-                    todo!("with this we can do select first and last children")
+                KeyCode::Char('c') => state.select_charater(),
+
+                _ => {
+                    // todo!("Back to previous selection");
+                    // todo!("select all children");
+                    // todo!("with this we can do select first and last children")
+                    // todo!("Search by node kind")
                 }
-                _ => {}
             },
             _ => {}
         }
@@ -129,13 +146,3 @@ fn handle_event(source_code: &str) {
     }
     disable_raw_mode().unwrap();
 }
-
-// fn test() {
-//     let mut child = Command::new("/bin/bash")
-//         .arg("-i")
-//         .spawn()
-//         .expect("Failed to execute command");
-
-//     let status = child.wait().expect("Failed to wait on child");
-//     println!("Child exited with status: {}", status);
-// }
