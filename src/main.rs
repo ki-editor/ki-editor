@@ -126,6 +126,9 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('o') => state.change_cursor_direction(),
                 // Actions
                 KeyCode::Char('d') => state.delete_current_selection(),
+                KeyCode::Char('p') => state.paste(),
+                KeyCode::Char('y') => state.yank(),
+                KeyCode::Char('r') => state.replace(),
                 KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                     stdout.execute(Clear(ClearType::All)).unwrap();
                     break;

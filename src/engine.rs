@@ -1,7 +1,7 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Range, Sub};
 
 use ropey::Rope;
-use tree_sitter::{Node, Point, Tree};
+use tree_sitter::{InputEdit, Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 #[derive(PartialEq, Clone, Debug, Copy)]
@@ -70,6 +70,7 @@ pub struct State {
     pub selection_mode: SelectionMode,
     pub cursor_direction: CursorDirection,
     pub tree: Tree,
+    yanked_text: Option<Rope>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -112,6 +113,7 @@ impl State {
             selection_mode: SelectionMode::Line,
             cursor_direction: CursorDirection::Start,
             tree,
+            yanked_text: None,
         }
     }
     pub fn select_parent(&mut self) {
@@ -151,33 +153,98 @@ impl State {
     }
 
     fn select(&mut self, selection_mode: SelectionMode) {
-        if self.selection_mode.similar_to(&selection_mode) {
-            self.selection = self.get_selection(&self.selection_mode, Direction::Forward);
-        } else {
-            self.selection_mode = selection_mode;
-            self.selection = self.get_selection(&self.selection_mode, Direction::Current);
+        self.selection = self.get_selection(
+            &selection_mode,
+            if self.selection_mode.similar_to(&selection_mode) {
+                Direction::Forward
+            } else {
+                Direction::Current
+            },
+        );
+        self.selection_mode = selection_mode;
+    }
+
+    fn get_input_edit(
+        &self,
+        start_char_index: CharIndex,
+        old_end_char_index: CharIndex,
+        new_end_char_index: CharIndex,
+    ) -> InputEdit {
+        InputEdit {
+            start_byte: self.source_code.char_to_byte(start_char_index.0),
+            old_end_byte: self.source_code.char_to_byte(old_end_char_index.0),
+            new_end_byte: self.source_code.char_to_byte(new_end_char_index.0),
+            start_position: start_char_index.to_point(&self.source_code),
+            old_end_position: old_end_char_index.to_point(&self.source_code),
+            new_end_position: new_end_char_index.to_point(&self.source_code),
         }
     }
 
     pub fn delete_current_selection(&mut self) {
-        let current_selection = self.selection.clone();
-        self.tree.edit(&tree_sitter::InputEdit {
-            start_byte: self.source_code.char_to_byte(current_selection.start.0),
-            old_end_byte: self.source_code.char_to_byte(current_selection.end.0),
-            new_end_byte: self.source_code.char_to_byte(current_selection.start.0),
-            start_position: current_selection.start.to_point(&self.source_code),
-            old_end_position: current_selection.end.to_point(&self.source_code),
-            new_end_position: current_selection.start.to_point(&self.source_code),
-        });
+        self.replace_with(self.selection.start.0..self.selection.end.0, Rope::new());
+    }
+
+    pub fn yank(&mut self) {
+        self.yanked_text = Some(
+            self.source_code
+                .slice(self.selection.start.0..self.selection.end.0)
+                .into(),
+        );
+    }
+
+    pub fn paste(&mut self) {
+        if let Some(yanked_text) = &self.yanked_text {
+            let cursor_position = self.get_cursor_char_index();
+
+            self.tree.edit(&self.get_input_edit(
+                cursor_position,
+                cursor_position,
+                cursor_position + yanked_text.len_chars(),
+            ));
+
+            let mut parser = tree_sitter::Parser::new();
+            parser.set_language(self.tree.language()).unwrap();
+            self.source_code
+                .insert(cursor_position.0, yanked_text.to_string().as_str());
+            self.tree = parser
+                .parse(&self.source_code.to_string(), Some(&self.tree))
+                .unwrap();
+
+            if let CursorDirection::Start = self.cursor_direction {
+                self.selection = self.selection + yanked_text.len_chars()
+            }
+        }
+    }
+
+    pub fn replace(&mut self) {
+        let yanked_text = self.yanked_text.take().unwrap_or_else(|| Rope::new());
+        self.replace_with(self.selection.start.0..self.selection.end.0, yanked_text);
+    }
+
+    fn replace_with(&mut self, range: Range<usize>, replacement: Rope) {
+        self.tree.edit(&self.get_input_edit(
+            CharIndex(range.start),
+            CharIndex(range.end),
+            CharIndex(range.start) + replacement.len_chars(),
+        ));
+        log::info!("range is empty {}", range.is_empty());
+        if !range.is_empty() {
+            self.yanked_text = Some(self.source_code.slice(range.clone()).into());
+        }
+        self.source_code.remove(range.clone());
+        self.source_code
+            .insert(range.start, replacement.to_string().as_str());
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(self.tree.language()).unwrap();
-        self.source_code
-            .remove(self.selection.start.0..self.selection.end.0);
         self.tree = parser
             .parse(&self.source_code.to_string(), Some(&self.tree))
             .unwrap();
-
-        self.selection = self.get_selection(&SelectionMode::Character, Direction::Current);
+        self.selection_mode = SelectionMode::Character;
+        self.selection = Selection {
+            start: CharIndex(range.start),
+            end: CharIndex(range.start + replacement.len_chars()),
+            node_id: None,
+        };
     }
 
     fn get_next_token(&self, position: &CharIndex, is_named: bool) -> Option<Node> {
