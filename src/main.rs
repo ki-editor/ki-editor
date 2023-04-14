@@ -11,6 +11,48 @@ use tree_sitter::Parser;
 
 fn main() {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info).unwrap();
+    let rust_source_code = r#"
+fn handle_event(source_code: &str) {
+    let mut parser = Parser::new();
+    parser
+        .set_language(tree_sitter_javascript::language())
+        .unwrap();
+    let tree = parser.parse(source_code, None).unwrap();
+    let mut stdout = stdout();
+    enable_raw_mode().unwrap();
+
+    stdout.execute(SetCursorStyle::BlinkingBar).unwrap();
+    let mut state = State::new(source_code.into(), tree);
+    render(&state, &mut stdout);
+    loop {
+        match read().unwrap() {
+            Event::Key(event) => match event.code {
+                // Objects
+                KeyCode::Char('a') => {
+                    state.select_parent();
+                }
+                KeyCode::Char('k') => {
+                    state.select_child();
+                }
+                KeyCode::Char('s') => {
+                    state.select_sibling();
+                }
+                KeyCode::Char('w') => {
+                    state.select_word();
+                }
+                KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
+                    stdout.execute(Clear(ClearType::All)).unwrap();
+                    break;
+                }
+            },
+            _ => {}
+        }
+        render(&state, &mut stdout);
+        stdout.flush().unwrap();
+    }
+    disable_raw_mode().unwrap();
+}
+        "#;
     let source_code = "
 function fibonacci(n) {
     if (n <= 0) {
@@ -41,7 +83,7 @@ console.log(x);
  import { test_displayRelatedProjectUnit } from './project/test-display-related-project-units'
 
         ";
-    handle_event(source_code)
+    handle_event(rust_source_code)
 }
 
 use crossterm::{
@@ -66,9 +108,23 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
                 stdout,
                 MoveTo(point.column as u16 + 1, point.row as u16 + 1)
             )?;
-
-            if start_point <= index && index < end_point {
-                queue!(stdout, SetBackgroundColor(Color::Green))?;
+            if let Mode::Extend { extended_selection } = state.mode {
+                // log::info!("extended_selection: {:?}", extended_selection);
+                let x_start_point = extended_selection.start.0;
+                let x_end_point = extended_selection.end.0;
+                if start_point <= index
+                    && index < end_point
+                    && x_start_point <= index
+                    && index < x_end_point
+                {
+                    queue!(stdout, SetBackgroundColor(Color::Green))?;
+                } else if x_start_point <= index && index < x_end_point {
+                    queue!(stdout, SetBackgroundColor(Color::Cyan))?;
+                } else {
+                    queue!(stdout, SetBackgroundColor(Color::Reset))?;
+                }
+            } else if start_point <= index && index < end_point {
+                queue!(stdout, SetBackgroundColor(Color::Yellow))?;
             } else {
                 queue!(stdout, SetBackgroundColor(Color::Reset))?;
             }
@@ -91,11 +147,11 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
+use crate::engine::Mode;
+
 fn handle_event(source_code: &str) {
     let mut parser = Parser::new();
-    parser
-        .set_language(tree_sitter_javascript::language())
-        .unwrap();
+    parser.set_language(tree_sitter_rust::language()).unwrap();
     let tree = parser.parse(source_code, None).unwrap();
     let mut stdout = stdout();
     enable_raw_mode().unwrap();
@@ -107,38 +163,28 @@ fn handle_event(source_code: &str) {
         match read().unwrap() {
             Event::Key(event) => match event.code {
                 // Objects
-                KeyCode::Char('a') => {
-                    state.select_parent();
-                }
-                KeyCode::Char('k') => {
-                    state.select_child();
-                }
-                KeyCode::Char('s') => {
-                    state.select_sibling();
-                }
-                KeyCode::Char('w') => {
-                    state.select_word();
-                }
-                KeyCode::Char('t') => state.select_token(),
-                KeyCode::Char('n') => state.select_named_token(),
-                KeyCode::Char('l') => state.select_line(),
+                KeyCode::Char('a') => state.select_ancestor(),
                 KeyCode::Char('b') => state.select_backward(),
-                KeyCode::Char('o') => state.change_cursor_direction(),
-                // Actions
-                KeyCode::Char('d') => state.delete_current_selection(),
-                KeyCode::Char('p') => state.paste(),
-                KeyCode::Char('y') => state.yank(),
-                KeyCode::Char('r') => state.replace(),
                 KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                     stdout.execute(Clear(ClearType::All)).unwrap();
                     break;
                 }
                 KeyCode::Char('c') => state.select_charater(),
-
+                KeyCode::Char('k') => state.select_kids(),
+                KeyCode::Char('l') => state.select_line(),
+                KeyCode::Char('n') => state.select_node_line(),
+                KeyCode::Char('o') => state.change_cursor_direction(),
+                KeyCode::Char('s') => state.select_sibling(),
+                KeyCode::Char('t') => state.select_token(),
+                KeyCode::Char('w') => state.select_word(),
+                // Actions
+                KeyCode::Char('d') => state.delete_current_selection(),
+                KeyCode::Char('p') => state.paste(),
+                KeyCode::Char('y') => state.yank(),
+                KeyCode::Char('r') => state.replace(),
+                KeyCode::Char('x') => state.toggle_extend_mode(),
                 _ => {
                     // todo!("Back to previous selection");
-                    // todo!("select all children");
-                    // todo!("with this we can do select first and last children")
                     // todo!("Search by node kind")
                 }
             },
