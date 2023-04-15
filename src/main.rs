@@ -28,15 +28,6 @@ fn handle_event(source_code: &str) {
         match read().unwrap() {
             Event::Key(event) => match event.code {
                 // Objects
-                KeyCode::Char('a') => {
-                    state.select_parent();
-                }
-                KeyCode::Char('k') => {
-                    state.select_child();
-                }
-                KeyCode::Char('s') => {
-                    state.select_sibling();
-                }
                 KeyCode::Char('w') => {
                     state.select_word();
                 }
@@ -172,7 +163,7 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('c') => state.select_charater(),
                 KeyCode::Char('k') => state.select_kids(),
                 KeyCode::Char('l') => state.select_line(),
-                KeyCode::Char('n') => state.select_node_line(),
+                KeyCode::Char('n') => state.select_named_node(),
                 KeyCode::Char('o') => state.change_cursor_direction(),
                 KeyCode::Char('s') => state.select_sibling(),
                 KeyCode::Char('t') => state.select_token(),
@@ -184,6 +175,7 @@ fn handle_event(source_code: &str) {
                 KeyCode::Char('r') => state.replace(),
                 KeyCode::Char('x') => state.toggle_extend_mode(),
                 _ => {
+                    log::info!("event: {:?}", event);
                     // todo!("Back to previous selection");
                     // todo!("Search by node kind")
                 }

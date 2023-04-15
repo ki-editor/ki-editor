@@ -84,7 +84,7 @@ pub struct State {
 #[derive(Debug, PartialEq, Eq)]
 pub enum SelectionMode {
     Line,
-    NodeLine,
+    NamedNode,
     Character,
     Word,
     Node,
@@ -160,8 +160,8 @@ impl State {
         self.select(SelectionMode::Line);
     }
 
-    pub fn select_node_line(&mut self) {
-        self.select(SelectionMode::NodeLine)
+    pub fn select_named_node(&mut self) {
+        self.select(SelectionMode::NamedNode)
     }
 
     pub fn select_word(&mut self) {
@@ -386,21 +386,21 @@ impl State {
 
     fn get_selection(&self, mode: &SelectionMode, direction: Direction) -> Selection {
         match mode {
-            SelectionMode::NodeLine => {
-                let cursor_line = self.get_cursor_point().row;
+            SelectionMode::NamedNode => {
+                let cursor_byte_index = self
+                    .source_code
+                    .char_to_byte(self.get_cursor_char_index().0);
                 return match direction {
-                    Direction::Forward => traverse(self.tree.root_node().walk(), Order::Pre)
-                        .find(|node| node.start_position().row > cursor_line),
-                    Direction::Current => traverse(self.tree.root_node().walk(), Order::Pre)
-                        .find(|node| node.start_position().row == cursor_line),
+                    Direction::Forward | Direction::Current => {
+                        traverse(self.tree.root_node().walk(), Order::Pre)
+                            .find(|node| node.start_byte() > cursor_byte_index && node.is_named())
+                    }
                     Direction::Backward => ReverseTreeCursor::new(self.tree.root_node())
                         .tuple_windows()
                         .find(|(current, next)| {
-                            let line = match self.cursor_direction {
-                                CursorDirection::Start => current.start_position().row,
-                                CursorDirection::End => current.end_position().row,
-                            };
-                            next.start_position().row < line && line < cursor_line
+                            next.start_byte() < current.start_byte()
+                                && current.start_byte() < cursor_byte_index
+                                && current.is_named()
                         })
                         .map(|(current, _)| current),
                 }
@@ -539,7 +539,6 @@ impl<'a> ReverseTreeCursor<'a> {
 fn go_to_last_descendant(node: Node) -> Node {
     let mut node = node;
     loop {
-        log::trace!("node: {:?}", node);
         if let Some(sibling) = node.next_sibling() {
             node = sibling
         } else if let Some(child) = node.child(node.child_count().saturating_sub(1)) {
