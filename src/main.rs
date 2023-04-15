@@ -86,6 +86,14 @@ use crossterm::{
 
 fn render<'a>(state: &State, stdout: &mut impl Write) {
     fn render<'a>(state: &State, stdout: &mut impl Write) -> Result<(), anyhow::Error> {
+        match state.mode {
+            Mode::Insert => {
+                queue!(stdout, SetCursorStyle::BlinkingBar)?;
+            }
+            _ => {
+                queue!(stdout, SetCursorStyle::BlinkingBlock)?;
+            }
+        }
         queue!(stdout, Clear(ClearType::All))?;
 
         let selection = &state.selection;
@@ -147,40 +155,13 @@ fn handle_event(source_code: &str) {
     let mut stdout = stdout();
     enable_raw_mode().unwrap();
 
-    stdout.execute(SetCursorStyle::BlinkingBar).unwrap();
     let mut state = State::new(source_code.into(), tree);
     render(&state, &mut stdout);
     loop {
-        match read().unwrap() {
-            Event::Key(event) => match event.code {
-                // Objects
-                KeyCode::Char('a') => state.select_ancestor(),
-                KeyCode::Char('b') => state.select_backward(),
-                KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
-                    stdout.execute(Clear(ClearType::All)).unwrap();
-                    break;
-                }
-                KeyCode::Char('c') => state.select_charater(),
-                KeyCode::Char('k') => state.select_kids(),
-                KeyCode::Char('l') => state.select_line(),
-                KeyCode::Char('n') => state.select_named_node(),
-                KeyCode::Char('o') => state.change_cursor_direction(),
-                KeyCode::Char('s') => state.select_sibling(),
-                KeyCode::Char('t') => state.select_token(),
-                KeyCode::Char('w') => state.select_word(),
-                // Actions
-                KeyCode::Char('d') => state.delete_current_selection(),
-                KeyCode::Char('p') => state.paste(),
-                KeyCode::Char('y') => state.yank(),
-                KeyCode::Char('r') => state.replace(),
-                KeyCode::Char('x') => state.toggle_extend_mode(),
-                _ => {
-                    log::info!("event: {:?}", event);
-                    // todo!("Back to previous selection");
-                    // todo!("Search by node kind")
-                }
-            },
-            _ => {}
+        state.handle_event(read().unwrap());
+        if state.quit {
+            stdout.execute(Clear(ClearType::All)).unwrap();
+            break;
         }
         render(&state, &mut stdout);
         stdout.flush().unwrap();

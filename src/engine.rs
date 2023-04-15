@@ -1,5 +1,6 @@
 use std::ops::{Add, Range, Sub};
 
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use itertools::Itertools;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Point, Tree};
@@ -78,6 +79,7 @@ pub struct State {
     pub selection_mode: SelectionMode,
     pub cursor_direction: CursorDirection,
     pub tree: Tree,
+    pub quit: bool,
     yanked_text: Option<Rope>,
 }
 
@@ -124,6 +126,7 @@ impl State {
             cursor_direction: CursorDirection::Start,
             tree,
             yanked_text: None,
+            quit: false,
         }
     }
     pub fn select_ancestor(&mut self) {
@@ -302,15 +305,27 @@ impl State {
             .parse(&self.source_code.to_string(), Some(&self.tree))
             .unwrap();
 
-        self.mode = Mode::Normal;
-        self.selection_mode = SelectionMode::Character;
+        match self.mode {
+            Mode::Insert => {
+                let char_index = CharIndex(range.start + replacement.len_chars());
+                self.selection = Selection {
+                    start: char_index,
+                    end: char_index,
+                    node_id: None,
+                }
+            }
+            _ => {
+                self.mode = Mode::Normal;
+                self.selection_mode = SelectionMode::Character;
 
-        // TODO: what if we are in extend mode?
-        self.selection = Selection {
-            start: CharIndex(range.start),
-            end: CharIndex(range.start + replacement.len_chars()),
-            node_id: None,
-        };
+                // TODO: what if we are in extend mode?
+                self.selection = Selection {
+                    start: CharIndex(range.start),
+                    end: CharIndex(range.start + replacement.len_chars().max(1)),
+                    node_id: None,
+                };
+            }
+        }
     }
 
     fn get_next_token(&self, position: &CharIndex, is_named: bool) -> Option<Node> {
@@ -512,6 +527,99 @@ impl State {
             _ => Mode::Extend {
                 extended_selection: self.selection,
             },
+        };
+    }
+
+    pub fn handle_event(&mut self, event: Event) {
+        match event {
+            Event::Key(event) => self.handle_key_event(event),
+            _ => {
+                log::info!("{:?}", event)
+            }
+        }
+    }
+
+    fn handle_key_event(&mut self, key_event: KeyEvent) {
+        match self.mode {
+            Mode::Normal => self.handle_normal_mode(key_event),
+            Mode::Insert => self.handle_insert_mode(key_event),
+            Mode::Extend { extended_selection } => todo!(),
+        }
+    }
+
+    fn handle_insert_mode(&mut self, event: KeyEvent) {
+        let Selection { start, end, .. } = self.selection;
+        match event.code {
+            KeyCode::Esc => self.enter_normal_mode(),
+            KeyCode::Backspace => self.replace_with(start.0.saturating_sub(1)..end.0, "".into()),
+            KeyCode::Enter => self.replace_with(start.0..end.0, "\n".into()),
+            KeyCode::Tab => self.replace_with(start.0..end.0, "\t".into()),
+            KeyCode::Char(c) => self.replace_with(start.0..end.0, c.to_string().into()),
+            KeyCode::Left => {
+                self.selection = Selection {
+                    start: start - 1,
+                    end: end - 1,
+                    node_id: None,
+                };
+            }
+            KeyCode::Right => {
+                self.selection = Selection {
+                    start: start + 1,
+                    end: end + 1,
+                    node_id: None,
+                };
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_normal_mode(&mut self, event: KeyEvent) {
+        match event.code {
+            // Objects
+            KeyCode::Char('a') => self.select_ancestor(),
+            KeyCode::Char('b') => self.select_backward(),
+            KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
+                self.quit = true;
+            }
+            KeyCode::Char('c') => self.select_charater(),
+            KeyCode::Char('i') => self.enter_insert_mode(),
+            KeyCode::Char('k') => self.select_kids(),
+            KeyCode::Char('l') => self.select_line(),
+            KeyCode::Char('n') => self.select_named_node(),
+            KeyCode::Char('o') => self.change_cursor_direction(),
+            KeyCode::Char('s') => self.select_sibling(),
+            KeyCode::Char('t') => self.select_token(),
+            KeyCode::Char('w') => self.select_word(),
+            // Actions
+            KeyCode::Char('d') => self.delete_current_selection(),
+            KeyCode::Char('p') => self.paste(),
+            KeyCode::Char('y') => self.yank(),
+            KeyCode::Char('r') => self.replace(),
+            KeyCode::Char('x') => self.toggle_extend_mode(),
+            _ => {
+                log::info!("event: {:?}", event);
+                // todo!("Back to previous selection");
+                // todo!("Search by node kind")
+            }
+        }
+    }
+
+    fn enter_insert_mode(&mut self) {
+        self.mode = Mode::Insert;
+        let cursor_char_index = self.get_cursor_char_index();
+        self.selection = Selection {
+            start: cursor_char_index,
+            end: cursor_char_index,
+            node_id: None,
+        };
+    }
+
+    fn enter_normal_mode(&mut self) {
+        self.mode = Mode::Normal;
+        self.selection = Selection {
+            start: self.selection.start,
+            end: self.selection.start + 1,
+            node_id: None,
         };
     }
 }
