@@ -81,25 +81,30 @@ pub struct State {
     pub tree: Tree,
     pub quit: bool,
     yanked_text: Option<Rope>,
+    selection_history: Vec<Selection>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum SelectionMode {
     Line,
-    NamedNode,
-    Character,
     Word,
+    Character,
+    Custom,
+
     Node,
-    NamedToken,
+    NamedNode,
     Token,
 }
 impl SelectionMode {
     fn similar_to(&self, other: &SelectionMode) -> bool {
+        self.is_node() == other.is_node()
+    }
+
+    fn is_node(&self) -> bool {
         use SelectionMode::*;
-        match (self, other) {
-            (NamedToken, Token) => true,
-            (Token, NamedToken) => true,
-            (a, b) => a == b,
+        match self {
+            Node | NamedNode => true,
+            _ => false,
         }
     }
 }
@@ -127,13 +132,29 @@ impl State {
             tree,
             yanked_text: None,
             quit: false,
+            selection_history: Vec::with_capacity(128),
         }
     }
-    pub fn select_ancestor(&mut self) {
+    fn select_ancestor(&mut self) {
         self.select_node(|node| node.parent());
     }
 
-    pub fn select_kids(&mut self) {
+    fn select_ancestor_linewise(&mut self) {
+        self.select_node(|node| {
+            let current_line = node.start_position().row;
+            let cursor = ParentTreeCursor::new(node);
+            cursor
+                .tuple_windows()
+                .find(|(current_parent, next_parent)| {
+                    (next_parent.parent().is_none()
+                        || next_parent.start_position().row < current_parent.start_position().row)
+                        && current_parent.start_position().row < current_line
+                })
+                .map(|(current_parent, _)| current_parent)
+        });
+    }
+
+    fn select_kids(&mut self) {
         if let Some(node) = self.get_nearest_node_under_cursor() {
             if let Some(parent) = node.parent() {
                 let second_child = parent.child(1);
@@ -148,6 +169,7 @@ impl State {
                                 node_id: None,
                             },
                         );
+                        self.selection_mode = SelectionMode::Custom;
                     }
                     _ => {}
                 }
@@ -155,43 +177,52 @@ impl State {
         }
     }
 
-    pub fn select_sibling(&mut self) {
-        self.select_node(|node| node.next_sibling());
+    fn select_sibling(&mut self, direction: Direction) {
+        match direction {
+            Direction::Forward => self.select_node(|node| node.next_sibling()),
+            Direction::Backward => self.select_node(|node| node.prev_sibling()),
+            Direction::Current => {}
+        }
     }
 
-    pub fn select_line(&mut self) {
-        self.select(SelectionMode::Line);
+    fn select_line(&mut self, direction: Direction) {
+        self.select(SelectionMode::Line, direction);
     }
 
-    pub fn select_named_node(&mut self) {
-        self.select(SelectionMode::NamedNode)
+    fn select_named_node(&mut self, direction: Direction) {
+        self.select(SelectionMode::NamedNode, direction);
     }
 
-    pub fn select_word(&mut self) {
+    fn select_word(&mut self) {
         todo!()
     }
 
-    pub fn select_charater(&mut self) {
-        self.select(SelectionMode::Character);
+    fn select_charater(&mut self, direction: Direction) {
+        self.select(SelectionMode::Character, direction);
     }
 
-    pub fn select_backward(&mut self) {
-        self.update_selection(
-            Direction::Backward,
-            self.get_selection(&self.selection_mode, Direction::Backward),
-        )
+    fn select_backward(&mut self) {
+        log::info!("select_backward");
+
+        while let Some(selection) = self.selection_history.pop() {
+            if selection != self.selection {
+                self.selection = selection;
+                break;
+            }
+        }
     }
 
-    pub fn select_named_token(&mut self) {
-        self.select(SelectionMode::NamedToken);
+    fn select_none(&mut self, direction: Direction) {
+        self.select(SelectionMode::Custom, direction);
     }
 
-    pub fn select_token(&mut self) {
-        self.select(SelectionMode::Token);
+    fn select_token(&mut self, direction: Direction) {
+        self.select(SelectionMode::Token, direction);
     }
 
     fn update_selection(&mut self, direction: Direction, selection: Selection) {
         self.selection = selection;
+        self.selection_history.push(selection);
         if let Mode::Extend { extended_selection } = self.mode {
             let f = match direction {
                 Direction::Forward => usize::max,
@@ -208,9 +239,9 @@ impl State {
         }
     }
 
-    fn select(&mut self, selection_mode: SelectionMode) {
+    fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
         let direction = if self.selection_mode.similar_to(&selection_mode) {
-            Direction::Forward
+            direction
         } else {
             Direction::Current
         };
@@ -234,7 +265,7 @@ impl State {
         }
     }
 
-    fn get_current_selection(&self) -> Selection {
+    pub fn get_current_selection(&self) -> Selection {
         match self.mode {
             Mode::Normal => self.selection,
             Mode::Insert => todo!(),
@@ -242,12 +273,12 @@ impl State {
         }
     }
 
-    pub fn delete_current_selection(&mut self) {
+    fn delete_current_selection(&mut self) {
         let selection = self.get_current_selection();
         self.replace_with(selection.start.0..selection.end.0, Rope::new());
     }
 
-    pub fn yank(&mut self) {
+    fn yank(&mut self) {
         let selection = self.get_current_selection();
         self.yanked_text = Some(
             self.source_code
@@ -256,7 +287,7 @@ impl State {
         );
     }
 
-    pub fn paste(&mut self) {
+    fn paste(&mut self) {
         if let Some(yanked_text) = &self.yanked_text {
             let cursor_position = self.get_cursor_char_index();
 
@@ -281,7 +312,7 @@ impl State {
         }
     }
 
-    pub fn replace(&mut self) {
+    fn replace(&mut self) {
         let yanked_text = self.yanked_text.take().unwrap_or_else(|| Rope::new());
         let selection = self.get_current_selection();
         self.replace_with(selection.start.0..selection.end.0, yanked_text);
@@ -305,27 +336,13 @@ impl State {
             .parse(&self.source_code.to_string(), Some(&self.tree))
             .unwrap();
 
-        match self.mode {
-            Mode::Insert => {
-                let char_index = CharIndex(range.start + replacement.len_chars());
-                self.selection = Selection {
-                    start: char_index,
-                    end: char_index,
-                    node_id: None,
-                }
-            }
-            _ => {
-                self.mode = Mode::Normal;
-                self.selection_mode = SelectionMode::Character;
-
-                // TODO: what if we are in extend mode?
-                self.selection = Selection {
-                    start: CharIndex(range.start),
-                    end: CharIndex(range.start + replacement.len_chars().max(1)),
-                    node_id: None,
-                };
-            }
-        }
+        let char_index = CharIndex(range.start + replacement.len_chars());
+        self.selection = Selection {
+            start: char_index,
+            end: char_index,
+            node_id: None,
+        };
+        self.selection_mode = SelectionMode::Custom;
     }
 
     fn get_next_token(&self, position: &CharIndex, is_named: bool) -> Option<Node> {
@@ -352,7 +369,7 @@ impl State {
         None
     }
 
-    pub fn change_cursor_direction(&mut self) {
+    fn change_cursor_direction(&mut self) {
         self.cursor_direction = match self.cursor_direction {
             CursorDirection::Start => CursorDirection::End,
             CursorDirection::End => CursorDirection::Start,
@@ -471,18 +488,6 @@ impl State {
                     .map(|node| to_selection(node, &self.source_code))
                     .unwrap_or(self.selection.clone()),
             },
-            SelectionMode::NamedToken => {
-                let selection = match direction {
-                    Direction::Forward => self.get_next_token(&self.selection.end, true),
-                    Direction::Backward => self.get_prev_token(&self.selection.start, true),
-                    Direction::Current => self.get_next_token(&self.get_cursor_char_index(), true),
-                }
-                .unwrap_or_else(|| {
-                    self.get_nearest_node_under_cursor()
-                        .unwrap_or_else(|| self.tree.root_node())
-                });
-                to_selection(selection, &self.source_code)
-            }
             SelectionMode::Token => {
                 let selection = match direction {
                     Direction::Forward => self.get_next_token(&self.selection.end, false),
@@ -507,6 +512,14 @@ impl State {
                     }
                 }
             },
+            SelectionMode::Custom => {
+                let cursor = self.get_cursor_char_index();
+                Selection {
+                    start: cursor,
+                    end: cursor,
+                    node_id: None,
+                }
+            }
         }
     }
 
@@ -521,7 +534,7 @@ impl State {
         }
     }
 
-    pub fn toggle_extend_mode(&mut self) {
+    fn toggle_extend_mode(&mut self) {
         self.mode = match self.mode {
             Mode::Extend { .. } => Mode::Normal,
             _ => Mode::Extend {
@@ -577,18 +590,24 @@ impl State {
         match event.code {
             // Objects
             KeyCode::Char('a') => self.select_ancestor(),
+            KeyCode::Char('A') => self.select_ancestor_linewise(),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                 self.quit = true;
             }
-            KeyCode::Char('c') => self.select_charater(),
+            KeyCode::Char('c') => self.select_charater(Direction::Forward),
+            KeyCode::Char('C') => self.select_charater(Direction::Backward),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('k') => self.select_kids(),
-            KeyCode::Char('l') => self.select_line(),
-            KeyCode::Char('n') => self.select_named_node(),
+            KeyCode::Char('l') => self.select_line(Direction::Forward),
+            KeyCode::Char('L') => self.select_line(Direction::Backward),
+            KeyCode::Char('n') => self.select_named_node(Direction::Forward),
+            KeyCode::Char('N') => self.select_named_node(Direction::Backward),
             KeyCode::Char('o') => self.change_cursor_direction(),
-            KeyCode::Char('s') => self.select_sibling(),
-            KeyCode::Char('t') => self.select_token(),
+            KeyCode::Char('s') => self.select_sibling(Direction::Forward),
+            KeyCode::Char('S') => self.select_sibling(Direction::Backward),
+            KeyCode::Char('t') => self.select_token(Direction::Forward),
+            KeyCode::Char('T') => self.select_token(Direction::Backward),
             KeyCode::Char('w') => self.select_word(),
             // Actions
             KeyCode::Char('d') => self.delete_current_selection(),
@@ -596,6 +615,7 @@ impl State {
             KeyCode::Char('y') => self.yank(),
             KeyCode::Char('r') => self.replace(),
             KeyCode::Char('x') => self.toggle_extend_mode(),
+            KeyCode::Char('0') => self.select_none(Direction::Forward),
             _ => {
                 log::info!("event: {:?}", event);
                 // todo!("Back to previous selection");
@@ -616,11 +636,15 @@ impl State {
 
     fn enter_normal_mode(&mut self) {
         self.mode = Mode::Normal;
-        self.selection = Selection {
-            start: self.selection.start,
-            end: self.selection.start + 1,
-            node_id: None,
-        };
+        self.update_selection(
+            Direction::Forward,
+            Selection {
+                start: self.selection.start,
+                end: self.selection.start,
+                node_id: None,
+            },
+        );
+        self.selection_mode = SelectionMode::Custom;
     }
 }
 
@@ -636,11 +660,21 @@ struct ReverseTreeCursor<'a> {
     node: Node<'a>,
 }
 
+struct ParentTreeCursor<'a> {
+    node: Node<'a>,
+}
+
 impl<'a> ReverseTreeCursor<'a> {
     fn new(node: Node<'a>) -> Self {
         Self {
             node: go_to_last_descendant(node),
         }
+    }
+}
+
+impl<'a> ParentTreeCursor<'a> {
+    fn new(node: Node<'a>) -> Self {
+        Self { node }
     }
 }
 
@@ -666,6 +700,20 @@ impl<'a> Iterator for ReverseTreeCursor<'a> {
             .prev_sibling()
             .map(|node| node.child(0).map(go_to_last_descendant).unwrap_or(node))
             .or_else(|| self.node.parent());
+        if let Some(next) = next {
+            self.node = next;
+            Some(self.node)
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a> Iterator for ParentTreeCursor<'a> {
+    type Item = Node<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.node.parent();
         if let Some(next) = next {
             self.node = next;
             Some(self.node)

@@ -2,7 +2,7 @@ mod engine;
 
 use crossterm::cursor::SetCursorStyle;
 use crossterm::queue;
-use crossterm::{event::KeyModifiers, style::Print};
+use crossterm::style::Print;
 use log::LevelFilter;
 
 use engine::{CharIndex, State};
@@ -91,7 +91,7 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
                 queue!(stdout, SetCursorStyle::BlinkingBar)?;
             }
             _ => {
-                queue!(stdout, SetCursorStyle::BlinkingBlock)?;
+                queue!(stdout, SetCursorStyle::SteadyBar)?;
             }
         }
         queue!(stdout, Clear(ClearType::All))?;
@@ -142,7 +142,7 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
 }
 
 use crossterm::{
-    event::{read, Event, KeyCode},
+    event::read,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
