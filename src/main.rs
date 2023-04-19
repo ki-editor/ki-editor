@@ -79,7 +79,7 @@ console.log(x);
 
 use crossterm::{
     cursor::MoveTo,
-    style::{Color, ResetColor, SetBackgroundColor},
+    style::{Color, ResetColor, SetBackgroundColor, SetForegroundColor},
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
@@ -129,6 +129,27 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
             }
             queue!(stdout, Print(c))?;
         }
+
+        for (index, jump) in state.jumps().into_iter().enumerate() {
+            let point = match state.cursor_direction {
+                CursorDirection::Start => jump.selection.start,
+                CursorDirection::End => jump.selection.end,
+            }
+            .to_point(&state.source_code);
+            queue!(
+                stdout,
+                MoveTo(point.column as u16 + 1, point.row as u16 + 1)
+            )?;
+            // Background color: Odd index red, even index blue
+            if index % 2 == 0 {
+                queue!(stdout, SetBackgroundColor(Color::Red))?;
+            } else {
+                queue!(stdout, SetBackgroundColor(Color::Blue))?;
+            }
+            queue!(stdout, SetForegroundColor(Color::White))?;
+            queue!(stdout, Print(jump.character))?;
+        }
+
         queue!(stdout, ResetColor)?;
 
         let point = state.get_cursor_point();
@@ -146,7 +167,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 
-use crate::engine::Mode;
+use crate::engine::{CursorDirection, Mode};
 
 fn handle_event(source_code: &str) {
     let mut parser = Parser::new();
