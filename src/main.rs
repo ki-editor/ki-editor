@@ -100,6 +100,8 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
         let start_point = selection.start.0;
         let end_point = selection.end.0;
 
+        let extended_selection = state.get_extended_selection();
+
         for (index, c) in state.source_code.chars().enumerate() {
             let point = CharIndex(index).to_point(&state.source_code);
 
@@ -107,7 +109,7 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
                 stdout,
                 MoveTo(point.column as u16 + 1, point.row as u16 + 1)
             )?;
-            if let Mode::Extend { extended_selection } = state.mode {
+            if let Some(extended_selection) = extended_selection {
                 // log::info!("extended_selection: {:?}", extended_selection);
                 let x_start_point = extended_selection.start.0;
                 let x_end_point = extended_selection.end.0;
@@ -119,6 +121,8 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
                     queue!(stdout, SetBackgroundColor(Color::Green))?;
                 } else if x_start_point <= index && index < x_end_point {
                     queue!(stdout, SetBackgroundColor(Color::Cyan))?;
+                } else if start_point <= index && index < end_point {
+                    queue!(stdout, SetBackgroundColor(Color::Yellow))?;
                 } else {
                     queue!(stdout, SetBackgroundColor(Color::Reset))?;
                 }

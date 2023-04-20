@@ -19,6 +19,14 @@ impl Selection {
             CursorDirection::End => self.end.clone(),
         }
     }
+
+    fn from_two_char_indices(anchor: &CharIndex, get_cursor_char_index: &CharIndex) -> Selection {
+        Selection {
+            start: *anchor.min(get_cursor_char_index),
+            end: *anchor.max(get_cursor_char_index),
+            node_id: None,
+        }
+    }
 }
 
 impl Add<usize> for Selection {
@@ -77,7 +85,6 @@ impl CharIndex {
 pub enum Mode {
     Normal,
     Insert,
-    Extend { extended_selection: Selection },
     Jump { jumps: Vec<Jump> },
 }
 
@@ -97,6 +104,12 @@ pub struct State {
     pub quit: bool,
     yanked_text: Option<Rope>,
     selection_history: Vec<Selection>,
+
+    /// This indicates where the extended selection started
+    ///
+    /// Some = the selection is being extended
+    /// None = the selection is not being extended
+    extended_selection_anchor: Option<CharIndex>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -149,6 +162,7 @@ impl State {
             yanked_text: None,
             quit: false,
             selection_history: Vec::with_capacity(128),
+            extended_selection_anchor: None,
         };
         state.select(SelectionMode::Character, Direction::Current);
         state
@@ -164,14 +178,11 @@ impl State {
             let second_last_child = node.child(node.child_count() - 2).or(second_child);
             match (second_child, second_last_child) {
                 (Some(second_child), Some(second_last_child)) => {
-                    self.update_selection(
-                        Direction::Forward,
-                        Selection {
-                            start: CharIndex(second_child.start_byte() as usize),
-                            end: CharIndex(second_last_child.end_byte() as usize),
-                            node_id: None,
-                        },
-                    );
+                    self.update_selection(Selection {
+                        start: CharIndex(second_child.start_byte() as usize),
+                        end: CharIndex(second_last_child.end_byte() as usize),
+                        node_id: None,
+                    });
                     self.selection_mode = SelectionMode::Custom;
                 }
                 _ => {}
@@ -218,23 +229,9 @@ impl State {
         self.select(SelectionMode::Token, direction);
     }
 
-    fn update_selection(&mut self, direction: Direction, selection: Selection) {
+    fn update_selection(&mut self, selection: Selection) {
         self.selection = selection;
         self.selection_history.push(selection);
-        if let Mode::Extend { extended_selection } = self.mode {
-            let f = match direction {
-                Direction::Forward => usize::max,
-                Direction::Backward => usize::min,
-                Direction::Current => usize::max,
-            };
-            self.mode = Mode::Extend {
-                extended_selection: Selection {
-                    start: CharIndex(extended_selection.start.0),
-                    end: CharIndex(f(self.get_cursor_char_index().0, extended_selection.end.0)),
-                    node_id: None,
-                },
-            }
-        }
     }
 
     fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
@@ -245,7 +242,7 @@ impl State {
             Direction::Current
         };
         log::info!("select: {:?} {:?}", selection_mode, direction);
-        self.update_selection(direction, self.get_selection(&selection_mode, direction));
+        self.update_selection(self.get_selection(&selection_mode, direction));
         self.selection_mode = selection_mode;
     }
 
@@ -303,10 +300,12 @@ impl State {
     }
 
     pub fn get_current_selection(&self) -> Selection {
+        if let Some(anchor) = self.extended_selection_anchor {
+            return Selection::from_two_char_indices(&anchor, &self.get_cursor_char_index());
+        }
         match &self.mode {
             Mode::Normal | Mode::Jump { .. } => self.selection,
             Mode::Insert => todo!(),
-            Mode::Extend { extended_selection } => *extended_selection,
         }
     }
 
@@ -528,12 +527,18 @@ impl State {
     }
 
     fn toggle_extend_mode(&mut self) {
-        self.mode = match self.mode {
-            Mode::Extend { .. } => Mode::Normal,
-            _ => Mode::Extend {
-                extended_selection: self.selection,
-            },
-        };
+        if let Some(anchor) = self.extended_selection_anchor.take() {
+            // Reverse the anchor with the current cursor position
+            self.extended_selection_anchor = Some(self.get_cursor_char_index());
+            self.selection = Selection {
+                start: anchor,
+                end: anchor,
+                node_id: None,
+            };
+            self.selection_mode = SelectionMode::Custom;
+        } else {
+            self.extended_selection_anchor = Some(self.get_cursor_char_index())
+        }
     }
 
     pub fn handle_event(&mut self, event: Event) {
@@ -547,7 +552,7 @@ impl State {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) {
         match &self.mode {
-            Mode::Normal | Mode::Extend { .. } => self.handle_normal_mode(key_event),
+            Mode::Normal => self.handle_normal_mode(key_event),
             Mode::Insert => self.handle_insert_mode(key_event),
             Mode::Jump { .. } => self.handle_jump_mode(key_event),
         }
@@ -580,7 +585,7 @@ impl State {
                 KeyCode::Char(c) => {
                     let matching_jump = jumps.iter().find(|jump| c == jump.character);
                     if let Some(jump) = matching_jump {
-                        self.update_selection(Direction::Forward, jump.selection);
+                        self.update_selection(jump.selection);
                         self.mode = Mode::Normal;
                     }
                 }
@@ -646,6 +651,9 @@ impl State {
             KeyCode::Char('x') => self.toggle_extend_mode(),
             KeyCode::Char('y') => self.yank(),
             KeyCode::Char('0') => self.select_none(Direction::Forward),
+            KeyCode::Esc => {
+                self.extended_selection_anchor = None;
+            }
             _ => {
                 log::info!("event: {:?}", event);
                 // todo!("Back to previous selection");
@@ -673,6 +681,17 @@ impl State {
         match self.mode {
             Mode::Jump { ref jumps } => jumps.iter().collect(),
             _ => vec![],
+        }
+    }
+
+    pub fn get_extended_selection(&self) -> Option<Selection> {
+        if let Some(anchor) = self.extended_selection_anchor {
+            Some(Selection::from_two_char_indices(
+                &anchor,
+                &self.get_cursor_char_index(),
+            ))
+        } else {
+            None
         }
     }
 }
