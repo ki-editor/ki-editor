@@ -84,8 +84,8 @@ use crossterm::{
     ExecutableCommand,
 };
 
-fn render<'a>(state: &State, stdout: &mut impl Write) {
-    fn render<'a>(state: &State, stdout: &mut impl Write) -> Result<(), anyhow::Error> {
+fn render(state: &State, stdout: &mut impl Write) {
+    fn render(state: &State, stdout: &mut impl Write) -> Result<(), anyhow::Error> {
         match state.mode {
             Mode::Insert => {
                 queue!(stdout, SetCursorStyle::BlinkingBar)?;
@@ -109,7 +109,7 @@ fn render<'a>(state: &State, stdout: &mut impl Write) {
                 stdout,
                 MoveTo(point.column as u16 + 1, point.row as u16 + 1)
             )?;
-            if let Some(extended_selection) = extended_selection {
+            if let Some(ref extended_selection) = extended_selection {
                 // log::info!("extended_selection: {:?}", extended_selection);
                 let x_start_point = extended_selection.start.0;
                 let x_end_point = extended_selection.end.0;
