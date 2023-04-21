@@ -80,11 +80,24 @@ pub struct CharIndex(pub usize);
 
 impl CharIndex {
     pub fn to_point(self, rope: &Rope) -> Point {
-        let line = rope.char_to_line(self.0);
+        let line = self.to_line(rope);
         Point {
             row: line,
-            column: self.0.saturating_sub(rope.line_to_char(line)),
+            column: rope
+                .try_line_to_char(line)
+                .map(|char_index| self.0.saturating_sub(char_index))
+                .unwrap_or(0),
         }
+    }
+
+    fn to_line(self, rope: &Rope) -> usize {
+        rope.try_char_to_line(self.0)
+            .unwrap_or_else(|_| rope.len_lines())
+    }
+
+    fn to_byte(self, rope: &Rope) -> usize {
+        rope.try_char_to_byte(self.0)
+            .unwrap_or_else(|_| rope.len_bytes())
     }
 }
 
@@ -288,22 +301,6 @@ impl State {
         self.jump_from_selection(direction, &self.selection.clone());
     }
 
-    fn get_input_edit(
-        &self,
-        start_char_index: CharIndex,
-        old_end_char_index: CharIndex,
-        new_end_char_index: CharIndex,
-    ) -> InputEdit {
-        InputEdit {
-            start_byte: self.source_code.char_to_byte(start_char_index.0),
-            old_end_byte: self.source_code.char_to_byte(old_end_char_index.0),
-            new_end_byte: self.source_code.char_to_byte(new_end_char_index.0),
-            start_position: start_char_index.to_point(&self.source_code),
-            old_end_position: old_end_char_index.to_point(&self.source_code),
-            new_end_position: new_end_char_index.to_point(&self.source_code),
-        }
-    }
-
     pub fn get_current_selection(&self) -> Selection {
         if let Some(anchor) = self.extended_selection_anchor {
             return Selection::from_two_char_indices(&anchor, &self.get_cursor_char_index());
@@ -322,11 +319,10 @@ impl State {
 
     fn yank(&mut self) {
         let selection = self.get_current_selection();
-        self.yanked_text = Some(
-            self.source_code
-                .slice(selection.start.0..selection.end.0)
-                .into(),
-        );
+        self.yanked_text = self
+            .source_code
+            .get_slice(selection.start.0..selection.end.0)
+            .map(|slice| slice.into());
     }
 
     fn paste(&mut self) {
@@ -371,19 +367,39 @@ impl State {
 
     /// Replace the text in the given range with the given replacement.
     fn edit(&mut self, range: Range<usize>, replacement: Rope) {
-        self.tree.edit(&self.get_input_edit(
-            CharIndex(range.start),
-            CharIndex(range.end),
-            CharIndex(range.start) + replacement.len_chars(),
-        ));
         if !range.is_empty() {
-            self.yanked_text = Some(self.source_code.slice(range.clone()).into());
+            self.yanked_text = self
+                .source_code
+                .get_slice(range.clone())
+                .map(|slice| slice.into());
         }
-        self.source_code.remove(range.clone());
+
+        let start_char_index = CharIndex(range.start);
+        let old_end_char_index = CharIndex(range.end);
+        let new_end_char_index = CharIndex(range.start) + replacement.len_chars();
+
+        let start_byte = start_char_index.to_byte(&self.source_code);
+        let old_end_byte = old_end_char_index.to_byte(&self.source_code);
+        let start_position = start_char_index.to_point(&self.source_code);
+        let old_end_position = old_end_char_index.to_point(&self.source_code);
+
+        self.source_code.try_remove(range.clone());
         self.source_code
-            .insert(range.start, replacement.to_string().as_str());
+            .try_insert(range.start, replacement.to_string().as_str());
+
+        let new_end_byte = new_end_char_index.to_byte(&self.source_code);
+        let new_end_position = new_end_char_index.to_point(&self.source_code);
+
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(self.tree.language()).unwrap();
+        self.tree.edit(&InputEdit {
+            start_byte,
+            old_end_byte,
+            new_end_byte,
+            start_position,
+            old_end_position,
+            new_end_position,
+        });
         self.tree = parser
             .parse(&self.source_code.to_string(), Some(&self.tree))
             .unwrap();
@@ -397,9 +413,7 @@ impl State {
     }
 
     fn get_nearest_node_under_cursor(&self) -> Option<Node> {
-        let cursor_pos = self
-            .source_code
-            .char_to_byte(self.get_cursor_char_index().0);
+        let cursor_pos = self.get_cursor_char_index().to_byte(&self.source_code);
 
         get_nearest_node_after_byte(&self.tree, cursor_pos)
     }
@@ -413,9 +427,7 @@ impl State {
         cursor_direction: &CursorDirection,
     ) -> Selection {
         let cursor_char_index = current_selection.to_char_index(cursor_direction);
-        let cursor_byte = source_code.char_to_byte(cursor_char_index.0);
-        let current_selection_start_byte = source_code.char_to_byte(current_selection.start.0);
-        let current_selection_end_byte = source_code.char_to_byte(current_selection.end.0);
+        let cursor_byte = cursor_char_index.to_byte(&source_code);
         match mode {
             SelectionMode::NamedNode => match direction {
                 Direction::Forward | Direction::Current => {
@@ -434,25 +446,24 @@ impl State {
             .map(|node| node_to_selection(node, *mode, source_code))
             .unwrap_or_else(|| current_selection.clone()),
             SelectionMode::Line => {
-                let start = source_code.char_to_line(cursor_char_index.0);
+                let start = cursor_char_index.to_line(source_code);
 
                 let start = CharIndex(
                     source_code.line_to_char(
                         match direction {
                             Direction::Forward => start.saturating_add(1),
                             Direction::Backward => start.saturating_sub(1),
-                            Direction::Current => source_code.char_to_line(cursor_char_index.0),
+                            Direction::Current => cursor_char_index.to_line(source_code),
                         }
                         .min(source_code.len_lines().saturating_sub(1)),
                     ),
                 );
                 let end = CharIndex(
-                    start.0.saturating_add(
-                        source_code
-                            .line(source_code.char_to_line(start.0))
-                            .len_chars(),
-                    ),
+                    start
+                        .0
+                        .saturating_add(source_code.line(start.to_line(source_code)).len_chars()),
                 );
+                log::info!("start: {:?}, end: {:?}", start, end);
                 Selection {
                     start,
                     end,
@@ -490,6 +501,8 @@ impl State {
                 node_to_selection(next_node, *mode, source_code)
             }
             SelectionMode::Token => {
+                let current_selection_start_byte = current_selection.start.to_byte(source_code);
+                let current_selection_end_byte = current_selection.end.to_byte(source_code);
                 let selection = match direction {
                     Direction::Forward => get_next_token(tree, current_selection_end_byte, false),
                     Direction::Backward => {
@@ -743,7 +756,14 @@ impl State {
             KeyCode::Backspace => {
                 let selection = self.get_current_selection();
                 self.edit(selection.start.0..selection.end.0, "".into());
-                self.enter_insert_mode()
+                self.selection = Selection {
+                    start: selection.start,
+                    end: selection.start,
+                    mode: SelectionMode::Custom,
+                    node_id: None,
+                };
+                self.extended_selection_anchor = None;
+                self.mode = Mode::Insert;
             }
             _ => {
                 log::info!("event: {:?}", event);
@@ -754,10 +774,10 @@ impl State {
     }
 
     fn enter_insert_mode(&mut self) {
-        let selection = self.get_current_selection();
+        let char_index = self.get_cursor_char_index();
         self.selection = Selection {
-            start: selection.start,
-            end: selection.start,
+            start: char_index,
+            end: char_index,
             node_id: None,
             mode: SelectionMode::Custom,
         };
