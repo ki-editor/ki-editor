@@ -426,7 +426,14 @@ impl State {
         direction: &Direction,
         cursor_direction: &CursorDirection,
     ) -> Selection {
-        let cursor_char_index = current_selection.to_char_index(cursor_direction);
+        let cursor_char_index = {
+            let index = current_selection.to_char_index(cursor_direction);
+            match cursor_direction {
+                CursorDirection::Start => index,
+                // Minus one so that selecting line backward works
+                CursorDirection::End => index - 1,
+            }
+        };
         let cursor_byte = cursor_char_index.to_byte(&source_code);
         match mode {
             SelectionMode::NamedNode => match direction {
@@ -726,9 +733,9 @@ impl State {
     fn handle_normal_mode(&mut self, event: KeyEvent) {
         match event.code {
             // Objects
+            KeyCode::Char('a') => self.select_alphabet(Direction::Forward),
+            KeyCode::Char('A') => self.select_alphabet(Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
-            KeyCode::Char('c') => self.select_alphabet(Direction::Forward),
-            KeyCode::Char('C') => self.select_alphabet(Direction::Backward),
             KeyCode::Char('d') => self.delete_current_selection(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
@@ -775,6 +782,7 @@ impl State {
 
     fn enter_insert_mode(&mut self) {
         let char_index = self.get_cursor_char_index();
+        log::info!("enter_insert_mode char_index: {:?}", char_index);
         self.selection = Selection {
             start: char_index,
             end: char_index,
@@ -783,6 +791,7 @@ impl State {
         };
         self.extended_selection_anchor = None;
         self.mode = Mode::Insert;
+        self.cursor_direction = CursorDirection::Start;
     }
 
     fn enter_normal_mode(&mut self) {
