@@ -114,7 +114,7 @@ pub struct Jump {
 }
 
 pub struct State {
-    pub source_code: Rope,
+    pub text: Rope,
     pub mode: Mode,
 
     pub selection: Selection,
@@ -169,7 +169,7 @@ enum Direction {
 }
 
 impl State {
-    pub fn new(source_code: Rope, tree: Tree) -> Self {
+    pub fn new(text: Rope, tree: Tree) -> Self {
         Self {
             selection: Selection {
                 mode: SelectionMode::Custom,
@@ -177,7 +177,7 @@ impl State {
                 end: CharIndex(0),
                 node_id: None,
             },
-            source_code,
+            text,
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             tree,
@@ -276,7 +276,7 @@ impl State {
             .filter(|c| c != &'j' && c != &'J')
         {
             let next_selection = Self::get_selection_(
-                &self.source_code,
+                &self.text,
                 &self.tree,
                 &current_selection,
                 &self.selection.mode,
@@ -320,7 +320,7 @@ impl State {
     fn yank(&mut self) {
         let selection = self.get_current_selection();
         self.yanked_text = self
-            .source_code
+            .text
             .get_slice(selection.start.0..selection.end.0)
             .map(|slice| slice.into());
     }
@@ -368,27 +368,24 @@ impl State {
     /// Replace the text in the given range with the given replacement.
     fn edit(&mut self, range: Range<usize>, replacement: Rope) {
         if !range.is_empty() {
-            self.yanked_text = self
-                .source_code
-                .get_slice(range.clone())
-                .map(|slice| slice.into());
+            self.yanked_text = self.text.get_slice(range.clone()).map(|slice| slice.into());
         }
 
         let start_char_index = CharIndex(range.start);
         let old_end_char_index = CharIndex(range.end);
         let new_end_char_index = CharIndex(range.start) + replacement.len_chars();
 
-        let start_byte = start_char_index.to_byte(&self.source_code);
-        let old_end_byte = old_end_char_index.to_byte(&self.source_code);
-        let start_position = start_char_index.to_point(&self.source_code);
-        let old_end_position = old_end_char_index.to_point(&self.source_code);
+        let start_byte = start_char_index.to_byte(&self.text);
+        let old_end_byte = old_end_char_index.to_byte(&self.text);
+        let start_position = start_char_index.to_point(&self.text);
+        let old_end_position = old_end_char_index.to_point(&self.text);
 
-        self.source_code.try_remove(range.clone());
-        self.source_code
+        self.text.try_remove(range.clone());
+        self.text
             .try_insert(range.start, replacement.to_string().as_str());
 
-        let new_end_byte = new_end_char_index.to_byte(&self.source_code);
-        let new_end_position = new_end_char_index.to_point(&self.source_code);
+        let new_end_byte = new_end_char_index.to_byte(&self.text);
+        let new_end_position = new_end_char_index.to_point(&self.text);
 
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(self.tree.language()).unwrap();
@@ -401,7 +398,7 @@ impl State {
             new_end_position,
         });
         self.tree = parser
-            .parse(&self.source_code.to_string(), Some(&self.tree))
+            .parse(&self.text.to_string(), Some(&self.tree))
             .unwrap();
     }
 
@@ -413,13 +410,13 @@ impl State {
     }
 
     fn get_nearest_node_under_cursor(&self) -> Option<Node> {
-        let cursor_pos = self.get_cursor_char_index().to_byte(&self.source_code);
+        let cursor_pos = self.get_cursor_char_index().to_byte(&self.text);
 
         get_nearest_node_after_byte(&self.tree, cursor_pos)
     }
 
     fn get_selection_(
-        source_code: &Rope,
+        text: &Rope,
         tree: &Tree,
         current_selection: &Selection,
         mode: &SelectionMode,
@@ -434,7 +431,7 @@ impl State {
                 CursorDirection::End => index - 1,
             }
         };
-        let cursor_byte = cursor_char_index.to_byte(&source_code);
+        let cursor_byte = cursor_char_index.to_byte(&text);
         match mode {
             SelectionMode::NamedNode => match direction {
                 Direction::Forward | Direction::Current => {
@@ -450,25 +447,25 @@ impl State {
                     })
                     .map(|(current, _)| current),
             }
-            .map(|node| node_to_selection(node, *mode, source_code))
+            .map(|node| node_to_selection(node, *mode, text))
             .unwrap_or_else(|| current_selection.clone()),
             SelectionMode::Line => {
-                let start = cursor_char_index.to_line(source_code);
+                let start = cursor_char_index.to_line(text);
 
                 let start = CharIndex(
-                    source_code.line_to_char(
+                    text.line_to_char(
                         match direction {
                             Direction::Forward => start.saturating_add(1),
                             Direction::Backward => start.saturating_sub(1),
-                            Direction::Current => cursor_char_index.to_line(source_code),
+                            Direction::Current => cursor_char_index.to_line(text),
                         }
-                        .min(source_code.len_lines().saturating_sub(1)),
+                        .min(text.len_lines().saturating_sub(1)),
                     ),
                 );
                 let end = CharIndex(
                     start
                         .0
-                        .saturating_add(source_code.line(start.to_line(source_code)).len_chars()),
+                        .saturating_add(text.line(start.to_line(text)).len_chars()),
                 );
                 log::info!("start: {:?}, end: {:?}", start, end);
                 Selection {
@@ -494,7 +491,7 @@ impl State {
                     }
                     parent = some_parent.parent()
                 }
-                node_to_selection(parent.unwrap_or(current_node), *mode, source_code)
+                node_to_selection(parent.unwrap_or(current_node), *mode, text)
             }
 
             SelectionMode::SiblingNode => {
@@ -505,11 +502,11 @@ impl State {
                     Direction::Current => None,
                 }
                 .unwrap_or(current_node);
-                node_to_selection(next_node, *mode, source_code)
+                node_to_selection(next_node, *mode, text)
             }
             SelectionMode::Token => {
-                let current_selection_start_byte = current_selection.start.to_byte(source_code);
-                let current_selection_end_byte = current_selection.end.to_byte(source_code);
+                let current_selection_start_byte = current_selection.start.to_byte(text);
+                let current_selection_end_byte = current_selection.end.to_byte(text);
                 let selection = match direction {
                     Direction::Forward => get_next_token(tree, current_selection_end_byte, false),
                     Direction::Backward => {
@@ -523,7 +520,7 @@ impl State {
                 .unwrap_or_else(|| {
                     get_next_token(tree, cursor_byte, true).unwrap_or_else(|| tree.root_node())
                 });
-                node_to_selection(selection, *mode, source_code)
+                node_to_selection(selection, *mode, text)
             }
             SelectionMode::Alphabet => match direction {
                 Direction::Current => Selection {
@@ -556,7 +553,7 @@ impl State {
 
     fn get_selection(&self, mode: &SelectionMode, direction: Direction) -> Selection {
         Self::get_selection_(
-            &self.source_code,
+            &self.text,
             &self.tree,
             &self.selection,
             mode,
@@ -566,7 +563,7 @@ impl State {
     }
 
     pub fn get_cursor_point(&self) -> Point {
-        self.get_cursor_char_index().to_point(&self.source_code)
+        self.get_cursor_char_index().to_point(&self.text)
     }
 
     fn get_cursor_char_index(&self) -> CharIndex {
@@ -595,16 +592,7 @@ impl State {
         }
     }
 
-    pub fn handle_event(&mut self, event: Event) {
-        match event {
-            Event::Key(event) => self.handle_key_event(event),
-            _ => {
-                log::info!("{:?}", event)
-            }
-        }
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
+    pub fn handle_key_event(&mut self, key_event: KeyEvent) {
         if let HandleKeyEventResult::Unconsumed(key_event) = self.handle_universal_key(key_event) {
             match &self.mode {
                 Mode::Normal => self.handle_normal_mode(key_event),
@@ -638,7 +626,7 @@ impl State {
             KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
                 self.selection = Selection {
                     start: CharIndex(0),
-                    end: CharIndex(self.source_code.len_chars()),
+                    end: CharIndex(self.text.len_chars()),
                     node_id: None,
                     mode: SelectionMode::Custom,
                 };
@@ -810,6 +798,16 @@ impl State {
         self.extended_selection_anchor
             .map(|anchor| Selection::from_two_char_indices(&anchor, &self.get_cursor_char_index()))
     }
+
+    pub fn set_cursor_position(&mut self, row: u16, column: u16) {
+        let start = CharIndex(self.text.line_to_char(row as usize)) + column.into();
+        self.update_selection(Selection {
+            mode: SelectionMode::Custom,
+            start,
+            end: start,
+            node_id: None,
+        })
+    }
 }
 
 fn get_prev_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
@@ -835,11 +833,11 @@ fn get_node_by_id(tree: &Tree, node_id: usize) -> Option<Node> {
     result
 }
 
-fn node_to_selection(node: Node, mode: SelectionMode, source_code: &Rope) -> Selection {
+fn node_to_selection(node: Node, mode: SelectionMode, text: &Rope) -> Selection {
     Selection {
         mode,
-        start: CharIndex(source_code.byte_to_char(node.start_byte())),
-        end: CharIndex(source_code.byte_to_char(node.end_byte())),
+        start: CharIndex(text.byte_to_char(node.start_byte())),
+        end: CharIndex(text.byte_to_char(node.end_byte())),
         node_id: Some(node.id()),
     }
 }
