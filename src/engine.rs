@@ -117,6 +117,11 @@ pub struct Jump {
     pub selection: Selection,
 }
 
+struct Edit {
+    replacement_range: Range<CharIndex>,
+    replaced_text: Rope,
+}
+
 pub struct State {
     pub text: Rope,
     pub mode: Mode,
@@ -128,6 +133,8 @@ pub struct State {
     pub quit: bool,
     yanked_text: Option<Rope>,
     selection_history: Vec<Selection>,
+    undo_edits: Vec<Edit>,
+    redo_edits: Vec<Edit>,
 
     /// This indicates where the extended selection started
     ///
@@ -189,6 +196,8 @@ impl State {
             yanked_text: None,
             quit: false,
             selection_history: Vec::with_capacity(128),
+            undo_edits: Vec::new(),
+            redo_edits: Vec::new(),
             extended_selection_anchor: None,
         }
     }
@@ -332,7 +341,7 @@ impl State {
     fn delete_current_selection(&mut self) {
         let selection = self.get_current_selection();
         self.yank(&selection);
-        self.edit(selection.start.0..selection.end.0, Rope::new());
+        self.edit(selection.start..selection.end, Rope::new());
         self.extended_selection_anchor = None;
         self.select(self.selection.mode, Direction::Current);
     }
@@ -353,7 +362,7 @@ impl State {
         if let Some(yanked_text) = &self.yanked_text {
             let cursor_position = self.get_cursor_char_index();
             let yanked_text_len = yanked_text.len_chars();
-            self.edit(cursor_position.0..cursor_position.0, yanked_text.clone());
+            self.edit(cursor_position..cursor_position, yanked_text.clone());
 
             match (&self.cursor_direction, &self.mode) {
                 (_, Mode::Normal) => {
@@ -382,7 +391,7 @@ impl State {
         let selection = self.get_current_selection();
         let replacement_text_len = replacement.len_chars();
         self.yank(&selection);
-        self.edit(selection.start.0..selection.end.0, replacement);
+        self.edit(selection.start..selection.end, replacement);
         self.selection = Selection {
             start: selection.start,
             end: selection.start + replacement_text_len,
@@ -392,9 +401,66 @@ impl State {
     }
 
     /// Replace the text in the given range with the given replacement.
-    fn edit(&mut self, range: Range<usize>, replacement: Rope) {
+    fn edit(&mut self, range: Range<CharIndex>, replacement: Rope) {
+        self.edit_(range, replacement, EditHistoryKind::NewEdit)
+    }
+
+    fn edit_(
+        &mut self,
+        range: Range<CharIndex>,
+        replacement: Rope,
+        edit_history_kind: EditHistoryKind,
+    ) {
+        let replaced_text = self.text.get_slice(range.start.0..range.end.0).unwrap();
+        let replacement_range = (range.start)..(range.start + replacement.len_chars());
+
+        let edit = Edit {
+            replacement_range,
+            replaced_text: replaced_text.into(),
+        };
+        match edit_history_kind {
+            EditHistoryKind::NewEdit => {
+                self.redo_edits.clear();
+                self.undo_edits.push(edit);
+            }
+            EditHistoryKind::Undo => {
+                self.redo_edits.push(edit);
+            }
+            EditHistoryKind::Redo => {
+                self.undo_edits.push(edit);
+            }
+        }
         (self.tree, self.text) =
-            edit(self.tree.clone(), self.text.clone(), range, replacement).unwrap();
+            apply_edit(self.tree.clone(), self.text.clone(), range, replacement).unwrap();
+    }
+
+    fn undo(&mut self) {
+        if let Some(edit) = self.undo_edits.pop() {
+            self.revert_change(&edit, EditHistoryKind::Undo);
+        } else {
+            log::info!("Nothing else to be undone")
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(edit) = self.redo_edits.pop() {
+            self.revert_change(&edit, EditHistoryKind::Redo);
+        } else {
+            log::info!("Nothing else to be redone")
+        }
+    }
+
+    fn revert_change(&mut self, edit: &Edit, edit_history_kind: EditHistoryKind) {
+        let replaced_text_len = edit.replaced_text.len_chars();
+        self.edit_(
+            edit.replacement_range.clone(),
+            edit.replaced_text.clone(),
+            edit_history_kind,
+        );
+        self.update_selection(Selection::from_two_char_indices(
+            &edit.replacement_range.start,
+            &(edit.replacement_range.start + replaced_text_len),
+        ))
     }
 
     fn change_cursor_direction(&mut self) {
@@ -635,6 +701,14 @@ impl State {
                 self.paste();
                 HandleKeyEventResult::Consumed
             }
+            KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
+                self.redo();
+                HandleKeyEventResult::Consumed
+            }
+            KeyCode::Char('z') if event.modifiers == KeyModifiers::CONTROL => {
+                self.undo();
+                HandleKeyEventResult::Consumed
+            }
             // Others include:
             // - ^t for new tab
             // - ^s for saving
@@ -684,7 +758,7 @@ impl State {
 
     fn insert(&mut self, s: &str) {
         let Selection { start, end, .. } = self.selection;
-        self.edit(start.0..end.0, s.into());
+        self.edit(start..end, s.into());
         self.selection = Selection {
             mode: SelectionMode::Custom,
             start: start + 1,
@@ -698,7 +772,7 @@ impl State {
         match event.code {
             KeyCode::Esc => self.enter_normal_mode(),
             KeyCode::Backspace => {
-                self.edit(start.0.saturating_sub(1)..end.0, "".into());
+                self.edit(start - 1..end, "".into());
                 self.selection = Selection {
                     start: start - 1,
                     end: end - 1,
@@ -747,7 +821,7 @@ impl State {
             KeyCode::Backspace => {
                 let selection = self.get_current_selection();
                 self.yank(&selection);
-                self.edit(selection.start.0..selection.end.0, "".into());
+                self.edit(selection.start..selection.end, "".into());
                 self.selection = Selection {
                     start: selection.start,
                     end: selection.start,
@@ -828,10 +902,10 @@ impl State {
         let mut next_selection = self.get_selection(&SelectionMode::ParentNode, Direction::Current);
 
         loop {
-            let (tree, text) = edit(
+            let (tree, text) = apply_edit(
                 self.tree.clone(),
                 self.text.clone(),
-                next_selection.start.0..next_selection.end.0,
+                next_selection.start..next_selection.end,
                 Rope::from_str(replacement.as_str()),
             )
             .unwrap();
@@ -856,7 +930,7 @@ impl State {
                 // contains error
                 if !node.has_error() {
                     self.edit(
-                        next_selection.start.0..next_selection.end.0,
+                        next_selection.start..next_selection.end,
                         self.text
                             .slice(current_selection.start.0..current_selection.end.0)
                             .into(),
@@ -991,23 +1065,23 @@ fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selectio
     .unwrap_or_else(|| tree.root_node())
 }
 
-fn edit(
+fn apply_edit(
     mut tree: Tree,
     mut text: Rope,
-    range: Range<usize>,
+    range: Range<CharIndex>,
     replacement: Rope,
 ) -> Result<(Tree, Rope), anyhow::Error> {
-    let start_char_index = CharIndex(range.start);
-    let old_end_char_index = CharIndex(range.end);
-    let new_end_char_index = CharIndex(range.start) + replacement.len_chars();
+    let start_char_index = range.start;
+    let old_end_char_index = range.end;
+    let new_end_char_index = range.start + replacement.len_chars();
 
     let start_byte = start_char_index.to_byte(&text);
     let old_end_byte = old_end_char_index.to_byte(&text);
     let start_position = start_char_index.to_point(&text);
     let old_end_position = old_end_char_index.to_point(&text);
 
-    text.try_remove(range.clone())?;
-    text.try_insert(range.start, replacement.to_string().as_str())?;
+    text.try_remove(range.start.0..range.end.0)?;
+    text.try_insert(range.start.0, replacement.to_string().as_str())?;
 
     let new_end_byte = new_end_char_index.to_byte(&text);
     let new_end_position = new_end_char_index.to_point(&text);
@@ -1029,4 +1103,10 @@ fn edit(
 enum HandleKeyEventResult {
     Consumed,
     Unconsumed(KeyEvent),
+}
+
+enum EditHistoryKind {
+    Undo,
+    Redo,
+    NewEdit,
 }
