@@ -1,9 +1,9 @@
 use std::ops::{Add, Range, Sub};
 
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use itertools::Itertools;
 use ropey::Rope;
-use tree_sitter::{InputEdit, Node, Point, TextProvider, Tree};
+use tree_sitter::{InputEdit, Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 #[derive(PartialEq, Clone, Debug)]
@@ -393,35 +393,8 @@ impl State {
 
     /// Replace the text in the given range with the given replacement.
     fn edit(&mut self, range: Range<usize>, replacement: Rope) {
-        let start_char_index = CharIndex(range.start);
-        let old_end_char_index = CharIndex(range.end);
-        let new_end_char_index = CharIndex(range.start) + replacement.len_chars();
-
-        let start_byte = start_char_index.to_byte(&self.text);
-        let old_end_byte = old_end_char_index.to_byte(&self.text);
-        let start_position = start_char_index.to_point(&self.text);
-        let old_end_position = old_end_char_index.to_point(&self.text);
-
-        self.text.try_remove(range.clone());
-        self.text
-            .try_insert(range.start, replacement.to_string().as_str());
-
-        let new_end_byte = new_end_char_index.to_byte(&self.text);
-        let new_end_position = new_end_char_index.to_point(&self.text);
-
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(self.tree.language()).unwrap();
-        self.tree.edit(&InputEdit {
-            start_byte,
-            old_end_byte,
-            new_end_byte,
-            start_position,
-            old_end_position,
-            new_end_position,
-        });
-        self.tree = parser
-            .parse(&self.text.to_string(), Some(&self.tree))
-            .unwrap();
+        (self.tree, self.text) =
+            edit(self.tree.clone(), self.text.clone(), range, replacement).unwrap();
     }
 
     fn change_cursor_direction(&mut self) {
@@ -763,7 +736,7 @@ impl State {
             KeyCode::Char('w') => self.select_word(),
             KeyCode::Char('r') => self.replace(),
             KeyCode::Char('p') => self.select_parent(),
-            KeyCode::Char('P') => self.replace_parent(),
+            KeyCode::Char('u') => self.upend(),
             KeyCode::Char('x') => self.toggle_extend_mode(),
             KeyCode::Char('y') => self.yank_current_selection(),
             KeyCode::Char('0') => self.select_none(Direction::Forward),
@@ -833,21 +806,86 @@ impl State {
         })
     }
 
-    fn replace_parent(&mut self) {
-        let current = &self.selection;
-        let next = self.get_selection(&SelectionMode::ParentNode, Direction::Current);
+    fn upend(&mut self) {
+        let current_selection = &self.selection;
 
-        let updated_selection = Selection {
-            start: next.start,
-            end: next.start + current.len(),
-            node_id: None,
-            mode: current.mode,
-        };
-        self.edit(
-            next.start.0..next.end.0,
-            self.text.slice(current.start.0..current.end.0).into(),
-        );
-        self.update_selection(updated_selection);
+        // We need to add whitespace on both end of the replacement
+        //
+        // Otherwise we might get the following replacement in Rust:
+        // Assuming the selection is on `baz`.
+        //
+        // Before:                              foo.bar(baz)
+        // Result (with whitespace padding):    baz
+        // Result (without padding):            foo.barbaz
+        let replacement = " ".to_string()
+            + &self
+                .text
+                .slice(current_selection.start.0..current_selection.end.0)
+                .to_string()
+            + &" ";
+
+        // Loop until the replacement does not result in errorneous node
+        let mut next_selection = self.get_selection(&SelectionMode::ParentNode, Direction::Current);
+
+        loop {
+            let (tree, text) = edit(
+                self.tree.clone(),
+                self.text.clone(),
+                next_selection.start.0..next_selection.end.0,
+                Rope::from_str(replacement.as_str()),
+            )
+            .unwrap();
+
+            let updated_selection = Selection {
+                start: next_selection.start,
+                end: next_selection.start + current_selection.len(),
+                node_id: None,
+                mode: current_selection.mode,
+            };
+
+            // Tolerance is needed so that we have a better chance of catching the errorneous node
+            let tolerance = 10;
+            if let Some(node) = tree.root_node().descendant_for_byte_range(
+                text.char_to_byte(updated_selection.start.0)
+                    .saturating_sub(tolerance),
+                text.char_to_byte(updated_selection.end.0)
+                    .saturating_add(tolerance),
+            ) {
+                // Why don't we just use `tree.has_error()` instead?
+                // Because I assume we want to be able to upend even if some part of the tree
+                // contains error
+                if !node.has_error() {
+                    self.edit(
+                        next_selection.start.0..next_selection.end.0,
+                        self.text
+                            .slice(current_selection.start.0..current_selection.end.0)
+                            .into(),
+                    );
+                    self.update_selection(updated_selection);
+                    return;
+                }
+            }
+
+            log::info!("upend: current selection result is errorneous node, trying next selection");
+
+            // Get the next selection
+
+            let new_selection = Self::get_selection_(
+                &self.text,
+                &self.tree,
+                &next_selection,
+                &SelectionMode::ParentNode,
+                &Direction::Current,
+                &self.cursor_direction,
+            );
+
+            if next_selection.eq(&new_selection) {
+                log::info!("upend: next selection is the same as current selection");
+                return;
+            }
+
+            next_selection = new_selection;
+        }
     }
 }
 
@@ -951,6 +989,41 @@ fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selectio
         get_nearest_node_after_byte(tree, cursor_byte)
     }
     .unwrap_or_else(|| tree.root_node())
+}
+
+fn edit(
+    mut tree: Tree,
+    mut text: Rope,
+    range: Range<usize>,
+    replacement: Rope,
+) -> Result<(Tree, Rope), anyhow::Error> {
+    let start_char_index = CharIndex(range.start);
+    let old_end_char_index = CharIndex(range.end);
+    let new_end_char_index = CharIndex(range.start) + replacement.len_chars();
+
+    let start_byte = start_char_index.to_byte(&text);
+    let old_end_byte = old_end_char_index.to_byte(&text);
+    let start_position = start_char_index.to_point(&text);
+    let old_end_position = old_end_char_index.to_point(&text);
+
+    text.try_remove(range.clone())?;
+    text.try_insert(range.start, replacement.to_string().as_str())?;
+
+    let new_end_byte = new_end_char_index.to_byte(&text);
+    let new_end_position = new_end_char_index.to_point(&text);
+
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(tree.language()).unwrap();
+    tree.edit(&InputEdit {
+        start_byte,
+        old_end_byte,
+        new_end_byte,
+        start_position,
+        old_end_position,
+        new_end_position,
+    });
+    tree = parser.parse(&text.to_string(), Some(&tree)).unwrap();
+    Ok((tree, text))
 }
 
 enum HandleKeyEventResult {

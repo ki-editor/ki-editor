@@ -10,78 +10,26 @@ use log::LevelFilter;
 use engine::{CharIndex, State};
 use ropey::RopeSlice;
 use std::io::{stdout, Write};
+use std::path::Path;
 use tree_sitter::{Parser, Point};
 
 fn main() {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info).unwrap();
-    let rust_source_code = r#"fn handle_event(source_code: &str) {
-    let mut parser = Parser::new();
-    parser
-        .set_language(tree_sitter_javascript::language())
-        .unwrap();
-    let tree = parser.parse(source_code, None).unwrap();
-    let mut stdout = stdout();
-    enable_raw_mode().unwrap();
+    let args = std::env::args().collect::<Vec<_>>();
+    let filename = Path::new(args.get(1).unwrap());
+    let content = std::fs::read_to_string(&filename).unwrap();
+    let language = match filename.extension().unwrap().to_str().unwrap() {
+        "js" => tree_sitter_javascript::language(),
+        "rs" => tree_sitter_rust::language(),
+        _ => panic!("Unsupported file extension"),
+    };
 
-    stdout.execute(SetCursorStyle::BlinkingBar).unwrap();
-    let mut state = State::new(source_code.into(), tree);
-    render(&state, &mut stdout);
-    loop {
-        match read().unwrap() {
-            Event::Key(event) => match event.code {
-                // Objects
-                KeyCode::Char('w') => {
-                    state.select_word();
-                }
-                KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
-                    stdout.execute(Clear(ClearType::All)).unwrap();
-                    break;
-                }
-            },
-            _ => {}
-        }
-        render(&state, &mut stdout);
-        stdout.flush().unwrap();
-    }
-    disable_raw_mode().unwrap();
-}
-        "#;
-    let source_code = "
-function fibonacci(n) {
-    if (n <= 0) {
-        return 0;
-    } else if (n === 1) {
-        return 1;
-    } else {
-        return fibonacci(n - 1) + fibonacci(n - 2, a, lol);
-    }
-}
-
-const x = <div height='24' width='24'>hello world</div>
-
-f(yo, waw)
-
-const x = [{a: 1, b: 2}, {c: 1}, {d: 1}]
-
-/* Hello world
- This is a comment */
-const y = `who lives in a pineapple under the sea? ${answer + `${answer + 2} hello`}`
-const x = fibonacci(10);
-console.log(x);
-
-    const interval = setInterval(() => {
-           fetchData()
- }, 60 * 1000)
-
- import { test_displayRelatedProjectUnit } from './project/test-display-related-project-units'
-
-        ";
-    handle_event(source_code)
+    handle_event(&content, language)
 }
 
 use crossterm::{
     cursor::MoveTo,
-    style::{Color, ResetColor, SetBackgroundColor, SetForegroundColor},
+    style::{Color, SetBackgroundColor, SetForegroundColor},
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
@@ -93,11 +41,9 @@ use crossterm::{
 
 use crate::engine::{CursorDirection, Mode};
 
-fn handle_event(source_code: &str) {
+fn handle_event(source_code: &str, language: tree_sitter::Language) {
     let mut parser = Parser::new();
-    parser
-        .set_language(tree_sitter_javascript::language())
-        .unwrap();
+    parser.set_language(language).unwrap();
     let tree = parser.parse(source_code, None).unwrap();
     enable_raw_mode().unwrap();
 
@@ -169,7 +115,7 @@ impl View {
 
     fn move_cursor(&mut self, point: Point) -> Result<(), anyhow::Error> {
         // Hide the cursor if the point is out of view
-        if point.row as u16 - self.scroll_offset >= self.row_count {
+        if (point.row as u16).saturating_sub(self.scroll_offset) >= self.row_count {
             queue!(self.stdout, Hide)?;
         } else {
             queue!(self.stdout, Show)?;
@@ -177,7 +123,7 @@ impl View {
                 self.stdout,
                 MoveTo(
                     point.column as u16,
-                    point.row as u16 - self.scroll_offset as u16
+                    (point.row as u16).saturating_sub(self.scroll_offset as u16)
                 )
             )?;
         }
