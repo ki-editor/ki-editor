@@ -35,6 +35,15 @@ impl Selection {
     fn len(&self) -> usize {
         self.end.0.saturating_sub(self.start.0)
     }
+
+    fn apply_change(&self, change: isize) -> Selection {
+        Selection {
+            mode: self.mode,
+            start: self.start.apply_change(change),
+            end: self.end.apply_change(change),
+            node_id: self.node_id,
+        }
+    }
 }
 
 impl Add<usize> for Selection {
@@ -102,6 +111,14 @@ impl CharIndex {
     fn to_byte(self, rope: &Rope) -> usize {
         rope.try_char_to_byte(self.0)
             .unwrap_or_else(|_| rope.len_bytes())
+    }
+
+    fn apply_change(&self, change: isize) -> CharIndex {
+        if change.is_positive() {
+            *self + (change as usize)
+        } else {
+            *self - (change.abs() as usize)
+        }
     }
 }
 
@@ -631,7 +648,7 @@ impl State {
         self.selection.to_char_index(&self.cursor_direction)
     }
 
-    fn toggle_extend_mode(&mut self) {
+    fn toggle_highlight_mode(&mut self) {
         if let Some(anchor) = self.extended_selection_anchor.take() {
             // Reverse the anchor with the current cursor position
             let cursor_index = self.get_cursor_char_index();
@@ -794,6 +811,7 @@ impl State {
             KeyCode::Char('A') => self.select_alphabet(Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('d') => self.delete_current_selection(),
+            KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
             KeyCode::Char('J') => self.jump(Direction::Backward),
@@ -811,7 +829,8 @@ impl State {
             KeyCode::Char('r') => self.replace(),
             KeyCode::Char('p') => self.select_parent(),
             KeyCode::Char('u') => self.upend(),
-            KeyCode::Char('x') => self.toggle_extend_mode(),
+            KeyCode::Char('x') => self.exchange(Direction::Forward),
+            KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
             KeyCode::Char('0') => self.select_none(Direction::Forward),
             KeyCode::Esc => {
@@ -880,33 +899,45 @@ impl State {
         })
     }
 
-    fn upend(&mut self) {
-        let current_selection = &self.selection;
+    /// Replace the next selection with the current selection without
+    /// making the syntax tree invalid
+    fn replace_faultlessly(
+        &mut self,
+        selection_mode: &SelectionMode,
+        direction: Direction,
+        swap_next_selection_with_current_selection: bool,
+    ) {
+        let current_selection = self.selection.clone();
 
-        // We need to add whitespace on both end of the replacement
-        //
-        // Otherwise we might get the following replacement in Rust:
-        // Assuming the selection is on `baz`.
-        //
-        // Before:                              foo.bar(baz)
-        // Result (with whitespace padding):    baz
-        // Result (without padding):            foo.barbaz
-        let replacement = " ".to_string()
-            + &self
-                .text
-                .slice(current_selection.start.0..current_selection.end.0)
-                .to_string()
-            + &" ";
+        let text_at_current_selection = self
+            .text
+            .slice(current_selection.start.0..current_selection.end.0)
+            .to_string();
 
         // Loop until the replacement does not result in errorneous node
-        let mut next_selection = self.get_selection(&SelectionMode::ParentNode, Direction::Current);
+        let mut next_selection = self.get_selection(&selection_mode, direction);
+
+        log::info!("tree has error = {}", self.tree.root_node().has_error());
+        log::info!(
+            "next_selection: {:?}",
+            self.text
+                .slice(next_selection.start.0..next_selection.end.0)
+        );
 
         loop {
             let (tree, text) = apply_edit(
                 self.tree.clone(),
                 self.text.clone(),
                 next_selection.start..next_selection.end,
-                Rope::from_str(replacement.as_str()),
+                // We need to add whitespace on both end of the replacement
+                //
+                // Otherwise we might get the following replacement in Rust:
+                // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
+                //
+                // Before:                              foo.bar(baz)
+                // Result (with whitespace padding):    baz
+                // Result (without padding):            foo.barbaz
+                Rope::from_str(&(" ".to_string() + &text_at_current_selection + &" ".to_string())),
             )
             .unwrap();
 
@@ -917,30 +948,80 @@ impl State {
                 mode: current_selection.mode,
             };
 
-            // Tolerance is needed so that we have a better chance of catching the errorneous node
-            let tolerance = 10;
             if let Some(node) = tree.root_node().descendant_for_byte_range(
-                text.char_to_byte(updated_selection.start.0)
-                    .saturating_sub(tolerance),
-                text.char_to_byte(updated_selection.end.0)
-                    .saturating_add(tolerance),
+                text.char_to_byte(updated_selection.start.0),
+                text.char_to_byte(updated_selection.end.0),
             ) {
                 // Why don't we just use `tree.has_error()` instead?
                 // Because I assume we want to be able to upend even if some part of the tree
                 // contains error
                 if !node.has_error() {
+                    let text_at_next_selection: Rope = self
+                        .text
+                        .slice(next_selection.start.0..next_selection.end.0)
+                        .into();
+
+                    // Replace the next selection with the current selection
                     self.edit(
                         next_selection.start..next_selection.end,
                         self.text
                             .slice(current_selection.start.0..current_selection.end.0)
                             .into(),
                     );
-                    self.update_selection(updated_selection);
+
+                    // Calculate the change needed to apply to the current_selection
+                    let text_at_current_selection_len =
+                        Rope::from_str(&text_at_current_selection).len_chars() as isize;
+
+                    let text_at_next_selection_len = text_at_next_selection.len_chars() as isize;
+
+                    log::info!(
+                        "text_at_current_selection_len: {}",
+                        text_at_current_selection_len
+                    );
+                    log::info!("text_at_next_selection_len: {}", text_at_next_selection_len);
+
+                    let (current_selection_change, updated_selection_change) =
+                        if !swap_next_selection_with_current_selection {
+                            (0, 0)
+                        } else if next_selection.start >= current_selection.end {
+                            (
+                                0,
+                                text_at_next_selection_len - text_at_current_selection_len,
+                            )
+                        } else {
+                            (
+                                text_at_current_selection_len - text_at_next_selection_len,
+                                0,
+                            )
+                        };
+
+                    if swap_next_selection_with_current_selection {
+                        // Replace current selection with the next selection
+                        self.edit(
+                            current_selection
+                                .start
+                                .apply_change(current_selection_change)
+                                ..current_selection.end.apply_change(current_selection_change),
+                            text_at_next_selection.into(),
+                        );
+                    }
+
+                    log::info!(
+                        "replace_faultlessly: current_selection_change: {:?}",
+                        current_selection_change
+                    );
+                    log::info!(
+                        "replace_faultlessly: updated_selection_change: {:?}",
+                        updated_selection_change
+                    );
+
+                    self.update_selection(updated_selection.apply_change(updated_selection_change));
                     return;
                 }
             }
 
-            log::info!("upend: current selection result is errorneous node, trying next selection");
+            log::info!("replace_faultlessly: current selection result is errorneous node, trying next selection");
 
             // Get the next selection
 
@@ -948,18 +1029,26 @@ impl State {
                 &self.text,
                 &self.tree,
                 &next_selection,
-                &SelectionMode::ParentNode,
-                &Direction::Current,
+                selection_mode,
+                &direction,
                 &self.cursor_direction,
             );
 
             if next_selection.eq(&new_selection) {
-                log::info!("upend: next selection is the same as current selection");
+                log::info!("replace_faultlessly: next selection is the same as current selection");
                 return;
             }
 
             next_selection = new_selection;
         }
+    }
+
+    fn upend(&mut self) {
+        self.replace_faultlessly(&SelectionMode::ParentNode, Direction::Current, false)
+    }
+
+    fn exchange(&mut self, direction: Direction) {
+        self.replace_faultlessly(&self.selection.mode.clone(), direction, true)
     }
 }
 

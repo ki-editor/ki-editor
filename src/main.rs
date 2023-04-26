@@ -19,7 +19,7 @@ fn main() {
     let filename = Path::new(args.get(1).unwrap());
     let content = std::fs::read_to_string(&filename).unwrap();
     let language = match filename.extension().unwrap().to_str().unwrap() {
-        "js" => tree_sitter_javascript::language(),
+        "js" | "ts" | "tsx" | "jsx" => tree_sitter_javascript::language(),
         "rs" => tree_sitter_rust::language(),
         _ => panic!("Unsupported file extension"),
     };
