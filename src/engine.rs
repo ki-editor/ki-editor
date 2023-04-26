@@ -314,6 +314,7 @@ impl State {
     fn delete_current_selection(&mut self) {
         let selection = self.get_current_selection();
         self.edit(selection.start.0..selection.end.0, Rope::new());
+        self.extended_selection_anchor = None;
         self.select(self.selection.mode, Direction::Current);
     }
 
@@ -338,6 +339,7 @@ impl State {
                         &(cursor_position + yanked_text_len),
                     )
                 }
+
                 (_, Mode::Insert) => {
                     let start = cursor_position + yanked_text_len;
                     self.selection = Selection {
@@ -784,7 +786,7 @@ impl State {
 
     fn enter_normal_mode(&mut self) {
         self.mode = Mode::Normal;
-        self.select(SelectionMode::Alphabet, Direction::Current);
+        self.select(SelectionMode::Custom, Direction::Current);
     }
 
     pub fn jumps(&self) -> Vec<&Jump> {
