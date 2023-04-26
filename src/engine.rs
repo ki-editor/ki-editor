@@ -3,7 +3,7 @@ use std::ops::{Add, Range, Sub};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use itertools::Itertools;
 use ropey::Rope;
-use tree_sitter::{InputEdit, Node, Point, Tree};
+use tree_sitter::{InputEdit, Node, Point, TextProvider, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 #[derive(PartialEq, Clone, Debug)]
@@ -30,6 +30,10 @@ impl Selection {
             end: *anchor.max(get_cursor_char_index),
             node_id: None,
         }
+    }
+
+    fn len(&self) -> usize {
+        self.end.0.saturating_sub(self.start.0)
     }
 }
 
@@ -147,7 +151,8 @@ pub enum SelectionMode {
 }
 impl SelectionMode {
     fn similar_to(&self, other: &SelectionMode) -> bool {
-        self == other || self.is_node() && other.is_node()
+        self == other
+        // || self.is_node() && other.is_node()
     }
 
     fn is_node(&self) -> bool {
@@ -194,17 +199,20 @@ impl State {
 
     fn select_kids(&mut self) {
         if let Some(node) = self.get_nearest_node_under_cursor() {
-            let second_child = node.child(1);
-            let second_last_child = node.child(node.child_count() - 2).or(second_child);
+            if let Some(parent) = node.parent() {
+                let second_child = parent.child(1);
+                let second_last_child = parent.child(parent.child_count() - 2).or(second_child);
 
-            if let (Some(second_child), Some(second_last_child)) = (second_child, second_last_child)
-            {
-                self.update_selection(Selection {
-                    start: CharIndex(second_child.start_byte()),
-                    end: CharIndex(second_last_child.end_byte()),
-                    node_id: None,
-                    mode: SelectionMode::Custom,
-                });
+                if let (Some(second_child), Some(second_last_child)) =
+                    (second_child, second_last_child)
+                {
+                    self.update_selection(Selection {
+                        start: CharIndex(second_child.start_byte()),
+                        end: CharIndex(second_last_child.end_byte()),
+                        node_id: None,
+                        mode: SelectionMode::Custom,
+                    });
+                }
             }
         }
     }
@@ -261,7 +269,17 @@ impl State {
             Direction::Current
         };
         log::info!("select: {:?} {:?}", selection_mode, direction);
-        self.update_selection(self.get_selection(&selection_mode, direction));
+        let selection = self.get_selection(&selection_mode, direction);
+        if let Some(node_id) = selection.node_id {
+            get_node_by_id(&self.tree, node_id).map(|node| {
+                log::info!(
+                    "node: {:?}",
+                    node.utf8_text(&self.text.to_string().into_bytes()).unwrap()
+                );
+                log::info!("{}", node.to_sexp())
+            });
+        }
+        self.update_selection(selection);
     }
 
     fn jump_from_selection(&mut self, direction: Direction, selection: &Selection) {
@@ -313,17 +331,22 @@ impl State {
 
     fn delete_current_selection(&mut self) {
         let selection = self.get_current_selection();
+        self.yank(&selection);
         self.edit(selection.start.0..selection.end.0, Rope::new());
         self.extended_selection_anchor = None;
         self.select(self.selection.mode, Direction::Current);
     }
 
-    fn yank(&mut self) {
-        let selection = self.get_current_selection();
+    fn yank(&mut self, selection: &Selection) {
         self.yanked_text = self
             .text
             .get_slice(selection.start.0..selection.end.0)
             .map(|slice| slice.into());
+        self.extended_selection_anchor = None;
+    }
+
+    fn yank_current_selection(&mut self) {
+        self.yank(&self.get_current_selection());
     }
 
     fn paste(&mut self) {
@@ -355,13 +378,14 @@ impl State {
     }
 
     fn replace(&mut self) {
-        let yanked_text = self.yanked_text.take().unwrap_or_else(Rope::new);
+        let replacement = self.yanked_text.take().unwrap_or_else(Rope::new);
         let selection = self.get_current_selection();
-        let yanked_text_len = yanked_text.len_chars();
-        self.edit(selection.start.0..selection.end.0, yanked_text);
+        let replacement_text_len = replacement.len_chars();
+        self.yank(&selection);
+        self.edit(selection.start.0..selection.end.0, replacement);
         self.selection = Selection {
             start: selection.start,
-            end: selection.start + yanked_text_len,
+            end: selection.start + replacement_text_len,
             mode: SelectionMode::Custom,
             node_id: None,
         };
@@ -369,10 +393,6 @@ impl State {
 
     /// Replace the text in the given range with the given replacement.
     fn edit(&mut self, range: Range<usize>, replacement: Rope) {
-        if !range.is_empty() {
-            self.yanked_text = self.text.get_slice(range.clone()).map(|slice| slice.into());
-        }
-
         let start_char_index = CharIndex(range.start);
         let old_end_char_index = CharIndex(range.end);
         let new_end_char_index = CharIndex(range.start) + replacement.len_chars();
@@ -743,8 +763,9 @@ impl State {
             KeyCode::Char('w') => self.select_word(),
             KeyCode::Char('r') => self.replace(),
             KeyCode::Char('p') => self.select_parent(),
+            KeyCode::Char('P') => self.replace_parent(),
             KeyCode::Char('x') => self.toggle_extend_mode(),
-            KeyCode::Char('y') => self.yank(),
+            KeyCode::Char('y') => self.yank_current_selection(),
             KeyCode::Char('0') => self.select_none(Direction::Forward),
             KeyCode::Esc => {
                 self.extended_selection_anchor = None;
@@ -752,6 +773,7 @@ impl State {
             // Similar to Change in Vim
             KeyCode::Backspace => {
                 let selection = self.get_current_selection();
+                self.yank(&selection);
                 self.edit(selection.start.0..selection.end.0, "".into());
                 self.selection = Selection {
                     start: selection.start,
@@ -809,6 +831,23 @@ impl State {
             end: start,
             node_id: None,
         })
+    }
+
+    fn replace_parent(&mut self) {
+        let current = &self.selection;
+        let next = self.get_selection(&SelectionMode::ParentNode, Direction::Current);
+
+        let updated_selection = Selection {
+            start: next.start,
+            end: next.start + current.len(),
+            node_id: None,
+            mode: current.mode,
+        };
+        self.edit(
+            next.start.0..next.end.0,
+            self.text.slice(current.start.0..current.end.0).into(),
+        );
+        self.update_selection(updated_selection);
     }
 }
 

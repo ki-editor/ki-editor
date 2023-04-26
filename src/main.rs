@@ -76,7 +76,7 @@ console.log(x);
  import { test_displayRelatedProjectUnit } from './project/test-display-related-project-units'
 
         ";
-    handle_event(rust_source_code)
+    handle_event(source_code)
 }
 
 use crossterm::{
@@ -95,7 +95,9 @@ use crate::engine::{CursorDirection, Mode};
 
 fn handle_event(source_code: &str) {
     let mut parser = Parser::new();
-    parser.set_language(tree_sitter_rust::language()).unwrap();
+    parser
+        .set_language(tree_sitter_javascript::language())
+        .unwrap();
     let tree = parser.parse(source_code, None).unwrap();
     enable_raw_mode().unwrap();
 
