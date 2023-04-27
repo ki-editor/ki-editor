@@ -6,6 +6,8 @@ use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
+use crate::edit::{Edit, EditTransaction};
+
 #[derive(PartialEq, Clone, Debug)]
 pub struct Selection {
     pub mode: SelectionMode,
@@ -36,11 +38,11 @@ impl Selection {
         self.end.0.saturating_sub(self.start.0)
     }
 
-    fn apply_change(&self, change: isize) -> Selection {
+    fn apply_offset(&self, change: isize) -> Selection {
         Selection {
             mode: self.mode,
-            start: self.start.apply_change(change),
-            end: self.end.apply_change(change),
+            start: self.start.apply_offset(change),
+            end: self.end.apply_offset(change),
             node_id: self.node_id,
         }
     }
@@ -88,7 +90,7 @@ impl Sub<usize> for CharIndex {
     }
 }
 
-#[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord)]
+#[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord, Hash)]
 pub struct CharIndex(pub usize);
 
 impl CharIndex {
@@ -103,17 +105,17 @@ impl CharIndex {
         }
     }
 
-    fn to_line(self, rope: &Rope) -> usize {
+    pub fn to_line(self, rope: &Rope) -> usize {
         rope.try_char_to_line(self.0)
             .unwrap_or_else(|_| rope.len_lines())
     }
 
-    fn to_byte(self, rope: &Rope) -> usize {
+    pub fn to_byte(self, rope: &Rope) -> usize {
         rope.try_char_to_byte(self.0)
             .unwrap_or_else(|_| rope.len_bytes())
     }
 
-    fn apply_change(&self, change: isize) -> CharIndex {
+    pub fn apply_offset(&self, change: isize) -> CharIndex {
         if change.is_positive() {
             *self + (change as usize)
         } else {
@@ -134,11 +136,6 @@ pub struct Jump {
     pub selection: Selection,
 }
 
-struct Edit {
-    replacement_range: Range<CharIndex>,
-    replaced_text: Rope,
-}
-
 pub struct State {
     pub text: Rope,
     pub mode: Mode,
@@ -150,6 +147,10 @@ pub struct State {
     pub quit: bool,
     yanked_text: Option<Rope>,
     selection_history: Vec<Selection>,
+
+    /// TODO: we should store EditTransaction which is a vector of edits instead
+    /// That allows us to undo/redo multiple edits at once
+    /// For example, one exchange operation consists two edits
     undo_edits: Vec<Edit>,
     redo_edits: Vec<Edit>,
 
@@ -422,6 +423,12 @@ impl State {
         self.edit_(range, replacement, EditHistoryKind::NewEdit)
     }
 
+    fn apply_edit_transaction(&mut self, edit_transaction: EditTransaction) {
+        for edit in edit_transaction.edits {
+            self.edit_(edit.range, edit.replacement, EditHistoryKind::NewEdit);
+        }
+    }
+
     fn edit_(
         &mut self,
         range: Range<CharIndex>,
@@ -432,8 +439,8 @@ impl State {
         let replacement_range = (range.start)..(range.start + replacement.len_chars());
 
         let edit = Edit {
-            replacement_range,
-            replaced_text: replaced_text.into(),
+            range: replacement_range,
+            replacement: replaced_text.into(),
         };
         match edit_history_kind {
             EditHistoryKind::NewEdit => {
@@ -447,8 +454,12 @@ impl State {
                 self.undo_edits.push(edit);
             }
         }
-        (self.tree, self.text) =
-            apply_edit(self.tree.clone(), self.text.clone(), range, replacement).unwrap();
+        (self.tree, self.text) = apply_edit(
+            self.tree.clone(),
+            self.text.clone(),
+            Edit { range, replacement },
+        )
+        .unwrap();
     }
 
     fn undo(&mut self) {
@@ -468,15 +479,15 @@ impl State {
     }
 
     fn revert_change(&mut self, edit: &Edit, edit_history_kind: EditHistoryKind) {
-        let replaced_text_len = edit.replaced_text.len_chars();
+        let replaced_text_len = edit.replacement.len_chars();
         self.edit_(
-            edit.replacement_range.clone(),
-            edit.replaced_text.clone(),
+            edit.range.clone(),
+            edit.replacement.clone(),
             edit_history_kind,
         );
         self.update_selection(Selection::from_two_char_indices(
-            &edit.replacement_range.start,
-            &(edit.replacement_range.start + replaced_text_len),
+            &edit.range.start,
+            &(edit.range.start + replaced_text_len),
         ))
     }
 
@@ -556,26 +567,31 @@ impl State {
             SelectionMode::Word => todo!(),
             SelectionMode::ParentNode => {
                 let current_node = get_current_node(tree, cursor_byte, current_selection);
-                let mut parent = current_node.parent();
 
-                // This loop is to ensure we select the nearest parent that has a larger range than
-                // the current node
-                //
-                // This is necessary because sometimes the parent node can have the same range as
-                // the current node
-                while let Some(some_parent) = parent {
-                    if some_parent.range() != current_node.range() {
-                        break;
+                let node = {
+                    let mut parent = current_node.parent();
+
+                    // This loop is to ensure we select the nearest parent that has a larger range than
+                    // the current node
+                    //
+                    // This is necessary because sometimes the parent node can have the same range as
+                    // the current node
+                    while let Some(some_parent) = parent {
+                        if some_parent.range() != current_node.range() {
+                            break;
+                        }
+                        parent = some_parent.parent()
                     }
-                    parent = some_parent.parent()
-                }
-                node_to_selection(parent.unwrap_or(current_node), *mode, text)
+                    parent.unwrap_or(current_node)
+                };
+                node_to_selection(node, *mode, text)
             }
 
             SelectionMode::SiblingNode => {
                 let current_node = get_current_node(tree, cursor_byte, current_selection);
                 let next_node = match direction {
-                    Direction::Forward | Direction::Current => current_node.next_named_sibling(),
+                    Direction::Current => Some(current_node),
+                    Direction::Forward => current_node.next_named_sibling(),
                     Direction::Backward => current_node.prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
@@ -810,6 +826,8 @@ impl State {
             KeyCode::Char('A') => self.select_alphabet(Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('d') => self.delete_current_selection(),
+            KeyCode::Char('e') => self.eat(Direction::Forward),
+            KeyCode::Char('E') => self.eat(Direction::Backward),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
@@ -900,12 +918,7 @@ impl State {
 
     /// Replace the next selection with the current selection without
     /// making the syntax tree invalid
-    fn replace_faultlessly(
-        &mut self,
-        selection_mode: &SelectionMode,
-        direction: Direction,
-        swap_next_selection_with_current_selection: bool,
-    ) {
+    fn replace_faultlessly(&mut self, selection_mode: &SelectionMode, direction: Direction) {
         let current_selection = self.selection.clone();
 
         let text_at_current_selection = self
@@ -917,32 +930,43 @@ impl State {
         let mut next_selection = self.get_selection(&selection_mode, direction);
 
         loop {
-            let (tree, text) = apply_edit(
+            let edit_transaction = EditTransaction::new(vec![
+                (
+                    current_selection.start.0..current_selection.end.0,
+                    &self
+                        .text
+                        .slice(next_selection.start.0..next_selection.end.0)
+                        .to_string(),
+                ),
+                (
+                    next_selection.start.0..next_selection.end.0,
+                    // We need to add whitespace on both end of the replacement
+                    //
+                    // Otherwise we might get the following replacement in Rust:
+                    // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
+                    //
+                    // Before:                              foo.bar(baz)
+                    // Result (with whitespace padding):    baz
+                    // Result (without padding):            foo.barbaz
+                    &(" ".to_string() + &text_at_current_selection + &" ".to_string()),
+                ),
+            ]);
+
+            log::info!("current_selection: {:?}", current_selection);
+            log::info!("next_selection: {:?}", next_selection);
+            log::info!("edit_transaction: {:?}", edit_transaction);
+            let (tree, text) = apply_edit_transaction(
                 self.tree.clone(),
                 self.text.clone(),
-                next_selection.start..next_selection.end,
-                // We need to add whitespace on both end of the replacement
-                //
-                // Otherwise we might get the following replacement in Rust:
-                // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
-                //
-                // Before:                              foo.bar(baz)
-                // Result (with whitespace padding):    baz
-                // Result (without padding):            foo.barbaz
-                Rope::from_str(&(" ".to_string() + &text_at_current_selection + &" ".to_string())),
+                edit_transaction.clone(),
             )
             .unwrap();
 
-            let updated_selection = Selection {
-                start: next_selection.start,
-                end: next_selection.start + current_selection.len(),
-                node_id: None,
-                mode: current_selection.mode,
-            };
-
             if let Some(node) = tree.root_node().descendant_for_byte_range(
-                text.char_to_byte(updated_selection.start.0),
-                text.char_to_byte(updated_selection.end.0),
+                text.try_char_to_byte(edit_transaction.min_char_index().0)
+                    .unwrap_or(0),
+                text.try_char_to_byte(edit_transaction.max_char_index().0)
+                    .unwrap_or(0),
             ) {
                 log::info!("ranged_node: {:?}", node.to_sexp());
                 let text_at_next_selection: Rope = self
@@ -956,62 +980,38 @@ impl State {
                 if !text_at_next_selection.to_string().trim().is_empty()
                     && (!selection_mode.is_node() || !node.has_error())
                 {
-                    // Replace the next selection with the current selection
-                    self.edit(
-                        next_selection.start..next_selection.end,
-                        self.text
-                            .slice(current_selection.start.0..current_selection.end.0)
-                            .into(),
-                    );
+                    let edit_transaction = EditTransaction::new(vec![
+                        (
+                            current_selection.start.0..current_selection.end.0,
+                            &self
+                                .text
+                                .slice(next_selection.start.0..next_selection.end.0)
+                                .to_string(),
+                        ),
+                        (
+                            next_selection.start.0..next_selection.end.0,
+                            // This time without the space padding
+                            &text_at_current_selection,
+                        ),
+                    ]);
+                    self.apply_edit_transaction(edit_transaction.clone());
 
-                    // Calculate the change needed to apply to the current_selection
-                    let text_at_current_selection_len =
-                        Rope::from_str(&text_at_current_selection).len_chars() as isize;
-
-                    let text_at_next_selection_len = text_at_next_selection.len_chars() as isize;
-
-                    log::info!(
-                        "text_at_current_selection_len: {}",
-                        text_at_current_selection_len
-                    );
-                    log::info!("text_at_next_selection_len: {}", text_at_next_selection_len);
-
-                    let (current_selection_change, updated_selection_change) =
-                        if !swap_next_selection_with_current_selection {
-                            (0, 0)
-                        } else if next_selection.start >= current_selection.end {
-                            (
-                                0,
-                                text_at_next_selection_len - text_at_current_selection_len,
-                            )
-                        } else {
-                            (
-                                text_at_current_selection_len - text_at_next_selection_len,
-                                0,
-                            )
-                        };
-
-                    if swap_next_selection_with_current_selection {
-                        // Replace current selection with the next selection
-                        self.edit(
-                            current_selection
-                                .start
-                                .apply_change(current_selection_change)
-                                ..current_selection.end.apply_change(current_selection_change),
-                            text_at_next_selection.into(),
-                        );
-                    }
-
-                    log::info!(
-                        "replace_faultlessly: current_selection_change: {:?}",
-                        current_selection_change
-                    );
-                    log::info!(
-                        "replace_faultlessly: updated_selection_change: {:?}",
-                        updated_selection_change
-                    );
-
-                    self.update_selection(updated_selection.apply_change(updated_selection_change));
+                    let updated_selection = {
+                        let edit = match direction {
+                            Direction::Forward | Direction::Current => {
+                                edit_transaction.edits.last()
+                            }
+                            Direction::Backward => edit_transaction.edits.first(),
+                        }
+                        .unwrap();
+                        Selection {
+                            start: edit.range.start,
+                            end: edit.range.start + edit.replacement.len_chars(),
+                            mode: *selection_mode,
+                            node_id: None,
+                        }
+                    };
+                    self.update_selection(updated_selection);
                     return;
                 }
             }
@@ -1039,12 +1039,16 @@ impl State {
     }
 
     fn upend(&mut self) {
-        self.replace_faultlessly(&SelectionMode::ParentNode, Direction::Current, false)
+        self.replace_faultlessly(&SelectionMode::ParentNode, Direction::Current)
+    }
+
+    fn eat(&mut self, direction: Direction) {
+        self.replace_faultlessly(&self.selection.mode.clone(), direction)
     }
 
     fn exchange(&mut self, direction: Direction) {
-        // self.replace_faultlessly(&self.selection.mode.clone(), direction, true)
-        self.replace_faultlessly(&SelectionMode::SiblingNode, direction, true)
+        self.replace_faultlessly(&self.selection.mode.clone(), direction)
+        // self.replace_faultlessly(&SelectionMode::SiblingNode, direction)
     }
 }
 
@@ -1150,11 +1154,24 @@ fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selectio
     .unwrap_or_else(|| tree.root_node())
 }
 
+fn apply_edit_transaction(
+    tree: Tree,
+    text: Rope,
+    edit_transaction: EditTransaction,
+) -> Result<(Tree, Rope), anyhow::Error> {
+    edit_transaction
+        .edits
+        .into_iter()
+        .fold(Ok((tree, text)), |result, edit| match result {
+            Err(err) => Err(err),
+            Ok((tree, text)) => apply_edit(tree, text, edit),
+        })
+}
+
 fn apply_edit(
     mut tree: Tree,
     mut text: Rope,
-    range: Range<CharIndex>,
-    replacement: Rope,
+    Edit { range, replacement }: Edit,
 ) -> Result<(Tree, Rope), anyhow::Error> {
     let start_char_index = range.start;
     let old_end_char_index = range.end;

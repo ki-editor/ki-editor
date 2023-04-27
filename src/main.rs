@@ -1,3 +1,4 @@
+mod edit;
 mod engine;
 
 use crossterm::cursor::{Hide, Show};
@@ -171,12 +172,12 @@ impl View {
                     } else if start_char_index <= char_index && char_index < end_char_index {
                         Color::Yellow
                     } else {
-                        Color::Reset
+                        Color::White
                     }
                 } else if start_char_index <= char_index && char_index < end_char_index {
                     Color::Yellow
                 } else {
-                    Color::Reset
+                    Color::White
                 };
                 grid[line_index - self.scroll_offset as usize][local_char_index] = Cell {
                     symbol: c.to_string(),
@@ -256,8 +257,8 @@ impl Default for Cell {
     fn default() -> Self {
         Cell {
             symbol: " ".to_string(),
-            foreground_color: Color::Reset,
-            background_color: Color::Reset,
+            foreground_color: Color::White,
+            background_color: Color::White,
         }
     }
 }
