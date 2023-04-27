@@ -575,9 +575,8 @@ impl State {
             SelectionMode::SiblingNode => {
                 let current_node = get_current_node(tree, cursor_byte, current_selection);
                 let next_node = match direction {
-                    Direction::Forward => current_node.next_sibling(),
-                    Direction::Backward => current_node.prev_sibling(),
-                    Direction::Current => None,
+                    Direction::Forward | Direction::Current => current_node.next_named_sibling(),
+                    Direction::Backward => current_node.prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
                 node_to_selection(next_node, *mode, text)
@@ -917,13 +916,6 @@ impl State {
         // Loop until the replacement does not result in errorneous node
         let mut next_selection = self.get_selection(&selection_mode, direction);
 
-        log::info!("tree has error = {}", self.tree.root_node().has_error());
-        log::info!(
-            "next_selection: {:?}",
-            self.text
-                .slice(next_selection.start.0..next_selection.end.0)
-        );
-
         loop {
             let (tree, text) = apply_edit(
                 self.tree.clone(),
@@ -952,15 +944,18 @@ impl State {
                 text.char_to_byte(updated_selection.start.0),
                 text.char_to_byte(updated_selection.end.0),
             ) {
-                // Why don't we just use `tree.has_error()` instead?
-                // Because I assume we want to be able to upend even if some part of the tree
-                // contains error
-                if !node.has_error() {
-                    let text_at_next_selection: Rope = self
-                        .text
-                        .slice(next_selection.start.0..next_selection.end.0)
-                        .into();
+                log::info!("ranged_node: {:?}", node.to_sexp());
+                let text_at_next_selection: Rope = self
+                    .text
+                    .slice(next_selection.start.0..next_selection.end.0)
+                    .into();
 
+                // Why don't we just use `tree.root_node().has_error()` instead?
+                // Because I assume we want to be able to exchange even if some part of the tree
+                // contains error
+                if !text_at_next_selection.to_string().trim().is_empty()
+                    && (!selection_mode.is_node() || !node.has_error())
+                {
                     // Replace the next selection with the current selection
                     self.edit(
                         next_selection.start..next_selection.end,
@@ -1048,7 +1043,8 @@ impl State {
     }
 
     fn exchange(&mut self, direction: Direction) {
-        self.replace_faultlessly(&self.selection.mode.clone(), direction, true)
+        // self.replace_faultlessly(&self.selection.mode.clone(), direction, true)
+        self.replace_faultlessly(&SelectionMode::SiblingNode, direction, true)
     }
 }
 
