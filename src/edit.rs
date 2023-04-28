@@ -3,30 +3,37 @@ use std::ops::Range;
 use itertools::Itertools;
 use ropey::Rope;
 
-use crate::engine::CharIndex;
+use crate::engine::{CharIndex, Selection};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edit {
-    pub range: Range<CharIndex>,
-    pub replacement: Rope,
+    pub start: CharIndex,
+    pub old: Rope,
+    pub new: Rope,
 }
 impl Edit {
     fn apply_offset(self, offset: isize) -> Edit {
         Edit {
-            range: self.range.apply_offset(offset),
-            replacement: self.replacement,
+            start: CharIndex((self.start.0 as isize + offset) as usize),
+            old: self.old,
+            new: self.new,
         }
+    }
+
+    pub fn end(&self) -> CharIndex {
+        CharIndex(self.start.0 + self.old.len_chars())
     }
 
     pub fn new(range: Range<usize>, replacement: &str) -> Self {
         Edit {
-            range: CharIndex(range.start)..CharIndex(range.end),
-            replacement: Rope::from(replacement),
+            start: CharIndex(range.start),
+            old: todo!(),
+            new: Rope::from(replacement),
         }
     }
 
     fn subset_of(&self, other: &Edit) -> bool {
-        self.range.start >= other.range.start && self.range.end <= other.range.end
+        self.start >= other.start && self.end() <= other.end()
     }
 }
 
@@ -45,34 +52,48 @@ impl ApplyOffset for Range<CharIndex> {
 
 #[derive(Clone, Debug)]
 pub struct EditTransaction {
-    pub edits: Vec<Edit>,
+    edits: Vec<Edit>,
+    /// Used for restoring previous selection after undo/redo
+    pub selection: Selection,
 }
 
 impl EditTransaction {
     fn apply_to(&self, mut rope: Rope) -> Rope {
         for edit in &self.edits {
-            rope.remove(edit.range.start.0..edit.range.end.0);
-            rope.insert(edit.range.start.0, edit.replacement.to_string().as_str());
+            rope.remove(edit.start.0..edit.end().0);
+            rope.insert(edit.start.0, edit.new.to_string().as_str());
         }
         rope
     }
 
-    pub fn new(edits: Vec<(Range<usize>, &str)>) -> Self {
+    pub fn edits(&self) -> &Vec<Edit> {
+        &self.edits
+    }
+
+    pub fn from_edits(current_selection: Selection, edits: Vec<Edit>) -> Self {
         Self {
-            edits: Self::normalize_edits(
-                edits
-                    .into_iter()
-                    .map(|(range, replacement)| Edit {
-                        range: CharIndex(range.start)..CharIndex(range.end),
-                        replacement: Rope::from_str(replacement),
-                    })
-                    .collect(),
-            ),
+            edits: Self::normalize_edits(&edits),
+            selection: current_selection,
+        }
+    }
+
+    pub fn from_tuples(edits: Vec<(Range<usize>, &str)>) -> Self {
+        Self {
+            selection: todo!(),
+            edits: edits
+                .into_iter()
+                .map(|(range, replacement)| Edit {
+                    // range: CharIndex(range.start)..CharIndex(range.end),
+                    start: todo!(),
+                    old: todo!(),
+                    new: Rope::from_str(replacement),
+                })
+                .collect::<Vec<_>>(),
         }
     }
 
     /// This is used for multi-cursor edits.
-    fn normalize_edits(edits: Vec<Edit>) -> Vec<Edit> {
+    pub fn normalize_edits(edits: &Vec<Edit>) -> Vec<Edit> {
         // 1) remove edit that are subset of other edits
         let edits = edits
             .iter()
@@ -82,7 +103,7 @@ impl EditTransaction {
                     .any(|other| *edit != other && edit.subset_of(other))
             })
             // 2) sort edits by start position
-            .sorted_by_key(|edit| edit.range.start)
+            .sorted_by_key(|edit| edit.start)
             // 3) Remove duplicates
             .unique()
             .collect::<Vec<_>>();
@@ -96,16 +117,16 @@ impl EditTransaction {
                 let tuples = edits.into_iter().tuple_windows::<(&Edit, &Edit)>();
 
                 for (current, next) in tuples {
-                    assert!(current.range.start < next.range.start);
+                    assert!(current.start < next.start);
 
                     // 4) trim edits that intersect with each other
                     let next = Edit {
-                        range: (next.range.start.max(current.range.end))..next.range.end,
+                        start: next.start.max(current.end()),
                         ..next.clone()
                     };
 
-                    offset += current.replacement.len_chars() as isize
-                        - (current.range.end.0 as isize - current.range.start.0 as isize) as isize;
+                    offset += current.new.len_chars() as isize
+                        - (current.end().0 as isize - current.start.0 as isize) as isize;
 
                     // 5) apply offset to edits
                     result.push(next.apply_offset(offset))
@@ -119,7 +140,7 @@ impl EditTransaction {
     pub fn min_char_index(&self) -> CharIndex {
         self.edits
             .iter()
-            .map(|edit| edit.range.start)
+            .map(|edit| edit.start)
             .min()
             .unwrap_or(CharIndex(0))
     }
@@ -127,9 +148,13 @@ impl EditTransaction {
     pub fn max_char_index(&self) -> CharIndex {
         self.edits
             .iter()
-            .map(|edit| edit.range.end)
+            .map(|edit| edit.end())
             .max()
             .unwrap_or(CharIndex(0))
+    }
+
+    pub fn normalized_edits(&self) -> Vec<Edit> {
+        Self::normalize_edits(&self.edits)
     }
 }
 
@@ -142,14 +167,14 @@ mod test_normalize_edit {
 
     #[test]
     fn only_one_edit() {
-        let edit_transaction = EditTransaction::new(vec![(0..3, "What")]);
+        let edit_transaction = EditTransaction::from_tuples(vec![(0..3, "What")]);
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
         assert_eq!(result, Rope::from_str("What lives in a pineapple"));
     }
 
     #[test]
     fn no_intersection() {
-        let edit_transaction = EditTransaction::new(vec![
+        let edit_transaction = EditTransaction::from_tuples(vec![
             // Replacement length > range length
             (0..3, "What"),
             // Replacement length < range length
@@ -166,7 +191,7 @@ mod test_normalize_edit {
     /// Expects the first edit is removed because it is a subset of the second edit.
     fn some_is_subset_of_other() {
         let edit_transaction =
-            EditTransaction::new(vec![(0..3, "What"), (0..9, "He"), (13..14, "two")]);
+            EditTransaction::from_tuples(vec![(0..3, "What"), (0..9, "He"), (13..14, "two")]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
@@ -177,7 +202,7 @@ mod test_normalize_edit {
     /// Expect the edits to be sorted before being applied
     fn unsorted() {
         let edit_transaction =
-            EditTransaction::new(vec![(13..14, "two"), (0..3, "What"), (4..9, "see")]);
+            EditTransaction::from_tuples(vec![(13..14, "two"), (0..3, "What"), (4..9, "see")]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
@@ -187,7 +212,7 @@ mod test_normalize_edit {
     #[test]
     /// Expect duplicate edits to be removed
     fn duplicated() {
-        let edit_transaction = EditTransaction::new(vec![
+        let edit_transaction = EditTransaction::from_tuples(vec![
             (0..3, "What"),
             (0..3, "What"),
             (0..3, "What"),
@@ -205,7 +230,7 @@ mod test_normalize_edit {
     /// Intersected edits should be trimmed
     fn some_intersected() {
         let edit_transaction =
-            EditTransaction::new(vec![(0..3, "What"), (4..9, "see"), (6..10, "soap")]);
+            EditTransaction::from_tuples(vec![(0..3, "What"), (4..9, "see"), (6..10, "soap")]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
