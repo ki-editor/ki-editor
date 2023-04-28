@@ -69,10 +69,10 @@ fn handle_event(source_code: &str, language: tree_sitter::Language) {
             }
             Event::Mouse(mouse_event) => match mouse_event.kind {
                 MouseEventKind::ScrollUp => {
-                    view.scroll_offset = view.scroll_offset.saturating_sub(1)
+                    view.scroll_offset = view.scroll_offset.saturating_sub(3)
                 }
                 MouseEventKind::ScrollDown => {
-                    view.scroll_offset = view.scroll_offset.saturating_add(1)
+                    view.scroll_offset = view.scroll_offset.saturating_add(3)
                 }
                 MouseEventKind::Down(MouseButton::Left) => state
                     .set_cursor_position(mouse_event.row + view.scroll_offset, mouse_event.column),
@@ -217,6 +217,7 @@ impl View {
     }
 
     fn render(&mut self, state: &State) -> Result<(), anyhow::Error> {
+        queue!(self.stdout, Hide)?;
         queue!(self.stdout, Clear(ClearType::All))?;
         let grid = self.get_grid(state);
         for (row, line) in grid.into_iter().enumerate() {

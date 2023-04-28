@@ -191,7 +191,7 @@ pub enum CursorDirection {
     End,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Direction {
     Forward,
     Backward,
@@ -220,8 +220,8 @@ impl State {
         }
     }
 
-    fn select_parent(&mut self) {
-        self.select(SelectionMode::ParentNode, Direction::Current);
+    fn select_parent(&mut self, direction: Direction) {
+        self.select(SelectionMode::ParentNode, direction);
     }
 
     fn select_kids(&mut self) {
@@ -568,21 +568,35 @@ impl State {
             SelectionMode::ParentNode => {
                 let current_node = get_current_node(tree, cursor_byte, current_selection);
 
-                let node = {
-                    let mut parent = current_node.parent();
+                fn get_node(node: Node, direction: Direction) -> Option<Node> {
+                    match direction {
+                        Direction::Current => Some(node),
+                        Direction::Forward => node.parent(),
 
-                    // This loop is to ensure we select the nearest parent that has a larger range than
-                    // the current node
-                    //
-                    // This is necessary because sometimes the parent node can have the same range as
-                    // the current node
-                    while let Some(some_parent) = parent {
-                        if some_parent.range() != current_node.range() {
-                            break;
-                        }
-                        parent = some_parent.parent()
+                        // Backward of ParentNode = ChildNode
+                        Direction::Backward => node.named_child(0),
                     }
-                    parent.unwrap_or(current_node)
+                }
+
+                let node = {
+                    if direction == &Direction::Current {
+                        current_node
+                    } else {
+                        let mut node = get_node(current_node, *direction);
+
+                        // This loop is to ensure we select the nearest parent that has a larger range than
+                        // the current node
+                        //
+                        // This is necessary because sometimes the parent node can have the same range as
+                        // the current node
+                        while let Some(some_node) = node {
+                            if some_node.range() != current_node.range() {
+                                break;
+                            }
+                            node = get_node(some_node, *direction);
+                        }
+                        node.unwrap_or(current_node)
+                    }
                 };
                 node_to_selection(node, *mode, text)
             }
@@ -826,8 +840,6 @@ impl State {
             KeyCode::Char('A') => self.select_alphabet(Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('d') => self.delete_current_selection(),
-            KeyCode::Char('e') => self.eat(Direction::Forward),
-            KeyCode::Char('E') => self.eat(Direction::Backward),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
@@ -844,8 +856,8 @@ impl State {
             KeyCode::Char('T') => self.select_token(Direction::Backward),
             KeyCode::Char('w') => self.select_word(),
             KeyCode::Char('r') => self.replace(),
-            KeyCode::Char('p') => self.select_parent(),
-            KeyCode::Char('u') => self.upend(),
+            KeyCode::Char('p') => self.select_parent(Direction::Forward),
+            KeyCode::Char('P') => self.select_parent(Direction::Backward),
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
@@ -1038,17 +1050,8 @@ impl State {
         }
     }
 
-    fn upend(&mut self) {
-        self.replace_faultlessly(&SelectionMode::ParentNode, Direction::Current)
-    }
-
-    fn eat(&mut self, direction: Direction) {
-        self.replace_faultlessly(&self.selection.mode.clone(), direction)
-    }
-
     fn exchange(&mut self, direction: Direction) {
         self.replace_faultlessly(&self.selection.mode.clone(), direction)
-        // self.replace_faultlessly(&SelectionMode::SiblingNode, direction)
     }
 }
 
