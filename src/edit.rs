@@ -24,14 +24,6 @@ impl Edit {
         CharIndex(self.start.0 + self.old.len_chars())
     }
 
-    pub fn new(range: Range<usize>, replacement: &str) -> Self {
-        Edit {
-            start: CharIndex(range.start),
-            old: todo!(),
-            new: Rope::from(replacement),
-        }
-    }
-
     fn subset_of(&self, other: &Edit) -> bool {
         self.start >= other.start && self.end() <= other.end()
     }
@@ -77,18 +69,19 @@ impl EditTransaction {
         }
     }
 
-    pub fn from_tuples(edits: Vec<(Range<usize>, &str)>) -> Self {
+    pub fn from_tuples(edits: Vec<(/*start*/ usize, /*old*/ &str, /*new*/ &str)>) -> Self {
         Self {
-            selection: todo!(),
-            edits: edits
-                .into_iter()
-                .map(|(range, replacement)| Edit {
-                    // range: CharIndex(range.start)..CharIndex(range.end),
-                    start: todo!(),
-                    old: todo!(),
-                    new: Rope::from_str(replacement),
-                })
-                .collect::<Vec<_>>(),
+            selection: Selection::default(),
+            edits: Self::normalize_edits(
+                &edits
+                    .into_iter()
+                    .map(|(start, old, new)| Edit {
+                        start: CharIndex(start),
+                        old: Rope::from_str(old),
+                        new: Rope::from_str(new),
+                    })
+                    .collect::<Vec<_>>(),
+            ),
         }
     }
 
@@ -152,10 +145,6 @@ impl EditTransaction {
             .max()
             .unwrap_or(CharIndex(0))
     }
-
-    pub fn normalized_edits(&self) -> Vec<Edit> {
-        Self::normalize_edits(&self.edits)
-    }
 }
 
 // Test normalize_edits
@@ -167,7 +156,7 @@ mod test_normalize_edit {
 
     #[test]
     fn only_one_edit() {
-        let edit_transaction = EditTransaction::from_tuples(vec![(0..3, "What")]);
+        let edit_transaction = EditTransaction::from_tuples(vec![(0, "Who", "What")]);
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
         assert_eq!(result, Rope::from_str("What lives in a pineapple"));
     }
@@ -176,10 +165,10 @@ mod test_normalize_edit {
     fn no_intersection() {
         let edit_transaction = EditTransaction::from_tuples(vec![
             // Replacement length > range length
-            (0..3, "What"),
+            (0, "Who", "What"),
             // Replacement length < range length
-            (4..9, "see"),
-            (13..14, "two"),
+            (4, "lives", "see"),
+            (13, "a", "two"),
         ]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
@@ -190,8 +179,11 @@ mod test_normalize_edit {
     #[test]
     /// Expects the first edit is removed because it is a subset of the second edit.
     fn some_is_subset_of_other() {
-        let edit_transaction =
-            EditTransaction::from_tuples(vec![(0..3, "What"), (0..9, "He"), (13..14, "two")]);
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            (0, "Who", "What"),
+            (0, "Who lives", "He"),
+            (13, "a", "two"),
+        ]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
@@ -201,8 +193,11 @@ mod test_normalize_edit {
     #[test]
     /// Expect the edits to be sorted before being applied
     fn unsorted() {
-        let edit_transaction =
-            EditTransaction::from_tuples(vec![(13..14, "two"), (0..3, "What"), (4..9, "see")]);
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            (13, "a", "two"),
+            (0, "Who", "What"),
+            (4, "lives", "see"),
+        ]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
@@ -213,12 +208,12 @@ mod test_normalize_edit {
     /// Expect duplicate edits to be removed
     fn duplicated() {
         let edit_transaction = EditTransaction::from_tuples(vec![
-            (0..3, "What"),
-            (0..3, "What"),
-            (0..3, "What"),
-            (4..9, "see"),
-            (4..9, "see"),
-            (13..14, "two"),
+            (0, "Who", "What"),
+            (0, "Who", "What"),
+            (0, "Who", "What"),
+            (4, "lives", "see"),
+            (4, "lives", "see"),
+            (13, "a", "two"),
         ]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
@@ -229,11 +224,14 @@ mod test_normalize_edit {
     #[test]
     /// Intersected edits should be trimmed
     fn some_intersected() {
-        let edit_transaction =
-            EditTransaction::from_tuples(vec![(0..3, "What"), (4..9, "see"), (6..10, "soap")]);
+        let edit_transaction = EditTransaction::from_tuples(vec![
+            (0, "Who", "What"),
+            (4, "lives", "see"),
+            (6, "ves ", "soap"),
+        ]);
 
         let result = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
-        assert_eq!(result, Rope::from_str("What seesoapin a pineapple"));
+        assert_eq!(result, Rope::from_str("What seesoapa pineapple"));
     }
 }

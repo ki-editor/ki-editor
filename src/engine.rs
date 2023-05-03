@@ -46,6 +46,15 @@ impl Selection {
             node_id: self.node_id,
         }
     }
+
+    pub fn default() -> Selection {
+        Selection {
+            mode: SelectionMode::Custom,
+            start: CharIndex(0),
+            end: CharIndex(0),
+            node_id: None,
+        }
+    }
 }
 
 impl Add<usize> for Selection {
@@ -291,15 +300,6 @@ impl State {
         };
         log::info!("select: {:?} {:?}", selection_mode, direction);
         let selection = self.get_selection(&selection_mode, direction);
-        if let Some(node_id) = selection.node_id {
-            get_node_by_id(&self.tree, node_id).map(|node| {
-                log::info!(
-                    "node: {:?}",
-                    node.utf8_text(&self.text.to_string().into_bytes()).unwrap()
-                );
-                log::info!("{}", node.to_sexp())
-            });
-        }
         self.update_selection(selection);
     }
 
@@ -355,6 +355,7 @@ impl State {
         self.yank(&selection);
         self.edit(selection.start..selection.end, Rope::new());
         self.extended_selection_anchor = None;
+
         self.select(self.selection.mode, Direction::Current);
     }
 
@@ -462,7 +463,6 @@ impl State {
     }
 
     fn undo(&mut self) {
-        // TODO: undoing edit transaction does not work
         if let Some(edit) = self.undo_edits.pop() {
             self.revert_change(edit, EditHistoryKind::Undo);
         } else {
@@ -1218,7 +1218,7 @@ fn apply_edit(mut tree: Tree, mut text: Rope, edit: &Edit) -> Result<(Tree, Rope
         old_end_position,
         new_end_position,
     });
-    tree = parser.parse(&text.to_string(), Some(&tree)).unwrap();
+    let tree = parser.parse(&text.to_string(), Some(&tree)).unwrap();
     Ok((tree, text))
 }
 

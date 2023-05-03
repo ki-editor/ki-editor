@@ -9,7 +9,7 @@ use crossterm::{cursor::SetCursorStyle, event::Event, terminal};
 use log::LevelFilter;
 
 use engine::{CharIndex, State};
-use ropey::RopeSlice;
+use ropey::{Rope, RopeSlice};
 use std::io::{stdout, Write};
 use std::path::Path;
 use tree_sitter::{Parser, Point};
@@ -55,6 +55,7 @@ fn handle_event(source_code: &str, language: tree_sitter::Language) {
         column_count: columns,
         row_count: rows,
         stdout: stdout(),
+        previous_grid: None,
     };
 
     view.stdout.execute(EnableMouseCapture).unwrap();
@@ -67,17 +68,22 @@ fn handle_event(source_code: &str, language: tree_sitter::Language) {
                 view.set_columns(columns);
                 view.set_row(rows)
             }
-            Event::Mouse(mouse_event) => match mouse_event.kind {
-                MouseEventKind::ScrollUp => {
-                    view.scroll_offset = view.scroll_offset.saturating_sub(3)
+            Event::Mouse(mouse_event) => {
+                const SCROLL_HEIGHT: u16 = 1;
+                match mouse_event.kind {
+                    MouseEventKind::ScrollUp => {
+                        view.scroll_offset = view.scroll_offset.saturating_sub(SCROLL_HEIGHT)
+                    }
+                    MouseEventKind::ScrollDown => {
+                        view.scroll_offset = view.scroll_offset.saturating_add(SCROLL_HEIGHT)
+                    }
+                    MouseEventKind::Down(MouseButton::Left) => state.set_cursor_position(
+                        mouse_event.row + view.scroll_offset,
+                        mouse_event.column,
+                    ),
+                    _ => continue,
                 }
-                MouseEventKind::ScrollDown => {
-                    view.scroll_offset = view.scroll_offset.saturating_add(3)
-                }
-                MouseEventKind::Down(MouseButton::Left) => state
-                    .set_cursor_position(mouse_event.row + view.scroll_offset, mouse_event.column),
-                _ => continue,
-            },
+            }
             _ => {
                 log::info!("{:?}", event);
 
@@ -95,6 +101,93 @@ fn handle_event(source_code: &str, language: tree_sitter::Language) {
     disable_raw_mode().unwrap();
 }
 
+#[derive(Clone, Debug)]
+struct Grid {
+    rows: Vec<Vec<Cell>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct PositionedCell {
+    cell: Cell,
+    position: Point,
+}
+impl Grid {
+    /// Returns (rows, columns)
+    fn dimensions(&self) -> (usize, usize) {
+        (self.rows.len(), self.rows[0].len())
+    }
+
+    /// The `new_grid` need not be the same size as the old grid (`self`).
+    fn diff(&self, new_grid: &Grid) -> Vec<PositionedCell> {
+        let mut cells = vec![];
+        for (row_index, new_row) in new_grid.rows.iter().enumerate() {
+            for (column_index, new_cell) in new_row.iter().enumerate() {
+                match self
+                    .rows
+                    .get(row_index)
+                    .map(|old_row| old_row.get(column_index))
+                    .flatten()
+                {
+                    Some(old_cell) if new_cell == old_cell => {
+                        // Do nothing
+                    }
+                    // Otherwise
+                    _ => cells.push(PositionedCell {
+                        cell: new_cell.clone(),
+                        position: Point::new(row_index as usize, column_index as usize),
+                    }),
+                }
+            }
+        }
+        cells
+    }
+
+    fn new((row_count, column_count): (usize, usize)) -> Grid {
+        let mut cells: Vec<Vec<Cell>> = vec![];
+        cells.resize_with(row_count.into(), || {
+            let mut cells = vec![];
+            cells.resize_with(column_count.into(), || Cell::default());
+            cells
+        });
+        Grid { rows: cells }
+    }
+
+    fn to_position_cells(&self) -> Vec<PositionedCell> {
+        let mut cells = vec![];
+        for (row_index, row) in self.rows.iter().enumerate() {
+            for (column_index, cell) in row.iter().enumerate() {
+                cells.push(PositionedCell {
+                    cell: cell.clone(),
+                    position: Point::new(row_index as usize, column_index as usize),
+                })
+            }
+        }
+
+        cells
+    }
+
+    fn from_text(dimension: (usize, usize), text: &str) -> Grid {
+        Grid::from_rope(dimension, &Rope::from_str(text))
+    }
+
+    fn from_rope(dimension: (usize, usize), rope: &Rope) -> Grid {
+        let mut grid = Grid::new(dimension);
+
+        rope.lines().enumerate().for_each(|(row_index, line)| {
+            line.chars()
+                .enumerate()
+                .for_each(|(column_index, character)| {
+                    grid.rows[row_index][column_index] = Cell {
+                        symbol: character.to_string(),
+                        ..Cell::default()
+                    }
+                })
+        });
+
+        grid
+    }
+}
+
 struct View {
     /// Zero-based index.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
@@ -103,6 +196,8 @@ struct View {
     row_count: u16,
     column_count: u16,
     stdout: std::io::Stdout,
+
+    previous_grid: Option<Grid>,
 }
 
 impl View {
@@ -131,13 +226,8 @@ impl View {
         Ok(())
     }
 
-    fn get_grid(&self, state: &State) -> Vec<Vec<Cell>> {
-        let mut grid: Vec<Vec<Cell>> = vec![];
-        grid.resize_with(self.row_count.into(), || {
-            let mut cells = vec![];
-            cells.resize_with(self.column_count.into(), || Cell::default());
-            cells
-        });
+    fn get_grid(&self, state: &State) -> Grid {
+        let mut grid: Grid = Grid::new((self.row_count as usize, self.column_count as usize));
 
         let lines = state
             .text
@@ -154,8 +244,8 @@ impl View {
 
         for (line_index, line) in lines {
             let line_start_char_index = CharIndex(state.text.line_to_char(line_index));
-            for (local_char_index, c) in line.chars().take(self.column_count as usize).enumerate() {
-                let char_index = line_start_char_index + local_char_index;
+            for (column_index, c) in line.chars().take(self.column_count as usize).enumerate() {
+                let char_index = line_start_char_index + column_index;
 
                 let char_index = char_index.0;
                 let background_color = if let Some(ref extended_selection) = extended_selection {
@@ -179,7 +269,7 @@ impl View {
                 } else {
                     Color::White
                 };
-                grid[line_index - self.scroll_offset as usize][local_char_index] = Cell {
+                grid.rows[line_index - self.scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color,
                     foreground_color: Color::Black,
@@ -206,30 +296,45 @@ impl View {
 
             // If column and row is within view
             if column < self.column_count && row < self.row_count {
-                grid[row as usize][column as usize] = Cell {
+                grid.rows[row as usize][column as usize] = Cell {
                     symbol: jump.character.to_string(),
                     background_color,
                     foreground_color: Color::White,
                 };
             }
         }
+
         grid
     }
 
     fn render(&mut self, state: &State) -> Result<(), anyhow::Error> {
         queue!(self.stdout, Hide)?;
-        queue!(self.stdout, Clear(ClearType::All))?;
-        let grid = self.get_grid(state);
-        for (row, line) in grid.into_iter().enumerate() {
-            for (column, cell) in line.into_iter().enumerate() {
-                queue!(self.stdout, MoveTo(column as u16, row as u16))?;
-                queue!(
-                    self.stdout,
-                    SetBackgroundColor(cell.background_color),
-                    SetForegroundColor(cell.foreground_color),
-                    Print(cell.symbol)
-                )?;
-            }
+        let cells = {
+            let grid = self.get_grid(state);
+
+            let diff = if let Some(previous_grid) = self.previous_grid.take() {
+                previous_grid.diff(&grid)
+            } else {
+                queue!(self.stdout, Clear(ClearType::All)).unwrap();
+                grid.to_position_cells()
+            };
+
+            self.previous_grid = Some(grid);
+
+            diff
+        };
+
+        for cell in cells.into_iter() {
+            queue!(
+                self.stdout,
+                MoveTo(cell.position.column as u16, cell.position.row as u16)
+            )?;
+            queue!(
+                self.stdout,
+                SetBackgroundColor(cell.cell.background_color),
+                SetForegroundColor(cell.cell.foreground_color),
+                Print(reveal(cell.cell.symbol))
+            )?;
         }
         let point = state.get_cursor_point();
         self.move_cursor(point)?;
@@ -247,11 +352,29 @@ impl View {
     }
 }
 
-#[derive(Debug)]
+/// Convert invisible character to visible character
+fn reveal(s: String) -> String {
+    match s.as_str() {
+        "\n" => " ".to_string(),
+        _ => s,
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Cell {
     pub symbol: String,
     pub foreground_color: Color,
     pub background_color: Color,
+}
+
+impl Cell {
+    fn from_char(c: char) -> Self {
+        Cell {
+            symbol: c.to_string(),
+            foreground_color: Color::White,
+            background_color: Color::White,
+        }
+    }
 }
 
 impl Default for Cell {
@@ -261,5 +384,39 @@ impl Default for Cell {
             foreground_color: Color::White,
             background_color: Color::White,
         }
+    }
+}
+
+#[cfg(test)]
+mod test_grid {
+    use tree_sitter::Point;
+
+    use crate::{Cell, Grid, PositionedCell};
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn diff_same_size() {
+        let old = Grid::from_text((2, 4), "a\nbc");
+        let new = Grid::from_text((2, 4), "bc");
+        let actual = old.diff(&new);
+        let expected = vec![
+            PositionedCell {
+                position: Point { row: 0, column: 0 },
+                cell: Cell::from_char('b'),
+            },
+            PositionedCell {
+                position: Point { row: 0, column: 1 },
+                cell: Cell::from_char('c'),
+            },
+            PositionedCell {
+                position: Point { row: 1, column: 0 },
+                cell: Cell::from_char(' '),
+            },
+            PositionedCell {
+                position: Point { row: 1, column: 1 },
+                cell: Cell::from_char(' '),
+            },
+        ];
+        assert_eq!(actual, expected);
     }
 }
