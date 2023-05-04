@@ -1,0 +1,16 @@
+- [x] scrolling view
+- [x] swapping?
+- [x] transactional edit: so that exchanging siblings can be undone in one step
+  instead of two smaller steps
+- [] multi-cursor
+- [] split window (needed for autocomplete, prompt)
+     - parent-child architecture
+     - each window can have multiple children window
+     - when a window is closed, all of its children are closed
+     - each window have a group, if any of the window in the same group is closed
+       all windows in the same group should be closed
+- [] LSP (after window system implemented)
+- [] swap d to ^x, y to ^c
+- [] ^f for find
+- [x] f/F for moving forward/backward (so that it's consistent with other
+     actions, which is selection mode first, then action)

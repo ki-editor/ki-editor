@@ -150,6 +150,7 @@ pub struct State {
     pub mode: Mode,
 
     pub selection: Selection,
+    pub secondary_selections: Vec<Selection>,
 
     pub cursor_direction: CursorDirection,
     pub tree: Tree,
@@ -213,6 +214,7 @@ impl State {
                 end: CharIndex(0),
                 node_id: None,
             },
+            secondary_selections: vec![],
             text,
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
@@ -266,7 +268,7 @@ impl State {
         todo!()
     }
 
-    fn select_alphabet(&mut self, direction: Direction) {
+    fn select_character(&mut self, direction: Direction) {
         self.select(SelectionMode::Alphabet, direction);
     }
 
@@ -829,32 +831,28 @@ impl State {
     fn handle_normal_mode(&mut self, event: KeyEvent) {
         match event.code {
             // Objects
-            KeyCode::Char('a') => self.select_alphabet(Direction::Forward),
-            KeyCode::Char('A') => self.select_alphabet(Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
+            KeyCode::Char('c') => self.select_character(Direction::Current),
             KeyCode::Char('d') => self.delete_current_selection(),
+            KeyCode::Char('f') => self.move_selection(Direction::Forward),
+            KeyCode::Char('F') => self.move_selection(Direction::Backward),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
             KeyCode::Char('J') => self.jump(Direction::Backward),
             KeyCode::Char('k') => self.select_kids(),
-            KeyCode::Char('l') => self.select_line(Direction::Forward),
-            KeyCode::Char('L') => self.select_line(Direction::Backward),
-            KeyCode::Char('n') => self.select_named_node(Direction::Forward),
-            KeyCode::Char('N') => self.select_named_node(Direction::Backward),
+            KeyCode::Char('l') => self.select_line(Direction::Current),
+            KeyCode::Char('n') => self.select_named_node(Direction::Current),
             KeyCode::Char('o') => self.change_cursor_direction(),
-            KeyCode::Char('s') => self.select_sibling(Direction::Forward),
-            KeyCode::Char('S') => self.select_sibling(Direction::Backward),
-            KeyCode::Char('t') => self.select_token(Direction::Forward),
-            KeyCode::Char('T') => self.select_token(Direction::Backward),
+            KeyCode::Char('s') => self.select_sibling(Direction::Current),
+            KeyCode::Char('t') => self.select_token(Direction::Current),
             KeyCode::Char('w') => self.select_word(),
             KeyCode::Char('r') => self.replace(),
-            KeyCode::Char('p') => self.select_parent(Direction::Forward),
-            KeyCode::Char('P') => self.select_parent(Direction::Backward),
+            KeyCode::Char('p') => self.select_parent(Direction::Current),
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
-            KeyCode::Char('0') => self.select_none(Direction::Forward),
+            KeyCode::Char('0') => self.select_none(Direction::Current),
             KeyCode::Esc => {
                 self.extended_selection_anchor = None;
             }
@@ -1064,6 +1062,12 @@ impl State {
 
     fn exchange(&mut self, direction: Direction) {
         self.replace_faultlessly(&self.selection.mode.clone(), direction)
+    }
+
+    fn move_selection(&mut self, direction: Direction) {
+        let selection = self.get_selection(&self.selection.mode, direction);
+
+        self.update_selection(selection);
     }
 }
 
