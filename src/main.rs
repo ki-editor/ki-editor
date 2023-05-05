@@ -1,5 +1,6 @@
 mod edit;
 mod engine;
+mod selection;
 
 use crossterm::cursor::{Hide, Show};
 use crossterm::event::{EnableMouseCapture, MouseButton, MouseEventKind};
@@ -8,8 +9,9 @@ use crossterm::style::Print;
 use crossterm::{cursor::SetCursorStyle, event::Event, terminal};
 use log::LevelFilter;
 
-use engine::{CharIndex, State};
+use engine::State;
 use ropey::{Rope, RopeSlice};
+use selection::CharIndex;
 use std::io::{stdout, Write};
 use std::path::Path;
 use tree_sitter::{Parser, Point};
@@ -237,9 +239,8 @@ impl View {
             .take(self.row_count as usize - 1)
             .collect::<Vec<(_, RopeSlice)>>();
 
-        let selection = &state.selection;
-        let start_char_index = selection.start.0;
-        let end_char_index = selection.end.0;
+        let selection = &state.selection_set.primary;
+        let secondary_selections = &state.selection_set.secondary;
         let extended_selection = state.get_extended_selection();
 
         for (line_index, line) in lines {
@@ -247,45 +248,50 @@ impl View {
             for (column_index, c) in line.chars().take(self.column_count as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
-                let char_index = char_index.0;
-                let background_color = if let Some(ref extended_selection) = extended_selection {
-                    let x_start_point = extended_selection.start.0;
-                    let x_end_point = extended_selection.end.0;
-                    if start_char_index <= char_index
-                        && char_index < end_char_index
-                        && x_start_point <= char_index
-                        && char_index < x_end_point
+                let (foreground_color, background_color) =
+                    if let Some(ref extended_selection) = extended_selection {
+                        if selection.range.contains(&char_index)
+                            && extended_selection.range.contains(&char_index)
+                        {
+                            (Color::Black, Color::Green)
+                        } else if extended_selection.range.contains(&char_index) {
+                            (Color::Black, Color::Cyan)
+                        } else if selection.range.contains(&char_index) {
+                            (Color::Black, Color::Yellow)
+                        } else {
+                            (Color::Black, Color::White)
+                        }
+                    } else if selection.range.contains(&char_index) {
+                        (Color::Black, Color::Yellow)
+                    } else if secondary_selections.iter().any(|secondary_selection| {
+                        secondary_selection.to_char_index(&state.cursor_direction) == char_index
+                    }) {
+                        (Color::White, Color::Black)
+                    } else if secondary_selections
+                        .iter()
+                        .any(|secondary_selection| secondary_selection.range.contains(&char_index))
                     {
-                        Color::Green
-                    } else if x_start_point <= char_index && char_index < x_end_point {
-                        Color::Cyan
-                    } else if start_char_index <= char_index && char_index < end_char_index {
-                        Color::Yellow
+                        (Color::Black, Color::DarkYellow)
                     } else {
-                        Color::White
-                    }
-                } else if start_char_index <= char_index && char_index < end_char_index {
-                    Color::Yellow
-                } else {
-                    Color::White
-                };
+                        (Color::Black, Color::White)
+                    };
                 grid.rows[line_index - self.scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color,
-                    foreground_color: Color::Black,
+                    foreground_color,
                 };
             }
         }
 
         for (index, jump) in state.jumps().into_iter().enumerate() {
             let point = match state.cursor_direction {
-                CursorDirection::Start => jump.selection.start,
-                CursorDirection::End => jump.selection.end,
+                CursorDirection::Start => jump.selection.range.start,
+                CursorDirection::End => jump.selection.range.end,
             }
             .to_point(&state.text);
 
             let column = point.column as u16;
-            let row = point.row as u16 - self.scroll_offset as u16;
+            let row = (point.row as u16).saturating_sub(self.scroll_offset as u16);
 
             // Background color: Odd index red, even index blue
             let background_color = if index % 2 == 0 {

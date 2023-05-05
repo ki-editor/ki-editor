@@ -2,7 +2,7 @@
 - [x] swapping?
 - [x] transactional edit: so that exchanging siblings can be undone in one step
   instead of two smaller steps
-- [] multi-cursor
+- [x] multi-cursor
 - [] split window (needed for autocomplete, prompt)
      - parent-child architecture
      - each window can have multiple children window
@@ -14,3 +14,5 @@
 - [] ^f for find
 - [x] f/F for moving forward/backward (so that it's consistent with other
      actions, which is selection mode first, then action)
+- [] g for selecting the next node that is the same generation (descendant
+  level from root) as the current node

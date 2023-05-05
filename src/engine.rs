@@ -6,132 +6,10 @@ use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
-use crate::edit::{Edit, EditTransaction};
-
-#[derive(PartialEq, Clone, Debug)]
-pub struct Selection {
-    pub mode: SelectionMode,
-    pub start: CharIndex,
-    pub end: CharIndex,
-    pub node_id: Option<usize>,
-}
-impl Selection {
-    fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
-        // TODO(bug): when SelectionMode is Line and CursorDirection is End,
-        // the cursor will be one line below the current selected line
-        match cursor_direction {
-            CursorDirection::Start => self.start,
-            CursorDirection::End => self.end,
-        }
-    }
-
-    fn from_two_char_indices(anchor: &CharIndex, get_cursor_char_index: &CharIndex) -> Selection {
-        Selection {
-            mode: SelectionMode::Custom,
-            start: *anchor.min(get_cursor_char_index),
-            end: *anchor.max(get_cursor_char_index),
-            node_id: None,
-        }
-    }
-
-    fn len(&self) -> usize {
-        self.end.0.saturating_sub(self.start.0)
-    }
-
-    fn apply_offset(&self, change: isize) -> Selection {
-        Selection {
-            mode: self.mode,
-            start: self.start.apply_offset(change),
-            end: self.end.apply_offset(change),
-            node_id: self.node_id,
-        }
-    }
-
-    pub fn default() -> Selection {
-        Selection {
-            mode: SelectionMode::Custom,
-            start: CharIndex(0),
-            end: CharIndex(0),
-            node_id: None,
-        }
-    }
-}
-
-impl Add<usize> for Selection {
-    type Output = Selection;
-
-    fn add(self, rhs: usize) -> Self::Output {
-        Self {
-            mode: self.mode,
-            start: self.start + rhs,
-            end: self.end + rhs,
-            node_id: self.node_id,
-        }
-    }
-}
-
-impl Sub<usize> for Selection {
-    type Output = Selection;
-
-    fn sub(self, rhs: usize) -> Self::Output {
-        Self {
-            mode: self.mode,
-            start: self.start - rhs,
-            end: self.end - rhs,
-            node_id: self.node_id,
-        }
-    }
-}
-
-impl Add<usize> for CharIndex {
-    type Output = CharIndex;
-
-    fn add(self, rhs: usize) -> Self::Output {
-        Self(self.0.saturating_add(rhs))
-    }
-}
-
-impl Sub<usize> for CharIndex {
-    type Output = CharIndex;
-
-    fn sub(self, rhs: usize) -> Self::Output {
-        Self(self.0.saturating_sub(rhs))
-    }
-}
-
-#[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord, Hash)]
-pub struct CharIndex(pub usize);
-
-impl CharIndex {
-    pub fn to_point(self, rope: &Rope) -> Point {
-        let line = self.to_line(rope);
-        Point {
-            row: line,
-            column: rope
-                .try_line_to_char(line)
-                .map(|char_index| self.0.saturating_sub(char_index))
-                .unwrap_or(0),
-        }
-    }
-
-    pub fn to_line(self, rope: &Rope) -> usize {
-        rope.try_char_to_line(self.0)
-            .unwrap_or_else(|_| rope.len_lines())
-    }
-
-    pub fn to_byte(self, rope: &Rope) -> usize {
-        rope.try_char_to_byte(self.0)
-            .unwrap_or_else(|_| rope.len_bytes())
-    }
-
-    pub fn apply_offset(&self, change: isize) -> CharIndex {
-        if change.is_positive() {
-            *self + (change as usize)
-        } else {
-            *self - (change.abs() as usize)
-        }
-    }
-}
+use crate::{
+    edit::{Action, Edit, EditTransaction},
+    selection::{CharIndex, Selection, SelectionMode, SelectionSet},
+};
 
 pub enum Mode {
     Normal,
@@ -149,14 +27,12 @@ pub struct State {
     pub text: Rope,
     pub mode: Mode,
 
-    pub selection: Selection,
-    pub secondary_selections: Vec<Selection>,
+    pub selection_set: SelectionSet,
 
     pub cursor_direction: CursorDirection,
     pub tree: Tree,
     pub quit: bool,
-    yanked_text: Option<Rope>,
-    selection_history: Vec<Selection>,
+    selection_history: Vec<SelectionSet>,
 
     undo_edits: Vec<EditTransaction>,
     redo_edits: Vec<EditTransaction>,
@@ -168,38 +44,13 @@ pub struct State {
     extended_selection_anchor: Option<CharIndex>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum SelectionMode {
-    Line,
-    Word,
-    Alphabet,
-    Custom,
-
-    Token,
-
-    NamedNode,
-    ParentNode,
-    SiblingNode,
-}
-impl SelectionMode {
-    fn similar_to(&self, other: &SelectionMode) -> bool {
-        self == other
-        // || self.is_node() && other.is_node()
-    }
-
-    fn is_node(&self) -> bool {
-        use SelectionMode::*;
-        matches!(self, NamedNode | ParentNode | SiblingNode)
-    }
-}
-
 pub enum CursorDirection {
     Start,
     End,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Direction {
+pub enum Direction {
     Forward,
     Backward,
     Current,
@@ -208,18 +59,19 @@ enum Direction {
 impl State {
     pub fn new(text: Rope, tree: Tree) -> Self {
         Self {
-            selection: Selection {
+            selection_set: SelectionSet {
+                primary: Selection {
+                    range: CharIndex(0)..CharIndex(0),
+                    node_id: None,
+                    yanked_text: None,
+                },
+                secondary: vec![],
                 mode: SelectionMode::Custom,
-                start: CharIndex(0),
-                end: CharIndex(0),
-                node_id: None,
             },
-            secondary_selections: vec![],
             text,
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             tree,
-            yanked_text: None,
             quit: false,
             selection_history: Vec::with_capacity(128),
             undo_edits: Vec::new(),
@@ -233,23 +85,11 @@ impl State {
     }
 
     fn select_kids(&mut self) {
-        if let Some(node) = self.get_nearest_node_under_cursor() {
-            if let Some(parent) = node.parent() {
-                let second_child = parent.child(1);
-                let second_last_child = parent.child(parent.child_count() - 2).or(second_child);
-
-                if let (Some(second_child), Some(second_last_child)) =
-                    (second_child, second_last_child)
-                {
-                    self.update_selection(Selection {
-                        start: CharIndex(second_child.start_byte()),
-                        end: CharIndex(second_last_child.end_byte()),
-                        node_id: None,
-                        mode: SelectionMode::Custom,
-                    });
-                }
-            }
-        }
+        self.update_selection_set(self.selection_set.select_kids(
+            &self.text,
+            &self.tree,
+            &self.cursor_direction,
+        ));
     }
 
     fn select_sibling(&mut self, direction: Direction) {
@@ -264,45 +104,44 @@ impl State {
         self.select(SelectionMode::NamedNode, direction);
     }
 
-    fn select_word(&mut self) {
-        todo!()
-    }
-
     fn select_character(&mut self, direction: Direction) {
-        self.select(SelectionMode::Alphabet, direction);
+        self.select(SelectionMode::Character, direction);
     }
 
     fn select_backward(&mut self) {
-        while let Some(selection) = self.selection_history.pop() {
-            if selection != self.selection {
-                self.selection = selection;
+        while let Some(selection_set) = self.selection_history.pop() {
+            if selection_set != self.selection_set {
+                self.selection_set = selection_set;
                 break;
             }
         }
     }
 
-    fn select_none(&mut self, direction: Direction) {
-        self.select(SelectionMode::Custom, direction);
+    fn reset(&mut self) {
+        self.select(SelectionMode::Custom, Direction::Current);
+        self.extended_selection_anchor = None;
+        self.selection_set.reset()
     }
 
     fn select_token(&mut self, direction: Direction) {
         self.select(SelectionMode::Token, direction);
     }
 
-    fn update_selection(&mut self, selection: Selection) {
-        self.selection = selection.clone();
-        self.selection_history.push(selection);
+    fn update_selection_set(&mut self, selection_set: SelectionSet) {
+        self.selection_set = selection_set.clone();
+        self.selection_history.push(selection_set);
     }
 
     fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
-        let direction = if self.selection.mode.similar_to(&selection_mode) {
+        let direction = if self.selection_set.mode.similar_to(&selection_mode) {
             direction
         } else {
             Direction::Current
         };
         log::info!("select: {:?} {:?}", selection_mode, direction);
-        let selection = self.get_selection(&selection_mode, direction);
-        self.update_selection(selection);
+        let selection = self.get_selection_set(&selection_mode, direction);
+
+        self.update_selection_set(selection);
     }
 
     fn jump_from_selection(&mut self, direction: Direction, selection: &Selection) {
@@ -316,11 +155,11 @@ impl State {
             // 'j' and 'J' are reserved for subsequent jump.
             .filter(|c| c != &'j' && c != &'J')
         {
-            let next_selection = Self::get_selection_(
+            let next_selection = Selection::get_selection_(
                 &self.text,
                 &self.tree,
                 &current_selection,
-                &self.selection.mode,
+                &self.selection_set.mode,
                 &direction,
                 &self.cursor_direction,
             );
@@ -339,95 +178,92 @@ impl State {
     }
 
     fn jump(&mut self, direction: Direction) {
-        self.jump_from_selection(direction, &self.selection.clone());
-    }
-
-    pub fn get_current_selection(&self) -> Selection {
-        if let Some(anchor) = self.extended_selection_anchor {
-            return Selection::from_two_char_indices(&anchor, &self.get_cursor_char_index());
-        }
-        match &self.mode {
-            Mode::Normal | Mode::Jump { .. } => self.selection.clone(),
-            Mode::Insert => todo!(),
-        }
+        self.jump_from_selection(direction, &self.selection_set.primary.clone());
     }
 
     fn delete_current_selection(&mut self) {
-        let selection = self.get_current_selection();
-        self.yank(&selection);
-        self.edit(selection.start..selection.end, Rope::new());
-        self.extended_selection_anchor = None;
-
-        self.select(self.selection.mode, Direction::Current);
-    }
-
-    fn yank(&mut self, selection: &Selection) {
-        self.yanked_text = self
-            .text
-            .get_slice(selection.start.0..selection.end.0)
-            .map(|slice| slice.into());
-        self.extended_selection_anchor = None;
+        self.yank_current_selection();
+        let edit_transaction = self.selection_set.replace(
+            |selection| {
+                self.text
+                    .slice(selection.range.start.0..selection.range.end.0)
+                    .into()
+            },
+            |_| Rope::new(),
+            |edit| edit.start..edit.start,
+        );
+        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
     fn yank_current_selection(&mut self) {
-        self.yank(&self.get_current_selection());
+        self.selection_set.yank(&self.text);
     }
 
     fn paste(&mut self) {
-        if let Some(yanked_text) = &self.yanked_text {
-            let cursor_position = self.get_cursor_char_index();
-            let yanked_text_len = yanked_text.len_chars();
-            self.edit(cursor_position..cursor_position, yanked_text.clone());
-
-            match (&self.cursor_direction, &self.mode) {
-                (_, Mode::Normal) => {
-                    self.selection = Selection::from_two_char_indices(
-                        &cursor_position,
-                        &(cursor_position + yanked_text_len),
-                    )
-                }
-
-                (_, Mode::Insert) => {
-                    let start = cursor_position + yanked_text_len;
-                    self.selection = Selection {
-                        start,
-                        end: start,
-                        mode: SelectionMode::Custom,
-                        node_id: None,
-                    }
-                }
-                _ => {}
+        let edit_transactions = self.selection_set.map(|selection| {
+            if let Some(yanked_text) = &selection.yanked_text {
+                let start = selection.to_char_index(&self.cursor_direction);
+                EditTransaction::from_actions(
+                    self.selection_set.clone(),
+                    vec![
+                        Action::Edit(Edit {
+                            start,
+                            old: Rope::new(),
+                            new: yanked_text.clone(),
+                        }),
+                        Action::Select(Selection {
+                            range: start..(start + yanked_text.len_chars()),
+                            node_id: None,
+                            yanked_text: Some(yanked_text.clone()),
+                        }),
+                    ],
+                )
+            } else {
+                EditTransaction::from_actions(self.selection_set.clone(), vec![])
             }
-        }
+        });
+        let edit_transaction =
+            EditTransaction::merge(self.selection_set.clone(), edit_transactions);
+        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
     fn replace(&mut self) {
-        let replacement = self.yanked_text.take().unwrap_or_else(Rope::new);
-        let selection = self.get_current_selection();
-        let replacement_text_len = replacement.len_chars();
-        self.yank(&selection);
-        self.edit(selection.start..selection.end, replacement);
-        self.selection = Selection {
-            start: selection.start,
-            end: selection.start + replacement_text_len,
-            mode: SelectionMode::Custom,
-            node_id: None,
-        };
-    }
-
-    /// Replace the text in the given range with the given replacement.
-    fn edit(&mut self, range: Range<CharIndex>, replacement: Rope) {
-        self.apply_edit_transaction(
-            EditHistoryKind::NewEdit,
-            EditTransaction::from_edits(
-                self.selection.clone(),
-                vec![Edit {
-                    start: range.start,
-                    old: self.text.slice(range.start.0..range.end.0).into(),
-                    new: replacement,
-                }],
-            ),
-        )
+        let edit_transaction = EditTransaction::merge(
+            self.selection_set.clone(),
+            self.selection_set.map(|selection| {
+                if let Some(replacement) = &selection.yanked_text {
+                    let replacement_text_len = replacement.len_chars();
+                    let replaced_text = self
+                        .text
+                        .slice(selection.range.start.0..selection.range.end.0)
+                        .into();
+                    log::info!("replaced_text: {:?}", replaced_text);
+                    log::info!("replacement: {:?}", replacement);
+                    EditTransaction::from_actions(
+                        self.selection_set.clone(),
+                        vec![
+                            Action::Edit(Edit {
+                                start: selection.range.start,
+                                old: self
+                                    .text
+                                    .slice(selection.range.start.0..selection.range.end.0)
+                                    .into(),
+                                new: replacement.clone(),
+                            }),
+                            Action::Select(Selection {
+                                range: selection.range.start
+                                    ..selection.range.start + replacement_text_len,
+                                yanked_text: Some(replaced_text),
+                                node_id: None,
+                            }),
+                        ],
+                    )
+                } else {
+                    EditTransaction::from_actions(self.selection_set.clone(), vec![])
+                }
+            }),
+        );
+        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
     fn apply_edit_transaction(
@@ -435,15 +271,17 @@ impl State {
         edit_history_kind: EditHistoryKind,
         edit_transaction: EditTransaction,
     ) {
-        let inversed_edit_transaction = EditTransaction::from_edits(
-            self.selection.clone(),
+        let inversed_edit_transaction = EditTransaction::from_actions(
+            self.selection_set.clone(),
             edit_transaction
                 .edits()
                 .iter()
-                .map(|edit| Edit {
-                    start: edit.start,
-                    old: edit.new.clone(),
-                    new: edit.old.clone(),
+                .map(|edit| {
+                    Action::Edit(Edit {
+                        start: edit.start,
+                        old: edit.new.clone(),
+                        new: edit.old.clone(),
+                    })
                 })
                 .collect_vec(),
         );
@@ -460,6 +298,18 @@ impl State {
                 self.undo_edits.push(inversed_edit_transaction);
             }
         }
+
+        if let Some((head, tail)) = edit_transaction.selections().split_first() {
+            self.selection_set = SelectionSet {
+                primary: (*head).clone(),
+                secondary: tail
+                    .into_iter()
+                    .map(|selection| (*selection).clone())
+                    .collect(),
+                mode: self.selection_set.mode,
+            }
+        }
+
         (self.tree, self.text) =
             apply_edit_transaction(self.tree.clone(), self.text.clone(), edit_transaction).unwrap();
     }
@@ -485,9 +335,9 @@ impl State {
         edit_transaction: EditTransaction,
         edit_history_kind: EditHistoryKind,
     ) {
-        let selection = edit_transaction.selection.clone();
+        let selection = edit_transaction.selection_set.clone();
         self.apply_edit_transaction(edit_history_kind, edit_transaction);
-        self.update_selection(selection)
+        self.update_selection_set(selection)
     }
 
     fn change_cursor_direction(&mut self) {
@@ -503,161 +353,10 @@ impl State {
         get_nearest_node_after_byte(&self.tree, cursor_pos)
     }
 
-    fn get_selection_(
-        text: &Rope,
-        tree: &Tree,
-        current_selection: &Selection,
-        mode: &SelectionMode,
-        direction: &Direction,
-        cursor_direction: &CursorDirection,
-    ) -> Selection {
-        let cursor_char_index = {
-            let index = current_selection.to_char_index(cursor_direction);
-            match cursor_direction {
-                CursorDirection::Start => index,
-                // Minus one so that selecting line backward works
-                CursorDirection::End => index - 1,
-            }
-        };
-        let cursor_byte = cursor_char_index.to_byte(&text);
-        match mode {
-            SelectionMode::NamedNode => match direction {
-                Direction::Forward | Direction::Current => {
-                    traverse(tree.root_node().walk(), Order::Pre)
-                        .find(|node| node.start_byte() > cursor_byte && node.is_named())
-                }
-                Direction::Backward => ReverseTreeCursor::new(tree.root_node())
-                    .tuple_windows()
-                    .find(|(current, next)| {
-                        next.start_byte() < current.start_byte()
-                            && current.start_byte() < cursor_byte
-                            && current.is_named()
-                    })
-                    .map(|(current, _)| current),
-            }
-            .map(|node| node_to_selection(node, *mode, text))
-            .unwrap_or_else(|| current_selection.clone()),
-            SelectionMode::Line => {
-                let start = cursor_char_index.to_line(text);
-
-                let start = CharIndex(
-                    text.line_to_char(
-                        match direction {
-                            Direction::Forward => start.saturating_add(1),
-                            Direction::Backward => start.saturating_sub(1),
-                            Direction::Current => cursor_char_index.to_line(text),
-                        }
-                        .min(text.len_lines().saturating_sub(1)),
-                    ),
-                );
-                let end = CharIndex(
-                    start
-                        .0
-                        .saturating_add(text.line(start.to_line(text)).len_chars()),
-                );
-                Selection {
-                    start,
-                    end,
-                    node_id: None,
-                    mode: *mode,
-                }
-            }
-            SelectionMode::Word => todo!(),
-            SelectionMode::ParentNode => {
-                let current_node = get_current_node(tree, cursor_byte, current_selection);
-
-                fn get_node(node: Node, direction: Direction) -> Option<Node> {
-                    match direction {
-                        Direction::Current => Some(node),
-                        Direction::Forward => node.parent(),
-
-                        // Backward of ParentNode = ChildNode
-                        Direction::Backward => node.named_child(0),
-                    }
-                }
-
-                let node = {
-                    if direction == &Direction::Current {
-                        current_node
-                    } else {
-                        let mut node = get_node(current_node, *direction);
-
-                        // This loop is to ensure we select the nearest parent that has a larger range than
-                        // the current node
-                        //
-                        // This is necessary because sometimes the parent node can have the same range as
-                        // the current node
-                        while let Some(some_node) = node {
-                            if some_node.range() != current_node.range() {
-                                break;
-                            }
-                            node = get_node(some_node, *direction);
-                        }
-                        node.unwrap_or(current_node)
-                    }
-                };
-                node_to_selection(node, *mode, text)
-            }
-
-            SelectionMode::SiblingNode => {
-                let current_node = get_current_node(tree, cursor_byte, current_selection);
-                let next_node = match direction {
-                    Direction::Current => Some(current_node),
-                    Direction::Forward => current_node.next_named_sibling(),
-                    Direction::Backward => current_node.prev_named_sibling(),
-                }
-                .unwrap_or(current_node);
-                node_to_selection(next_node, *mode, text)
-            }
-            SelectionMode::Token => {
-                let current_selection_start_byte = current_selection.start.to_byte(text);
-                let current_selection_end_byte = current_selection.end.to_byte(text);
-                let selection = match direction {
-                    Direction::Forward => get_next_token(tree, current_selection_end_byte, false),
-                    Direction::Backward => {
-                        get_prev_token(tree, current_selection_start_byte, false)
-                    }
-                    Direction::Current => get_next_token(tree, cursor_byte, false),
-                }
-                .unwrap_or_else(|| {
-                    get_next_token(tree, cursor_byte, true).unwrap_or_else(|| tree.root_node())
-                });
-                node_to_selection(selection, *mode, text)
-            }
-            SelectionMode::Alphabet => match direction {
-                Direction::Current => Selection {
-                    start: cursor_char_index,
-                    end: cursor_char_index + 1,
-                    node_id: None,
-                    mode: *mode,
-                },
-                Direction::Forward => Selection {
-                    start: cursor_char_index + 1,
-                    end: cursor_char_index + 2,
-                    node_id: None,
-                    mode: *mode,
-                },
-                Direction::Backward => Selection {
-                    start: cursor_char_index - 1,
-                    end: cursor_char_index,
-                    node_id: None,
-                    mode: *mode,
-                },
-            },
-            SelectionMode::Custom => Selection {
-                start: cursor_char_index,
-                end: cursor_char_index,
-                node_id: None,
-                mode: *mode,
-            },
-        }
-    }
-
-    fn get_selection(&self, mode: &SelectionMode, direction: Direction) -> Selection {
-        Self::get_selection_(
+    fn get_selection_set(&self, mode: &SelectionMode, direction: Direction) -> SelectionSet {
+        self.selection_set.generate(
             &self.text,
             &self.tree,
-            &self.selection,
             mode,
             &direction,
             &self.cursor_direction,
@@ -669,29 +368,31 @@ impl State {
     }
 
     fn get_cursor_char_index(&self) -> CharIndex {
-        self.selection.to_char_index(&self.cursor_direction)
+        self.selection_set
+            .primary
+            .to_char_index(&self.cursor_direction)
     }
 
     fn toggle_highlight_mode(&mut self) {
-        if let Some(anchor) = self.extended_selection_anchor.take() {
-            // Reverse the anchor with the current cursor position
-            let cursor_index = self.get_cursor_char_index();
-            self.extended_selection_anchor = Some(cursor_index);
-            self.selection = Selection {
-                start: anchor,
-                end: anchor,
-                node_id: None,
-                mode: SelectionMode::Custom,
-            };
-            self.cursor_direction = if cursor_index > anchor {
-                CursorDirection::Start
-            } else {
-                CursorDirection::End
-            };
-        } else {
-            self.extended_selection_anchor = Some(self.get_cursor_char_index());
-            self.cursor_direction = CursorDirection::End;
-        }
+        todo!()
+        // if let Some(anchor) = self.extended_selection_anchor.take() {
+        //     // Reverse the anchor with the current cursor position
+        //     let cursor_index = self.get_cursor_char_index();
+        //     self.extended_selection_anchor = Some(cursor_index);
+        //     self.selection_set = Selection {
+        //         range: anchor..anchor,
+        //         node_id: None,
+        //         mode: SelectionMode::Custom,
+        //     };
+        //     self.cursor_direction = if cursor_index > anchor {
+        //         CursorDirection::Start
+        //     } else {
+        //         CursorDirection::End
+        //     };
+        // } else {
+        //     self.extended_selection_anchor = Some(self.get_cursor_char_index());
+        //     self.cursor_direction = CursorDirection::End;
+        // }
     }
 
     pub fn handle_key_event(&mut self, key_event: KeyEvent) {
@@ -705,31 +406,23 @@ impl State {
     }
 
     fn handle_universal_key(&mut self, event: KeyEvent) -> HandleKeyEventResult {
-        let cursor_char_index = self.get_cursor_char_index();
         match event.code {
             KeyCode::Left => {
-                self.selection = Selection {
-                    start: cursor_char_index - 1,
-                    end: cursor_char_index - 1,
-                    node_id: None,
-                    mode: SelectionMode::Custom,
-                };
+                self.selection_set.move_left(&self.cursor_direction);
                 HandleKeyEventResult::Consumed
             }
             KeyCode::Right => {
-                self.selection = Selection {
-                    start: cursor_char_index + 1,
-                    end: cursor_char_index + 1,
-                    node_id: None,
-                    mode: SelectionMode::Custom,
-                };
+                self.selection_set.move_right(&self.cursor_direction);
                 HandleKeyEventResult::Consumed
             }
             KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
-                self.selection = Selection {
-                    start: CharIndex(0),
-                    end: CharIndex(self.text.len_chars()),
-                    node_id: None,
+                self.selection_set = SelectionSet {
+                    primary: Selection {
+                        range: CharIndex(0)..CharIndex(self.text.len_chars()),
+                        node_id: None,
+                        yanked_text: self.selection_set.primary.yanked_text.clone(),
+                    },
+                    secondary: vec![],
                     mode: SelectionMode::Custom,
                 };
                 HandleKeyEventResult::Consumed
@@ -771,7 +464,7 @@ impl State {
                 KeyCode::Char('j') => {
                     if let Some(jump) = jumps
                         .iter()
-                        .max_by(|a, b| a.selection.start.cmp(&b.selection.start))
+                        .max_by(|a, b| a.selection.range.start.cmp(&b.selection.range.start))
                     {
                         self.jump_from_selection(Direction::Forward, &jump.selection.clone());
                     }
@@ -779,7 +472,7 @@ impl State {
                 KeyCode::Char('J') => {
                     if let Some(jump) = jumps
                         .iter()
-                        .min_by(|a, b| a.selection.end.cmp(&b.selection.end))
+                        .min_by(|a, b| a.selection.range.end.cmp(&b.selection.range.end))
                     {
                         self.jump_from_selection(Direction::Backward, &jump.selection.clone());
                     }
@@ -787,7 +480,14 @@ impl State {
                 KeyCode::Char(c) => {
                     let matching_jump = jumps.iter().find(|jump| c == jump.character);
                     if let Some(jump) = matching_jump {
-                        self.update_selection(jump.selection.clone());
+                        self.update_selection_set(SelectionSet {
+                            primary: Selection {
+                                yanked_text: self.selection_set.primary.yanked_text.clone(),
+                                ..jump.selection.clone()
+                            },
+                            secondary: vec![],
+                            mode: self.selection_set.mode,
+                        });
                         self.mode = Mode::Normal;
                     }
                 }
@@ -798,28 +498,43 @@ impl State {
     }
 
     fn insert(&mut self, s: &str) {
-        let Selection { start, end, .. } = self.selection;
-        self.edit(start..end, s.into());
-        self.selection = Selection {
-            mode: SelectionMode::Custom,
-            start: start + 1,
-            end: end + 1,
-            node_id: None,
-        }
+        let edit_transaction = EditTransaction::merge(
+            self.selection_set.clone(),
+            self.selection_set.map(|selection| {
+                let next = selection.range.start + 1;
+                EditTransaction::from_actions(
+                    self.selection_set.clone(),
+                    vec![
+                        Action::Edit(Edit {
+                            start: selection.range.start,
+                            old: Rope::new(),
+                            new: Rope::from_str(s),
+                        }),
+                        // TODO: this does not move the cursor next to the inserted text
+                        Action::Select(Selection {
+                            range: next..next,
+                            node_id: None,
+                            yanked_text: selection.yanked_text.clone(),
+                        }),
+                    ],
+                )
+            }),
+        );
+        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
     fn handle_insert_mode(&mut self, event: KeyEvent) {
-        let Selection { start, end, .. } = self.selection;
         match event.code {
             KeyCode::Esc => self.enter_normal_mode(),
             KeyCode::Backspace => {
-                self.edit(start - 1..end, "".into());
-                self.selection = Selection {
-                    start: start - 1,
-                    end: end - 1,
-                    node_id: None,
-                    mode: SelectionMode::Custom,
-                };
+                self.select(SelectionMode::Character, Direction::Current);
+                self.select(SelectionMode::Character, Direction::Backward);
+                let edit_transaction = self.selection_set.replace(
+                    |edit| self.text.slice(edit.range.start.0..edit.range.end.0).into(),
+                    |_| Rope::new(),
+                    |edit| edit.start..edit.start,
+                );
+                self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
             }
             KeyCode::Enter => self.insert("\n"),
             KeyCode::Char(c) => self.insert(&c.to_string()),
@@ -831,6 +546,8 @@ impl State {
     fn handle_normal_mode(&mut self, event: KeyEvent) {
         match event.code {
             // Objects
+            KeyCode::Char('a') => self.add_selection(Direction::Forward),
+            KeyCode::Char('A') => self.add_selection(Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') => self.select_character(Direction::Current),
             KeyCode::Char('d') => self.delete_current_selection(),
@@ -846,29 +563,42 @@ impl State {
             KeyCode::Char('o') => self.change_cursor_direction(),
             KeyCode::Char('s') => self.select_sibling(Direction::Current),
             KeyCode::Char('t') => self.select_token(Direction::Current),
-            KeyCode::Char('w') => self.select_word(),
             KeyCode::Char('r') => self.replace(),
             KeyCode::Char('p') => self.select_parent(Direction::Current),
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
-            KeyCode::Char('0') => self.select_none(Direction::Current),
+            KeyCode::Char('0') => self.reset(),
             KeyCode::Esc => {
                 self.extended_selection_anchor = None;
             }
             // Similar to Change in Vim
             KeyCode::Backspace => {
-                let selection = self.get_current_selection();
-                self.yank(&selection);
-                self.edit(selection.start..selection.end, "".into());
-                self.selection = Selection {
-                    start: selection.start,
-                    end: selection.start,
-                    mode: SelectionMode::Custom,
-                    node_id: None,
-                };
-                self.extended_selection_anchor = None;
-                self.mode = Mode::Insert;
+                self.yank_current_selection();
+                let edit_transaction = EditTransaction::merge(
+                    self.selection_set.clone(),
+                    self.selection_set.map(|selection| {
+                        EditTransaction::from_actions(
+                            self.selection_set.clone(),
+                            vec![
+                                Action::Edit(Edit {
+                                    start: selection.range.start,
+                                    old: self
+                                        .text
+                                        .slice(selection.range.start.0..selection.range.end.0)
+                                        .into(),
+                                    new: Rope::new(),
+                                }),
+                                Action::Select(Selection {
+                                    range: selection.range.start..selection.range.start,
+                                    ..selection.clone()
+                                }),
+                            ],
+                        )
+                    }),
+                );
+                self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+                self.enter_insert_mode()
             }
             _ => {
                 log::info!("event: {:?}", event);
@@ -879,13 +609,11 @@ impl State {
     }
 
     fn enter_insert_mode(&mut self) {
-        let char_index = self.get_cursor_char_index();
-        self.selection = Selection {
-            start: char_index,
-            end: char_index,
-            node_id: None,
-            mode: SelectionMode::Custom,
-        };
+        self.selection_set.apply_mut(|selection| {
+            let char_index = selection.to_char_index(&self.cursor_direction);
+            selection.range = char_index..char_index
+        });
+        self.selection_set.mode = SelectionMode::Custom;
         self.extended_selection_anchor = None;
         self.mode = Mode::Insert;
         self.cursor_direction = CursorDirection::Start;
@@ -910,180 +638,214 @@ impl State {
 
     pub fn set_cursor_position(&mut self, row: u16, column: u16) {
         let start = CharIndex(self.text.line_to_char(row as usize)) + column.into();
-        self.update_selection(Selection {
-            mode: SelectionMode::Custom,
-            start,
-            end: start,
-            node_id: None,
+        self.update_selection_set(SelectionSet {
+            mode: self.selection_set.mode,
+            primary: Selection {
+                range: start..start,
+                node_id: None,
+                yanked_text: self.selection_set.primary.yanked_text.clone(),
+            },
+            ..self.selection_set.clone()
         })
     }
 
     /// Replace the next selection with the current selection without
     /// making the syntax tree invalid
     fn replace_faultlessly(&mut self, selection_mode: &SelectionMode, direction: Direction) {
-        let current_selection = self.selection.clone();
+        fn get_next_selection(
+            current_selection_set: &SelectionSet,
+            selection: &Selection,
+            rope: &Rope,
+            tree: &Tree,
+            selection_mode: &SelectionMode,
+            direction: &Direction,
+            cursor_direction: &CursorDirection,
+        ) -> EditTransaction {
+            let current_selection = selection.clone();
 
-        let text_at_current_selection = self
-            .text
-            .slice(current_selection.start.0..current_selection.end.0)
-            .to_string();
+            let text_at_current_selection: Rope = rope
+                .slice(current_selection.range.start.0..current_selection.range.end.0)
+                .into();
 
-        // Loop until the replacement does not result in errorneous node
-        let mut next_selection = self.get_selection(&selection_mode, direction);
-
-        loop {
-            let edit_transaction = EditTransaction::from_edits(
-                self.selection.clone(),
-                vec![
-                    Edit {
-                        start: current_selection.start,
-                        old: Rope::from_str(&text_at_current_selection),
-                        new: Rope::from_str(
-                            &self
-                                .text
-                                .slice(next_selection.start.0..next_selection.end.0)
-                                .to_string(),
-                        ),
-                    },
-                    Edit {
-                        start: next_selection.start,
-                        old: Rope::from_str(
-                            &self
-                                .text
-                                .slice(next_selection.start.0..next_selection.end.0)
-                                .to_string(),
-                        ),
-                        // We need to add whitespace on both end of the replacement
-                        //
-                        // Otherwise we might get the following replacement in Rust:
-                        // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
-                        //
-                        // Before:                              foo.bar(baz)
-                        // Result (with whitespace padding):    baz
-                        // Result (without padding):            foo.barbaz
-                        new: Rope::from_str(
-                            &(" ".to_string() + &text_at_current_selection + &" ".to_string()),
-                        ),
-                    },
-                ],
-            );
-
-            let (tree, text) = apply_edit_transaction(
-                self.tree.clone(),
-                self.text.clone(),
-                edit_transaction.clone(),
-            )
-            .unwrap();
-
-            if let Some(node) = tree.root_node().descendant_for_byte_range(
-                text.try_char_to_byte(edit_transaction.min_char_index().0)
-                    .unwrap_or(0),
-                text.try_char_to_byte(edit_transaction.max_char_index().0)
-                    .unwrap_or(0),
-            ) {
-                let text_at_next_selection: Rope = self
-                    .text
-                    .slice(next_selection.start.0..next_selection.end.0)
-                    .into();
-
-                // Why don't we just use `tree.root_node().has_error()` instead?
-                // Because I assume we want to be able to exchange even if some part of the tree
-                // contains error
-                if !text_at_next_selection.to_string().trim().is_empty()
-                    && (!selection_mode.is_node() || !node.has_error())
-                {
-                    let edit_transaction = EditTransaction::from_edits(
-                        self.selection.clone(),
-                        vec![
-                            Edit {
-                                start: current_selection.start,
-                                old: Rope::from_str(&text_at_current_selection),
-                                new: Rope::from_str(
-                                    &self
-                                        .text
-                                        .slice(next_selection.start.0..next_selection.end.0)
-                                        .to_string(),
-                                ),
-                            },
-                            Edit {
-                                start: next_selection.start,
-                                old: Rope::from_str(
-                                    &self
-                                        .text
-                                        .slice(next_selection.start.0..next_selection.end.0)
-                                        .to_string(),
-                                ),
-                                // This time without whitespace padding
-                                new: Rope::from_str(&text_at_current_selection),
-                            },
-                        ],
-                    );
-
-                    self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction.clone());
-
-                    let updated_selection = {
-                        let edits = edit_transaction.edits();
-                        let edit = match direction {
-                            Direction::Forward | Direction::Current => edits.last(),
-                            Direction::Backward => edits.first(),
-                        }
-                        .unwrap();
-
-                        Selection {
-                            start: edit.start,
-                            end: edit.start + edit.new.len_chars(),
-                            mode: *selection_mode,
-                            node_id: None,
-                        }
-                    };
-                    self.update_selection(updated_selection);
-                    return;
-                }
-            }
-
-            // Get the next selection
-
-            let new_selection = Self::get_selection_(
-                &self.text,
-                &self.tree,
-                &next_selection,
+            // Loop until the replacement does not result in errorneous node
+            let mut next_selection = Selection::get_selection_(
+                rope,
+                tree,
+                &current_selection,
                 selection_mode,
                 &direction,
-                &self.cursor_direction,
+                &cursor_direction,
             );
 
-            if next_selection.eq(&new_selection) {
-                return;
-            }
+            loop {
+                let edit_transaction = EditTransaction::from_actions(
+                    current_selection_set.clone(),
+                    vec![
+                        Action::Edit(Edit {
+                            start: current_selection.range.start,
+                            old: text_at_current_selection.clone(),
+                            new: Rope::from_str(
+                                &rope
+                                    .slice(next_selection.range.start.0..next_selection.range.end.0)
+                                    .to_string(),
+                            ),
+                        }),
+                        Action::Edit(Edit {
+                            start: next_selection.range.start,
+                            old: Rope::from_str(
+                                &rope
+                                    .slice(next_selection.range.start.0..next_selection.range.end.0)
+                                    .to_string(),
+                            ),
+                            // We need to add whitespace on both end of the replacement
+                            //
+                            // Otherwise we might get the following replacement in Rust:
+                            // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
+                            //
+                            // Before:                              foo.bar(baz)
+                            // Result (with whitespace padding):    baz
+                            // Result (without padding):            foo.barbaz
+                            new: Rope::from_str(
+                                &(" ".to_string()
+                                    + &text_at_current_selection.to_string()
+                                    + &" ".to_string()),
+                            ),
+                        }),
+                    ],
+                );
 
-            next_selection = new_selection;
+                let (new_tree, new_rope) =
+                    apply_edit_transaction(tree.clone(), rope.clone(), edit_transaction.clone())
+                        .unwrap();
+
+                if let Some(node) = new_tree.root_node().descendant_for_byte_range(
+                    new_rope
+                        .try_char_to_byte(edit_transaction.min_char_index().0)
+                        .unwrap_or(0),
+                    new_rope
+                        .try_char_to_byte(edit_transaction.max_char_index().0)
+                        .unwrap_or(0),
+                ) {
+                    let text_at_next_selection: Rope = rope
+                        .slice(next_selection.range.start.0..next_selection.range.end.0)
+                        .into();
+
+                    // Why don't we just use `tree.root_node().has_error()` instead?
+                    // Because I assume we want to be able to exchange even if some part of the tree
+                    // contains error
+                    if !text_at_next_selection.to_string().trim().is_empty()
+                        && (!selection_mode.is_node() || !node.has_error())
+                    {
+                        let edit_transaction = EditTransaction::from_actions(
+                            current_selection_set.clone(),
+                            vec![
+                                Action::Edit(Edit {
+                                    start: current_selection.range.start,
+                                    old: text_at_current_selection.clone(),
+                                    new: Rope::from_str(
+                                        &rope
+                                            .slice(
+                                                next_selection.range.start.0
+                                                    ..next_selection.range.end.0,
+                                            )
+                                            .to_string(),
+                                    ),
+                                }),
+                                Action::Edit(Edit {
+                                    start: next_selection.range.start,
+                                    old: Rope::from_str(
+                                        &rope
+                                            .slice(
+                                                next_selection.range.start.0
+                                                    ..next_selection.range.end.0,
+                                            )
+                                            .to_string(),
+                                    ),
+                                    // This time without whitespace padding
+                                    new: text_at_current_selection.clone(),
+                                }),
+                                Action::Select(Selection {
+                                    range: next_selection.range.start
+                                        ..CharIndex(
+                                            next_selection.range.start.0
+                                                + text_at_current_selection.len_chars(),
+                                        ),
+                                    node_id: None,
+                                    yanked_text: current_selection.yanked_text,
+                                }),
+                            ],
+                        );
+
+                        return edit_transaction;
+                    }
+                }
+
+                // Get the next selection
+
+                let new_selection = Selection::get_selection_(
+                    &rope,
+                    &tree,
+                    &next_selection,
+                    selection_mode,
+                    &direction,
+                    &cursor_direction,
+                );
+
+                if next_selection.eq(&new_selection) {
+                    return EditTransaction::from_actions(current_selection_set.clone(), vec![]);
+                }
+
+                next_selection = new_selection;
+            }
         }
+
+        let edit_transactions = self.selection_set.map(|selection| {
+            get_next_selection(
+                &self.selection_set,
+                &selection,
+                &self.text,
+                &self.tree,
+                &selection_mode,
+                &direction,
+                &self.cursor_direction,
+            )
+        });
+
+        self.apply_edit_transaction(
+            EditHistoryKind::NewEdit,
+            EditTransaction::merge(self.selection_set.clone(), edit_transactions),
+        )
     }
 
     fn exchange(&mut self, direction: Direction) {
-        self.replace_faultlessly(&self.selection.mode.clone(), direction)
+        self.replace_faultlessly(&self.selection_set.mode.clone(), direction)
     }
 
     fn move_selection(&mut self, direction: Direction) {
-        let selection = self.get_selection(&self.selection.mode, direction);
+        let selection = self.get_selection_set(&self.selection_set.mode, direction);
 
-        self.update_selection(selection);
+        self.update_selection_set(selection);
+    }
+
+    fn add_selection(&mut self, direction: Direction) {
+        self.selection_set
+            .add_selection(&self.text, &self.tree, &self.cursor_direction)
     }
 }
 
-fn get_prev_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
+pub fn get_prev_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
     ReverseTreeCursor::new(tree.root_node()).find(|&node| {
         node.child_count() == 0 && (!is_named || node.is_named()) && node.start_byte() < byte
     })
 }
 
-fn get_next_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
+pub fn get_next_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
     traverse(tree.root_node().walk(), Order::Post).find(|&node| {
         node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
     })
 }
 
-fn get_nearest_node_after_byte(tree: &Tree, byte: usize) -> Option<Node> {
+pub fn get_nearest_node_after_byte(tree: &Tree, byte: usize) -> Option<Node> {
     // Preorder is the main key here,
     // because preorder traversal walks the parent first
     traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
@@ -1094,16 +856,21 @@ fn get_node_by_id(tree: &Tree, node_id: usize) -> Option<Node> {
     result
 }
 
-fn node_to_selection(node: Node, mode: SelectionMode, text: &Rope) -> Selection {
+pub fn node_to_selection(
+    node: Node,
+    mode: SelectionMode,
+    text: &Rope,
+    yanked_text: Option<Rope>,
+) -> Selection {
     Selection {
-        mode,
-        start: CharIndex(text.byte_to_char(node.start_byte())),
-        end: CharIndex(text.byte_to_char(node.end_byte())),
+        range: CharIndex(text.byte_to_char(node.start_byte()))
+            ..CharIndex(text.byte_to_char(node.end_byte())),
         node_id: Some(node.id()),
+        yanked_text,
     }
 }
 
-struct ReverseTreeCursor<'a> {
+pub struct ReverseTreeCursor<'a> {
     node: Node<'a>,
 }
 
@@ -1112,7 +879,7 @@ struct ParentTreeCursor<'a> {
 }
 
 impl<'a> ReverseTreeCursor<'a> {
-    fn new(node: Node<'a>) -> Self {
+    pub fn new(node: Node<'a>) -> Self {
         Self {
             node: go_to_last_descendant(node),
         }
@@ -1164,7 +931,7 @@ impl<'a> Iterator for ParentTreeCursor<'a> {
     }
 }
 
-fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selection) -> Node<'a> {
+pub fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selection) -> Node<'a> {
     if let Some(node_id) = selection.node_id {
         get_node_by_id(tree, node_id)
     } else {
