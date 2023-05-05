@@ -213,7 +213,9 @@ impl View {
 
     fn move_cursor(&mut self, point: Point) -> Result<(), anyhow::Error> {
         // Hide the cursor if the point is out of view
-        if (point.row as u16).saturating_sub(self.scroll_offset) >= self.row_count {
+        if !(0 as isize..self.row_count as isize)
+            .contains(&(point.row as isize - self.scroll_offset as isize))
+        {
             queue!(self.stdout, Hide)?;
         } else {
             queue!(self.stdout, Show)?;
