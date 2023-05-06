@@ -49,6 +49,7 @@ pub enum Action {
 }
 
 impl Action {
+    #[cfg(test)]
     fn edit(start: usize, old: &str, new: &str) -> Self {
         Action::Edit(Edit {
             start: CharIndex(start),
@@ -57,6 +58,7 @@ impl Action {
         })
     }
 
+    #[cfg(test)]
     fn select(range: Range<usize>) -> Self {
         Action::Select(Selection {
             range: CharIndex(range.start)..CharIndex(range.end),
@@ -64,27 +66,10 @@ impl Action {
         })
     }
 
-    fn subset_of(&self, other: &Action) -> bool {
-        let self_range = self.range();
-        let other_range = other.range();
-        self_range.start >= other_range.start && self_range.end <= other_range.end
-    }
-
     fn range(&self) -> Range<CharIndex> {
         match self {
             Action::Select(selection) => selection.range.clone(),
             Action::Edit(edit) => edit.range(),
-        }
-    }
-
-    fn update_start_char_index(self, start: CharIndex) -> Self {
-        match self {
-            Action::Select(selection) => {
-                let diff = start.0 as isize - selection.range.start.0 as isize;
-
-                Action::Select(selection.apply_offset(diff))
-            }
-            Action::Edit(edit) => Action::Edit(Edit { start, ..edit }),
         }
     }
 
@@ -102,13 +87,14 @@ impl Action {
 
 #[derive(Clone, Debug)]
 pub struct EditTransaction {
-    actions: Vec<Action>,
+    action_group: ActionGroup,
     /// TODO: `selection_set` should not belong here, but rather belong to the UndoableAction struct.
     /// Used for restoring previous selection after undo/redo
     pub selection_set: SelectionSet,
 }
 
 impl EditTransaction {
+    #[cfg(test)]
     fn apply_to(&self, mut rope: Rope) -> (Vec<String>, Rope) {
         for edit in &self.edits() {
             rope.remove(edit.start.0..edit.end().0);
@@ -126,7 +112,8 @@ impl EditTransaction {
     }
 
     pub fn edits(&self) -> Vec<&Edit> {
-        self.actions
+        self.action_group
+            .actions
             .iter()
             .filter_map(|action| match action {
                 Action::Edit(edit) => Some(edit),
@@ -135,65 +122,70 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub fn from_actions(current_selection_set: SelectionSet, actions: Vec<Action>) -> Self {
+    pub fn from_action_groups(
+        current_selection_set: SelectionSet,
+        action_groups: Vec<ActionGroup>,
+    ) -> Self {
         Self {
-            actions: Self::normalize_actions(actions),
+            action_group: Self::normalize_action_groups(action_groups),
             selection_set: current_selection_set,
         }
     }
 
     #[cfg(test)]
-    pub fn from_tuples(actions: Vec<Action>) -> Self {
+    pub fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             selection_set: SelectionSet::default(),
-            actions: Self::normalize_actions(actions),
+            action_group: Self::normalize_action_groups(action_groups),
         }
     }
 
-    pub fn normalize_actions(actions: Vec<Action>) -> Vec<Action> {
-        log::info!("actions = {:#?}", actions);
+    // Normalized action groups will become one action group, as they no longer need to offset each other
+    fn normalize_action_groups(action_groups: Vec<ActionGroup>) -> ActionGroup {
         // 1) remove edits that are subset of other edits
-        let groups = actions
+        log::info!("Normalizing actions: {:#?}", action_groups);
+
+        // Remove actions group that are subset of other action groups
+        let action_groups = action_groups
             .clone()
             .into_iter()
-            .filter(|action| {
-                !actions.iter().any(|other| {
-                    action != other
-                        && matches!(action, Action::Edit(_))
-                        && matches!(other, Action::Edit(_))
-                        && action.subset_of(other)
-                })
+            .filter(|action_group| {
+                !action_groups
+                    .iter()
+                    .any(|other| action_group != other && action_group.subset_of(other))
             })
-            // 2) sort actions by start position
-            .sorted_by_key(|action| action.range().start)
-            // 3) Remove duplicates
-            .unique()
-            // 4) Group the actions by start position
-            .group_by(|action| action.range().start)
-            .into_iter()
-            .map(|(start, group)| ActionGroup {
-                start,
-                actions: group.collect_vec(),
-            })
-            .collect::<Vec<_>>();
+            .collect_vec();
+
+        // Assert that no actions groups overlap with each other
+        assert!(!action_groups.iter().any(|action_group| action_groups
+            .iter()
+            .any(|other| action_group != other && action_group.overlaps(other))));
+
+        // Sort the action groups by the start char index
+        let action_groups = {
+            let mut action_groups = action_groups;
+            action_groups.sort_by_key(|action_group| action_group.range().start);
+            action_groups
+        };
 
         let mut offset: isize = 0;
         let mut result = vec![];
 
-        for group in groups {
+        for group in action_groups {
             let mut group = group.apply_offset(offset);
-            offset += group.get_max_offset();
+            offset += group.get_net_offset();
 
             result.append(&mut group.actions);
         }
 
-        log::info!("result = {:#?}", result);
+        log::info!("Normalized actions: {:#?}", result);
 
-        result
+        ActionGroup { actions: result }
     }
 
     pub fn min_char_index(&self) -> CharIndex {
-        self.actions
+        self.action_group
+            .actions
             .iter()
             .map(|edit| edit.range().start)
             .min()
@@ -201,7 +193,8 @@ impl EditTransaction {
     }
 
     pub fn max_char_index(&self) -> CharIndex {
-        self.actions
+        self.action_group
+            .actions
             .iter()
             .map(|edit| edit.range().end)
             .max()
@@ -212,17 +205,18 @@ impl EditTransaction {
         selection_set: SelectionSet,
         edit_transactions: Vec<EditTransaction>,
     ) -> EditTransaction {
-        EditTransaction::from_actions(
+        EditTransaction::from_action_groups(
             selection_set,
             edit_transactions
                 .into_iter()
-                .flat_map(|edit_transaction| edit_transaction.actions)
+                .map(|transaction| transaction.action_group)
                 .collect(),
         )
     }
 
     pub fn selections(&self) -> Vec<&Selection> {
-        self.actions
+        self.action_group
+            .actions
             .iter()
             .filter_map(|action| match action {
                 Action::Select(selection) => Some(selection),
@@ -232,29 +226,32 @@ impl EditTransaction {
     }
 }
 
+/// This is for grouping actions that should not offset each other
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct ActionGroup {
-    start: CharIndex,
-    actions: Vec<Action>,
+pub struct ActionGroup {
+    pub actions: Vec<Action>,
 }
 
 impl ActionGroup {
-    fn get_max_offset(&self) -> isize {
+    pub fn new(actions: Vec<Action>) -> Self {
+        Self { actions }
+    }
+    fn overlaps(&self, other: &ActionGroup) -> bool {
+        is_overlapping(&self.range(), &other.range())
+    }
+
+    fn get_net_offset(&self) -> isize {
         self.actions
             .iter()
-            .filter_map(|action| match action {
-                Action::Edit(edit) => {
-                    Some(edit.new.len_chars() as isize - edit.old.len_chars() as isize)
-                }
-                _ => None,
+            .map(|action| match action {
+                Action::Edit(edit) => edit.new.len_chars() as isize - edit.old.len_chars() as isize,
+                _ => 0,
             })
-            .max()
-            .unwrap_or(0)
+            .sum()
     }
 
     fn apply_offset(self, offset: isize) -> ActionGroup {
         ActionGroup {
-            start: self.start.apply_offset(offset),
             actions: self
                 .actions
                 .into_iter()
@@ -262,20 +259,40 @@ impl ActionGroup {
                 .collect(),
         }
     }
+
+    fn range(&self) -> Range<CharIndex> {
+        let min = self
+            .actions
+            .iter()
+            .map(|action| action.range().start)
+            .min()
+            .unwrap_or(CharIndex(0));
+        let max = self
+            .actions
+            .iter()
+            .map(|action| action.range().end)
+            .max()
+            .unwrap_or(CharIndex(0));
+        min..max
+    }
+
+    fn subset_of(&self, other: &ActionGroup) -> bool {
+        is_subset(&self.range(), &other.range())
+    }
 }
 
 #[cfg(test)]
 mod test_normalize_actions {
     use ropey::Rope;
 
-    use crate::{
-        edit::{Action, EditTransaction},
-        selection::Selection,
-    };
+    use crate::edit::{Action, ActionGroup, EditTransaction};
 
     #[test]
     fn only_one_edit() {
-        let edit_transaction = EditTransaction::from_tuples(vec![Action::edit(0, "Who", "What")]);
+        let edit_transaction =
+            EditTransaction::from_tuples(vec![ActionGroup::new(vec![Action::edit(
+                0, "Who", "What",
+            )])]);
         let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
         assert_eq!(result, Rope::from_str("What lives in a pineapple"));
     }
@@ -283,9 +300,9 @@ mod test_normalize_actions {
     #[test]
     fn selection_offsetted_positively() {
         let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(0, "Who", "What"),
+            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
             // Select the word pineapple
-            Action::select(15..24),
+            ActionGroup::new(vec![Action::select(15..24)]),
         ]);
 
         let (selections, result) =
@@ -299,9 +316,9 @@ mod test_normalize_actions {
     #[test]
     fn selection_offsetted_negatively() {
         let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(0, "Who", "He"),
+            ActionGroup::new(vec![Action::edit(0, "Who", "He")]),
             // Select the word "pineapple"
-            Action::select(15..24),
+            ActionGroup::new(vec![Action::select(15..24)]),
         ]);
 
         let (selections, result) =
@@ -313,12 +330,22 @@ mod test_normalize_actions {
     }
 
     #[test]
+    fn actions_in_the_same_action_group_should_not_offset_each_other() {
+        let edit_transaction = EditTransaction::from_tuples(vec![ActionGroup::new(vec![
+            Action::edit(0, "Who", "What"),
+            Action::edit(5, "lives", "is"),
+        ])]);
+        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
+        assert_eq!(result, Rope::from_str("What is in a pineapple"));
+    }
+
+    #[test]
     fn selection_should_not_offset_others() {
         let edit_transaction = EditTransaction::from_tuples(vec![
             // Select the wrod "Who"
-            Action::select(0..3),
+            ActionGroup::new(vec![Action::select(0..3)]),
             // Select the word "pineapple"
-            Action::select(15..24),
+            ActionGroup::new(vec![Action::select(15..24)]),
         ]);
 
         let (selections, result) =
@@ -329,13 +356,13 @@ mod test_normalize_actions {
     }
 
     #[test]
-    fn no_intersection() {
+    fn no_overlap() {
         let edit_transaction = EditTransaction::from_tuples(vec![
             // Replacement length > range length
-            Action::edit(0, "Who", "What"),
+            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
             // Replacement length < range length
-            Action::edit(4, "lives", "see"),
-            Action::edit(13, "a", "two"),
+            ActionGroup::new(vec![Action::edit(4, "lives", "see")]),
+            ActionGroup::new(vec![Action::edit(13, "a", "two")]),
         ]);
 
         let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
@@ -344,92 +371,110 @@ mod test_normalize_actions {
     }
 
     #[test]
-    /// Expects the first edit is removed because it is a subset of the second edit.
-    fn some_is_subset_of_other() {
+    /// Expect the subset to be removed
+    fn some_is_subset_of_others() {
         let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(0, "Who", "What"),
-            Action::edit(0, "Who lives", "He"),
-            Action::edit(13, "a", "two"),
+            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
+            ActionGroup::new(vec![Action::edit(4, "lives", "see")]),
+            ActionGroup::new(vec![Action::edit(13, "a", "two")]),
+            // Expect the last action group to be removed
+            ActionGroup::new(vec![Action::edit(0, "Wh", "We")]),
         ]);
 
         let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
-        assert_eq!(result, Rope::from_str("He in two pineapple"));
-    }
-
-    #[test]
-    /// Expect the edits is not removed.
-    fn some_edit_is_subset_of_some_selection() {
-        let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(0, "Who", "What"),
-            Action::select(0..6),
-        ]);
-
-        let (selections, result) =
-            edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
-
-        assert_eq!(result, Rope::from_str("What lives in a pineapple"));
-        assert_eq!(selections, vec!["What l".to_string()]);
-    }
-
-    #[test]
-    /// Expects ranges with the same start to not be offsetted
-    fn next_range_start_and_current_range_start_is_equal() {
-        let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(4, "Jump", "Vec<Jump>"),
-            Action::edit(0, "Vec<Jump>", "Jump"),
-            Action::select(0..4),
-        ]);
-
-        let (selections, result) = edit_transaction.apply_to(Rope::from_str("Vec<Jump>"));
-        assert_eq!(result, Rope::from_str("Jump"));
-        assert_eq!(selections, vec!["Jump".to_string()])
+        assert_eq!(result, Rope::from_str("What see in two pineapple"));
     }
 
     #[test]
     /// Expect the edits to be sorted before being applied
     fn unsorted() {
         let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(13, "a", "two"),
-            Action::edit(0, "Who", "What"),
-            Action::edit(4, "lives", "see"),
+            ActionGroup::new(vec![Action::edit(13, "a", "two")]),
+            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
+            ActionGroup::new(vec![Action::edit(4, "lives", "see")]),
         ]);
 
         let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
 
         assert_eq!(result, Rope::from_str("What see in two pineapple"));
     }
+}
+
+/// Check if range a is a subset of range b
+fn is_subset<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
+    a.start >= b.start && a.end <= b.end
+}
+
+// Test is_subset
+#[cfg(test)]
+mod test_is_subset {
+    use crate::edit::is_subset;
 
     #[test]
-    /// Expect duplicate edits to be removed
-    fn duplicated() {
-        let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(0, "Who", "What"),
-            Action::edit(0, "Who", "What"),
-            Action::edit(0, "Who", "What"),
-            Action::edit(4, "lives", "see"),
-            Action::edit(4, "lives", "see"),
-            Action::edit(13, "a", "two"),
-        ]);
-
-        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
-
-        assert_eq!(result, Rope::from_str("What see in two pineapple"));
+    fn subset() {
+        assert!(is_subset(&(0..5), &(0..10)));
+        assert!(is_subset(&(5..10), &(0..10)));
+        assert!(is_subset(&(1..2), &(0..10)));
     }
 
     #[test]
-    /// Intersected edits
-    /// TODO: I'm not sure what behavior should be expected here
-    fn some_intersected() {
-        let edit_transaction = EditTransaction::from_tuples(vec![
-            Action::edit(0, "Who", "What"),
-            Action::edit(4, "lives", "see"),
-            Action::edit(6, "ves ", "soap"),
-        ]);
+    fn inverted() {
+        assert!(!is_subset(&(0..10), &(0..5)));
+        assert!(!is_subset(&(0..10), &(5..10)));
+        assert!(!is_subset(&(0..10), &(1..2)));
+    }
 
-        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
+    #[test]
+    fn not_subset() {
+        assert!(!is_subset(&(0..5), &(1..10)));
+        assert!(!is_subset(&(0..5), &(0..4)));
+    }
+}
 
-        // The expected result here can be tweaked until we have finalized the behavior
-        assert_eq!(result, Rope::from_str("What soapin a pineapple"));
+fn is_overlapping<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
+    use std::cmp::{max, min};
+    max(&a.start, &b.start) < min(&a.end, &b.end)
+}
+
+// Test is_overlapping
+#[cfg(test)]
+mod test_is_overlapping {
+    use crate::edit::is_overlapping;
+
+    #[test]
+    fn partial_overlap() {
+        assert!(is_overlapping(&(0..5), &(3..10)));
+        assert!(is_overlapping(&(3..10), &(0..5)));
+    }
+
+    #[test]
+    fn no_overlap() {
+        assert!(!is_overlapping(&(0..5), &(5..10)));
+        assert!(!is_overlapping(&(5..10), &(0..5)));
+    }
+
+    #[test]
+    fn no_overlap_no_touch() {
+        assert!(!is_overlapping(&(0..5), &(6..10)));
+        assert!(!is_overlapping(&(6..10), &(0..5)));
+    }
+
+    #[test]
+    fn subset() {
+        assert!(is_overlapping(&(0..10), &(3..5)));
+        assert!(is_overlapping(&(3..5), &(0..10)));
+    }
+
+    #[test]
+    fn same_start() {
+        assert!(is_overlapping(&(0..5), &(0..10)));
+        assert!(is_overlapping(&(0..10), &(0..5)));
+    }
+
+    #[test]
+    fn same_end() {
+        assert!(is_overlapping(&(0..10), &(5..10)));
+        assert!(is_overlapping(&(5..10), &(0..10)));
     }
 }

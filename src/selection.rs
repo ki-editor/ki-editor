@@ -6,7 +6,7 @@ use tree_sitter::{Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
-    edit::{Action, Edit, EditTransaction},
+    edit::{Action, ActionGroup, Edit, EditTransaction},
     engine::{
         get_current_node, get_nearest_node_after_byte, get_next_token, get_prev_token,
         node_to_selection, CursorDirection, Direction, ReverseTreeCursor,
@@ -64,14 +64,14 @@ impl SelectionSet {
         GetNew: Fn(&Selection) -> Rope,
         GetRange: Fn(&Edit) -> Range<CharIndex>,
     {
-        let edit_transaction = EditTransaction::from_actions(
+        let edit_transaction = EditTransaction::from_action_groups(
             self.clone(),
             self.map(|selection| {
-                Action::Edit(Edit {
+                ActionGroup::new(vec![Action::Edit(Edit {
                     start: selection.range.start,
                     old: get_old(selection),
                     new: get_new(selection),
-                })
+                })])
             })
             .into_iter()
             .collect(),

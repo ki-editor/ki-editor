@@ -9,7 +9,7 @@ use crossterm::style::Print;
 use crossterm::{cursor::SetCursorStyle, event::Event, terminal};
 use log::LevelFilter;
 
-use engine::State;
+use engine::Buffer;
 use ropey::{Rope, RopeSlice};
 use selection::CharIndex;
 use std::io::{stdout, Write};
@@ -45,12 +45,9 @@ use crossterm::{
 use crate::engine::{CursorDirection, Mode};
 
 fn handle_event(source_code: &str, language: tree_sitter::Language) {
-    let mut parser = Parser::new();
-    parser.set_language(language).unwrap();
-    let tree = parser.parse(source_code, None).unwrap();
     enable_raw_mode().unwrap();
 
-    let mut state = State::new(source_code.into(), tree);
+    let mut state = Buffer::new(language, source_code);
     let (columns, rows) = terminal::size().unwrap();
     let mut view = View {
         scroll_offset: 0,
@@ -230,7 +227,7 @@ impl View {
         Ok(())
     }
 
-    fn get_grid(&self, state: &State) -> Grid {
+    fn get_grid(&self, state: &Buffer) -> Grid {
         let mut grid: Grid = Grid::new((self.row_count as usize, self.column_count as usize));
 
         let lines = state
@@ -315,7 +312,7 @@ impl View {
         grid
     }
 
-    fn render(&mut self, state: &State) -> Result<(), anyhow::Error> {
+    fn render(&mut self, state: &Buffer) -> Result<(), anyhow::Error> {
         queue!(self.stdout, Hide)?;
         let cells = {
             let grid = self.get_grid(state);

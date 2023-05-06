@@ -1,13 +1,11 @@
-use std::ops::{Add, Range, Sub};
-
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use itertools::Itertools;
 use ropey::Rope;
-use tree_sitter::{InputEdit, Node, Point, Tree};
+use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
-    edit::{Action, Edit, EditTransaction},
+    edit::{Action, ActionGroup, Edit, EditTransaction},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
@@ -23,7 +21,7 @@ pub struct Jump {
     pub selection: Selection,
 }
 
-pub struct State {
+pub struct Buffer {
     pub text: Rope,
     pub mode: Mode,
 
@@ -56,8 +54,8 @@ pub enum Direction {
     Current,
 }
 
-impl State {
-    pub fn new(text: Rope, tree: Tree) -> Self {
+impl Buffer {
+    pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
                 primary: Selection {
@@ -68,10 +66,14 @@ impl State {
                 secondary: vec![],
                 mode: SelectionMode::Custom,
             },
-            text,
+            text: Rope::from_str(text),
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
-            tree,
+            tree: {
+                let mut parser = Parser::new();
+                parser.set_language(language).unwrap();
+                parser.parse(text.to_string(), None).unwrap()
+            },
             quit: false,
             selection_history: Vec::with_capacity(128),
             undo_edits: Vec::new(),
@@ -138,7 +140,6 @@ impl State {
         } else {
             Direction::Current
         };
-        log::info!("select: {:?} {:?}", selection_mode, direction);
         let selection = self.get_selection_set(&selection_mode, direction);
 
         self.update_selection_set(selection);
@@ -203,9 +204,9 @@ impl State {
         let edit_transactions = self.selection_set.map(|selection| {
             if let Some(yanked_text) = &selection.yanked_text {
                 let start = selection.to_char_index(&self.cursor_direction);
-                EditTransaction::from_actions(
+                EditTransaction::from_action_groups(
                     self.selection_set.clone(),
-                    vec![
+                    vec![ActionGroup::new(vec![
                         Action::Edit(Edit {
                             start,
                             old: Rope::new(),
@@ -216,10 +217,10 @@ impl State {
                             node_id: None,
                             yanked_text: Some(yanked_text.clone()),
                         }),
-                    ],
+                    ])],
                 )
             } else {
-                EditTransaction::from_actions(self.selection_set.clone(), vec![])
+                EditTransaction::from_action_groups(self.selection_set.clone(), vec![])
             }
         });
         let edit_transaction =
@@ -237,11 +238,9 @@ impl State {
                         .text
                         .slice(selection.range.start.0..selection.range.end.0)
                         .into();
-                    log::info!("replaced_text: {:?}", replaced_text);
-                    log::info!("replacement: {:?}", replacement);
-                    EditTransaction::from_actions(
+                    EditTransaction::from_action_groups(
                         self.selection_set.clone(),
-                        vec![
+                        vec![ActionGroup::new(vec![
                             Action::Edit(Edit {
                                 start: selection.range.start,
                                 old: self
@@ -256,10 +255,10 @@ impl State {
                                 yanked_text: Some(replaced_text),
                                 node_id: None,
                             }),
-                        ],
+                        ])],
                     )
                 } else {
-                    EditTransaction::from_actions(self.selection_set.clone(), vec![])
+                    EditTransaction::from_action_groups(self.selection_set.clone(), vec![])
                 }
             }),
         );
@@ -271,17 +270,17 @@ impl State {
         edit_history_kind: EditHistoryKind,
         edit_transaction: EditTransaction,
     ) {
-        let inversed_edit_transaction = EditTransaction::from_actions(
+        let inversed_edit_transaction = EditTransaction::from_action_groups(
             self.selection_set.clone(),
             edit_transaction
                 .edits()
                 .iter()
                 .map(|edit| {
-                    Action::Edit(Edit {
+                    ActionGroup::new(vec![Action::Edit(Edit {
                         start: edit.start,
                         old: edit.new.clone(),
                         new: edit.old.clone(),
-                    })
+                    })])
                 })
                 .collect_vec(),
         );
@@ -345,12 +344,6 @@ impl State {
             CursorDirection::Start => CursorDirection::End,
             CursorDirection::End => CursorDirection::Start,
         };
-    }
-
-    fn get_nearest_node_under_cursor(&self) -> Option<Node> {
-        let cursor_pos = self.get_cursor_char_index().to_byte(&self.text);
-
-        get_nearest_node_after_byte(&self.tree, cursor_pos)
     }
 
     fn get_selection_set(&self, mode: &SelectionMode, direction: Direction) -> SelectionSet {
@@ -498,27 +491,10 @@ impl State {
     }
 
     fn insert(&mut self, s: &str) {
-        let edit_transaction = EditTransaction::merge(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
-                let next = selection.range.start + 1;
-                EditTransaction::from_actions(
-                    self.selection_set.clone(),
-                    vec![
-                        Action::Edit(Edit {
-                            start: selection.range.start,
-                            old: Rope::new(),
-                            new: Rope::from_str(s),
-                        }),
-                        // TODO: this does not move the cursor next to the inserted text
-                        Action::Select(Selection {
-                            range: next..next,
-                            node_id: None,
-                            yanked_text: selection.yanked_text.clone(),
-                        }),
-                    ],
-                )
-            }),
+        let edit_transaction = self.selection_set.replace(
+            |_| Rope::new(),
+            |_| Rope::from_str(s),
+            |edit| edit.start + 1..edit.start + 1,
         );
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
@@ -546,10 +522,10 @@ impl State {
     fn handle_normal_mode(&mut self, event: KeyEvent) {
         match event.code {
             // Objects
-            KeyCode::Char('a') => self.add_selection(Direction::Forward),
-            KeyCode::Char('A') => self.add_selection(Direction::Backward),
+            KeyCode::Char('a') => self.add_selection(),
+            KeyCode::Char('A') => self.add_selection(),
             KeyCode::Char('b') => self.select_backward(),
-            KeyCode::Char('c') => self.select_character(Direction::Current),
+            KeyCode::Char('c') => self.select_character(Direction::Forward),
             KeyCode::Char('d') => self.delete_current_selection(),
             KeyCode::Char('f') => self.move_selection(Direction::Forward),
             KeyCode::Char('F') => self.move_selection(Direction::Backward),
@@ -558,13 +534,13 @@ impl State {
             KeyCode::Char('j') => self.jump(Direction::Forward),
             KeyCode::Char('J') => self.jump(Direction::Backward),
             KeyCode::Char('k') => self.select_kids(),
-            KeyCode::Char('l') => self.select_line(Direction::Current),
-            KeyCode::Char('n') => self.select_named_node(Direction::Current),
+            KeyCode::Char('l') => self.select_line(Direction::Forward),
+            KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('o') => self.change_cursor_direction(),
-            KeyCode::Char('s') => self.select_sibling(Direction::Current),
-            KeyCode::Char('t') => self.select_token(Direction::Current),
+            KeyCode::Char('s') => self.select_sibling(Direction::Forward),
+            KeyCode::Char('t') => self.select_token(Direction::Forward),
             KeyCode::Char('r') => self.replace(),
-            KeyCode::Char('p') => self.select_parent(Direction::Current),
+            KeyCode::Char('p') => self.select_parent(Direction::Forward),
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
@@ -578,9 +554,9 @@ impl State {
                 let edit_transaction = EditTransaction::merge(
                     self.selection_set.clone(),
                     self.selection_set.map(|selection| {
-                        EditTransaction::from_actions(
+                        EditTransaction::from_action_groups(
                             self.selection_set.clone(),
-                            vec![
+                            vec![ActionGroup::new(vec![
                                 Action::Edit(Edit {
                                     start: selection.range.start,
                                     old: self
@@ -593,7 +569,7 @@ impl State {
                                     range: selection.range.start..selection.range.start,
                                     ..selection.clone()
                                 }),
-                            ],
+                            ])],
                         )
                     }),
                 );
@@ -678,10 +654,10 @@ impl State {
             );
 
             loop {
-                let edit_transaction = EditTransaction::from_actions(
+                let edit_transaction = EditTransaction::from_action_groups(
                     current_selection_set.clone(),
                     vec![
-                        Action::Edit(Edit {
+                        ActionGroup::new(vec![Action::Edit(Edit {
                             start: current_selection.range.start,
                             old: text_at_current_selection.clone(),
                             new: Rope::from_str(
@@ -689,8 +665,8 @@ impl State {
                                     .slice(next_selection.range.start.0..next_selection.range.end.0)
                                     .to_string(),
                             ),
-                        }),
-                        Action::Edit(Edit {
+                        })]),
+                        ActionGroup::new(vec![Action::Edit(Edit {
                             start: next_selection.range.start,
                             old: Rope::from_str(
                                 &rope
@@ -710,7 +686,7 @@ impl State {
                                     + &text_at_current_selection.to_string()
                                     + &" ".to_string()),
                             ),
-                        }),
+                        })]),
                     ],
                 );
 
@@ -736,43 +712,37 @@ impl State {
                     if !text_at_next_selection.to_string().trim().is_empty()
                         && (!selection_mode.is_node() || !node.has_error())
                     {
-                        let edit_transaction = EditTransaction::from_actions(
+                        // Log text_at_current_selection
+                        log::info!(
+                            "\nReplaced\n:'{}'\nwith:\n'{}'",
+                            text_at_next_selection,
+                            text_at_current_selection
+                        );
+                        let edit_transaction = EditTransaction::from_action_groups(
                             current_selection_set.clone(),
                             vec![
-                                Action::Edit(Edit {
+                                ActionGroup::new(vec![Action::Edit(Edit {
                                     start: current_selection.range.start,
                                     old: text_at_current_selection.clone(),
-                                    new: Rope::from_str(
-                                        &rope
-                                            .slice(
+                                    new: text_at_next_selection.clone(),
+                                })]),
+                                ActionGroup::new(vec![
+                                    Action::Edit(Edit {
+                                        start: next_selection.range.start,
+                                        old: text_at_next_selection,
+                                        // This time without whitespace padding
+                                        new: text_at_current_selection.clone(),
+                                    }),
+                                    Action::Select(Selection {
+                                        range: next_selection.range.start
+                                            ..CharIndex(
                                                 next_selection.range.start.0
-                                                    ..next_selection.range.end.0,
-                                            )
-                                            .to_string(),
-                                    ),
-                                }),
-                                Action::Edit(Edit {
-                                    start: next_selection.range.start,
-                                    old: Rope::from_str(
-                                        &rope
-                                            .slice(
-                                                next_selection.range.start.0
-                                                    ..next_selection.range.end.0,
-                                            )
-                                            .to_string(),
-                                    ),
-                                    // This time without whitespace padding
-                                    new: text_at_current_selection.clone(),
-                                }),
-                                Action::Select(Selection {
-                                    range: next_selection.range.start
-                                        ..CharIndex(
-                                            next_selection.range.start.0
-                                                + text_at_current_selection.len_chars(),
-                                        ),
-                                    node_id: None,
-                                    yanked_text: current_selection.yanked_text,
-                                }),
+                                                    + text_at_current_selection.len_chars(),
+                                            ),
+                                        node_id: None,
+                                        yanked_text: current_selection.yanked_text,
+                                    }),
+                                ]),
                             ],
                         );
 
@@ -792,7 +762,10 @@ impl State {
                 );
 
                 if next_selection.eq(&new_selection) {
-                    return EditTransaction::from_actions(current_selection_set.clone(), vec![]);
+                    return EditTransaction::from_action_groups(
+                        current_selection_set.clone(),
+                        vec![],
+                    );
                 }
 
                 next_selection = new_selection;
@@ -811,6 +784,9 @@ impl State {
             )
         });
 
+        // TODO: merge should take a vector of ActionGroups
+        // Because each edit in the same ActionGroups should not offset each other
+        // This is crucial, because each set of edits from `get_next_selection` is already normalized
         self.apply_edit_transaction(
             EditHistoryKind::NewEdit,
             EditTransaction::merge(self.selection_set.clone(), edit_transactions),
@@ -827,9 +803,24 @@ impl State {
         self.update_selection_set(selection);
     }
 
-    fn add_selection(&mut self, direction: Direction) {
+    fn add_selection(&mut self) {
         self.selection_set
             .add_selection(&self.text, &self.tree, &self.cursor_direction)
+    }
+
+    #[cfg(test)]
+    fn get_selected_texts(&self) -> Vec<&str> {
+        self.selection_set.map(|selection| {
+            self.text
+                .slice(selection.range.start.0..selection.range.end.0)
+                .as_str()
+                .unwrap()
+        })
+    }
+
+    #[cfg(test)]
+    fn get_text(&self) -> &str {
+        self.text.slice(0..self.text.len_chars()).as_str().unwrap()
     }
 }
 
@@ -959,15 +950,6 @@ fn apply_edit(mut tree: Tree, mut text: Rope, edit: &Edit) -> Result<(Tree, Rope
     let old_end_char_index = edit.end();
     let new_end_char_index = edit.start + edit.new.len_chars();
 
-    log::info!("edit = {:?}", edit);
-
-    log::info!(
-        "Applying edit: {:?} -> {:?} (new end: {:?})",
-        edit.start,
-        edit.end(),
-        new_end_char_index
-    );
-
     let start_byte = start_char_index.to_byte(&text);
     let old_end_byte = old_end_char_index.to_byte(&text);
     let start_position = start_char_index.to_point(&text);
@@ -1002,4 +984,369 @@ enum EditHistoryKind {
     Undo,
     Redo,
     NewEdit,
+}
+
+#[cfg(test)]
+mod test_engine {
+    use super::{Buffer, Direction};
+    use tree_sitter_rust::language;
+
+    #[test]
+    fn select_character() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        buffer.select_character(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["f"]);
+        buffer.select_character(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["n"]);
+
+        buffer.select_character(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["f"]);
+    }
+
+    #[test]
+    fn select_line() {
+        // Multiline source code
+        let mut buffer = Buffer::new(
+            language(),
+            "
+fn main() {
+    let x = 1;
+}
+"
+            .trim(),
+        );
+        buffer.select_line(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["fn main() {\n"]);
+        buffer.select_line(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["    let x = 1;\n"]);
+
+        buffer.select_line(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["fn main() {\n"]);
+    }
+
+    #[test]
+    fn select_token() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["("]);
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec![")"]);
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["{"]);
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+        buffer.select_token(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+
+        buffer.select_token(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+    }
+
+    #[test]
+    fn select_parent() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        // Move token to 1
+        for _ in 0..9 {
+            buffer.select_token(Direction::Forward);
+        }
+
+        assert_eq!(buffer.get_selected_texts(), vec!["1"]);
+
+        buffer.select_parent(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["1"]);
+        buffer.select_parent(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let x = 1;"]);
+        buffer.select_parent(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["{ let x = 1; }"]);
+        buffer.select_parent(Direction::Forward);
+        assert_eq!(
+            buffer.get_selected_texts(),
+            vec!["fn main() { let x = 1; }"]
+        );
+
+        buffer.select_parent(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+    }
+
+    #[test]
+    fn select_sibling() {
+        let mut buffer = Buffer::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        // Move token to "x: usize"
+        for _ in 0..4 {
+            buffer.select_token(Direction::Forward);
+        }
+        buffer.select_parent(Direction::Forward);
+        buffer.select_parent(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
+
+        buffer.select_sibling(Direction::Forward);
+        buffer.select_sibling(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["y: Vec<A>"]);
+        buffer.select_sibling(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["y: Vec<A>"]);
+
+        buffer.select_sibling(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
+        buffer.select_sibling(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
+    }
+
+    #[test]
+    fn select_kids() {
+        let mut buffer = Buffer::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        // Move token to "x"
+        for _ in 0..4 {
+            buffer.select_token(Direction::Forward);
+        }
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+
+        buffer.select_kids();
+        assert_eq!(buffer.get_selected_texts(), vec!["x: usize, y: Vec<A>"]);
+    }
+
+    #[test]
+    fn select_named_node() {
+        let mut buffer = Buffer::new(language(), "fn main(x: usize) { let x = 1; }");
+
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(
+            buffer.get_selected_texts(),
+            vec!["fn main(x: usize) { let x = 1; }"]
+        );
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["(x: usize)"]);
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["usize"]);
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["{ let x = 1; }"]);
+        buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let x = 1;"]);
+
+        buffer.select_named_node(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["{ let x = 1; }"]);
+        buffer.select_named_node(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["usize"]);
+        buffer.select_named_node(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
+        buffer.select_named_node(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["(x: usize)"]);
+        buffer.select_named_node(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+    }
+
+    #[test]
+    fn yank_replace() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        buffer.select_token(Direction::Forward);
+        buffer.yank_current_selection();
+        buffer.select_token(Direction::Forward);
+        buffer.replace();
+        assert_eq!(buffer.get_text(), "fn fn() { let x = 1; }");
+        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+        buffer.replace();
+        assert_eq!(buffer.get_text(), "fn main() { let x = 1; }");
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+    }
+
+    #[test]
+    fn yank_paste() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        buffer.select_token(Direction::Forward);
+        buffer.yank_current_selection();
+        buffer.select_token(Direction::Forward);
+        buffer.paste();
+        assert_eq!(buffer.get_text(), "fn fnmain() { let x = 1; }");
+        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+    }
+
+    #[test]
+    fn exchange_sibling() {
+        let mut buffer = Buffer::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        // Move token to "x: usize"
+        for _ in 0..4 {
+            buffer.select_token(Direction::Forward);
+        }
+        buffer.select_parent(Direction::Forward);
+        buffer.select_parent(Direction::Forward);
+
+        buffer.select_sibling(Direction::Forward);
+        buffer.exchange(Direction::Forward);
+        assert_eq!(buffer.get_text(), "fn main(y: Vec<A>, x: usize) {}");
+
+        buffer.exchange(Direction::Backward);
+        assert_eq!(buffer.get_text(), "fn main(x: usize, y: Vec<A>) {}");
+    }
+
+    #[test]
+    fn exchange_parent() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = a.b(c()); }");
+        // Move selection to "c()"
+        for _ in 0..10 {
+            buffer.select_named_node(Direction::Forward);
+        }
+
+        assert_eq!(buffer.get_selected_texts(), vec!["c()"]);
+
+        buffer.select_parent(Direction::Forward);
+
+        buffer.exchange(Direction::Forward);
+        assert_eq!(buffer.get_text(), "fn main() { let x = c(); }");
+
+        buffer.exchange(Direction::Forward);
+        assert_eq!(buffer.get_text(), "fn main() { c() }");
+    }
+
+    #[test]
+    fn exchange_line() {
+        // Multiline source code
+        let mut buffer = Buffer::new(
+            language(),
+            "
+fn main() {
+    let x = 1;
+    let y = 2;
+}",
+        );
+
+        buffer.select_line(Direction::Forward);
+        buffer.select_line(Direction::Forward);
+
+        buffer.exchange(Direction::Forward);
+        assert_eq!(
+            buffer.get_text(),
+            "
+    let x = 1;
+fn main() {
+    let y = 2;
+}"
+        );
+
+        buffer.exchange(Direction::Backward);
+        assert_eq!(
+            buffer.get_text(),
+            "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+        );
+    }
+
+    #[test]
+    fn exchange_character() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        buffer.select_character(Direction::Forward);
+
+        buffer.exchange(Direction::Forward);
+        assert_eq!(buffer.get_text(), "nf main() { let x = 1; }");
+        buffer.exchange(Direction::Forward);
+        assert_eq!(buffer.get_text(), "nm fain() { let x = 1; }");
+
+        buffer.exchange(Direction::Backward);
+        assert_eq!(buffer.get_text(), "nf main() { let x = 1; }");
+        buffer.exchange(Direction::Backward);
+        assert_eq!(buffer.get_text(), "fn main() { let x = 1; }");
+    }
+
+    #[test]
+    fn multi_insert() {
+        let mut buffer = Buffer::new(language(), "struct A(usize, char)");
+        // Select 'usize'
+        for _ in 0..4 {
+            buffer.select_named_node(Direction::Forward);
+        }
+
+        assert_eq!(buffer.get_selected_texts(), vec!["usize"]);
+
+        buffer.select_sibling(Direction::Forward);
+        buffer.add_selection();
+        assert_eq!(buffer.get_selected_texts(), vec!["usize", "char"]);
+        buffer.enter_insert_mode();
+        buffer.insert("pub ");
+
+        assert_eq!(buffer.get_text(), "struct A(pub usize, pub char)");
+    }
+
+    #[test]
+    fn multi_exchange_parent() {
+        let mut buffer = Buffer::new(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        // Select 'let x = S(a)'
+        for _ in 0..5 {
+            buffer.select_named_node(Direction::Forward);
+        }
+
+        assert_eq!(buffer.get_selected_texts(), vec!["let x = S(a);"]);
+
+        buffer.select_sibling(Direction::Forward);
+        buffer.add_selection();
+
+        assert_eq!(
+            buffer.get_selected_texts(),
+            vec!["let x = S(a);", "let y = S(b);"]
+        );
+
+        for _ in 0..5 {
+            buffer.select_named_node(Direction::Forward);
+        }
+
+        assert_eq!(buffer.get_selected_texts(), vec!["a", "b"]);
+
+        buffer.select_parent(Direction::Forward);
+        buffer.exchange(Direction::Forward);
+
+        assert_eq!(buffer.get_text(), "fn f(){ let x = a; let y = b; }");
+
+        buffer.undo();
+
+        assert_eq!(buffer.get_text(), "fn f(){ let x = S(a); let y = S(b); }");
+        assert_eq!(buffer.get_selected_texts(), vec!["a", "b"]);
+
+        buffer.redo();
+
+        assert_eq!(buffer.get_text(), "fn f(){ let x = a; let y = b; }");
+        assert_eq!(buffer.get_selected_texts(), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn multi_exchange_sibling() {
+        let mut buffer = Buffer::new(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
+        // Select 'fn f(x:a,y:b){}'
+        buffer.select_token(Direction::Forward);
+        buffer.select_parent(Direction::Forward);
+        buffer.select_parent(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
+
+        buffer.select_sibling(Direction::Forward);
+        buffer.add_selection();
+
+        assert_eq!(
+            buffer.get_selected_texts(),
+            vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
+        );
+
+        buffer.select_named_node(Direction::Forward);
+        buffer.select_named_node(Direction::Forward);
+        buffer.select_named_node(Direction::Forward);
+        buffer.select_named_node(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["x:a", "x:a"]);
+
+        buffer.select_sibling(Direction::Forward);
+
+        buffer.exchange(Direction::Forward);
+        assert_eq!(buffer.get_text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
+        assert_eq!(buffer.get_selected_texts(), vec!["x:a", "x:a"]);
+
+        buffer.exchange(Direction::Backward);
+        assert_eq!(buffer.get_text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
+    }
 }
