@@ -29,7 +29,6 @@ pub struct Buffer {
 
     pub cursor_direction: CursorDirection,
     pub tree: Tree,
-    pub quit: bool,
     selection_history: Vec<SelectionSet>,
 
     undo_edits: Vec<EditTransaction>,
@@ -40,6 +39,8 @@ pub struct Buffer {
     /// Some = the selection is being extended
     /// None = the selection is not being extended
     extended_selection_anchor: Option<CharIndex>,
+
+    normal_mode_override: Option<Box<dyn Fn(KeyEvent) -> HandleKeyEventResult>>,
 }
 
 pub enum CursorDirection {
@@ -74,12 +75,22 @@ impl Buffer {
                 parser.set_language(language).unwrap();
                 parser.parse(text.to_string(), None).unwrap()
             },
-            quit: false,
             selection_history: Vec::with_capacity(128),
             undo_edits: Vec::new(),
             redo_edits: Vec::new(),
             extended_selection_anchor: None,
+            normal_mode_override: None,
         }
+    }
+
+    pub fn with_override(
+        language: tree_sitter::Language,
+        text: &str,
+        normal_mode_override: Box<dyn Fn(KeyEvent) -> HandleKeyEventResult>,
+    ) -> Self {
+        let mut buffer = Self::new(language, text);
+        buffer.normal_mode_override = Some(normal_mode_override);
+        buffer
     }
 
     fn select_parent(&mut self, direction: Direction) {
@@ -367,7 +378,6 @@ impl Buffer {
     }
 
     fn toggle_highlight_mode(&mut self) {
-        todo!()
         // if let Some(anchor) = self.extended_selection_anchor.take() {
         //     // Reverse the anchor with the current cursor position
         //     let cursor_index = self.get_cursor_char_index();
@@ -393,7 +403,9 @@ impl Buffer {
             match &self.mode {
                 Mode::Normal => self.handle_normal_mode(key_event),
                 Mode::Insert => self.handle_insert_mode(key_event),
-                Mode::Jump { .. } => self.handle_jump_mode(key_event),
+                Mode::Jump { .. } => {
+                    self.handle_jump_mode(key_event);
+                }
             }
         }
     }
@@ -418,10 +430,6 @@ impl Buffer {
                     secondary: vec![],
                     mode: SelectionMode::Custom,
                 };
-                HandleKeyEventResult::Consumed
-            }
-            KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
-                self.quit = true;
                 HandleKeyEventResult::Consumed
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
@@ -516,10 +524,20 @@ impl Buffer {
             KeyCode::Char(c) => self.insert(&c.to_string()),
             KeyCode::Tab => self.insert("\t"),
             _ => {}
-        }
+        };
     }
 
     fn handle_normal_mode(&mut self, event: KeyEvent) {
+        let result = if let Some(normal_mode_override) = &self.normal_mode_override {
+            normal_mode_override(event)
+        } else {
+            HandleKeyEventResult::Unconsumed(event)
+        };
+        let event = match result {
+            HandleKeyEventResult::Consumed => return,
+
+            HandleKeyEventResult::Unconsumed(event) => event,
+        };
         match event.code {
             // Objects
             KeyCode::Char('a') => self.add_selection(),
@@ -581,7 +599,7 @@ impl Buffer {
                 // todo!("Back to previous selection");
                 // todo!("Search by node kind")
             }
-        }
+        };
     }
 
     fn enter_insert_mode(&mut self) {
@@ -975,9 +993,14 @@ fn apply_edit(mut tree: Tree, mut text: Rope, edit: &Edit) -> Result<(Tree, Rope
     Ok((tree, text))
 }
 
-enum HandleKeyEventResult {
+pub enum HandleKeyEventResult {
     Consumed,
     Unconsumed(KeyEvent),
+}
+
+pub enum Dispatch {
+    CloseWindow { id: usize },
+    SetSearch { search: String },
 }
 
 enum EditHistoryKind {

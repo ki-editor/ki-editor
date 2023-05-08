@@ -5,11 +5,15 @@ use crossterm::{
     event::{EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     queue,
     style::{Color, Print, SetForegroundColor},
-    terminal, ExecutableCommand,
+    terminal::{self, Clear, ClearType},
+    ExecutableCommand,
 };
 use tree_sitter::Point;
 
-use crate::{engine::Buffer, window::Window};
+use crate::{
+    engine::{Buffer, Dispatch, HandleKeyEventResult},
+    window::Window,
+};
 
 pub struct Screen {
     height: u16,
@@ -41,56 +45,8 @@ impl Screen {
 
         stdout.execute(EnableMouseCapture).unwrap();
 
+        self.render(&mut stdout)?;
         loop {
-            // Generate layout
-            let (rectangles, borders) =
-                Rectangle::generate(self.windows.len(), self.width.into(), self.height.into());
-
-            // Log windows length
-            log::info!("{}", self.windows.len());
-
-            // Render every window
-            for (window, rectangle) in self.windows.iter_mut().zip(rectangles.into_iter()) {
-                let buffer = self.buffers.get(&window.buffer_id()).unwrap();
-                window.render(&buffer, &rectangle, &mut stdout)?;
-                window.flush(&mut stdout);
-            }
-
-            // Render every border
-            for border in borders {
-                match border.direction {
-                    BorderDirection::Horizontal => {
-                        for i in 0..border.length {
-                            // Set foreground color to black
-                            queue!(stdout, SetForegroundColor(Color::Black))?;
-                            queue!(
-                                stdout,
-                                MoveTo(
-                                    border.start.column as u16 + i as u16,
-                                    border.start.row as u16
-                                ),
-                                Print("─")
-                            )?;
-                        }
-                    }
-                    BorderDirection::Vertical => {
-                        for i in 0..border.length {
-                            // Set foreground color to black
-                            queue!(stdout, SetForegroundColor(Color::Black))?;
-                            queue!(
-                                stdout,
-                                MoveTo(
-                                    border.start.column as u16,
-                                    border.start.row as u16 + i as u16
-                                ),
-                                Print("│")
-                            )?;
-                        }
-                    }
-                }
-                // border.render()?;
-            }
-
             // Pass event to focused window
             let window = self.windows.get_mut(self.focused_window_index).unwrap();
             let buffer = self.buffers.get_mut(&window.buffer_id()).unwrap();
@@ -103,6 +59,21 @@ impl Screen {
                         self.windows.push(Window::new(buffer_id));
                         self.focused_window_index = self.windows.len() - 1;
                         continue;
+                    }
+                    KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
+                        let buffer = Buffer::with_override(
+                            tree_sitter_md::language(),
+                            "",
+                            Box::new(|event| match event.code {
+                                KeyCode::Enter => HandleKeyEventResult::Consumed,
+                                _ => HandleKeyEventResult::Unconsumed(event),
+                            }),
+                        );
+                        let buffer_id = self.add_buffer(buffer);
+                        self.windows.push(Window::new(buffer_id));
+                        self.focused_window_index = self.windows.len() - 1;
+
+                        // continue;
                     }
                     KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                         // Remove current window
@@ -137,12 +108,14 @@ impl Screen {
                     }
                 }
                 _ => {
-                    log::info!("{:?}", event);
+                    log::info!("Event = {:?}", event);
 
                     // Don't render for unknown events
                     continue;
                 }
             }
+
+            self.render(&mut stdout)?;
         }
         crossterm::terminal::disable_raw_mode()?;
         Ok(())
@@ -153,9 +126,10 @@ impl Screen {
         let mut buffer_ids = self.buffers.keys().cloned().collect::<Vec<_>>();
         buffer_ids.sort();
 
-        let buffer_id = (0..*buffer_ids.iter().max().unwrap_or(&0))
+        let max = *buffer_ids.iter().max().unwrap_or(&0);
+        let buffer_id = (0..max)
             .find(|id| !buffer_ids.contains(id))
-            .unwrap_or(0);
+            .unwrap_or(max + 1);
 
         self.buffers.insert(buffer_id, entry_buffer);
         buffer_id
@@ -163,6 +137,56 @@ impl Screen {
 
     fn add_window(&mut self, buffer_id: Window) {
         self.windows.push(buffer_id);
+    }
+
+    fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
+        log::info!("Render");
+        // queue!(stdout, Clear(ClearType::All)).unwrap();
+        // Generate layout
+        let (rectangles, borders) =
+            Rectangle::generate(self.windows.len(), self.width.into(), self.height.into());
+
+        // Render every window
+        for (window, rectangle) in self.windows.iter_mut().zip(rectangles.into_iter()) {
+            let buffer = self.buffers.get(&window.buffer_id()).unwrap();
+            window.render(&buffer, &rectangle, stdout)?;
+            window.flush(stdout);
+        }
+
+        // Render every border
+        for border in borders {
+            match border.direction {
+                BorderDirection::Horizontal => {
+                    for i in 0..border.length {
+                        // Set foreground color to black
+                        queue!(stdout, SetForegroundColor(Color::Black))?;
+                        queue!(
+                            stdout,
+                            MoveTo(
+                                border.start.column as u16 + i as u16,
+                                border.start.row as u16
+                            ),
+                            Print("─")
+                        )?;
+                    }
+                }
+                BorderDirection::Vertical => {
+                    for i in 0..border.length {
+                        // Set foreground color to black
+                        queue!(stdout, SetForegroundColor(Color::Black))?;
+                        queue!(
+                            stdout,
+                            MoveTo(
+                                border.start.column as u16,
+                                border.start.row as u16 + i as u16
+                            ),
+                            Print("│")
+                        )?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 }
 

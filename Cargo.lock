@@ -95,8 +95,10 @@ dependencies = [
  "simple-logging",
  "tree-sitter",
  "tree-sitter-javascript",
+ "tree-sitter-md",
  "tree-sitter-rust",
  "tree-sitter-traversal",
+ "tree-sitter-typescript",
 ]
 
 [[package]]
@@ -369,6 +371,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-md"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a237fa10f6b466b76c783c79b08cc172581e547ef1dbb6ddf1f8b4e230157e1"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
 name = "tree-sitter-rust"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -384,6 +396,16 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df8a158225e4a4d8505f071340bba9edd109b23f01b70540dccb7c799868f307"
 dependencies = [
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-typescript"
+version = "0.20.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "079c695c32d39ad089101c66393aeaca30e967fba3486a91f573d2f0e12d290a"
+dependencies = [
+ "cc",
  "tree-sitter",
 ]
 

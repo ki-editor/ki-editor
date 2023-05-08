@@ -151,7 +151,7 @@ impl Window {
             let diff = if let Some(previous_grid) = self.previous_grid.take() {
                 previous_grid.diff(&grid)
             } else {
-                queue!(stdout, Clear(ClearType::All)).unwrap();
+                // queue!(stdout, Clear(ClearType::All)).unwrap();
                 grid.to_position_cells()
             };
 
