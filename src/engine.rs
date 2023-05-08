@@ -1349,4 +1349,9 @@ fn main() {
         buffer.exchange(Direction::Backward);
         assert_eq!(buffer.get_text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
     }
+
+    #[test]
+    fn multi_paste() {
+        todo!()
+    }
 }

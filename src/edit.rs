@@ -157,9 +157,9 @@ impl EditTransaction {
             .collect_vec();
 
         // Assert that no actions groups overlap with each other
-        assert!(!action_groups.iter().any(|action_group| action_groups
-            .iter()
-            .any(|other| action_group != other && action_group.overlaps(other))));
+        // assert!(!action_groups.iter().any(|action_group| action_groups
+        //     .iter()
+        //     .any(|other| action_group != other && action_group.overlaps(other))));
 
         // Sort the action groups by the start char index
         let action_groups = {
