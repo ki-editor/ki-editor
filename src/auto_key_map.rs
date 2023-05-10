@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use itertools::Itertools;
+
 pub struct AutoKeyMap<T> {
     map: HashMap<usize, T>,
 }
@@ -48,15 +50,19 @@ impl<T> AutoKeyMap<T> {
     }
 
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
-        self.map.values_mut()
+        let mut vec = self.map.iter_mut().collect_vec();
+        vec.sort_by_key(|(key, _)| **key);
+        vec.into_iter().map(|(_, value)| value)
     }
 }
 
 #[cfg(test)]
 mod test_auto_key_map {
+    use super::AutoKeyMap;
+
     #[test]
     fn should_auto_increment_keys() {
-        let mut map = super::AutoKeyMap::new();
+        let mut map = AutoKeyMap::new();
         let key1 = map.insert(1);
         let key2 = map.insert(2);
         let key3 = map.insert(3);
@@ -67,5 +73,18 @@ mod test_auto_key_map {
         assert_eq!(map.get(key1), Some(&1));
         assert_eq!(map.get(key2), Some(&2));
         assert_eq!(map.get(key3), Some(&3));
+    }
+
+    #[test]
+    fn values_mut_should_be_ordered_by_key() {
+        let mut map = AutoKeyMap::new();
+        map.insert(1);
+        map.insert(2);
+        map.insert(3);
+
+        let mut values = map.values_mut();
+        assert_eq!(values.next(), Some(&mut 1));
+        assert_eq!(values.next(), Some(&mut 2));
+        assert_eq!(values.next(), Some(&mut 3));
     }
 }
