@@ -16,3 +16,5 @@
      actions, which is selection mode first, then action)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
+- [] e for elevate the current node such that it becomes the siblings of its parent
+- [] f for moving to the next node which has the same field name as the current node

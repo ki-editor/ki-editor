@@ -21,6 +21,8 @@ pub struct Jump {
     pub selection: Selection,
 }
 
+type EventHandler = Box<dyn Fn(KeyEvent, &Buffer) -> HandleKeyEventResult>;
+
 pub struct Buffer {
     pub text: Rope,
     pub mode: Mode,
@@ -33,14 +35,17 @@ pub struct Buffer {
 
     undo_edits: Vec<EditTransaction>,
     redo_edits: Vec<EditTransaction>,
+    search: Option<String>,
 
+    /// TODO: this should be inside Selection
     /// This indicates where the extended selection started
     ///
     /// Some = the selection is being extended
     /// None = the selection is not being extended
     extended_selection_anchor: Option<CharIndex>,
 
-    normal_mode_override: Option<Box<dyn Fn(KeyEvent) -> HandleKeyEventResult>>,
+    normal_mode_override_fn: Option<EventHandler>,
+    insert_mode_override_fn: Option<EventHandler>,
 }
 
 pub enum CursorDirection {
@@ -53,6 +58,22 @@ pub enum Direction {
     Forward,
     Backward,
     Current,
+}
+
+pub struct BufferConfig {
+    pub mode: Option<Mode>,
+    pub normal_mode_override_fn: Option<EventHandler>,
+    pub insert_mode_override_fn: Option<EventHandler>,
+}
+
+impl BufferConfig {
+    pub fn default() -> Self {
+        Self {
+            mode: None,
+            normal_mode_override_fn: None,
+            insert_mode_override_fn: None,
+        }
+    }
 }
 
 impl Buffer {
@@ -79,18 +100,32 @@ impl Buffer {
             undo_edits: Vec::new(),
             redo_edits: Vec::new(),
             extended_selection_anchor: None,
-            normal_mode_override: None,
+            normal_mode_override_fn: None,
+            insert_mode_override_fn: None,
+            search: None,
         }
     }
 
-    pub fn with_override(
-        language: tree_sitter::Language,
-        text: &str,
-        normal_mode_override: Box<dyn Fn(KeyEvent) -> HandleKeyEventResult>,
-    ) -> Self {
+    pub fn from_config(language: tree_sitter::Language, text: &str, config: BufferConfig) -> Self {
         let mut buffer = Self::new(language, text);
-        buffer.normal_mode_override = Some(normal_mode_override);
+        if let Some(mode) = config.mode {
+            buffer.mode = mode;
+        }
+        if let Some(override_fn) = config.normal_mode_override_fn {
+            buffer.normal_mode_override_fn = Some(override_fn);
+        }
+        if let Some(override_fn) = config.insert_mode_override_fn {
+            buffer.insert_mode_override_fn = Some(override_fn);
+        }
         buffer
+    }
+
+    pub fn get_line(&self) -> &str {
+        let cursor = self.get_cursor_char_index();
+        self.text
+            .line(self.text.char_to_line(cursor.0))
+            .as_str()
+            .unwrap()
     }
 
     fn select_parent(&mut self, direction: Direction) {
@@ -111,6 +146,17 @@ impl Buffer {
 
     fn select_line(&mut self, direction: Direction) {
         self.select(SelectionMode::Line, direction);
+    }
+
+    fn select_match(&mut self, backward: Direction) {
+        if let Some(search) = &self.search {
+            self.select(
+                SelectionMode::Match {
+                    regex: search.clone(),
+                },
+                backward,
+            );
+        }
     }
 
     fn select_named_node(&mut self, direction: Direction) {
@@ -316,7 +362,7 @@ impl Buffer {
                     .into_iter()
                     .map(|selection| (*selection).clone())
                     .collect(),
-                mode: self.selection_set.mode,
+                mode: self.selection_set.mode.clone(),
             }
         }
 
@@ -398,15 +444,18 @@ impl Buffer {
         // }
     }
 
-    pub fn handle_key_event(&mut self, key_event: KeyEvent) {
+    pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Vec<Dispatch> {
         if let HandleKeyEventResult::Unconsumed(key_event) = self.handle_universal_key(key_event) {
             match &self.mode {
                 Mode::Normal => self.handle_normal_mode(key_event),
                 Mode::Insert => self.handle_insert_mode(key_event),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
+                    vec![]
                 }
             }
+        } else {
+            vec![]
         }
     }
 
@@ -414,11 +463,11 @@ impl Buffer {
         match event.code {
             KeyCode::Left => {
                 self.selection_set.move_left(&self.cursor_direction);
-                HandleKeyEventResult::Consumed
+                HandleKeyEventResult::Consumed(vec![])
             }
             KeyCode::Right => {
                 self.selection_set.move_right(&self.cursor_direction);
-                HandleKeyEventResult::Consumed
+                HandleKeyEventResult::Consumed(vec![])
             }
             KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
                 self.selection_set = SelectionSet {
@@ -430,19 +479,19 @@ impl Buffer {
                     secondary: vec![],
                     mode: SelectionMode::Custom,
                 };
-                HandleKeyEventResult::Consumed
+                HandleKeyEventResult::Consumed(vec![])
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
                 self.paste();
-                HandleKeyEventResult::Consumed
+                HandleKeyEventResult::Consumed(vec![])
             }
             KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
                 self.redo();
-                HandleKeyEventResult::Consumed
+                HandleKeyEventResult::Consumed(vec![])
             }
             KeyCode::Char('z') if event.modifiers == KeyModifiers::CONTROL => {
                 self.undo();
-                HandleKeyEventResult::Consumed
+                HandleKeyEventResult::Consumed(vec![])
             }
             // Others include:
             // - ^t for new tab
@@ -487,7 +536,7 @@ impl Buffer {
                                 ..jump.selection.clone()
                             },
                             secondary: vec![],
-                            mode: self.selection_set.mode,
+                            mode: self.selection_set.mode.clone(),
                         });
                         self.mode = Mode::Normal;
                     }
@@ -507,7 +556,17 @@ impl Buffer {
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
-    fn handle_insert_mode(&mut self, event: KeyEvent) {
+    fn handle_insert_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+        let result = if let Some(insert_mode_override) = &self.insert_mode_override_fn {
+            insert_mode_override(event, self)
+        } else {
+            HandleKeyEventResult::Unconsumed(event)
+        };
+        let event = match result {
+            HandleKeyEventResult::Consumed(dispatches) => return dispatches,
+
+            HandleKeyEventResult::Unconsumed(event) => event,
+        };
         match event.code {
             KeyCode::Esc => self.enter_normal_mode(),
             KeyCode::Backspace => {
@@ -525,16 +584,17 @@ impl Buffer {
             KeyCode::Tab => self.insert("\t"),
             _ => {}
         };
+        vec![]
     }
 
-    fn handle_normal_mode(&mut self, event: KeyEvent) {
-        let result = if let Some(normal_mode_override) = &self.normal_mode_override {
-            normal_mode_override(event)
+    fn handle_normal_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+        let result = if let Some(normal_mode_override) = &self.normal_mode_override_fn {
+            normal_mode_override(event, self)
         } else {
             HandleKeyEventResult::Unconsumed(event)
         };
         let event = match result {
-            HandleKeyEventResult::Consumed => return,
+            HandleKeyEventResult::Consumed(dispatches) => return dispatches,
 
             HandleKeyEventResult::Unconsumed(event) => event,
         };
@@ -553,6 +613,8 @@ impl Buffer {
             KeyCode::Char('J') => self.jump(Direction::Backward),
             KeyCode::Char('k') => self.select_kids(),
             KeyCode::Char('l') => self.select_line(Direction::Forward),
+            KeyCode::Char('m') => self.select_match(Direction::Forward),
+            KeyCode::Char('M') => self.select_match(Direction::Backward),
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('o') => self.change_cursor_direction(),
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
@@ -561,6 +623,8 @@ impl Buffer {
             KeyCode::Char('p') => self.select_parent(Direction::Forward),
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
+            KeyCode::Char('w') => self.select_word(Direction::Forward),
+            KeyCode::Char('W') => self.select_word(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Esc => {
@@ -600,6 +664,7 @@ impl Buffer {
                 // todo!("Search by node kind")
             }
         };
+        vec![]
     }
 
     fn enter_insert_mode(&mut self) {
@@ -633,7 +698,7 @@ impl Buffer {
     pub fn set_cursor_position(&mut self, row: u16, column: u16) {
         let start = CharIndex(self.text.line_to_char(row as usize)) + column.into();
         self.update_selection_set(SelectionSet {
-            mode: self.selection_set.mode,
+            mode: self.selection_set.mode.clone(),
             primary: Selection {
                 range: start..start,
                 node_id: None,
@@ -826,8 +891,7 @@ impl Buffer {
             .add_selection(&self.text, &self.tree, &self.cursor_direction)
     }
 
-    #[cfg(test)]
-    fn get_selected_texts(&self) -> Vec<&str> {
+    pub fn get_selected_texts(&self) -> Vec<&str> {
         self.selection_set.map(|selection| {
             self.text
                 .slice(selection.range.start.0..selection.range.end.0)
@@ -840,113 +904,23 @@ impl Buffer {
     fn get_text(&self) -> &str {
         self.text.slice(0..self.text.len_chars()).as_str().unwrap()
     }
+
+    pub fn set_search(&mut self, search: Option<String>) {
+        self.search = search;
+    }
+
+    fn select_word(&mut self, direction: Direction) {
+        self.select(SelectionMode::Word, direction)
+    }
 }
 
-pub fn get_prev_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
-    ReverseTreeCursor::new(tree.root_node()).find(|&node| {
-        node.child_count() == 0 && (!is_named || node.is_named()) && node.start_byte() < byte
-    })
-}
-
-pub fn get_next_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
-    traverse(tree.root_node().walk(), Order::Post).find(|&node| {
-        node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
-    })
-}
-
-pub fn get_nearest_node_after_byte(tree: &Tree, byte: usize) -> Option<Node> {
-    // Preorder is the main key here,
-    // because preorder traversal walks the parent first
-    traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
-}
-
-fn get_node_by_id(tree: &Tree, node_id: usize) -> Option<Node> {
-    let result = traverse(tree.walk(), Order::Pre).find(|node| node.id() == node_id);
-    result
-}
-
-pub fn node_to_selection(
-    node: Node,
-    mode: SelectionMode,
-    text: &Rope,
-    yanked_text: Option<Rope>,
-) -> Selection {
+pub fn node_to_selection(node: Node, text: &Rope, yanked_text: Option<Rope>) -> Selection {
     Selection {
         range: CharIndex(text.byte_to_char(node.start_byte()))
             ..CharIndex(text.byte_to_char(node.end_byte())),
         node_id: Some(node.id()),
         yanked_text,
     }
-}
-
-pub struct ReverseTreeCursor<'a> {
-    node: Node<'a>,
-}
-
-struct ParentTreeCursor<'a> {
-    node: Node<'a>,
-}
-
-impl<'a> ReverseTreeCursor<'a> {
-    pub fn new(node: Node<'a>) -> Self {
-        Self {
-            node: go_to_last_descendant(node),
-        }
-    }
-}
-
-fn go_to_last_descendant(node: Node) -> Node {
-    let mut node = node;
-    loop {
-        if let Some(sibling) = node.next_sibling() {
-            node = sibling
-        } else if let Some(child) = node.child(node.child_count().saturating_sub(1)) {
-            node = child;
-        } else {
-            return node;
-        }
-    }
-}
-
-impl<'a> Iterator for ReverseTreeCursor<'a> {
-    type Item = Node<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self
-            .node
-            .prev_sibling()
-            .map(|node| node.child(0).map(go_to_last_descendant).unwrap_or(node))
-            .or_else(|| self.node.parent());
-        if let Some(next) = next {
-            self.node = next;
-            Some(self.node)
-        } else {
-            None
-        }
-    }
-}
-
-impl<'a> Iterator for ParentTreeCursor<'a> {
-    type Item = Node<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = self.node.parent();
-        if let Some(next) = next {
-            self.node = next;
-            Some(self.node)
-        } else {
-            None
-        }
-    }
-}
-
-pub fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selection) -> Node<'a> {
-    if let Some(node_id) = selection.node_id {
-        get_node_by_id(tree, node_id)
-    } else {
-        get_nearest_node_after_byte(tree, cursor_byte)
-    }
-    .unwrap_or_else(|| tree.root_node())
 }
 
 fn apply_edit_transaction(
@@ -994,12 +968,12 @@ fn apply_edit(mut tree: Tree, mut text: Rope, edit: &Edit) -> Result<(Tree, Rope
 }
 
 pub enum HandleKeyEventResult {
-    Consumed,
+    Consumed(Vec<Dispatch>),
     Unconsumed(KeyEvent),
 }
 
 pub enum Dispatch {
-    CloseWindow { id: usize },
+    CloseCurrentWindow { change_focused_to: usize },
     SetSearch { search: String },
 }
 
@@ -1048,6 +1022,70 @@ fn main() {
     }
 
     #[test]
+    fn select_word() {
+        let mut buffer = Buffer::new(
+            language(),
+            "fn main_fn() { let x = \"hello world lisp-y\"; }",
+        );
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main_fn"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["hello"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["world"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["lisp"]);
+        buffer.select_word(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["y"]);
+
+        buffer.select_word(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["lisp"]);
+        buffer.select_word(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["world"]);
+        buffer.select_word(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["hello"]);
+        buffer.select_word(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+        buffer.select_word(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+        buffer.select_word(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main_fn"]);
+        buffer.select_word(Direction::Backward);
+    }
+
+    #[test]
+    fn select_match() {
+        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        buffer.set_search(Some("\\b\\w+".to_string()));
+
+        buffer.select_match(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+        buffer.select_match(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+        buffer.select_match(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+        buffer.select_match(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+        buffer.select_match(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["1"]);
+
+        buffer.select_match(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+        buffer.select_match(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+        buffer.select_match(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["main"]);
+        buffer.select_match(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+    }
+
+    #[test]
     fn select_token() {
         let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
@@ -1067,6 +1105,8 @@ fn main() {
 
         buffer.select_token(Direction::Backward);
         assert_eq!(buffer.get_selected_texts(), vec!["let"]);
+        buffer.select_token(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["{"]);
     }
 
     #[test]

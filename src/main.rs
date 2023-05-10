@@ -1,3 +1,4 @@
+mod auto_key_map;
 mod edit;
 mod engine;
 mod screen;
@@ -12,6 +13,8 @@ use engine::Buffer;
 use screen::Screen;
 
 fn main() {
+    use regex::Regex;
+
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info).unwrap();
     let args = std::env::args().collect::<Vec<_>>();
     let filename = Path::new(args.get(1).unwrap());

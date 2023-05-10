@@ -2,7 +2,9 @@ use std::{collections::HashMap, io::stdout};
 
 use crossterm::{
     cursor::MoveTo,
-    event::{EnableMouseCapture, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
+    event::{
+        EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind,
+    },
     queue,
     style::{Color, Print, SetForegroundColor},
     terminal::{self, Clear, ClearType},
@@ -11,27 +13,30 @@ use crossterm::{
 use tree_sitter::Point;
 
 use crate::{
-    engine::{Buffer, Dispatch, HandleKeyEventResult},
+    auto_key_map::AutoKeyMap,
+    engine::{Buffer, BufferConfig, Dispatch, HandleKeyEventResult, Mode},
     window::Window,
 };
 
 pub struct Screen {
     height: u16,
     width: u16,
-    windows: Vec<Window>,
+    windows: AutoKeyMap<Window>,
     focused_window_index: usize,
-    buffers: HashMap<usize, Buffer>,
+    buffers: AutoKeyMap<Buffer>,
+    search: Option<String>,
 }
 
 impl Screen {
     pub fn new() -> Screen {
         let (width, height) = terminal::size().unwrap();
         Screen {
-            windows: vec![],
+            windows: AutoKeyMap::new(),
             height,
             width,
             focused_window_index: 0,
-            buffers: HashMap::new(),
+            buffers: AutoKeyMap::new(),
+            search: None,
         }
     }
 
@@ -49,31 +54,45 @@ impl Screen {
         loop {
             // Pass event to focused window
             let window = self.windows.get_mut(self.focused_window_index).unwrap();
-            let buffer = self.buffers.get_mut(&window.buffer_id()).unwrap();
+            let buffer = self.buffers.get_mut(window.buffer_id()).unwrap();
             let event = crossterm::event::read()?;
 
             match event {
                 Event::Key(event) => match event.code {
                     KeyCode::Char('%') => {
                         let buffer_id = window.buffer_id().clone();
-                        self.windows.push(Window::new(buffer_id));
-                        self.focused_window_index = self.windows.len() - 1;
+                        self.focused_window_index = self.windows.insert(Window::new(buffer_id));
                         continue;
                     }
                     KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
-                        let buffer = Buffer::with_override(
-                            tree_sitter_md::language(),
-                            "",
-                            Box::new(|event| match event.code {
-                                KeyCode::Enter => HandleKeyEventResult::Consumed,
+                        let focused_window_index = self.focused_window_index.clone();
+                        let override_fn =
+                            Box::new(move |event: KeyEvent, buffer: &Buffer| match event.code {
+                                KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
+                                    Dispatch::SetSearch {
+                                        search: buffer.get_line().to_string(),
+                                    },
+                                    Dispatch::CloseCurrentWindow {
+                                        change_focused_to: focused_window_index,
+                                    },
+                                ]),
                                 _ => HandleKeyEventResult::Unconsumed(event),
-                            }),
+                            });
+                        let new_buffer = Buffer::from_config(
+                            tree_sitter_md::language(),
+                            buffer
+                                .get_selected_texts()
+                                .get(0)
+                                .cloned()
+                                .unwrap_or(&"".to_string()),
+                            BufferConfig {
+                                mode: Some(Mode::Insert),
+                                normal_mode_override_fn: Some(override_fn.clone()),
+                                insert_mode_override_fn: Some(override_fn),
+                            },
                         );
-                        let buffer_id = self.add_buffer(buffer);
-                        self.windows.push(Window::new(buffer_id));
-                        self.focused_window_index = self.windows.len() - 1;
-
-                        // continue;
+                        let buffer_id = self.add_buffer(new_buffer);
+                        self.focused_window_index = self.windows.insert(Window::new(buffer_id));
                     }
                     KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                         // Remove current window
@@ -85,7 +104,10 @@ impl Screen {
 
                         continue;
                     }
-                    _ => buffer.handle_key_event(event),
+                    _ => {
+                        let dispatches = buffer.handle_key_event(event);
+                        self.handle_dispatches(dispatches)
+                    }
                 },
                 Event::Resize(columns, rows) => {
                     self.width = columns;
@@ -122,21 +144,11 @@ impl Screen {
     }
 
     fn add_buffer(&mut self, entry_buffer: Buffer) -> usize {
-        // Look for a free buffer ID
-        let mut buffer_ids = self.buffers.keys().cloned().collect::<Vec<_>>();
-        buffer_ids.sort();
-
-        let max = *buffer_ids.iter().max().unwrap_or(&0);
-        let buffer_id = (0..max)
-            .find(|id| !buffer_ids.contains(id))
-            .unwrap_or(max + 1);
-
-        self.buffers.insert(buffer_id, entry_buffer);
-        buffer_id
+        self.buffers.insert(entry_buffer)
     }
 
     fn add_window(&mut self, buffer_id: Window) {
-        self.windows.push(buffer_id);
+        self.windows.insert(buffer_id);
     }
 
     fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
@@ -147,8 +159,8 @@ impl Screen {
             Rectangle::generate(self.windows.len(), self.width.into(), self.height.into());
 
         // Render every window
-        for (window, rectangle) in self.windows.iter_mut().zip(rectangles.into_iter()) {
-            let buffer = self.buffers.get(&window.buffer_id()).unwrap();
+        for (window, rectangle) in self.windows.values_mut().zip(rectangles.into_iter()) {
+            let buffer = self.buffers.get(window.buffer_id()).unwrap();
             window.render(&buffer, &rectangle, stdout)?;
             window.flush(stdout);
         }
@@ -187,6 +199,29 @@ impl Screen {
             }
         }
         Ok(())
+    }
+
+    fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) {
+        dispatches
+            .into_iter()
+            .for_each(|dispatch| self.handle_dispatch(dispatch))
+    }
+
+    fn handle_dispatch(&mut self, dispatch: Dispatch) {
+        match dispatch {
+            Dispatch::CloseCurrentWindow { change_focused_to } => {
+                self.windows.remove(self.focused_window_index);
+                self.focused_window_index = change_focused_to;
+            }
+            Dispatch::SetSearch { search } => self.set_search(search),
+        }
+    }
+
+    fn set_search(&mut self, search: String) {
+        self.search = Some(search);
+        self.buffers.values_mut().for_each(|buffer| {
+            buffer.set_search(self.search.clone());
+        });
     }
 }
 

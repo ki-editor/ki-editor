@@ -1,16 +1,13 @@
 use std::ops::{Add, Range, Sub};
 
-use itertools::Itertools;
+use regex::Regex;
 use ropey::Rope;
 use tree_sitter::{Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    engine::{
-        get_current_node, get_nearest_node_after_byte, get_next_token, get_prev_token,
-        node_to_selection, CursorDirection, Direction, ReverseTreeCursor,
-    },
+    engine::{node_to_selection, CursorDirection, Direction},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -20,6 +17,7 @@ pub struct SelectionSet {
     pub mode: SelectionMode,
 }
 impl SelectionSet {
+    #[cfg(test)]
     pub fn default() -> SelectionSet {
         SelectionSet {
             primary: Selection::default(),
@@ -100,8 +98,6 @@ impl SelectionSet {
 
         edit_transaction
     }
-
-    pub fn update(&mut self, edit_transaction: &EditTransaction) {}
 
     pub fn move_left(&mut self, cursor_direction: &CursorDirection) {
         self.apply_mut(|selection| {
@@ -202,8 +198,9 @@ impl SelectionSet {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SelectionMode {
+    Word,
     Line,
     Character,
     Custom,
@@ -213,6 +210,7 @@ pub enum SelectionMode {
     NamedNode,
     ParentNode,
     SiblingNode,
+    Match { regex: String },
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -253,18 +251,7 @@ impl Selection {
         }
     }
 
-    fn len(&self) -> usize {
-        self.range.end.0.saturating_sub(self.range.start.0)
-    }
-
-    pub fn apply_offset(&self, change: isize) -> Selection {
-        Selection {
-            range: self.range.start.apply_offset(change)..self.range.end.apply_offset(change),
-            node_id: self.node_id,
-            yanked_text: self.yanked_text.clone(),
-        }
-    }
-
+    #[cfg(test)]
     pub fn default() -> Selection {
         Selection {
             range: CharIndex(0)..CharIndex(0),
@@ -296,40 +283,59 @@ impl Selection {
                 Direction::Current => Some(get_current_node(tree, cursor_byte, current_selection)),
                 Direction::Forward => traverse(tree.root_node().walk(), Order::Pre)
                     .find(|node| node.start_byte() > cursor_byte && node.is_named()),
-                Direction::Backward => ReverseTreeCursor::new(tree.root_node())
-                    .tuple_windows()
-                    .find(|(current, next)| {
-                        next.start_byte() < current.start_byte()
-                            && current.start_byte() < cursor_byte
-                            && current.is_named()
-                    })
-                    .map(|(current, _)| current),
-            }
-            .map(|node| node_to_selection(node, *mode, text, yanked_text))
-            .unwrap_or_else(|| current_selection.clone()),
-            SelectionMode::Line => {
-                let start = cursor_char_index.to_line(text);
-
-                let start = CharIndex(
-                    text.line_to_char(
-                        match direction {
-                            Direction::Forward => start.saturating_add(1),
-                            Direction::Backward => start.saturating_sub(1),
-                            Direction::Current => cursor_char_index.to_line(text),
-                        }
-                        .min(text.len_lines().saturating_sub(1)),
-                    ),
-                );
-                let end = CharIndex(
-                    start
-                        .0
-                        .saturating_add(text.line(start.to_line(text)).len_chars()),
-                );
-                Selection {
-                    range: start..end,
-                    node_id: None,
-                    yanked_text,
+                Direction::Backward => {
+                    find_previous(
+                        traverse(tree.root_node().walk(), Order::Pre),
+                        |node, last_match| match last_match {
+                            Some(last_match) => {
+                                node.is_named()
+                                // This predicate is so that if there's multiple node with the same
+                                // start byte, we will only take the node with the largest range
+                                && last_match.start_byte() < node.start_byte()
+                            }
+                            None => true,
+                        },
+                        |node| node.start_byte() >= cursor_byte && node.is_named(),
+                    )
                 }
+            }
+            .map(|node| node_to_selection(node, text, yanked_text))
+            .unwrap_or_else(|| current_selection.clone()),
+
+            SelectionMode::Line => get_selection_via_regex(
+                text,
+                cursor_byte,
+                Regex::new(r"(?m)^(.*)\n").unwrap(),
+                direction,
+                current_selection,
+                yanked_text,
+            ),
+            SelectionMode::Word => get_selection_via_regex(
+                text,
+                cursor_byte,
+                Regex::new(r"\b\w+").unwrap(),
+                direction,
+                current_selection,
+                yanked_text,
+            ),
+            SelectionMode::Character => get_selection_via_regex(
+                text,
+                cursor_byte,
+                Regex::new(r"(?s).").unwrap(),
+                direction,
+                current_selection,
+                yanked_text,
+            ),
+            SelectionMode::Match { regex: search } => {
+                let regex = Regex::new(search).unwrap();
+                get_selection_via_regex(
+                    text,
+                    cursor_byte,
+                    regex,
+                    direction,
+                    current_selection,
+                    yanked_text,
+                )
             }
             SelectionMode::ParentNode => {
                 let current_node = get_current_node(tree, cursor_byte, current_selection);
@@ -364,7 +370,7 @@ impl Selection {
                         node.unwrap_or(current_node)
                     }
                 };
-                node_to_selection(node, *mode, text, yanked_text)
+                node_to_selection(node, text, yanked_text)
             }
 
             SelectionMode::SiblingNode => {
@@ -375,7 +381,7 @@ impl Selection {
                     Direction::Backward => current_node.prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
-                node_to_selection(next_node, *mode, text, yanked_text)
+                node_to_selection(next_node, text, yanked_text)
             }
             SelectionMode::Token => {
                 let current_selection_start_byte = current_selection.range.start.to_byte(text);
@@ -390,31 +396,44 @@ impl Selection {
                 .unwrap_or_else(|| {
                     get_next_token(tree, cursor_byte, true).unwrap_or_else(|| tree.root_node())
                 });
-                node_to_selection(selection, *mode, text, yanked_text)
+                node_to_selection(selection, text, yanked_text)
             }
-            SelectionMode::Character => match direction {
-                Direction::Current => Selection {
-                    range: cursor_char_index..cursor_char_index + 1,
-                    node_id: None,
-                    yanked_text,
-                },
-                Direction::Forward => Selection {
-                    range: cursor_char_index + 1..cursor_char_index + 2,
-                    node_id: None,
-                    yanked_text,
-                },
-                Direction::Backward => Selection {
-                    range: cursor_char_index - 1..cursor_char_index,
-                    node_id: None,
-                    yanked_text,
-                },
-            },
             SelectionMode::Custom => Selection {
                 range: cursor_char_index..cursor_char_index,
                 node_id: None,
                 yanked_text,
             },
         }
+    }
+}
+
+fn get_selection_via_regex(
+    text: &Rope,
+    cursor_byte: usize,
+    regex: Regex,
+    direction: &Direction,
+    current_selection: &Selection,
+    yanked_text: Option<Rope>,
+) -> Selection {
+    let string = text.to_string();
+    let matches = match direction {
+        Direction::Current => regex.find_at(&string, cursor_byte),
+        Direction::Forward => regex.find_at(&string, cursor_byte + 1),
+        Direction::Backward => find_previous(
+            &mut regex.find_iter(&string),
+            |_, _| true,
+            |match_| match_.start() >= cursor_byte,
+        ),
+    };
+
+    match matches {
+        None => current_selection.clone(),
+        Some(matches) => Selection {
+            range: CharIndex(text.byte_to_char(matches.start()))
+                ..CharIndex(text.byte_to_char(matches.end())),
+            node_id: None,
+            yanked_text,
+        },
     }
 }
 
@@ -490,4 +509,58 @@ impl CharIndex {
             *self - (change.abs() as usize)
         }
     }
+}
+
+fn find_previous<T>(
+    mut iter: impl Iterator<Item = T>,
+    set_last_match_predicate: impl Fn(&T, &Option<T>) -> bool,
+    break_predicate: impl Fn(&T) -> bool,
+) -> Option<T> {
+    let mut last_match = None;
+    while let Some(match_) = iter.next() {
+        if break_predicate(&match_) {
+            break;
+        }
+
+        if set_last_match_predicate(&match_, &last_match) {
+            last_match = Some(match_);
+        }
+    }
+    last_match
+}
+
+fn get_prev_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
+    find_previous(
+        traverse(tree.root_node().walk(), Order::Post),
+        |_, _| true,
+        |node| {
+            node.child_count() == 0 && (!is_named || node.is_named()) && node.start_byte() >= byte
+        },
+    )
+}
+
+fn get_next_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
+    traverse(tree.root_node().walk(), Order::Post).find(|&node| {
+        node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
+    })
+}
+
+fn get_nearest_node_after_byte(tree: &Tree, byte: usize) -> Option<Node> {
+    // Preorder is the main key here,
+    // because preorder traversal walks the parent first
+    traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
+}
+
+fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selection) -> Node<'a> {
+    if let Some(node_id) = selection.node_id {
+        get_node_by_id(tree, node_id)
+    } else {
+        get_nearest_node_after_byte(tree, cursor_byte)
+    }
+    .unwrap_or_else(|| tree.root_node())
+}
+
+fn get_node_by_id(tree: &Tree, node_id: usize) -> Option<Node> {
+    let result = traverse(tree.walk(), Order::Pre).find(|node| node.id() == node_id);
+    result
 }
