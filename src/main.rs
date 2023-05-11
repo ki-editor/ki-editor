@@ -8,13 +8,15 @@ mod terminal;
 mod window;
 
 use std::{
+    fs::File,
     io::{Read, Write},
+    panic,
     path::Path,
 };
 
 use log::LevelFilter;
 
-use engine::Buffer;
+use engine::Editor;
 use screen::Screen;
 use terminal::run_integrated_terminal;
 
@@ -37,6 +39,21 @@ fn main() {
         _ => panic!("Unsupported file extension"),
     };
 
+    // set_panic_hook();
     let mut screen = Screen::new();
-    screen.run(Buffer::new(language, &content)).unwrap();
+    screen.run(Editor::new(language, &content)).unwrap();
+}
+
+fn set_panic_hook() {
+    panic::set_hook(Box::new(|info| {
+        let mut file = File::create("panic.log").unwrap();
+        let message = match info.payload().downcast_ref::<&'static str>() {
+            Some(s) => *s,
+            None => match info.payload().downcast_ref::<String>() {
+                Some(s) => &s[..],
+                None => "Box<Any>",
+            },
+        };
+        writeln!(file, "Panic: {}", message).unwrap();
+    }));
 }

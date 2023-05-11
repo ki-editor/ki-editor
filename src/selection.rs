@@ -185,7 +185,7 @@ impl SelectionSet {
     }
 
     pub fn add_selection(&mut self, rope: &Rope, tree: &Tree, cursor_direction: &CursorDirection) {
-        let last_selection = self.secondary.last().unwrap_or(&self.primary);
+        let last_selection = &self.primary;
         let next_selection = Selection::get_selection_(
             rope,
             tree,
@@ -194,7 +194,14 @@ impl SelectionSet {
             &Direction::Forward,
             cursor_direction,
         );
-        self.secondary.push(next_selection);
+
+        if next_selection.range == last_selection.range {
+            return;
+        }
+
+        let previous_primary = std::mem::replace(&mut self.primary, next_selection);
+
+        self.secondary.push(previous_primary);
     }
 }
 

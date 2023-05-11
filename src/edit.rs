@@ -143,7 +143,6 @@ impl EditTransaction {
     // Normalized action groups will become one action group, as they no longer need to offset each other
     fn normalize_action_groups(action_groups: Vec<ActionGroup>) -> ActionGroup {
         // 1) remove edits that are subset of other edits
-        log::info!("Normalizing actions: {:#?}", action_groups);
 
         // Remove actions group that are subset of other action groups
         let action_groups = action_groups
@@ -177,8 +176,6 @@ impl EditTransaction {
 
             result.append(&mut group.actions);
         }
-
-        log::info!("Normalized actions: {:#?}", result);
 
         ActionGroup { actions: result }
     }

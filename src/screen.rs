@@ -14,16 +14,21 @@ use tree_sitter::Point;
 
 use crate::{
     auto_key_map::AutoKeyMap,
-    engine::{Buffer, BufferConfig, Dispatch, HandleKeyEventResult, Mode},
-    rectangle::Rectangle,
+    engine::{Dispatch, Editor, EditorConfig, HandleKeyEventResult, Mode},
+    rectangle::{Border, Rectangle},
     window::{Grid, Window},
 };
 
 pub struct Screen {
     windows: AutoKeyMap<Window>,
     focused_window_index: usize,
-    buffers: AutoKeyMap<Buffer>,
+
+    // TODO: buffers are actually windows, and windows is actually useless.
+    // We don't have structure to represent the actual buffer yet
+    editors: AutoKeyMap<Editor>,
     state: State,
+    rectangles: Vec<Rectangle>,
+    borders: Vec<Border>,
     /// Used for diffing to reduce unnecessary re-painting.
     previous_grid: Option<Grid>,
 }
@@ -41,66 +46,47 @@ impl State {
 impl Screen {
     pub fn new() -> Screen {
         let (width, height) = terminal::size().unwrap();
+        let dimension = Dimension { height, width };
+        let (rectangles, borders) = Rectangle::generate(1, dimension);
         Screen {
             windows: AutoKeyMap::new(),
             state: State {
-                terminal_dimension: Dimension { height, width },
+                terminal_dimension: dimension,
                 search: None,
             },
             focused_window_index: 0,
-            buffers: AutoKeyMap::new(),
+            rectangles,
+            borders,
+            editors: AutoKeyMap::new(),
             previous_grid: None,
         }
     }
 
-    pub fn run(&mut self, entry_buffer: Buffer) -> Result<(), anyhow::Error> {
+    pub fn run(&mut self, entry_editor: Editor) -> Result<(), anyhow::Error> {
         crossterm::terminal::enable_raw_mode()?;
 
-        let buffer_id = self.add_buffer(entry_buffer);
+        let editor_id = self.add_editor(entry_editor);
 
         let mut stdout = stdout();
-        self.add_window(Window::new(buffer_id));
+        self.add_window(Window::new(editor_id));
 
         stdout.execute(EnableMouseCapture)?;
 
-        self.render(&mut stdout, buffer_id)?;
+        self.render(&mut stdout, editor_id)?;
         loop {
             // Pass event to focused window
             let window = self.windows.get_mut(self.focused_window_index).unwrap();
-            let buffer = self.buffers.get_mut(window.buffer_id()).unwrap();
+            let editor = self.editors.get_mut(window.editor_id()).unwrap();
             let event = crossterm::event::read()?;
 
             match event {
                 Event::Key(event) => match event.code {
                     KeyCode::Char('%') => {
-                        let buffer_id = window.buffer_id().clone();
-                        self.focused_window_index = self.windows.insert(Window::new(buffer_id));
+                        let editor_id = window.editor_id().clone();
+                        self.focused_window_index = self.windows.insert(Window::new(editor_id));
                     }
                     KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
-                        let focused_window_index = self.focused_window_index.clone();
-                        let override_fn =
-                            Box::new(move |event: KeyEvent, buffer: &Buffer| match event.code {
-                                KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
-                                    Dispatch::SetSearch {
-                                        search: buffer.get_line().to_string(),
-                                    },
-                                    Dispatch::CloseCurrentWindow {
-                                        change_focused_to: focused_window_index,
-                                    },
-                                ]),
-                                _ => HandleKeyEventResult::Unconsumed(event),
-                            });
-                        let new_buffer = Buffer::from_config(
-                            tree_sitter_md::language(),
-                            "",
-                            BufferConfig {
-                                mode: Some(Mode::Insert),
-                                normal_mode_override_fn: Some(override_fn.clone()),
-                                insert_mode_override_fn: Some(override_fn),
-                            },
-                        );
-                        let buffer_id = self.add_buffer(new_buffer);
-                        self.focused_window_index = self.windows.insert(Window::new(buffer_id));
+                        self.open_search_prompt()
                     }
                     KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                         // Remove current window
@@ -113,32 +99,18 @@ impl Screen {
                         continue;
                     }
                     _ => {
-                        let dispatches = buffer.handle_key_event(&self.state, event);
+                        let dispatches = editor.handle_key_event(&self.state, event);
                         self.handle_dispatches(dispatches)
                     }
                 },
                 Event::Resize(columns, rows) => {
-                    // Remove the previous_grid so that the entire screen is re-rendered
-                    // Because diffing when the size has change is not supported yet.
-                    self.previous_grid.take();
-                    self.state.terminal_dimension.height = rows;
-                    self.state.terminal_dimension.width = columns;
+                    self.resize(Dimension {
+                        height: rows,
+                        width: columns,
+                    });
                 }
                 Event::Mouse(mouse_event) => {
-                    const SCROLL_HEIGHT: isize = 1;
-                    match mouse_event.kind {
-                        MouseEventKind::ScrollUp => {
-                            window.apply_scroll(-SCROLL_HEIGHT);
-                        }
-                        MouseEventKind::ScrollDown => {
-                            window.apply_scroll(SCROLL_HEIGHT);
-                        }
-                        MouseEventKind::Down(MouseButton::Left) => buffer.set_cursor_position(
-                            mouse_event.row + window.scroll_offset(),
-                            mouse_event.column,
-                        ),
-                        _ => continue,
-                    }
+                    editor.handle_mouse_event(mouse_event);
                 }
                 _ => {
                     log::info!("Event = {:?}", event);
@@ -148,31 +120,32 @@ impl Screen {
                 }
             }
 
-            let current_buffer_id = self
+            let current_editor_id = self
                 .windows
                 .get(self.focused_window_index)
                 .unwrap()
-                .buffer_id();
-            self.render(&mut stdout, current_buffer_id)?;
+                .editor_id();
+            self.render(&mut stdout, current_editor_id)?;
         }
         crossterm::terminal::disable_raw_mode()?;
         Ok(())
     }
 
-    fn add_buffer(&mut self, entry_buffer: Buffer) -> usize {
-        self.buffers.insert(entry_buffer)
+    fn add_editor(&mut self, entry_editor: Editor) -> usize {
+        let editor_id = self.editors.insert(entry_editor);
+        self.recalculate_layout();
+        editor_id
     }
 
-    fn add_window(&mut self, buffer_id: Window) {
-        self.windows.insert(buffer_id);
+    fn add_window(&mut self, editor_id: Window) {
+        self.windows.insert(editor_id);
     }
 
     fn render(
         &mut self,
         stdout: &mut std::io::Stdout,
-        current_buffer_id: usize,
+        current_editor_id: usize,
     ) -> Result<(), anyhow::Error> {
-        log::info!("Render");
         // queue!(stdout, Clear(ClearType::All)).unwrap();
         // Generate layout
         let (rectangles, borders) =
@@ -186,11 +159,19 @@ impl Screen {
             .values()
             .zip(rectangles.into_iter())
             .map(|(window, rectangle)| {
-                let buffer = self.buffers.get(window.buffer_id()).unwrap();
-                let grid = window.get_grid(rectangle.dimension(), buffer);
-                let cursor_point = if current_buffer_id == window.buffer_id() {
-                    let cursor_position = buffer.get_cursor_point();
-                    let scroll_offset = window.scroll_offset();
+                let editor = self.editors.get(window.editor_id()).unwrap();
+                let grid = window.get_grid(rectangle.dimension(), editor);
+                let cursor_point = if current_editor_id == window.editor_id() {
+                    let cursor_position = editor.get_cursor_point();
+                    let scroll_offset = editor.scroll_offset();
+
+                    // If cursor position is in view
+                    if cursor_position.row < scroll_offset as usize
+                        || cursor_position.row
+                            >= (scroll_offset + rectangle.dimension().height) as usize
+                    {
+                        return (grid, rectangle, None);
+                    }
 
                     Some(Point::new(
                         (cursor_position.row + rectangle.origin.row)
@@ -258,7 +239,6 @@ impl Screen {
             )?;
         }
 
-        log::info!("Cursor point = {:?}", cursor_point);
         if let Some(point) = cursor_point {
             queue!(stdout, Show)?;
             queue!(stdout, SetCursorStyle::BlinkingBlock)?;
@@ -317,8 +297,11 @@ impl Screen {
     fn handle_dispatch(&mut self, dispatch: Dispatch) {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
+                let current_window = self.windows.get(self.focused_window_index).unwrap();
+                self.editors.remove(current_window.editor_id());
                 self.windows.remove(self.focused_window_index);
                 self.focused_window_index = change_focused_to;
+                self.recalculate_layout();
             }
             Dispatch::SetSearch { search } => self.set_search(search),
         }
@@ -327,9 +310,56 @@ impl Screen {
     fn set_search(&mut self, search: String) {
         self.state.search = Some(search);
     }
+
+    fn resize(&mut self, dimension: Dimension) {
+        // Remove the previous_grid so that the entire screen is re-rendered
+        // Because diffing when the size has change is not supported yet.
+        self.previous_grid.take();
+        self.state.terminal_dimension = dimension;
+
+        self.recalculate_layout()
+    }
+
+    fn recalculate_layout(&mut self) {
+        let (rectangles, borders) =
+            Rectangle::generate(self.editors.len(), self.state.terminal_dimension);
+        self.rectangles = rectangles;
+        self.borders = borders;
+
+        self.editors
+            .values_mut()
+            .zip(self.rectangles.iter())
+            .for_each(|(editor, rectangle)| editor.set_dimension(rectangle.dimension()));
+    }
+
+    fn open_search_prompt(&mut self) {
+        let focused_window_index = self.focused_window_index.clone();
+        let override_fn = Box::new(move |event: KeyEvent, editor: &Editor| match event.code {
+            KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
+                Dispatch::SetSearch {
+                    search: editor.get_line().to_string(),
+                },
+                Dispatch::CloseCurrentWindow {
+                    change_focused_to: focused_window_index,
+                },
+            ]),
+            _ => HandleKeyEventResult::Unconsumed(event),
+        });
+        let new_editor = Editor::from_config(
+            tree_sitter_md::language(),
+            "",
+            EditorConfig {
+                mode: Some(Mode::Insert),
+                normal_mode_override_fn: Some(override_fn.clone()),
+                insert_mode_override_fn: Some(override_fn),
+            },
+        );
+        let editor_id = self.add_editor(new_editor);
+        self.focused_window_index = self.windows.insert(Window::new(editor_id));
+    }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Dimension {
     pub height: u16,
     pub width: u16,

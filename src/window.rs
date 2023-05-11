@@ -9,7 +9,7 @@ use ropey::{Rope, RopeSlice};
 use tree_sitter::Point;
 
 use crate::{
-    engine::{Buffer, CursorDirection},
+    engine::{CursorDirection, Editor},
     rectangle::{Border, BorderDirection, Rectangle},
     screen::Dimension,
     selection::CharIndex,
@@ -24,15 +24,16 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn get_grid(&self, Dimension { height, width }: Dimension, buffer: &Buffer) -> Grid {
+    pub fn get_grid(&self, _: Dimension, editor: &Editor) -> Grid {
+        let Dimension { height, width } = editor.dimension();
         let mut grid: Grid = Grid::new(Dimension { height, width });
-        let selection = &buffer.selection_set.primary;
+        let selection = &editor.selection_set.primary;
 
         // If the buffer selection is updated more recently than the window's scroll offset,
         // then the scroll offset should make the selection visible.
         let cursor_point = selection
-            .to_char_index(&buffer.cursor_direction)
-            .to_point(&buffer.text);
+            .to_char_index(&editor.cursor_direction)
+            .to_point(&editor.text);
 
         // TODO: remove the following comment
         // let scroll_offset = if cursor_point.row + 1 >= height as usize {
@@ -49,7 +50,8 @@ impl Window {
         // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
-        let lines = buffer
+        let scroll_offset = editor.scroll_offset();
+        let lines = editor
             .text
             .lines()
             .enumerate()
@@ -57,11 +59,11 @@ impl Window {
             .take((height - 1) as usize)
             .collect::<Vec<(_, RopeSlice)>>();
 
-        let secondary_selections = &buffer.selection_set.secondary;
-        let extended_selection = buffer.get_extended_selection();
+        let secondary_selections = &editor.selection_set.secondary;
+        let extended_selection = editor.get_extended_selection();
 
         for (line_index, line) in lines {
-            let line_start_char_index = CharIndex(buffer.text.line_to_char(line_index));
+            let line_start_char_index = CharIndex(editor.text.line_to_char(line_index));
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
@@ -81,7 +83,7 @@ impl Window {
                     } else if selection.range.contains(&char_index) {
                         (Color::Black, Color::Yellow)
                     } else if secondary_selections.iter().any(|secondary_selection| {
-                        secondary_selection.to_char_index(&buffer.cursor_direction) == char_index
+                        secondary_selection.to_char_index(&editor.cursor_direction) == char_index
                     }) {
                         (Color::White, Color::Black)
                     } else if secondary_selections
@@ -100,12 +102,12 @@ impl Window {
             }
         }
 
-        for (index, jump) in buffer.jumps().into_iter().enumerate() {
-            let point = match buffer.cursor_direction {
+        for (index, jump) in editor.jumps().into_iter().enumerate() {
+            let point = match editor.cursor_direction {
                 CursorDirection::Start => jump.selection.range.start,
                 CursorDirection::End => jump.selection.range.end,
             }
-            .to_point(&buffer.text);
+            .to_point(&editor.text);
 
             let column = point.column as u16;
             let row = (point.row as u16).saturating_sub(scroll_offset as u16);
@@ -158,7 +160,7 @@ impl Window {
         stdout.flush().unwrap();
     }
 
-    pub fn buffer_id(&self) -> usize {
+    pub fn editor_id(&self) -> usize {
         self.buffer_id
     }
 }

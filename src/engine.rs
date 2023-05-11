@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use itertools::Itertools;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
@@ -6,7 +6,7 @@ use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    screen::State,
+    screen::{Dimension, State},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
@@ -22,9 +22,9 @@ pub struct Jump {
     pub selection: Selection,
 }
 
-type EventHandler = Box<dyn Fn(KeyEvent, &Buffer) -> HandleKeyEventResult>;
+type EventHandler = Box<dyn Fn(KeyEvent, &Editor) -> HandleKeyEventResult>;
 
-pub struct Buffer {
+pub struct Editor {
     pub text: Rope,
     pub mode: Mode,
 
@@ -47,6 +47,7 @@ pub struct Buffer {
     normal_mode_override_fn: Option<EventHandler>,
     insert_mode_override_fn: Option<EventHandler>,
     scroll_offset: u16,
+    dimension: Dimension,
 }
 
 pub enum CursorDirection {
@@ -61,13 +62,13 @@ pub enum Direction {
     Current,
 }
 
-pub struct BufferConfig {
+pub struct EditorConfig {
     pub mode: Option<Mode>,
     pub normal_mode_override_fn: Option<EventHandler>,
     pub insert_mode_override_fn: Option<EventHandler>,
 }
 
-impl BufferConfig {
+impl EditorConfig {
     pub fn default() -> Self {
         Self {
             mode: None,
@@ -77,7 +78,7 @@ impl BufferConfig {
     }
 }
 
-impl Buffer {
+impl Editor {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
@@ -104,10 +105,11 @@ impl Buffer {
             normal_mode_override_fn: None,
             insert_mode_override_fn: None,
             scroll_offset: 0,
+            dimension: Dimension::default(),
         }
     }
 
-    pub fn from_config(language: tree_sitter::Language, text: &str, config: BufferConfig) -> Self {
+    pub fn from_config(language: tree_sitter::Language, text: &str, config: EditorConfig) -> Self {
         let mut buffer = Self::new(language, text);
         if let Some(mode) = config.mode {
             buffer.mode = mode;
@@ -127,6 +129,10 @@ impl Buffer {
             .line(self.text.char_to_line(cursor.0))
             .as_str()
             .unwrap()
+    }
+
+    pub fn set_dimension(&mut self, dimension: Dimension) {
+        self.dimension = dimension;
     }
 
     fn select_parent(&mut self, direction: Direction) {
@@ -190,6 +196,36 @@ impl Buffer {
     fn update_selection_set(&mut self, selection_set: SelectionSet) {
         self.selection_set = selection_set.clone();
         self.selection_history.push(selection_set);
+        self.recalculate_scroll_offset()
+    }
+
+    fn cursor_row(&self) -> u16 {
+        self.get_cursor_char_index().to_point(&self.text).row as u16
+    }
+
+    fn recalculate_scroll_offset(&mut self) {
+        // Update scroll_offset if primary selection is out of view.
+        let cursor_row = self.cursor_row();
+        if cursor_row.saturating_sub(self.scroll_offset)
+            >= (self.dimension.height.saturating_sub(2))
+            || cursor_row < self.scroll_offset
+        {
+            self.align_cursor_to_center();
+        }
+    }
+
+    fn align_cursor_to_bottom(&mut self) {
+        self.scroll_offset = self.cursor_row() - (self.dimension.height - 2);
+    }
+
+    fn align_cursor_to_top(&mut self) {
+        self.scroll_offset = self.cursor_row();
+    }
+
+    fn align_cursor_to_center(&mut self) {
+        self.scroll_offset = self
+            .cursor_row()
+            .saturating_sub((self.dimension.height.saturating_sub(2)) / 2);
     }
 
     fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
@@ -402,6 +438,7 @@ impl Buffer {
             CursorDirection::Start => CursorDirection::End,
             CursorDirection::End => CursorDirection::Start,
         };
+        self.recalculate_scroll_offset()
     }
 
     fn get_selection_set(&self, mode: &SelectionMode, direction: Direction) -> SelectionSet {
@@ -603,6 +640,7 @@ impl Buffer {
             // Objects
             KeyCode::Char('a') => self.add_selection(),
             KeyCode::Char('A') => self.add_selection(),
+            KeyCode::Char('b') => self.select(self.selection_set.mode.clone(), Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') => self.select_character(Direction::Forward),
             KeyCode::Char('d') => self.delete_current_selection(),
@@ -615,7 +653,6 @@ impl Buffer {
             KeyCode::Char('k') => self.select_kids(),
             KeyCode::Char('l') => self.select_line(Direction::Forward),
             KeyCode::Char('m') => self.select_match(Direction::Forward, state.search()),
-            KeyCode::Char('M') => self.select_match(Direction::Backward, state.search()),
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('o') => self.change_cursor_direction(),
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
@@ -625,8 +662,8 @@ impl Buffer {
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('w') => self.select_word(Direction::Forward),
-            KeyCode::Char('W') => self.select_word(Direction::Backward),
             KeyCode::Char('y') => self.yank_current_selection(),
+            KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Esc => {
                 self.extended_selection_anchor = None;
@@ -797,11 +834,6 @@ impl Buffer {
                         && (!selection_mode.is_node() || !node.has_error())
                     {
                         // Log text_at_current_selection
-                        log::info!(
-                            "\nReplaced\n:'{}'\nwith:\n'{}'",
-                            text_at_next_selection,
-                            text_at_current_selection
-                        );
                         let edit_transaction = EditTransaction::from_action_groups(
                             current_selection_set.clone(),
                             vec![
@@ -889,16 +921,25 @@ impl Buffer {
 
     fn add_selection(&mut self) {
         self.selection_set
-            .add_selection(&self.text, &self.tree, &self.cursor_direction)
+            .add_selection(&self.text, &self.tree, &self.cursor_direction);
+        self.recalculate_scroll_offset()
     }
 
     pub fn get_selected_texts(&self) -> Vec<&str> {
-        self.selection_set.map(|selection| {
-            self.text
-                .slice(selection.range.start.0..selection.range.end.0)
-                .as_str()
-                .unwrap()
-        })
+        let mut selections = self.selection_set.map(|selection| {
+            (
+                selection.range.clone(),
+                self.text
+                    .slice(selection.range.start.0..selection.range.end.0)
+                    .as_str()
+                    .unwrap(),
+            )
+        });
+        selections.sort_by(|a, b| a.0.start.0.cmp(&b.0.start.0));
+        selections
+            .into_iter()
+            .map(|selection| selection.1)
+            .collect()
     }
 
     #[cfg(test)]
@@ -908,6 +949,41 @@ impl Buffer {
 
     fn select_word(&mut self, direction: Direction) {
         self.select(SelectionMode::Word, direction)
+    }
+
+    pub fn scroll_offset(&self) -> u16 {
+        self.scroll_offset
+    }
+
+    pub fn dimension(&self) -> Dimension {
+        self.dimension
+    }
+
+    pub fn handle_mouse_event(&mut self, mouse_event: crossterm::event::MouseEvent) {
+        const SCROLL_HEIGHT: isize = 1;
+        match mouse_event.kind {
+            MouseEventKind::ScrollUp => {
+                self.apply_scroll(-SCROLL_HEIGHT);
+            }
+            MouseEventKind::ScrollDown => {
+                self.apply_scroll(SCROLL_HEIGHT);
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+
+                // self
+                // .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
+            }
+            _ => {}
+        }
+    }
+
+    fn apply_scroll(&mut self, scroll_height: isize) {
+        self.scroll_offset = if scroll_height.is_positive() {
+            self.scroll_offset.saturating_add(scroll_height as u16)
+        } else {
+            self.scroll_offset
+                .saturating_sub(scroll_height.abs() as u16)
+        };
     }
 }
 
@@ -982,12 +1058,12 @@ enum EditHistoryKind {
 
 #[cfg(test)]
 mod test_engine {
-    use super::{Buffer, Direction};
+    use super::{Direction, Editor};
     use tree_sitter_rust::language;
 
     #[test]
     fn select_character() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_character(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["f"]);
         buffer.select_character(Direction::Forward);
@@ -1000,7 +1076,7 @@ mod test_engine {
     #[test]
     fn select_line() {
         // Multiline source code
-        let mut buffer = Buffer::new(
+        let mut buffer = Editor::new(
             language(),
             "
 fn main() {
@@ -1020,7 +1096,7 @@ fn main() {
 
     #[test]
     fn select_word() {
-        let mut buffer = Buffer::new(
+        let mut buffer = Editor::new(
             language(),
             "fn main_fn() { let x = \"hello world lisp-y\"; }",
         );
@@ -1058,7 +1134,7 @@ fn main() {
 
     #[test]
     fn select_match() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         let search = Some("\\b\\w+".to_string());
 
         buffer.select_match(Direction::Forward, &search);
@@ -1084,7 +1160,7 @@ fn main() {
 
     #[test]
     fn select_token() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
         buffer.select_token(Direction::Forward);
@@ -1108,7 +1184,7 @@ fn main() {
 
     #[test]
     fn select_parent() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         // Move token to 1
         for _ in 0..9 {
             buffer.select_token(Direction::Forward);
@@ -1134,7 +1210,7 @@ fn main() {
 
     #[test]
     fn select_sibling() {
-        let mut buffer = Buffer::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut buffer = Editor::new(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..4 {
             buffer.select_token(Direction::Forward);
@@ -1157,7 +1233,7 @@ fn main() {
 
     #[test]
     fn select_kids() {
-        let mut buffer = Buffer::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut buffer = Editor::new(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x"
         for _ in 0..4 {
             buffer.select_token(Direction::Forward);
@@ -1170,7 +1246,7 @@ fn main() {
 
     #[test]
     fn select_named_node() {
-        let mut buffer = Buffer::new(language(), "fn main(x: usize) { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main(x: usize) { let x = 1; }");
 
         buffer.select_named_node(Direction::Forward);
         assert_eq!(
@@ -1204,7 +1280,7 @@ fn main() {
 
     #[test]
     fn yank_replace() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         buffer.yank_current_selection();
         buffer.select_token(Direction::Forward);
@@ -1218,7 +1294,7 @@ fn main() {
 
     #[test]
     fn yank_paste() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         buffer.yank_current_selection();
         buffer.select_token(Direction::Forward);
@@ -1229,7 +1305,7 @@ fn main() {
 
     #[test]
     fn exchange_sibling() {
-        let mut buffer = Buffer::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut buffer = Editor::new(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..4 {
             buffer.select_token(Direction::Forward);
@@ -1247,7 +1323,7 @@ fn main() {
 
     #[test]
     fn exchange_parent() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = a.b(c()); }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = a.b(c()); }");
         // Move selection to "c()"
         for _ in 0..10 {
             buffer.select_named_node(Direction::Forward);
@@ -1267,7 +1343,7 @@ fn main() {
     #[test]
     fn exchange_line() {
         // Multiline source code
-        let mut buffer = Buffer::new(
+        let mut buffer = Editor::new(
             language(),
             "
 fn main() {
@@ -1302,7 +1378,7 @@ fn main() {
 
     #[test]
     fn exchange_character() {
-        let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_character(Direction::Forward);
 
         buffer.exchange(Direction::Forward);
@@ -1318,7 +1394,7 @@ fn main() {
 
     #[test]
     fn multi_insert() {
-        let mut buffer = Buffer::new(language(), "struct A(usize, char)");
+        let mut buffer = Editor::new(language(), "struct A(usize, char)");
         // Select 'usize'
         for _ in 0..4 {
             buffer.select_named_node(Direction::Forward);
@@ -1337,7 +1413,7 @@ fn main() {
 
     #[test]
     fn multi_exchange_parent() {
-        let mut buffer = Buffer::new(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        let mut buffer = Editor::new(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
         for _ in 0..5 {
             buffer.select_named_node(Direction::Forward);
@@ -1377,7 +1453,7 @@ fn main() {
 
     #[test]
     fn multi_exchange_sibling() {
-        let mut buffer = Buffer::new(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
+        let mut buffer = Editor::new(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
         // Select 'fn f(x:a,y:b){}'
         buffer.select_token(Direction::Forward);
         buffer.select_parent(Direction::Forward);

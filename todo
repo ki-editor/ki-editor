@@ -18,5 +18,7 @@
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
 - [] e for enclose the current node with one of the brackets
+- [] ([{ for enclosing current selection with brackets
 - [] f for moving to the next node which has the same field name as the current node
-- [] moving selection should scroll the page when out of view
+- [x] moving selection should scroll the page when out of view
+- [] mechanism for adding selection to all matching selection within current selection

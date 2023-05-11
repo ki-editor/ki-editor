@@ -29,7 +29,7 @@ impl Rectangle {
     fn split(&self, vertical: bool) -> (Rectangle, Rectangle, Border) {
         if vertical {
             // Split vertically
-            let width1 = (self.width / 2);
+            let width1 = self.width / 2;
             let width2 = self.width - width1 - 1; // Corrected the width2 to leave space for the border
 
             let rectangle1 = Rectangle {
