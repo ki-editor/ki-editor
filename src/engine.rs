@@ -46,6 +46,9 @@ pub struct Editor {
 
     normal_mode_override_fn: Option<EventHandler>,
     insert_mode_override_fn: Option<EventHandler>,
+
+    /// Zero-based index.
+    /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
     dimension: Dimension,
 }
@@ -640,7 +643,6 @@ impl Editor {
             // Objects
             KeyCode::Char('a') => self.add_selection(),
             KeyCode::Char('A') => self.add_selection(),
-            KeyCode::Char('b') => self.select(self.selection_set.mode.clone(), Direction::Backward),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') => self.select_character(Direction::Forward),
             KeyCode::Char('d') => self.delete_current_selection(),

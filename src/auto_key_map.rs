@@ -45,20 +45,16 @@ impl<T> AutoKeyMap<T> {
         self.map.len()
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&usize, &mut T)> {
-        self.map.iter_mut()
-    }
-
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut T> {
         let mut vec = self.map.iter_mut().collect_vec();
         vec.sort_by_key(|(key, _)| **key);
         vec.into_iter().map(|(_, value)| value)
     }
 
-    pub fn values(&self) -> impl Iterator<Item = &T> {
+    pub fn entries(&self) -> impl Iterator<Item = (&usize, &T)> {
         let mut vec = self.map.iter().collect_vec();
         vec.sort_by_key(|(key, _)| **key);
-        vec.into_iter().map(|(_, value)| value)
+        vec.into_iter()
     }
 }
 

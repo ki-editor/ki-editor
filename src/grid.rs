@@ -1,10 +1,4 @@
-use std::io::Write;
-
-use crossterm::{
-    style::Color,
-    terminal::{Clear, ClearType},
-    ExecutableCommand,
-};
+use crossterm::style::Color;
 use ropey::{Rope, RopeSlice};
 use tree_sitter::Point;
 
@@ -15,37 +9,12 @@ use crate::{
     selection::CharIndex,
 };
 
-pub struct Window {
-    /// Zero-based index.
-    /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
-    scroll_offset: u16,
-
-    buffer_id: usize,
-}
-
-impl Window {
-    pub fn get_grid(&self, _: Dimension, editor: &Editor) -> Grid {
+impl Editor {
+    pub fn get_grid(&self) -> Grid {
+        let editor = self;
         let Dimension { height, width } = editor.dimension();
         let mut grid: Grid = Grid::new(Dimension { height, width });
         let selection = &editor.selection_set.primary;
-
-        // If the buffer selection is updated more recently than the window's scroll offset,
-        // then the scroll offset should make the selection visible.
-        let cursor_point = selection
-            .to_char_index(&editor.cursor_direction)
-            .to_point(&editor.text);
-
-        // TODO: remove the following comment
-        // let scroll_offset = if cursor_point.row + 1 >= height as usize {
-        //     cursor_point
-        //         .row
-        //         .saturating_sub(height as usize)
-        //         .saturating_add(5)
-        // } else {
-        //     0
-        // };
-
-        let scroll_offset = self.scroll_offset;
 
         // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
@@ -130,38 +99,6 @@ impl Window {
         }
 
         grid
-    }
-
-    pub fn new(buffer_id: usize) -> Self {
-        Window {
-            scroll_offset: 0,
-            buffer_id,
-        }
-    }
-
-    pub fn apply_scroll(&mut self, scroll_height: isize) {
-        self.scroll_offset = if scroll_height.is_positive() {
-            self.scroll_offset.saturating_add(scroll_height as u16)
-        } else {
-            self.scroll_offset
-                .saturating_sub(scroll_height.abs() as u16)
-        };
-    }
-
-    pub fn scroll_offset(&self) -> u16 {
-        self.scroll_offset
-    }
-
-    pub fn clear(&mut self, stdout: &mut std::io::Stdout) {
-        stdout.execute(Clear(ClearType::All)).unwrap();
-    }
-
-    pub fn flush(&mut self, stdout: &mut std::io::Stdout) {
-        stdout.flush().unwrap();
-    }
-
-    pub fn editor_id(&self) -> usize {
-        self.buffer_id
     }
 }
 
@@ -325,8 +262,8 @@ mod test_grid {
     use pretty_assertions::assert_eq;
 
     use crate::{
+        grid::{Cell, Grid, PositionedCell},
         screen::Dimension,
-        window::{Cell, Grid, PositionedCell},
     };
 
     #[test]

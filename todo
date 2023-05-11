@@ -22,3 +22,4 @@
 - [] f for moving to the next node which has the same field name as the current node
 - [x] moving selection should scroll the page when out of view
 - [] mechanism for adding selection to all matching selection within current selection
+- [x] remove windows, as it is useless

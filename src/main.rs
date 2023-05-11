@@ -1,11 +1,11 @@
 mod auto_key_map;
 mod edit;
 mod engine;
+mod grid;
 mod rectangle;
 mod screen;
 mod selection;
 mod terminal;
-mod window;
 
 use std::{
     fs::File,
