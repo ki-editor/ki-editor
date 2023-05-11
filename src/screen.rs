@@ -118,6 +118,9 @@ impl Screen {
                     }
                 },
                 Event::Resize(columns, rows) => {
+                    // Remove the previous_grid so that the entire screen is re-rendered
+                    // Because diffing when the size has change is not supported yet.
+                    self.previous_grid.take();
                     self.state.terminal_dimension.height = rows;
                     self.state.terminal_dimension.width = columns;
                 }
@@ -190,8 +193,8 @@ impl Screen {
                     let scroll_offset = window.scroll_offset();
 
                     Some(Point::new(
-                        cursor_position.row
-                            + rectangle.origin.row.saturating_sub(scroll_offset as usize),
+                        (cursor_position.row + rectangle.origin.row)
+                            .saturating_sub(scroll_offset as usize),
                         cursor_position.column + rectangle.origin.column,
                     ))
                 } else {
@@ -231,7 +234,7 @@ impl Screen {
             let diff = if let Some(previous_grid) = self.previous_grid.take() {
                 previous_grid.diff(&grid)
             } else {
-                // queue!(stdout, Clear(ClearType::All)).unwrap();
+                queue!(stdout, Clear(ClearType::All)).unwrap();
                 grid.to_position_cells()
             };
 

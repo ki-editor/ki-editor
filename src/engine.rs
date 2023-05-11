@@ -46,6 +46,7 @@ pub struct Buffer {
 
     normal_mode_override_fn: Option<EventHandler>,
     insert_mode_override_fn: Option<EventHandler>,
+    scroll_offset: u16,
 }
 
 pub enum CursorDirection {
@@ -102,6 +103,7 @@ impl Buffer {
             extended_selection_anchor: None,
             normal_mode_override_fn: None,
             insert_mode_override_fn: None,
+            scroll_offset: 0,
         }
     }
 
