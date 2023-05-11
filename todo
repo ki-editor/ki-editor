@@ -11,10 +11,12 @@
        all windows in the same group should be closed
 - [] LSP (after window system implemented)
 - [] swap d to ^x, y to ^c
-- [] ^f for find
+- [x] ^f for find
 - [x] f/F for moving forward/backward (so that it's consistent with other
      actions, which is selection mode first, then action)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
+- [] e for enclose the current node with one of the brackets
 - [] f for moving to the next node which has the same field name as the current node
+- [] moving selection should scroll the page when out of view

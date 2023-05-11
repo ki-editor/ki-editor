@@ -1,6 +1,7 @@
 mod auto_key_map;
 mod edit;
 mod engine;
+mod rectangle;
 mod screen;
 mod selection;
 mod terminal;

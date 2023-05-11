@@ -1,10 +1,7 @@
 use std::io::Write;
 
 use crossterm::{
-    cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::EnableMouseCapture,
-    queue,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    style::Color,
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
@@ -12,8 +9,9 @@ use ropey::{Rope, RopeSlice};
 use tree_sitter::Point;
 
 use crate::{
-    engine::{Buffer, CursorDirection, Mode},
-    screen::Rectangle,
+    engine::{Buffer, CursorDirection},
+    rectangle::{Border, BorderDirection, Rectangle},
+    screen::Dimension,
     selection::CharIndex,
 };
 
@@ -22,55 +20,49 @@ pub struct Window {
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
 
-    /// Used for diffing to reduce unnecessary re-painting.
-    previous_grid: Option<Grid>,
     buffer_id: usize,
 }
 
 impl Window {
-    fn move_cursor(
-        &mut self,
-        point: Point,
-        rectangle: &Rectangle,
-        stdout: &mut std::io::Stdout,
-    ) -> Result<(), anyhow::Error> {
-        // Hide the cursor if the point is out of view
-        if !(0 as isize..rectangle.height as isize)
-            .contains(&(point.row as isize - self.scroll_offset as isize))
-        {
-            queue!(stdout, Hide)?;
-        } else {
-            queue!(stdout, Show)?;
-            queue!(
-                stdout,
-                MoveTo(
-                    rectangle.origin.column as u16 + point.column as u16,
-                    (rectangle.origin.row as u16 + (point.row as u16))
-                        .saturating_sub(self.scroll_offset as u16)
-                )
-            )?;
-        }
-        Ok(())
-    }
+    pub fn get_grid(&self, Dimension { height, width }: Dimension, buffer: &Buffer) -> Grid {
+        let mut grid: Grid = Grid::new(Dimension { height, width });
+        let selection = &buffer.selection_set.primary;
 
-    fn get_grid(&self, height: usize, width: usize, buffer: &Buffer) -> Grid {
-        let mut grid: Grid = Grid::new((height, width));
+        // If the buffer selection is updated more recently than the window's scroll offset,
+        // then the scroll offset should make the selection visible.
+        let cursor_point = selection
+            .to_char_index(&buffer.cursor_direction)
+            .to_point(&buffer.text);
+
+        // TODO: remove the following comment
+        // let scroll_offset = if cursor_point.row + 1 >= height as usize {
+        //     cursor_point
+        //         .row
+        //         .saturating_sub(height as usize)
+        //         .saturating_add(5)
+        // } else {
+        //     0
+        // };
+
+        let scroll_offset = self.scroll_offset;
+
+        // If the buffer selection is updated less recently than the window's scroll offset,
+        // use the window's scroll offset.
 
         let lines = buffer
             .text
             .lines()
             .enumerate()
-            .skip(self.scroll_offset.into())
-            .take(height - 1)
+            .skip(scroll_offset.into())
+            .take((height - 1) as usize)
             .collect::<Vec<(_, RopeSlice)>>();
 
-        let selection = &buffer.selection_set.primary;
         let secondary_selections = &buffer.selection_set.secondary;
         let extended_selection = buffer.get_extended_selection();
 
         for (line_index, line) in lines {
             let line_start_char_index = CharIndex(buffer.text.line_to_char(line_index));
-            for (column_index, c) in line.chars().take(width).enumerate() {
+            for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
                 let (foreground_color, background_color) =
@@ -100,7 +92,7 @@ impl Window {
                     } else {
                         (Color::Black, Color::White)
                     };
-                grid.rows[line_index - self.scroll_offset as usize][column_index] = Cell {
+                grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color,
                     foreground_color,
@@ -116,7 +108,7 @@ impl Window {
             .to_point(&buffer.text);
 
             let column = point.column as u16;
-            let row = (point.row as u16).saturating_sub(self.scroll_offset as u16);
+            let row = (point.row as u16).saturating_sub(scroll_offset as u16);
 
             // Background color: Odd index red, even index blue
             let background_color = if index % 2 == 0 {
@@ -138,67 +130,9 @@ impl Window {
         grid
     }
 
-    pub fn render(
-        &mut self,
-        buffer: &Buffer,
-        rectangle: &Rectangle,
-        stdout: &mut std::io::Stdout,
-    ) -> Result<(), anyhow::Error> {
-        queue!(stdout, Hide)?;
-        let cells = {
-            let grid = self.get_grid(rectangle.height, rectangle.width, buffer);
-
-            let diff = if let Some(previous_grid) = self.previous_grid.take() {
-                previous_grid.diff(&grid)
-            } else {
-                // queue!(stdout, Clear(ClearType::All)).unwrap();
-                grid.to_position_cells()
-            };
-
-            self.previous_grid = Some(grid);
-
-            diff
-        };
-
-        // TODO: remove this line
-        let cells = self
-            .get_grid(rectangle.height, rectangle.width, buffer)
-            .to_position_cells();
-
-        for cell in cells.into_iter() {
-            queue!(
-                stdout,
-                MoveTo(
-                    rectangle.origin.column as u16 + cell.position.column as u16,
-                    rectangle.origin.row as u16 + cell.position.row as u16
-                )
-            )?;
-            queue!(
-                stdout,
-                SetBackgroundColor(cell.cell.background_color),
-                SetForegroundColor(cell.cell.foreground_color),
-                Print(reveal(cell.cell.symbol))
-            )?;
-        }
-        let point = buffer.get_cursor_point();
-        self.move_cursor(point, rectangle, stdout)?;
-
-        match buffer.mode {
-            Mode::Insert => {
-                queue!(stdout, SetCursorStyle::BlinkingBar)?;
-            }
-            _ => {
-                queue!(stdout, SetCursorStyle::SteadyBar)?;
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn new(buffer_id: usize) -> Self {
         Window {
             scroll_offset: 0,
-            previous_grid: None,
             buffer_id,
         }
     }
@@ -229,9 +163,9 @@ impl Window {
     }
 }
 
-#[derive(Clone, Debug)]
-struct Grid {
-    rows: Vec<Vec<Cell>>,
+#[derive(Clone, Debug, PartialEq)]
+pub struct Grid {
+    pub rows: Vec<Vec<Cell>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -262,19 +196,14 @@ impl Default for Cell {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-struct PositionedCell {
-    cell: Cell,
-    position: Point,
+pub struct PositionedCell {
+    pub cell: Cell,
+    pub position: Point,
 }
 
 impl Grid {
-    /// Returns (rows, columns)
-    fn dimensions(&self) -> (usize, usize) {
-        (self.rows.len(), self.rows[0].len())
-    }
-
     /// The `new_grid` need not be the same size as the old grid (`self`).
-    fn diff(&self, new_grid: &Grid) -> Vec<PositionedCell> {
+    pub fn diff(&self, new_grid: &Grid) -> Vec<PositionedCell> {
         let mut cells = vec![];
         for (row_index, new_row) in new_grid.rows.iter().enumerate() {
             for (column_index, new_cell) in new_row.iter().enumerate() {
@@ -298,17 +227,17 @@ impl Grid {
         cells
     }
 
-    fn new((height, width): (usize, usize)) -> Grid {
+    pub fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
-        cells.resize_with(height.into(), || {
+        cells.resize_with(dimension.height.into(), || {
             let mut cells = vec![];
-            cells.resize_with(width.into(), || Cell::default());
+            cells.resize_with(dimension.width.into(), || Cell::default());
             cells
         });
         Grid { rows: cells }
     }
 
-    fn to_position_cells(&self) -> Vec<PositionedCell> {
+    pub fn to_position_cells(&self) -> Vec<PositionedCell> {
         let mut cells = vec![];
         for (row_index, row) in self.rows.iter().enumerate() {
             for (column_index, cell) in row.iter().enumerate() {
@@ -322,11 +251,11 @@ impl Grid {
         cells
     }
 
-    fn from_text(dimension: (usize, usize), text: &str) -> Grid {
+    fn from_text(dimension: Dimension, text: &str) -> Grid {
         Grid::from_rope(dimension, &Rope::from_str(text))
     }
 
-    fn from_rope(dimension: (usize, usize), rope: &Rope) -> Grid {
+    fn from_rope(dimension: Dimension, rope: &Rope) -> Grid {
         let mut grid = Grid::new(dimension);
 
         rope.lines().enumerate().for_each(|(row_index, line)| {
@@ -342,6 +271,49 @@ impl Grid {
 
         grid
     }
+
+    pub fn update(self, other: &Grid, rectangle: Rectangle) -> Grid {
+        let mut grid = self;
+        for (row_index, rows) in other.rows.iter().enumerate() {
+            for (column_index, cell) in rows.iter().enumerate() {
+                grid.rows[row_index + rectangle.origin.row]
+                    [column_index + rectangle.origin.column] = cell.clone();
+            }
+        }
+        grid
+    }
+
+    pub fn set_border(mut self, border: Border) -> Grid {
+        let dimension = self.dimension();
+        match border.direction {
+            BorderDirection::Horizontal => {
+                for i in 0..dimension.width.saturating_sub(border.start.column as u16) {
+                    self.rows[border.start.row][border.start.column + i as usize] = Cell {
+                        symbol: "─".to_string(),
+                        foreground_color: Color::Black,
+                        ..Cell::default()
+                    };
+                }
+            }
+            BorderDirection::Vertical => {
+                for i in 0..dimension.height.saturating_sub(border.start.row as u16) {
+                    self.rows[border.start.row + i as usize][border.start.column] = Cell {
+                        symbol: "│".to_string(),
+                        foreground_color: Color::Black,
+                        ..Cell::default()
+                    };
+                }
+            }
+        }
+        self
+    }
+
+    fn dimension(&self) -> Dimension {
+        Dimension {
+            height: self.rows.len() as u16,
+            width: self.rows[0].len() as u16,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -350,12 +322,19 @@ mod test_grid {
 
     use pretty_assertions::assert_eq;
 
-    use crate::window::{Cell, Grid, PositionedCell};
+    use crate::{
+        screen::Dimension,
+        window::{Cell, Grid, PositionedCell},
+    };
 
     #[test]
     fn diff_same_size() {
-        let old = Grid::from_text((2, 4), "a\nbc");
-        let new = Grid::from_text((2, 4), "bc");
+        let dimension = Dimension {
+            height: 2,
+            width: 4,
+        };
+        let old = Grid::from_text(dimension, "a\nbc");
+        let new = Grid::from_text(dimension, "bc");
         let actual = old.diff(&new);
         let expected = vec![
             PositionedCell {
@@ -376,13 +355,5 @@ mod test_grid {
             },
         ];
         assert_eq!(actual, expected);
-    }
-}
-
-/// Convert invisible character to visible character
-fn reveal(s: String) -> String {
-    match s.as_str() {
-        "\n" => " ".to_string(),
-        _ => s,
     }
 }

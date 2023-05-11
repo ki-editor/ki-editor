@@ -6,6 +6,7 @@ use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    screen::State,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
@@ -35,7 +36,6 @@ pub struct Buffer {
 
     undo_edits: Vec<EditTransaction>,
     redo_edits: Vec<EditTransaction>,
-    search: Option<String>,
 
     /// TODO: this should be inside Selection
     /// This indicates where the extended selection started
@@ -102,7 +102,6 @@ impl Buffer {
             extended_selection_anchor: None,
             normal_mode_override_fn: None,
             insert_mode_override_fn: None,
-            search: None,
         }
     }
 
@@ -148,8 +147,8 @@ impl Buffer {
         self.select(SelectionMode::Line, direction);
     }
 
-    fn select_match(&mut self, backward: Direction) {
-        if let Some(search) = &self.search {
+    fn select_match(&mut self, backward: Direction, search: &Option<String>) {
+        if let Some(search) = search {
             self.select(
                 SelectionMode::Match {
                     regex: search.clone(),
@@ -444,10 +443,10 @@ impl Buffer {
         // }
     }
 
-    pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Vec<Dispatch> {
+    pub fn handle_key_event(&mut self, state: &State, key_event: KeyEvent) -> Vec<Dispatch> {
         if let HandleKeyEventResult::Unconsumed(key_event) = self.handle_universal_key(key_event) {
             match &self.mode {
-                Mode::Normal => self.handle_normal_mode(key_event),
+                Mode::Normal => self.handle_normal_mode(state, key_event),
                 Mode::Insert => self.handle_insert_mode(key_event),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
@@ -587,7 +586,7 @@ impl Buffer {
         vec![]
     }
 
-    fn handle_normal_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+    fn handle_normal_mode(&mut self, state: &State, event: KeyEvent) -> Vec<Dispatch> {
         let result = if let Some(normal_mode_override) = &self.normal_mode_override_fn {
             normal_mode_override(event, self)
         } else {
@@ -613,8 +612,8 @@ impl Buffer {
             KeyCode::Char('J') => self.jump(Direction::Backward),
             KeyCode::Char('k') => self.select_kids(),
             KeyCode::Char('l') => self.select_line(Direction::Forward),
-            KeyCode::Char('m') => self.select_match(Direction::Forward),
-            KeyCode::Char('M') => self.select_match(Direction::Backward),
+            KeyCode::Char('m') => self.select_match(Direction::Forward, state.search()),
+            KeyCode::Char('M') => self.select_match(Direction::Backward, state.search()),
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('o') => self.change_cursor_direction(),
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
@@ -905,10 +904,6 @@ impl Buffer {
         self.text.slice(0..self.text.len_chars()).as_str().unwrap()
     }
 
-    pub fn set_search(&mut self, search: Option<String>) {
-        self.search = search;
-    }
-
     fn select_word(&mut self, direction: Direction) {
         self.select(SelectionMode::Word, direction)
     }
@@ -1062,26 +1057,26 @@ fn main() {
     #[test]
     fn select_match() {
         let mut buffer = Buffer::new(language(), "fn main() { let x = 1; }");
-        buffer.set_search(Some("\\b\\w+".to_string()));
+        let search = Some("\\b\\w+".to_string());
 
-        buffer.select_match(Direction::Forward);
+        buffer.select_match(Direction::Forward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
-        buffer.select_match(Direction::Forward);
+        buffer.select_match(Direction::Forward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["main"]);
-        buffer.select_match(Direction::Forward);
+        buffer.select_match(Direction::Forward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["let"]);
-        buffer.select_match(Direction::Forward);
+        buffer.select_match(Direction::Forward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["x"]);
-        buffer.select_match(Direction::Forward);
+        buffer.select_match(Direction::Forward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["1"]);
 
-        buffer.select_match(Direction::Backward);
+        buffer.select_match(Direction::Backward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["x"]);
-        buffer.select_match(Direction::Backward);
+        buffer.select_match(Direction::Backward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["let"]);
-        buffer.select_match(Direction::Backward);
+        buffer.select_match(Direction::Backward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["main"]);
-        buffer.select_match(Direction::Backward);
+        buffer.select_match(Direction::Backward, &search);
         assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
     }
 

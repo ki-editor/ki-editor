@@ -1,12 +1,12 @@
-use std::{collections::HashMap, io::stdout};
+use std::io::stdout;
 
 use crossterm::{
-    cursor::MoveTo,
+    cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{
         EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind,
     },
-    queue,
-    style::{Color, Print, SetForegroundColor},
+    execute, queue,
+    style::{Print, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType},
     ExecutableCommand,
 };
@@ -15,16 +15,27 @@ use tree_sitter::Point;
 use crate::{
     auto_key_map::AutoKeyMap,
     engine::{Buffer, BufferConfig, Dispatch, HandleKeyEventResult, Mode},
-    window::Window,
+    rectangle::Rectangle,
+    window::{Grid, Window},
 };
 
 pub struct Screen {
-    height: u16,
-    width: u16,
     windows: AutoKeyMap<Window>,
     focused_window_index: usize,
     buffers: AutoKeyMap<Buffer>,
+    state: State,
+    /// Used for diffing to reduce unnecessary re-painting.
+    previous_grid: Option<Grid>,
+}
+
+pub struct State {
+    terminal_dimension: Dimension,
     search: Option<String>,
+}
+impl State {
+    pub fn search(&self) -> &Option<String> {
+        &self.search
+    }
 }
 
 impl Screen {
@@ -32,11 +43,13 @@ impl Screen {
         let (width, height) = terminal::size().unwrap();
         Screen {
             windows: AutoKeyMap::new(),
-            height,
-            width,
+            state: State {
+                terminal_dimension: Dimension { height, width },
+                search: None,
+            },
             focused_window_index: 0,
             buffers: AutoKeyMap::new(),
-            search: None,
+            previous_grid: None,
         }
     }
 
@@ -48,9 +61,9 @@ impl Screen {
         let mut stdout = stdout();
         self.add_window(Window::new(buffer_id));
 
-        stdout.execute(EnableMouseCapture).unwrap();
+        stdout.execute(EnableMouseCapture)?;
 
-        self.render(&mut stdout)?;
+        self.render(&mut stdout, buffer_id)?;
         loop {
             // Pass event to focused window
             let window = self.windows.get_mut(self.focused_window_index).unwrap();
@@ -62,7 +75,6 @@ impl Screen {
                     KeyCode::Char('%') => {
                         let buffer_id = window.buffer_id().clone();
                         self.focused_window_index = self.windows.insert(Window::new(buffer_id));
-                        continue;
                     }
                     KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
                         let focused_window_index = self.focused_window_index.clone();
@@ -80,11 +92,7 @@ impl Screen {
                             });
                         let new_buffer = Buffer::from_config(
                             tree_sitter_md::language(),
-                            buffer
-                                .get_selected_texts()
-                                .get(0)
-                                .cloned()
-                                .unwrap_or(&"".to_string()),
+                            "",
                             BufferConfig {
                                 mode: Some(Mode::Insert),
                                 normal_mode_override_fn: Some(override_fn.clone()),
@@ -105,13 +113,13 @@ impl Screen {
                         continue;
                     }
                     _ => {
-                        let dispatches = buffer.handle_key_event(event);
+                        let dispatches = buffer.handle_key_event(&self.state, event);
                         self.handle_dispatches(dispatches)
                     }
                 },
                 Event::Resize(columns, rows) => {
-                    self.width = columns;
-                    self.height = rows;
+                    self.state.terminal_dimension.height = rows;
+                    self.state.terminal_dimension.width = columns;
                 }
                 Event::Mouse(mouse_event) => {
                     const SCROLL_HEIGHT: isize = 1;
@@ -137,7 +145,12 @@ impl Screen {
                 }
             }
 
-            self.render(&mut stdout)?;
+            let current_buffer_id = self
+                .windows
+                .get(self.focused_window_index)
+                .unwrap()
+                .buffer_id();
+            self.render(&mut stdout, current_buffer_id)?;
         }
         crossterm::terminal::disable_raw_mode()?;
         Ok(())
@@ -151,55 +164,146 @@ impl Screen {
         self.windows.insert(buffer_id);
     }
 
-    fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
+    fn render(
+        &mut self,
+        stdout: &mut std::io::Stdout,
+        current_buffer_id: usize,
+    ) -> Result<(), anyhow::Error> {
         log::info!("Render");
         // queue!(stdout, Clear(ClearType::All)).unwrap();
         // Generate layout
         let (rectangles, borders) =
-            Rectangle::generate(self.windows.len(), self.width.into(), self.height.into());
+            Rectangle::generate(self.windows.len(), self.state.terminal_dimension);
+
+        let grid = Grid::new(self.state.terminal_dimension);
 
         // Render every window
-        for (window, rectangle) in self.windows.values_mut().zip(rectangles.into_iter()) {
-            let buffer = self.buffers.get(window.buffer_id()).unwrap();
-            window.render(&buffer, &rectangle, stdout)?;
-            window.flush(stdout);
-        }
+        let (grid, cursor_point) = self
+            .windows
+            .values()
+            .zip(rectangles.into_iter())
+            .map(|(window, rectangle)| {
+                let buffer = self.buffers.get(window.buffer_id()).unwrap();
+                let grid = window.get_grid(rectangle.dimension(), buffer);
+                let cursor_point = if current_buffer_id == window.buffer_id() {
+                    let cursor_position = buffer.get_cursor_point();
+                    let scroll_offset = window.scroll_offset();
+
+                    Some(Point::new(
+                        cursor_position.row
+                            + rectangle.origin.row.saturating_sub(scroll_offset as usize),
+                        cursor_position.column + rectangle.origin.column,
+                    ))
+                } else {
+                    None
+                };
+
+                (grid, rectangle, cursor_point)
+            })
+            .fold(
+                (grid, None),
+                |(grid, current_cursor_point), (window_grid, rectangle, cursor_point)| {
+                    (
+                        grid.update(&window_grid, rectangle),
+                        current_cursor_point.or_else(|| cursor_point),
+                    )
+                },
+            );
 
         // Render every border
-        for border in borders {
-            match border.direction {
-                BorderDirection::Horizontal => {
-                    for i in 0..border.length {
-                        // Set foreground color to black
-                        queue!(stdout, SetForegroundColor(Color::Black))?;
-                        queue!(
-                            stdout,
-                            MoveTo(
-                                border.start.column as u16 + i as u16,
-                                border.start.row as u16
-                            ),
-                            Print("─")
-                        )?;
-                    }
-                }
-                BorderDirection::Vertical => {
-                    for i in 0..border.length {
-                        // Set foreground color to black
-                        queue!(stdout, SetForegroundColor(Color::Black))?;
-                        queue!(
-                            stdout,
-                            MoveTo(
-                                border.start.column as u16,
-                                border.start.row as u16 + i as u16
-                            ),
-                            Print("│")
-                        )?;
-                    }
-                }
-            }
-        }
+        let grid = borders
+            .into_iter()
+            .fold(grid, |grid, border| grid.set_border(border));
+
+        self.render_grid(grid, cursor_point, stdout)?;
+
         Ok(())
     }
+
+    fn render_grid(
+        &mut self,
+        grid: Grid,
+        cursor_point: Option<Point>,
+        stdout: &mut std::io::Stdout,
+    ) -> Result<(), anyhow::Error> {
+        queue!(stdout, Hide)?;
+        let cells = {
+            let diff = if let Some(previous_grid) = self.previous_grid.take() {
+                previous_grid.diff(&grid)
+            } else {
+                // queue!(stdout, Clear(ClearType::All)).unwrap();
+                grid.to_position_cells()
+            };
+
+            self.previous_grid = Some(grid.clone());
+
+            diff
+        };
+
+        // let cells = grid.to_position_cells();
+
+        for cell in cells.into_iter() {
+            queue!(
+                stdout,
+                MoveTo(cell.position.column as u16, cell.position.row as u16)
+            )?;
+            queue!(
+                stdout,
+                SetBackgroundColor(cell.cell.background_color),
+                SetForegroundColor(cell.cell.foreground_color),
+                Print(reveal(cell.cell.symbol))
+            )?;
+        }
+
+        log::info!("Cursor point = {:?}", cursor_point);
+        if let Some(point) = cursor_point {
+            queue!(stdout, Show)?;
+            queue!(stdout, SetCursorStyle::BlinkingBlock)?;
+            execute!(stdout, MoveTo(point.column as u16, point.row as u16))?;
+            queue!(stdout, MoveTo(point.column as u16, point.row as u16))?;
+            queue!(stdout, MoveTo(point.column as u16, point.row as u16))?;
+        }
+
+        // queue!(stdout, MoveTo(0, 0))?;
+
+        // self.move_cursor(point, rectangle, stdout)?;
+
+        // match buffer.mode {
+        //     Mode::Insert => {
+        //         queue!(stdout, SetCursorStyle::BlinkingBar)?;
+        //     }
+        //     _ => {
+        //         queue!(stdout, SetCursorStyle::SteadyBar)?;
+        //     }
+        // }
+
+        Ok(())
+    }
+
+    // fn move_cursor(
+    //     &mut self,
+    //     point: Point,
+    //     rectangle: &Rectangle,
+    //     stdout: &mut std::io::Stdout,
+    // ) -> Result<(), anyhow::Error> {
+    //     // Hide the cursor if the point is out of view
+    //     if !(0 as isize..rectangle.height as isize)
+    //         .contains(&(point.row as isize - self.scroll_offset as isize))
+    //     {
+    //         queue!(stdout, Hide)?;
+    //     } else {
+    //         queue!(stdout, Show)?;
+    //         queue!(
+    //             stdout,
+    //             MoveTo(
+    //                 rectangle.origin.column as u16 + point.column as u16,
+    //                 (rectangle.origin.row as u16 + (point.row as u16))
+    //                     .saturating_sub(self.scroll_offset as u16)
+    //             )
+    //         )?;
+    //     }
+    //     Ok(())
+    // }
 
     fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) {
         dispatches
@@ -218,218 +322,20 @@ impl Screen {
     }
 
     fn set_search(&mut self, search: String) {
-        self.search = Some(search);
-        self.buffers.values_mut().for_each(|buffer| {
-            buffer.set_search(self.search.clone());
-        });
+        self.state.search = Some(search);
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-// A struct to represent a rectangle with origin, width and height
-pub struct Rectangle {
-    pub origin: Point,
-    pub width: usize,
-    pub height: usize,
+#[derive(Debug, Clone, Copy)]
+pub struct Dimension {
+    pub height: u16,
+    pub width: u16,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-// A struct to represent a border with direction, start and length
-struct Border {
-    direction: BorderDirection,
-    start: Point,
-    length: usize,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-// An enum to represent the direction of a border (horizontal or vertical)
-enum BorderDirection {
-    Horizontal,
-    Vertical,
-}
-
-impl Rectangle {
-    // A method to split a rectangle into two smaller ones based on a fixed ratio of 0.5 and return a border between them
-    fn split(&self, vertical: bool) -> (Rectangle, Rectangle, Border) {
-        if vertical {
-            // Split vertically
-            let width1 = self.width / 2;
-            let width2 = self.width - width1 - 1; // Corrected the width2 to leave space for the border
-            let rectangle1 = Rectangle {
-                width: width1,
-                ..*self
-            };
-            let rectangle2 = Rectangle {
-                origin: Point {
-                    column: self.origin.column + width1 + 1,
-                    ..self.origin
-                },
-                width: width2,
-                ..*self
-            };
-            // Create a vertical border between the two rectangles
-            let border = Border {
-                direction: BorderDirection::Vertical,
-                start: Point {
-                    column: self.origin.column + width1,
-                    row: self.origin.row,
-                },
-                length: self.height,
-            };
-            (rectangle1, rectangle2, border)
-        } else {
-            // Split horizontally
-            let height1 = self.height / 2;
-            let height2 = self.height - height1 - 1; // Corrected the height2 to leave space for the border
-            let rectangle1 = Rectangle {
-                height: height1,
-                ..*self
-            };
-            let rectangle2 = Rectangle {
-                origin: Point {
-                    row: self.origin.row + height1 + 1,
-                    ..self.origin
-                },
-                height: height2,
-                ..*self
-            };
-            // Create a horizontal border between the two rectangles
-            let border = Border {
-                direction: BorderDirection::Horizontal,
-                start: Point {
-                    row: self.origin.row + height1,
-                    column: self.origin.column,
-                },
-                length: self.width,
-            };
-            (rectangle1, rectangle2, border)
-        }
-    }
-
-    // A method to generate a vector of rectangles and a vector of borders based on bspwm tiling algorithm
-    fn generate(
-        count: usize,
-        screen_width: usize,
-        screen_height: usize,
-    ) -> (Vec<Rectangle>, Vec<Border>) {
-        // Create an empty vector to store the rectangles
-        let mut rectangles = Vec::new();
-
-        // Create an empty vector to store the borders
-        let mut borders = Vec::new();
-
-        // Create a root rectangle that covers the whole screen
-        let root = Rectangle {
-            origin: Point { row: 0, column: 0 },
-            width: screen_width,
-            height: screen_height,
-        };
-
-        // Push the root rectangle to the vector
-        rectangles.push(root);
-
-        // Loop through the count and split the last rectangle in the vector
-        for _ in 0..count - 1 {
-            // Pop the last rectangle from the vector
-            let last = rectangles.pop().unwrap();
-
-            // Choose the direction to split based on the rectangle's height and width
-            let cursor_width_to_cursor_height_ratio = 3;
-            let vertical = last.width >= last.height * cursor_width_to_cursor_height_ratio;
-
-            // Split the last rectangle into two smaller ones and get a border between them
-            let (rectangle1, rectangle2, border) = last.split(vertical);
-
-            // Push the two smaller rectangles to the vector
-            rectangles.push(rectangle1);
-            rectangles.push(rectangle2);
-
-            // Push the border to the vector
-            borders.push(border);
-        }
-
-        // Return the vector of rectangles and the vector of borders
-        (rectangles, borders)
-    }
-}
-
-#[cfg(test)]
-mod test_rectangle {
-    use tree_sitter::Point;
-
-    use crate::screen::{Border, BorderDirection::*};
-
-    use super::Rectangle;
-
-    #[test]
-    fn generate_height_larger_than_width() {
-        let (rectangles, borders) = Rectangle::generate(4, 100, 50);
-    }
-
-    #[test]
-    fn generate_same_height_and_width() {
-        let (rectangles, borders) = Rectangle::generate(4, 100, 100);
-
-        assert_eq!(rectangles.len(), 4);
-        assert_eq!(borders.len(), 3);
-
-        assert_eq!(
-            borders,
-            vec![
-                Border {
-                    direction: Vertical,
-                    start: Point { row: 0, column: 50 },
-                    length: 100
-                },
-                Border {
-                    direction: Horizontal,
-                    start: Point {
-                        row: 50,
-                        column: 51
-                    },
-                    length: 49
-                },
-                Border {
-                    direction: Vertical,
-                    start: Point {
-                        row: 51,
-                        column: 75
-                    },
-                    length: 49
-                }
-            ]
-        );
-
-        assert_eq!(
-            rectangles,
-            vec![
-                Rectangle {
-                    origin: Point { row: 0, column: 0 },
-                    width: 50,
-                    height: 100
-                },
-                Rectangle {
-                    origin: Point { row: 0, column: 51 },
-                    width: 49,
-                    height: 50
-                },
-                Rectangle {
-                    origin: Point {
-                        row: 51,
-                        column: 51
-                    },
-                    width: 24,
-                    height: 49
-                },
-                Rectangle {
-                    origin: Point {
-                        row: 51,
-                        column: 76
-                    },
-                    width: 24,
-                    height: 49
-                }
-            ]
-        );
+/// Convert invisible character to visible character
+fn reveal(s: String) -> String {
+    match s.as_str() {
+        "\n" => " ".to_string(),
+        _ => s,
     }
 }
