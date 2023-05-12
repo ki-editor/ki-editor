@@ -518,6 +518,16 @@ impl CharIndex {
     }
 }
 
+pub trait ToRangeUsize {
+    fn to_usize_range(&self) -> Range<usize>;
+}
+
+impl ToRangeUsize for Range<CharIndex> {
+    fn to_usize_range(&self) -> Range<usize> {
+        self.start.0..self.end.0
+    }
+}
+
 fn find_previous<T>(
     mut iter: impl Iterator<Item = T>,
     set_last_match_predicate: impl Fn(&T, &Option<T>) -> bool,
