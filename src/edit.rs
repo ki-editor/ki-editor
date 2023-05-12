@@ -142,24 +142,6 @@ impl EditTransaction {
 
     // Normalized action groups will become one action group, as they no longer need to offset each other
     fn normalize_action_groups(action_groups: Vec<ActionGroup>) -> ActionGroup {
-        // 1) remove edits that are subset of other edits
-
-        // Remove actions group that are subset of other action groups
-        let action_groups = action_groups
-            .clone()
-            .into_iter()
-            .filter(|action_group| {
-                !action_groups
-                    .iter()
-                    .any(|other| action_group != other && action_group.subset_of(other))
-            })
-            .collect_vec();
-
-        // Assert that no actions groups overlap with each other
-        // assert!(!action_groups.iter().any(|action_group| action_groups
-        //     .iter()
-        //     .any(|other| action_group != other && action_group.overlaps(other))));
-
         // Sort the action groups by the start char index
         let action_groups = {
             let mut action_groups = action_groups;
