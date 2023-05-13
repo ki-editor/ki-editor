@@ -5,10 +5,7 @@ use ropey::Rope;
 use tree_sitter::{Node, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
-use crate::{
-    edit::{Action, ActionGroup, Edit, EditTransaction},
-    engine::{node_to_selection, CursorDirection, Direction},
-};
+use crate::engine::{node_to_selection, CursorDirection, Direction};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet {
@@ -51,54 +48,6 @@ impl SelectionSet {
         }
     }
 
-    pub fn replace<GetOld, GetNew, GetRange>(
-        &mut self,
-        get_old: GetOld,
-        get_new: GetNew,
-        get_range: GetRange,
-    ) -> EditTransaction
-    where
-        GetOld: Fn(&Selection) -> Rope,
-        GetNew: Fn(&Selection) -> Rope,
-        GetRange: Fn(&Edit) -> Range<CharIndex>,
-    {
-        let edit_transaction = EditTransaction::from_action_groups(
-            self.clone(),
-            self.map(|selection| {
-                ActionGroup::new(vec![Action::Edit(Edit {
-                    start: selection.range.start,
-                    old: get_old(selection),
-                    new: get_new(selection),
-                })])
-            })
-            .into_iter()
-            .collect(),
-        );
-
-        match edit_transaction.edits().split_first() {
-            None => {
-                todo!("Not sure what to do here")
-            }
-            Some((head, tail)) => {
-                self.primary = Selection {
-                    range: get_range(head),
-                    node_id: None,
-                    yanked_text: None,
-                };
-                self.secondary = tail
-                    .iter()
-                    .map(|edit| Selection {
-                        range: get_range(edit),
-                        node_id: None,
-                        yanked_text: None,
-                    })
-                    .collect();
-            }
-        }
-
-        edit_transaction
-    }
-
     pub fn move_left(&mut self, cursor_direction: &CursorDirection) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
@@ -124,9 +73,9 @@ impl SelectionSet {
         result
     }
 
-    pub fn yank(&mut self, rope: &Rope) {
+    pub fn copy(&mut self, rope: &Rope) {
         self.apply_mut(|selection| {
-            selection.yanked_text = rope
+            selection.copied_text = rope
                 .get_slice(selection.range.start.0..selection.range.end.0)
                 .map(|slice| slice.into());
         });
@@ -159,7 +108,7 @@ impl SelectionSet {
                             range: CharIndex(second_child.start_byte())
                                 ..CharIndex(second_last_child.end_byte()),
                             node_id: None,
-                            yanked_text: selection.yanked_text.clone(),
+                            copied_text: selection.copied_text.clone(),
                         };
                     }
                 }
@@ -235,7 +184,7 @@ impl SelectionMode {
 pub struct Selection {
     pub range: Range<CharIndex>,
     pub node_id: Option<usize>,
-    pub yanked_text: Option<Rope>,
+    pub copied_text: Option<Rope>,
 }
 impl Selection {
     pub fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
@@ -254,7 +203,7 @@ impl Selection {
         Selection {
             range: *anchor.min(get_cursor_char_index)..*anchor.max(get_cursor_char_index),
             node_id: None,
-            yanked_text: None,
+            copied_text: None,
         }
     }
 
@@ -263,7 +212,7 @@ impl Selection {
         Selection {
             range: CharIndex(0)..CharIndex(0),
             node_id: None,
-            yanked_text: None,
+            copied_text: None,
         }
     }
 
@@ -284,7 +233,7 @@ impl Selection {
             }
         };
         let cursor_byte = cursor_char_index.to_byte(&text);
-        let yanked_text = current_selection.yanked_text.clone();
+        let copied_text = current_selection.copied_text.clone();
         match mode {
             SelectionMode::NamedNode => match direction {
                 Direction::Current => Some(get_current_node(tree, cursor_byte, current_selection)),
@@ -306,7 +255,7 @@ impl Selection {
                     )
                 }
             }
-            .map(|node| node_to_selection(node, text, yanked_text))
+            .map(|node| node_to_selection(node, text, copied_text))
             .unwrap_or_else(|| current_selection.clone()),
 
             SelectionMode::Line => get_selection_via_regex(
@@ -315,7 +264,7 @@ impl Selection {
                 Regex::new(r"(?m)^(.*)\n").unwrap(),
                 direction,
                 current_selection,
-                yanked_text,
+                copied_text,
             ),
             SelectionMode::Word => get_selection_via_regex(
                 text,
@@ -323,7 +272,7 @@ impl Selection {
                 Regex::new(r"\b\w+").unwrap(),
                 direction,
                 current_selection,
-                yanked_text,
+                copied_text,
             ),
             SelectionMode::Character => get_selection_via_regex(
                 text,
@@ -331,7 +280,7 @@ impl Selection {
                 Regex::new(r"(?s).").unwrap(),
                 direction,
                 current_selection,
-                yanked_text,
+                copied_text,
             ),
             SelectionMode::Match { regex: search } => {
                 let regex = Regex::new(search).unwrap();
@@ -341,7 +290,7 @@ impl Selection {
                     regex,
                     direction,
                     current_selection,
-                    yanked_text,
+                    copied_text,
                 )
             }
             SelectionMode::ParentNode => {
@@ -377,7 +326,7 @@ impl Selection {
                         node.unwrap_or(current_node)
                     }
                 };
-                node_to_selection(node, text, yanked_text)
+                node_to_selection(node, text, copied_text)
             }
 
             SelectionMode::SiblingNode => {
@@ -388,7 +337,7 @@ impl Selection {
                     Direction::Backward => current_node.prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
-                node_to_selection(next_node, text, yanked_text)
+                node_to_selection(next_node, text, copied_text)
             }
             SelectionMode::Token => {
                 let current_selection_start_byte = current_selection.range.start.to_byte(text);
@@ -403,12 +352,12 @@ impl Selection {
                 .unwrap_or_else(|| {
                     get_next_token(tree, cursor_byte, true).unwrap_or_else(|| tree.root_node())
                 });
-                node_to_selection(selection, text, yanked_text)
+                node_to_selection(selection, text, copied_text)
             }
             SelectionMode::Custom => Selection {
                 range: cursor_char_index..cursor_char_index,
                 node_id: None,
-                yanked_text,
+                copied_text,
             },
         }
     }
@@ -420,7 +369,7 @@ fn get_selection_via_regex(
     regex: Regex,
     direction: &Direction,
     current_selection: &Selection,
-    yanked_text: Option<Rope>,
+    copied_text: Option<Rope>,
 ) -> Selection {
     let string = text.to_string();
     let matches = match direction {
@@ -439,7 +388,7 @@ fn get_selection_via_regex(
             range: CharIndex(text.byte_to_char(matches.start()))
                 ..CharIndex(text.byte_to_char(matches.end())),
             node_id: None,
-            yanked_text,
+            copied_text,
         },
     }
 }
@@ -451,7 +400,7 @@ impl Add<usize> for Selection {
         Self {
             range: self.range.start + rhs..self.range.end + rhs,
             node_id: self.node_id,
-            yanked_text: self.yanked_text,
+            copied_text: self.copied_text,
         }
     }
 }
@@ -463,7 +412,7 @@ impl Sub<usize> for Selection {
         Self {
             range: self.range.start - rhs..self.range.end - rhs,
             node_id: self.node_id,
-            yanked_text: self.yanked_text,
+            copied_text: self.copied_text,
         }
     }
 }

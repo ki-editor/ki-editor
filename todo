@@ -10,7 +10,7 @@
      - each window have a group, if any of the window in the same group is closed
        all windows in the same group should be closed
 - [] LSP (after window system implemented)
-- [] swap d to ^x, y to ^c
+- [x] swap d to ^x, y to ^c
 - [x] ^f for find
 - [x] f/F for moving forward/backward (so that it's consistent with other
      actions, which is selection mode first, then action)
@@ -25,3 +25,4 @@
 - [x] remove windows, as it is useless
 - [] incorporate AST grep (https://github.com/ast-grep/ast-grep)
 - [x] e for eating forward, useful for replacing current node with parent, also might make `d` obsolete
+- [] implement buffer

@@ -88,7 +88,7 @@ impl Editor {
                 primary: Selection {
                     range: CharIndex(0)..CharIndex(0),
                     node_id: None,
-                    yanked_text: None,
+                    copied_text: None,
                 },
                 secondary: vec![],
                 mode: SelectionMode::Custom,
@@ -279,43 +279,52 @@ impl Editor {
         self.jump_from_selection(direction, &self.selection_set.primary.clone());
     }
 
-    fn delete_current_selection(&mut self) {
-        self.yank_current_selection();
-        let edit_transaction = self.selection_set.replace(
-            |selection| self.text.slice(selection.range.to_usize_range()).into(),
-            |_| Rope::new(),
-            |edit| edit.start..edit.start,
+    fn cut(&mut self) {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set.clone(),
+            self.selection_set.map(|selection| {
+                let old: Rope = self.text.slice(selection.range.to_usize_range()).into();
+                ActionGroup::new(vec![
+                    Action::Edit(Edit {
+                        start: selection.range.start,
+                        old: old.clone(),
+                        new: Rope::new(),
+                    }),
+                    Action::Select(Selection {
+                        range: selection.range.start..selection.range.start,
+                        node_id: None,
+                        copied_text: Some(old),
+                    }),
+                ])
+            }),
         );
+
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
-    fn yank_current_selection(&mut self) {
-        self.selection_set.yank(&self.text);
+    fn copy(&mut self) {
+        self.selection_set.copy(&self.text);
     }
 
     fn paste(&mut self) {
         let edit_transactions = self.selection_set.map(|selection| {
-            if let Some(yanked_text) = &selection.yanked_text {
+            if let Some(copied_text) = &selection.copied_text {
                 let start = selection.to_char_index(&self.cursor_direction);
                 EditTransaction::from_action_groups(
                     self.selection_set.clone(),
                     vec![ActionGroup::new(vec![
                         Action::Edit(Edit {
                             start,
-                            old: Rope::new(),
-                            new: yanked_text.clone(),
+                            old: self.text.slice(selection.range.to_usize_range()).into(),
+                            new: copied_text.clone(),
                         }),
                         Action::Select(Selection {
-                            range: match self.mode {
-                                Mode::Normal | Mode::Jump { .. } => {
-                                    start..(start + yanked_text.len_chars())
-                                }
-                                Mode::Insert => {
-                                    start + yanked_text.len_chars()..start + yanked_text.len_chars()
-                                }
+                            range: {
+                                let start = start + copied_text.len_chars();
+                                start..start
                             },
                             node_id: None,
-                            yanked_text: Some(yanked_text.clone()),
+                            copied_text: Some(copied_text.clone()),
                         }),
                     ])],
                 )
@@ -332,7 +341,7 @@ impl Editor {
         let edit_transaction = EditTransaction::merge(
             self.selection_set.clone(),
             self.selection_set.map(|selection| {
-                if let Some(replacement) = &selection.yanked_text {
+                if let Some(replacement) = &selection.copied_text {
                     let replacement_text_len = replacement.len_chars();
                     let replaced_text = self.text.slice(selection.range.to_usize_range()).into();
                     EditTransaction::from_action_groups(
@@ -346,7 +355,7 @@ impl Editor {
                             Action::Select(Selection {
                                 range: selection.range.start
                                     ..selection.range.start + replacement_text_len,
-                                yanked_text: Some(replaced_text),
+                                copied_text: Some(replaced_text),
                                 node_id: None,
                             }),
                         ])],
@@ -514,11 +523,19 @@ impl Editor {
                     primary: Selection {
                         range: CharIndex(0)..CharIndex(self.text.len_chars()),
                         node_id: None,
-                        yanked_text: self.selection_set.primary.yanked_text.clone(),
+                        copied_text: self.selection_set.primary.copied_text.clone(),
                     },
                     secondary: vec![],
                     mode: SelectionMode::Custom,
                 };
+                HandleKeyEventResult::Consumed(vec![])
+            }
+            KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
+                self.copy();
+                HandleKeyEventResult::Consumed(vec![])
+            }
+            KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
+                self.cut();
                 HandleKeyEventResult::Consumed(vec![])
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
@@ -572,7 +589,7 @@ impl Editor {
                     if let Some(jump) = matching_jump {
                         self.update_selection_set(SelectionSet {
                             primary: Selection {
-                                yanked_text: self.selection_set.primary.yanked_text.clone(),
+                                copied_text: self.selection_set.primary.copied_text.clone(),
                                 ..jump.selection.clone()
                             },
                             secondary: vec![],
@@ -592,16 +609,16 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set.clone(),
             self.selection_set.map(|selection| {
-                let yanked_text: Rope = self.text.slice(selection.range.to_usize_range()).into();
+                let copied_text: Rope = self.text.slice(selection.range.to_usize_range()).into();
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
                         start: selection.range.start,
-                        old: yanked_text.clone(),
+                        old: copied_text.clone(),
                         new: Rope::new(),
                     }),
                     Action::Select(Selection {
                         range: selection.range.start..selection.range.start,
-                        yanked_text: Some(yanked_text),
+                        copied_text: Some(copied_text),
                         node_id: None,
                     }),
                 ])
@@ -625,7 +642,7 @@ impl Editor {
                     Action::Select(Selection {
                         range: selection.range.start + s.len()..selection.range.start + s.len(),
                         node_id: None,
-                        yanked_text: selection.yanked_text.clone(),
+                        copied_text: selection.copied_text.clone(),
                     }),
                 ])
             }),
@@ -678,7 +695,6 @@ impl Editor {
             KeyCode::Char('A') => self.add_selection(),
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') => self.select_character(Direction::Forward),
-            KeyCode::Char('d') => self.delete_current_selection(),
             KeyCode::Char('e') => self.eat(Direction::Forward),
             KeyCode::Char('E') => self.eat(Direction::Backward),
             KeyCode::Char('f') => self.move_selection(Direction::Forward),
@@ -699,7 +715,6 @@ impl Editor {
             KeyCode::Char('x') => self.exchange(Direction::Forward),
             KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('w') => self.select_word(Direction::Forward),
-            KeyCode::Char('y') => self.yank_current_selection(),
             KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Esc => {
@@ -745,6 +760,7 @@ impl Editor {
             .map(|anchor| Selection::from_two_char_indices(&anchor, &self.get_cursor_char_index()))
     }
 
+    // TODO: handle mouse click
     pub fn set_cursor_position(&mut self, row: u16, column: u16) {
         let start = CharIndex(self.text.line_to_char(row as usize)) + column.into();
         self.update_selection_set(SelectionSet {
@@ -752,7 +768,7 @@ impl Editor {
             primary: Selection {
                 range: start..start,
                 node_id: None,
-                yanked_text: self.selection_set.primary.yanked_text.clone(),
+                copied_text: self.selection_set.primary.copied_text.clone(),
             },
             ..self.selection_set.clone()
         })
@@ -924,7 +940,7 @@ impl Editor {
                                             + text_at_current_selection.len_chars(),
                                     ),
                                 node_id: None,
-                                yanked_text: current_selection.yanked_text.clone(),
+                                copied_text: current_selection.copied_text.clone(),
                             }),
                         ]),
                     ],
@@ -1037,7 +1053,7 @@ impl Editor {
                     }),
                     Action::Select(Selection {
                         range: start..start,
-                        yanked_text: selection.yanked_text.clone(),
+                        copied_text: selection.copied_text.clone(),
                         node_id: None,
                     }),
                 ])
@@ -1112,7 +1128,7 @@ impl Editor {
                                     range: CharIndex(range.start)
                                         ..CharIndex(range.start + new_len_chars),
                                     node_id: None,
-                                    yanked_text: current_selection.yanked_text.clone(),
+                                    copied_text: current_selection.copied_text.clone(),
                                 }),
                             ])],
                         )
@@ -1130,12 +1146,12 @@ impl Editor {
     }
 }
 
-pub fn node_to_selection(node: Node, text: &Rope, yanked_text: Option<Rope>) -> Selection {
+pub fn node_to_selection(node: Node, text: &Rope, copied_text: Option<Rope>) -> Selection {
     Selection {
         range: CharIndex(text.byte_to_char(node.start_byte()))
             ..CharIndex(text.byte_to_char(node.end_byte())),
         node_id: Some(node.id()),
-        yanked_text,
+        copied_text: copied_text,
     }
 }
 
@@ -1422,10 +1438,10 @@ fn main() {
     }
 
     #[test]
-    fn yank_replace() {
+    fn copy_replace() {
         let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
-        buffer.yank_current_selection();
+        buffer.copy();
         buffer.select_token(Direction::Forward);
         buffer.replace();
         assert_eq!(buffer.get_text(), "fn fn() { let x = 1; }");
@@ -1436,14 +1452,29 @@ fn main() {
     }
 
     #[test]
-    fn yank_paste() {
+    fn copy_paste() {
         let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
-        buffer.yank_current_selection();
+        buffer.copy();
         buffer.select_token(Direction::Forward);
         buffer.paste();
-        assert_eq!(buffer.get_text(), "fn fnmain() { let x = 1; }");
-        assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
+        assert_eq!(buffer.get_text(), "fn fn() { let x = 1; }");
+        assert_eq!(buffer.get_selected_texts(), vec![""]);
+    }
+
+    #[test]
+    fn cut_paste() {
+        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        buffer.select_token(Direction::Forward);
+        buffer.cut();
+        assert_eq!(buffer.get_text(), " main() { let x = 1; }");
+        assert_eq!(buffer.get_selected_texts(), vec![""]);
+
+        buffer.select_token(Direction::Forward);
+        buffer.paste();
+
+        assert_eq!(buffer.get_text(), " fn() { let x = 1; }");
+        assert_eq!(buffer.get_selected_texts(), vec![""]);
     }
 
     #[test]
