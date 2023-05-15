@@ -25,4 +25,6 @@
 - [x] remove windows, as it is useless
 - [] incorporate AST grep (https://github.com/ast-grep/ast-grep)
 - [x] e for eating forward, useful for replacing current node with parent, also might make `d` obsolete
-- [] implement buffer
+- [x] implement buffer
+- [] multi eat parent should not proceed if the final edit overlaps
+- [] use patch for undo (undo history should be stored under buffer)

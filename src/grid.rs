@@ -6,7 +6,6 @@ use crate::{
     engine::{CursorDirection, Editor},
     rectangle::{Border, BorderDirection, Rectangle},
     screen::Dimension,
-    selection::CharIndex,
 };
 
 impl Editor {
@@ -20,8 +19,9 @@ impl Editor {
         // use the window's scroll offset.
 
         let scroll_offset = editor.scroll_offset();
-        let lines = editor
-            .text
+        let buffer = editor.buffer();
+        let lines = buffer
+            .rope()
             .lines()
             .enumerate()
             .skip(scroll_offset.into())
@@ -32,7 +32,7 @@ impl Editor {
         let extended_selection = editor.get_extended_selection();
 
         for (line_index, line) in lines {
-            let line_start_char_index = CharIndex(editor.text.line_to_char(line_index));
+            let line_start_char_index = buffer.line_to_char(line_index);
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
@@ -72,11 +72,10 @@ impl Editor {
         }
 
         for (index, jump) in editor.jumps().into_iter().enumerate() {
-            let point = match editor.cursor_direction {
+            let point = buffer.char_to_point(match editor.cursor_direction {
                 CursorDirection::Start => jump.selection.range.start,
                 CursorDirection::End => jump.selection.range.end,
-            }
-            .to_point(&editor.text);
+            });
 
             let column = point.column as u16;
             let row = (point.row as u16).saturating_sub(scroll_offset as u16);

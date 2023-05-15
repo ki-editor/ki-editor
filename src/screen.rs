@@ -12,6 +12,7 @@ use tree_sitter::Point;
 
 use crate::{
     auto_key_map::AutoKeyMap,
+    buffer::Buffer,
     engine::{Dispatch, Editor, EditorConfig, HandleKeyEventResult, Mode},
     grid::Grid,
     rectangle::{Border, Rectangle},
@@ -20,14 +21,16 @@ use crate::{
 pub struct Screen {
     focused_editor_id: usize,
 
-    // TODO: buffers are actually windows, and windows is actually useless.
-    // We don't have structure to represent the actual buffer yet
     editors: AutoKeyMap<Editor>,
     state: State,
+
     rectangles: Vec<Rectangle>,
     borders: Vec<Border>,
+
     /// Used for diffing to reduce unnecessary re-painting.
     previous_grid: Option<Grid>,
+
+    buffers: Vec<Buffer>,
 }
 
 pub struct State {
@@ -55,6 +58,7 @@ impl Screen {
             borders,
             editors: AutoKeyMap::new(),
             previous_grid: None,
+            buffers: Vec::new(),
         }
     }
 
@@ -275,7 +279,7 @@ impl Screen {
         let override_fn = Box::new(move |event: KeyEvent, editor: &Editor| match event.code {
             KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
                 Dispatch::SetSearch {
-                    search: editor.get_line().to_string(),
+                    search: editor.get_line(),
                 },
                 Dispatch::CloseCurrentWindow {
                     change_focused_to: focused_editor_id,

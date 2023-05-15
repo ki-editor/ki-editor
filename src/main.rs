@@ -1,4 +1,5 @@
 mod auto_key_map;
+mod buffer;
 mod edit;
 mod engine;
 mod grid;
@@ -6,13 +7,9 @@ mod rectangle;
 mod screen;
 mod selection;
 mod terminal;
+mod utils;
 
-use std::{
-    fs::File,
-    io::{Read, Write},
-    panic,
-    path::Path,
-};
+use std::{fs::File, io::Write, panic, path::Path};
 
 use log::LevelFilter;
 

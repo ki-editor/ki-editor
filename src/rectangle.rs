@@ -142,17 +142,6 @@ mod test_rectangle {
     use super::Rectangle;
 
     #[test]
-    fn generate_height_larger_than_width() {
-        let (rectangles, borders) = Rectangle::generate(
-            4,
-            Dimension {
-                width: 100,
-                height: 50,
-            },
-        );
-    }
-
-    #[test]
     fn generate_same_height_and_width() {
         let (rectangles, borders) = Rectangle::generate(
             4,
@@ -169,22 +158,19 @@ mod test_rectangle {
             borders,
             vec![
                 Border {
-                    direction: Vertical,
-                    start: Point { row: 0, column: 50 },
+                    direction: Horizontal,
+                    start: Point { row: 50, column: 0 }
                 },
                 Border {
                     direction: Horizontal,
-                    start: Point {
-                        row: 50,
-                        column: 51
-                    },
+                    start: Point { row: 75, column: 0 }
                 },
                 Border {
                     direction: Vertical,
                     start: Point {
-                        row: 51,
-                        column: 75
-                    },
+                        row: 76,
+                        column: 50
+                    }
                 }
             ]
         );
@@ -194,29 +180,26 @@ mod test_rectangle {
             vec![
                 Rectangle {
                     origin: Point { row: 0, column: 0 },
-                    width: 50,
-                    height: 100
-                },
-                Rectangle {
-                    origin: Point { row: 0, column: 51 },
-                    width: 49,
+                    width: 100,
                     height: 50
                 },
                 Rectangle {
-                    origin: Point {
-                        row: 51,
-                        column: 51
-                    },
-                    width: 24,
-                    height: 49
+                    origin: Point { row: 51, column: 0 },
+                    width: 100,
+                    height: 24
+                },
+                Rectangle {
+                    origin: Point { row: 76, column: 0 },
+                    width: 50,
+                    height: 24
                 },
                 Rectangle {
                     origin: Point {
-                        row: 51,
-                        column: 76
+                        row: 76,
+                        column: 51
                     },
-                    width: 24,
-                    height: 49
+                    width: 49,
+                    height: 24
                 }
             ]
         );

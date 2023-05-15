@@ -2,10 +2,14 @@ use std::ops::{Add, Range, Sub};
 
 use regex::Regex;
 use ropey::Rope;
-use tree_sitter::{Node, Point, Tree};
-use tree_sitter_traversal::{traverse, Order};
+use tree_sitter::{Node, Point};
+use tree_sitter_traversal::Order;
 
-use crate::engine::{node_to_selection, CursorDirection, Direction};
+use crate::{
+    buffer::Buffer,
+    engine::{node_to_selection, CursorDirection, Direction},
+    utils::find_previous,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct SelectionSet {
@@ -73,30 +77,20 @@ impl SelectionSet {
         result
     }
 
-    pub fn copy(&mut self, rope: &Rope) {
+    pub fn copy(&mut self, buffer: &Buffer) {
         self.apply_mut(|selection| {
-            selection.copied_text = rope
-                .get_slice(selection.range.start.0..selection.range.end.0)
-                .map(|slice| slice.into());
+            selection.copied_text = Some(buffer.slice(&selection.range));
         });
     }
 
-    pub fn select_kids(
-        &self,
-        rope: &Rope,
-        tree: &Tree,
-        cursor_direction: &CursorDirection,
-    ) -> SelectionSet {
+    pub fn select_kids(&self, buffer: &Buffer, cursor_direction: &CursorDirection) -> SelectionSet {
         fn select_kids(
             selection: &Selection,
-            rope: &Rope,
-            tree: &Tree,
+            buffer: &Buffer,
             cursor_direction: &CursorDirection,
         ) -> Selection {
             let cursor_char_index = selection.to_char_index(cursor_direction);
-            if let Some(node) =
-                get_nearest_node_after_byte(tree, rope.char_to_byte(cursor_char_index.0))
-            {
+            if let Some(node) = buffer.get_nearest_node_after_char(cursor_char_index) {
                 if let Some(parent) = node.parent() {
                     let second_child = parent.child(1);
                     let second_last_child = parent.child(parent.child_count() - 2).or(second_child);
@@ -116,28 +110,26 @@ impl SelectionSet {
             selection.clone()
         }
         self.apply(SelectionMode::Custom, |selection| {
-            select_kids(selection, rope, tree, cursor_direction)
+            select_kids(selection, buffer, cursor_direction)
         })
     }
 
     pub fn generate(
         &self,
-        rope: &Rope,
-        tree: &Tree,
+        buffer: &Buffer,
         mode: &SelectionMode,
         direction: &Direction,
         cursor_direction: &CursorDirection,
     ) -> SelectionSet {
         self.apply(mode.clone(), |selection| {
-            Selection::get_selection_(rope, tree, selection, mode, direction, cursor_direction)
+            Selection::get_selection_(buffer, selection, mode, direction, cursor_direction)
         })
     }
 
-    pub fn add_selection(&mut self, rope: &Rope, tree: &Tree, cursor_direction: &CursorDirection) {
+    pub fn add_selection(&mut self, buffer: &Buffer, cursor_direction: &CursorDirection) {
         let last_selection = &self.primary;
         let next_selection = Selection::get_selection_(
-            rope,
-            tree,
+            buffer,
             last_selection,
             &self.mode,
             &Direction::Forward,
@@ -217,8 +209,7 @@ impl Selection {
     }
 
     pub fn get_selection_(
-        text: &Rope,
-        tree: &Tree,
+        buffer: &Buffer,
         current_selection: &Selection,
         mode: &SelectionMode,
         direction: &Direction,
@@ -232,16 +223,19 @@ impl Selection {
                 CursorDirection::End => index - 1,
             }
         };
-        let cursor_byte = cursor_char_index.to_byte(&text);
+        let cursor_byte = buffer.char_to_byte(cursor_char_index);
         let copied_text = current_selection.copied_text.clone();
         match mode {
             SelectionMode::NamedNode => match direction {
-                Direction::Current => Some(get_current_node(tree, cursor_byte, current_selection)),
-                Direction::Forward => traverse(tree.root_node().walk(), Order::Pre)
+                Direction::Current => {
+                    Some(buffer.get_current_node(cursor_char_index, current_selection))
+                }
+                Direction::Forward => buffer
+                    .traverse(Order::Pre)
                     .find(|node| node.start_byte() > cursor_byte && node.is_named()),
                 Direction::Backward => {
                     find_previous(
-                        traverse(tree.root_node().walk(), Order::Pre),
+                        buffer.traverse(Order::Pre),
                         |node, last_match| match last_match {
                             Some(last_match) => {
                                 node.is_named()
@@ -255,11 +249,11 @@ impl Selection {
                     )
                 }
             }
-            .map(|node| node_to_selection(node, text, copied_text))
+            .map(|node| node_to_selection(node, buffer, copied_text))
             .unwrap_or_else(|| current_selection.clone()),
 
             SelectionMode::Line => get_selection_via_regex(
-                text,
+                buffer,
                 cursor_byte,
                 Regex::new(r"(?m)^(.*)\n").unwrap(),
                 direction,
@@ -267,7 +261,7 @@ impl Selection {
                 copied_text,
             ),
             SelectionMode::Word => get_selection_via_regex(
-                text,
+                buffer,
                 cursor_byte,
                 Regex::new(r"\b\w+").unwrap(),
                 direction,
@@ -275,7 +269,7 @@ impl Selection {
                 copied_text,
             ),
             SelectionMode::Character => get_selection_via_regex(
-                text,
+                buffer,
                 cursor_byte,
                 Regex::new(r"(?s).").unwrap(),
                 direction,
@@ -285,7 +279,7 @@ impl Selection {
             SelectionMode::Match { regex: search } => {
                 let regex = Regex::new(search).unwrap();
                 get_selection_via_regex(
-                    text,
+                    buffer,
                     cursor_byte,
                     regex,
                     direction,
@@ -294,7 +288,7 @@ impl Selection {
                 )
             }
             SelectionMode::ParentNode => {
-                let current_node = get_current_node(tree, cursor_byte, current_selection);
+                let current_node = buffer.get_current_node(cursor_char_index, current_selection);
 
                 fn get_node(node: Node, direction: Direction) -> Option<Node> {
                     match direction {
@@ -326,33 +320,33 @@ impl Selection {
                         node.unwrap_or(current_node)
                     }
                 };
-                node_to_selection(node, text, copied_text)
+                node_to_selection(node, buffer, copied_text)
             }
 
             SelectionMode::SiblingNode => {
-                let current_node = get_current_node(tree, cursor_byte, current_selection);
+                let current_node = buffer.get_current_node(cursor_char_index, current_selection);
                 let next_node = match direction {
                     Direction::Current => Some(current_node),
                     Direction::Forward => current_node.next_named_sibling(),
                     Direction::Backward => current_node.prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
-                node_to_selection(next_node, text, copied_text)
+                node_to_selection(next_node, buffer, copied_text)
             }
             SelectionMode::Token => {
-                let current_selection_start_byte = current_selection.range.start.to_byte(text);
-                let current_selection_end_byte = current_selection.range.end.to_byte(text);
                 let selection = match direction {
-                    Direction::Forward => get_next_token(tree, current_selection_end_byte, false),
+                    Direction::Forward => buffer.get_next_token(current_selection.range.end, false),
                     Direction::Backward => {
-                        get_prev_token(tree, current_selection_start_byte, false)
+                        buffer.get_prev_token(current_selection.range.start, false)
                     }
-                    Direction::Current => get_next_token(tree, cursor_byte, false),
+                    Direction::Current => buffer.get_next_token(cursor_char_index, false),
                 }
                 .unwrap_or_else(|| {
-                    get_next_token(tree, cursor_byte, true).unwrap_or_else(|| tree.root_node())
+                    buffer
+                        .get_next_token(cursor_char_index, true)
+                        .unwrap_or_else(|| buffer.tree().root_node())
                 });
-                node_to_selection(selection, text, copied_text)
+                node_to_selection(selection, buffer, copied_text)
             }
             SelectionMode::Custom => Selection {
                 range: cursor_char_index..cursor_char_index,
@@ -364,14 +358,14 @@ impl Selection {
 }
 
 fn get_selection_via_regex(
-    text: &Rope,
+    buffer: &Buffer,
     cursor_byte: usize,
     regex: Regex,
     direction: &Direction,
     current_selection: &Selection,
     copied_text: Option<Rope>,
 ) -> Selection {
-    let string = text.to_string();
+    let string = buffer.rope().to_string();
     let matches = match direction {
         Direction::Current => regex.find_at(&string, cursor_byte),
         Direction::Forward => regex.find_at(&string, cursor_byte + 1),
@@ -385,8 +379,7 @@ fn get_selection_via_regex(
     match matches {
         None => current_selection.clone(),
         Some(matches) => Selection {
-            range: CharIndex(text.byte_to_char(matches.start()))
-                ..CharIndex(text.byte_to_char(matches.end())),
+            range: buffer.byte_to_char(matches.start())..buffer.byte_to_char(matches.end()),
             node_id: None,
             copied_text,
         },
@@ -475,58 +468,4 @@ impl ToRangeUsize for Range<CharIndex> {
     fn to_usize_range(&self) -> Range<usize> {
         self.start.0..self.end.0
     }
-}
-
-fn find_previous<T>(
-    mut iter: impl Iterator<Item = T>,
-    set_last_match_predicate: impl Fn(&T, &Option<T>) -> bool,
-    break_predicate: impl Fn(&T) -> bool,
-) -> Option<T> {
-    let mut last_match = None;
-    while let Some(match_) = iter.next() {
-        if break_predicate(&match_) {
-            break;
-        }
-
-        if set_last_match_predicate(&match_, &last_match) {
-            last_match = Some(match_);
-        }
-    }
-    last_match
-}
-
-fn get_prev_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
-    find_previous(
-        traverse(tree.root_node().walk(), Order::Post),
-        |_, _| true,
-        |node| {
-            node.child_count() == 0 && (!is_named || node.is_named()) && node.start_byte() >= byte
-        },
-    )
-}
-
-fn get_next_token(tree: &Tree, byte: usize, is_named: bool) -> Option<Node> {
-    traverse(tree.root_node().walk(), Order::Post).find(|&node| {
-        node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
-    })
-}
-
-fn get_nearest_node_after_byte(tree: &Tree, byte: usize) -> Option<Node> {
-    // Preorder is the main key here,
-    // because preorder traversal walks the parent first
-    traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
-}
-
-fn get_current_node<'a>(tree: &'a Tree, cursor_byte: usize, selection: &Selection) -> Node<'a> {
-    if let Some(node_id) = selection.node_id {
-        get_node_by_id(tree, node_id)
-    } else {
-        get_nearest_node_after_byte(tree, cursor_byte)
-    }
-    .unwrap_or_else(|| tree.root_node())
-}
-
-fn get_node_by_id(tree: &Tree, node_id: usize) -> Option<Node> {
-    let result = traverse(tree.walk(), Order::Pre).find(|node| node.id() == node_id);
-    result
 }

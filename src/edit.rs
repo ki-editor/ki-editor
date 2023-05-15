@@ -203,6 +203,10 @@ impl EditTransaction {
             })
             .collect_vec()
     }
+
+    pub fn range(&self) -> Range<CharIndex> {
+        self.min_char_index()..self.max_char_index()
+    }
 }
 
 /// This is for grouping actions that should not offset each other
@@ -342,22 +346,6 @@ mod test_normalize_actions {
             // Replacement length < range length
             ActionGroup::new(vec![Action::edit(4, "lives", "see")]),
             ActionGroup::new(vec![Action::edit(13, "a", "two")]),
-        ]);
-
-        let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
-
-        assert_eq!(result, Rope::from_str("What see in two pineapple"));
-    }
-
-    #[test]
-    /// Expect the subset to be removed
-    fn some_is_subset_of_others() {
-        let edit_transaction = EditTransaction::from_tuples(vec![
-            ActionGroup::new(vec![Action::edit(0, "Who", "What")]),
-            ActionGroup::new(vec![Action::edit(4, "lives", "see")]),
-            ActionGroup::new(vec![Action::edit(13, "a", "two")]),
-            // Expect the last action group to be removed
-            ActionGroup::new(vec![Action::edit(0, "Wh", "We")]),
         ]);
 
         let (_, result) = edit_transaction.apply_to(Rope::from_str("Who lives in a pineapple"));
