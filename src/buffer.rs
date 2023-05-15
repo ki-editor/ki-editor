@@ -1,4 +1,7 @@
-use std::{ops::Range, path::Path};
+use std::{
+    ops::Range,
+    path::{Path, PathBuf},
+};
 
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
@@ -16,6 +19,7 @@ pub struct Buffer {
     tree: Tree,
     undo_patches: Vec<Patch>,
     redo_patches: Vec<Patch>,
+    path: Option<PathBuf>,
 }
 
 impl Buffer {
@@ -29,6 +33,7 @@ impl Buffer {
             },
             undo_patches: Vec::new(),
             redo_patches: Vec::new(),
+            path: None,
         }
     }
 
@@ -263,7 +268,17 @@ impl Buffer {
             _ => panic!("Unsupported file extension"),
         };
 
-        Buffer::new(language, &content)
+        let mut buffer = Buffer::new(language, &content);
+        buffer.path = Some(path.to_path_buf());
+        buffer
+    }
+
+    pub fn save(&self) {
+        if let Some(path) = &self.path {
+            std::fs::write(path, self.rope.to_string()).unwrap();
+        } else {
+            log::info!("Buffer has no path");
+        }
     }
 }
 

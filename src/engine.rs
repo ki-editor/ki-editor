@@ -493,6 +493,10 @@ impl Editor {
                 self.copy();
                 HandleKeyEventResult::Consumed(vec![])
             }
+            KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
+                self.buffer.borrow().save();
+                HandleKeyEventResult::Consumed(vec![])
+            }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
                 self.cut();
                 HandleKeyEventResult::Consumed(vec![])
