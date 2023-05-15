@@ -1,4 +1,4 @@
-use std::io::stdout;
+use std::{cell::RefCell, io::stdout};
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
@@ -30,7 +30,7 @@ pub struct Screen {
     /// Used for diffing to reduce unnecessary re-painting.
     previous_grid: Option<Grid>,
 
-    buffers: Vec<Buffer>,
+    buffers: Vec<RefCell<Buffer>>,
 }
 
 pub struct State {
@@ -62,9 +62,12 @@ impl Screen {
         }
     }
 
-    pub fn run(&mut self, entry_editor: Editor) -> Result<(), anyhow::Error> {
+    pub fn run(&mut self, entry_buffer: Buffer) -> Result<(), anyhow::Error> {
         crossterm::terminal::enable_raw_mode()?;
 
+        let ref_cell = RefCell::new(entry_buffer);
+        self.buffers.push(ref_cell.clone());
+        let entry_editor = Editor::from_buffer(ref_cell);
         self.add_editor(entry_editor);
 
         let mut stdout = stdout();

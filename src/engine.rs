@@ -3,7 +3,7 @@ use std::cell::{Ref, RefCell};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use itertools::Itertools;
 use ropey::Rope;
-use tree_sitter::{InputEdit, Node, Point, Tree};
+use tree_sitter::{Node, Point};
 
 use crate::{
     buffer::Buffer,
@@ -33,9 +33,6 @@ pub struct Editor {
 
     pub cursor_direction: CursorDirection,
     selection_history: Vec<SelectionSet>,
-
-    undo_edits: Vec<EditTransaction>,
-    redo_edits: Vec<EditTransaction>,
 
     /// TODO: this should be inside Selection
     /// This indicates where the extended selection started
@@ -84,7 +81,7 @@ impl EditorConfig {
 }
 
 impl Editor {
-    pub fn new(language: tree_sitter::Language, text: &str) -> Self {
+    pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
                 primary: Selection {
@@ -98,8 +95,6 @@ impl Editor {
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
-            undo_edits: Vec::new(),
-            redo_edits: Vec::new(),
             extended_selection_anchor: None,
             normal_mode_override_fn: None,
             insert_mode_override_fn: None,
@@ -109,8 +104,31 @@ impl Editor {
         }
     }
 
+    pub fn from_buffer(buffer: RefCell<Buffer>) -> Self {
+        Self {
+            selection_set: SelectionSet {
+                primary: Selection {
+                    range: CharIndex(0)..CharIndex(0),
+                    node_id: None,
+                    copied_text: None,
+                },
+                secondary: vec![],
+                mode: SelectionMode::Custom,
+            },
+            mode: Mode::Normal,
+            cursor_direction: CursorDirection::Start,
+            selection_history: Vec::with_capacity(128),
+            extended_selection_anchor: None,
+            normal_mode_override_fn: None,
+            insert_mode_override_fn: None,
+            scroll_offset: 0,
+            dimension: Dimension::default(),
+            buffer,
+        }
+    }
+
     pub fn from_config(language: tree_sitter::Language, text: &str, config: EditorConfig) -> Self {
-        let mut buffer = Self::new(language, text);
+        let mut buffer = Self::from_text(language, text);
         if let Some(mode) = config.mode {
             buffer.mode = mode;
         }
@@ -275,9 +293,8 @@ impl Editor {
     }
 
     fn cut(&mut self) {
-        let edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
+        let edit_transaction =
+            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let old = self.buffer.borrow().slice(&selection.range);
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
@@ -291,8 +308,7 @@ impl Editor {
                         copied_text: Some(old),
                     }),
                 ])
-            }),
-        );
+            }));
 
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
@@ -305,61 +321,50 @@ impl Editor {
         let edit_transactions = self.selection_set.map(|selection| {
             if let Some(copied_text) = &selection.copied_text {
                 let start = selection.to_char_index(&self.cursor_direction);
-                EditTransaction::from_action_groups(
-                    self.selection_set.clone(),
-                    vec![ActionGroup::new(vec![
-                        Action::Edit(Edit {
-                            start,
-                            old: self.buffer.borrow().slice(&selection.range),
-                            new: copied_text.clone(),
-                        }),
-                        Action::Select(Selection {
-                            range: {
-                                let start = start + copied_text.len_chars();
-                                start..start
-                            },
-                            node_id: None,
-                            copied_text: Some(copied_text.clone()),
-                        }),
-                    ])],
-                )
+                EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
+                    Action::Edit(Edit {
+                        start,
+                        old: self.buffer.borrow().slice(&selection.range),
+                        new: copied_text.clone(),
+                    }),
+                    Action::Select(Selection {
+                        range: {
+                            let start = start + copied_text.len_chars();
+                            start..start
+                        },
+                        node_id: None,
+                        copied_text: Some(copied_text.clone()),
+                    }),
+                ])])
             } else {
-                EditTransaction::from_action_groups(self.selection_set.clone(), vec![])
+                EditTransaction::from_action_groups(vec![])
             }
         });
-        let edit_transaction =
-            EditTransaction::merge(self.selection_set.clone(), edit_transactions);
+        let edit_transaction = EditTransaction::merge(edit_transactions);
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
     fn replace(&mut self) {
-        let edit_transaction = EditTransaction::merge(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
-                if let Some(replacement) = &selection.copied_text {
-                    let replacement_text_len = replacement.len_chars();
-                    let replaced_text = self.buffer.borrow().slice(&selection.range);
-                    EditTransaction::from_action_groups(
-                        self.selection_set.clone(),
-                        vec![ActionGroup::new(vec![
-                            Action::Edit(Edit {
-                                start: selection.range.start,
-                                old: replaced_text.clone(),
-                                new: replacement.clone(),
-                            }),
-                            Action::Select(Selection {
-                                range: selection.range.start
-                                    ..selection.range.start + replacement_text_len,
-                                copied_text: Some(replaced_text),
-                                node_id: None,
-                            }),
-                        ])],
-                    )
-                } else {
-                    EditTransaction::from_action_groups(self.selection_set.clone(), vec![])
-                }
-            }),
-        );
+        let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
+            if let Some(replacement) = &selection.copied_text {
+                let replacement_text_len = replacement.len_chars();
+                let replaced_text = self.buffer.borrow().slice(&selection.range);
+                EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
+                    Action::Edit(Edit {
+                        start: selection.range.start,
+                        old: replaced_text.clone(),
+                        new: replacement.clone(),
+                    }),
+                    Action::Select(Selection {
+                        range: selection.range.start..selection.range.start + replacement_text_len,
+                        copied_text: Some(replaced_text),
+                        node_id: None,
+                    }),
+                ])])
+            } else {
+                EditTransaction::from_action_groups(vec![])
+            }
+        }));
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
@@ -368,33 +373,14 @@ impl Editor {
         edit_history_kind: EditHistoryKind,
         edit_transaction: EditTransaction,
     ) {
-        let inversed_edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set.clone(),
-            edit_transaction
-                .edits()
-                .iter()
-                .map(|edit| {
-                    ActionGroup::new(vec![Action::Edit(Edit {
-                        start: edit.start,
-                        old: edit.new.clone(),
-                        new: edit.old.clone(),
-                    })])
-                })
-                .collect_vec(),
-        );
-
-        match edit_history_kind {
-            EditHistoryKind::NewEdit => {
-                self.redo_edits.clear();
-                self.undo_edits.push(inversed_edit_transaction);
-            }
-            EditHistoryKind::Undo => {
-                self.redo_edits.push(inversed_edit_transaction);
-            }
-            EditHistoryKind::Redo => {
-                self.undo_edits.push(inversed_edit_transaction);
-            }
-        }
+        self.buffer
+            .borrow_mut()
+            .apply_edit_transaction(
+                &edit_transaction,
+                self.selection_set.clone(),
+                edit_history_kind,
+            )
+            .unwrap();
 
         if let Some((head, tail)) = edit_transaction.selections().split_first() {
             self.selection_set = SelectionSet {
@@ -407,38 +393,21 @@ impl Editor {
             }
         }
 
-        self.buffer
-            .borrow_mut()
-            .apply_edit_transaction(edit_transaction)
-            .unwrap();
-
         self.recalculate_scroll_offset()
     }
 
     fn undo(&mut self) {
-        if let Some(edit) = self.undo_edits.pop() {
-            self.revert_change(edit, EditHistoryKind::Undo);
-        } else {
-            log::info!("Nothing else to be undone")
+        let selection_set = self.buffer.borrow_mut().undo(self.selection_set.clone());
+        if let Some(selection_set) = selection_set {
+            self.update_selection_set(selection_set);
         }
     }
 
     fn redo(&mut self) {
-        if let Some(edit) = self.redo_edits.pop() {
-            self.revert_change(edit, EditHistoryKind::Redo);
-        } else {
-            log::info!("Nothing else to be redone")
+        let selection_set = self.buffer.borrow_mut().redo(self.selection_set.clone());
+        if let Some(selection_set) = selection_set {
+            self.update_selection_set(selection_set);
         }
-    }
-
-    fn revert_change(
-        &mut self,
-        edit_transaction: EditTransaction,
-        edit_history_kind: EditHistoryKind,
-    ) {
-        let selection = edit_transaction.selection_set.clone();
-        self.apply_edit_transaction(edit_history_kind, edit_transaction);
-        self.update_selection_set(selection)
     }
 
     fn change_cursor_direction(&mut self) {
@@ -604,9 +573,8 @@ impl Editor {
 
     /// Similar to Change in Vim
     fn change(&mut self) {
-        let edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
+        let edit_transaction =
+            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let copied_text: Rope = self.buffer.borrow().slice(&selection.range).into();
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
@@ -620,17 +588,15 @@ impl Editor {
                         node_id: None,
                     }),
                 ])
-            }),
-        );
+            }));
 
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
         self.enter_insert_mode();
     }
 
     fn insert(&mut self, s: &str) {
-        let edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
+        let edit_transaction =
+            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
                         start: selection.range.start,
@@ -643,8 +609,7 @@ impl Editor {
                         copied_text: selection.copied_text.clone(),
                     }),
                 ])
-            }),
-        );
+            }));
 
         // let edit_transaction = self.selection_set.replace(
         //     |_| Rope::new(),
@@ -816,7 +781,11 @@ impl Editor {
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
                 new_buffer
-                    .apply_edit_transaction(edit_transaction.clone())
+                    .apply_edit_transaction(
+                        &edit_transaction,
+                        self.selection_set.clone(),
+                        EditHistoryKind::NewEdit,
+                    )
                     .unwrap();
                 new_buffer
             };
@@ -844,7 +813,7 @@ impl Editor {
             );
 
             if next_selection.eq(&new_selection) {
-                return EditTransaction::from_action_groups(self.selection_set.clone(), vec![]);
+                return EditTransaction::from_action_groups(vec![]);
             }
 
             next_selection = new_selection;
@@ -858,66 +827,60 @@ impl Editor {
         let get_trial_edit_transaction =
             |current_selection: &Selection, next_selection: &Selection| {
                 let text_at_current_selection = buffer.slice(&current_selection.range);
-                EditTransaction::from_action_groups(
-                    self.selection_set.clone(),
-                    vec![
-                        ActionGroup::new(vec![Action::Edit(Edit {
-                            start: current_selection.range.start,
-                            old: text_at_current_selection.clone(),
-                            new: buffer.slice(&next_selection.range),
-                        })]),
-                        ActionGroup::new(vec![Action::Edit(Edit {
-                            start: next_selection.range.start,
-                            old: buffer.slice(&next_selection.range),
-                            // We need to add whitespace on both end of the replacement
-                            //
-                            // Otherwise we might get the following replacement in Rust:
-                            // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
-                            //
-                            // Before:                              foo.bar(baz)
-                            // Result (with whitespace padding):    baz
-                            // Result (without padding):            foo.barbaz
-                            new: Rope::from_str(
-                                &(" ".to_string()
-                                    + &text_at_current_selection.to_string()
-                                    + &" ".to_string()),
-                            ),
-                        })]),
-                    ],
-                )
+                EditTransaction::from_action_groups(vec![
+                    ActionGroup::new(vec![Action::Edit(Edit {
+                        start: current_selection.range.start,
+                        old: text_at_current_selection.clone(),
+                        new: buffer.slice(&next_selection.range),
+                    })]),
+                    ActionGroup::new(vec![Action::Edit(Edit {
+                        start: next_selection.range.start,
+                        old: buffer.slice(&next_selection.range),
+                        // We need to add whitespace on both end of the replacement
+                        //
+                        // Otherwise we might get the following replacement in Rust:
+                        // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
+                        //
+                        // Before:                              foo.bar(baz)
+                        // Result (with whitespace padding):    baz
+                        // Result (without padding):            foo.barbaz
+                        new: Rope::from_str(
+                            &(" ".to_string()
+                                + &text_at_current_selection.to_string()
+                                + &" ".to_string()),
+                        ),
+                    })]),
+                ])
             };
 
         let get_actual_edit_transaction =
             |current_selection: &Selection, next_selection: &Selection| {
                 let text_at_current_selection: Rope = buffer.slice(&current_selection.range);
                 let text_at_next_selection: Rope = buffer.slice(&next_selection.range);
-                EditTransaction::from_action_groups(
-                    self.selection_set.clone(),
-                    vec![
-                        ActionGroup::new(vec![Action::Edit(Edit {
-                            start: current_selection.range.start,
-                            old: text_at_current_selection.clone(),
-                            new: text_at_next_selection.clone(),
-                        })]),
-                        ActionGroup::new(vec![
-                            Action::Edit(Edit {
-                                start: next_selection.range.start,
-                                old: text_at_next_selection,
-                                // This time without whitespace padding
-                                new: text_at_current_selection.clone(),
-                            }),
-                            Action::Select(Selection {
-                                range: next_selection.range.start
-                                    ..CharIndex(
-                                        next_selection.range.start.0
-                                            + text_at_current_selection.len_chars(),
-                                    ),
-                                node_id: None,
-                                copied_text: current_selection.copied_text.clone(),
-                            }),
-                        ]),
-                    ],
-                )
+                EditTransaction::from_action_groups(vec![
+                    ActionGroup::new(vec![Action::Edit(Edit {
+                        start: current_selection.range.start,
+                        old: text_at_current_selection.clone(),
+                        new: text_at_next_selection.clone(),
+                    })]),
+                    ActionGroup::new(vec![
+                        Action::Edit(Edit {
+                            start: next_selection.range.start,
+                            old: text_at_next_selection,
+                            // This time without whitespace padding
+                            new: text_at_current_selection.clone(),
+                        }),
+                        Action::Select(Selection {
+                            range: next_selection.range.start
+                                ..CharIndex(
+                                    next_selection.range.start.0
+                                        + text_at_current_selection.len_chars(),
+                                ),
+                            node_id: None,
+                            copied_text: current_selection.copied_text.clone(),
+                        }),
+                    ]),
+                ])
             };
 
         let edit_transactions = self.selection_set.map(|selection| {
@@ -932,7 +895,7 @@ impl Editor {
 
         self.apply_edit_transaction(
             EditHistoryKind::NewEdit,
-            EditTransaction::merge(self.selection_set.clone(), edit_transactions),
+            EditTransaction::merge(edit_transactions),
         )
     }
 
@@ -1014,9 +977,8 @@ impl Editor {
     }
 
     fn backspace(&mut self) {
-        let edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
+        let edit_transaction =
+            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let start = CharIndex(selection.range.start.0.saturating_sub(1));
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
@@ -1030,74 +992,65 @@ impl Editor {
                         node_id: None,
                     }),
                 ])
-            }),
-        );
+            }));
 
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
     }
 
     fn eat(&mut self, direction: Direction) {
         let buffer = self.buffer.borrow().clone();
-        let edit_transaction = EditTransaction::merge(
-            self.selection_set.clone(),
-            self.selection_set.map(|selection| {
-                let get_trial_edit_transaction =
-                    |current_selection: &Selection, next_selection: &Selection| {
-                        let range = current_selection
-                            .range
-                            .start
-                            .min(next_selection.range.start)
-                            ..current_selection.range.end.max(next_selection.range.end);
+        let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
+            let get_trial_edit_transaction =
+                |current_selection: &Selection, next_selection: &Selection| {
+                    let range = current_selection
+                        .range
+                        .start
+                        .min(next_selection.range.start)
+                        ..current_selection.range.end.max(next_selection.range.end);
 
-                        // Add whitespace padding
-                        let new: Rope =
-                            format!(" {} ", buffer.slice(&current_selection.range).to_string())
-                                .into();
+                    // Add whitespace padding
+                    let new: Rope =
+                        format!(" {} ", buffer.slice(&current_selection.range).to_string()).into();
 
-                        EditTransaction::from_action_groups(
-                            self.selection_set.clone(),
-                            vec![ActionGroup::new(vec![Action::Edit(Edit {
-                                start: range.start,
-                                old: buffer.slice(&range),
-                                new,
-                            })])],
-                        )
-                    };
-                let get_actual_edit_transaction =
-                    |current_selection: &Selection, other_selection: &Selection| {
-                        let range = current_selection
-                            .range
-                            .start
-                            .min(other_selection.range.start)
-                            ..current_selection.range.end.max(other_selection.range.end);
-                        let new: Rope = buffer.slice(&current_selection.range);
+                    EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
+                        Edit {
+                            start: range.start,
+                            old: buffer.slice(&range),
+                            new,
+                        },
+                    )])])
+                };
+            let get_actual_edit_transaction =
+                |current_selection: &Selection, other_selection: &Selection| {
+                    let range = current_selection
+                        .range
+                        .start
+                        .min(other_selection.range.start)
+                        ..current_selection.range.end.max(other_selection.range.end);
+                    let new: Rope = buffer.slice(&current_selection.range);
 
-                        let new_len_chars = new.len_chars();
-                        EditTransaction::from_action_groups(
-                            self.selection_set.clone(),
-                            vec![ActionGroup::new(vec![
-                                Action::Edit(Edit {
-                                    start: range.start,
-                                    old: buffer.slice(&range),
-                                    new,
-                                }),
-                                Action::Select(Selection {
-                                    range: range.start..(range.start + new_len_chars),
-                                    node_id: None,
-                                    copied_text: current_selection.copied_text.clone(),
-                                }),
-                            ])],
-                        )
-                    };
-                self.get_valid_selection(
-                    &selection,
-                    &self.selection_set.mode,
-                    &direction,
-                    get_trial_edit_transaction,
-                    get_actual_edit_transaction,
-                )
-            }),
-        );
+                    let new_len_chars = new.len_chars();
+                    EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
+                        Action::Edit(Edit {
+                            start: range.start,
+                            old: buffer.slice(&range),
+                            new,
+                        }),
+                        Action::Select(Selection {
+                            range: range.start..(range.start + new_len_chars),
+                            node_id: None,
+                            copied_text: current_selection.copied_text.clone(),
+                        }),
+                    ])])
+                };
+            self.get_valid_selection(
+                &selection,
+                &self.selection_set.mode,
+                &direction,
+                get_trial_edit_transaction,
+                get_actual_edit_transaction,
+            )
+        }));
         self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction)
     }
 
@@ -1114,50 +1067,6 @@ pub fn node_to_selection(node: Node, buffer: &Buffer, copied_text: Option<Rope>)
     }
 }
 
-fn apply_edit_transaction(
-    tree: Tree,
-    text: Rope,
-    edit_transaction: EditTransaction,
-) -> Result<(Tree, Rope), anyhow::Error> {
-    edit_transaction
-        .edits()
-        .into_iter()
-        .fold(Ok((tree, text)), |result, edit| match result {
-            Err(err) => Err(err),
-            Ok((tree, text)) => apply_edit(tree, text, edit),
-        })
-}
-
-fn apply_edit(mut tree: Tree, mut text: Rope, edit: &Edit) -> Result<(Tree, Rope), anyhow::Error> {
-    let start_char_index = edit.start;
-    let old_end_char_index = edit.end();
-    let new_end_char_index = edit.start + edit.new.len_chars();
-
-    let start_byte = start_char_index.to_byte(&text);
-    let old_end_byte = old_end_char_index.to_byte(&text);
-    let start_position = start_char_index.to_point(&text);
-    let old_end_position = old_end_char_index.to_point(&text);
-
-    text.remove(edit.start.0..edit.end().0);
-    text.insert(edit.start.0, edit.new.to_string().as_str());
-
-    let new_end_byte = new_end_char_index.to_byte(&text);
-    let new_end_position = new_end_char_index.to_point(&text);
-
-    let mut parser = tree_sitter::Parser::new();
-    parser.set_language(tree.language()).unwrap();
-    tree.edit(&InputEdit {
-        start_byte,
-        old_end_byte,
-        new_end_byte,
-        start_position,
-        old_end_position,
-        new_end_position,
-    });
-    let tree = parser.parse(&text.to_string(), Some(&tree)).unwrap();
-    Ok((tree, text))
-}
-
 pub enum HandleKeyEventResult {
     Consumed(Vec<Dispatch>),
     Unconsumed(KeyEvent),
@@ -1168,7 +1077,7 @@ pub enum Dispatch {
     SetSearch { search: String },
 }
 
-enum EditHistoryKind {
+pub enum EditHistoryKind {
     Undo,
     Redo,
     NewEdit,
@@ -1182,7 +1091,7 @@ mod test_engine {
 
     #[test]
     fn select_character() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         buffer.select_character(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["f"]);
         buffer.select_character(Direction::Forward);
@@ -1195,7 +1104,7 @@ mod test_engine {
     #[test]
     fn select_line() {
         // Multiline source code
-        let mut buffer = Editor::new(
+        let mut buffer = Editor::from_text(
             language(),
             "
 fn main() {
@@ -1215,7 +1124,7 @@ fn main() {
 
     #[test]
     fn select_word() {
-        let mut buffer = Editor::new(
+        let mut buffer = Editor::from_text(
             language(),
             "fn main_fn() { let x = \"hello world lisp-y\"; }",
         );
@@ -1253,7 +1162,7 @@ fn main() {
 
     #[test]
     fn select_match() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         let search = Some("\\b\\w+".to_string());
 
         buffer.select_match(Direction::Forward, &search);
@@ -1279,7 +1188,7 @@ fn main() {
 
     #[test]
     fn select_token() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["fn"]);
         buffer.select_token(Direction::Forward);
@@ -1303,7 +1212,7 @@ fn main() {
 
     #[test]
     fn select_parent() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         // Move token to 1
         for _ in 0..9 {
             buffer.select_token(Direction::Forward);
@@ -1329,7 +1238,7 @@ fn main() {
 
     #[test]
     fn select_sibling() {
-        let mut buffer = Editor::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut buffer = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..4 {
             buffer.select_token(Direction::Forward);
@@ -1352,7 +1261,7 @@ fn main() {
 
     #[test]
     fn select_kids() {
-        let mut buffer = Editor::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut buffer = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x"
         for _ in 0..4 {
             buffer.select_token(Direction::Forward);
@@ -1365,7 +1274,7 @@ fn main() {
 
     #[test]
     fn select_named_node() {
-        let mut buffer = Editor::new(language(), "fn main(x: usize) { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main(x: usize) { let x = 1; }");
 
         buffer.select_named_node(Direction::Forward);
         assert_eq!(
@@ -1399,7 +1308,7 @@ fn main() {
 
     #[test]
     fn copy_replace() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         buffer.copy();
         buffer.select_token(Direction::Forward);
@@ -1413,7 +1322,7 @@ fn main() {
 
     #[test]
     fn copy_paste() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         buffer.copy();
         buffer.select_token(Direction::Forward);
@@ -1424,7 +1333,7 @@ fn main() {
 
     #[test]
     fn cut_paste() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         buffer.select_token(Direction::Forward);
         buffer.cut();
         assert_eq!(buffer.get_text(), " main() { let x = 1; }");
@@ -1439,7 +1348,7 @@ fn main() {
 
     #[test]
     fn exchange_sibling() {
-        let mut buffer = Editor::new(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut buffer = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..4 {
             buffer.select_token(Direction::Forward);
@@ -1457,7 +1366,7 @@ fn main() {
 
     #[test]
     fn eat_parent() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = a.b(c()); }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
         // Move selection to "c()"
         for _ in 0..10 {
             buffer.select_named_node(Direction::Forward);
@@ -1477,7 +1386,7 @@ fn main() {
     #[test]
     fn exchange_line() {
         // Multiline source code
-        let mut buffer = Editor::new(
+        let mut buffer = Editor::from_text(
             language(),
             "
 fn main() {
@@ -1512,7 +1421,7 @@ fn main() {
 
     #[test]
     fn exchange_character() {
-        let mut buffer = Editor::new(language(), "fn main() { let x = 1; }");
+        let mut buffer = Editor::from_text(language(), "fn main() { let x = 1; }");
         buffer.select_character(Direction::Forward);
 
         buffer.exchange(Direction::Forward);
@@ -1528,7 +1437,7 @@ fn main() {
 
     #[test]
     fn multi_insert() {
-        let mut buffer = Editor::new(language(), "struct A(usize, char)");
+        let mut buffer = Editor::from_text(language(), "struct A(usize, char)");
         // Select 'usize'
         for _ in 0..4 {
             buffer.select_named_node(Direction::Forward);
@@ -1552,7 +1461,7 @@ fn main() {
 
     #[test]
     fn multi_eat_parent() {
-        let mut buffer = Editor::new(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
         for _ in 0..5 {
             buffer.select_named_node(Direction::Forward);
@@ -1592,7 +1501,7 @@ fn main() {
 
     #[test]
     fn multi_exchange_sibling() {
-        let mut buffer = Editor::new(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
+        let mut buffer = Editor::from_text(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
         // Select 'fn f(x:a,y:b){}'
         buffer.select_token(Direction::Forward);
         buffer.select_parent(Direction::Forward);
@@ -1627,7 +1536,7 @@ fn main() {
 
     #[test]
     fn multi_paste() {
-        let mut buffer = Editor::new(
+        let mut buffer = Editor::from_text(
             language(),
             "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }",
         );

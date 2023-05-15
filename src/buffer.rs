@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ops::Range, path::Path};
 
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
@@ -6,7 +6,8 @@ use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
     edit::{Edit, EditTransaction},
-    selection::{CharIndex, Selection, ToRangeUsize},
+    engine::EditHistoryKind,
+    selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,
 };
 
@@ -14,6 +15,8 @@ use crate::{
 pub struct Buffer {
     rope: Rope,
     tree: Tree,
+    undo_patches: Vec<Patch>,
+    redo_patches: Vec<Patch>,
 }
 
 impl Buffer {
@@ -25,6 +28,8 @@ impl Buffer {
                 parser.set_language(language).unwrap();
                 parser.parse(text.to_string(), None).unwrap()
             },
+            undo_patches: Vec::new(),
+            redo_patches: Vec::new(),
         }
     }
 
@@ -128,7 +133,9 @@ impl Buffer {
 
     pub fn apply_edit_transaction(
         &mut self,
-        edit_transaction: EditTransaction,
+        edit_transaction: &EditTransaction,
+        current_selection_set: SelectionSet,
+        edit_history_kind: EditHistoryKind,
     ) -> Result<(), anyhow::Error> {
         edit_transaction
             .edits()
@@ -136,7 +143,61 @@ impl Buffer {
             .fold(Ok(()), |result, edit| match result {
                 Err(err) => Err(err),
                 Ok(()) => self.apply_edit(&edit),
-            })
+            })?;
+
+        let patch = Patch {
+            selection_set: current_selection_set,
+            edit_transaction: edit_transaction.inverse(),
+        };
+
+        match edit_history_kind {
+            EditHistoryKind::NewEdit => {
+                self.redo_patches.clear();
+                self.undo_patches.push(patch);
+            }
+            EditHistoryKind::Undo => {
+                self.redo_patches.push(patch);
+            }
+            EditHistoryKind::Redo => {
+                self.undo_patches.push(patch);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn undo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
+        if let Some(patch) = self.undo_patches.pop() {
+            self.revert_change(&patch, current_selection_set, EditHistoryKind::Undo);
+            Some(patch.selection_set)
+        } else {
+            log::info!("Nothing else to be undone");
+            None
+        }
+    }
+
+    pub fn redo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
+        if let Some(patch) = self.redo_patches.pop() {
+            self.revert_change(&patch, current_selection_set, EditHistoryKind::Redo);
+            Some(patch.selection_set)
+        } else {
+            log::info!("Nothing else to be redone");
+            None
+        }
+    }
+
+    fn revert_change(
+        &mut self,
+        patch: &Patch,
+        current_selection_set: SelectionSet,
+        edit_history_kind: EditHistoryKind,
+    ) {
+        self.apply_edit_transaction(
+            &patch.edit_transaction,
+            current_selection_set,
+            edit_history_kind,
+        )
+        .unwrap();
     }
 
     pub fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
@@ -185,4 +246,25 @@ impl Buffer {
             false
         }
     }
+
+    pub fn from_path(path: &Path) -> Buffer {
+        let content = std::fs::read_to_string(path).unwrap();
+        let language = match path.extension().unwrap().to_str().unwrap() {
+            "js" | "jsx" => tree_sitter_javascript::language(),
+            "ts" => tree_sitter_typescript::language_typescript(),
+            "tsx" => tree_sitter_typescript::language_tsx(),
+            "rs" => tree_sitter_rust::language(),
+            "md" => tree_sitter_md::language(),
+            _ => panic!("Unsupported file extension"),
+        };
+
+        Buffer::new(language, &content)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Patch {
+    pub edit_transaction: EditTransaction,
+    /// Used for restoring previous selection after undo/redo
+    pub selection_set: SelectionSet,
 }

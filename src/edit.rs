@@ -3,6 +3,7 @@ use std::ops::Range;
 use itertools::Itertools;
 use ropey::Rope;
 
+use crate::buffer::Patch;
 use crate::selection::{CharIndex, Selection, SelectionSet};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -87,10 +88,8 @@ impl Action {
 
 #[derive(Clone, Debug)]
 pub struct EditTransaction {
+    /// This `action_group` should be always normalized.
     action_group: ActionGroup,
-    /// TODO: `selection_set` should not belong here, but rather belong to the UndoableAction struct.
-    /// Used for restoring previous selection after undo/redo
-    pub selection_set: SelectionSet,
 }
 
 impl EditTransaction {
@@ -122,20 +121,15 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub fn from_action_groups(
-        current_selection_set: SelectionSet,
-        action_groups: Vec<ActionGroup>,
-    ) -> Self {
+    pub fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             action_group: Self::normalize_action_groups(action_groups),
-            selection_set: current_selection_set,
         }
     }
 
     #[cfg(test)]
     pub fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
         Self {
-            selection_set: SelectionSet::default(),
             action_group: Self::normalize_action_groups(action_groups),
         }
     }
@@ -180,12 +174,8 @@ impl EditTransaction {
             .unwrap_or(CharIndex(0))
     }
 
-    pub fn merge(
-        selection_set: SelectionSet,
-        edit_transactions: Vec<EditTransaction>,
-    ) -> EditTransaction {
+    pub fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
         EditTransaction::from_action_groups(
-            selection_set,
             edit_transactions
                 .into_iter()
                 .map(|transaction| transaction.action_group)
@@ -206,6 +196,21 @@ impl EditTransaction {
 
     pub fn range(&self) -> Range<CharIndex> {
         self.min_char_index()..self.max_char_index()
+    }
+
+    pub fn inverse(&self) -> EditTransaction {
+        EditTransaction::from_action_groups(
+            self.edits()
+                .iter()
+                .map(|edit| {
+                    ActionGroup::new(vec![Action::Edit(Edit {
+                        start: edit.start,
+                        old: edit.new.clone(),
+                        new: edit.old.clone(),
+                    })])
+                })
+                .collect_vec(),
+        )
     }
 }
 
