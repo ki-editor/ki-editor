@@ -310,7 +310,7 @@ impl Editor {
                 ])
             }));
 
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+        self.apply_edit_transaction(edit_transaction);
     }
 
     fn copy(&mut self) {
@@ -341,7 +341,7 @@ impl Editor {
             }
         });
         let edit_transaction = EditTransaction::merge(edit_transactions);
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+        self.apply_edit_transaction(edit_transaction);
     }
 
     fn replace(&mut self) {
@@ -365,21 +365,13 @@ impl Editor {
                 EditTransaction::from_action_groups(vec![])
             }
         }));
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+        self.apply_edit_transaction(edit_transaction);
     }
 
-    fn apply_edit_transaction(
-        &mut self,
-        edit_history_kind: EditHistoryKind,
-        edit_transaction: EditTransaction,
-    ) {
+    fn apply_edit_transaction(&mut self, edit_transaction: EditTransaction) {
         self.buffer
             .borrow_mut()
-            .apply_edit_transaction(
-                &edit_transaction,
-                self.selection_set.clone(),
-                edit_history_kind,
-            )
+            .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
             .unwrap();
 
         if let Some((head, tail)) = edit_transaction.selections().split_first() {
@@ -590,7 +582,7 @@ impl Editor {
                 ])
             }));
 
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+        self.apply_edit_transaction(edit_transaction);
         self.enter_insert_mode();
     }
 
@@ -611,12 +603,7 @@ impl Editor {
                 ])
             }));
 
-        // let edit_transaction = self.selection_set.replace(
-        //     |_| Rope::new(),
-        //     |_| Rope::from_str(s),
-        //     |edit| edit.start + 1..edit.start + 1,
-        // );
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+        self.apply_edit_transaction(edit_transaction);
     }
 
     fn handle_insert_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
@@ -781,11 +768,7 @@ impl Editor {
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
                 new_buffer
-                    .apply_edit_transaction(
-                        &edit_transaction,
-                        self.selection_set.clone(),
-                        EditHistoryKind::NewEdit,
-                    )
+                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
                     .unwrap();
                 new_buffer
             };
@@ -893,10 +876,7 @@ impl Editor {
             )
         });
 
-        self.apply_edit_transaction(
-            EditHistoryKind::NewEdit,
-            EditTransaction::merge(edit_transactions),
-        )
+        self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
     }
 
     fn exchange(&mut self, direction: Direction) {
@@ -994,7 +974,7 @@ impl Editor {
                 ])
             }));
 
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction);
+        self.apply_edit_transaction(edit_transaction);
     }
 
     fn eat(&mut self, direction: Direction) {
@@ -1051,7 +1031,7 @@ impl Editor {
                 get_actual_edit_transaction,
             )
         }));
-        self.apply_edit_transaction(EditHistoryKind::NewEdit, edit_transaction)
+        self.apply_edit_transaction(edit_transaction)
     }
 
     pub fn buffer(&self) -> Ref<Buffer> {
@@ -1075,12 +1055,6 @@ pub enum HandleKeyEventResult {
 pub enum Dispatch {
     CloseCurrentWindow { change_focused_to: usize },
     SetSearch { search: String },
-}
-
-pub enum EditHistoryKind {
-    Undo,
-    Redo,
-    NewEdit,
 }
 
 #[cfg(test)]

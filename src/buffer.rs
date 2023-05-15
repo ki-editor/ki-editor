@@ -6,7 +6,6 @@ use tree_sitter_traversal::{traverse, Order};
 
 use crate::{
     edit::{Edit, EditTransaction},
-    engine::EditHistoryKind,
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,
 };
@@ -135,8 +134,8 @@ impl Buffer {
         &mut self,
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
-        edit_history_kind: EditHistoryKind,
     ) -> Result<(), anyhow::Error> {
+        let before = self.rope.to_string();
         edit_transaction
             .edits()
             .into_iter()
@@ -145,30 +144,21 @@ impl Buffer {
                 Ok(()) => self.apply_edit(&edit),
             })?;
 
-        let patch = Patch {
-            selection_set: current_selection_set,
-            edit_transaction: edit_transaction.inverse(),
-        };
+        let after = self.rope.to_string();
 
-        match edit_history_kind {
-            EditHistoryKind::NewEdit => {
-                self.redo_patches.clear();
-                self.undo_patches.push(patch);
-            }
-            EditHistoryKind::Undo => {
-                self.redo_patches.push(patch);
-            }
-            EditHistoryKind::Redo => {
-                self.undo_patches.push(patch);
-            }
-        }
+        self.redo_patches.clear();
+        self.undo_patches.push(Patch {
+            selection_set: current_selection_set,
+            patch: diffy::create_patch(&after, &before).to_string(),
+        });
 
         Ok(())
     }
 
     pub fn undo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
         if let Some(patch) = self.undo_patches.pop() {
-            self.revert_change(&patch, current_selection_set, EditHistoryKind::Undo);
+            let redo_patch = self.revert_change(&patch, current_selection_set);
+            self.redo_patches.push(redo_patch);
             Some(patch.selection_set)
         } else {
             log::info!("Nothing else to be undone");
@@ -178,7 +168,8 @@ impl Buffer {
 
     pub fn redo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
         if let Some(patch) = self.redo_patches.pop() {
-            self.revert_change(&patch, current_selection_set, EditHistoryKind::Redo);
+            let undo_patch = self.revert_change(&patch, current_selection_set);
+            self.undo_patches.push(undo_patch);
             Some(patch.selection_set)
         } else {
             log::info!("Nothing else to be redone");
@@ -186,18 +177,32 @@ impl Buffer {
         }
     }
 
-    fn revert_change(
-        &mut self,
-        patch: &Patch,
-        current_selection_set: SelectionSet,
-        edit_history_kind: EditHistoryKind,
-    ) {
-        self.apply_edit_transaction(
-            &patch.edit_transaction,
-            current_selection_set,
-            edit_history_kind,
+    fn revert_change(&mut self, patch: &Patch, current_selection_set: SelectionSet) -> Patch {
+        let before = self.rope.to_string();
+        self.rope = diffy::apply(
+            &self.rope.to_string(),
+            &diffy::Patch::from_str(&patch.patch).unwrap(),
         )
-        .unwrap();
+        .unwrap()
+        .into();
+
+        let after = self.rope.to_string();
+
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(self.tree.language()).unwrap();
+        self.tree = parser.parse(&self.rope.to_string(), None).unwrap();
+
+        Patch {
+            selection_set: current_selection_set,
+            patch: diffy::create_patch(&after, &before).to_string(),
+        }
+
+        // self.apply_edit_transaction(
+        //     &patch.edit_transaction,
+        //     current_selection_set,
+        //     edit_history_kind,
+        // )
+        // .unwrap();
     }
 
     pub fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
@@ -264,7 +269,9 @@ impl Buffer {
 
 #[derive(Clone, Debug)]
 pub struct Patch {
-    pub edit_transaction: EditTransaction,
     /// Used for restoring previous selection after undo/redo
     pub selection_set: SelectionSet,
+    /// Unified format patch
+    /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
+    pub patch: String,
 }

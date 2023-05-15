@@ -3,8 +3,7 @@ use std::ops::Range;
 use itertools::Itertools;
 use ropey::Rope;
 
-use crate::buffer::Patch;
-use crate::selection::{CharIndex, Selection, SelectionSet};
+use crate::selection::{CharIndex, Selection};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edit {
@@ -196,21 +195,6 @@ impl EditTransaction {
 
     pub fn range(&self) -> Range<CharIndex> {
         self.min_char_index()..self.max_char_index()
-    }
-
-    pub fn inverse(&self) -> EditTransaction {
-        EditTransaction::from_action_groups(
-            self.edits()
-                .iter()
-                .map(|edit| {
-                    ActionGroup::new(vec![Action::Edit(Edit {
-                        start: edit.start,
-                        old: edit.new.clone(),
-                        new: edit.old.clone(),
-                    })])
-                })
-                .collect_vec(),
-        )
     }
 }
 
