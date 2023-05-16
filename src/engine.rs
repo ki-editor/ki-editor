@@ -1,4 +1,7 @@
-use std::cell::{Ref, RefCell};
+use std::{
+    cell::{Ref, RefCell},
+    ops::Range,
+};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
 use itertools::Itertools;
@@ -33,13 +36,6 @@ pub struct Editor {
 
     pub cursor_direction: CursorDirection,
     selection_history: Vec<SelectionSet>,
-
-    /// TODO: this should be inside Selection
-    /// This indicates where the extended selection started
-    ///
-    /// Some = the selection is being extended
-    /// None = the selection is not being extended
-    extended_selection_anchor: Option<CharIndex>,
 
     normal_mode_override_fn: Option<EventHandler>,
     insert_mode_override_fn: Option<EventHandler>,
@@ -88,6 +84,7 @@ impl Editor {
                     range: CharIndex(0)..CharIndex(0),
                     node_id: None,
                     copied_text: None,
+                    initial_range: None,
                 },
                 secondary: vec![],
                 mode: SelectionMode::Custom,
@@ -95,7 +92,6 @@ impl Editor {
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
-            extended_selection_anchor: None,
             normal_mode_override_fn: None,
             insert_mode_override_fn: None,
             scroll_offset: 0,
@@ -111,6 +107,7 @@ impl Editor {
                     range: CharIndex(0)..CharIndex(0),
                     node_id: None,
                     copied_text: None,
+                    initial_range: None,
                 },
                 secondary: vec![],
                 mode: SelectionMode::Custom,
@@ -118,7 +115,6 @@ impl Editor {
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
-            extended_selection_anchor: None,
             normal_mode_override_fn: None,
             insert_mode_override_fn: None,
             scroll_offset: 0,
@@ -193,6 +189,7 @@ impl Editor {
         while let Some(selection_set) = self.selection_history.pop() {
             if selection_set != self.selection_set {
                 self.selection_set = selection_set;
+                self.recalculate_scroll_offset();
                 break;
             }
         }
@@ -200,7 +197,6 @@ impl Editor {
 
     fn reset(&mut self) {
         self.select(SelectionMode::Custom, Direction::Current);
-        self.extended_selection_anchor = None;
         self.selection_set.reset()
     }
 
@@ -295,17 +291,19 @@ impl Editor {
     fn cut(&mut self) {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let old = self.buffer.borrow().slice(&selection.range);
+                let old_range = selection.extended_range();
+                let old = self.buffer.borrow().slice(&old_range);
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
-                        start: selection.range.start,
+                        start: old_range.start,
                         old: old.clone(),
                         new: Rope::new(),
                     }),
                     Action::Select(Selection {
-                        range: selection.range.start..selection.range.start,
+                        range: old_range.start..old_range.start,
                         node_id: None,
                         copied_text: Some(old),
+                        initial_range: None,
                     }),
                 ])
             }));
@@ -334,6 +332,7 @@ impl Editor {
                         },
                         node_id: None,
                         copied_text: Some(copied_text.clone()),
+                        initial_range: None,
                     }),
                 ])])
             } else {
@@ -359,6 +358,7 @@ impl Editor {
                         range: selection.range.start..selection.range.start + replacement_text_len,
                         copied_text: Some(replaced_text),
                         node_id: None,
+                        initial_range: None,
                     }),
                 ])])
             } else {
@@ -432,24 +432,8 @@ impl Editor {
     }
 
     fn toggle_highlight_mode(&mut self) {
-        // if let Some(anchor) = self.extended_selection_anchor.take() {
-        //     // Reverse the anchor with the current cursor position
-        //     let cursor_index = self.get_cursor_char_index();
-        //     self.extended_selection_anchor = Some(cursor_index);
-        //     self.selection_set = Selection {
-        //         range: anchor..anchor,
-        //         node_id: None,
-        //         mode: SelectionMode::Custom,
-        //     };
-        //     self.cursor_direction = if cursor_index > anchor {
-        //         CursorDirection::Start
-        //     } else {
-        //         CursorDirection::End
-        //     };
-        // } else {
-        //     self.extended_selection_anchor = Some(self.get_cursor_char_index());
-        //     self.cursor_direction = CursorDirection::End;
-        // }
+        self.selection_set.toggle_highlight_mode();
+        self.recalculate_scroll_offset()
     }
 
     pub fn handle_key_event(&mut self, state: &State, key_event: KeyEvent) -> Vec<Dispatch> {
@@ -483,6 +467,7 @@ impl Editor {
                         range: CharIndex(0)..CharIndex(self.buffer.borrow().len_chars()),
                         node_id: None,
                         copied_text: self.selection_set.primary.copied_text.clone(),
+                        initial_range: None,
                     },
                     secondary: vec![],
                     mode: SelectionMode::Custom,
@@ -582,6 +567,7 @@ impl Editor {
                         range: selection.range.start..selection.range.start,
                         copied_text: Some(copied_text),
                         node_id: None,
+                        initial_range: None,
                     }),
                 ])
             }));
@@ -603,6 +589,7 @@ impl Editor {
                         range: selection.range.start + s.len()..selection.range.start + s.len(),
                         node_id: None,
                         copied_text: selection.copied_text.clone(),
+                        initial_range: None,
                     }),
                 ])
             }));
@@ -678,7 +665,7 @@ impl Editor {
             KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Esc => {
-                self.extended_selection_anchor = None;
+                // self.extended_selection_anchor = None;
             }
             KeyCode::Backspace => {
                 self.change();
@@ -698,7 +685,7 @@ impl Editor {
             selection.range = char_index..char_index
         });
         self.selection_set.mode = SelectionMode::Custom;
-        self.extended_selection_anchor = None;
+        // self.extended_selection_anchor = None;
         self.mode = Mode::Insert;
         self.cursor_direction = CursorDirection::Start;
     }
@@ -715,11 +702,6 @@ impl Editor {
         }
     }
 
-    pub fn get_extended_selection(&self) -> Option<Selection> {
-        self.extended_selection_anchor
-            .map(|anchor| Selection::from_two_char_indices(&anchor, &self.get_cursor_char_index()))
-    }
-
     // TODO: handle mouse click
     pub fn set_cursor_position(&mut self, row: u16, column: u16) {
         let start = (self.buffer.borrow().line_to_char(row as usize)) + column.into();
@@ -729,6 +711,7 @@ impl Editor {
                 range: start..start,
                 node_id: None,
                 copied_text: self.selection_set.primary.copied_text.clone(),
+                initial_range: self.selection_set.primary.initial_range.clone(),
             },
             ..self.selection_set.clone()
         })
@@ -819,10 +802,11 @@ impl Editor {
         let buffer = self.buffer.borrow().clone();
         let get_trial_edit_transaction =
             |current_selection: &Selection, next_selection: &Selection| {
-                let text_at_current_selection = buffer.slice(&current_selection.range);
+                let current_selection_range = current_selection.extended_range();
+                let text_at_current_selection = buffer.slice(&current_selection_range);
                 EditTransaction::from_action_groups(vec![
                     ActionGroup::new(vec![Action::Edit(Edit {
-                        start: current_selection.range.start,
+                        start: current_selection_range.start,
                         old: text_at_current_selection.clone(),
                         new: buffer.slice(&next_selection.range),
                     })]),
@@ -848,11 +832,13 @@ impl Editor {
 
         let get_actual_edit_transaction =
             |current_selection: &Selection, next_selection: &Selection| {
-                let text_at_current_selection: Rope = buffer.slice(&current_selection.range);
+                let current_selection_range = current_selection.extended_range();
+                let text_at_current_selection: Rope = buffer.slice(&current_selection_range);
                 let text_at_next_selection: Rope = buffer.slice(&next_selection.range);
+
                 EditTransaction::from_action_groups(vec![
                     ActionGroup::new(vec![Action::Edit(Edit {
-                        start: current_selection.range.start,
+                        start: current_selection_range.start,
                         old: text_at_current_selection.clone(),
                         new: text_at_next_selection.clone(),
                     })]),
@@ -865,12 +851,11 @@ impl Editor {
                         }),
                         Action::Select(Selection {
                             range: next_selection.range.start
-                                ..CharIndex(
-                                    next_selection.range.start.0
-                                        + text_at_current_selection.len_chars(),
-                                ),
+                                ..(next_selection.range.start
+                                    + text_at_current_selection.len_chars()),
                             node_id: None,
                             copied_text: current_selection.copied_text.clone(),
+                            initial_range: None,
                         }),
                     ]),
                 ])
@@ -905,13 +890,15 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
+    #[cfg(test)]
     pub fn get_selected_texts(&self) -> Vec<String> {
         let buffer = self.buffer.borrow();
         let rope = buffer.rope();
         let mut selections = self.selection_set.map(|selection| {
             (
                 selection.range.clone(),
-                rope.slice(selection.range.to_usize_range()).to_string(),
+                rope.slice(selection.extended_range().to_usize_range())
+                    .to_string(),
             )
         });
         selections.sort_by(|a, b| a.0.start.0.cmp(&b.0.start.0));
@@ -980,6 +967,7 @@ impl Editor {
                         range: start..start,
                         copied_text: selection.copied_text.clone(),
                         node_id: None,
+                        initial_range: selection.initial_range.clone(),
                     }),
                 ])
             }));
@@ -991,12 +979,12 @@ impl Editor {
         let buffer = self.buffer.borrow().clone();
         let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
-                |current_selection: &Selection, next_selection: &Selection| {
+                |current_selection: &Selection, other_selection: &Selection| {
                     let range = current_selection
                         .range
                         .start
-                        .min(next_selection.range.start)
-                        ..current_selection.range.end.max(next_selection.range.end);
+                        .min(other_selection.range.start)
+                        ..current_selection.range.end.max(other_selection.range.end);
 
                     // Add whitespace padding
                     let new: Rope =
@@ -1030,6 +1018,7 @@ impl Editor {
                             range: range.start..(range.start + new_len_chars),
                             node_id: None,
                             copied_text: current_selection.copied_text.clone(),
+                            initial_range: current_selection.initial_range.clone(),
                         }),
                     ])])
                 };
@@ -1049,11 +1038,17 @@ impl Editor {
     }
 }
 
-pub fn node_to_selection(node: Node, buffer: &Buffer, copied_text: Option<Rope>) -> Selection {
+pub fn node_to_selection(
+    node: Node,
+    buffer: &Buffer,
+    copied_text: Option<Rope>,
+    initial_range: Option<Range<CharIndex>>,
+) -> Selection {
     Selection {
         range: buffer.byte_to_char(node.start_byte())..buffer.byte_to_char(node.end_byte()),
         node_id: Some(node.id()),
         copied_text,
+        initial_range,
     }
 }
 
@@ -1071,6 +1066,7 @@ pub enum Dispatch {
 mod test_engine {
 
     use super::{Direction, Editor};
+    use pretty_assertions::assert_eq;
     use tree_sitter_rust::language;
 
     #[test]
@@ -1556,5 +1552,127 @@ fn main() {
             buffer.get_text(),
             "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }"
         );
+    }
+
+    #[test]
+    fn toggle_highlight_mode() {
+        let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+
+        buffer.select_token(Direction::Forward);
+        buffer.toggle_highlight_mode();
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f("]);
+
+        // Toggle the second time should inverse the initial_range
+        buffer.toggle_highlight_mode();
+
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["f("]);
+
+        buffer.reset();
+
+        assert_eq!(buffer.get_selected_texts(), vec![""]);
+
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["f"]);
+
+        // After reset, expect highlight mode is turned off
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["("]);
+    }
+
+    #[test]
+    fn highlight_mode_cut() {
+        let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        buffer.select_token(Direction::Forward);
+        buffer.toggle_highlight_mode();
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f()"]);
+
+        buffer.cut();
+
+        assert_eq!(buffer.get_text(), "{ let x = S(a); let y = S(b); }");
+
+        buffer.paste();
+
+        assert_eq!(buffer.get_text(), "fn f(){ let x = S(a); let y = S(b); }");
+    }
+
+    #[test]
+    fn highlight_mode_copy() {
+        let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        buffer.select_token(Direction::Forward);
+        buffer.toggle_highlight_mode();
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f()"]);
+
+        buffer.copy();
+
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["{"]);
+
+        buffer.paste();
+
+        assert_eq!(
+            buffer.get_text(),
+            "fn f()fn f() let x = S(a); let y = S(b); }"
+        );
+    }
+
+    #[test]
+    fn highlight_mode_replace() {
+        let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        buffer.select_token(Direction::Forward);
+        buffer.toggle_highlight_mode();
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+        buffer.select_token(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f()"]);
+
+        buffer.copy();
+
+        buffer.select_named_node(Direction::Forward);
+        buffer.select_named_node(Direction::Forward);
+
+        assert_eq!(
+            buffer.get_selected_texts(),
+            vec!["{ let x = S(a); let y = S(b); }"]
+        );
+
+        buffer.replace();
+
+        assert_eq!(buffer.get_text(), "fn f()fn f()");
+    }
+
+    #[test]
+    fn highlight_mode_exchange() {
+        let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        buffer.select_word(Direction::Forward);
+        buffer.toggle_highlight_mode();
+        buffer.select_word(Direction::Forward);
+
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f"]);
+
+        buffer.exchange(Direction::Forward);
+
+        assert_eq!(buffer.get_text(), "let(){ fn f x = S(a); let y = S(b); }");
+        assert_eq!(buffer.get_selected_texts(), vec!["fn f"]);
+
+        buffer.exchange(Direction::Forward);
+
+        assert_eq!(buffer.get_text(), "let(){ x fn f = S(a); let y = S(b); }");
     }
 }

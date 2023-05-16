@@ -39,6 +39,7 @@ impl SelectionSet {
 
     pub fn reset(&mut self) {
         self.secondary.clear();
+        self.primary.initial_range = None;
     }
 
     fn apply<F>(&self, mode: SelectionMode, f: F) -> SelectionSet
@@ -79,7 +80,8 @@ impl SelectionSet {
 
     pub fn copy(&mut self, buffer: &Buffer) {
         self.apply_mut(|selection| {
-            selection.copied_text = Some(buffer.slice(&selection.range));
+            selection.copied_text = Some(buffer.slice(&selection.extended_range()));
+            selection.initial_range = None;
         });
     }
 
@@ -103,6 +105,7 @@ impl SelectionSet {
                                 ..CharIndex(second_last_child.end_byte()),
                             node_id: None,
                             copied_text: selection.copied_text.clone(),
+                            initial_range: selection.initial_range.clone(),
                         };
                     }
                 }
@@ -144,6 +147,10 @@ impl SelectionSet {
 
         self.secondary.push(previous_primary);
     }
+
+    pub fn toggle_highlight_mode(&mut self) {
+        self.apply_mut(|selection| selection.toggle_highlight_mode());
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -177,6 +184,11 @@ pub struct Selection {
     pub range: Range<CharIndex>,
     pub node_id: Option<usize>,
     pub copied_text: Option<Rope>,
+
+    /// Used for extended selection.
+    /// Some = the selection is being extended
+    /// None = the selection is not being extended
+    pub initial_range: Option<Range<CharIndex>>,
 }
 impl Selection {
     pub fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
@@ -188,6 +200,16 @@ impl Selection {
         }
     }
 
+    pub fn extended_range(&self) -> Range<CharIndex> {
+        match &self.initial_range {
+            None => self.range.clone(),
+            Some(extended_selection_anchor) => {
+                self.range.start.min(extended_selection_anchor.start)
+                    ..self.range.end.max(extended_selection_anchor.end)
+            }
+        }
+    }
+
     pub fn from_two_char_indices(
         anchor: &CharIndex,
         get_cursor_char_index: &CharIndex,
@@ -196,6 +218,7 @@ impl Selection {
             range: *anchor.min(get_cursor_char_index)..*anchor.max(get_cursor_char_index),
             node_id: None,
             copied_text: None,
+            initial_range: None,
         }
     }
 
@@ -205,6 +228,7 @@ impl Selection {
             range: CharIndex(0)..CharIndex(0),
             node_id: None,
             copied_text: None,
+            initial_range: None,
         }
     }
 
@@ -215,6 +239,7 @@ impl Selection {
         direction: &Direction,
         cursor_direction: &CursorDirection,
     ) -> Selection {
+        // NOTE: cursor_char_index should only be used where the Direction is Current
         let cursor_char_index = {
             let index = current_selection.to_char_index(cursor_direction);
             match cursor_direction {
@@ -223,8 +248,14 @@ impl Selection {
                 CursorDirection::End => index - 1,
             }
         };
+        let initial_range = current_selection.initial_range.clone();
         let cursor_byte = buffer.char_to_byte(cursor_char_index);
         let copied_text = current_selection.copied_text.clone();
+
+        let Range {
+            start: (current_selection_start),
+            end: (current_selection_end),
+        } = current_selection.extended_range();
         match mode {
             SelectionMode::NamedNode => match direction {
                 Direction::Current => {
@@ -232,7 +263,7 @@ impl Selection {
                 }
                 Direction::Forward => buffer
                     .traverse(Order::Pre)
-                    .find(|node| node.start_byte() > cursor_byte && node.is_named()),
+                    .find(|node| node.start_byte() > current_selection_start.0 && node.is_named()),
                 Direction::Backward => {
                     find_previous(
                         buffer.traverse(Order::Pre),
@@ -245,11 +276,11 @@ impl Selection {
                             }
                             None => true,
                         },
-                        |node| node.start_byte() >= cursor_byte && node.is_named(),
+                        |node| node.start_byte() >= current_selection_start.0 && node.is_named(),
                     )
                 }
             }
-            .map(|node| node_to_selection(node, buffer, copied_text))
+            .map(|node| node_to_selection(node, buffer, copied_text, initial_range))
             .unwrap_or_else(|| current_selection.clone()),
 
             SelectionMode::Line => get_selection_via_regex(
@@ -328,18 +359,22 @@ impl Selection {
                         node.unwrap_or(current_node)
                     }
                 };
-                node_to_selection(node, buffer, copied_text)
+                node_to_selection(node, buffer, copied_text, initial_range)
             }
 
             SelectionMode::SiblingNode => {
                 let current_node = buffer.get_current_node(cursor_char_index, current_selection);
                 let next_node = match direction {
                     Direction::Current => Some(current_node),
-                    Direction::Forward => current_node.next_named_sibling(),
-                    Direction::Backward => current_node.prev_named_sibling(),
+                    Direction::Forward => buffer
+                        .get_current_node(current_selection_end, current_selection)
+                        .next_named_sibling(),
+                    Direction::Backward => buffer
+                        .get_current_node(current_selection_start, current_selection)
+                        .prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
-                node_to_selection(next_node, buffer, copied_text)
+                node_to_selection(next_node, buffer, copied_text, initial_range)
             }
             SelectionMode::Token => {
                 let selection = match direction {
@@ -354,14 +389,26 @@ impl Selection {
                         .get_next_token(cursor_char_index, true)
                         .unwrap_or_else(|| buffer.tree().root_node())
                 });
-                node_to_selection(selection, buffer, copied_text, extended_selection_anchor)
+                node_to_selection(selection, buffer, copied_text, initial_range)
             }
             SelectionMode::Custom => Selection {
                 range: cursor_char_index..cursor_char_index,
                 node_id: None,
                 copied_text,
-                extended_selection_anchor: current_selection.extended_selection_anchor,
+                initial_range: current_selection.initial_range.clone(),
             },
+        }
+    }
+
+    pub fn toggle_highlight_mode(&mut self) {
+        match self.initial_range.take() {
+            None => {
+                self.initial_range = Some(self.range.clone());
+            }
+            // If highlight mode is enabled, inverse the selection
+            Some(initial_range) => {
+                self.initial_range = Some(std::mem::replace(&mut self.range, initial_range));
+            }
         }
     }
 }
@@ -405,7 +452,7 @@ fn get_selection_via_ast_grep(
                 ..buffer.byte_to_char(matches.range().end),
             node_id: None,
             copied_text,
-            extended_selection_anchor: current_selection.extended_selection_anchor,
+            initial_range: current_selection.initial_range.clone(),
         },
     }
 }
@@ -421,11 +468,11 @@ fn get_selection_via_regex(
     let string = buffer.rope().to_string();
     let matches = match direction {
         Direction::Current => regex.find_at(&string, cursor_byte),
-        Direction::Forward => regex.find_at(&string, cursor_byte + 1),
+        Direction::Forward => regex.find_at(&string, current_selection.extended_range().end.0),
         Direction::Backward => find_previous(
             &mut regex.find_iter(&string),
             |_, _| true,
-            |match_| match_.start() >= cursor_byte,
+            |match_| match_.start() >= current_selection.extended_range().start.0,
         ),
     };
 
@@ -435,6 +482,7 @@ fn get_selection_via_regex(
             range: buffer.byte_to_char(matches.start())..buffer.byte_to_char(matches.end()),
             node_id: None,
             copied_text,
+            initial_range: current_selection.initial_range.clone(),
         },
     }
 }
@@ -447,6 +495,7 @@ impl Add<usize> for Selection {
             range: self.range.start + rhs..self.range.end + rhs,
             node_id: self.node_id,
             copied_text: self.copied_text,
+            initial_range: self.initial_range,
         }
     }
 }
@@ -459,6 +508,7 @@ impl Sub<usize> for Selection {
             range: self.range.start - rhs..self.range.end - rhs,
             node_id: self.node_id,
             copied_text: self.copied_text,
+            initial_range: self.initial_range,
         }
     }
 }

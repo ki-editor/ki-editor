@@ -277,10 +277,6 @@ impl Buffer {
             log::info!("Buffer has no path");
         }
     }
-
-    pub fn path(&self) -> &Option<PathBuf> {
-        &self.path
-    }
 }
 
 #[derive(Clone, Debug)]

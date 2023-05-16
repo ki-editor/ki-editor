@@ -29,7 +29,6 @@ impl Editor {
             .collect::<Vec<(_, RopeSlice)>>();
 
         let secondary_selections = &editor.selection_set.secondary;
-        let extended_selection = editor.get_extended_selection();
 
         for (line_index, line) in lines {
             let line_start_char_index = buffer.line_to_char(line_index);
@@ -37,19 +36,7 @@ impl Editor {
                 let char_index = line_start_char_index + column_index;
 
                 let (foreground_color, background_color) =
-                    if let Some(ref extended_selection) = extended_selection {
-                        if selection.range.contains(&char_index)
-                            && extended_selection.range.contains(&char_index)
-                        {
-                            (Color::Black, Color::Green)
-                        } else if extended_selection.range.contains(&char_index) {
-                            (Color::Black, Color::Cyan)
-                        } else if selection.range.contains(&char_index) {
-                            (Color::Black, Color::Yellow)
-                        } else {
-                            (Color::Black, Color::White)
-                        }
-                    } else if selection.range.contains(&char_index) {
+                    if selection.extended_range().contains(&char_index) {
                         (Color::Black, Color::Yellow)
                     } else if secondary_selections.iter().any(|secondary_selection| {
                         secondary_selection.to_char_index(&editor.cursor_direction) == char_index
