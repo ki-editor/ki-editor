@@ -286,6 +286,14 @@ impl Selection {
                     current_selection,
                     copied_text,
                 )
+                // get_selection_via_ast_grep(
+                //     buffer,
+                //     cursor_byte,
+                //     search,
+                //     direction,
+                //     current_selection,
+                //     copied_text,
+                // )
             }
             SelectionMode::ParentNode => {
                 let current_node = buffer.get_current_node(cursor_char_index, current_selection);
@@ -346,14 +354,59 @@ impl Selection {
                         .get_next_token(cursor_char_index, true)
                         .unwrap_or_else(|| buffer.tree().root_node())
                 });
-                node_to_selection(selection, buffer, copied_text)
+                node_to_selection(selection, buffer, copied_text, extended_selection_anchor)
             }
             SelectionMode::Custom => Selection {
                 range: cursor_char_index..cursor_char_index,
                 node_id: None,
                 copied_text,
+                extended_selection_anchor: current_selection.extended_selection_anchor,
             },
         }
+    }
+}
+
+// TODO: this works, but the result is not satisfactory,
+// we will leave this function here as a reference
+fn get_selection_via_ast_grep(
+    buffer: &Buffer,
+    cursor_byte: usize,
+    pattern: &String,
+    direction: &Direction,
+    current_selection: &Selection,
+    copied_text: Option<Rope>,
+) -> Selection {
+    let lang = ast_grep_core::language::TSLanguage::from(buffer.language());
+    log::info!("pattern = {}", pattern);
+    log::info!("language = {}", lang.version());
+    let pattern = ast_grep_core::matcher::Pattern::new(&pattern, lang.clone());
+    let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
+    let mut matches_iter = grep.root().find_all(pattern);
+    // let mut matches_iter = grep.root().find_all(ast_grep_core::matcher::MatchAll);
+    let matches = match direction {
+        Direction::Current => matches_iter.find(|matched| matched.range().contains(&cursor_byte)),
+        Direction::Forward => matches_iter.find(|matched| matched.range().start > cursor_byte),
+        Direction::Backward => find_previous(
+            &mut matches_iter,
+            |_, _| true,
+            |match_| match_.range().start >= cursor_byte,
+        ),
+    };
+
+    log::info!(
+        "matches: {:?}",
+        matches.as_ref().map(|matched| matched.to_sexp())
+    );
+
+    match matches {
+        None => current_selection.clone(),
+        Some(matches) => Selection {
+            range: buffer.byte_to_char(matches.range().start)
+                ..buffer.byte_to_char(matches.range().end),
+            node_id: None,
+            copied_text,
+            extended_selection_anchor: current_selection.extended_selection_anchor,
+        },
     }
 }
 

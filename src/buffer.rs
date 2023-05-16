@@ -201,13 +201,10 @@ impl Buffer {
             selection_set: current_selection_set,
             patch: diffy::create_patch(&after, &before).to_string(),
         }
+    }
 
-        // self.apply_edit_transaction(
-        //     &patch.edit_transaction,
-        //     current_selection_set,
-        //     edit_history_kind,
-        // )
-        // .unwrap();
+    pub fn language(&self) -> tree_sitter::Language {
+        self.tree.language()
     }
 
     pub fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
@@ -279,6 +276,10 @@ impl Buffer {
         } else {
             log::info!("Buffer has no path");
         }
+    }
+
+    pub fn path(&self) -> &Option<PathBuf> {
+        &self.path
     }
 }
 
