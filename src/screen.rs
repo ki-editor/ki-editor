@@ -292,7 +292,12 @@ impl Screen {
 
     fn open_search_prompt(&mut self) {
         let focused_editor_id = self.focused_editor_id.clone();
-        let override_fn = Box::new(move |event: KeyEvent, editor: &Editor| match event.code {
+        let normal_mode_override_fn = Box::new(move |event: KeyEvent, editor: &Editor| match event
+            .code
+        {
+            KeyCode::Esc => HandleKeyEventResult::Consumed(vec![Dispatch::CloseCurrentWindow {
+                change_focused_to: focused_editor_id,
+            }]),
             KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
                 Dispatch::SetSearch {
                     search: editor.get_line(),
@@ -303,13 +308,25 @@ impl Screen {
             ]),
             _ => HandleKeyEventResult::Unconsumed(event),
         });
+        let insert_mode_override_fn =
+            Box::new(move |event: KeyEvent, editor: &Editor| match event.code {
+                KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
+                    Dispatch::SetSearch {
+                        search: editor.get_line(),
+                    },
+                    Dispatch::CloseCurrentWindow {
+                        change_focused_to: focused_editor_id,
+                    },
+                ]),
+                _ => HandleKeyEventResult::Unconsumed(event),
+            });
         let new_editor = Editor::from_config(
             tree_sitter_md::language(),
             "",
             EditorConfig {
                 mode: Some(Mode::Insert),
-                normal_mode_override_fn: Some(override_fn.clone()),
-                insert_mode_override_fn: Some(override_fn),
+                normal_mode_override_fn: Some(normal_mode_override_fn.clone()),
+                insert_mode_override_fn: Some(insert_mode_override_fn),
             },
         );
         let editor_id = self.add_editor(new_editor);
