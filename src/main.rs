@@ -1,8 +1,10 @@
 mod auto_key_map;
 mod buffer;
+mod component;
 mod edit;
 mod engine;
 mod grid;
+mod prompt;
 mod rectangle;
 mod screen;
 mod selection;

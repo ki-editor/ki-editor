@@ -12,6 +12,7 @@
 - [x] e for eating forward, useful for replacing current node with parent, also might make `d` obsolete
 - [x] implement buffer
 - [x] use patch for undo (undo history should be stored under buffer) (https://docs.rs/diffy/0.3.0/diffy/)
+- [x] implement component
 - [] LSP (after window system implemented)
 - [] split window (needed for autocomplete, prompt)
   - parent-child architecture
@@ -28,7 +29,6 @@
 - [] mechanism for adding selection to all matching selection within current selection
 - [] incorporate AST grep (https://github.com/ast-grep/ast-grep), the result is not very satisfying
 - [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
-- [] implement component
 - [] jump should work for multiple selection
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file picker

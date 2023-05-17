@@ -4,32 +4,168 @@ use std::{
     rc::Rc,
 };
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
+use crossterm::{
+    event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind},
+    style::Color,
+};
 use itertools::Itertools;
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 use tree_sitter::{Node, Point};
 
 use crate::{
     buffer::Buffer,
+    component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    grid::{Cell, Grid},
     screen::{Dimension, State},
-    selection::{CharIndex, Selection, SelectionMode, SelectionSet, ToRangeUsize},
+    selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Mode {
     Normal,
     Insert,
     Jump { jumps: Vec<Jump> },
 }
 
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 pub struct Jump {
     pub character: char,
     pub selection: Selection,
 }
 
-type EventHandler = Box<dyn Fn(KeyEvent, &Editor) -> HandleKeyEventResult>;
+impl Component for Editor {
+    fn child(&self) -> &dyn Component {
+        self
+    }
+    fn child_mut(&mut self) -> &mut dyn Component {
+        self
+    }
+    fn get_grid(&self) -> Grid {
+        let editor = self;
+        let Dimension { height, width } = editor.dimension();
+        let mut grid: Grid = Grid::new(Dimension { height, width });
+        let selection = &editor.selection_set.primary;
+
+        // If the buffer selection is updated less recently than the window's scroll offset,
+        // use the window's scroll offset.
+
+        let scroll_offset = editor.scroll_offset();
+        let buffer = editor.buffer();
+        let lines = buffer
+            .rope()
+            .lines()
+            .enumerate()
+            .skip(scroll_offset.into())
+            .take((height - 1) as usize)
+            .collect::<Vec<(_, RopeSlice)>>();
+
+        let secondary_selections = &editor.selection_set.secondary;
+
+        for (line_index, line) in lines {
+            let line_start_char_index = buffer.line_to_char(line_index);
+            for (column_index, c) in line.chars().take(width as usize).enumerate() {
+                let char_index = line_start_char_index + column_index;
+
+                let (foreground_color, background_color) =
+                    if selection.extended_range().contains(&char_index) {
+                        (Color::Black, Color::Yellow)
+                    } else if secondary_selections.iter().any(|secondary_selection| {
+                        secondary_selection.to_char_index(&editor.cursor_direction) == char_index
+                    }) {
+                        (Color::White, Color::Black)
+                    } else if secondary_selections
+                        .iter()
+                        .any(|secondary_selection| secondary_selection.range.contains(&char_index))
+                    {
+                        (Color::Black, Color::DarkYellow)
+                    } else {
+                        (Color::Black, Color::White)
+                    };
+                grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
+                    symbol: c.to_string(),
+                    background_color,
+                    foreground_color,
+                };
+            }
+        }
+
+        for (index, jump) in editor.jumps().into_iter().enumerate() {
+            let point = buffer.char_to_point(match editor.cursor_direction {
+                CursorDirection::Start => jump.selection.range.start,
+                CursorDirection::End => jump.selection.range.end,
+            });
+
+            let column = point.column as u16;
+            let row = (point.row as u16).saturating_sub(scroll_offset as u16);
+
+            // Background color: Odd index red, even index blue
+            let background_color = if index % 2 == 0 {
+                Color::Red
+            } else {
+                Color::Blue
+            };
+
+            // If column and row is within view
+            if column < width as u16 && row < height as u16 {
+                grid.rows[row as usize][column as usize] = Cell {
+                    symbol: jump.character.to_string(),
+                    background_color,
+                    foreground_color: Color::White,
+                };
+            }
+        }
+
+        grid
+    }
+
+    fn intercept_event(&mut self, _: &State, event: Event) -> HandleEventResult {
+        HandleEventResult::Ignored(event)
+    }
+
+    fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch> {
+        match event {
+            Event::Key(key_event) => self.handle_key_event(state, key_event),
+            Event::Mouse(mouse_event) => {
+                self.handle_mouse_event(mouse_event);
+                vec![]
+            }
+            Event::Paste(str) => {
+                self.insert(&str);
+                vec![]
+            }
+            _ => vec![],
+        }
+    }
+
+    fn get_cursor_point(&self) -> Point {
+        self.buffer
+            .borrow()
+            .char_to_point(self.get_cursor_char_index())
+    }
+
+    fn scroll_offset(&self) -> u16 {
+        self.scroll_offset
+    }
+
+    fn set_dimension(&mut self, dimension: Dimension) {
+        self.dimension = dimension;
+    }
+}
+
+impl Clone for Editor {
+    fn clone(&self) -> Self {
+        Editor {
+            mode: self.mode.clone(),
+            selection_set: self.selection_set.clone(),
+            cursor_direction: self.cursor_direction.clone(),
+            selection_history: self.selection_history.clone(),
+            scroll_offset: self.scroll_offset.clone(),
+            dimension: self.dimension.clone(),
+            buffer: self.buffer.clone(),
+        }
+    }
+}
 
 pub struct Editor {
     pub mode: Mode,
@@ -38,9 +174,6 @@ pub struct Editor {
 
     pub cursor_direction: CursorDirection,
     selection_history: Vec<SelectionSet>,
-
-    normal_mode_override_fn: Option<EventHandler>,
-    insert_mode_override_fn: Option<EventHandler>,
 
     /// Zero-based index.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
@@ -63,22 +196,6 @@ pub enum Direction {
     Current,
 }
 
-pub struct EditorConfig {
-    pub mode: Option<Mode>,
-    pub normal_mode_override_fn: Option<EventHandler>,
-    pub insert_mode_override_fn: Option<EventHandler>,
-}
-
-impl EditorConfig {
-    pub fn default() -> Self {
-        Self {
-            mode: None,
-            normal_mode_override_fn: None,
-            insert_mode_override_fn: None,
-        }
-    }
-}
-
 impl Editor {
     pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
         Self {
@@ -95,8 +212,6 @@ impl Editor {
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
-            normal_mode_override_fn: None,
-            insert_mode_override_fn: None,
             scroll_offset: 0,
             dimension: Dimension::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
@@ -118,35 +233,15 @@ impl Editor {
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
-            normal_mode_override_fn: None,
-            insert_mode_override_fn: None,
             scroll_offset: 0,
             dimension: Dimension::default(),
             buffer,
         }
     }
 
-    pub fn from_config(language: tree_sitter::Language, text: &str, config: EditorConfig) -> Self {
-        let mut buffer = Self::from_text(language, text);
-        if let Some(mode) = config.mode {
-            buffer.mode = mode;
-        }
-        if let Some(override_fn) = config.normal_mode_override_fn {
-            buffer.normal_mode_override_fn = Some(override_fn);
-        }
-        if let Some(override_fn) = config.insert_mode_override_fn {
-            buffer.insert_mode_override_fn = Some(override_fn);
-        }
-        buffer
-    }
-
     pub fn get_line(&self) -> String {
         let cursor = self.get_cursor_char_index();
         self.buffer.borrow().get_line(cursor)
-    }
-
-    pub fn set_dimension(&mut self, dimension: Dimension) {
-        self.dimension = dimension;
     }
 
     fn select_parent(&mut self, direction: Direction) {
@@ -422,12 +517,6 @@ impl Editor {
         )
     }
 
-    pub fn get_cursor_point(&self) -> Point {
-        self.buffer
-            .borrow()
-            .char_to_point(self.get_cursor_char_index())
-    }
-
     fn get_cursor_char_index(&self) -> CharIndex {
         self.selection_set
             .primary
@@ -440,7 +529,9 @@ impl Editor {
     }
 
     pub fn handle_key_event(&mut self, state: &State, key_event: KeyEvent) -> Vec<Dispatch> {
-        if let HandleKeyEventResult::Unconsumed(key_event) = self.handle_universal_key(key_event) {
+        if let HandleEventResult::Ignored(Event::Key(key_event)) =
+            self.handle_universal_key(key_event)
+        {
             match &self.mode {
                 Mode::Normal => self.handle_normal_mode(state, key_event),
                 Mode::Insert => self.handle_insert_mode(key_event),
@@ -454,15 +545,15 @@ impl Editor {
         }
     }
 
-    fn handle_universal_key(&mut self, event: KeyEvent) -> HandleKeyEventResult {
+    fn handle_universal_key(&mut self, event: KeyEvent) -> HandleEventResult {
         match event.code {
             KeyCode::Left => {
                 self.selection_set.move_left(&self.cursor_direction);
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Right => {
                 self.selection_set.move_right(&self.cursor_direction);
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
                 self.selection_set = SelectionSet {
@@ -475,41 +566,33 @@ impl Editor {
                     secondary: vec![],
                     mode: SelectionMode::Custom,
                 };
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                 self.copy();
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
                 self.buffer.borrow().save();
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
                 self.cut();
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
                 self.paste();
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
                 self.redo();
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('z') if event.modifiers == KeyModifiers::CONTROL => {
                 self.undo();
-                HandleKeyEventResult::Consumed(vec![])
+                HandleEventResult::Handled(vec![])
             }
-            // Others include:
-            // - ^t for new tab
-            // - ^s for saving
-            // - ^z for undo
-            // - ^y for redo
-            // - ^f for find
-            // - ^a for select all
-            // - ^q for closing current window
-            _ => HandleKeyEventResult::Unconsumed(event),
+            _ => HandleEventResult::Ignored(Event::Key(event)),
         }
     }
 
@@ -601,16 +684,6 @@ impl Editor {
     }
 
     fn handle_insert_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
-        let result = if let Some(insert_mode_override) = &self.insert_mode_override_fn {
-            insert_mode_override(event, self)
-        } else {
-            HandleKeyEventResult::Unconsumed(event)
-        };
-        let event = match result {
-            HandleKeyEventResult::Consumed(dispatches) => return dispatches,
-
-            HandleKeyEventResult::Unconsumed(event) => event,
-        };
         match event.code {
             KeyCode::Esc => self.enter_normal_mode(),
             KeyCode::Backspace => self.backspace(),
@@ -623,16 +696,6 @@ impl Editor {
     }
 
     fn handle_normal_mode(&mut self, state: &State, event: KeyEvent) -> Vec<Dispatch> {
-        let result = if let Some(normal_mode_override) = &self.normal_mode_override_fn {
-            normal_mode_override(event, self)
-        } else {
-            HandleKeyEventResult::Unconsumed(event)
-        };
-        let event = match result {
-            HandleKeyEventResult::Consumed(dispatches) => return dispatches,
-
-            HandleKeyEventResult::Unconsumed(event) => event,
-        };
         match event.code {
             // Objects
             KeyCode::Char('a') => self.add_selection(),
@@ -667,22 +730,17 @@ impl Editor {
             KeyCode::Char('W') => self.select_word(Direction::Backward),
             KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
-            KeyCode::Esc => {
-                // self.extended_selection_anchor = None;
-            }
             KeyCode::Backspace => {
                 self.change();
             }
             _ => {
                 log::info!("event: {:?}", event);
-                // todo!("Back to previous selection");
-                // todo!("Search by node kind")
             }
         };
         vec![]
     }
 
-    fn enter_insert_mode(&mut self) {
+    pub fn enter_insert_mode(&mut self) {
         self.selection_set.apply_mut(|selection| {
             let char_index = selection.to_char_index(&self.cursor_direction);
             selection.range = char_index..char_index
@@ -881,12 +939,6 @@ impl Editor {
         self.replace_faultlessly(&self.selection_set.mode.clone(), direction)
     }
 
-    fn move_selection(&mut self, direction: Direction) {
-        let selection = self.get_selection_set(&self.selection_set.mode, direction);
-
-        self.update_selection_set(selection);
-    }
-
     fn add_selection(&mut self) {
         self.selection_set
             .add_selection(&self.buffer.borrow(), &self.cursor_direction);
@@ -895,6 +947,8 @@ impl Editor {
 
     #[cfg(test)]
     pub fn get_selected_texts(&self) -> Vec<String> {
+        use crate::selection::ToRangeUsize;
+
         let buffer = self.buffer.borrow();
         let rope = buffer.rope();
         let mut selections = self.selection_set.map(|selection| {
@@ -921,29 +975,31 @@ impl Editor {
         self.select(SelectionMode::Word, direction)
     }
 
-    pub fn scroll_offset(&self) -> u16 {
-        self.scroll_offset
-    }
-
     pub fn dimension(&self) -> Dimension {
         self.dimension
     }
 
-    pub fn handle_mouse_event(&mut self, mouse_event: crossterm::event::MouseEvent) {
+    pub fn handle_mouse_event(
+        &mut self,
+        mouse_event: crossterm::event::MouseEvent,
+    ) -> HandleEventResult {
         const SCROLL_HEIGHT: isize = 1;
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
                 self.apply_scroll(-SCROLL_HEIGHT);
+                HandleEventResult::Handled(vec![])
             }
             MouseEventKind::ScrollDown => {
                 self.apply_scroll(SCROLL_HEIGHT);
+                HandleEventResult::Handled(vec![])
             }
             MouseEventKind::Down(MouseButton::Left) => {
+                HandleEventResult::Handled(vec![])
 
                 // self
                 // .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
             }
-            _ => {}
+            _ => HandleEventResult::Ignored(Event::Mouse(mouse_event)),
         }
     }
 
@@ -1039,21 +1095,6 @@ impl Editor {
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
     }
-
-    pub fn clone(&self) -> Editor {
-        Editor {
-            mode: self.mode.clone(),
-            selection_set: self.selection_set.clone(),
-            cursor_direction: self.cursor_direction.clone(),
-            selection_history: self.selection_history.clone(),
-            // TODO: clone the override_fn also
-            normal_mode_override_fn: None,
-            insert_mode_override_fn: None,
-            scroll_offset: self.scroll_offset.clone(),
-            dimension: self.dimension.clone(),
-            buffer: self.buffer.clone(),
-        }
-    }
 }
 
 pub fn node_to_selection(
@@ -1070,9 +1111,23 @@ pub fn node_to_selection(
     }
 }
 
-pub enum HandleKeyEventResult {
-    Consumed(Vec<Dispatch>),
-    Unconsumed(KeyEvent),
+pub enum HandleEventResult {
+    Handled(Vec<Dispatch>),
+    Ignored(Event),
+    /// Same as shell util `tee`, where the event is handled but also passed on to the next handler
+    Teed {
+        dispatches: Vec<Dispatch>,
+        event: Event,
+    },
+}
+impl HandleEventResult {
+    pub fn dispatches(self) -> Vec<Dispatch> {
+        match self {
+            HandleEventResult::Handled(dispatches) => dispatches,
+            HandleEventResult::Ignored(_) => vec![],
+            HandleEventResult::Teed { dispatches, .. } => dispatches,
+        }
+    }
 }
 
 pub enum Dispatch {

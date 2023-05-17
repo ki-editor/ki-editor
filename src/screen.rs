@@ -13,15 +13,17 @@ use tree_sitter::Point;
 use crate::{
     auto_key_map::AutoKeyMap,
     buffer::Buffer,
-    engine::{Dispatch, Editor, EditorConfig, HandleKeyEventResult, Mode},
+    component::Component,
+    engine::{Dispatch, Editor, HandleEventResult},
     grid::Grid,
+    prompt::Prompt,
     rectangle::{Border, Rectangle},
 };
 
 pub struct Screen {
-    focused_editor_id: usize,
+    focused_component_id: usize,
 
-    editors: AutoKeyMap<Editor>,
+    components: AutoKeyMap<Box<dyn Component>>,
     state: State,
 
     rectangles: Vec<Rectangle>,
@@ -53,10 +55,10 @@ impl Screen {
                 terminal_dimension: dimension,
                 search: None,
             },
-            focused_editor_id: 0,
+            focused_component_id: 0,
             rectangles,
             borders,
-            editors: AutoKeyMap::new(),
+            components: AutoKeyMap::new(),
             previous_grid: None,
             buffers: Vec::new(),
         }
@@ -67,8 +69,8 @@ impl Screen {
 
         let ref_cell = Rc::new(RefCell::new(entry_buffer));
         self.buffers.push(ref_cell.clone());
-        let entry_editor = Editor::from_buffer(ref_cell);
-        self.add_editor(entry_editor);
+        let entry_component = Editor::from_buffer(ref_cell);
+        self.add_component(Box::new(entry_component));
 
         let mut stdout = stdout();
 
@@ -77,14 +79,14 @@ impl Screen {
         self.render(&mut stdout)?;
         loop {
             // Pass event to focused window
-            let editor = self.editors.get_mut(self.focused_editor_id).unwrap();
+            let component = self.components.get_mut(self.focused_component_id).unwrap();
             let event = crossterm::event::read()?;
 
             match event {
                 Event::Key(event) => match event.code {
                     KeyCode::Char('%') => {
-                        let cloned = editor.clone();
-                        self.focused_editor_id = self.add_editor(cloned);
+                        let cloned = component.clone();
+                        self.focused_component_id = self.add_component(cloned);
                     }
                     KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
                         self.open_search_prompt()
@@ -98,7 +100,7 @@ impl Screen {
                         self.change_view()
                     }
                     _ => {
-                        let dispatches = editor.handle_key_event(&self.state, event);
+                        let dispatches = component.handle_event(&self.state, Event::Key(event));
                         self.handle_dispatches(dispatches)
                     }
                 },
@@ -108,11 +110,9 @@ impl Screen {
                         width: columns,
                     });
                 }
-                Event::Mouse(mouse_event) => {
-                    editor.handle_mouse_event(mouse_event);
-                }
-                _ => {
-                    log::info!("Event = {:?}", event);
+                event => {
+                    let dispatches = component.handle_event(&self.state, event);
+                    self.handle_dispatches(dispatches);
 
                     // Don't render for unknown events
                     continue;
@@ -127,10 +127,10 @@ impl Screen {
 
     // Return true if there's no more windows
     fn quit(&mut self) -> bool {
-        // Remove current editor
-        self.editors.remove(self.focused_editor_id);
-        if let Some((id, _)) = self.editors.entries().last() {
-            self.focused_editor_id = *id;
+        // Remove current component
+        self.components.remove(self.focused_component_id);
+        if let Some((id, _)) = self.components.entries().last() {
+            self.focused_component_id = *id;
             self.recalculate_layout();
             false
         } else {
@@ -138,30 +138,30 @@ impl Screen {
         }
     }
 
-    fn add_editor(&mut self, entry_editor: Editor) -> usize {
-        let editor_id = self.editors.insert(entry_editor);
-        self.focused_editor_id = editor_id;
+    fn add_component(&mut self, entry_component: Box<dyn Component>) -> usize {
+        let component_id = self.components.insert(entry_component);
+        self.focused_component_id = component_id;
         self.recalculate_layout();
-        editor_id
+        component_id
     }
 
     fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
         // Generate layout
         let (rectangles, borders) =
-            Rectangle::generate(self.editors.len(), self.state.terminal_dimension);
+            Rectangle::generate(self.components.len(), self.state.terminal_dimension);
 
         let grid = Grid::new(self.state.terminal_dimension);
 
         // Render every window
         let (grid, cursor_point) = self
-            .editors
+            .components
             .entries()
             .zip(rectangles.into_iter())
-            .map(|((editor_id, editor), rectangle)| {
-                let grid = editor.get_grid();
-                let cursor_point = if editor_id == &self.focused_editor_id {
-                    let cursor_position = editor.get_cursor_point();
-                    let scroll_offset = editor.scroll_offset();
+            .map(|((component_id, component), rectangle)| {
+                let grid = component.get_grid();
+                let cursor_point = if component_id == &self.focused_component_id {
+                    let cursor_position = component.get_cursor_point();
+                    let scroll_offset = component.scroll_offset();
 
                     // If cursor position is in view
                     if cursor_position.row < scroll_offset as usize
@@ -222,8 +222,6 @@ impl Screen {
             diff
         };
 
-        // let cells = grid.to_position_cells();
-
         for cell in cells.into_iter() {
             queue!(
                 stdout,
@@ -257,8 +255,8 @@ impl Screen {
     fn handle_dispatch(&mut self, dispatch: Dispatch) {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
-                self.editors.remove(self.focused_editor_id);
-                self.focused_editor_id = change_focused_to;
+                self.components.remove(self.focused_component_id);
+                self.focused_component_id = change_focused_to;
                 self.recalculate_layout();
             }
             Dispatch::SetSearch { search } => self.set_search(search),
@@ -280,67 +278,30 @@ impl Screen {
 
     fn recalculate_layout(&mut self) {
         let (rectangles, borders) =
-            Rectangle::generate(self.editors.len(), self.state.terminal_dimension);
+            Rectangle::generate(self.components.len(), self.state.terminal_dimension);
         self.rectangles = rectangles;
         self.borders = borders;
 
-        self.editors
+        self.components
             .values_mut()
             .zip(self.rectangles.iter())
-            .for_each(|(editor, rectangle)| editor.set_dimension(rectangle.dimension()));
+            .for_each(|(component, rectangle)| component.set_dimension(rectangle.dimension()));
     }
 
     fn open_search_prompt(&mut self) {
-        let focused_editor_id = self.focused_editor_id.clone();
-        let normal_mode_override_fn = Box::new(move |event: KeyEvent, editor: &Editor| match event
-            .code
-        {
-            KeyCode::Esc => HandleKeyEventResult::Consumed(vec![Dispatch::CloseCurrentWindow {
-                change_focused_to: focused_editor_id,
-            }]),
-            KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
-                Dispatch::SetSearch {
-                    search: editor.get_line(),
-                },
-                Dispatch::CloseCurrentWindow {
-                    change_focused_to: focused_editor_id,
-                },
-            ]),
-            _ => HandleKeyEventResult::Unconsumed(event),
-        });
-        let insert_mode_override_fn =
-            Box::new(move |event: KeyEvent, editor: &Editor| match event.code {
-                KeyCode::Enter => HandleKeyEventResult::Consumed(vec![
-                    Dispatch::SetSearch {
-                        search: editor.get_line(),
-                    },
-                    Dispatch::CloseCurrentWindow {
-                        change_focused_to: focused_editor_id,
-                    },
-                ]),
-                _ => HandleKeyEventResult::Unconsumed(event),
-            });
-        let new_editor = Editor::from_config(
-            tree_sitter_md::language(),
-            "",
-            EditorConfig {
-                mode: Some(Mode::Insert),
-                normal_mode_override_fn: Some(normal_mode_override_fn.clone()),
-                insert_mode_override_fn: Some(insert_mode_override_fn),
-            },
-        );
-        let editor_id = self.add_editor(new_editor);
-        self.focused_editor_id = editor_id
+        let prompt = Prompt::new(self.focused_component_id.clone());
+        let component_id = self.add_component(Box::new(prompt));
+        self.focused_component_id = component_id;
     }
 
     fn change_view(&mut self) {
         if let Some(id) = self
-            .editors
+            .components
             .keys()
-            .find(|editor_id| editor_id > &&self.focused_editor_id)
-            .map_or_else(|| self.editors.keys().min(), |id| Some(id))
+            .find(|component_id| component_id > &&self.focused_component_id)
+            .map_or_else(|| self.components.keys().min(), |id| Some(id))
         {
-            self.focused_editor_id = id.clone();
+            self.focused_component_id = id.clone();
         }
     }
 }
