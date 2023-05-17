@@ -1,6 +1,7 @@
 use std::{
     cell::{Ref, RefCell},
     ops::Range,
+    rc::Rc,
 };
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind};
@@ -15,6 +16,7 @@ use crate::{
     selection::{CharIndex, Selection, SelectionMode, SelectionSet, ToRangeUsize},
 };
 
+#[derive(Clone)]
 pub enum Mode {
     Normal,
     Insert,
@@ -45,9 +47,10 @@ pub struct Editor {
     scroll_offset: u16,
     dimension: Dimension,
 
-    buffer: RefCell<Buffer>,
+    buffer: Rc<RefCell<Buffer>>,
 }
 
+#[derive(Clone)]
 pub enum CursorDirection {
     Start,
     End,
@@ -96,11 +99,11 @@ impl Editor {
             insert_mode_override_fn: None,
             scroll_offset: 0,
             dimension: Dimension::default(),
-            buffer: RefCell::new(Buffer::new(language, text)),
+            buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
         }
     }
 
-    pub fn from_buffer(buffer: RefCell<Buffer>) -> Self {
+    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
         Self {
             selection_set: SelectionSet {
                 primary: Selection {
@@ -1035,6 +1038,21 @@ impl Editor {
 
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
+    }
+
+    pub fn clone(&self) -> Editor {
+        Editor {
+            mode: self.mode.clone(),
+            selection_set: self.selection_set.clone(),
+            cursor_direction: self.cursor_direction.clone(),
+            selection_history: self.selection_history.clone(),
+            // TODO: clone the override_fn also
+            normal_mode_override_fn: None,
+            insert_mode_override_fn: None,
+            scroll_offset: self.scroll_offset.clone(),
+            dimension: self.dimension.clone(),
+            buffer: self.buffer.clone(),
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::stdout};
+use std::{cell::RefCell, io::stdout, rc::Rc};
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
@@ -30,7 +30,7 @@ pub struct Screen {
     /// Used for diffing to reduce unnecessary re-painting.
     previous_grid: Option<Grid>,
 
-    buffers: Vec<RefCell<Buffer>>,
+    buffers: Vec<Rc<RefCell<Buffer>>>,
 }
 
 pub struct State {
@@ -65,7 +65,7 @@ impl Screen {
     pub fn run(&mut self, entry_buffer: Buffer) -> Result<(), anyhow::Error> {
         crossterm::terminal::enable_raw_mode()?;
 
-        let ref_cell = RefCell::new(entry_buffer);
+        let ref_cell = Rc::new(RefCell::new(entry_buffer));
         self.buffers.push(ref_cell.clone());
         let entry_editor = Editor::from_buffer(ref_cell);
         self.add_editor(entry_editor);
@@ -83,19 +83,19 @@ impl Screen {
             match event {
                 Event::Key(event) => match event.code {
                     KeyCode::Char('%') => {
-                        // TODO: split current editor
+                        let cloned = editor.clone();
+                        self.focused_editor_id = self.add_editor(cloned);
                     }
                     KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
                         self.open_search_prompt()
                     }
                     KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
-                        // Remove current editor
-                        self.editors.remove(self.focused_editor_id);
-                        if let Some((id, _)) = self.editors.entries().last() {
-                            self.focused_editor_id = *id
-                        } else {
+                        if self.quit() {
                             break;
                         }
+                    }
+                    KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
+                        self.change_view()
                     }
                     _ => {
                         let dispatches = editor.handle_key_event(&self.state, event);
@@ -123,6 +123,19 @@ impl Screen {
         }
         crossterm::terminal::disable_raw_mode()?;
         Ok(())
+    }
+
+    // Return true if there's no more windows
+    fn quit(&mut self) -> bool {
+        // Remove current editor
+        self.editors.remove(self.focused_editor_id);
+        if let Some((id, _)) = self.editors.entries().last() {
+            self.focused_editor_id = *id;
+            self.recalculate_layout();
+            false
+        } else {
+            true
+        }
     }
 
     fn add_editor(&mut self, entry_editor: Editor) -> usize {
@@ -301,6 +314,17 @@ impl Screen {
         );
         let editor_id = self.add_editor(new_editor);
         self.focused_editor_id = editor_id
+    }
+
+    fn change_view(&mut self) {
+        if let Some(id) = self
+            .editors
+            .keys()
+            .find(|editor_id| editor_id > &&self.focused_editor_id)
+            .map_or_else(|| self.editors.keys().min(), |id| Some(id))
+        {
+            self.focused_editor_id = id.clone();
+        }
     }
 }
 

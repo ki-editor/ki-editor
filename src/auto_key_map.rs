@@ -56,6 +56,12 @@ impl<T> AutoKeyMap<T> {
         vec.sort_by_key(|(key, _)| **key);
         vec.into_iter()
     }
+
+    pub fn keys(&self) -> impl Iterator<Item = &usize> {
+        let mut vec = self.map.keys().collect_vec();
+        vec.sort();
+        vec.into_iter()
+    }
 }
 
 #[cfg(test)]
