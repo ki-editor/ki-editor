@@ -1,9 +1,9 @@
 use crossterm::event::{Event, KeyCode};
 
-use crate::screen::{ComponentId, Dispatch, State};
+use crate::screen::{Dispatch, State};
 
 use super::{
-    component::Component,
+    component::{Component, ComponentId},
     editor::{Editor, Mode},
 };
 
@@ -11,11 +11,14 @@ use super::{
 pub struct Prompt {
     editor: Editor,
     owner_id: ComponentId,
+    dropdown_id: ComponentId,
+    search: String,
 }
 
 pub struct PromptConfig {
     pub owner_id: ComponentId,
     pub history: Vec<String>,
+    pub dropdown_id: ComponentId,
 }
 
 impl Prompt {
@@ -27,12 +30,13 @@ impl Prompt {
             history.reverse();
             format!("\n{}", history.join("\n"))
         };
-        log::info!("Prompt text: {}", text);
         let mut editor = Editor::from_text(tree_sitter_md::language(), text);
         editor.enter_insert_mode();
         Prompt {
             editor,
             owner_id: config.owner_id,
+            dropdown_id: config.dropdown_id,
+            search: "".to_string(),
         }
     }
 }
@@ -56,24 +60,48 @@ impl Component for Prompt {
                 KeyCode::Enter => {
                     return vec![
                         Dispatch::SetSearch {
-                            search: self.editor.get_line().trim().to_string(),
+                            search: self.editor.get_current_line().trim().to_string(),
                         },
                         Dispatch::CloseCurrentWindow {
                             change_focused_to: self.owner_id,
                         },
                     ]
                 }
+                KeyCode::Down => {
+                    return vec![Dispatch::NextDropdownItem {
+                        dropdown_id: self.dropdown_id,
+                    }]
+                }
+                KeyCode::Up => {
+                    return vec![Dispatch::PreviousDropdownItem {
+                        dropdown_id: self.dropdown_id,
+                    }]
+                }
                 _ => {}
             },
             _ => {}
         };
-        self.editor
-            .handle_event(state, event)
-            .into_iter()
-            .chain(vec![Dispatch::Search {
-                component_id: self.owner_id,
-                search: self.editor.get_line().trim().to_string(),
-            }])
-            .collect()
+
+        let dispatches = self.editor.handle_event(state, event);
+
+        let current_search = self.editor.get_current_line().trim().to_string();
+
+        if current_search == self.search {
+            dispatches
+        } else {
+            self.search = current_search.clone();
+            dispatches
+                .into_iter()
+                .chain(vec![Dispatch::Search {
+                    editor_id: self.owner_id,
+                    dropdown_id: self.dropdown_id,
+                    search: current_search,
+                }])
+                .collect()
+        }
+    }
+
+    fn slave_ids(&self) -> Vec<ComponentId> {
+        vec![self.dropdown_id]
     }
 }

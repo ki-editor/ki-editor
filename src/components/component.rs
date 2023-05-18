@@ -4,6 +4,7 @@ use crossterm::event::Event;
 use tree_sitter::Point;
 
 use crate::{
+    auto_key_map::Incrementable,
     grid::Grid,
     screen::{Dimension, Dispatch, State},
 };
@@ -18,6 +19,9 @@ pub trait Component: dyn_clone::DynClone + Any + AnyComponent {
     }
     fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch>;
 
+    /// This is used for closing components that are the slaves of this component.
+    fn slave_ids(&self) -> Vec<ComponentId>;
+
     fn get_cursor_point(&self) -> Point {
         self.child().get_cursor_point()
     }
@@ -28,6 +32,10 @@ pub trait Component: dyn_clone::DynClone + Any + AnyComponent {
 
     fn set_dimension(&mut self, dimension: Dimension) {
         self.child_mut().set_dimension(dimension)
+    }
+
+    fn update(&mut self, str: &str) {
+        self.child_mut().update(str);
     }
 }
 
@@ -44,5 +52,14 @@ impl<T: Component> AnyComponent for T {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+}
+
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
+pub struct ComponentId(pub usize);
+
+impl Incrementable for ComponentId {
+    fn increment(&self) -> Self {
+        ComponentId(self.0 + 1)
     }
 }

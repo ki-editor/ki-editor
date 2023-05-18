@@ -423,8 +423,6 @@ fn get_selection_via_ast_grep(
     copied_text: Option<Rope>,
 ) -> Selection {
     let lang = ast_grep_core::language::TSLanguage::from(buffer.language());
-    log::info!("pattern = {}", pattern);
-    log::info!("language = {}", lang.version());
     let pattern = ast_grep_core::matcher::Pattern::new(&pattern, lang.clone());
     let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
     let mut matches_iter = grep.root().find_all(pattern);
@@ -438,11 +436,6 @@ fn get_selection_via_ast_grep(
             |match_| match_.range().start >= cursor_byte,
         ),
     };
-
-    log::info!(
-        "matches: {:?}",
-        matches.as_ref().map(|matched| matched.to_sexp())
-    );
 
     match matches {
         None => current_selection.clone(),

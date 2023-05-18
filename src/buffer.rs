@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use itertools::Itertools;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
@@ -17,6 +18,7 @@ use crate::{
 pub struct Buffer {
     rope: Rope,
     tree: Tree,
+    language: tree_sitter::Language,
     undo_patches: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<PathBuf>,
@@ -26,6 +28,7 @@ impl Buffer {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
+            language,
             tree: {
                 let mut parser = Parser::new();
                 parser.set_language(language).unwrap();
@@ -35,6 +38,28 @@ impl Buffer {
             redo_patches: Vec::new(),
             path: None,
         }
+    }
+
+    pub fn find_words(&self, substring: &str) -> Vec<String> {
+        let regex = regex::Regex::new(r"\b\w+").unwrap();
+        let str = self.rope.to_string();
+        regex
+            .find_iter(&str)
+            .map(|m| m.as_str().to_string())
+            .filter(|m| m.to_lowercase().contains(&substring.to_lowercase()))
+            .unique()
+            .collect()
+    }
+
+    fn get_rope_and_tree(language: tree_sitter::Language, text: &str) -> (Rope, Tree) {
+        let mut parser = Parser::new();
+        parser.set_language(language).unwrap();
+        let tree = parser.parse(text.to_string(), None).unwrap();
+        (Rope::from_str(text), tree)
+    }
+
+    pub fn update(&mut self, text: &str) {
+        (self.rope, self.tree) = Self::get_rope_and_tree(self.language, text);
     }
 
     pub fn get_line(&self, char_index: CharIndex) -> String {
@@ -286,4 +311,18 @@ pub struct Patch {
     /// Unified format patch
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
     pub patch: String,
+}
+
+#[cfg(test)]
+mod test_buffer {
+    use super::Buffer;
+
+    #[test]
+    fn find_words() {
+        let buffer = Buffer::new(tree_sitter_md::language(), "foo bar baz baz");
+        let words = buffer.find_words("Ba");
+
+        // Should return unique words
+        assert_eq!(words, vec!["bar", "baz"]);
+    }
 }

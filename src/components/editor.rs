@@ -17,9 +17,11 @@ use crate::{
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
-    screen::{ComponentId, Dimension, Dispatch, State},
+    screen::{Dimension, Dispatch, State},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
+
+use super::component::ComponentId;
 
 #[derive(PartialEq, Clone)]
 pub enum Mode {
@@ -40,6 +42,9 @@ impl Component for Editor {
     }
     fn child_mut(&mut self) -> &mut dyn Component {
         self
+    }
+    fn update(&mut self, str: &str) {
+        self.update_buffer(str);
     }
     fn get_grid(&self) -> Grid {
         let editor = self;
@@ -147,6 +152,10 @@ impl Component for Editor {
     fn set_dimension(&mut self, dimension: Dimension) {
         self.dimension = dimension;
     }
+
+    fn slave_ids(&self) -> Vec<ComponentId> {
+        vec![]
+    }
 }
 
 impl Clone for Editor {
@@ -235,7 +244,7 @@ impl Editor {
         }
     }
 
-    pub fn get_line(&self) -> String {
+    pub fn get_current_line(&self) -> String {
         let cursor = self.get_cursor_char_index();
         self.buffer.borrow().get_line(cursor)
     }
@@ -339,7 +348,7 @@ impl Editor {
             .saturating_sub((self.dimension.height.saturating_sub(2)) / 2);
     }
 
-    fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
+    pub fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
         let direction = if self.selection_set.mode.similar_to(&selection_mode) {
             direction
         } else {
@@ -1109,6 +1118,10 @@ impl Editor {
             mode: SelectionMode::Custom,
         };
         self.update_selection_set(selection_set);
+    }
+
+    fn update_buffer(&mut self, s: &str) {
+        self.buffer.borrow_mut().update(&s)
     }
 }
 

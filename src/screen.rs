@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::stdout, rc::Rc};
+use std::{any::Any, cell::RefCell, io::stdout, rc::Rc};
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
@@ -11,25 +11,17 @@ use crossterm::{
 use tree_sitter::Point;
 
 use crate::{
-    auto_key_map::{AutoKeyMap, Incrementable},
+    auto_key_map::AutoKeyMap,
     buffer::Buffer,
     components::{
-        component::Component,
+        component::{Component, ComponentId},
+        dropdown::Dropdown,
         editor::Editor,
         prompt::{Prompt, PromptConfig},
     },
     grid::Grid,
     rectangle::{Border, Rectangle},
 };
-
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
-pub struct ComponentId(usize);
-
-impl Incrementable for ComponentId {
-    fn increment(&self) -> Self {
-        ComponentId(self.0 + 1)
-    }
-}
 
 pub struct Screen {
     focused_component_id: ComponentId,
@@ -266,29 +258,62 @@ impl Screen {
     fn handle_dispatch(&mut self, dispatch: Dispatch) {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
+                let current_component = self.current_component();
+                let slave_ids = current_component.slave_ids();
                 self.components.remove(self.focused_component_id);
+                slave_ids.into_iter().for_each(|slave_id| {
+                    self.components.remove(slave_id);
+                });
+
                 self.focused_component_id = change_focused_to;
                 self.recalculate_layout();
             }
             Dispatch::SetSearch { search } => self.set_search(search),
             Dispatch::Search {
-                component_id,
+                editor_id,
+                dropdown_id,
                 search,
             } => {
-                self.components.get_mut(component_id).map(|component| {
-                    component
-                        .as_any_mut()
-                        .downcast_mut::<Editor>()
-                        .map(|editor| {
-                            editor.search_forward(&search);
+                self.get_component::<Editor>(editor_id)
+                    .map(|editor| {
+                        editor.search_forward(&search);
+                        editor.buffer().find_words(&search)
+                    })
+                    .map(|words| {
+                        self.get_component::<Dropdown>(dropdown_id).map(|dropdown| {
+                            dropdown.update(&words.join("\n"));
                         })
-                });
+                    });
+            }
+            Dispatch::NextDropdownItem { dropdown_id } => {
+                self.get_component::<Dropdown>(dropdown_id)
+                    .map(|dropdown| dropdown.next_item())
+                    .map(|suggestion| self.current_component_mut().update(&suggestion));
+            }
+            Dispatch::PreviousDropdownItem { dropdown_id } => {
+                self.get_component::<Dropdown>(dropdown_id)
+                    .map(|dropdown| dropdown.previous_item())
+                    .map(|suggestion| self.current_component_mut().update(&suggestion));
             }
         }
     }
 
+    fn get_component<T: Any>(&mut self, component_id: ComponentId) -> Option<&mut T> {
+        self.components
+            .get_mut(component_id)?
+            .as_any_mut()
+            .downcast_mut::<T>()
+    }
+
+    fn current_component(&self) -> &Box<dyn Component> {
+        self.components.get(self.focused_component_id).unwrap()
+    }
+
+    fn current_component_mut(&mut self) -> &mut Box<dyn Component> {
+        self.components.get_mut(self.focused_component_id).unwrap()
+    }
+
     fn set_search(&mut self, search: String) {
-        log::info!("Set search: {}", search);
         self.state.previous_searches.push(search)
     }
 
@@ -314,8 +339,12 @@ impl Screen {
     }
 
     fn open_search_prompt(&mut self) {
+        let dropdown = Dropdown::new();
+        let owner_id = self.focused_component_id;
+        let dropdown_id = self.add_component(Box::new(dropdown));
         let prompt = Prompt::new(PromptConfig {
-            owner_id: self.focused_component_id,
+            owner_id,
+            dropdown_id,
             history: self.state.previous_searches.clone(),
         });
         let component_id = self.add_component(Box::new(prompt));
@@ -356,7 +385,14 @@ pub enum Dispatch {
         search: String,
     },
     Search {
-        component_id: ComponentId,
+        editor_id: ComponentId,
+        dropdown_id: ComponentId,
         search: String,
+    },
+    NextDropdownItem {
+        dropdown_id: ComponentId,
+    },
+    PreviousDropdownItem {
+        dropdown_id: ComponentId,
     },
 }
