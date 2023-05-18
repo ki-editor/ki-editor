@@ -3,7 +3,6 @@ use ropey::{Rope, RopeSlice};
 use tree_sitter::Point;
 
 use crate::{
-    engine::{CursorDirection, Editor},
     rectangle::{Border, BorderDirection, Rectangle},
     screen::Dimension,
 };

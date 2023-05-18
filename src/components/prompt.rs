@@ -1,9 +1,10 @@
 use crossterm::event::{Event, KeyCode};
 
-use crate::{
+use crate::screen::{ComponentId, Dispatch, State};
+
+use super::{
     component::Component,
-    engine::{Editor, Mode},
-    screen::{ComponentId, Dispatch, State},
+    editor::{Editor, Mode},
 };
 
 #[derive(Clone)]

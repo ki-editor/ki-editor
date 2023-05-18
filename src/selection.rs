@@ -7,7 +7,7 @@ use tree_sitter_traversal::Order;
 
 use crate::{
     buffer::Buffer,
-    engine::{node_to_selection, CursorDirection, Direction},
+    components::editor::{node_to_selection, CursorDirection, Direction},
     utils::find_previous,
 };
 
@@ -253,8 +253,8 @@ impl Selection {
         let copied_text = current_selection.copied_text.clone();
 
         let Range {
-            start: (current_selection_start),
-            end: (current_selection_end),
+            start: current_selection_start,
+            end: current_selection_end,
         } = current_selection.extended_range();
         match mode {
             SelectionMode::NamedNode => match direction {
@@ -472,6 +472,7 @@ fn get_selection_via_regex(
     let string = buffer.rope().to_string();
     let matches = match direction {
         Direction::Current => regex.find_at(&string, cursor_byte),
+        // TODO: should we rotate? i.e. if we are at the end, we should go to the beginning
         Direction::Forward => regex.find_at(&string, current_selection.extended_range().end.0),
         Direction::Backward => find_previous(
             &mut regex.find_iter(&string),

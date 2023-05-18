@@ -24,6 +24,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
+name = "ast"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ast-grep-core",
+ "crossterm",
+ "diffy",
+ "dyn-clone",
+ "itertools",
+ "log",
+ "portable-pty",
+ "pretty_assertions",
+ "regex",
+ "ropey",
+ "simple-logging",
+ "tree-sitter",
+ "tree-sitter-javascript",
+ "tree-sitter-md",
+ "tree-sitter-rust",
+ "tree-sitter-traversal",
+ "tree-sitter-typescript",
+ "vt100",
+]
+
+[[package]]
 name = "ast-grep-core"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -666,32 +691,6 @@ checksum = "079c695c32d39ad089101c66393aeaca30e967fba3486a91f573d2f0e12d290a"
 dependencies = [
  "cc",
  "tree-sitter",
-]
-
-[[package]]
-name = "treeman"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ast-grep-core",
- "crossterm",
- "diffy",
- "dyn-clone",
- "itertools",
- "libc",
- "log",
- "portable-pty",
- "pretty_assertions",
- "regex",
- "ropey",
- "simple-logging",
- "tree-sitter",
- "tree-sitter-javascript",
- "tree-sitter-md",
- "tree-sitter-rust",
- "tree-sitter-traversal",
- "tree-sitter-typescript",
- "vt100",
 ]
 
 [[package]]

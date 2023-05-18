@@ -14,7 +14,7 @@ use tree_sitter::{Node, Point};
 
 use crate::{
     buffer::Buffer,
-    component::Component,
+    components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
     screen::{ComponentId, Dimension, Dispatch, State},

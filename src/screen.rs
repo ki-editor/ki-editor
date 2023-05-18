@@ -13,10 +13,12 @@ use tree_sitter::Point;
 use crate::{
     auto_key_map::{AutoKeyMap, Incrementable},
     buffer::Buffer,
-    component::Component,
-    engine::Editor,
+    components::{
+        component::Component,
+        editor::Editor,
+        prompt::{Prompt, PromptConfig},
+    },
     grid::Grid,
-    prompt::{Prompt, PromptConfig},
     rectangle::{Border, Rectangle},
 };
 

@@ -1,5 +1,5 @@
 [package]
-name = "treeman"
+name = "ast"
 version = "0.1.0"
 edition = "2021"
 
@@ -21,7 +21,6 @@ tree-sitter-typescript = "0.20.2"
 tree-sitter-md = "0.1.5"
 regex = "1.8.1"
 portable-pty = "0.8.1"
-libc = "0.2.144"
 vt100 = "0.15.2"
 diffy = "0.3.0"
 ast-grep-core = "0.5.2"
