@@ -2,7 +2,7 @@ use std::{cell::RefCell, io::stdout, rc::Rc};
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::{EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute, queue,
     style::{Print, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType},
@@ -11,19 +11,28 @@ use crossterm::{
 use tree_sitter::Point;
 
 use crate::{
-    auto_key_map::AutoKeyMap,
+    auto_key_map::{AutoKeyMap, Incrementable},
     buffer::Buffer,
     component::Component,
-    engine::{Dispatch, Editor, HandleEventResult},
+    engine::Editor,
     grid::Grid,
-    prompt::Prompt,
+    prompt::{Prompt, PromptConfig},
     rectangle::{Border, Rectangle},
 };
 
-pub struct Screen {
-    focused_component_id: usize,
+#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
+pub struct ComponentId(usize);
 
-    components: AutoKeyMap<Box<dyn Component>>,
+impl Incrementable for ComponentId {
+    fn increment(&self) -> Self {
+        ComponentId(self.0 + 1)
+    }
+}
+
+pub struct Screen {
+    focused_component_id: ComponentId,
+
+    components: AutoKeyMap<ComponentId, Box<dyn Component>>,
     state: State,
 
     rectangles: Vec<Rectangle>,
@@ -37,11 +46,11 @@ pub struct Screen {
 
 pub struct State {
     terminal_dimension: Dimension,
-    search: Option<String>,
+    previous_searches: Vec<String>,
 }
 impl State {
-    pub fn search(&self) -> &Option<String> {
-        &self.search
+    pub fn last_search(&self) -> Option<String> {
+        self.previous_searches.last().map(|s| s.clone())
     }
 }
 
@@ -53,9 +62,9 @@ impl Screen {
         Screen {
             state: State {
                 terminal_dimension: dimension,
-                search: None,
+                previous_searches: vec![],
             },
-            focused_component_id: 0,
+            focused_component_id: ComponentId(0),
             rectangles,
             borders,
             components: AutoKeyMap::new(),
@@ -138,7 +147,7 @@ impl Screen {
         }
     }
 
-    fn add_component(&mut self, entry_component: Box<dyn Component>) -> usize {
+    fn add_component(&mut self, entry_component: Box<dyn Component>) -> ComponentId {
         let component_id = self.components.insert(entry_component);
         self.focused_component_id = component_id;
         self.recalculate_layout();
@@ -155,7 +164,7 @@ impl Screen {
         // Render every window
         let (grid, cursor_point) = self
             .components
-            .entries()
+            .entries_mut()
             .zip(rectangles.into_iter())
             .map(|((component_id, component), rectangle)| {
                 let grid = component.get_grid();
@@ -260,11 +269,25 @@ impl Screen {
                 self.recalculate_layout();
             }
             Dispatch::SetSearch { search } => self.set_search(search),
+            Dispatch::Search {
+                component_id,
+                search,
+            } => {
+                self.components.get_mut(component_id).map(|component| {
+                    component
+                        .as_any_mut()
+                        .downcast_mut::<Editor>()
+                        .map(|editor| {
+                            editor.search_forward(&search);
+                        })
+                });
+            }
         }
     }
 
     fn set_search(&mut self, search: String) {
-        self.state.search = Some(search);
+        log::info!("Set search: {}", search);
+        self.state.previous_searches.push(search)
     }
 
     fn resize(&mut self, dimension: Dimension) {
@@ -289,7 +312,10 @@ impl Screen {
     }
 
     fn open_search_prompt(&mut self) {
-        let prompt = Prompt::new(self.focused_component_id.clone());
+        let prompt = Prompt::new(PromptConfig {
+            owner_id: self.focused_component_id,
+            history: self.state.previous_searches.clone(),
+        });
         let component_id = self.add_component(Box::new(prompt));
         self.focused_component_id = component_id;
     }
@@ -318,4 +344,17 @@ fn reveal(s: String) -> String {
         "\n" => " ".to_string(),
         _ => s,
     }
+}
+
+pub enum Dispatch {
+    CloseCurrentWindow {
+        change_focused_to: ComponentId,
+    },
+    SetSearch {
+        search: String,
+    },
+    Search {
+        component_id: ComponentId,
+        search: String,
+    },
 }

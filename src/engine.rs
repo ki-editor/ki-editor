@@ -17,7 +17,7 @@ use crate::{
     component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
-    screen::{Dimension, State},
+    screen::{ComponentId, Dimension, Dispatch, State},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
@@ -117,10 +117,6 @@ impl Component for Editor {
         }
 
         grid
-    }
-
-    fn intercept_event(&mut self, _: &State, event: Event) -> HandleEventResult {
-        HandleEventResult::Ignored(event)
     }
 
     fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch> {
@@ -273,6 +269,10 @@ impl Editor {
                 backward,
             );
         }
+    }
+
+    pub fn search_forward(&mut self, search: &String) {
+        self.select_match(Direction::Forward, &Some(search.clone()));
     }
 
     fn select_named_node(&mut self, direction: Direction) {
@@ -556,7 +556,7 @@ impl Editor {
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
-                self.selection_set = SelectionSet {
+                let selection_set = SelectionSet {
                     primary: Selection {
                         range: CharIndex(0)..CharIndex(self.buffer.borrow().len_chars()),
                         node_id: None,
@@ -566,6 +566,7 @@ impl Editor {
                     secondary: vec![],
                     mode: SelectionMode::Custom,
                 };
+                self.update_selection_set(selection_set);
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
@@ -712,8 +713,8 @@ impl Editor {
             KeyCode::Char('k') => self.select_kids(),
             KeyCode::Char('l') => self.select_line(Direction::Forward),
             KeyCode::Char('L') => self.select_line(Direction::Backward),
-            KeyCode::Char('m') => self.select_match(Direction::Forward, state.search()),
-            KeyCode::Char('M') => self.select_match(Direction::Backward, state.search()),
+            KeyCode::Char('m') => self.select_match(Direction::Forward, &state.last_search()),
+            KeyCode::Char('M') => self.select_match(Direction::Backward, &state.last_search()),
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('N') => self.select_named_node(Direction::Backward),
             KeyCode::Char('o') => self.change_cursor_direction(),
@@ -1095,6 +1096,20 @@ impl Editor {
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
     }
+
+    pub fn move_cursor_to_end(&mut self) {
+        let selection_set = SelectionSet {
+            primary: Selection {
+                range: CharIndex(self.buffer().len_chars())..CharIndex(self.buffer().len_chars()),
+                node_id: None,
+                copied_text: None,
+                initial_range: None,
+            },
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+        };
+        self.update_selection_set(selection_set);
+    }
 }
 
 pub fn node_to_selection(
@@ -1114,28 +1129,10 @@ pub fn node_to_selection(
 pub enum HandleEventResult {
     Handled(Vec<Dispatch>),
     Ignored(Event),
-    /// Same as shell util `tee`, where the event is handled but also passed on to the next handler
-    Teed {
-        dispatches: Vec<Dispatch>,
-        event: Event,
-    },
-}
-impl HandleEventResult {
-    pub fn dispatches(self) -> Vec<Dispatch> {
-        match self {
-            HandleEventResult::Handled(dispatches) => dispatches,
-            HandleEventResult::Ignored(_) => vec![],
-            HandleEventResult::Teed { dispatches, .. } => dispatches,
-        }
-    }
-}
-
-pub enum Dispatch {
-    CloseCurrentWindow { change_focused_to: usize },
-    SetSearch { search: String },
 }
 
 #[cfg(test)]
+
 mod test_engine {
 
     use super::{Direction, Editor};

@@ -1,43 +1,53 @@
 use std::collections::HashMap;
+use std::hash::Hash;
+use std::ops::Add;
 
 use itertools::Itertools;
 
-pub struct AutoKeyMap<T> {
-    map: HashMap<usize, T>,
+pub struct AutoKeyMap<Key, T> {
+    map: HashMap<Key, T>,
 }
 
-impl<T> AutoKeyMap<T> {
+pub trait Incrementable {
+    fn increment(&self) -> Self;
+}
+
+impl<Key, T> AutoKeyMap<Key, T>
+where
+    Key: Ord + Eq + Hash + Default + Incrementable + Copy,
+{
     pub fn new() -> Self {
         Self {
             map: HashMap::new(),
         }
     }
 
-    pub fn insert(&mut self, value: T) -> usize {
+    pub fn insert(&mut self, value: T) -> Key {
         if self.map.is_empty() {
-            self.map.insert(0, value);
-            return 0;
+            self.map.insert(Key::default(), value);
+            return Key::default();
         }
         let mut keys = self.map.keys().collect::<Vec<_>>();
         keys.sort();
 
-        let max = keys.last().unwrap_or(&&0);
+        let default = Key::default();
+        let max = keys.last().map(|key| **key).unwrap_or(default);
 
-        let key = *max + 1;
+        let key = max.increment();
         self.map.insert(key, value);
 
         key
     }
 
-    pub fn remove(&mut self, key: usize) -> Option<T> {
+    pub fn remove(&mut self, key: Key) -> Option<T> {
         self.map.remove(&key)
     }
 
-    pub fn get(&self, key: usize) -> Option<&T> {
+    pub fn get(&self, key: Key) -> Option<&T> {
         self.map.get(&key)
     }
 
-    pub fn get_mut(&mut self, key: usize) -> Option<&mut T> {
+    pub fn get_mut(&mut self, key: Key) -> Option<&mut T> {
         self.map.get_mut(&key)
     }
 
@@ -51,26 +61,38 @@ impl<T> AutoKeyMap<T> {
         vec.into_iter().map(|(_, value)| value)
     }
 
-    pub fn entries(&self) -> impl Iterator<Item = (&usize, &T)> {
+    pub fn entries(&self) -> impl Iterator<Item = (&Key, &T)> {
         let mut vec = self.map.iter().collect_vec();
         vec.sort_by_key(|(key, _)| **key);
         vec.into_iter()
     }
 
-    pub fn keys(&self) -> impl Iterator<Item = &usize> {
+    pub fn keys(&self) -> impl Iterator<Item = &Key> {
         let mut vec = self.map.keys().collect_vec();
         vec.sort();
+        vec.into_iter()
+    }
+
+    pub fn entries_mut(&mut self) -> impl Iterator<Item = (&Key, &mut T)> {
+        let mut vec = self.map.iter_mut().collect_vec();
+        vec.sort_by_key(|(key, _)| **key);
         vec.into_iter()
     }
 }
 
 #[cfg(test)]
 mod test_auto_key_map {
-    use super::AutoKeyMap;
+    use super::{AutoKeyMap, Incrementable};
+
+    impl Incrementable for usize {
+        fn increment(&self) -> Self {
+            self + 1
+        }
+    }
 
     #[test]
     fn should_auto_increment_keys() {
-        let mut map = AutoKeyMap::new();
+        let mut map: AutoKeyMap<usize, i32> = AutoKeyMap::new();
         let key1 = map.insert(1);
         let key2 = map.insert(2);
         let key3 = map.insert(3);
@@ -85,7 +107,7 @@ mod test_auto_key_map {
 
     #[test]
     fn values_mut_should_be_ordered_by_key() {
-        let mut map = AutoKeyMap::new();
+        let mut map: AutoKeyMap<usize, i32> = AutoKeyMap::new();
         map.insert(1);
         map.insert(2);
         map.insert(3);

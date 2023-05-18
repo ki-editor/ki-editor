@@ -286,7 +286,7 @@ impl Selection {
             SelectionMode::Line => get_selection_via_regex(
                 buffer,
                 cursor_byte,
-                Regex::new(r"(?m)^(.*)\n").unwrap(),
+                r"(?m)^(.*)\n?",
                 direction,
                 current_selection,
                 copied_text,
@@ -294,7 +294,7 @@ impl Selection {
             SelectionMode::Word => get_selection_via_regex(
                 buffer,
                 cursor_byte,
-                Regex::new(r"\b\w+").unwrap(),
+                r"\b\w+",
                 direction,
                 current_selection,
                 copied_text,
@@ -302,17 +302,16 @@ impl Selection {
             SelectionMode::Character => get_selection_via_regex(
                 buffer,
                 cursor_byte,
-                Regex::new(r"(?s).").unwrap(),
+                r"(?s).",
                 direction,
                 current_selection,
                 copied_text,
             ),
-            SelectionMode::Match { regex: search } => {
-                let regex = Regex::new(search).unwrap();
+            SelectionMode::Match { regex } => {
                 get_selection_via_regex(
                     buffer,
                     cursor_byte,
-                    regex,
+                    &regex,
                     direction,
                     current_selection,
                     copied_text,
@@ -460,11 +459,16 @@ fn get_selection_via_ast_grep(
 fn get_selection_via_regex(
     buffer: &Buffer,
     cursor_byte: usize,
-    regex: Regex,
+    regex: &str,
     direction: &Direction,
     current_selection: &Selection,
     copied_text: Option<Rope>,
 ) -> Selection {
+    let regex = Regex::new(&regex);
+    let regex = match regex {
+        Err(_) => return current_selection.clone(),
+        Ok(regex) => regex,
+    };
     let string = buffer.rope().to_string();
     let matches = match direction {
         Direction::Current => regex.find_at(&string, cursor_byte),

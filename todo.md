@@ -34,3 +34,4 @@
 - [] file picker
 - [] file tree
 - [] autocomplete
+- [] engine: press Enter to open new line below
