@@ -1,24 +1,38 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crossterm::event::{Event, KeyCode};
 
 use crate::screen::{Dispatch, State};
 
 use super::{
     component::{Component, ComponentId},
-    editor::{Editor, Mode},
+    dropdown::Dropdown,
+    editor::{Direction, Editor, Mode},
 };
 
-#[derive(Clone)]
 pub struct Prompt {
     editor: Editor,
     owner_id: ComponentId,
     dropdown_id: ComponentId,
-    search: String,
+    text: String,
+    dropdown: Rc<RefCell<Dropdown>>,
+    owner: Rc<RefCell<dyn Component>>,
+    on_enter: OnEnter,
+    get_suggestions: GetSuggestions,
 }
+
+type OnEnter = Box<dyn Fn(/* text */ &str, /*owner*/ Rc<RefCell<dyn Component>>) -> Vec<Dispatch>>;
+type GetSuggestions =
+    Box<dyn Fn(/* text */ &str, /*owner*/ Rc<RefCell<dyn Component>>) -> Vec<String>>;
 
 pub struct PromptConfig {
     pub owner_id: ComponentId,
     pub history: Vec<String>,
     pub dropdown_id: ComponentId,
+    pub dropdown: Rc<RefCell<Dropdown>>,
+    pub owner: Rc<RefCell<dyn Component>>,
+    pub on_enter: OnEnter,
+    pub get_suggestions: GetSuggestions,
 }
 
 impl Prompt {
@@ -36,16 +50,25 @@ impl Prompt {
             editor,
             owner_id: config.owner_id,
             dropdown_id: config.dropdown_id,
-            search: "".to_string(),
+            text: "".to_string(),
+            dropdown: config.dropdown,
+            owner: config.owner,
+            on_enter: config.on_enter,
+            get_suggestions: config.get_suggestions,
         }
+    }
+
+    fn set_text(&mut self, text: String) {
+        self.text = text;
+        self.editor.update(&self.text);
     }
 }
 
 impl Component for Prompt {
-    fn child(&self) -> &dyn Component {
+    fn editor(&self) -> &Editor {
         &self.editor
     }
-    fn child_mut(&mut self) -> &mut dyn Component {
+    fn editor_mut(&mut self) -> &mut Editor {
         &mut self.editor
     }
     fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch> {
@@ -56,48 +79,47 @@ impl Component for Prompt {
                         change_focused_to: self.owner_id,
                     }];
                 }
-
                 KeyCode::Enter => {
-                    return vec![
-                        Dispatch::SetSearch {
-                            search: self.editor.get_current_line().trim().to_string(),
-                        },
-                        Dispatch::CloseCurrentWindow {
+                    let dispatches = (self.on_enter)(&self.text, self.owner.clone());
+                    return dispatches
+                        .into_iter()
+                        .chain(vec![Dispatch::CloseCurrentWindow {
                             change_focused_to: self.owner_id,
-                        },
-                    ]
+                        }])
+                        .collect();
                 }
                 KeyCode::Down => {
-                    return vec![Dispatch::NextDropdownItem {
-                        dropdown_id: self.dropdown_id,
-                    }]
+                    let text = self.dropdown.borrow_mut().next_item();
+                    self.set_text(text);
+                    return vec![];
                 }
                 KeyCode::Up => {
-                    return vec![Dispatch::PreviousDropdownItem {
-                        dropdown_id: self.dropdown_id,
-                    }]
+                    let text = self.dropdown.borrow_mut().previous_item();
+                    self.set_text(text);
+
+                    return vec![];
                 }
                 _ => {}
             },
             _ => {}
         };
 
-        let dispatches = self.editor.handle_event(state, event);
+        let dispatches = self.editor.handle_event(state, event.clone());
 
-        let current_search = self.editor.get_current_line().trim().to_string();
+        let suggestions = (self.get_suggestions)(&self.text, self.owner.clone());
+        self.dropdown.borrow_mut().update(&suggestions.join("\n"));
 
-        if current_search == self.search {
+        let current_text = self.editor.get_current_line().trim().to_string();
+
+        if current_text == self.text {
             dispatches
         } else {
-            self.search = current_search.clone();
-            dispatches
-                .into_iter()
-                .chain(vec![Dispatch::Search {
-                    editor_id: self.owner_id,
-                    dropdown_id: self.dropdown_id,
-                    search: current_search,
-                }])
-                .collect()
+            self.text = current_text.clone();
+            self.owner
+                .borrow_mut()
+                .editor_mut()
+                .select_match(Direction::Forward, &Some(current_text));
+            dispatches.into_iter().chain(vec![]).collect()
         }
     }
 

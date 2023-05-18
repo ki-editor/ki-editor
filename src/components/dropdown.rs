@@ -31,11 +31,11 @@ impl Dropdown {
 }
 
 impl Component for Dropdown {
-    fn child(&self) -> &dyn Component {
+    fn editor(&self) -> &Editor {
         &self.editor
     }
 
-    fn child_mut(&mut self) -> &mut dyn Component {
+    fn editor_mut(&mut self) -> &mut Editor {
         &mut self.editor
     }
 

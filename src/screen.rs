@@ -1,4 +1,4 @@
-use std::{any::Any, cell::RefCell, io::stdout, rc::Rc};
+use std::{cell::RefCell, io::stdout, rc::Rc};
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
@@ -16,7 +16,7 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         dropdown::Dropdown,
-        editor::Editor,
+        editor::{Direction, Editor},
         prompt::{Prompt, PromptConfig},
     },
     grid::Grid,
@@ -26,7 +26,7 @@ use crate::{
 pub struct Screen {
     focused_component_id: ComponentId,
 
-    components: AutoKeyMap<ComponentId, Box<dyn Component>>,
+    components: AutoKeyMap<ComponentId, Rc<RefCell<dyn Component>>>,
     state: State,
 
     rectangles: Vec<Rectangle>,
@@ -72,8 +72,8 @@ impl Screen {
 
         let ref_cell = Rc::new(RefCell::new(entry_buffer));
         self.buffers.push(ref_cell.clone());
-        let entry_component = Editor::from_buffer(ref_cell);
-        self.add_component(Box::new(entry_component));
+        let entry_component = Rc::new(RefCell::new(Editor::from_buffer(ref_cell)));
+        self.add_component(entry_component);
 
         let mut stdout = stdout();
 
@@ -88,11 +88,14 @@ impl Screen {
             match event {
                 Event::Key(event) => match event.code {
                     KeyCode::Char('%') => {
-                        let cloned = component.clone();
-                        self.focused_component_id = self.add_component(cloned);
+                        // let cloned = component.clone();
+                        // self.focused_component_id = self.add_component(cloned);
                     }
                     KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
                         self.open_search_prompt()
+                    }
+                    KeyCode::Char('o') if event.modifiers == KeyModifiers::CONTROL => {
+                        self.open_file_picker()
                     }
                     KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                         if self.quit() {
@@ -103,7 +106,9 @@ impl Screen {
                         self.change_view()
                     }
                     _ => {
-                        let dispatches = component.handle_event(&self.state, Event::Key(event));
+                        let dispatches = component
+                            .borrow_mut()
+                            .handle_event(&self.state, Event::Key(event));
                         self.handle_dispatches(dispatches)
                     }
                 },
@@ -114,7 +119,7 @@ impl Screen {
                     });
                 }
                 event => {
-                    let dispatches = component.handle_event(&self.state, event);
+                    let dispatches = component.borrow_mut().handle_event(&self.state, event);
                     self.handle_dispatches(dispatches);
 
                     // Don't render for unknown events
@@ -141,7 +146,7 @@ impl Screen {
         }
     }
 
-    fn add_component(&mut self, entry_component: Box<dyn Component>) -> ComponentId {
+    fn add_component(&mut self, entry_component: Rc<RefCell<dyn Component>>) -> ComponentId {
         let component_id = self.components.insert(entry_component);
         self.focused_component_id = component_id;
         self.recalculate_layout();
@@ -161,6 +166,7 @@ impl Screen {
             .entries_mut()
             .zip(rectangles.into_iter())
             .map(|((component_id, component), rectangle)| {
+                let component = component.borrow();
                 let grid = component.get_grid();
                 let cursor_point = if component_id == &self.focused_component_id {
                     let cursor_position = component.get_cursor_point();
@@ -259,7 +265,7 @@ impl Screen {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 let current_component = self.current_component();
-                let slave_ids = current_component.slave_ids();
+                let slave_ids = current_component.borrow().slave_ids();
                 self.components.remove(self.focused_component_id);
                 slave_ids.into_iter().for_each(|slave_id| {
                     self.components.remove(slave_id);
@@ -269,48 +275,11 @@ impl Screen {
                 self.recalculate_layout();
             }
             Dispatch::SetSearch { search } => self.set_search(search),
-            Dispatch::Search {
-                editor_id,
-                dropdown_id,
-                search,
-            } => {
-                self.get_component::<Editor>(editor_id)
-                    .map(|editor| {
-                        editor.search_forward(&search);
-                        editor.buffer().find_words(&search)
-                    })
-                    .map(|words| {
-                        self.get_component::<Dropdown>(dropdown_id).map(|dropdown| {
-                            dropdown.update(&words.join("\n"));
-                        })
-                    });
-            }
-            Dispatch::NextDropdownItem { dropdown_id } => {
-                self.get_component::<Dropdown>(dropdown_id)
-                    .map(|dropdown| dropdown.next_item())
-                    .map(|suggestion| self.current_component_mut().update(&suggestion));
-            }
-            Dispatch::PreviousDropdownItem { dropdown_id } => {
-                self.get_component::<Dropdown>(dropdown_id)
-                    .map(|dropdown| dropdown.previous_item())
-                    .map(|suggestion| self.current_component_mut().update(&suggestion));
-            }
         }
     }
 
-    fn get_component<T: Any>(&mut self, component_id: ComponentId) -> Option<&mut T> {
-        self.components
-            .get_mut(component_id)?
-            .as_any_mut()
-            .downcast_mut::<T>()
-    }
-
-    fn current_component(&self) -> &Box<dyn Component> {
+    fn current_component(&self) -> &Rc<RefCell<dyn Component>> {
         self.components.get(self.focused_component_id).unwrap()
-    }
-
-    fn current_component_mut(&mut self) -> &mut Box<dyn Component> {
-        self.components.get_mut(self.focused_component_id).unwrap()
     }
 
     fn set_search(&mut self, search: String) {
@@ -335,20 +304,41 @@ impl Screen {
         self.components
             .values_mut()
             .zip(self.rectangles.iter())
-            .for_each(|(component, rectangle)| component.set_dimension(rectangle.dimension()));
+            .for_each(|(component, rectangle)| {
+                component.borrow_mut().set_dimension(rectangle.dimension())
+            });
     }
 
     fn open_search_prompt(&mut self) {
-        let dropdown = Dropdown::new();
+        let dropdown = Rc::new(RefCell::new(Dropdown::new()));
         let owner_id = self.focused_component_id;
-        let dropdown_id = self.add_component(Box::new(dropdown));
+        let current_component = self.current_component().clone();
+        let dropdown_id = self.add_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
             owner_id,
             dropdown_id,
             history: self.state.previous_searches.clone(),
+            dropdown,
+            owner: current_component,
+            on_enter: Box::new(|text, owner| {
+                owner
+                    .borrow_mut()
+                    .editor_mut()
+                    .select_match(Direction::Forward, &Some(text.to_string()));
+                vec![Dispatch::SetSearch {
+                    search: text.to_string(),
+                }]
+            }),
+            get_suggestions: Box::new(|text, owner| {
+                owner.borrow().editor().buffer().find_words(&text)
+            }),
         });
-        let component_id = self.add_component(Box::new(prompt));
+        let component_id = self.add_component(Rc::new(RefCell::new(prompt)));
         self.focused_component_id = component_id;
+    }
+
+    fn open_file_picker(&mut self) {
+        todo!()
     }
 
     fn change_view(&mut self) {
@@ -377,22 +367,8 @@ fn reveal(s: String) -> String {
     }
 }
 
+#[derive(Clone)]
 pub enum Dispatch {
-    CloseCurrentWindow {
-        change_focused_to: ComponentId,
-    },
-    SetSearch {
-        search: String,
-    },
-    Search {
-        editor_id: ComponentId,
-        dropdown_id: ComponentId,
-        search: String,
-    },
-    NextDropdownItem {
-        dropdown_id: ComponentId,
-    },
-    PreviousDropdownItem {
-        dropdown_id: ComponentId,
-    },
+    CloseCurrentWindow { change_focused_to: ComponentId },
+    SetSearch { search: String },
 }

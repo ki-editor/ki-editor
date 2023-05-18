@@ -9,13 +9,15 @@ use crate::{
     screen::{Dimension, Dispatch, State},
 };
 
-dyn_clone::clone_trait_object!(Component);
+use super::editor::Editor;
 
-pub trait Component: dyn_clone::DynClone + Any + AnyComponent {
-    fn child(&self) -> &dyn Component;
-    fn child_mut(&mut self) -> &mut dyn Component;
+// dyn_clone::clone_trait_object!(Component);
+
+pub trait Component: Any + AnyComponent {
+    fn editor(&self) -> &Editor;
+    fn editor_mut(&mut self) -> &mut Editor;
     fn get_grid(&self) -> Grid {
-        self.child().get_grid()
+        self.editor().get_grid()
     }
     fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch>;
 
@@ -23,19 +25,19 @@ pub trait Component: dyn_clone::DynClone + Any + AnyComponent {
     fn slave_ids(&self) -> Vec<ComponentId>;
 
     fn get_cursor_point(&self) -> Point {
-        self.child().get_cursor_point()
+        self.editor().get_cursor_point()
     }
 
     fn scroll_offset(&self) -> u16 {
-        self.child().scroll_offset()
+        self.editor().scroll_offset()
     }
 
     fn set_dimension(&mut self, dimension: Dimension) {
-        self.child_mut().set_dimension(dimension)
+        self.editor_mut().set_dimension(dimension)
     }
 
     fn update(&mut self, str: &str) {
-        self.child_mut().update(str);
+        self.editor_mut().update(str);
     }
 }
 

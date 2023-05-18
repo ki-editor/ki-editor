@@ -37,10 +37,10 @@ pub struct Jump {
 }
 
 impl Component for Editor {
-    fn child(&self) -> &dyn Component {
+    fn editor(&self) -> &Editor {
         self
     }
-    fn child_mut(&mut self) -> &mut dyn Component {
+    fn editor_mut(&mut self) -> &mut Editor {
         self
     }
     fn update(&mut self, str: &str) {
@@ -269,13 +269,13 @@ impl Editor {
         self.select(SelectionMode::Line, direction);
     }
 
-    fn select_match(&mut self, backward: Direction, search: &Option<String>) {
+    pub fn select_match(&mut self, direction: Direction, search: &Option<String>) {
         if let Some(search) = search {
             self.select(
                 SelectionMode::Match {
                     regex: search.clone(),
                 },
-                backward,
+                direction,
             );
         }
     }
