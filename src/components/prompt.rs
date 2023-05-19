@@ -19,6 +19,7 @@ pub struct Prompt {
     dropdown: Rc<RefCell<Dropdown>>,
     owner: Rc<RefCell<dyn Component>>,
     on_enter: OnEnter,
+    on_text_change: OnTextChange,
     get_suggestions: GetSuggestions,
 }
 
@@ -36,6 +37,13 @@ type GetSuggestions = Box<
     ) -> anyhow::Result<Vec<String>>,
 >;
 
+type OnTextChange = Box<
+    dyn Fn(
+        /* text */ &str,
+        /*owner*/ Rc<RefCell<dyn Component>>,
+    ) -> anyhow::Result<Vec<Dispatch>>,
+>;
+
 pub struct PromptConfig {
     pub owner_id: ComponentId,
     pub history: Vec<String>,
@@ -43,6 +51,7 @@ pub struct PromptConfig {
     pub dropdown: Rc<RefCell<Dropdown>>,
     pub owner: Rc<RefCell<dyn Component>>,
     pub on_enter: OnEnter,
+    pub on_text_change: OnTextChange,
     pub get_suggestions: GetSuggestions,
     pub title: String,
 }
@@ -67,6 +76,7 @@ impl Prompt {
             dropdown: config.dropdown,
             owner: config.owner,
             on_enter: config.on_enter,
+            on_text_change: config.on_text_change,
             get_suggestions: config.get_suggestions,
         }
     }
@@ -136,10 +146,9 @@ impl Component for Prompt {
             dispatches
         } else {
             self.text = current_text.clone();
-            self.owner
-                .borrow_mut()
-                .editor_mut()
-                .select_match(Direction::Forward, &Some(current_text));
+
+            (self.on_text_change)(&current_text, self.owner.clone())?;
+
             dispatches.into_iter().chain(vec![]).collect_vec()
         };
         Ok(result)

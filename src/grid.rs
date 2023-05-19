@@ -6,6 +6,9 @@ use crate::{
     screen::Dimension,
 };
 
+#[cfg(test)]
+use ropey::Rope;
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Grid {
     pub rows: Vec<Vec<Cell>>,

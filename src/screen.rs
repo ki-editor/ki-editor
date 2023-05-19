@@ -369,6 +369,13 @@ impl Screen {
                     search: text.to_string(),
                 }]
             }),
+            on_text_change: Box::new(|current_text, owner| {
+                owner
+                    .borrow_mut()
+                    .editor_mut()
+                    .select_match(Direction::Forward, &Some(current_text.to_string()));
+                Ok(vec![])
+            }),
             get_suggestions: Box::new(|text, owner| {
                 Ok(owner.borrow().editor().buffer().find_words(&text))
             }),
@@ -396,6 +403,7 @@ impl Screen {
                     path: Path::new(current_item).to_path_buf(),
                 }]
             }),
+            on_text_change: Box::new(|_, _| Ok(vec![])),
             get_suggestions: Box::new(|text, _| {
                 let repo = git2::Repository::open(".")?;
 
@@ -417,7 +425,6 @@ impl Screen {
                 // Iterate over the tree entries and print their names
                 tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
                     let entry_name = entry.name().unwrap_or_default();
-                    log::debug!("root: {}", root);
                     let name = Path::new(root).join(entry_name);
                     let name = name.to_string_lossy();
                     if name.to_lowercase().contains(&text.to_lowercase()) {
