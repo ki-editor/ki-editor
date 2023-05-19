@@ -1,4 +1,11 @@
-use std::{cell::RefCell, io::stdout, rc::Rc};
+use std::{
+    cell::RefCell,
+    io::stdout,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
+
+use anyhow::anyhow;
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
@@ -67,13 +74,10 @@ impl Screen {
         }
     }
 
-    pub fn run(&mut self, entry_buffer: Buffer) -> Result<(), anyhow::Error> {
+    pub fn run(&mut self, entry_path: PathBuf) -> Result<(), anyhow::Error> {
         crossterm::terminal::enable_raw_mode()?;
 
-        let ref_cell = Rc::new(RefCell::new(entry_buffer));
-        self.buffers.push(ref_cell.clone());
-        let entry_component = Rc::new(RefCell::new(Editor::from_buffer(ref_cell)));
-        self.add_component(entry_component);
+        self.open_file(entry_path);
 
         let mut stdout = stdout();
 
@@ -109,7 +113,7 @@ impl Screen {
                         let dispatches = component
                             .borrow_mut()
                             .handle_event(&self.state, Event::Key(event));
-                        self.handle_dispatches(dispatches)
+                        self.handle_dispatches_result(dispatches)
                     }
                 },
                 Event::Resize(columns, rows) => {
@@ -120,7 +124,7 @@ impl Screen {
                 }
                 event => {
                     let dispatches = component.borrow_mut().handle_event(&self.state, event);
-                    self.handle_dispatches(dispatches);
+                    self.handle_dispatches_result(dispatches);
 
                     // Don't render for unknown events
                     continue;
@@ -255,6 +259,15 @@ impl Screen {
         Ok(())
     }
 
+    fn handle_dispatches_result(&mut self, dispatches: anyhow::Result<Vec<Dispatch>>) {
+        match dispatches {
+            Ok(dispatches) => self.handle_dispatches(dispatches),
+            Err(error) => {
+                todo!("Show the error to the user")
+            }
+        }
+    }
+
     fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) {
         dispatches
             .into_iter()
@@ -264,22 +277,27 @@ impl Screen {
     fn handle_dispatch(&mut self, dispatch: Dispatch) {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
-                let current_component = self.current_component();
-                let slave_ids = current_component.borrow().slave_ids();
-                self.components.remove(self.focused_component_id);
-                slave_ids.into_iter().for_each(|slave_id| {
-                    self.components.remove(slave_id);
-                });
-
-                self.focused_component_id = change_focused_to;
-                self.recalculate_layout();
+                self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch { search } => self.set_search(search),
+            Dispatch::OpenFile { path } => self.open_file(path),
         }
     }
 
     fn current_component(&self) -> &Rc<RefCell<dyn Component>> {
         self.components.get(self.focused_component_id).unwrap()
+    }
+
+    fn close_current_window(&mut self, change_focused_to: ComponentId) {
+        let current_component = self.current_component();
+        let slave_ids = current_component.borrow().slave_ids();
+        self.components.remove(self.focused_component_id);
+        slave_ids.into_iter().for_each(|slave_id| {
+            self.components.remove(slave_id);
+        });
+
+        self.focused_component_id = change_focused_to;
+        self.recalculate_layout();
     }
 
     fn set_search(&mut self, search: String) {
@@ -320,7 +338,7 @@ impl Screen {
             history: self.state.previous_searches.clone(),
             dropdown,
             owner: current_component,
-            on_enter: Box::new(|text, owner| {
+            on_enter: Box::new(|text, _, owner| {
                 owner
                     .borrow_mut()
                     .editor_mut()
@@ -330,7 +348,7 @@ impl Screen {
                 }]
             }),
             get_suggestions: Box::new(|text, owner| {
-                owner.borrow().editor().buffer().find_words(&text)
+                Ok(owner.borrow().editor().buffer().find_words(&text))
             }),
         });
         let component_id = self.add_component(Rc::new(RefCell::new(prompt)));
@@ -338,7 +356,55 @@ impl Screen {
     }
 
     fn open_file_picker(&mut self) {
-        todo!()
+        let dropdown = Rc::new(RefCell::new(Dropdown::new()));
+        let owner_id = self.focused_component_id;
+        let current_component = self.current_component().clone();
+        let dropdown_id = self.add_component(dropdown.clone());
+        let prompt = Prompt::new(PromptConfig {
+            owner_id,
+            dropdown_id,
+            history: self.state.previous_searches.clone(),
+            dropdown,
+            owner: current_component,
+            on_enter: Box::new(|_, current_item, owner| {
+                vec![Dispatch::OpenFile {
+                    path: Path::new(current_item).to_path_buf(),
+                }]
+            }),
+            get_suggestions: Box::new(|text, owner| {
+                let repo = git2::Repository::open(".")?;
+
+                // Get the current branch name
+                let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {
+                    Err(anyhow!(
+                        "Couldn't find HEAD for repository {}",
+                        repo.path().display(),
+                    ))
+                })?;
+
+                // Get the generic object of the current branch
+                let object = repo.find_object(head, None)?;
+
+                // Get the tree object of the current branch
+                let tree = object.peel_to_tree()?;
+
+                let mut result = vec![];
+                // Iterate over the tree entries and print their names
+                tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
+                    let entry_name = entry.name().unwrap_or_default();
+                    log::debug!("root: {}", root);
+                    let name = Path::new(root).join(entry_name);
+                    let name = name.to_string_lossy();
+                    if name.to_lowercase().contains(&text.to_lowercase()) {
+                        result.push(name.to_string());
+                    }
+                    git2::TreeWalkResult::Ok
+                })?;
+                Ok(result)
+            }),
+        });
+        let component_id = self.add_component(Rc::new(RefCell::new(prompt)));
+        self.focused_component_id = component_id;
     }
 
     fn change_view(&mut self) {
@@ -350,6 +416,13 @@ impl Screen {
         {
             self.focused_component_id = id.clone();
         }
+    }
+
+    fn open_file(&mut self, entry_path: PathBuf) {
+        let ref_cell = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
+        self.buffers.push(ref_cell.clone());
+        let entry_component = Rc::new(RefCell::new(Editor::from_buffer(ref_cell)));
+        self.add_component(entry_component);
     }
 }
 
@@ -371,4 +444,5 @@ fn reveal(s: String) -> String {
 pub enum Dispatch {
     CloseCurrentWindow { change_focused_to: ComponentId },
     SetSearch { search: String },
+    OpenFile { path: PathBuf },
 }

@@ -19,7 +19,7 @@ pub trait Component: Any + AnyComponent {
     fn get_grid(&self) -> Grid {
         self.editor().get_grid()
     }
-    fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch>;
+    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>>;
 
     /// This is used for closing components that are the slaves of this component.
     fn slave_ids(&self) -> Vec<ComponentId>;

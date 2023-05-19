@@ -13,6 +13,7 @@
 - [x] implement buffer
 - [x] use patch for undo (undo history should be stored under buffer) (https://docs.rs/diffy/0.3.0/diffy/)
 - [x] implement component
+- [x] file picker
 - [] LSP (after window system implemented)
 - [] split window (needed for autocomplete, prompt)
   - parent-child architecture
@@ -31,8 +32,9 @@
 - [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
 - [] jump should work for multiple selection
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
-- [] file picker
 - [] file tree
 - [] autocomplete
 - [] engine: press Enter to open new line below
 - [] d for delete, remove e, make px the same as pe (because I miss delete, eat is weird)
+- [] each editor should have a title (filename, prompt etc)
+- [] show error to user

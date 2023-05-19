@@ -28,5 +28,5 @@ fn main() {
 
     let path = Path::new(args.get(1).unwrap_or(&default_path));
     let mut screen = Screen::new();
-    screen.run(Buffer::from_path(path)).unwrap();
+    screen.run(path.to_path_buf()).unwrap();
 }

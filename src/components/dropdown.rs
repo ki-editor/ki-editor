@@ -39,7 +39,7 @@ impl Component for Dropdown {
         &mut self.editor
     }
 
-    fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch> {
+    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
         self.editor.handle_event(state, event)
     }
 

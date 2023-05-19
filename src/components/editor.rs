@@ -124,8 +124,8 @@ impl Component for Editor {
         grid
     }
 
-    fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch> {
-        match event {
+    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
+        let result = match event {
             Event::Key(key_event) => self.handle_key_event(state, key_event),
             Event::Mouse(mouse_event) => {
                 self.handle_mouse_event(mouse_event);
@@ -136,7 +136,8 @@ impl Component for Editor {
                 vec![]
             }
             _ => vec![],
-        }
+        };
+        Ok(result)
     }
 
     fn get_cursor_point(&self) -> Point {
@@ -265,7 +266,7 @@ impl Editor {
         self.select(SelectionMode::SiblingNode, direction);
     }
 
-    fn select_line(&mut self, direction: Direction) {
+    pub fn select_line(&mut self, direction: Direction) {
         self.select(SelectionMode::Line, direction);
     }
 

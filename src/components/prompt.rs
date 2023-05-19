@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crossterm::event::{Event, KeyCode};
+use itertools::Itertools;
 
 use crate::screen::{Dispatch, State};
 
@@ -21,9 +22,19 @@ pub struct Prompt {
     get_suggestions: GetSuggestions,
 }
 
-type OnEnter = Box<dyn Fn(/* text */ &str, /*owner*/ Rc<RefCell<dyn Component>>) -> Vec<Dispatch>>;
-type GetSuggestions =
-    Box<dyn Fn(/* text */ &str, /*owner*/ Rc<RefCell<dyn Component>>) -> Vec<String>>;
+type OnEnter = Box<
+    dyn Fn(
+        /* text */ &str,
+        /* current_suggestion */ &str,
+        /*owner*/ Rc<RefCell<dyn Component>>,
+    ) -> Vec<Dispatch>,
+>;
+type GetSuggestions = Box<
+    dyn Fn(
+        /* text */ &str,
+        /*owner*/ Rc<RefCell<dyn Component>>,
+    ) -> anyhow::Result<Vec<String>>,
+>;
 
 pub struct PromptConfig {
     pub owner_id: ComponentId,
@@ -71,47 +82,55 @@ impl Component for Prompt {
     fn editor_mut(&mut self) -> &mut Editor {
         &mut self.editor
     }
-    fn handle_event(&mut self, state: &State, event: Event) -> Vec<Dispatch> {
+    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
         match event {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Esc if self.editor.mode == Mode::Normal => {
-                    return vec![Dispatch::CloseCurrentWindow {
+                    return Ok(vec![Dispatch::CloseCurrentWindow {
                         change_focused_to: self.owner_id,
-                    }];
+                    }]);
                 }
                 KeyCode::Enter => {
-                    let dispatches = (self.on_enter)(&self.text, self.owner.clone());
-                    return dispatches
-                        .into_iter()
-                        .chain(vec![Dispatch::CloseCurrentWindow {
-                            change_focused_to: self.owner_id,
-                        }])
-                        .collect();
+                    let dispatches = (self.on_enter)(
+                        &self.text,
+                        &self.dropdown.borrow().editor().get_current_line().trim(),
+                        self.owner.clone(),
+                    );
+                    return Ok(vec![Dispatch::CloseCurrentWindow {
+                        change_focused_to: self.owner_id,
+                    }]
+                    .into_iter()
+                    .chain(dispatches)
+                    .collect());
                 }
                 KeyCode::Down => {
                     let text = self.dropdown.borrow_mut().next_item();
                     self.set_text(text);
-                    return vec![];
+                    return Ok(vec![]);
                 }
                 KeyCode::Up => {
                     let text = self.dropdown.borrow_mut().previous_item();
                     self.set_text(text);
 
-                    return vec![];
+                    return Ok(vec![]);
                 }
                 _ => {}
             },
             _ => {}
         };
 
-        let dispatches = self.editor.handle_event(state, event.clone());
+        let dispatches = self.editor.handle_event(state, event.clone())?;
 
         let suggestions = (self.get_suggestions)(&self.text, self.owner.clone());
-        self.dropdown.borrow_mut().update(&suggestions.join("\n"));
+        self.dropdown.borrow_mut().update(&suggestions?.join("\n"));
+        self.dropdown
+            .borrow_mut()
+            .editor_mut()
+            .select_line(Direction::Current);
 
         let current_text = self.editor.get_current_line().trim().to_string();
 
-        if current_text == self.text {
+        let result = if current_text == self.text {
             dispatches
         } else {
             self.text = current_text.clone();
@@ -119,8 +138,9 @@ impl Component for Prompt {
                 .borrow_mut()
                 .editor_mut()
                 .select_match(Direction::Forward, &Some(current_text));
-            dispatches.into_iter().chain(vec![]).collect()
-        }
+            dispatches.into_iter().chain(vec![]).collect_vec()
+        };
+        Ok(result)
     }
 
     fn slave_ids(&self) -> Vec<ComponentId> {
