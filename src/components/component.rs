@@ -6,6 +6,7 @@ use tree_sitter::Point;
 use crate::{
     auto_key_map::Incrementable,
     grid::Grid,
+    rectangle::Rectangle,
     screen::{Dimension, Dispatch, State},
 };
 
@@ -32,12 +33,24 @@ pub trait Component: Any + AnyComponent {
         self.editor().scroll_offset()
     }
 
-    fn set_dimension(&mut self, dimension: Dimension) {
-        self.editor_mut().set_dimension(dimension)
+    fn set_rectangle(&mut self, rectangle: Rectangle) {
+        self.editor_mut().set_rectangle(rectangle)
+    }
+
+    fn rectangle(&self) -> &Rectangle {
+        self.editor().rectangle()
     }
 
     fn update(&mut self, str: &str) {
         self.editor_mut().update(str);
+    }
+
+    fn title(&self) -> &str {
+        self.editor().title()
+    }
+
+    fn set_title(&mut self, title: String) {
+        self.editor_mut().set_title(title);
     }
 }
 

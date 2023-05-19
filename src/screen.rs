@@ -11,7 +11,7 @@ use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute, queue,
-    style::{Print, SetBackgroundColor, SetForegroundColor},
+    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
     terminal::{self, Clear, ClearType},
     ExecutableCommand,
 };
@@ -22,11 +22,11 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        dropdown::Dropdown,
+        dropdown::{Dropdown, DropdownConfig},
         editor::{Direction, Editor},
         prompt::{Prompt, PromptConfig},
     },
-    grid::Grid,
+    grid::{Grid, Style},
     rectangle::{Border, Rectangle},
 };
 
@@ -159,55 +159,72 @@ impl Screen {
 
     fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
         // Generate layout
-        let (rectangles, borders) =
-            Rectangle::generate(self.components.len(), self.state.terminal_dimension);
-
         let grid = Grid::new(self.state.terminal_dimension);
 
         // Render every window
         let (grid, cursor_point) = self
             .components
-            .entries_mut()
-            .zip(rectangles.into_iter())
-            .map(|((component_id, component), rectangle)| {
+            .entries()
+            .map(|(component_id, component)| {
                 let component = component.borrow();
-                let grid = component.get_grid();
+
+                let rectangle = component.rectangle();
+                let component_grid = component.get_grid();
                 let cursor_point = if component_id == &self.focused_component_id {
                     let cursor_position = component.get_cursor_point();
                     let scroll_offset = component.scroll_offset();
 
-                    // If cursor position is in view
+                    // If cursor position is not in view
                     if cursor_position.row < scroll_offset as usize
                         || cursor_position.row
                             >= (scroll_offset + rectangle.dimension().height) as usize
                     {
-                        return (grid, rectangle, None);
+                        None
+                    } else {
+                        Some(Point::new(
+                            (cursor_position.row + rectangle.origin.row)
+                                .saturating_sub(scroll_offset as usize),
+                            cursor_position.column + rectangle.origin.column,
+                        ))
                     }
-
-                    Some(Point::new(
-                        (cursor_position.row + rectangle.origin.row)
-                            .saturating_sub(scroll_offset as usize),
-                        cursor_position.column + rectangle.origin.column,
-                    ))
                 } else {
                     None
                 };
 
-                (grid, rectangle, cursor_point)
+                (
+                    component_grid,
+                    rectangle.clone(),
+                    cursor_point,
+                    component.title().to_string(),
+                )
             })
             .fold(
                 (grid, None),
-                |(grid, current_cursor_point), (window_grid, rectangle, cursor_point)| {
-                    (
-                        grid.update(&window_grid, rectangle),
-                        current_cursor_point.or_else(|| cursor_point),
-                    )
+                |(grid, current_cursor_point), (component_grid, rectangle, cursor_point, title)| {
+                    {
+                        let title_rectangle = rectangle.move_up(1).set_height(1);
+                        let title_grid = Grid::new(title_rectangle.dimension()).set_line(
+                            0,
+                            &title,
+                            Style {
+                                foreground_color: Color::White,
+                                background_color: Color::DarkGrey,
+                            },
+                        );
+                        (
+                            grid.update(&component_grid, &rectangle)
+                                // Set title
+                                .update(&title_grid, &title_rectangle),
+                            current_cursor_point.or_else(|| cursor_point),
+                        )
+                    }
                 },
             );
 
         // Render every border
-        let grid = borders
-            .into_iter()
+        let grid = self
+            .borders
+            .iter()
             .fold(grid, |grid, border| grid.set_border(border));
 
         self.render_grid(grid, cursor_point, stdout)?;
@@ -323,16 +340,21 @@ impl Screen {
             .values_mut()
             .zip(self.rectangles.iter())
             .for_each(|(component, rectangle)| {
-                component.borrow_mut().set_dimension(rectangle.dimension())
+                // Leave 1 row on top for rendering the title
+                let (_, rectangle) = rectangle.split_vertically_at(1);
+                component.borrow_mut().set_rectangle(rectangle.clone())
             });
     }
 
     fn open_search_prompt(&mut self) {
-        let dropdown = Rc::new(RefCell::new(Dropdown::new()));
+        let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
+            title: "Suggestions".to_string(),
+        })));
         let owner_id = self.focused_component_id;
         let current_component = self.current_component().clone();
         let dropdown_id = self.add_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
+            title: "Search".to_string(),
             owner_id,
             dropdown_id,
             history: self.state.previous_searches.clone(),
@@ -356,22 +378,25 @@ impl Screen {
     }
 
     fn open_file_picker(&mut self) {
-        let dropdown = Rc::new(RefCell::new(Dropdown::new()));
+        let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
+            title: "Matching files".to_string(),
+        })));
         let owner_id = self.focused_component_id;
         let current_component = self.current_component().clone();
         let dropdown_id = self.add_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
+            title: "Open File".to_string(),
             owner_id,
             dropdown_id,
             history: self.state.previous_searches.clone(),
             dropdown,
             owner: current_component,
-            on_enter: Box::new(|_, current_item, owner| {
+            on_enter: Box::new(|_, current_item, _| {
                 vec![Dispatch::OpenFile {
                     path: Path::new(current_item).to_path_buf(),
                 }]
             }),
-            get_suggestions: Box::new(|text, owner| {
+            get_suggestions: Box::new(|text, _| {
                 let repo = git2::Repository::open(".")?;
 
                 // Get the current branch name

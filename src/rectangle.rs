@@ -2,7 +2,7 @@ use tree_sitter::Point;
 
 use crate::screen::Dimension;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Default, Clone)]
 // A struct to represent a rectangle with origin, width and height
 pub struct Rectangle {
     pub origin: Point,
@@ -129,6 +129,41 @@ impl Rectangle {
             height: self.height,
         }
     }
+
+    /// Split the rectangle vertically at the given row.
+    pub fn split_vertically_at(&self, row: usize) -> (Rectangle, Rectangle) {
+        let rectangle1 = Rectangle {
+            origin: self.origin,
+            width: self.width,
+            height: row as u16,
+        };
+        let rectangle2 = Rectangle {
+            origin: Point {
+                row: self.origin.row + row,
+                ..self.origin
+            },
+            width: self.width,
+            height: self.height - row as u16,
+        };
+        (rectangle1, rectangle2)
+    }
+
+    pub fn move_up(&self, offset: usize) -> Rectangle {
+        Rectangle {
+            origin: Point {
+                row: self.origin.row - offset as usize,
+                ..self.origin
+            },
+            ..*self
+        }
+    }
+
+    pub fn set_height(&self, height: usize) -> Rectangle {
+        Rectangle {
+            height: height as u16,
+            ..*self
+        }
+    }
 }
 
 #[cfg(test)]
@@ -140,6 +175,32 @@ mod test_rectangle {
 
     use super::BorderDirection::*;
     use super::Rectangle;
+
+    #[test]
+    fn split_vertically_at() {
+        let rectangle = Rectangle {
+            origin: Point { row: 0, column: 0 },
+            width: 100,
+            height: 100,
+        };
+        let (rectangle1, rectangle2) = rectangle.split_vertically_at(50);
+        assert_eq!(
+            rectangle1,
+            Rectangle {
+                origin: Point { row: 0, column: 0 },
+                width: 100,
+                height: 50,
+            }
+        );
+        assert_eq!(
+            rectangle2,
+            Rectangle {
+                origin: Point { row: 50, column: 0 },
+                width: 100,
+                height: 50,
+            }
+        );
+    }
 
     #[test]
     fn generate_same_height_and_width() {

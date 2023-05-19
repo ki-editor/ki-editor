@@ -40,6 +40,10 @@ impl Buffer {
         }
     }
 
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
     pub fn find_words(&self, substring: &str) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
@@ -287,7 +291,9 @@ impl Buffer {
             "tsx" => tree_sitter_typescript::language_tsx(),
             "rs" => tree_sitter_rust::language(),
             "md" => tree_sitter_md::language(),
-            _ => panic!("Unsupported file extension"),
+
+            // By default use the Markdown language
+            _ => tree_sitter_md::language(),
         };
 
         let mut buffer = Buffer::new(language, &content);

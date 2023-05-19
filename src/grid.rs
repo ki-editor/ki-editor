@@ -1,5 +1,4 @@
 use crossterm::style::Color;
-use ropey::{Rope, RopeSlice};
 use tree_sitter::Point;
 
 use crate::{
@@ -20,6 +19,7 @@ pub struct Cell {
 }
 
 impl Cell {
+    #[cfg(test)]
     fn from_char(c: char) -> Self {
         Cell {
             symbol: c.to_string(),
@@ -95,10 +95,12 @@ impl Grid {
         cells
     }
 
+    #[cfg(test)]
     fn from_text(dimension: Dimension, text: &str) -> Grid {
         Grid::from_rope(dimension, &Rope::from_str(text))
     }
 
+    #[cfg(test)]
     fn from_rope(dimension: Dimension, rope: &Rope) -> Grid {
         let mut grid = Grid::new(dimension);
 
@@ -116,7 +118,7 @@ impl Grid {
         grid
     }
 
-    pub fn update(self, other: &Grid, rectangle: Rectangle) -> Grid {
+    pub fn update(self, other: &Grid, rectangle: &Rectangle) -> Grid {
         let mut grid = self;
         for (row_index, rows) in other.rows.iter().enumerate() {
             for (column_index, cell) in rows.iter().enumerate() {
@@ -127,7 +129,7 @@ impl Grid {
         grid
     }
 
-    pub fn set_border(mut self, border: Border) -> Grid {
+    pub fn set_border(mut self, border: &Border) -> Grid {
         let dimension = self.dimension();
         match border.direction {
             BorderDirection::Horizontal => {
@@ -158,6 +160,27 @@ impl Grid {
             width: self.rows[0].len() as u16,
         }
     }
+
+    pub fn set_line(self, row: usize, title: &str, style: Style) -> Grid {
+        let mut grid = self;
+        for (column_index, character) in title
+            .chars()
+            .take(grid.dimension().width as usize)
+            .enumerate()
+        {
+            grid.rows[row][column_index] = Cell {
+                symbol: character.to_string(),
+                foreground_color: style.foreground_color,
+                background_color: style.background_color,
+            }
+        }
+        grid
+    }
+}
+
+pub struct Style {
+    pub foreground_color: Color,
+    pub background_color: Color,
 }
 
 #[cfg(test)]

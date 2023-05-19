@@ -44,6 +44,7 @@ pub struct PromptConfig {
     pub owner: Rc<RefCell<dyn Component>>,
     pub on_enter: OnEnter,
     pub get_suggestions: GetSuggestions,
+    pub title: String,
 }
 
 impl Prompt {
@@ -57,6 +58,7 @@ impl Prompt {
         };
         let mut editor = Editor::from_text(tree_sitter_md::language(), text);
         editor.enter_insert_mode();
+        editor.set_title(config.title);
         Prompt {
             editor,
             owner_id: config.owner_id,

@@ -18,15 +18,6 @@ pub struct SelectionSet {
     pub mode: SelectionMode,
 }
 impl SelectionSet {
-    #[cfg(test)]
-    pub fn default() -> SelectionSet {
-        SelectionSet {
-            primary: Selection::default(),
-            secondary: Vec::new(),
-            mode: SelectionMode::Line,
-        }
-    }
-
     pub fn map<F, A>(&self, f: F) -> Vec<A>
     where
         F: Fn(&Selection) -> A,
@@ -207,18 +198,6 @@ impl Selection {
                 self.range.start.min(extended_selection_anchor.start)
                     ..self.range.end.max(extended_selection_anchor.end)
             }
-        }
-    }
-
-    pub fn from_two_char_indices(
-        anchor: &CharIndex,
-        get_cursor_char_index: &CharIndex,
-    ) -> Selection {
-        Selection {
-            range: *anchor.min(get_cursor_char_index)..*anchor.max(get_cursor_char_index),
-            node_id: None,
-            copied_text: None,
-            initial_range: None,
         }
     }
 
@@ -545,11 +524,6 @@ impl CharIndex {
     pub fn to_line(self, rope: &Rope) -> usize {
         rope.try_char_to_line(self.0)
             .unwrap_or_else(|_| rope.len_lines())
-    }
-
-    pub fn to_byte(self, rope: &Rope) -> usize {
-        rope.try_char_to_byte(self.0)
-            .unwrap_or_else(|_| rope.len_bytes())
     }
 
     pub fn apply_offset(&self, change: isize) -> CharIndex {

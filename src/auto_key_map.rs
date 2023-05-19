@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::ops::Add;
 
 use itertools::Itertools;
 
@@ -70,12 +69,6 @@ where
     pub fn keys(&self) -> impl Iterator<Item = &Key> {
         let mut vec = self.map.keys().collect_vec();
         vec.sort();
-        vec.into_iter()
-    }
-
-    pub fn entries_mut(&mut self) -> impl Iterator<Item = (&Key, &mut T)> {
-        let mut vec = self.map.iter_mut().collect_vec();
-        vec.sort_by_key(|(key, _)| **key);
         vec.into_iter()
     }
 }

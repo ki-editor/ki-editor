@@ -17,6 +17,7 @@ use crate::{
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
+    rectangle::Rectangle,
     screen::{Dimension, Dispatch, State},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
@@ -46,6 +47,12 @@ impl Component for Editor {
     fn update(&mut self, str: &str) {
         self.update_buffer(str);
     }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn set_title(&mut self, title: String) {
+        self.title = title;
+    }
     fn get_grid(&self) -> Grid {
         let editor = self;
         let Dimension { height, width } = editor.dimension();
@@ -62,6 +69,8 @@ impl Component for Editor {
             .lines()
             .enumerate()
             .skip(scroll_offset.into())
+            // Minus 1 is a hack that prevents the rendering from breaking.
+            // Reasons unknown yet.
             .take((height - 1) as usize)
             .collect::<Vec<(_, RopeSlice)>>();
 
@@ -150,8 +159,12 @@ impl Component for Editor {
         self.scroll_offset
     }
 
-    fn set_dimension(&mut self, dimension: Dimension) {
-        self.dimension = dimension;
+    fn set_rectangle(&mut self, rectangle: Rectangle) {
+        self.rectangle = rectangle;
+    }
+
+    fn rectangle(&self) -> &Rectangle {
+        &self.rectangle
     }
 
     fn slave_ids(&self) -> Vec<ComponentId> {
@@ -167,8 +180,9 @@ impl Clone for Editor {
             cursor_direction: self.cursor_direction.clone(),
             selection_history: self.selection_history.clone(),
             scroll_offset: self.scroll_offset.clone(),
-            dimension: self.dimension.clone(),
+            rectangle: self.rectangle.clone(),
             buffer: self.buffer.clone(),
+            title: self.title.clone(),
         }
     }
 }
@@ -184,9 +198,10 @@ pub struct Editor {
     /// Zero-based index.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
-    dimension: Dimension,
+    rectangle: Rectangle,
 
     buffer: Rc<RefCell<Buffer>>,
+    title: String,
 }
 
 #[derive(Clone)]
@@ -219,12 +234,18 @@ impl Editor {
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
             scroll_offset: 0,
-            dimension: Dimension::default(),
+            rectangle: Rectangle::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
+            title: String::new(),
         }
     }
 
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
+        let title = buffer
+            .borrow()
+            .path()
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_else(|| "[Untitled]".to_string());
         Self {
             selection_set: SelectionSet {
                 primary: Selection {
@@ -240,8 +261,9 @@ impl Editor {
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
             scroll_offset: 0,
-            dimension: Dimension::default(),
+            rectangle: Rectangle::default(),
             buffer,
+            title,
         }
     }
 
@@ -279,10 +301,6 @@ impl Editor {
                 direction,
             );
         }
-    }
-
-    pub fn search_forward(&mut self, search: &String) {
-        self.select_match(Direction::Forward, &Some(search.clone()));
     }
 
     fn select_named_node(&mut self, direction: Direction) {
@@ -328,7 +346,7 @@ impl Editor {
         // Update scroll_offset if primary selection is out of view.
         let cursor_row = self.cursor_row();
         if cursor_row.saturating_sub(self.scroll_offset)
-            >= (self.dimension.height.saturating_sub(2))
+            >= (self.rectangle.height.saturating_sub(2))
             || cursor_row < self.scroll_offset
         {
             self.align_cursor_to_center();
@@ -336,7 +354,7 @@ impl Editor {
     }
 
     fn align_cursor_to_bottom(&mut self) {
-        self.scroll_offset = self.cursor_row() - (self.dimension.height - 2);
+        self.scroll_offset = self.cursor_row() - (self.rectangle.height - 2);
     }
 
     fn align_cursor_to_top(&mut self) {
@@ -346,7 +364,7 @@ impl Editor {
     fn align_cursor_to_center(&mut self) {
         self.scroll_offset = self
             .cursor_row()
-            .saturating_sub((self.dimension.height.saturating_sub(2)) / 2);
+            .saturating_sub((self.rectangle.height.saturating_sub(2)) / 2);
     }
 
     pub fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
@@ -987,7 +1005,7 @@ impl Editor {
     }
 
     pub fn dimension(&self) -> Dimension {
-        self.dimension
+        self.rectangle.dimension()
     }
 
     pub fn handle_mouse_event(
@@ -1105,20 +1123,6 @@ impl Editor {
 
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
-    }
-
-    pub fn move_cursor_to_end(&mut self) {
-        let selection_set = SelectionSet {
-            primary: Selection {
-                range: CharIndex(self.buffer().len_chars())..CharIndex(self.buffer().len_chars()),
-                node_id: None,
-                copied_text: None,
-                initial_range: None,
-            },
-            secondary: vec![],
-            mode: SelectionMode::Custom,
-        };
-        self.update_selection_set(selection_set);
     }
 
     fn update_buffer(&mut self, s: &str) {

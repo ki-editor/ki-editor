@@ -12,10 +12,15 @@ pub struct Dropdown {
     editor: Editor,
 }
 
+pub struct DropdownConfig {
+    pub title: String,
+}
+
 impl Dropdown {
-    pub fn new() -> Self {
+    pub fn new(config: DropdownConfig) -> Self {
         let mut editor = Editor::from_text(tree_sitter_md::language(), "");
         editor.select(SelectionMode::Line, Direction::Current);
+        editor.set_title(config.title);
         Self { editor }
     }
 
