@@ -755,8 +755,10 @@ impl Editor {
             KeyCode::Char('t') => self.select_token(direction),
             KeyCode::Char('r') => self.replace(),
             KeyCode::Char('p') => self.select_parent(direction),
-            KeyCode::Char('x') => self.exchange(direction),
+            KeyCode::Char('v') => self.select_view(Direction::Forward),
+            KeyCode::Char('V') => self.select_view(Direction::Backward),
             KeyCode::Char('w') => self.select_word(direction),
+            KeyCode::Char('x') => self.exchange(direction),
             KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Backspace => {
@@ -1135,6 +1137,33 @@ impl Editor {
             Direction::Backward => Direction::Forward,
             Direction::Current => Direction::Current,
         }
+    }
+
+    fn select_view(&mut self, direction: Direction) {
+        self.scroll_offset = match direction {
+            Direction::Forward => self
+                .scroll_offset
+                .saturating_add(self.rectangle.height)
+                .min(self.buffer.borrow().len_lines() as u16),
+            Direction::Backward => self.scroll_offset.saturating_sub(self.rectangle.height),
+            Direction::Current => self.scroll_offset,
+        };
+
+        let char_index = self
+            .buffer
+            .borrow()
+            .line_to_char(self.scroll_offset as usize);
+        self.update_selection_set(SelectionSet {
+            primary: Selection {
+                range: char_index..char_index,
+                node_id: None,
+                copied_text: self.selection_set.primary.copied_text.clone(),
+                initial_range: self.selection_set.primary.initial_range.clone(),
+            },
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+        });
+        self.align_cursor_to_center()
     }
 }
 
