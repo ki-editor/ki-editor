@@ -47,13 +47,8 @@ impl Component for Editor {
     fn update(&mut self, str: &str) {
         self.update_buffer(str);
     }
-    fn title(&self) -> String {
-        let direction = match self.direction {
-            Direction::Forward => ">",
-            Direction::Backward => "<",
-            Direction::Current => ".",
-        };
-        format!("{} [{}]", &self.title, direction)
+    fn title(&self) -> &str {
+        &self.title
     }
     fn set_title(&mut self, title: String) {
         self.title = title;
@@ -188,7 +183,6 @@ impl Clone for Editor {
             rectangle: self.rectangle.clone(),
             buffer: self.buffer.clone(),
             title: self.title.clone(),
-            direction: self.direction.clone(),
         }
     }
 }
@@ -207,7 +201,6 @@ pub struct Editor {
     rectangle: Rectangle,
 
     buffer: Rc<RefCell<Buffer>>,
-    direction: Direction,
     title: String,
 }
 
@@ -244,7 +237,6 @@ impl Editor {
             rectangle: Rectangle::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
             title: String::new(),
-            direction: Direction::Forward,
         }
     }
 
@@ -272,7 +264,6 @@ impl Editor {
             rectangle: Rectangle::default(),
             buffer,
             title,
-            direction: Direction::Forward,
         }
     }
 
@@ -734,31 +725,40 @@ impl Editor {
     }
 
     fn handle_normal_mode(&mut self, state: &State, event: KeyEvent) -> Vec<Dispatch> {
-        let direction = self.direction;
         match event.code {
             // Objects
             KeyCode::Char('a') => self.add_selection(),
             KeyCode::Char('A') => self.add_selection(),
             KeyCode::Char('b') => self.select_backward(),
-            KeyCode::Char('c') => self.select_character(direction),
-            KeyCode::Char('d') => self.change_direction(),
-            KeyCode::Char('e') => self.eat(direction),
+            KeyCode::Char('c') => self.select_character(Direction::Forward),
+            KeyCode::Char('C') => self.select_character(Direction::Backward),
+            KeyCode::Char('e') => self.eat(Direction::Forward),
+            KeyCode::Char('E') => self.eat(Direction::Backward),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
-            KeyCode::Char('j') => self.jump(direction),
+            KeyCode::Char('j') => self.jump(Direction::Forward),
+            KeyCode::Char('J') => self.jump(Direction::Backward),
             KeyCode::Char('k') => self.select_kids(),
-            KeyCode::Char('l') => self.select_line(direction),
-            KeyCode::Char('m') => self.select_match(direction, &state.last_search()),
-            KeyCode::Char('n') => self.select_named_node(direction),
+            KeyCode::Char('l') => self.select_line(Direction::Forward),
+            KeyCode::Char('L') => self.select_line(Direction::Backward),
+            KeyCode::Char('m') => self.select_match(Direction::Forward, &state.last_search()),
+            KeyCode::Char('M') => self.select_match(Direction::Backward, &state.last_search()),
+            KeyCode::Char('n') => self.select_named_node(Direction::Forward),
+            KeyCode::Char('N') => self.select_named_node(Direction::Backward),
             KeyCode::Char('o') => self.change_cursor_direction(),
-            KeyCode::Char('s') => self.select_sibling(direction),
-            KeyCode::Char('t') => self.select_token(direction),
+            KeyCode::Char('s') => self.select_sibling(Direction::Forward),
+            KeyCode::Char('S') => self.select_sibling(Direction::Backward),
+            KeyCode::Char('t') => self.select_token(Direction::Forward),
+            KeyCode::Char('T') => self.select_token(Direction::Backward),
             KeyCode::Char('r') => self.replace(),
-            KeyCode::Char('p') => self.select_parent(direction),
+            KeyCode::Char('p') => self.select_parent(Direction::Forward),
+            KeyCode::Char('P') => self.select_parent(Direction::Backward),
             KeyCode::Char('v') => self.select_view(Direction::Forward),
             KeyCode::Char('V') => self.select_view(Direction::Backward),
-            KeyCode::Char('w') => self.select_word(direction),
-            KeyCode::Char('x') => self.exchange(direction),
+            KeyCode::Char('w') => self.select_word(Direction::Forward),
+            KeyCode::Char('W') => self.select_word(Direction::Backward),
+            KeyCode::Char('x') => self.exchange(Direction::Forward),
+            KeyCode::Char('X') => self.exchange(Direction::Backward),
             KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Backspace => {
@@ -1130,15 +1130,6 @@ impl Editor {
     fn update_buffer(&mut self, s: &str) {
         self.buffer.borrow_mut().update(&s)
     }
-
-    fn change_direction(&mut self) {
-        self.direction = match self.direction {
-            Direction::Forward => Direction::Backward,
-            Direction::Backward => Direction::Forward,
-            Direction::Current => Direction::Current,
-        }
-    }
-
     fn select_view(&mut self, direction: Direction) {
         self.scroll_offset = match direction {
             Direction::Forward => self
