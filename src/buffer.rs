@@ -71,6 +71,10 @@ impl Buffer {
         line.to_string()
     }
 
+    pub fn len_lines(&self) -> usize {
+        self.rope.len_lines()
+    }
+
     pub fn char_to_line(&self, char_index: CharIndex) -> usize {
         self.rope.char_to_line(char_index.0)
     }

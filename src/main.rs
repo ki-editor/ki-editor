@@ -3,6 +3,7 @@ mod buffer;
 mod components;
 mod edit;
 mod grid;
+mod lsp;
 mod rectangle;
 mod screen;
 mod selection;
@@ -17,7 +18,10 @@ use log::LevelFilter;
 use screen::Screen;
 use terminal::run_integrated_terminal;
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    lsp::client::run_lsp("rust-analyzer").unwrap();
+    panic!();
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info).unwrap();
     let args = std::env::args().collect::<Vec<_>>();
 

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crossterm::event::{Event, KeyCode};
+use crossterm::event::{Event, KeyCode, KeyModifiers};
 use itertools::Itertools;
 
 use crate::screen::{Dispatch, State};
@@ -85,6 +85,16 @@ impl Prompt {
         self.text = text;
         self.editor.update(&self.text);
     }
+
+    fn select_previous_suggestion(&mut self) {
+        let text = self.dropdown.borrow_mut().previous_item();
+        self.set_text(text);
+    }
+
+    fn select_next_suggestion(&mut self) {
+        let text = self.dropdown.borrow_mut().next_item();
+        self.set_text(text);
+    }
 }
 
 impl Component for Prompt {
@@ -116,14 +126,19 @@ impl Component for Prompt {
                     .collect());
                 }
                 KeyCode::Down => {
-                    let text = self.dropdown.borrow_mut().next_item();
-                    self.set_text(text);
+                    self.select_next_suggestion();
                     return Ok(vec![]);
                 }
                 KeyCode::Up => {
-                    let text = self.dropdown.borrow_mut().previous_item();
-                    self.set_text(text);
-
+                    self.select_previous_suggestion();
+                    return Ok(vec![]);
+                }
+                KeyCode::Char('n') if key_event.modifiers == KeyModifiers::CONTROL => {
+                    self.select_next_suggestion();
+                    return Ok(vec![]);
+                }
+                KeyCode::Char('p') if key_event.modifiers == KeyModifiers::CONTROL => {
+                    self.select_previous_suggestion();
                     return Ok(vec![]);
                 }
                 _ => {}
