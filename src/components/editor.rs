@@ -1179,7 +1179,7 @@ pub enum HandleEventResult {
 
 #[cfg(test)]
 
-mod test_engine {
+mod test_editor {
 
     use super::{Direction, Editor};
     use pretty_assertions::assert_eq;
@@ -1378,22 +1378,27 @@ fn main() {
             vec!["fn main(x: usize) { let x = 1; }"]
         );
         buffer.select_named_node(Direction::Forward);
+        assert_eq!(
+            buffer.get_selected_texts(),
+            vec!["fn main(x: usize) { let x = 1; }"]
+        );
+        buffer.select_named_node(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["main"]);
         buffer.select_named_node(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["(x: usize)"]);
         buffer.select_named_node(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
         buffer.select_named_node(Direction::Forward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
+        buffer.select_named_node(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["usize"]);
         buffer.select_named_node(Direction::Forward);
         assert_eq!(buffer.get_selected_texts(), vec!["{ let x = 1; }"]);
-        buffer.select_named_node(Direction::Forward);
-        assert_eq!(buffer.get_selected_texts(), vec!["let x = 1;"]);
 
         buffer.select_named_node(Direction::Backward);
-        assert_eq!(buffer.get_selected_texts(), vec!["{ let x = 1; }"]);
-        buffer.select_named_node(Direction::Backward);
         assert_eq!(buffer.get_selected_texts(), vec!["usize"]);
+        buffer.select_named_node(Direction::Backward);
+        assert_eq!(buffer.get_selected_texts(), vec!["x"]);
         buffer.select_named_node(Direction::Backward);
         assert_eq!(buffer.get_selected_texts(), vec!["x: usize"]);
         buffer.select_named_node(Direction::Backward);
@@ -1463,10 +1468,9 @@ fn main() {
     #[test]
     fn eat_parent() {
         let mut buffer = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
+
         // Move selection to "c()"
-        for _ in 0..10 {
-            buffer.select_named_node(Direction::Forward);
-        }
+        buffer.select_match(Direction::Forward, &Some(r"c\(\)".to_string()));
 
         assert_eq!(buffer.get_selected_texts(), vec!["c()"]);
 
@@ -1535,9 +1539,7 @@ fn main() {
     fn multi_insert() {
         let mut buffer = Editor::from_text(language(), "struct A(usize, char)");
         // Select 'usize'
-        for _ in 0..4 {
-            buffer.select_named_node(Direction::Forward);
-        }
+        buffer.select_match(Direction::Forward, &Some(r"usize".to_string()));
 
         assert_eq!(buffer.get_selected_texts(), vec!["usize"]);
 
@@ -1559,11 +1561,9 @@ fn main() {
     fn multi_eat_parent() {
         let mut buffer = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
-        for _ in 0..5 {
-            buffer.select_named_node(Direction::Forward);
-        }
+        buffer.select_match(Direction::Forward, &Some(r"let x = S\(a\)".to_string()));
 
-        assert_eq!(buffer.get_selected_texts(), vec!["let x = S(a);"]);
+        assert_eq!(buffer.get_selected_texts(), vec!["let x = S(a)"]);
 
         buffer.select_sibling(Direction::Forward);
         buffer.add_selection();
@@ -1573,7 +1573,7 @@ fn main() {
             vec!["let x = S(a);", "let y = S(b);"]
         );
 
-        for _ in 0..5 {
+        for _ in 0..6 {
             buffer.select_named_node(Direction::Forward);
         }
 
@@ -1637,10 +1637,11 @@ fn main() {
             "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }",
         );
 
-        // Select 'let x = S(a)'
-        for _ in 0..5 {
-            buffer.select_named_node(Direction::Forward);
-        }
+        // Select 'let x = S(spongebob_squarepants);'
+        buffer.select_match(
+            Direction::Forward,
+            &Some(r"let x = S\(spongebob_squarepants\);".to_string()),
+        );
 
         assert_eq!(
             buffer.get_selected_texts(),

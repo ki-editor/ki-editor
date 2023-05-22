@@ -20,8 +20,8 @@ use terminal::run_integrated_terminal;
 #[tokio::main]
 async fn main() {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info).unwrap();
-    lsp::client::run_lsp("rust-analyzer").unwrap();
-    panic!();
+    // lsp::client::run_lsp("rust-analyzer").unwrap();
+    // panic!();
     let args = std::env::args().collect::<Vec<_>>();
 
     // run_integrated_terminal(24, 80).unwrap();

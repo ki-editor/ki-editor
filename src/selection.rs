@@ -1,5 +1,6 @@
 use std::ops::{Add, Range, Sub};
 
+use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
 use tree_sitter::{Node, Point};
@@ -240,22 +241,32 @@ impl Selection {
                 Direction::Current => {
                     Some(buffer.get_current_node(cursor_char_index, current_selection))
                 }
-                Direction::Forward => buffer
-                    .traverse(Order::Pre)
-                    .find(|node| node.start_byte() > current_selection_start.0 && node.is_named()),
+                Direction::Forward => {
+                    let current_node =
+                        buffer.get_current_node(cursor_char_index, current_selection);
+
+                    let mut found = false;
+                    let mut result = None;
+                    for node in buffer.traverse(Order::Pre).into_iter() {
+                        if node.id() == current_node.id() {
+                            found = true;
+                        } else if found && node.is_named() {
+                            result = Some(node);
+                            break;
+                        }
+                    }
+                    result
+                }
                 Direction::Backward => {
+                    let current_node =
+                        buffer.get_current_node(cursor_char_index, current_selection);
                     find_previous(
                         buffer.traverse(Order::Pre),
                         |node, last_match| match last_match {
-                            Some(last_match) => {
-                                node.is_named()
-                                // This predicate is so that if there's multiple node with the same
-                                // start byte, we will only take the node with the largest range
-                                && last_match.start_byte() < node.start_byte()
-                            }
+                            Some(_) => node.is_named(),
                             None => true,
                         },
-                        |node| node.start_byte() >= current_selection_start.0 && node.is_named(),
+                        |node| node.id() == current_node.id(),
                     )
                 }
             }

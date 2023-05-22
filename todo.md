@@ -38,3 +38,21 @@
 - [] engine: press Enter to open new line below
 - [] engine: d for delete, remove e, make px the same as pe (because I miss delete, eat is weird)
 - [] screen: show error to user
+- [x] editor: v for scrolling down
+- [] lsp: make it async
+- [x] named node becomes pre-order traversal instead of selection based on cursor position (which is useless)
+
+Post mortem after actual usage:
+
+- n is kinda useless, because we don't traverse based on cursor, but rather based on tree
+- P (or go to first child) is very important, so it should have its own key
+- Every movement requires two key presses is annoying
+- The most common keys are p,P,s,S maybe they deserve their own hjkl? or even arrow keys
+
+Options to improve tree navigation?
+
+- Allow search for node by their text
+- A tree mini-map to aid the tree navigation
+- Pre-order jump, for example (a (b c) (d e (f))), the jump would be, in order:
+  - a, (b c), (d e (f)), b, c, d, e, (f)
+- Allow pre-order/post-order traversal movements!
