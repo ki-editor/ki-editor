@@ -47,8 +47,22 @@ impl Component for Editor {
     fn update(&mut self, str: &str) {
         self.update_buffer(str);
     }
-    fn title(&self) -> &str {
-        &self.title
+    fn title(&self) -> String {
+        match &self.mode {
+            Mode::Normal => {
+                format!(
+                    "{} [NORMAL:{}]",
+                    &self.title,
+                    self.selection_set.mode.display()
+                )
+            }
+            Mode::Insert => {
+                format!("{} [INSERT]", &self.title)
+            }
+            Mode::Jump { .. } => {
+                format!("{} [JUMP]", &self.title)
+            }
+        }
     }
     fn set_title(&mut self, title: String) {
         self.title = title;

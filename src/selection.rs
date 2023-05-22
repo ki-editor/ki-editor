@@ -168,6 +168,20 @@ impl SelectionMode {
         use SelectionMode::*;
         matches!(self, NamedNode | ParentNode | SiblingNode)
     }
+
+    pub fn display(&self) -> String {
+        match self {
+            SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::Line => "LINE".to_string(),
+            SelectionMode::Character => "CHAR".to_string(),
+            SelectionMode::Custom => "CUSTOM".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
+            SelectionMode::NamedNode => "NODE".to_string(),
+            SelectionMode::ParentNode => "PARENT".to_string(),
+            SelectionMode::SiblingNode => "SIBLING".to_string(),
+            SelectionMode::Match { regex } => format!("MATCH {:?}", regex),
+        }
+    }
 }
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash)]

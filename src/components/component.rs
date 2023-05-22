@@ -45,7 +45,7 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().update(str);
     }
 
-    fn title(&self) -> &str {
+    fn title(&self) -> String {
         self.editor().title()
     }
 
