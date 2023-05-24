@@ -40,8 +40,8 @@ impl Buffer {
         }
     }
 
-    pub fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
+    pub fn path(&self) -> Option<PathBuf> {
+        self.path.clone()
     }
 
     pub fn find_words(&self, substring: &str) -> Vec<String> {

@@ -12,24 +12,54 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{self, Command, Stdio};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::thread::{self, JoinHandle};
 
-struct LspServerProcess {
+use crate::screen::ScreenMessage;
+
+pub struct LspServerProcess {
     process: process::Child,
     stdin: process::ChildStdin,
+
+    /// This is hacky, but we need to keep the stdout around so that it doesn't get dropped
+    stdout: Option<process::ChildStdout>,
+
     server_capabilities: Option<ServerCapabilities>,
     current_working_directory: PathBuf,
     next_request_id: u64,
     pending_response_requests: HashMap<u64, /* method */ String>,
-    completion_response: Option<CompletionResponse>,
+    screen_message_sender: Sender<ScreenMessage>,
+
+    receiver: Receiver<LspServerProcessMessage>,
+    sender: Sender<LspServerProcessMessage>,
+}
+
+#[derive(Debug)]
+pub enum LspNotification {
+    CompletionResponse(CompletionResponse),
+}
+
+#[derive(Debug)]
+pub enum LspServerProcessMessage {
+    FromLspServer(serde_json::Value),
+    FromEditor(FromEditor),
+}
+
+#[derive(Debug)]
+pub enum FromEditor {
+    CompletionRequest {
+        file_path: PathBuf,
+        position: Position,
+    },
 }
 
 impl LspServerProcess {
     pub fn new(
         command: &str,
         args: Vec<String>,
-    ) -> anyhow::Result<(Arc<Mutex<LspServerProcess>>, thread::JoinHandle<()>)> {
+        screen_message_sender: Sender<ScreenMessage>,
+    ) -> anyhow::Result<(Self, Sender<LspServerProcessMessage>)> {
         let mut command = Command::new(command);
         command.stdin(Stdio::piped()).stdout(Stdio::piped());
 
@@ -41,17 +71,23 @@ impl LspServerProcess {
 
         let stdin = process.stdin.take().unwrap();
         let stdout = process.stdout.take().unwrap();
-        let lsp_server_process = Arc::new(Mutex::new(LspServerProcess {
+        let (sender, receiver) = std::sync::mpsc::channel::<LspServerProcessMessage>();
+        let mut lsp_server_process = LspServerProcess {
             process,
             stdin,
+            stdout: Some(stdout),
             current_working_directory: std::env::current_dir()?,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
-            completion_response: None,
             server_capabilities: None,
-        }));
-        let stdout_join_handle = Self::listen(lsp_server_process.clone(), stdout);
-        Ok((lsp_server_process, stdout_join_handle))
+            screen_message_sender,
+            receiver,
+            sender: sender.clone(),
+        };
+
+        lsp_server_process.initialize()?;
+
+        Ok((lsp_server_process, sender))
     }
 
     fn initialize(&mut self) -> anyhow::Result<()> {
@@ -84,45 +120,68 @@ impl LspServerProcess {
         Ok(())
     }
 
-    fn listen(
-        lsp_server_process: Arc<Mutex<LspServerProcess>>,
-        stdout: process::ChildStdout,
-    ) -> thread::JoinHandle<()> {
-        let mut reader = BufReader::new(stdout);
-        thread::spawn(move || loop {
-            let mut line = String::new();
-            reader.read_line(&mut line).unwrap();
+    pub fn listen(mut self) -> JoinHandle<()> {
+        let mut reader = BufReader::new(self.stdout.take().unwrap());
+        let sender = self.sender.clone();
+        let handle = thread::spawn(move || {
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
 
-            let content_length = line
-                .split(":")
-                .nth(1)
-                .unwrap()
-                .trim()
-                .parse::<usize>()
-                .unwrap();
+                let content_length = line
+                    .split(":")
+                    .nth(1)
+                    .unwrap()
+                    .trim()
+                    .parse::<usize>()
+                    .unwrap();
 
-            // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
-            //
-            // ... this means that TWO ‘\r\n’ sequences always immediately precede the content part of a message.
-            //
-            // That's why we have to read an empty line here again.
-            reader.read_line(&mut line).unwrap();
+                // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
+                //
+                // ... this means that TWO ‘\r\n’ sequences always immediately precede the content part of a message.
+                //
+                // That's why we have to read an empty line here again.
+                reader.read_line(&mut line).unwrap();
 
-            log::info!("Content-Length: {}", content_length);
-            let mut buffer = vec![0; content_length];
-            reader.read_exact(&mut buffer).unwrap();
+                let mut buffer = vec![0; content_length];
+                reader.read_exact(&mut buffer).unwrap();
 
-            let reply = String::from_utf8(buffer).unwrap();
+                let reply = String::from_utf8(buffer).unwrap();
 
-            // Parse as generic JSON value
-            let reply: serde_json::Value = serde_json::from_str(&reply).unwrap();
+                // Parse as generic JSON value
+                let reply: serde_json::Value = serde_json::from_str(&reply).unwrap();
 
-            // Send the JSON value to the LSP server process
-            let mut lsp_server_process = lsp_server_process.lock().unwrap();
-            lsp_server_process.handle_reply(reply).map_err(|e| {
-                log::error!("Handle reply error: {:?}", e);
-            });
-        })
+                log::info!("[LspServerProcess] Received reply");
+                sender
+                    .send(LspServerProcessMessage::FromLspServer(reply))
+                    .unwrap_or_else(|error| {
+                        log::error!("[LspServerProcess] Error sending reply: {:?}", error);
+                    });
+            }
+        });
+
+        log::info!("[LspServerProcess] Listening for messages from LSP server");
+        while let Ok(message) = self.receiver.recv() {
+            log::info!("[LspServerProcess] Received message");
+            match message {
+                LspServerProcessMessage::FromLspServer(json_value) => self.handle_reply(json_value),
+                LspServerProcessMessage::FromEditor(from_editor) => {
+                    log::info!("[LspServerProcess] FromEditor: {:?}", from_editor);
+                    match from_editor {
+                        FromEditor::CompletionRequest {
+                            file_path,
+                            position,
+                        } => self.text_document_completion(file_path, position),
+                    }
+                }
+            }
+            .unwrap_or_else(|error| {
+                log::error!("[LspServerProcess] Error handling reply: {:?}", error);
+            })
+        }
+
+        log::info!("[LspServerProcess] Stopped listening for messages from LSP server");
+        handle
     }
 
     fn handle_reply(&mut self, reply: serde_json::Value) -> anyhow::Result<()> {
@@ -176,7 +235,13 @@ impl LspServerProcess {
                         let payload: <lsp_request!("textDocument/completion") as Request>::Result =
                             serde_json::from_value(response)?;
 
-                        self.set_completion_response(payload);
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(
+                                    LspNotification::CompletionResponse(payload),
+                                ))
+                                .unwrap();
+                        }
                     }
                     _ => todo!(),
                 }
@@ -194,20 +259,20 @@ impl LspServerProcess {
         Ok(())
     }
 
-    fn text_completion(&mut self) -> anyhow::Result<()> {
+    pub fn text_document_completion(
+        &mut self,
+        file_path: PathBuf,
+        position: Position,
+    ) -> anyhow::Result<()> {
         let result =
             self.send_request::<lsp_request!("textDocument/completion")>(CompletionParams {
                 text_document_position: TextDocumentPositionParams {
+                    position,
                     text_document: TextDocumentIdentifier {
                         uri: Url::parse(&format!(
-                            "file://{}/{}",
-                            self.current_working_directory.display(),
-                            "src/lsp/client.rs"
+                            "file://{}",
+                            file_path.canonicalize()?.display()
                         ))?,
-                    },
-                    position: Position {
-                        line: 0,
-                        character: 0,
                     },
                 },
                 work_done_progress_params: WorkDoneProgressParams {
@@ -226,7 +291,7 @@ impl LspServerProcess {
         Ok(())
     }
 
-    fn shutdown(&mut self) -> anyhow::Result<()> {
+    pub fn shutdown(&mut self) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("shutdown")>(())?;
         Ok(())
     }
@@ -286,22 +351,4 @@ impl LspServerProcess {
 
         Ok(())
     }
-
-    fn set_completion_response(&mut self, completion_response: Option<CompletionResponse>) {
-        self.completion_response = completion_response
-    }
-}
-
-pub fn run_lsp(cmd: &str) -> anyhow::Result<()> {
-    let (lsp_server, join_handle) = LspServerProcess::new(cmd, vec![]).unwrap();
-    lsp_server.lock().unwrap().initialize();
-
-    // Sleep for 5 seconds
-    std::thread::sleep(std::time::Duration::from_secs(5));
-
-    lsp_server.lock().unwrap().text_completion()?;
-    join_handle.join().unwrap();
-    panic!("test");
-    Ok(())
-    // lsp_server.shutdown()
 }

@@ -33,6 +33,10 @@ impl Dropdown {
         self.editor.select(SelectionMode::Line, Direction::Backward);
         self.editor.get_current_line().trim().to_string()
     }
+
+    pub fn set_items(&mut self, items: Vec<&str>) {
+        self.editor_mut().update(&items.join("\n"))
+    }
 }
 
 impl Component for Dropdown {

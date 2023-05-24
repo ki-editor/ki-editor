@@ -1,8 +1,10 @@
 use std::{
     cell::RefCell,
+    future::Future,
     io::stdout,
     path::{Path, PathBuf},
     rc::Rc,
+    sync::{Arc, Mutex, RwLock, mpsc::{Sender, Receiver}}, thread::JoinHandle,
 };
 
 use anyhow::anyhow;
@@ -15,6 +17,7 @@ use crossterm::{
     terminal::{self, Clear, ClearType},
     ExecutableCommand,
 };
+use lsp_types::Position;
 use tree_sitter::Point;
 
 use crate::{
@@ -23,10 +26,15 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         dropdown::{Dropdown, DropdownConfig},
-        editor::{Direction, Editor},
+        editor::Direction,
         prompt::{Prompt, PromptConfig},
+        suggestive_editor::SuggestiveEditor,
     },
     grid::{Grid, Style},
+    lsp::{
+        self,
+        client::{FromEditor, LspNotification, LspServerProcess, LspServerProcessMessage},
+    },
     rectangle::{Border, Rectangle},
 };
 
@@ -34,6 +42,8 @@ pub struct Screen {
     focused_component_id: ComponentId,
 
     components: AutoKeyMap<ComponentId, Rc<RefCell<dyn Component>>>,
+    suggestion_dropdown: Arc<RwLock<Option<Dropdown>>>,
+
     state: State,
 
     rectangles: Vec<Rectangle>,
@@ -43,6 +53,11 @@ pub struct Screen {
     previous_grid: Option<Grid>,
 
     buffers: Vec<Rc<RefCell<Buffer>>>,
+
+    sender: Sender<ScreenMessage>,
+    receiver: Receiver<ScreenMessage>,
+
+    lsp_server_process_sender: Sender<LspServerProcessMessage>,
 }
 
 pub struct State {
@@ -56,25 +71,38 @@ impl State {
 }
 
 impl Screen {
-    pub fn new() -> Screen {
+    pub fn new() -> anyhow::Result<(Screen, JoinHandle<JoinHandle<()>>)> {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let (lsp_server_process, lsp_server_process_sender) =
+            lsp::client::LspServerProcess::new("rust-analyzer", vec![], sender.clone())?;
         let (width, height) = terminal::size().unwrap();
         let dimension = Dimension { height, width };
         let (rectangles, borders) = Rectangle::generate(1, dimension);
-        Screen {
+        let screen = Screen {
             state: State {
                 terminal_dimension: dimension,
                 previous_searches: vec![],
             },
+            suggestion_dropdown: Arc::new(RwLock::new(None)),
             focused_component_id: ComponentId(0),
             rectangles,
             borders,
             components: AutoKeyMap::new(),
             previous_grid: None,
             buffers: Vec::new(),
-        }
+            receiver,
+            sender,
+            lsp_server_process_sender,
+        };
+        let join_handle = std::thread::spawn(move|| {
+            {
+                lsp_server_process.listen()
+            }
+        });
+        Ok((screen, join_handle))
     }
 
-    pub fn run(&mut self, entry_path: PathBuf) -> Result<(), anyhow::Error> {
+    pub async fn run(&mut self, entry_path: PathBuf) -> Result<(), anyhow::Error> {
         crossterm::terminal::enable_raw_mode()?;
 
         self.open_file(entry_path);
@@ -84,56 +112,79 @@ impl Screen {
         stdout.execute(EnableMouseCapture)?;
 
         self.render(&mut stdout)?;
-        loop {
-            // Pass event to focused window
-            let component = self.components.get_mut(self.focused_component_id).unwrap();
-            let event = crossterm::event::read()?;
 
-            match event {
-                Event::Key(event) => match event.code {
-                    KeyCode::Char('%') => {
-                        // let cloned = component.clone();
-                        // self.focused_component_id = self.add_component(cloned);
-                    }
-                    KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
-                        self.open_search_prompt()
-                    }
-                    KeyCode::Char('o') if event.modifiers == KeyModifiers::CONTROL => {
-                        self.open_file_picker()
-                    }
-                    KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
-                        if self.quit() {
-                            break;
-                        }
-                    }
-                    KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
-                        self.change_view()
-                    }
-                    _ => {
-                        let dispatches = component
-                            .borrow_mut()
-                            .handle_event(&self.state, Event::Key(event));
-                        self.handle_dispatches_result(dispatches)
-                    }
-                },
-                Event::Resize(columns, rows) => {
-                    self.resize(Dimension {
-                        height: rows,
-                        width: columns,
-                    });
-                }
-                event => {
-                    let dispatches = component.borrow_mut().handle_event(&self.state, event);
-                    self.handle_dispatches_result(dispatches);
-
-                    // Don't render for unknown events
-                    continue;
+        let sender = self.sender.clone();
+        tokio::spawn(async move {
+            loop {
+                if let Ok(event) = crossterm::event::read() {
+                    sender
+                        .send(ScreenMessage::Event(event))
+                        .unwrap_or_else(|e| {
+                            log::error!("Failed to send event to screen: {}", e.to_string());
+                        })
                 }
             }
+        });
+
+        while let Ok(message) = self.receiver.recv() {
+            match message {
+                ScreenMessage::Event(event) => self.handle_event(event),
+                ScreenMessage::LspNotification(notification) => {
+                    self.handle_lsp_notification(notification)
+                }
+            }
+            .unwrap_or_else(|e| log::error!("{:?}", e));
 
             self.render(&mut stdout)?;
         }
-        crossterm::terminal::disable_raw_mode()?;
+
+        Ok(())
+    }
+
+    fn handle_event(&mut self, event: Event) -> anyhow::Result<()> {
+        // Pass event to focused window
+        let component = self.components.get_mut(self.focused_component_id).unwrap();
+        match event {
+            Event::Key(event) => match event.code {
+                KeyCode::Char('%') => {
+                    // let cloned = component.clone();
+                    // self.focused_component_id = self.add_component(cloned);
+                }
+                KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
+                    self.open_search_prompt()
+                }
+                KeyCode::Char('o') if event.modifiers == KeyModifiers::CONTROL => {
+                    self.open_file_picker()
+                }
+                KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
+                    if self.quit() {
+                        // self.lsp_server_process.lock().unwrap().shutdown()?;
+                        crossterm::terminal::disable_raw_mode()?;
+                        // Quit the process
+                        std::process::exit(0);
+                    }
+                }
+                KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
+                    self.change_view()
+                }
+                _ => {
+                    let dispatches = component
+                        .borrow_mut()
+                        .handle_event(&self.state, Event::Key(event));
+                    self.handle_dispatches_result(dispatches)
+                }
+            },
+            Event::Resize(columns, rows) => {
+                self.resize(Dimension {
+                    height: rows,
+                    width: columns,
+                });
+            }
+            event => {
+                let dispatches = component.borrow_mut().handle_event(&self.state, event);
+                self.handle_dispatches_result(dispatches);
+            }
+        }
         Ok(())
     }
 
@@ -278,27 +329,44 @@ impl Screen {
 
     fn handle_dispatches_result(&mut self, dispatches: anyhow::Result<Vec<Dispatch>>) {
         match dispatches {
-            Ok(dispatches) => self.handle_dispatches(dispatches),
-            Err(error) => {
-                todo!("Show the error to the user")
+            Ok(dispatches) => {
+                self.handle_dispatches(dispatches)
+                    .unwrap_or_else(|error| todo!("Show the error to the user"));
             }
+            Err(error) => todo!("Show the error to the user"),
         }
     }
 
-    fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) {
-        dispatches
-            .into_iter()
-            .for_each(|dispatch| self.handle_dispatch(dispatch))
+    fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) -> Result<(), anyhow::Error> {
+        for dispatch in dispatches {
+            self.handle_dispatch(dispatch)?;
+        }
+        Ok(())
     }
 
-    fn handle_dispatch(&mut self, dispatch: Dispatch) {
+    fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch { search } => self.set_search(search),
             Dispatch::OpenFile { path } => self.open_file(path),
+            Dispatch::RequestSuggestions { position } => {
+                let current_path = self.current_component().borrow().editor().buffer().path();
+                if let Some(path) = current_path {
+                    log::info!("Requesting suggestions for {:?}", path);
+                    self.lsp_server_process_sender
+                        .send(LspServerProcessMessage::FromEditor(
+                            FromEditor::CompletionRequest {
+                                file_path: path,
+                                position,
+                            },
+                        ))
+                        .unwrap();
+                }
+            }
         }
+        Ok(())
     }
 
     fn current_component(&self) -> &Rc<RefCell<dyn Component>> {
@@ -395,7 +463,7 @@ impl Screen {
             title: "Open File".to_string(),
             owner_id,
             dropdown_id,
-            history: self.state.previous_searches.clone(),
+            history: vec![],
             dropdown,
             owner: current_component,
             on_enter: Box::new(|_, current_item, _| {
@@ -453,8 +521,26 @@ impl Screen {
     fn open_file(&mut self, entry_path: PathBuf) {
         let ref_cell = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
         self.buffers.push(ref_cell.clone());
-        let entry_component = Rc::new(RefCell::new(Editor::from_buffer(ref_cell)));
+        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(ref_cell)));
         self.add_component(entry_component);
+    }
+
+    fn handle_lsp_notification(&self, notification: LspNotification) -> anyhow::Result<()> {
+        match notification {
+            LspNotification::CompletionResponse(completion_response) => {
+                match completion_response {
+                    lsp_types::CompletionResponse::Array(_) => {
+                        log::warn!("Array completion response not supported")
+                    },
+                    lsp_types::CompletionResponse::List(list) => {
+                        list.items.iter().for_each(|item| {
+                            log::info!("Completion item: {:?}", item.label);
+                        });
+                    },
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -473,8 +559,16 @@ fn reveal(s: String) -> String {
 }
 
 #[derive(Clone)]
+/// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     CloseCurrentWindow { change_focused_to: ComponentId },
     SetSearch { search: String },
     OpenFile { path: PathBuf },
+    RequestSuggestions { position: Position },
+}
+
+#[derive(Debug)]
+pub enum ScreenMessage {
+    LspNotification(LspNotification),
+    Event(Event),
 }

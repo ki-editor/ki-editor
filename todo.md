@@ -38,3 +38,4 @@
 - [] engine: press Enter to open new line below
 - [] engine: d for delete, remove e, make px the same as pe (because I miss delete, eat is weird)
 - [] screen: show error to user
+- [] fix(editor): swap sibling will skip sibling sometimes

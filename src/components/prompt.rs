@@ -149,6 +149,8 @@ impl Component for Prompt {
         let dispatches = self.editor.handle_event(state, event.clone())?;
 
         let suggestions = (self.get_suggestions)(&self.text, self.owner.clone());
+
+        // TODO: don't use dropdown.update, use dropdown.set_items instead
         self.dropdown.borrow_mut().update(&suggestions?.join("\n"));
         self.dropdown
             .borrow_mut()
