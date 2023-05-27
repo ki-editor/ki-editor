@@ -15,14 +15,14 @@ use std::path::Path;
 use log::LevelFilter;
 
 use screen::Screen;
-use terminal::run_integrated_terminal;
 
-#[tokio::main]
-async fn main() {
-    run().await.unwrap()
+fn main() {
+    run().unwrap_or_else(|error| {
+        log::error!("{:?}", error);
+    });
 }
 
-async fn run() -> anyhow::Result<()> {
+fn run() -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
     let args = std::env::args().collect::<Vec<_>>();
 
@@ -33,9 +33,7 @@ async fn run() -> anyhow::Result<()> {
 
     let path = Path::new(args.get(1).unwrap_or(&default_path));
 
-    let (mut screen, join_handle) = Screen::new()?;
-    screen.run(path.to_path_buf()).await.unwrap();
-    let nested_join_handle= join_handle.join().unwrap();
-    nested_join_handle.join().unwrap();
+    let mut screen = Screen::new()?;
+    screen.run(path.to_path_buf()).unwrap();
     Ok(())
 }

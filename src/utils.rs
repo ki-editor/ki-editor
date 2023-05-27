@@ -15,3 +15,18 @@ pub fn find_previous<T>(
     }
     last_match
 }
+
+pub fn consolidate_errors<T, E: std::fmt::Debug>(
+    message: &str,
+    results: Vec<Result<T, E>>,
+) -> anyhow::Result<()> {
+    let errors = results
+        .into_iter()
+        .filter_map(|result| result.err())
+        .collect::<Vec<_>>();
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("{}: {:?}", message, errors))
+    }
+}

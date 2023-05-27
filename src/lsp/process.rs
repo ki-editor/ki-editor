@@ -1,25 +1,29 @@
 use lsp_types::notification::Notification;
-use lsp_types::request::{Initialize, Request};
+use lsp_types::request::Request;
 use lsp_types::{
     lsp_notification, lsp_request, ClientCapabilities, CompletionClientCapabilities,
     CompletionContext, CompletionItemKind, CompletionItemKindCapability, CompletionParams,
-    CompletionResponse, CompletionTriggerKind, GeneralClientCapabilities, InitializeParams,
-    InitializedParams, PartialResultParams, Position, ServerCapabilities,
-    TextDocumentClientCapabilities, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams, WorkspaceClientCapabilities,
+    CompletionResponse, CompletionTriggerKind, DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams, GeneralClientCapabilities, InitializeParams, InitializedParams,
+    PartialResultParams, Position, ServerCapabilities, TextDocumentClientCapabilities,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
+    TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
+    WorkspaceClientCapabilities,
 };
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{self, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 use crate::screen::ScreenMessage;
+use crate::utils::consolidate_errors;
 
-pub struct LspServerProcess {
-    process: process::Child,
+use super::language::Language;
+
+struct LspServerProcess {
+    language: Language,
     stdin: process::ChildStdin,
 
     /// This is hacky, but we need to keep the stdout around so that it doesn't get dropped
@@ -38,28 +42,125 @@ pub struct LspServerProcess {
 #[derive(Debug)]
 pub enum LspNotification {
     CompletionResponse(CompletionResponse),
+    Initialized(Language),
 }
 
 #[derive(Debug)]
-pub enum LspServerProcessMessage {
+enum LspServerProcessMessage {
     FromLspServer(serde_json::Value),
     FromEditor(FromEditor),
 }
 
 #[derive(Debug)]
-pub enum FromEditor {
+enum FromEditor {
     CompletionRequest {
         file_path: PathBuf,
         position: Position,
     },
+    TextDocumentDidOpen {
+        file_path: PathBuf,
+        language_id: String,
+        version: usize,
+        content: String,
+    },
+    Shutdown,
+    TextDocumentDidChange {
+        file_path: PathBuf,
+        version: i32,
+        content: String,
+    },
+}
+
+pub struct LspServerProcessChannel {
+    language: Language,
+    join_handle: JoinHandle<JoinHandle<()>>,
+    sender: Sender<LspServerProcessMessage>,
+    is_initialized: bool,
+}
+
+impl LspServerProcessChannel {
+    pub fn new(
+        language: Language,
+        screen_message_sender: Sender<ScreenMessage>,
+    ) -> Result<LspServerProcessChannel, anyhow::Error> {
+        LspServerProcess::start(language, screen_message_sender)
+    }
+
+    pub fn request_completion(&self, path: &PathBuf, position: Position) -> anyhow::Result<()> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::CompletionRequest {
+                file_path: path.clone(),
+                position,
+            },
+        ))
+    }
+
+    pub fn shutdown(self) -> anyhow::Result<()> {
+        self.send(LspServerProcessMessage::FromEditor(FromEditor::Shutdown))?;
+        self.join_handle
+            .join()
+            .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [1]: {:?}", err))?
+            .join()
+            .map_err(|err| anyhow::anyhow!("Unable to join lsp server process [2]: {:?}", err))
+    }
+
+    fn send(&self, message: LspServerProcessMessage) -> anyhow::Result<()> {
+        self.sender
+            .send(message)
+            .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
+    }
+
+    pub fn documents_did_open(&mut self, paths: Vec<PathBuf>) -> Result<(), anyhow::Error> {
+        consolidate_errors(
+            "[documents_did_open]",
+            paths
+                .into_iter()
+                .map(|path| self.document_did_open(path))
+                .collect(),
+        )
+    }
+
+    pub fn document_did_open(&self, path: PathBuf) -> Result<(), anyhow::Error> {
+        let content = std::fs::read_to_string(&path)?;
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::TextDocumentDidOpen {
+                file_path: path,
+                language_id: self.language.id(),
+                version: 1,
+                content,
+            },
+        ))
+    }
+
+    pub fn document_did_change(
+        &self,
+        path: &PathBuf,
+        content: &String,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::TextDocumentDidChange {
+                file_path: path.clone(),
+                version: 2,
+                content: content.clone(),
+            },
+        ))
+    }
+    pub fn is_initialized(&self) -> bool {
+        self.is_initialized
+    }
+
+    pub fn initialized(&mut self) {
+        self.is_initialized = true
+    }
 }
 
 impl LspServerProcess {
-    pub fn new(
-        command: &str,
-        args: Vec<String>,
+    fn start(
+        language: Language,
         screen_message_sender: Sender<ScreenMessage>,
-    ) -> anyhow::Result<(Self, Sender<LspServerProcessMessage>)> {
+    ) -> anyhow::Result<LspServerProcessChannel> {
+        let (command, args) = language.get_command_args();
+
         let mut command = Command::new(command);
         command.stdin(Stdio::piped()).stdout(Stdio::piped());
 
@@ -69,11 +170,17 @@ impl LspServerProcess {
 
         let mut process = command.spawn()?;
 
-        let stdin = process.stdin.take().unwrap();
-        let stdout = process.stdout.take().unwrap();
+        let stdin = process
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Unable to obtain stdin"))?;
+        let stdout = process
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Unable to obtain stdout"))?;
         let (sender, receiver) = std::sync::mpsc::channel::<LspServerProcessMessage>();
         let mut lsp_server_process = LspServerProcess {
-            process,
+            language,
             stdin,
             stdout: Some(stdout),
             current_working_directory: std::env::current_dir()?,
@@ -87,7 +194,14 @@ impl LspServerProcess {
 
         lsp_server_process.initialize()?;
 
-        Ok((lsp_server_process, sender))
+        let join_handle = std::thread::spawn(move || lsp_server_process.listen());
+
+        Ok(LspServerProcessChannel {
+            language,
+            join_handle,
+            sender,
+            is_initialized: false,
+        })
     }
 
     fn initialize(&mut self) -> anyhow::Result<()> {
@@ -151,7 +265,6 @@ impl LspServerProcess {
                 // Parse as generic JSON value
                 let reply: serde_json::Value = serde_json::from_str(&reply).unwrap();
 
-                log::info!("[LspServerProcess] Received reply");
                 sender
                     .send(LspServerProcessMessage::FromLspServer(reply))
                     .unwrap_or_else(|error| {
@@ -162,18 +275,26 @@ impl LspServerProcess {
 
         log::info!("[LspServerProcess] Listening for messages from LSP server");
         while let Ok(message) = self.receiver.recv() {
-            log::info!("[LspServerProcess] Received message");
             match message {
                 LspServerProcessMessage::FromLspServer(json_value) => self.handle_reply(json_value),
-                LspServerProcessMessage::FromEditor(from_editor) => {
-                    log::info!("[LspServerProcess] FromEditor: {:?}", from_editor);
-                    match from_editor {
-                        FromEditor::CompletionRequest {
-                            file_path,
-                            position,
-                        } => self.text_document_completion(file_path, position),
-                    }
-                }
+                LspServerProcessMessage::FromEditor(from_editor) => match from_editor {
+                    FromEditor::CompletionRequest {
+                        file_path,
+                        position,
+                    } => self.text_document_completion(file_path, position),
+                    FromEditor::TextDocumentDidOpen {
+                        file_path,
+                        language_id,
+                        version,
+                        content,
+                    } => self.text_document_did_open(file_path, language_id, version, content),
+                    FromEditor::Shutdown => self.shutdown(),
+                    FromEditor::TextDocumentDidChange {
+                        file_path,
+                        version,
+                        content,
+                    } => self.text_document_did_change(file_path, version, content),
+                },
             }
             .unwrap_or_else(|error| {
                 log::error!("[LspServerProcess] Error handling reply: {:?}", error);
@@ -230,6 +351,11 @@ impl LspServerProcess {
                         self.send_notification::<lsp_notification!("initialized")>(
                             InitializedParams {},
                         )?;
+
+                        self.screen_message_sender
+                            .send(ScreenMessage::LspNotification(
+                                LspNotification::Initialized(self.language),
+                            ))?;
                     }
                     "textDocument/completion" => {
                         let payload: <lsp_request!("textDocument/completion") as Request>::Result =
@@ -304,6 +430,7 @@ impl LspServerProcess {
             params: Some(params),
         };
 
+        log::info!("Sending notification: {:?}", N::METHOD);
         let message = serde_json::to_string(&notification)?;
 
         write!(
@@ -350,5 +477,45 @@ impl LspServerProcess {
             .insert(id, R::METHOD.to_string());
 
         Ok(())
+    }
+
+    fn text_document_did_open(
+        &mut self,
+        file_path: PathBuf,
+        language_id: String,
+        version: usize,
+        content: String,
+    ) -> Result<(), anyhow::Error> {
+        self.send_notification::<lsp_notification!("textDocument/didOpen")>(
+            DidOpenTextDocumentParams {
+                text_document: TextDocumentItem {
+                    uri: Url::parse(&format!("file://{}", file_path.canonicalize()?.display()))?,
+                    language_id,
+                    version: version as i32,
+                    text: content,
+                },
+            },
+        )
+    }
+
+    fn text_document_did_change(
+        &mut self,
+        file_path: PathBuf,
+        version: i32,
+        content: String,
+    ) -> Result<(), anyhow::Error> {
+        self.send_notification::<lsp_notification!("textDocument/didChange")>(
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier {
+                    uri: Url::parse(&format!("file://{}", file_path.canonicalize()?.display()))?,
+                    version,
+                },
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: content,
+                }],
+            },
+        )
     }
 }

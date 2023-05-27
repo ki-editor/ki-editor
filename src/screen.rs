@@ -1,10 +1,12 @@
 use std::{
     cell::RefCell,
-    future::Future,
     io::stdout,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{Arc, Mutex, RwLock, mpsc::{Sender, Receiver}}, thread::JoinHandle,
+    sync::{
+        mpsc::{Receiver, Sender},
+        Arc, RwLock,
+    },
 };
 
 use anyhow::anyhow;
@@ -31,10 +33,7 @@ use crate::{
         suggestive_editor::SuggestiveEditor,
     },
     grid::{Grid, Style},
-    lsp::{
-        self,
-        client::{FromEditor, LspNotification, LspServerProcess, LspServerProcessMessage},
-    },
+    lsp::{manager::LspManager, process::LspNotification},
     rectangle::{Border, Rectangle},
 };
 
@@ -57,7 +56,7 @@ pub struct Screen {
     sender: Sender<ScreenMessage>,
     receiver: Receiver<ScreenMessage>,
 
-    lsp_server_process_sender: Sender<LspServerProcessMessage>,
+    lsp_manager: LspManager,
 }
 
 pub struct State {
@@ -71,11 +70,9 @@ impl State {
 }
 
 impl Screen {
-    pub fn new() -> anyhow::Result<(Screen, JoinHandle<JoinHandle<()>>)> {
+    pub fn new() -> anyhow::Result<Screen> {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let (lsp_server_process, lsp_server_process_sender) =
-            lsp::client::LspServerProcess::new("rust-analyzer", vec![], sender.clone())?;
-        let (width, height) = terminal::size().unwrap();
+        let (width, height) = terminal::size()?;
         let dimension = Dimension { height, width };
         let (rectangles, borders) = Rectangle::generate(1, dimension);
         let screen = Screen {
@@ -91,21 +88,16 @@ impl Screen {
             previous_grid: None,
             buffers: Vec::new(),
             receiver,
+            lsp_manager: LspManager::new(sender.clone()),
             sender,
-            lsp_server_process_sender,
         };
-        let join_handle = std::thread::spawn(move|| {
-            {
-                lsp_server_process.listen()
-            }
-        });
-        Ok((screen, join_handle))
+        Ok(screen)
     }
 
-    pub async fn run(&mut self, entry_path: PathBuf) -> Result<(), anyhow::Error> {
+    pub fn run(&mut self, entry_path: PathBuf) -> Result<(), anyhow::Error> {
         crossterm::terminal::enable_raw_mode()?;
 
-        self.open_file(entry_path);
+        self.open_file(entry_path)?;
 
         let mut stdout = stdout();
 
@@ -114,15 +106,13 @@ impl Screen {
         self.render(&mut stdout)?;
 
         let sender = self.sender.clone();
-        tokio::spawn(async move {
-            loop {
-                if let Ok(event) = crossterm::event::read() {
-                    sender
-                        .send(ScreenMessage::Event(event))
-                        .unwrap_or_else(|e| {
-                            log::error!("Failed to send event to screen: {}", e.to_string());
-                        })
-                }
+        std::thread::spawn(move || loop {
+            if let Ok(event) = crossterm::event::read() {
+                sender
+                    .send(ScreenMessage::Event(event))
+                    .unwrap_or_else(|e| {
+                        log::error!("Failed to send event to screen: {}", e.to_string());
+                    })
             }
         });
 
@@ -160,6 +150,7 @@ impl Screen {
                     if self.quit() {
                         // self.lsp_server_process.lock().unwrap().shutdown()?;
                         crossterm::terminal::disable_raw_mode()?;
+
                         // Quit the process
                         std::process::exit(0);
                     }
@@ -330,10 +321,15 @@ impl Screen {
     fn handle_dispatches_result(&mut self, dispatches: anyhow::Result<Vec<Dispatch>>) {
         match dispatches {
             Ok(dispatches) => {
-                self.handle_dispatches(dispatches)
-                    .unwrap_or_else(|error| todo!("Show the error to the user"));
+                self.handle_dispatches(dispatches).unwrap_or_else(|error| {
+                    // todo!("Show the error to the user")
+                    log::error!("Error: {:?}", error);
+                });
             }
-            Err(error) => todo!("Show the error to the user"),
+            Err(error) => {
+                // todo!("Show the error to the user")
+                log::error!("Error: {:?}", error);
+            }
         }
     }
 
@@ -350,21 +346,18 @@ impl Screen {
                 self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch { search } => self.set_search(search),
-            Dispatch::OpenFile { path } => self.open_file(path),
-            Dispatch::RequestSuggestions { position } => {
+            Dispatch::OpenFile { path } => self.open_file(path)?,
+            Dispatch::RequestCompletion { position } => {
                 let current_path = self.current_component().borrow().editor().buffer().path();
                 if let Some(path) = current_path {
-                    log::info!("Requesting suggestions for {:?}", path);
-                    self.lsp_server_process_sender
-                        .send(LspServerProcessMessage::FromEditor(
-                            FromEditor::CompletionRequest {
-                                file_path: path,
-                                position,
-                            },
-                        ))
-                        .unwrap();
+                    self.lsp_manager.request_completion(path, position)?;
                 }
             }
+            Dispatch::DocumentDidChange { path, content } => {
+                self.lsp_manager.document_did_change(path, content)?;
+            }
+            Dispatch::SelectNextCompletion => todo!(),
+            Dispatch::SelectPreviousCompletion => todo!(),
         }
         Ok(())
     }
@@ -518,26 +511,41 @@ impl Screen {
         }
     }
 
-    fn open_file(&mut self, entry_path: PathBuf) {
-        let ref_cell = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
-        self.buffers.push(ref_cell.clone());
-        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(ref_cell)));
+    fn open_file(&mut self, entry_path: PathBuf) -> anyhow::Result<()> {
+        let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
+        self.buffers.push(buffer.clone());
+        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
         self.add_component(entry_component);
+
+        self.lsp_manager.open_file(entry_path.clone())?;
+
+        Ok(())
     }
 
-    fn handle_lsp_notification(&self, notification: LspNotification) -> anyhow::Result<()> {
+    fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::CompletionResponse(completion_response) => {
                 match completion_response {
                     lsp_types::CompletionResponse::Array(_) => {
                         log::warn!("Array completion response not supported")
-                    },
+                    }
                     lsp_types::CompletionResponse::List(list) => {
                         list.items.iter().for_each(|item| {
                             log::info!("Completion item: {:?}", item.label);
                         });
-                    },
+                    }
                 }
+                Ok(())
+            }
+            LspNotification::Initialized(language) => {
+                // Need to notify LSP that the file is opened
+                self.lsp_manager.initialized(
+                    language,
+                    self.buffers
+                        .iter()
+                        .filter_map(|buffer| buffer.borrow().path())
+                        .collect::<Vec<_>>(),
+                );
                 Ok(())
             }
         }
@@ -564,7 +572,10 @@ pub enum Dispatch {
     CloseCurrentWindow { change_focused_to: ComponentId },
     SetSearch { search: String },
     OpenFile { path: PathBuf },
-    RequestSuggestions { position: Position },
+    RequestCompletion { position: Position },
+    DocumentDidChange { path: PathBuf, content: String },
+    SelectNextCompletion,
+    SelectPreviousCompletion,
 }
 
 #[derive(Debug)]

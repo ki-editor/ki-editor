@@ -1,5 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
+use crossterm::event::{Event, KeyCode};
+
 use crate::{buffer::Buffer, screen::Dispatch};
 
 use super::{
@@ -27,14 +29,14 @@ impl Component for SuggestiveEditor {
         &mut self,
         state: &crate::screen::State,
         event: crossterm::event::Event,
-    ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
-        let dispatches = self.editor.handle_event(state, event)?;
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let cursor_point = self.editor().get_cursor_point();
         if self.editor.mode == Mode::Insert {
+            let dispatches = self.editor.handle_event(state, event)?;
             Ok(dispatches
                 .into_iter()
                 .chain(
-                    vec![Dispatch::RequestSuggestions {
+                    vec![Dispatch::RequestCompletion {
                         position: lsp_types::Position {
                             line: cursor_point.row as u32,
                             character: cursor_point.column as u32,
@@ -44,7 +46,14 @@ impl Component for SuggestiveEditor {
                 )
                 .collect())
         } else {
-            Ok(dispatches)
+            Ok(match event {
+                Event::Key(key) => match key.code {
+                    KeyCode::Down => vec![Dispatch::SelectNextCompletion],
+                    KeyCode::Up => vec![Dispatch::SelectPreviousCompletion],
+                    _ => self.editor.handle_event(state, event)?,
+                },
+                _ => self.editor.handle_event(state, event)?,
+            })
         }
     }
 

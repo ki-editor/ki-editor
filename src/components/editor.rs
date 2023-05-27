@@ -148,19 +148,16 @@ impl Component for Editor {
     }
 
     fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
-        let result = match event {
+        let dispatches = match event {
             Event::Key(key_event) => self.handle_key_event(state, key_event),
             Event::Mouse(mouse_event) => {
                 self.handle_mouse_event(mouse_event);
                 vec![]
             }
-            Event::Paste(str) => {
-                self.insert(&str);
-                vec![]
-            }
+            Event::Paste(str) => self.insert(&str),
             _ => vec![],
         };
-        Ok(result)
+        Ok(dispatches)
     }
 
     fn get_cursor_point(&self) -> Point {
@@ -428,7 +425,7 @@ impl Editor {
         self.jump_from_selection(direction, &self.selection_set.primary.clone());
     }
 
-    fn cut(&mut self) {
+    fn cut(&mut self) -> Vec<Dispatch> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let old_range = selection.extended_range();
@@ -448,14 +445,14 @@ impl Editor {
                 ])
             }));
 
-        self.apply_edit_transaction(edit_transaction);
+        self.apply_edit_transaction(edit_transaction)
     }
 
     fn copy(&mut self) {
         self.selection_set.copy(&self.buffer.borrow());
     }
 
-    fn paste(&mut self) {
+    fn paste(&mut self) -> Vec<Dispatch> {
         let edit_transactions = self.selection_set.map(|selection| {
             if let Some(copied_text) = &selection.copied_text {
                 let start = selection.to_char_index(&self.cursor_direction);
@@ -480,10 +477,10 @@ impl Editor {
             }
         });
         let edit_transaction = EditTransaction::merge(edit_transactions);
-        self.apply_edit_transaction(edit_transaction);
+        self.apply_edit_transaction(edit_transaction)
     }
 
-    fn replace(&mut self) {
+    fn replace(&mut self) -> Vec<Dispatch> {
         let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
             if let Some(replacement) = &selection.copied_text {
                 let replacement_text_len = replacement.len_chars();
@@ -505,10 +502,10 @@ impl Editor {
                 EditTransaction::from_action_groups(vec![])
             }
         }));
-        self.apply_edit_transaction(edit_transaction);
+        self.apply_edit_transaction(edit_transaction)
     }
 
-    fn apply_edit_transaction(&mut self, edit_transaction: EditTransaction) {
+    fn apply_edit_transaction(&mut self, edit_transaction: EditTransaction) -> Vec<Dispatch> {
         self.buffer
             .borrow_mut()
             .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
@@ -525,21 +522,36 @@ impl Editor {
             }
         }
 
-        self.recalculate_scroll_offset()
+        self.recalculate_scroll_offset();
+
+        self.get_document_did_change_dispatch()
     }
 
-    fn undo(&mut self) {
+    fn get_document_did_change_dispatch(&mut self) -> Vec<Dispatch> {
+        if let Some(path) = self.buffer().path() {
+            vec![Dispatch::DocumentDidChange {
+                path,
+                content: self.buffer().rope().to_string(),
+            }]
+        } else {
+            vec![]
+        }
+    }
+
+    fn undo(&mut self) -> Vec<Dispatch> {
         let selection_set = self.buffer.borrow_mut().undo(self.selection_set.clone());
         if let Some(selection_set) = selection_set {
             self.update_selection_set(selection_set);
         }
+        self.get_document_did_change_dispatch()
     }
 
-    fn redo(&mut self) {
+    fn redo(&mut self) -> Vec<Dispatch> {
         let selection_set = self.buffer.borrow_mut().redo(self.selection_set.clone());
         if let Some(selection_set) = selection_set {
             self.update_selection_set(selection_set);
         }
+        self.get_document_did_change_dispatch()
     }
 
     fn change_cursor_direction(&mut self) {
@@ -620,20 +632,16 @@ impl Editor {
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
-                self.cut();
-                HandleEventResult::Handled(vec![])
+                HandleEventResult::Handled(self.cut())
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
-                self.paste();
-                HandleEventResult::Handled(vec![])
+                HandleEventResult::Handled(self.paste())
             }
             KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
-                self.redo();
-                HandleEventResult::Handled(vec![])
+                HandleEventResult::Handled(self.redo())
             }
             KeyCode::Char('z') if event.modifiers == KeyModifiers::CONTROL => {
-                self.undo();
-                HandleEventResult::Handled(vec![])
+                HandleEventResult::Handled(self.undo())
             }
             _ => HandleEventResult::Ignored(Event::Key(event)),
         }
@@ -705,7 +713,7 @@ impl Editor {
         self.enter_insert_mode();
     }
 
-    fn insert(&mut self, s: &str) {
+    fn insert(&mut self, s: &str) -> Vec<Dispatch> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 ActionGroup::new(vec![
@@ -723,16 +731,16 @@ impl Editor {
                 ])
             }));
 
-        self.apply_edit_transaction(edit_transaction);
+        self.apply_edit_transaction(edit_transaction)
     }
 
     fn handle_insert_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
         match event.code {
             KeyCode::Esc => self.enter_normal_mode(),
-            KeyCode::Backspace => self.backspace(),
-            KeyCode::Enter => self.insert("\n"),
-            KeyCode::Char(c) => self.insert(&c.to_string()),
-            KeyCode::Tab => self.insert("\t"),
+            KeyCode::Backspace => return self.backspace(),
+            KeyCode::Enter => return self.insert("\n"),
+            KeyCode::Char(c) => return self.insert(&c.to_string()),
+            KeyCode::Tab => return self.insert("\t"),
             _ => {}
         };
         vec![]
@@ -746,8 +754,8 @@ impl Editor {
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') => self.select_character(Direction::Forward),
             KeyCode::Char('C') => self.select_character(Direction::Backward),
-            KeyCode::Char('e') => self.eat(Direction::Forward),
-            KeyCode::Char('E') => self.eat(Direction::Backward),
+            KeyCode::Char('e') => return self.eat(Direction::Forward),
+            KeyCode::Char('E') => return self.eat(Direction::Backward),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
@@ -764,15 +772,15 @@ impl Editor {
             KeyCode::Char('S') => self.select_sibling(Direction::Backward),
             KeyCode::Char('t') => self.select_token(Direction::Forward),
             KeyCode::Char('T') => self.select_token(Direction::Backward),
-            KeyCode::Char('r') => self.replace(),
+            KeyCode::Char('r') => return self.replace(),
             KeyCode::Char('p') => self.select_parent(Direction::Forward),
             KeyCode::Char('P') => self.select_parent(Direction::Backward),
             KeyCode::Char('v') => self.select_view(Direction::Forward),
             KeyCode::Char('V') => self.select_view(Direction::Backward),
             KeyCode::Char('w') => self.select_word(Direction::Forward),
             KeyCode::Char('W') => self.select_word(Direction::Backward),
-            KeyCode::Char('x') => self.exchange(Direction::Forward),
-            KeyCode::Char('X') => self.exchange(Direction::Backward),
+            KeyCode::Char('x') => return self.exchange(Direction::Forward),
+            KeyCode::Char('X') => return self.exchange(Direction::Backward),
             KeyCode::Char('z') => self.align_cursor_to_center(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Backspace => {
@@ -904,7 +912,11 @@ impl Editor {
 
     /// Replace the next selection with the current selection without
     /// making the syntax tree invalid
-    fn replace_faultlessly(&mut self, selection_mode: &SelectionMode, direction: Direction) {
+    fn replace_faultlessly(
+        &mut self,
+        selection_mode: &SelectionMode,
+        direction: Direction,
+    ) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let get_trial_edit_transaction =
             |current_selection: &Selection, next_selection: &Selection| {
@@ -980,7 +992,7 @@ impl Editor {
         self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
     }
 
-    fn exchange(&mut self, direction: Direction) {
+    fn exchange(&mut self, direction: Direction) -> Vec<Dispatch> {
         self.replace_faultlessly(&self.selection_set.mode.clone(), direction)
     }
 
@@ -1057,7 +1069,7 @@ impl Editor {
         };
     }
 
-    fn backspace(&mut self) {
+    fn backspace(&mut self) -> Vec<Dispatch> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let start = CharIndex(selection.range.start.0.saturating_sub(1));
@@ -1076,10 +1088,10 @@ impl Editor {
                 ])
             }));
 
-        self.apply_edit_transaction(edit_transaction);
+        self.apply_edit_transaction(edit_transaction)
     }
 
-    fn eat(&mut self, direction: Direction) {
+    fn eat(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
