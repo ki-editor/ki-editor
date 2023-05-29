@@ -27,11 +27,12 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        dropdown::{Dropdown, DropdownConfig},
+        dropdown::{Dropdown, DropdownConfig, DropdownItem},
         editor::Direction,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
+    edit::Edit,
     grid::{Grid, Style},
     lsp::{manager::LspManager, process::LspNotification},
     rectangle::{Border, Rectangle},
@@ -41,7 +42,6 @@ pub struct Screen {
     focused_component_id: ComponentId,
 
     components: AutoKeyMap<ComponentId, Rc<RefCell<dyn Component>>>,
-    suggestion_dropdown: Arc<RwLock<Option<Dropdown>>>,
 
     state: State,
 
@@ -54,9 +54,16 @@ pub struct Screen {
     buffers: Vec<Rc<RefCell<Buffer>>>,
 
     sender: Sender<ScreenMessage>,
+
+    /// Used for receiving message from various sources:
+    /// - Events from crossterm
+    /// - Notifications from language server
     receiver: Receiver<ScreenMessage>,
 
     lsp_manager: LspManager,
+
+    /// Saved for populating completions
+    suggestive_editors: AutoKeyMap<ComponentId, Rc<RefCell<SuggestiveEditor>>>,
 }
 
 pub struct State {
@@ -80,7 +87,6 @@ impl Screen {
                 terminal_dimension: dimension,
                 previous_searches: vec![],
             },
-            suggestion_dropdown: Arc::new(RwLock::new(None)),
             focused_component_id: ComponentId(0),
             rectangles,
             borders,
@@ -90,6 +96,7 @@ impl Screen {
             receiver,
             lsp_manager: LspManager::new(sender.clone()),
             sender,
+            suggestive_editors: AutoKeyMap::new(),
         };
         Ok(screen)
     }
@@ -192,7 +199,16 @@ impl Screen {
         }
     }
 
-    fn add_component(&mut self, entry_component: Rc<RefCell<dyn Component>>) -> ComponentId {
+    fn add_component(&mut self, component: Rc<RefCell<dyn Component>>) -> ComponentId {
+        let component_id = self.components.insert(component);
+        self.recalculate_layout();
+        component_id
+    }
+
+    fn add_and_focus_component(
+        &mut self,
+        entry_component: Rc<RefCell<dyn Component>>,
+    ) -> ComponentId {
         let component_id = self.components.insert(entry_component);
         self.focused_component_id = component_id;
         self.recalculate_layout();
@@ -356,8 +372,6 @@ impl Screen {
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
             }
-            Dispatch::SelectNextCompletion => todo!(),
-            Dispatch::SelectPreviousCompletion => todo!(),
         }
         Ok(())
     }
@@ -413,7 +427,7 @@ impl Screen {
         })));
         let owner_id = self.focused_component_id;
         let current_component = self.current_component().clone();
-        let dropdown_id = self.add_component(dropdown.clone());
+        let dropdown_id = self.add_and_focus_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
             title: "Search".to_string(),
             owner_id,
@@ -441,7 +455,7 @@ impl Screen {
                 Ok(owner.borrow().editor().buffer().find_words(&text))
             }),
         });
-        let component_id = self.add_component(Rc::new(RefCell::new(prompt)));
+        let component_id = self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
         self.focused_component_id = component_id;
     }
 
@@ -451,7 +465,7 @@ impl Screen {
         })));
         let owner_id = self.focused_component_id;
         let current_component = self.current_component().clone();
-        let dropdown_id = self.add_component(dropdown.clone());
+        let dropdown_id = self.add_and_focus_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
             title: "Open File".to_string(),
             owner_id,
@@ -496,7 +510,7 @@ impl Screen {
                 Ok(result)
             }),
         });
-        let component_id = self.add_component(Rc::new(RefCell::new(prompt)));
+        let component_id = self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
         self.focused_component_id = component_id;
     }
 
@@ -512,10 +526,20 @@ impl Screen {
     }
 
     fn open_file(&mut self, entry_path: PathBuf) -> anyhow::Result<()> {
+        // TODO: check if the file is opened before
+        // so that we won't notify the LSP twice
         let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
         self.buffers.push(buffer.clone());
-        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
-        self.add_component(entry_component);
+        let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
+            title: "Suggestions".to_string(),
+        })));
+        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(
+            buffer,
+            dropdown.clone(),
+        )));
+        self.suggestive_editors.insert(entry_component.clone());
+        self.add_and_focus_component(entry_component);
+        self.add_component(dropdown);
 
         self.lsp_manager.open_file(entry_path.clone())?;
 
@@ -530,9 +554,21 @@ impl Screen {
                         log::warn!("Array completion response not supported")
                     }
                     lsp_types::CompletionResponse::List(list) => {
-                        list.items.iter().for_each(|item| {
-                            log::info!("Completion item: {:?}", item.label);
-                        });
+                        self.suggestive_editors
+                            .get_mut(self.focused_component_id)
+                            .map(|editor| {
+                                log::debug!("Setting items: {:?}", list.items.len());
+                                editor.borrow_mut().set_items(
+                                    list.items
+                                        .into_iter()
+                                        .map(|item| DropdownItem {
+                                            label: item.label,
+                                            // TODO: pass in edits as well
+                                            edit: None,
+                                        })
+                                        .collect(),
+                                );
+                            });
                     }
                 }
                 Ok(())
@@ -574,8 +610,6 @@ pub enum Dispatch {
     OpenFile { path: PathBuf },
     RequestCompletion { position: Position },
     DocumentDidChange { path: PathBuf, content: String },
-    SelectNextCompletion,
-    SelectPreviousCompletion,
 }
 
 #[derive(Debug)]

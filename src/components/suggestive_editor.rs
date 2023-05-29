@@ -6,14 +6,14 @@ use crate::{buffer::Buffer, screen::Dispatch};
 
 use super::{
     component::Component,
-    dropdown::Dropdown,
+    dropdown::{Dropdown, DropdownItem},
     editor::{Editor, Mode},
 };
 
 /// Editor with auto-complete
 pub struct SuggestiveEditor {
     editor: Editor,
-    dropdown: Option<Rc<RefCell<Dropdown>>>,
+    dropdown: Rc<RefCell<Dropdown>>,
 }
 
 impl Component for SuggestiveEditor {
@@ -32,28 +32,38 @@ impl Component for SuggestiveEditor {
     ) -> anyhow::Result<Vec<Dispatch>> {
         let cursor_point = self.editor().get_cursor_point();
         if self.editor.mode == Mode::Insert {
-            let dispatches = self.editor.handle_event(state, event)?;
-            Ok(dispatches
-                .into_iter()
-                .chain(
-                    vec![Dispatch::RequestCompletion {
-                        position: lsp_types::Position {
-                            line: cursor_point.row as u32,
-                            character: cursor_point.column as u32,
-                        },
-                    }]
-                    .into_iter(),
-                )
-                .collect())
+            match event {
+                Event::Key(key) if key.code == KeyCode::Down => {
+                    let completion = self.dropdown.borrow_mut().next_item();
+                    self.editor.replace_previous_word(&completion);
+                    Ok(vec![])
+                }
+                Event::Key(key) if key.code == KeyCode::Up => {
+                    let completion = self.dropdown.borrow_mut().previous_item();
+                    self.editor.replace_previous_word(&completion);
+                    Ok(vec![])
+                }
+                _ => {
+                    let dispatches = self.editor.handle_event(state, event)?;
+                    self.dropdown
+                        .borrow_mut()
+                        .set_filter(&self.editor.get_current_word());
+                    Ok(dispatches
+                        .into_iter()
+                        .chain(
+                            vec![Dispatch::RequestCompletion {
+                                position: lsp_types::Position {
+                                    line: cursor_point.row as u32,
+                                    character: cursor_point.column as u32,
+                                },
+                            }]
+                            .into_iter(),
+                        )
+                        .collect())
+                }
+            }
         } else {
-            Ok(match event {
-                Event::Key(key) => match key.code {
-                    KeyCode::Down => vec![Dispatch::SelectNextCompletion],
-                    KeyCode::Up => vec![Dispatch::SelectPreviousCompletion],
-                    _ => self.editor.handle_event(state, event)?,
-                },
-                _ => self.editor.handle_event(state, event)?,
-            })
+            Ok(self.editor.handle_event(state, event)?)
         }
     }
 
@@ -63,10 +73,14 @@ impl Component for SuggestiveEditor {
 }
 
 impl SuggestiveEditor {
-    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
+    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, dropdown: Rc<RefCell<Dropdown>>) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
-            dropdown: None,
+            dropdown,
         }
+    }
+
+    pub fn set_items(&self, items: Vec<DropdownItem>) {
+        self.dropdown.borrow_mut().set_items(items);
     }
 }

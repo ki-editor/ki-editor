@@ -283,6 +283,11 @@ impl Editor {
         self.buffer.borrow().get_line(cursor)
     }
 
+    pub fn get_current_word(&self) -> String {
+        let cursor = self.get_cursor_char_index();
+        self.buffer.borrow().get_word_before_char_index(cursor)
+    }
+
     fn select_parent(&mut self, direction: Direction) {
         self.select(SelectionMode::ParentNode, direction);
     }
@@ -452,9 +457,12 @@ impl Editor {
         self.selection_set.copy(&self.buffer.borrow());
     }
 
-    fn paste(&mut self) -> Vec<Dispatch> {
+    fn replace_current_selection_with<F>(&mut self, f: F) -> Vec<Dispatch>
+    where
+        F: Fn(&Selection) -> Option<Rope>,
+    {
         let edit_transactions = self.selection_set.map(|selection| {
-            if let Some(copied_text) = &selection.copied_text {
+            if let Some(copied_text) = &f(selection) {
                 let start = selection.to_char_index(&self.cursor_direction);
                 EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
                     Action::Edit(Edit {
@@ -478,6 +486,10 @@ impl Editor {
         });
         let edit_transaction = EditTransaction::merge(edit_transactions);
         self.apply_edit_transaction(edit_transaction)
+    }
+
+    fn paste(&mut self) -> Vec<Dispatch> {
+        self.replace_current_selection_with(|selection| selection.copied_text.clone())
     }
 
     fn replace(&mut self) -> Vec<Dispatch> {
@@ -1181,6 +1193,24 @@ impl Editor {
             mode: SelectionMode::Custom,
         });
         self.align_cursor_to_center()
+    }
+
+    pub fn reset_selection(&mut self) {
+        self.selection_set = SelectionSet {
+            primary: Selection {
+                range: CharIndex(0)..CharIndex(0),
+                node_id: None,
+                copied_text: None,
+                initial_range: None,
+            },
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+        };
+    }
+
+    pub fn replace_previous_word(&mut self, completion: &str) {
+        self.select_word(Direction::Backward);
+        self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
     }
 }
 

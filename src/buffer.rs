@@ -4,6 +4,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use regex::Regex;
 use ropey::Rope;
 use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
 use tree_sitter_traversal::{traverse, Order};
@@ -69,6 +70,21 @@ impl Buffer {
     pub fn get_line(&self, char_index: CharIndex) -> String {
         let line = self.rope.line(self.char_to_line(char_index));
         line.to_string()
+    }
+
+    pub fn get_word_before_char_index(&self, char_index: CharIndex) -> String {
+        let cursor_byte = self.char_to_byte(char_index);
+        let regex = Regex::new(r"\b\w+").unwrap();
+        let string = self.rope.to_string();
+        let mut iter = regex.find_iter(&string);
+
+        find_previous(
+            &mut iter,
+            |_, _| true,
+            |match_| match_.start() >= cursor_byte,
+        )
+        .map(|match_| match_.as_str().to_string())
+        .unwrap_or_default()
     }
 
     pub fn len_lines(&self) -> usize {

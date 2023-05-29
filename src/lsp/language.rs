@@ -7,6 +7,7 @@ use super::process::LspServerProcessChannel;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 pub enum Language {
     Rust,
+    Typescript,
 }
 
 /// This returns a list because some files may have multiple languages,
@@ -17,6 +18,7 @@ pub fn get_languages(path: &PathBuf) -> Vec<Language> {
         .flatten()
         .map(|extension| match extension {
             "rs" => vec![Language::Rust],
+            "ts" | "tsx" => vec![Language::Typescript],
             _ => vec![],
         })
         .unwrap_or(vec![])
@@ -33,6 +35,7 @@ impl Language {
     pub fn get_command_args(&self) -> (&str, Vec<&str>) {
         match self {
             Language::Rust => ("rust-analyzer", vec![]),
+            Language::Typescript => ("typescript-language-server", vec!["--stdio"]),
         }
     }
 
@@ -40,6 +43,7 @@ impl Language {
     pub fn id(&self) -> String {
         match self {
             Language::Rust => "rust".to_string(),
+            Language::Typescript => "typescript".to_string(),
         }
     }
 }
