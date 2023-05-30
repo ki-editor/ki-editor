@@ -63,6 +63,7 @@ impl Component for SuggestiveEditor {
                 (Event::Key(key), Some(_)) if key.code == KeyCode::Esc => {
                     self.dropdown = None;
                     self.info = None;
+                    self.editor.enter_normal_mode();
                     Ok(vec![])
                 }
                 (event, _) => {

@@ -78,7 +78,11 @@ impl<T: DropdownItem> Dropdown<T> {
         self.filtered_items = self
             .items
             .iter()
-            .filter(|item| item.label().contains(&self.filter))
+            .filter(|item| {
+                item.label()
+                    .to_lowercase()
+                    .contains(&self.filter.to_lowercase())
+            })
             .cloned()
             .collect();
     }
@@ -175,5 +179,15 @@ mod test_dropdown {
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
         assert_eq!(dropdown.editor.get_current_line().trim(), "ipsum");
+    }
+
+    #[test]
+    fn filter_should_work_regardless_of_case() {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+            items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        });
+        dropdown.set_filter("A");
+        assert_eq!(dropdown.current_item().unwrap().label(), "a");
     }
 }

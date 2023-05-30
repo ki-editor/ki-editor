@@ -22,7 +22,13 @@
   - each window have a group, if any of the window in the same group is closed
     all windows in the same group should be closed
 - [x] autocomplete
-- [] LSP (after window system implemented)
+- [x] engine: press Enter to open new line below
+- [x] LSP (after window system implemented)
+- [] LSP Diagnostics
+- [] LSP get references
+- [] LSP go to definition
+- [] LSP quick action
+- [] LSP hover
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -35,7 +41,6 @@
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
-- [] engine: press Enter to open new line below
 - [] engine: d for delete, remove e, make px the same as pe (because I miss delete, eat is weird)
 - [] screen: show error to user
 - [] fix(editor): swap sibling will skip sibling sometimes
@@ -47,3 +52,4 @@
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
 - [] fix(editor): backward token buggy
+- [] refactor: SuggestiveEditor and Prompt should use the same underlying component
