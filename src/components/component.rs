@@ -1,13 +1,12 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crossterm::event::Event;
 use tree_sitter::Point;
 
 use crate::{
-    auto_key_map::Incrementable,
     grid::Grid,
     rectangle::Rectangle,
-    screen::{Dimension, Dispatch, State},
+    screen::{Dispatch, State},
 };
 
 use super::editor::Editor;
@@ -15,15 +14,15 @@ use super::editor::Editor;
 // dyn_clone::clone_trait_object!(Component);
 
 pub trait Component: Any + AnyComponent {
+    fn id(&self) -> ComponentId {
+        self.editor().id()
+    }
     fn editor(&self) -> &Editor;
     fn editor_mut(&mut self) -> &mut Editor;
     fn get_grid(&self) -> Grid {
         self.editor().get_grid()
     }
     fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>>;
-
-    /// This is used for closing components that are the slaves of this component.
-    fn slave_ids(&self) -> Vec<ComponentId>;
 
     fn get_cursor_point(&self) -> Point {
         self.editor().get_cursor_point()
@@ -52,6 +51,27 @@ pub trait Component: Any + AnyComponent {
     fn set_title(&mut self, title: String) {
         self.editor_mut().set_title(title);
     }
+
+    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>>;
+
+    /// Helper function to get children from a vector of Option<Rc<RefCell<dyn Component>>>
+    fn get_children(
+        &self,
+        components: Vec<Option<Rc<RefCell<dyn Component>>>>,
+    ) -> Vec<Rc<RefCell<dyn Component>>> {
+        components
+            .into_iter()
+            .filter_map(|component| component)
+            .flat_map(|component| {
+                component
+                    .clone()
+                    .borrow()
+                    .children()
+                    .into_iter()
+                    .chain(std::iter::once(component))
+            })
+            .collect()
+    }
 }
 
 /// Modified from https://github.com/helix-editor/helix/blob/91da0dc172dde1a972be7708188a134db70562c3/helix-term/src/compositor.rs#L212
@@ -70,11 +90,12 @@ impl<T: Component> AnyComponent for T {
     }
 }
 
+/// Why do I use UUID instead of a simple u64?
+/// Because with UUID I don't need a global state to keep track of the next ID.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
-pub struct ComponentId(pub usize);
-
-impl Incrementable for ComponentId {
-    fn increment(&self) -> Self {
-        ComponentId(self.0 + 1)
+pub struct ComponentId(uuid::Uuid);
+impl ComponentId {
+    pub fn new() -> ComponentId {
+        ComponentId(uuid::Uuid::new_v4())
     }
 }

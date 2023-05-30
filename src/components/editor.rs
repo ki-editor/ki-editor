@@ -38,6 +38,9 @@ pub struct Jump {
 }
 
 impl Component for Editor {
+    fn id(&self) -> ComponentId {
+        self.id
+    }
     fn editor(&self) -> &Editor {
         self
     }
@@ -178,7 +181,7 @@ impl Component for Editor {
         &self.rectangle
     }
 
-    fn slave_ids(&self) -> Vec<ComponentId> {
+    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
         vec![]
     }
 }
@@ -194,6 +197,7 @@ impl Clone for Editor {
             rectangle: self.rectangle.clone(),
             buffer: self.buffer.clone(),
             title: self.title.clone(),
+            id: self.id.clone(),
         }
     }
 }
@@ -213,6 +217,7 @@ pub struct Editor {
 
     buffer: Rc<RefCell<Buffer>>,
     title: String,
+    id: ComponentId,
 }
 
 #[derive(Clone)]
@@ -248,6 +253,7 @@ impl Editor {
             rectangle: Rectangle::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
             title: String::new(),
+            id: ComponentId::new(),
         }
     }
 
@@ -275,6 +281,7 @@ impl Editor {
             rectangle: Rectangle::default(),
             buffer,
             title,
+            id: ComponentId::new(),
         }
     }
 
@@ -701,7 +708,7 @@ impl Editor {
         }
     }
 
-    /// Similar to Change in Vim
+    /// Similar to Change in Vim, but does not copy the current selection
     fn change(&mut self) {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
@@ -714,7 +721,7 @@ impl Editor {
                     }),
                     Action::Select(Selection {
                         range: selection.range.start..selection.range.start,
-                        copied_text: Some(copied_text),
+                        copied_text: selection.copied_text.clone(),
                         node_id: None,
                         initial_range: None,
                     }),
@@ -1209,7 +1216,8 @@ impl Editor {
     }
 
     pub fn replace_previous_word(&mut self, completion: &str) {
-        self.select_word(Direction::Backward);
+        let selection = self.get_selection_set(&SelectionMode::Word, Direction::Backward);
+        self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
     }
 }

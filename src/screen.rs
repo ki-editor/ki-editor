@@ -3,10 +3,7 @@ use std::{
     io::stdout,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{
-        mpsc::{Receiver, Sender},
-        Arc, RwLock,
-    },
+    sync::mpsc::{Receiver, Sender},
 };
 
 use anyhow::anyhow;
@@ -23,16 +20,14 @@ use lsp_types::Position;
 use tree_sitter::Point;
 
 use crate::{
-    auto_key_map::AutoKeyMap,
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        dropdown::DropdownItem,
         editor::Direction,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
-    edit::Edit,
     grid::{Grid, Style},
     lsp::{manager::LspManager, process::LspNotification},
     rectangle::{Border, Rectangle},
@@ -41,7 +36,7 @@ use crate::{
 pub struct Screen {
     focused_component_id: ComponentId,
 
-    components: AutoKeyMap<ComponentId, Rc<RefCell<dyn Component>>>,
+    root_components: Vec<Rc<RefCell<dyn Component>>>,
 
     state: State,
 
@@ -63,7 +58,7 @@ pub struct Screen {
     lsp_manager: LspManager,
 
     /// Saved for populating completions
-    suggestive_editors: AutoKeyMap<ComponentId, Rc<RefCell<SuggestiveEditor>>>,
+    suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
 }
 
 pub struct State {
@@ -87,16 +82,16 @@ impl Screen {
                 terminal_dimension: dimension,
                 previous_searches: vec![],
             },
-            focused_component_id: ComponentId(0),
+            focused_component_id: ComponentId::new(),
             rectangles,
             borders,
-            components: AutoKeyMap::new(),
+            root_components: Vec::new(),
             previous_grid: None,
             buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone()),
             sender,
-            suggestive_editors: AutoKeyMap::new(),
+            suggestive_editors: Vec::new(),
         };
         Ok(screen)
     }
@@ -138,9 +133,24 @@ impl Screen {
         Ok(())
     }
 
+    fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+        let mut components = self.root_components.clone();
+        for component in self.root_components.iter() {
+            components.extend(component.borrow().children());
+        }
+        components
+    }
+
+    fn get_component(&self, id: ComponentId) -> Rc<RefCell<dyn Component>> {
+        self.components()
+            .into_iter()
+            .find(|c| c.borrow().id() == id)
+            .unwrap()
+    }
+
     fn handle_event(&mut self, event: Event) -> anyhow::Result<()> {
         // Pass event to focused window
-        let component = self.components.get_mut(self.focused_component_id).unwrap();
+        let component = self.get_component(self.focused_component_id);
         match event {
             Event::Key(event) => match event.code {
                 KeyCode::Char('%') => {
@@ -186,12 +196,22 @@ impl Screen {
         Ok(())
     }
 
+    fn remove_current_component(&mut self) {
+        self.root_components = self
+            .root_components
+            .iter()
+            .filter(|c| c.borrow().id() != self.focused_component_id)
+            .cloned()
+            .collect();
+    }
+
     // Return true if there's no more windows
     fn quit(&mut self) -> bool {
         // Remove current component
-        self.components.remove(self.focused_component_id);
-        if let Some((id, _)) = self.components.entries().last() {
-            self.focused_component_id = *id;
+        self.remove_current_component();
+
+        if let Some(component) = self.components().last() {
+            self.focused_component_id = component.borrow().id();
             self.recalculate_layout();
             false
         } else {
@@ -199,36 +219,29 @@ impl Screen {
         }
     }
 
-    fn add_component(&mut self, component: Rc<RefCell<dyn Component>>) -> ComponentId {
-        let component_id = self.components.insert(component);
+    fn add_and_focus_component(&mut self, entry_component: Rc<RefCell<dyn Component>>) {
+        self.focused_component_id = entry_component.borrow().id();
+        self.root_components.push(entry_component);
         self.recalculate_layout();
-        component_id
-    }
-
-    fn add_and_focus_component(
-        &mut self,
-        entry_component: Rc<RefCell<dyn Component>>,
-    ) -> ComponentId {
-        let component_id = self.components.insert(entry_component);
-        self.focused_component_id = component_id;
-        self.recalculate_layout();
-        component_id
     }
 
     fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
+        // Recalculate layout before each render
+        self.recalculate_layout();
+
         // Generate layout
         let grid = Grid::new(self.state.terminal_dimension);
 
         // Render every window
         let (grid, cursor_point) = self
-            .components
-            .entries()
-            .map(|(component_id, component)| {
+            .components()
+            .into_iter()
+            .map(|component| {
                 let component = component.borrow();
 
                 let rectangle = component.rectangle();
                 let component_grid = component.get_grid();
-                let cursor_point = if component_id == &self.focused_component_id {
+                let cursor_point = if component.id() == self.focused_component_id {
                     let cursor_position = component.get_cursor_point();
                     let scroll_offset = component.scroll_offset();
 
@@ -376,18 +389,12 @@ impl Screen {
         Ok(())
     }
 
-    fn current_component(&self) -> &Rc<RefCell<dyn Component>> {
-        self.components.get(self.focused_component_id).unwrap()
+    fn current_component(&self) -> Rc<RefCell<dyn Component>> {
+        self.get_component(self.focused_component_id)
     }
 
     fn close_current_window(&mut self, change_focused_to: ComponentId) {
-        let current_component = self.current_component();
-        let slave_ids = current_component.borrow().slave_ids();
-        self.components.remove(self.focused_component_id);
-        slave_ids.into_iter().for_each(|slave_id| {
-            self.components.remove(slave_id);
-        });
-
+        self.remove_current_component();
         self.focused_component_id = change_focused_to;
         self.recalculate_layout();
     }
@@ -407,12 +414,12 @@ impl Screen {
 
     fn recalculate_layout(&mut self) {
         let (rectangles, borders) =
-            Rectangle::generate(self.components.len(), self.state.terminal_dimension);
+            Rectangle::generate(self.components().len(), self.state.terminal_dimension);
         self.rectangles = rectangles;
         self.borders = borders;
 
-        self.components
-            .values_mut()
+        self.components()
+            .into_iter()
             .zip(self.rectangles.iter())
             .for_each(|(component, rectangle)| {
                 // Leave 1 row on top for rendering the title
@@ -422,18 +429,10 @@ impl Screen {
     }
 
     fn open_search_prompt(&mut self) {
-        let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
-            title: "Suggestions".to_string(),
-        })));
-        let owner_id = self.focused_component_id;
         let current_component = self.current_component().clone();
-        let dropdown_id = self.add_and_focus_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
             title: "Search".to_string(),
-            owner_id,
-            dropdown_id,
             history: self.state.previous_searches.clone(),
-            dropdown,
             owner: current_component,
             on_enter: Box::new(|text, _, owner| {
                 owner
@@ -455,23 +454,14 @@ impl Screen {
                 Ok(owner.borrow().editor().buffer().find_words(&text))
             }),
         });
-        let component_id = self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
-        self.focused_component_id = component_id;
+        self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
     }
 
     fn open_file_picker(&mut self) {
-        let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
-            title: "Matching files".to_string(),
-        })));
-        let owner_id = self.focused_component_id;
         let current_component = self.current_component().clone();
-        let dropdown_id = self.add_and_focus_component(dropdown.clone());
         let prompt = Prompt::new(PromptConfig {
             title: "Open File".to_string(),
-            owner_id,
-            dropdown_id,
             history: vec![],
-            dropdown,
             owner: current_component,
             on_enter: Box::new(|_, current_item, _| {
                 vec![Dispatch::OpenFile {
@@ -510,18 +500,24 @@ impl Screen {
                 Ok(result)
             }),
         });
-        let component_id = self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
-        self.focused_component_id = component_id;
+        self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
     }
 
     fn change_view(&mut self) {
-        if let Some(id) = self
-            .components
-            .keys()
-            .find(|component_id| component_id > &&self.focused_component_id)
-            .map_or_else(|| self.components.keys().min(), |id| Some(id))
+        let components = self.components();
+        if let Some(component) = components
+            .iter()
+            .find(|component| component.borrow().id() > self.focused_component_id)
+            .map_or_else(
+                || {
+                    components
+                        .iter()
+                        .min_by(|x, y| x.borrow().id().cmp(&y.borrow().id()))
+                },
+                |component| Some(component),
+            )
         {
-            self.focused_component_id = id.clone();
+            self.focused_component_id = component.borrow().id()
         }
     }
 
@@ -530,16 +526,9 @@ impl Screen {
         // so that we won't notify the LSP twice
         let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
         self.buffers.push(buffer.clone());
-        let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
-            title: "Suggestions".to_string(),
-        })));
-        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(
-            buffer,
-            dropdown.clone(),
-        )));
-        self.suggestive_editors.insert(entry_component.clone());
+        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
+        self.suggestive_editors.push(entry_component.clone());
         self.add_and_focus_component(entry_component);
-        self.add_component(dropdown);
 
         self.lsp_manager.open_file(entry_path.clone())?;
 
@@ -549,27 +538,19 @@ impl Screen {
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::CompletionResponse(completion_response) => {
-                match completion_response {
-                    lsp_types::CompletionResponse::Array(_) => {
-                        log::warn!("Array completion response not supported")
-                    }
-                    lsp_types::CompletionResponse::List(list) => {
-                        self.suggestive_editors
-                            .get_mut(self.focused_component_id)
-                            .map(|editor| {
-                                log::debug!("Setting items: {:?}", list.items.len());
-                                editor.borrow_mut().set_items(
-                                    list.items
-                                        .into_iter()
-                                        .map(|item| DropdownItem {
-                                            label: item.label,
-                                            // TODO: pass in edits as well
-                                            edit: None,
-                                        })
-                                        .collect(),
-                                );
-                            });
-                    }
+                let items = match completion_response {
+                    lsp_types::CompletionResponse::Array(completion_items) => completion_items,
+                    lsp_types::CompletionResponse::List(list) => list.items,
+                };
+
+                if let Some(editor) = self
+                    .suggestive_editors
+                    .iter()
+                    .find(|editor| editor.borrow().id() == self.focused_component_id)
+                {
+                    log::info!("Setting items: {:?}", items.len());
+
+                    editor.borrow_mut().set_completion(items);
                 }
                 Ok(())
             }

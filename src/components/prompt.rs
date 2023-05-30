@@ -7,16 +7,14 @@ use crate::screen::{Dispatch, State};
 
 use super::{
     component::{Component, ComponentId},
-    dropdown::Dropdown,
+    dropdown::{Dropdown, DropdownConfig},
     editor::{Direction, Editor, Mode},
 };
 
 pub struct Prompt {
     editor: Editor,
-    owner_id: ComponentId,
-    dropdown_id: ComponentId,
     text: String,
-    dropdown: Rc<RefCell<Dropdown>>,
+    dropdown: Rc<RefCell<Dropdown<String>>>,
     owner: Rc<RefCell<dyn Component>>,
     on_enter: OnEnter,
     on_text_change: OnTextChange,
@@ -45,10 +43,7 @@ type OnTextChange = Box<
 >;
 
 pub struct PromptConfig {
-    pub owner_id: ComponentId,
     pub history: Vec<String>,
-    pub dropdown_id: ComponentId,
-    pub dropdown: Rc<RefCell<Dropdown>>,
     pub owner: Rc<RefCell<dyn Component>>,
     pub on_enter: OnEnter,
     pub on_text_change: OnTextChange,
@@ -70,10 +65,11 @@ impl Prompt {
         editor.set_title(config.title);
         Prompt {
             editor,
-            owner_id: config.owner_id,
-            dropdown_id: config.dropdown_id,
             text: "".to_string(),
-            dropdown: config.dropdown,
+            dropdown: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
+                title: "Suggestions".to_string(),
+                items: vec![],
+            }))),
             owner: config.owner,
             on_enter: config.on_enter,
             on_text_change: config.on_text_change,
@@ -109,7 +105,7 @@ impl Component for Prompt {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Esc if self.editor.mode == Mode::Normal => {
                     return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner_id,
+                        change_focused_to: self.owner.borrow().id(),
                     }]);
                 }
                 KeyCode::Enter => {
@@ -119,7 +115,7 @@ impl Component for Prompt {
                         self.owner.clone(),
                     );
                     return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner_id,
+                        change_focused_to: self.owner.borrow().id(),
                     }]
                     .into_iter()
                     .chain(dispatches)
@@ -171,7 +167,7 @@ impl Component for Prompt {
         Ok(result)
     }
 
-    fn slave_ids(&self) -> Vec<ComponentId> {
-        vec![self.dropdown_id]
+    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+        vec![self.dropdown.clone()]
     }
 }
