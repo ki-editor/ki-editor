@@ -166,13 +166,9 @@ impl Buffer {
     pub fn get_prev_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
         let byte = self.char_to_byte(char_index);
         find_previous(
-            self.traverse(Order::Post),
-            |_, _| true,
-            |node| {
-                node.child_count() == 0
-                    && (!is_named || node.is_named())
-                    && node.start_byte() >= byte
-            },
+            self.traverse(Order::Pre),
+            |node, _| node.child_count() == 0 && (!is_named || node.is_named()),
+            |node| node.start_byte() >= byte,
         )
     }
 

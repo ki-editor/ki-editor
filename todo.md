@@ -23,6 +23,7 @@
     all windows in the same group should be closed
 - [x] autocomplete
 - [x] engine: press Enter to open new line below
+- [x] fix(editor): backward token buggy
 - [x] LSP (after window system implemented)
 - [] LSP Diagnostics
 - [] LSP get references
@@ -51,5 +52,4 @@
 - [] feat(editor): tree rotation
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
-- [] fix(editor): backward token buggy
 - [] refactor: SuggestiveEditor and Prompt should use the same underlying component

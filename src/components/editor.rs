@@ -9,7 +9,6 @@ use crossterm::{
     style::Color,
 };
 use itertools::Itertools;
-use regex::Regex;
 use ropey::{Rope, RopeSlice};
 use tree_sitter::{Node, Point};
 
@@ -1421,6 +1420,16 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["let"]);
         editor.select_token(Direction::Backward);
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
+        editor.select_token(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec![")"]);
+        editor.select_token(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["("]);
+        editor.select_token(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["main"]);
+        editor.select_token(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+        editor.select_token(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
     }
 
     #[test]

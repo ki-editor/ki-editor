@@ -376,11 +376,7 @@ impl Selection {
                     }
                     Direction::Current => buffer.get_next_token(cursor_char_index, false),
                 }
-                .unwrap_or_else(|| {
-                    buffer
-                        .get_next_token(cursor_char_index, true)
-                        .unwrap_or_else(|| buffer.tree().root_node())
-                });
+                .unwrap_or_else(|| buffer.get_current_node(cursor_char_index, current_selection));
                 node_to_selection(selection, buffer, copied_text, initial_range)
             }
             SelectionMode::Custom => Selection {
