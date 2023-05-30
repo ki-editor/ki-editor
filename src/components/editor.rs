@@ -315,6 +315,20 @@ impl Editor {
         self.select(SelectionMode::Line, direction);
     }
 
+    pub fn select_line_at(&mut self, line: usize) {
+        let start = self.buffer.borrow().line_to_char(line);
+        self.selection_set = SelectionSet {
+            primary: Selection {
+                range: start..start + self.buffer.borrow().get_line(start).len(),
+                node_id: None,
+                copied_text: None,
+                initial_range: None,
+            },
+            secondary: vec![],
+            mode: SelectionMode::Line,
+        };
+    }
+
     pub fn select_match(&mut self, direction: Direction, search: &Option<String>) {
         if let Some(search) = search {
             self.select(
@@ -1211,7 +1225,7 @@ impl Editor {
                 initial_range: None,
             },
             secondary: vec![],
-            mode: SelectionMode::Custom,
+            mode: SelectionMode::Line,
         };
     }
 

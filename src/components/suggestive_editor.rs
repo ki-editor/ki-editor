@@ -52,10 +52,10 @@ impl Component for SuggestiveEditor {
                     Ok(vec![])
                 }
                 (Event::Key(key), Some(dropdown)) if key.code == KeyCode::Enter => {
-                    let completion = dropdown.borrow_mut().current_item();
-
-                    // TODO: should use edit if available
-                    self.editor.replace_previous_word(&completion.label);
+                    if let Some(completion) = dropdown.borrow().current_item() {
+                        // TODO: should use edit if available
+                        self.editor.replace_previous_word(&completion.label);
+                    }
                     self.dropdown = None;
                     self.info = None;
                     Ok(vec![])
@@ -124,9 +124,9 @@ impl SuggestiveEditor {
         }
     }
 
-    fn show_documentation(&mut self, completion: CompletionItem) {
-        self.info = Some(Rc::new(RefCell::new(Editor::from_buffer(Rc::new(
-            RefCell::new(Buffer::new(
+    fn show_documentation(&mut self, completion: Option<CompletionItem>) {
+        if let Some(completion) = completion {
+            let mut editor = Editor::from_buffer(Rc::new(RefCell::new(Buffer::new(
                 tree_sitter_md::language(),
                 &completion
                     .documentation
@@ -135,7 +135,9 @@ impl SuggestiveEditor {
                         lsp_types::Documentation::MarkupContent(content) => content.value,
                     })
                     .unwrap_or_default(),
-            )),
-        )))));
+            ))));
+            editor.set_title(format!("Documentation of `{}`", completion.label));
+            self.info = Some(Rc::new(RefCell::new(editor)));
+        }
     }
 }

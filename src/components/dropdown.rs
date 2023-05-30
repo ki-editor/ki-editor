@@ -7,7 +7,7 @@ use crate::selection::SelectionMode;
 
 use super::editor::{Direction, Editor};
 
-pub trait DropdownItem: Clone {
+pub trait DropdownItem: Clone + std::fmt::Debug {
     fn label(&self) -> String;
 }
 
@@ -33,37 +33,38 @@ pub struct DropdownConfig<T: DropdownItem> {
 impl<T: DropdownItem> Dropdown<T> {
     pub fn new(config: DropdownConfig<T>) -> Self {
         let mut editor = Editor::from_text(tree_sitter_md::language(), "");
-        editor.select(SelectionMode::Line, Direction::Current);
         editor.set_title(config.title);
-        Self {
+        let mut dropdown = Self {
             editor,
             filter: String::new(),
             filtered_items: config.items.clone(),
             items: config.items,
             current_item_index: 0,
-        }
+        };
+        dropdown.update_editor();
+        dropdown
     }
 
-    pub fn next_item(&mut self) -> T {
+    pub fn next_item(&mut self) -> Option<T> {
         if self.current_item_index == self.filtered_items.len() - 1 {
             return self.current_item();
         }
-        self.editor.select(SelectionMode::Line, Direction::Forward);
         self.current_item_index += 1;
+        self.editor.select_line_at(self.current_item_index);
         self.current_item()
     }
 
-    pub fn previous_item(&mut self) -> T {
+    pub fn previous_item(&mut self) -> Option<T> {
         if self.current_item_index == 0 {
             return self.current_item();
         }
-        self.editor.select(SelectionMode::Line, Direction::Backward);
         self.current_item_index -= 1;
+        self.editor.select_line_at(self.current_item_index);
         self.current_item()
     }
 
-    pub fn current_item(&self) -> T {
-        self.filtered_items[self.current_item_index].clone()
+    pub fn current_item(&self) -> Option<T> {
+        self.filtered_items.get(self.current_item_index).cloned()
     }
 
     pub fn set_items(&mut self, items: Vec<T>) {
@@ -90,7 +91,6 @@ impl<T: DropdownItem> Dropdown<T> {
     }
 
     fn update_editor(&mut self) {
-        self.editor.reset_selection();
         self.editor.update(
             &self
                 .filtered_items
@@ -98,7 +98,9 @@ impl<T: DropdownItem> Dropdown<T> {
                 .map(|item| item.label())
                 .collect::<Vec<String>>()
                 .join("\n"),
-        )
+        );
+
+        self.editor.select_line_at(0);
     }
 }
 
@@ -120,4 +122,58 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
     }
 }
 
-// TODO: add tests
+mod test_dropdown {
+    use crate::{
+        components::dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        selection::CharIndex,
+    };
+
+    #[test]
+    fn test_dropdown() {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+            items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+        });
+        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        assert_eq!(
+            dropdown.editor.selection_set.primary.range,
+            CharIndex(0)..CharIndex(2)
+        );
+        dropdown.next_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.next_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.next_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+
+        dropdown.previous_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.previous_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.previous_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+
+        dropdown.set_filter("b");
+        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.set_filter("c");
+        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.set_filter("d");
+        assert_eq!(dropdown.current_item(), None);
+
+        dropdown.set_filter("");
+        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.next_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+
+        dropdown.set_items(vec![
+            "lorem".to_string(),
+            "ipsum".to_string(),
+            "dolor".to_string(),
+        ]);
+        assert_eq!(dropdown.current_item().unwrap().label(), "lorem");
+        assert_eq!(dropdown.editor.get_current_line().trim(), "lorem");
+        dropdown.next_item();
+        assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
+        assert_eq!(dropdown.editor.get_current_line().trim(), "ipsum");
+    }
+}

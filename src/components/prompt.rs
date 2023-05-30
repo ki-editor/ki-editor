@@ -84,12 +84,12 @@ impl Prompt {
 
     fn select_previous_suggestion(&mut self) {
         let text = self.dropdown.borrow_mut().previous_item();
-        self.set_text(text);
+        text.map(|text| self.set_text(text));
     }
 
     fn select_next_suggestion(&mut self) {
         let text = self.dropdown.borrow_mut().next_item();
-        self.set_text(text);
+        text.map(|text| self.set_text(text));
     }
 }
 
