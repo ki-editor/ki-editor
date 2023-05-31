@@ -285,7 +285,7 @@ impl Editor {
         }
     }
 
-    pub fn get_current_line(&self) -> String {
+    pub fn get_current_line(&self) -> Rope {
         let cursor = self.get_cursor_char_index();
         self.buffer.borrow().get_line(cursor)
     }
@@ -319,7 +319,7 @@ impl Editor {
         let start = self.buffer.borrow().line_to_char(line);
         self.selection_set = SelectionSet {
             primary: Selection {
-                range: start..start + self.buffer.borrow().get_line(start).len(),
+                range: start..start + self.buffer.borrow().get_line(start).len_chars(),
                 node_id: None,
                 copied_text: None,
                 initial_range: None,
@@ -787,6 +787,8 @@ impl Editor {
             KeyCode::Char('b') => self.select_backward(),
             KeyCode::Char('c') => self.select_character(Direction::Forward),
             KeyCode::Char('C') => self.select_character(Direction::Backward),
+            KeyCode::Char('d') => return self.delete(Direction::Forward),
+            KeyCode::Char('D') => return self.delete(Direction::Backward),
             KeyCode::Char('e') => return self.eat(Direction::Forward),
             KeyCode::Char('E') => return self.eat(Direction::Backward),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
@@ -919,9 +921,9 @@ impl Editor {
             // Why don't we just use `tree.root_node().has_error()` instead?
             // Because I assume we want to be able to exchange even if some part of the tree
             // contains error
-            if !text_at_next_selection.to_string().trim().is_empty()
-                && (!selection_mode.is_node()
-                    || !new_buffer.has_syntax_error_at(edit_transaction.range()))
+            if !selection_mode.is_node()
+                || (!text_at_next_selection.to_string().trim().is_empty()
+                    && !new_buffer.has_syntax_error_at(edit_transaction.range()))
             {
                 return get_actual_edit_transaction(&current_selection, &next_selection);
             }
@@ -1038,15 +1040,11 @@ impl Editor {
 
     #[cfg(test)]
     pub fn get_selected_texts(&self) -> Vec<String> {
-        use crate::selection::ToRangeUsize;
-
         let buffer = self.buffer.borrow();
-        let rope = buffer.rope();
         let mut selections = self.selection_set.map(|selection| {
             (
                 selection.range.clone(),
-                rope.slice(selection.extended_range().to_usize_range())
-                    .to_string(),
+                buffer.slice(&selection.extended_range()).to_string(),
             )
         });
         selections.sort_by(|a, b| a.0.start.0.cmp(&b.0.start.0));
@@ -1122,6 +1120,64 @@ impl Editor {
                 ])
             }));
 
+        self.apply_edit_transaction(edit_transaction)
+    }
+
+    fn delete(&mut self, direction: Direction) -> Vec<Dispatch> {
+        let buffer = self.buffer.borrow().clone();
+        let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
+            let get_trial_edit_transaction =
+                |current_selection: &Selection, other_selection: &Selection| {
+                    let range = current_selection
+                        .range
+                        .start
+                        .min(other_selection.range.start)
+                        ..current_selection.range.end.max(other_selection.range.end);
+
+                    // Add whitespace padding
+                    let new: Rope =
+                        format!(" {} ", buffer.slice(&current_selection.range).to_string()).into();
+
+                    EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
+                        Edit {
+                            start: range.start,
+                            old: buffer.slice(&range),
+                            new,
+                        },
+                    )])])
+                };
+            let get_actual_edit_transaction =
+                |current_selection: &Selection, other_selection: &Selection| {
+                    let range = current_selection
+                        .range
+                        .start
+                        .min(other_selection.range.start)
+                        ..current_selection.range.end.max(other_selection.range.end);
+                    let new: Rope = buffer.slice(&other_selection.range);
+
+                    let new_len_chars = new.len_chars();
+                    EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
+                        Action::Edit(Edit {
+                            start: range.start,
+                            old: buffer.slice(&range),
+                            new,
+                        }),
+                        Action::Select(Selection {
+                            range: range.start..(range.start + new_len_chars),
+                            node_id: None,
+                            copied_text: current_selection.copied_text.clone(),
+                            initial_range: current_selection.initial_range.clone(),
+                        }),
+                    ])])
+                };
+            self.get_valid_selection(
+                &selection,
+                &self.selection_set.mode,
+                &direction,
+                get_trial_edit_transaction,
+                get_actual_edit_transaction,
+            )
+        }));
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -1250,13 +1306,14 @@ impl Editor {
                     .join("");
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
-                        start: line_start + current_line.len(),
+                        start: line_start + current_line.len_chars(),
                         old: Rope::new(),
                         new: format!("{}\n", leading_whitespaces).into(),
                     }),
                     Action::Select(Selection {
                         range: {
-                            let start = line_start + current_line.len() + leading_whitespaces.len();
+                            let start =
+                                line_start + current_line.len_chars() + leading_whitespaces.len();
                             start..start
                         },
                         node_id: None,
@@ -1320,18 +1377,29 @@ mod test_editor {
             language(),
             "
 fn main() {
+
     let x = 1;
 }
 "
             .trim(),
         );
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["    let x = 1;\n"]);
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["    let x = 1;"]);
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["}"]);
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["}"]);
 
         editor.select_line(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
+        assert_eq!(editor.get_selected_texts(), vec!["    let x = 1;"]);
+        editor.select_line(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_line(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
     }
 
     #[test]
@@ -1649,7 +1717,7 @@ fn main() {
         editor.exchange(Direction::Forward);
         assert_eq!(editor.get_text(), "nf main() { let x = 1; }");
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "nm fain() { let x = 1; }");
+        assert_eq!(editor.get_text(), "n fmain() { let x = 1; }");
 
         editor.exchange(Direction::Backward);
         assert_eq!(editor.get_text(), "nf main() { let x = 1; }");
@@ -1951,5 +2019,94 @@ fn f() {
 }"
             .trim()
         );
+    }
+
+    #[test]
+    fn delete_character() {
+        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+
+        editor.select_character(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["f"]);
+
+        editor.delete(Direction::Forward);
+        assert_eq!(editor.get_text(), "n f(){ let x = S(a); let y = S(b); }");
+
+        editor.delete(Direction::Forward);
+        assert_eq!(editor.get_text(), " f(){ let x = S(a); let y = S(b); }");
+
+        editor.select_match(Direction::Forward, &Some("x".to_string()));
+        editor.select_character(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["x"]);
+
+        editor.delete(Direction::Backward);
+        assert_eq!(editor.get_text(), " f(){ let  = S(a); let y = S(b); }");
+    }
+
+    #[test]
+    fn delete_line() {
+        let mut editor = Editor::from_text(
+            language(),
+            "
+fn f() {
+let x = S(a);
+
+let y = S(b);
+}"
+            .trim(),
+        );
+
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
+
+        editor.delete(Direction::Forward);
+        assert_eq!(
+            editor.get_text(),
+            "
+let x = S(a);
+
+let y = S(b);
+}"
+            .trim()
+        );
+
+        editor.delete(Direction::Forward);
+        assert_eq!(
+            editor.get_text(),
+            "
+let y = S(b);
+}"
+        );
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
+        editor.delete(Direction::Backward);
+        assert_eq!(
+            editor.get_text(),
+            "
+}"
+        );
+    }
+
+    #[test]
+    fn delete_sibling() {
+        let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
+        // Select 'x: a'
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
+
+        editor.select_sibling(Direction::Current);
+        editor.delete(Direction::Forward);
+
+        assert_eq!(editor.get_text(), "fn f(y: b, z: c){}");
+
+        editor.select_sibling(Direction::Forward);
+        editor.delete(Direction::Backward);
+
+        assert_eq!(editor.get_text(), "fn f(y: b){}");
     }
 }

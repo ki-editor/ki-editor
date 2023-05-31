@@ -276,14 +276,36 @@ impl Selection {
             .map(|node| node_to_selection(node, buffer, copied_text, initial_range))
             .unwrap_or_else(|| current_selection.clone()),
 
-            SelectionMode::Line => get_selection_via_regex(
-                buffer,
-                cursor_byte,
-                r"(?m)^(.*)\n?",
-                direction,
-                current_selection,
-                copied_text,
-            ),
+            SelectionMode::Line => {
+                let current_line = buffer.char_to_line(cursor_char_index);
+                let current_line = match direction {
+                    Direction::Forward => {
+                        if current_line == buffer.len_lines() - 1 {
+                            return current_selection.clone();
+                        }
+                        current_line + 1
+                    }
+                    Direction::Backward => {
+                        if current_line == 0 {
+                            return current_selection.clone();
+                        }
+                        current_line - 1
+                    }
+                    Direction::Current => current_line,
+                };
+                let line_start = buffer.line_to_char(current_line);
+                let current_line = buffer.get_line(line_start);
+
+                let line_end = line_start
+                    + Rope::from_str(current_line.to_string().trim_end_matches('\n')).len_chars();
+
+                Selection {
+                    range: line_start..line_end,
+                    node_id: None,
+                    copied_text,
+                    initial_range,
+                }
+            }
             SelectionMode::Word => get_selection_via_regex(
                 buffer,
                 cursor_byte,

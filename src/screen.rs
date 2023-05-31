@@ -23,7 +23,6 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        dropdown::DropdownItem,
         editor::Direction,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,

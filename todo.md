@@ -25,6 +25,7 @@
 - [x] engine: press Enter to open new line below
 - [x] fix(editor): backward token buggy
 - [x] LSP (after window system implemented)
+- [x] engine: d for delete (because I miss delete, eat is weird)
 - [] LSP Diagnostics
 - [] LSP get references
 - [] LSP go to definition
@@ -42,7 +43,7 @@
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
-- [] engine: d for delete, remove e, make px the same as pe (because I miss delete, eat is weird)
+- [] remove e, make px the same as pe
 - [] screen: show error to user
 - [] fix(editor): swap sibling will skip sibling sometimes
 - [] fix(editor): p e ^z e , does not work as expected
@@ -53,3 +54,4 @@
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
 - [] refactor: SuggestiveEditor and Prompt should use the same underlying component
+- [] feat: workspaces (similar to tab in Vim)

@@ -67,9 +67,8 @@ impl Buffer {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.language, text);
     }
 
-    pub fn get_line(&self, char_index: CharIndex) -> String {
-        let line = self.rope.line(self.char_to_line(char_index));
-        line.to_string()
+    pub fn get_line(&self, char_index: CharIndex) -> Rope {
+        self.rope.line(self.char_to_line(char_index)).into()
     }
 
     pub fn get_word_before_char_index(&self, char_index: CharIndex) -> String {

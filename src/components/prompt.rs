@@ -111,7 +111,13 @@ impl Component for Prompt {
                 KeyCode::Enter => {
                     let dispatches = (self.on_enter)(
                         &self.text,
-                        &self.dropdown.borrow().editor().get_current_line().trim(),
+                        &self
+                            .dropdown
+                            .borrow()
+                            .editor()
+                            .get_current_line()
+                            .to_string()
+                            .trim(),
                         self.owner.clone(),
                     );
                     return Ok(vec![Dispatch::CloseCurrentWindow {
@@ -153,7 +159,12 @@ impl Component for Prompt {
             .editor_mut()
             .select_line(Direction::Current);
 
-        let current_text = self.editor.get_current_line().trim().to_string();
+        let current_text = self
+            .editor
+            .get_current_line()
+            .to_string()
+            .trim()
+            .to_string();
 
         let result = if current_text == self.text {
             dispatches

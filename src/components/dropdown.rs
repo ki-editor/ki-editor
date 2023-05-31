@@ -175,10 +175,10 @@ mod test_dropdown {
             "dolor".to_string(),
         ]);
         assert_eq!(dropdown.current_item().unwrap().label(), "lorem");
-        assert_eq!(dropdown.editor.get_current_line().trim(), "lorem");
+        assert_eq!(dropdown.editor.get_current_line(), "lorem\n");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
-        assert_eq!(dropdown.editor.get_current_line().trim(), "ipsum");
+        assert_eq!(dropdown.editor.get_current_line(), "ipsum\n");
     }
 
     #[test]
