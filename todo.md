@@ -26,6 +26,7 @@
 - [x] fix(editor): backward token buggy
 - [x] LSP (after window system implemented)
 - [x] engine: d for delete (because I miss delete, eat is weird)
+- [x] feat(editor/normal): backspace should not yank
 - [] LSP Diagnostics
 - [] LSP get references
 - [] LSP go to definition
@@ -47,10 +48,8 @@
 - [] screen: show error to user
 - [] fix(editor): swap sibling will skip sibling sometimes
 - [] fix(editor): p e ^z e , does not work as expected
-- [] feat(editor/normal): backspace should not yank
-- [] fix(editor): eating line/char skip empty line
 - [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
-- [] feat(editor): tree rotation
+- [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
 - [] refactor: SuggestiveEditor and Prompt should use the same underlying component

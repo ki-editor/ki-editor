@@ -41,8 +41,9 @@ struct LspServerProcess {
 
 #[derive(Debug)]
 pub enum LspNotification {
-    CompletionResponse(CompletionResponse),
+    Completion(lsp_types::CompletionResponse),
     Initialized(Language),
+    PublishDiagnostics(lsp_types::PublishDiagnosticsParams),
 }
 
 #[derive(Debug)]
@@ -363,9 +364,9 @@ impl LspServerProcess {
 
                         if let Some(payload) = payload {
                             self.screen_message_sender
-                                .send(ScreenMessage::LspNotification(
-                                    LspNotification::CompletionResponse(payload),
-                                ))
+                                .send(ScreenMessage::LspNotification(LspNotification::Completion(
+                                    payload,
+                                )))
                                 .unwrap();
                         }
                     }
@@ -374,10 +375,32 @@ impl LspServerProcess {
             }
 
             // reply is Notification
-            Some(method) => {
-                let method = method.as_str().unwrap();
-                match method {
-                    _ => log::info!("Notification: {}", method),
+            Some(_) => {
+                let request = serde_json::from_value::<
+                    json_rpc_types::Request<
+                        serde_json::Value,
+                        // Need to specify String here
+                        // Otherwise the default will be `str_buf::StrBuf<31>`,
+                        // which says the error message can only be 31 bytes long.
+                        String,
+                    >,
+                >(reply)
+                .map_err(|e| anyhow::anyhow!("Serde error = {:?}", e))?;
+
+                let method = request.method;
+                // Parse the reply as Notification
+                match method.as_str() {
+                    "textDocument/publishDiagnostics" => {
+                        let params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params =
+                            serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
+
+                        self.screen_message_sender
+                            .send(ScreenMessage::LspNotification(
+                                LspNotification::PublishDiagnostics(params),
+                            ))
+                            .unwrap();
+                    }
+                    _ => log::info!("Incoming Notification: {}", method),
                 }
             }
         }

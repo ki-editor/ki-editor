@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    collections::HashMap,
     io::stdout,
     path::{Path, PathBuf},
     rc::Rc,
@@ -58,6 +59,8 @@ pub struct Screen {
 
     /// Saved for populating completions
     suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
+
+    diagnostics: HashMap<PathBuf, Vec<lsp_types::Diagnostic>>,
 }
 
 pub struct State {
@@ -91,6 +94,7 @@ impl Screen {
             lsp_manager: LspManager::new(sender.clone()),
             sender,
             suggestive_editors: Vec::new(),
+            diagnostics: HashMap::new(),
         };
         Ok(screen)
     }
@@ -536,7 +540,7 @@ impl Screen {
 
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::CompletionResponse(completion_response) => {
+            LspNotification::Completion(completion_response) => {
                 let items = match completion_response {
                     lsp_types::CompletionResponse::Array(completion_items) => completion_items,
                     lsp_types::CompletionResponse::List(list) => list.items,
@@ -547,8 +551,6 @@ impl Screen {
                     .iter()
                     .find(|editor| editor.borrow().id() == self.focused_component_id)
                 {
-                    log::info!("Setting items: {:?}", items.len());
-
                     editor.borrow_mut().set_completion(items);
                 }
                 Ok(())
@@ -561,6 +563,16 @@ impl Screen {
                         .iter()
                         .filter_map(|buffer| buffer.borrow().path())
                         .collect::<Vec<_>>(),
+                );
+                Ok(())
+            }
+            LspNotification::PublishDiagnostics(params) => {
+                log::info!("Diagnostics: {:?}", params);
+                self.diagnostics.insert(
+                    params.uri.to_file_path().map_err(|err| {
+                        anyhow::anyhow!("Unable to convert URI to file path: {:?}", err)
+                    })?,
+                    params.diagnostics,
                 );
                 Ok(())
             }
