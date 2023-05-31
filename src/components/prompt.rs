@@ -114,10 +114,8 @@ impl Component for Prompt {
                         &self
                             .dropdown
                             .borrow()
-                            .editor()
-                            .get_current_line()
-                            .to_string()
-                            .trim(),
+                            .current_item()
+                            .unwrap_or(String::new()),
                         self.owner.clone(),
                     );
                     return Ok(vec![Dispatch::CloseCurrentWindow {
@@ -150,14 +148,10 @@ impl Component for Prompt {
 
         let dispatches = self.editor.handle_event(state, event.clone())?;
 
-        let suggestions = (self.get_suggestions)(&self.text, self.owner.clone());
+        let suggestions = (self.get_suggestions)(&self.text, self.owner.clone())?;
 
         // TODO: don't use dropdown.update, use dropdown.set_items instead
-        self.dropdown.borrow_mut().update(&suggestions?.join("\n"));
-        self.dropdown
-            .borrow_mut()
-            .editor_mut()
-            .select_line(Direction::Current);
+        self.dropdown.borrow_mut().set_items(suggestions);
 
         let current_text = self
             .editor
