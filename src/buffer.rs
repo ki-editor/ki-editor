@@ -141,18 +141,14 @@ impl Buffer {
         traverse(self.tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
     }
 
-    pub fn get_current_node<'a>(
-        &'a self,
-        cursor_char_index: CharIndex,
-        selection: &Selection,
-    ) -> Node<'a> {
-        if let Some(node_id) = selection.node_id {
-            self.get_node_by_id(node_id)
-        } else {
-            self.get_nearest_node_after_char(cursor_char_index)
-        }
-        // TODO: should not return root node if not found
-        .unwrap_or_else(|| self.tree.root_node())
+    pub fn get_current_node<'a>(&'a self, selection: &Selection) -> Node<'a> {
+        self.tree
+            .root_node()
+            .descendant_for_byte_range(
+                self.char_to_byte(selection.range.start),
+                self.char_to_byte(selection.range.end),
+            )
+            .unwrap_or_else(|| self.tree.root_node())
     }
 
     pub fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
@@ -279,9 +275,7 @@ impl Buffer {
             new_end_position,
         });
 
-        self.tree = parser
-            .parse(&self.rope.to_string(), Some(&self.tree))
-            .unwrap();
+        self.tree = parser.parse(&self.rope.to_string(), None).unwrap();
 
         Ok(())
     }

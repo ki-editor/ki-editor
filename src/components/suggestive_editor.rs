@@ -51,7 +51,9 @@ impl Component for SuggestiveEditor {
                     self.show_documentation(completion);
                     Ok(vec![])
                 }
-                (Event::Key(key), Some(dropdown)) if key.code == KeyCode::Enter => {
+                (Event::Key(key), Some(dropdown))
+                    if key.code == KeyCode::Enter && dropdown.borrow().current_item().is_some() =>
+                {
                     if let Some(completion) = dropdown.borrow().current_item() {
                         // TODO: should use edit if available
                         self.editor.replace_previous_word(&completion.label);

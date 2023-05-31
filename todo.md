@@ -27,6 +27,7 @@
 - [x] LSP (after window system implemented)
 - [x] engine: d for delete (because I miss delete, eat is weird)
 - [x] feat(editor/normal): backspace should not yank
+- [x] fix(editor): swap sibling will skip sibling sometimes
 - [] LSP Diagnostics
 - [] LSP get references
 - [] LSP go to definition
@@ -46,7 +47,6 @@
 - [] file tree
 - [] remove e, make px the same as pe
 - [] screen: show error to user
-- [] fix(editor): swap sibling will skip sibling sometimes
 - [] fix(editor): p e ^z e , does not work as expected
 - [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)

@@ -94,7 +94,6 @@ impl SelectionSet {
                         return Selection {
                             range: CharIndex(second_child.start_byte())
                                 ..CharIndex(second_last_child.end_byte()),
-                            node_id: None,
                             copied_text: selection.copied_text.clone(),
                             initial_range: selection.initial_range.clone(),
                         };
@@ -187,7 +186,6 @@ impl SelectionMode {
 #[derive(PartialEq, Clone, Debug, Eq, Hash)]
 pub struct Selection {
     pub range: Range<CharIndex>,
-    pub node_id: Option<usize>,
     pub copied_text: Option<Rope>,
 
     /// Used for extended selection.
@@ -219,7 +217,6 @@ impl Selection {
     pub fn default() -> Selection {
         Selection {
             range: CharIndex(0)..CharIndex(0),
-            node_id: None,
             copied_text: None,
             initial_range: None,
         }
@@ -247,13 +244,11 @@ impl Selection {
 
         let Range {
             start: current_selection_start,
-            end: current_selection_end,
+            end: _,
         } = current_selection.extended_range();
         match mode {
             SelectionMode::NamedNode => match direction {
-                Direction::Current => {
-                    Some(buffer.get_current_node(cursor_char_index, current_selection))
-                }
+                Direction::Current => Some(buffer.get_current_node(current_selection)),
                 Direction::Forward => buffer
                     .traverse(Order::Pre)
                     .find(|node| node.start_byte() > current_selection_start.0 && node.is_named()),
@@ -301,7 +296,6 @@ impl Selection {
 
                 Selection {
                     range: line_start..line_end,
-                    node_id: None,
                     copied_text,
                     initial_range,
                 }
@@ -341,7 +335,7 @@ impl Selection {
                 // )
             }
             SelectionMode::ParentNode => {
-                let current_node = buffer.get_current_node(cursor_char_index, current_selection);
+                let current_node = buffer.get_current_node(current_selection);
 
                 fn get_node(node: Node, direction: Direction) -> Option<Node> {
                     match direction {
@@ -377,14 +371,14 @@ impl Selection {
             }
 
             SelectionMode::SiblingNode => {
-                let current_node = buffer.get_current_node(cursor_char_index, current_selection);
+                let current_node = buffer.get_current_node(current_selection);
                 let next_node = match direction {
                     Direction::Current => Some(current_node),
                     Direction::Forward => buffer
-                        .get_current_node(current_selection_end, current_selection)
+                        .get_current_node(current_selection)
                         .next_named_sibling(),
                     Direction::Backward => buffer
-                        .get_current_node(current_selection_start, current_selection)
+                        .get_current_node(current_selection)
                         .prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
@@ -398,12 +392,11 @@ impl Selection {
                     }
                     Direction::Current => buffer.get_next_token(cursor_char_index, false),
                 }
-                .unwrap_or_else(|| buffer.get_current_node(cursor_char_index, current_selection));
+                .unwrap_or_else(|| buffer.get_current_node(current_selection));
                 node_to_selection(selection, buffer, copied_text, initial_range)
             }
             SelectionMode::Custom => Selection {
                 range: cursor_char_index..cursor_char_index,
-                node_id: None,
                 copied_text,
                 initial_range: current_selection.initial_range.clone(),
             },
@@ -453,7 +446,6 @@ fn get_selection_via_ast_grep(
         Some(matches) => Selection {
             range: buffer.byte_to_char(matches.range().start)
                 ..buffer.byte_to_char(matches.range().end),
-            node_id: None,
             copied_text,
             initial_range: current_selection.initial_range.clone(),
         },
@@ -489,7 +481,6 @@ fn get_selection_via_regex(
         None => current_selection.clone(),
         Some(matches) => Selection {
             range: buffer.byte_to_char(matches.start())..buffer.byte_to_char(matches.end()),
-            node_id: None,
             copied_text,
             initial_range: current_selection.initial_range.clone(),
         },
@@ -502,7 +493,6 @@ impl Add<usize> for Selection {
     fn add(self, rhs: usize) -> Self::Output {
         Self {
             range: self.range.start + rhs..self.range.end + rhs,
-            node_id: self.node_id,
             copied_text: self.copied_text,
             initial_range: self.initial_range,
         }
@@ -515,7 +505,6 @@ impl Sub<usize> for Selection {
     fn sub(self, rhs: usize) -> Self::Output {
         Self {
             range: self.range.start - rhs..self.range.end - rhs,
-            node_id: self.node_id,
             copied_text: self.copied_text,
             initial_range: self.initial_range,
         }

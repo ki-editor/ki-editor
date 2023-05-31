@@ -239,7 +239,6 @@ impl Editor {
             selection_set: SelectionSet {
                 primary: Selection {
                     range: CharIndex(0)..CharIndex(0),
-                    node_id: None,
                     copied_text: None,
                     initial_range: None,
                 },
@@ -267,7 +266,6 @@ impl Editor {
             selection_set: SelectionSet {
                 primary: Selection {
                     range: CharIndex(0)..CharIndex(0),
-                    node_id: None,
                     copied_text: None,
                     initial_range: None,
                 },
@@ -320,7 +318,6 @@ impl Editor {
         self.selection_set = SelectionSet {
             primary: Selection {
                 range: start..start + self.buffer.borrow().get_line(start).len_chars(),
-                node_id: None,
                 copied_text: None,
                 initial_range: None,
             },
@@ -464,7 +461,6 @@ impl Editor {
                     }),
                     Action::Select(Selection {
                         range: old_range.start..old_range.start,
-                        node_id: None,
                         copied_text: Some(old),
                         initial_range: None,
                     }),
@@ -496,7 +492,6 @@ impl Editor {
                             let start = start + copied_text.len_chars();
                             start..start
                         },
-                        node_id: None,
                         copied_text: Some(copied_text.clone()),
                         initial_range: None,
                     }),
@@ -527,7 +522,6 @@ impl Editor {
                     Action::Select(Selection {
                         range: selection.range.start..selection.range.start + replacement_text_len,
                         copied_text: Some(replaced_text),
-                        node_id: None,
                         initial_range: None,
                     }),
                 ])])
@@ -646,7 +640,6 @@ impl Editor {
                 let selection_set = SelectionSet {
                     primary: Selection {
                         range: CharIndex(0)..CharIndex(self.buffer.borrow().len_chars()),
-                        node_id: None,
                         copied_text: self.selection_set.primary.copied_text.clone(),
                         initial_range: None,
                     },
@@ -736,7 +729,6 @@ impl Editor {
                     Action::Select(Selection {
                         range: selection.range.start..selection.range.start,
                         copied_text: selection.copied_text.clone(),
-                        node_id: None,
                         initial_range: None,
                     }),
                 ])
@@ -757,7 +749,6 @@ impl Editor {
                     }),
                     Action::Select(Selection {
                         range: selection.range.start + s.len()..selection.range.start + s.len(),
-                        node_id: None,
                         copied_text: selection.copied_text.clone(),
                         initial_range: None,
                     }),
@@ -859,7 +850,6 @@ impl Editor {
             mode: self.selection_set.mode.clone(),
             primary: Selection {
                 range: start..start,
-                node_id: None,
                 copied_text: self.selection_set.primary.copied_text.clone(),
                 initial_range: self.selection_set.primary.initial_range.clone(),
             },
@@ -904,6 +894,10 @@ impl Editor {
             &direction,
             &self.cursor_direction,
         );
+
+        // println!("====================");
+        // println!("current_selection: {:?}", current_selection);
+        // println!("next_selection: {:?}", next_selection);
 
         loop {
             let edit_transaction = get_trial_edit_transaction(&current_selection, &next_selection);
@@ -1007,7 +1001,6 @@ impl Editor {
                             range: next_selection.range.start
                                 ..(next_selection.range.start
                                     + text_at_current_selection.len_chars()),
-                            node_id: None,
                             copied_text: current_selection.copied_text.clone(),
                             initial_range: None,
                         }),
@@ -1114,7 +1107,6 @@ impl Editor {
                     Action::Select(Selection {
                         range: start..start,
                         copied_text: selection.copied_text.clone(),
-                        node_id: None,
                         initial_range: selection.initial_range.clone(),
                     }),
                 ])
@@ -1164,7 +1156,6 @@ impl Editor {
                         }),
                         Action::Select(Selection {
                             range: range.start..(range.start + new_len_chars),
-                            node_id: None,
                             copied_text: current_selection.copied_text.clone(),
                             initial_range: current_selection.initial_range.clone(),
                         }),
@@ -1222,7 +1213,6 @@ impl Editor {
                         }),
                         Action::Select(Selection {
                             range: range.start..(range.start + new_len_chars),
-                            node_id: None,
                             copied_text: current_selection.copied_text.clone(),
                             initial_range: current_selection.initial_range.clone(),
                         }),
@@ -1263,7 +1253,6 @@ impl Editor {
         self.update_selection_set(SelectionSet {
             primary: Selection {
                 range: char_index..char_index,
-                node_id: None,
                 copied_text: self.selection_set.primary.copied_text.clone(),
                 initial_range: self.selection_set.primary.initial_range.clone(),
             },
@@ -1277,7 +1266,6 @@ impl Editor {
         self.selection_set = SelectionSet {
             primary: Selection {
                 range: CharIndex(0)..CharIndex(0),
-                node_id: None,
                 copied_text: None,
                 initial_range: None,
             },
@@ -1316,7 +1304,6 @@ impl Editor {
                                 line_start + current_line.len_chars() + leading_whitespaces.len();
                             start..start
                         },
-                        node_id: None,
                         copied_text: selection.copied_text.clone(),
                         initial_range: selection.initial_range.clone(),
                     }),
@@ -1337,7 +1324,6 @@ pub fn node_to_selection(
 ) -> Selection {
     Selection {
         range: buffer.byte_to_char(node.start_byte())..buffer.byte_to_char(node.end_byte()),
-        node_id: Some(node.id()),
         copied_text,
         initial_range,
     }
@@ -1567,10 +1553,7 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize) { let x = 1; }");
 
         editor.select_named_node(Direction::Forward);
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["fn main(x: usize) { let x = 1; }"]
-        );
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
         editor.select_named_node(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         editor.select_named_node(Direction::Forward);
@@ -1652,6 +1635,24 @@ fn main() {
 
         editor.exchange(Direction::Backward);
         assert_eq!(editor.get_text(), "fn main(x: usize, y: Vec<A>) {}");
+    }
+
+    #[test]
+    fn exchange_sibling_2() {
+        let mut editor = Editor::from_text(language(), "use a;\nuse b;\nuse c;");
+
+        // Select first statement
+        editor.select_character(Direction::Forward);
+        editor.select_character(Direction::Forward);
+
+        editor.select_parent(Direction::Forward);
+        editor.select_parent(Direction::Forward);
+        editor.select_sibling(Direction::Forward);
+
+        editor.exchange(Direction::Forward);
+        assert_eq!(editor.get_text(), "use b;\nuse a;\nuse c;");
+        editor.exchange(Direction::Forward);
+        assert_eq!(editor.get_text(), "use b;\nuse c;\nuse a;");
     }
 
     #[test]
