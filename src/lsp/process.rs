@@ -4,8 +4,9 @@ use lsp_types::{
     lsp_notification, lsp_request, ClientCapabilities, CompletionClientCapabilities,
     CompletionContext, CompletionItemKind, CompletionItemKindCapability, CompletionParams,
     CompletionResponse, CompletionTriggerKind, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, GeneralClientCapabilities, InitializeParams, InitializedParams,
-    PartialResultParams, Position, ServerCapabilities, TextDocumentClientCapabilities,
+    DidOpenTextDocumentParams, DidSaveTextDocumentParams, GeneralClientCapabilities,
+    InitializeParams, InitializedParams, PartialResultParams, Position,
+    PublishDiagnosticsClientCapabilities, ServerCapabilities, TextDocumentClientCapabilities,
     TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
     TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
     WorkspaceClientCapabilities,
@@ -54,7 +55,7 @@ enum LspServerProcessMessage {
 
 #[derive(Debug)]
 enum FromEditor {
-    CompletionRequest {
+    RequestCompletion {
         file_path: PathBuf,
         position: Position,
     },
@@ -69,6 +70,9 @@ enum FromEditor {
         file_path: PathBuf,
         version: i32,
         content: String,
+    },
+    TextDocumentDidSave {
+        file_path: PathBuf,
     },
 }
 
@@ -89,7 +93,7 @@ impl LspServerProcessChannel {
 
     pub fn request_completion(&self, path: &PathBuf, position: Position) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::CompletionRequest {
+            FromEditor::RequestCompletion {
                 file_path: path.clone(),
                 position,
             },
@@ -152,6 +156,14 @@ impl LspServerProcessChannel {
 
     pub fn initialized(&mut self) {
         self.is_initialized = true
+    }
+
+    pub fn document_did_save(&self, path: &PathBuf) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::TextDocumentDidSave {
+                file_path: path.clone(),
+            },
+        ))
     }
 }
 
@@ -279,7 +291,7 @@ impl LspServerProcess {
             match message {
                 LspServerProcessMessage::FromLspServer(json_value) => self.handle_reply(json_value),
                 LspServerProcessMessage::FromEditor(from_editor) => match from_editor {
-                    FromEditor::CompletionRequest {
+                    FromEditor::RequestCompletion {
                         file_path,
                         position,
                     } => self.text_document_completion(file_path, position),
@@ -295,6 +307,9 @@ impl LspServerProcess {
                         version,
                         content,
                     } => self.text_document_did_change(file_path, version, content),
+                    FromEditor::TextDocumentDidSave { file_path } => {
+                        self.text_document_did_save(file_path)
+                    }
                 },
             }
             .unwrap_or_else(|error| {
@@ -391,6 +406,7 @@ impl LspServerProcess {
                 // Parse the reply as Notification
                 match method.as_str() {
                     "textDocument/publishDiagnostics" => {
+                        log::info!("Incoming Notification: {}", method);
                         let params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params =
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
 
@@ -538,6 +554,17 @@ impl LspServerProcess {
                     range_length: None,
                     text: content,
                 }],
+            },
+        )
+    }
+
+    fn text_document_did_save(&mut self, file_path: PathBuf) -> Result<(), anyhow::Error> {
+        self.send_notification::<lsp_notification!("textDocument/didSave")>(
+            DidSaveTextDocumentParams {
+                text_document: TextDocumentIdentifier {
+                    uri: Url::parse(&format!("file://{}", file_path.canonicalize()?.display()))?,
+                },
+                text: None,
             },
         )
     }

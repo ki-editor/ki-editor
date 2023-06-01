@@ -70,7 +70,7 @@ impl Component for Editor {
     fn set_title(&mut self, title: String) {
         self.title = title;
     }
-    fn get_grid(&self) -> Grid {
+    fn get_grid(&self, diagnostics: &[lsp_types::Diagnostic]) -> Grid {
         let editor = self;
         let Dimension { height, width } = editor.dimension();
         let mut grid: Grid = Grid::new(Dimension { height, width });
@@ -93,6 +93,28 @@ impl Component for Editor {
 
         let secondary_selections = &editor.selection_set.secondary;
 
+        let diagnostics = diagnostics.into_iter().map(|diagnostic| {
+            let start = buffer.point_to_char(Point {
+                column: diagnostic.range.start.character as usize,
+                row: diagnostic.range.start.line as usize,
+            });
+            let end = buffer.point_to_char(Point {
+                column: diagnostic.range.end.character as usize,
+                row: diagnostic.range.end.line as usize,
+            });
+            let end = if start == end { end + 1 } else { end };
+            let char_index_range = start..end;
+            (diagnostic, char_index_range)
+        });
+
+        let errors = diagnostics.clone().filter(|(diagnostic, _)| {
+            diagnostic.severity == Some(lsp_types::DiagnosticSeverity::ERROR)
+        });
+
+        let warnings = diagnostics.clone().filter(|(diagnostic, _)| {
+            diagnostic.severity != Some(lsp_types::DiagnosticSeverity::ERROR)
+        });
+
         for (line_index, line) in lines {
             let line_start_char_index = buffer.line_to_char(line_index);
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
@@ -100,8 +122,10 @@ impl Component for Editor {
 
                 let (foreground_color, background_color) =
                     if selection.extended_range().contains(&char_index) {
+                        // Primary selection
                         (Color::Black, Color::Yellow)
                     } else if secondary_selections.iter().any(|secondary_selection| {
+                        // Secondary selection cursor
                         secondary_selection.to_char_index(&editor.cursor_direction) == char_index
                     }) {
                         (Color::White, Color::Black)
@@ -109,8 +133,35 @@ impl Component for Editor {
                         .iter()
                         .any(|secondary_selection| secondary_selection.range.contains(&char_index))
                     {
+                        // Secondary selection
                         (Color::Black, Color::DarkYellow)
+                    } else if errors.clone().any(|(_, range)| range.contains(&char_index)) {
+                        // Errors
+                        // Pink
+                        (
+                            Color::Black,
+                            Color::Rgb {
+                                r: 255,
+                                g: 102,
+                                b: 102,
+                            },
+                        )
+                    } else if warnings
+                        .clone()
+                        .any(|(_, range)| range.contains(&char_index))
+                    {
+                        // Warnings
+                        // Light orange
+                        (
+                            Color::Black,
+                            Color::Rgb {
+                                r: 255,
+                                g: 204,
+                                b: 153,
+                            },
+                        )
                     } else {
+                        // Default
                         (Color::Black, Color::White)
                     };
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
@@ -610,19 +661,17 @@ impl Editor {
     }
 
     pub fn handle_key_event(&mut self, state: &State, key_event: KeyEvent) -> Vec<Dispatch> {
-        if let HandleEventResult::Ignored(Event::Key(key_event)) =
-            self.handle_universal_key(key_event)
-        {
-            match &self.mode {
+        match self.handle_universal_key(key_event) {
+            HandleEventResult::Ignored(Event::Key(key_event)) => match &self.mode {
                 Mode::Normal => self.handle_normal_mode(state, key_event),
                 Mode::Insert => self.handle_insert_mode(key_event),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
                     vec![]
                 }
-            }
-        } else {
-            vec![]
+            },
+            HandleEventResult::Handled(dispatches) => dispatches,
+            _ => vec![],
         }
     }
 
@@ -654,8 +703,12 @@ impl Editor {
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
-                self.buffer.borrow().save();
-                HandleEventResult::Handled(vec![])
+                let dispatches = if let Some(path) = self.buffer.borrow().save() {
+                    vec![Dispatch::DocumentDidSave { path }]
+                } else {
+                    vec![]
+                };
+                HandleEventResult::Handled(dispatches)
             }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
                 HandleEventResult::Handled(self.cut())

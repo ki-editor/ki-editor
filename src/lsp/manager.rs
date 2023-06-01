@@ -70,6 +70,12 @@ impl LspManager {
         })
     }
 
+    pub fn document_did_save(&self, path: PathBuf) -> anyhow::Result<()> {
+        self.invoke_channels(&path, "Failed to notify document did save", |channel| {
+            channel.document_did_save(&path)
+        })
+    }
+
     /// Open file can do one of the following:
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.

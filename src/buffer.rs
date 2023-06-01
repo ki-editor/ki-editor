@@ -1,19 +1,17 @@
-use std::{
-    ops::Range,
-    path::{Path, PathBuf},
-};
-
-use itertools::Itertools;
-use regex::Regex;
-use ropey::Rope;
-use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
-use tree_sitter_traversal::{traverse, Order};
-
 use crate::{
     edit::{Edit, EditTransaction},
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,
 };
+use itertools::Itertools;
+use regex::Regex;
+use ropey::Rope;
+use std::{
+    ops::Range,
+    path::{Path, PathBuf},
+};
+use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
+use tree_sitter_traversal::{traverse, Order};
 
 #[derive(Clone)]
 pub struct Buffer {
@@ -112,6 +110,10 @@ impl Buffer {
                 .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
                 .unwrap_or(0),
         }
+    }
+
+    pub fn point_to_char(&self, point: tree_sitter::Point) -> CharIndex {
+        CharIndex(self.rope.line_to_char(point.row) + point.column)
     }
 
     pub fn byte_to_char(&self, byte_index: usize) -> CharIndex {
@@ -292,8 +294,8 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: &Path) -> Buffer {
-        let content = std::fs::read_to_string(path).unwrap();
+    pub fn from_path(path: &Path) -> anyhow::Result<Buffer> {
+        let content = std::fs::read_to_string(path)?;
         let language = match path.extension().unwrap().to_str().unwrap() {
             "js" | "jsx" => tree_sitter_javascript::language(),
             "ts" => tree_sitter_typescript::language_typescript(),
@@ -306,15 +308,17 @@ impl Buffer {
         };
 
         let mut buffer = Buffer::new(language, &content);
-        buffer.path = Some(path.to_path_buf());
-        buffer
+        buffer.path = Some(path.canonicalize()?.to_path_buf());
+        Ok(buffer)
     }
 
-    pub fn save(&self) {
+    pub fn save(&self) -> Option<PathBuf> {
         if let Some(path) = &self.path {
             std::fs::write(path, self.rope.to_string()).unwrap();
+            Some(path.clone())
         } else {
             log::info!("Buffer has no path");
+            None
         }
     }
 }

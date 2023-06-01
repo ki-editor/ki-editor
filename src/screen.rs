@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -6,8 +7,6 @@ use std::{
     rc::Rc,
     sync::mpsc::{Receiver, Sender},
 };
-
-use anyhow::anyhow;
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
@@ -243,7 +242,15 @@ impl Screen {
                 let component = component.borrow();
 
                 let rectangle = component.rectangle();
-                let component_grid = component.get_grid();
+
+                let path = component.editor().buffer().path();
+                let diagnostics = path
+                    .map(|path| self.diagnostics.get(&path))
+                    .flatten()
+                    .map(|diagnostics| diagnostics.as_slice())
+                    .unwrap_or(&[]);
+
+                let component_grid = component.get_grid(diagnostics);
                 let cursor_point = if component.id() == self.focused_component_id {
                     let cursor_position = component.get_cursor_point();
                     let scroll_offset = component.scroll_offset();
@@ -388,6 +395,10 @@ impl Screen {
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
             }
+            Dispatch::DocumentDidSave { path } => {
+                log::info!("Document did save: {:?}", path);
+                self.lsp_manager.document_did_save(path)?;
+            }
         }
         Ok(())
     }
@@ -527,7 +538,7 @@ impl Screen {
     fn open_file(&mut self, entry_path: PathBuf) -> anyhow::Result<()> {
         // TODO: check if the file is opened before
         // so that we won't notify the LSP twice
-        let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)));
+        let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)?));
         self.buffers.push(buffer.clone());
         let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
         self.suggestive_editors.push(entry_component.clone());
@@ -567,7 +578,7 @@ impl Screen {
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
-                log::info!("Diagnostics: {:?}", params);
+                log::info!("Received diagnostics");
                 self.diagnostics.insert(
                     params.uri.to_file_path().map_err(|err| {
                         anyhow::anyhow!("Unable to convert URI to file path: {:?}", err)
@@ -594,7 +605,7 @@ fn reveal(s: String) -> String {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     CloseCurrentWindow { change_focused_to: ComponentId },
@@ -602,6 +613,7 @@ pub enum Dispatch {
     OpenFile { path: PathBuf },
     RequestCompletion { position: Position },
     DocumentDidChange { path: PathBuf, content: String },
+    DocumentDidSave { path: PathBuf },
 }
 
 #[derive(Debug)]

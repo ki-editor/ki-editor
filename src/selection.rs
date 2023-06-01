@@ -145,17 +145,18 @@ impl SelectionSet {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SelectionMode {
+    // Regex
     Word,
     Line,
     Character,
     Custom,
+    Match { regex: String },
 
+    // Syntax-tree
     Token,
-
     NamedNode,
     ParentNode,
-    SiblingNode,
-    Match { regex: String },
+    SiblingNode, // TODO: I think this should be quickfix list instead
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
