@@ -78,20 +78,37 @@ impl Component for SuggestiveEditor {
 
                     Ok(dispatches
                         .into_iter()
-                        .chain(
-                            vec![Dispatch::RequestCompletion {
+                        .chain(match self.editor().buffer().path() {
+                            None => vec![],
+                            Some(path) => vec![Dispatch::RequestCompletion {
+                                component_id: self.id(),
+                                path,
                                 position: lsp_types::Position {
                                     line: cursor_point.row as u32,
                                     character: cursor_point.column as u32,
                                 },
-                            }]
-                            .into_iter(),
-                        )
+                            }],
+                        })
                         .collect())
                 }
             }
         } else {
-            Ok(self.editor.handle_event(state, event)?)
+            match event {
+                Event::Key(key) if key.code == KeyCode::Char('1') => {
+                    match self.editor().buffer().path() {
+                        None => Ok(vec![]),
+                        Some(path) => Ok(vec![Dispatch::RequestHover {
+                            component_id: self.id(),
+                            path,
+                            position: lsp_types::Position {
+                                line: cursor_point.row as u32,
+                                character: cursor_point.column as u32,
+                            },
+                        }]),
+                    }
+                }
+                _ => Ok(self.editor.handle_event(state, event)?),
+            }
         }
     }
 
@@ -127,20 +144,48 @@ impl SuggestiveEditor {
         }
     }
 
+    pub fn set_hover(&mut self, hover: lsp_types::Hover) {
+        fn marked_string_to_string(marked_string: lsp_types::MarkedString) -> String {
+            match marked_string {
+                lsp_types::MarkedString::String(string) => string,
+                lsp_types::MarkedString::LanguageString(language_string) => language_string.value,
+            }
+        }
+        let content = match hover.contents {
+            lsp_types::HoverContents::Scalar(marked_string) => {
+                marked_string_to_string(marked_string)
+            }
+            lsp_types::HoverContents::Array(contents) => contents
+                .into_iter()
+                .map(marked_string_to_string)
+                .collect::<Vec<_>>()
+                .join("----------------\n\n"),
+            lsp_types::HoverContents::Markup(content) => content.value,
+        };
+        self.set_info("Hover", content)
+    }
+
     fn show_documentation(&mut self, completion: Option<CompletionItem>) {
         if let Some(completion) = completion {
-            let mut editor = Editor::from_buffer(Rc::new(RefCell::new(Buffer::new(
-                tree_sitter_md::language(),
-                &completion
+            self.set_info(
+                "Documentation",
+                completion
                     .documentation
                     .map(|doc| match doc {
                         lsp_types::Documentation::String(s) => s,
                         lsp_types::Documentation::MarkupContent(content) => content.value,
                     })
                     .unwrap_or_default(),
-            ))));
-            editor.set_title(format!("Documentation of `{}`", completion.label));
-            self.info = Some(Rc::new(RefCell::new(editor)));
+            )
         }
+    }
+
+    fn set_info(&mut self, title: &str, content: String) {
+        let mut editor = Editor::from_buffer(Rc::new(RefCell::new(Buffer::new(
+            tree_sitter_md::language(),
+            &content,
+        ))));
+        editor.set_title(title.to_string());
+        self.info = Some(Rc::new(RefCell::new(editor)))
     }
 }

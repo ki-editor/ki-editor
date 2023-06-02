@@ -2,7 +2,10 @@ use std::{collections::HashMap, path::PathBuf, sync::mpsc::Sender};
 
 use itertools::Itertools;
 
-use crate::{lsp::language::get_languages, screen::ScreenMessage, utils::consolidate_errors};
+use crate::{
+    components::component::ComponentId, lsp::language::get_languages, screen::ScreenMessage,
+    utils::consolidate_errors,
+};
 
 use super::{language::Language, process::LspServerProcessChannel};
 
@@ -46,22 +49,24 @@ impl LspManager {
 
     pub fn request_completion(
         &self,
+        component_id: ComponentId,
         path: std::path::PathBuf,
         position: lsp_types::Position,
     ) -> anyhow::Result<()> {
-        let languages = get_languages(&path);
-        let channels = languages
-            .into_iter()
-            .filter_map(|language| self.lsp_server_process_channels.get(&language))
-            .collect_vec();
-        log::info!("Requesting completion for {:?}", path);
-        consolidate_errors(
-            "Failed to request completion",
-            channels
-                .into_iter()
-                .map(|channel| channel.request_completion(&path, position))
-                .collect_vec(),
-        )
+        self.invoke_channels(&path, "Failed to request completion", |channel| {
+            channel.request_completion(component_id, &path, position)
+        })
+    }
+
+    pub fn request_hover(
+        &self,
+        component_id: ComponentId,
+        path: PathBuf,
+        position: lsp_types::Position,
+    ) -> anyhow::Result<()> {
+        self.invoke_channels(&path, "Failed to request hover", |channel| {
+            channel.request_hover(component_id, &path, position)
+        })
     }
 
     pub fn document_did_change(&self, path: PathBuf, content: String) -> anyhow::Result<()> {

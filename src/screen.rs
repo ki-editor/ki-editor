@@ -386,11 +386,13 @@ impl Screen {
             }
             Dispatch::SetSearch { search } => self.set_search(search),
             Dispatch::OpenFile { path } => self.open_file(path)?,
-            Dispatch::RequestCompletion { position } => {
-                let current_path = self.current_component().borrow().editor().buffer().path();
-                if let Some(path) = current_path {
-                    self.lsp_manager.request_completion(path, position)?;
-                }
+            Dispatch::RequestCompletion {
+                component_id,
+                path,
+                position,
+            } => {
+                self.lsp_manager
+                    .request_completion(component_id, path, position)?;
             }
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
@@ -398,6 +400,14 @@ impl Screen {
             Dispatch::DocumentDidSave { path } => {
                 log::info!("Document did save: {:?}", path);
                 self.lsp_manager.document_did_save(path)?;
+            }
+            Dispatch::RequestHover {
+                component_id,
+                path,
+                position,
+            } => {
+                self.lsp_manager
+                    .request_hover(component_id, path, position)?;
             }
         }
         Ok(())
@@ -549,21 +559,34 @@ impl Screen {
         Ok(())
     }
 
+    fn get_suggestive_editor(
+        &mut self,
+        component_id: ComponentId,
+    ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        self.suggestive_editors
+            .iter()
+            .find(|editor| editor.borrow().id() == component_id)
+            .cloned()
+            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
+    }
+
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::Completion(completion_response) => {
+            LspNotification::Hover(component_id, hover) => {
+                self.get_suggestive_editor(component_id)?
+                    .borrow_mut()
+                    .set_hover(hover);
+                Ok(())
+            }
+            LspNotification::Completion(component_id, completion_response) => {
                 let items = match completion_response {
                     lsp_types::CompletionResponse::Array(completion_items) => completion_items,
                     lsp_types::CompletionResponse::List(list) => list.items,
                 };
 
-                if let Some(editor) = self
-                    .suggestive_editors
-                    .iter()
-                    .find(|editor| editor.borrow().id() == self.focused_component_id)
-                {
-                    editor.borrow_mut().set_completion(items);
-                }
+                self.get_suggestive_editor(component_id)?
+                    .borrow_mut()
+                    .set_completion(items);
                 Ok(())
             }
             LspNotification::Initialized(language) => {
@@ -608,12 +631,32 @@ fn reveal(s: String) -> String {
 #[derive(Clone, Debug)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
-    CloseCurrentWindow { change_focused_to: ComponentId },
-    SetSearch { search: String },
-    OpenFile { path: PathBuf },
-    RequestCompletion { position: Position },
-    DocumentDidChange { path: PathBuf, content: String },
-    DocumentDidSave { path: PathBuf },
+    CloseCurrentWindow {
+        change_focused_to: ComponentId,
+    },
+    SetSearch {
+        search: String,
+    },
+    OpenFile {
+        path: PathBuf,
+    },
+    RequestCompletion {
+        component_id: ComponentId,
+        path: PathBuf,
+        position: Position,
+    },
+    RequestHover {
+        component_id: ComponentId,
+        path: PathBuf,
+        position: Position,
+    },
+    DocumentDidChange {
+        path: PathBuf,
+        content: String,
+    },
+    DocumentDidSave {
+        path: PathBuf,
+    },
 }
 
 #[derive(Debug)]

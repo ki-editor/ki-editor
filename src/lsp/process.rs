@@ -1,16 +1,6 @@
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
-use lsp_types::{
-    lsp_notification, lsp_request, ClientCapabilities, CompletionClientCapabilities,
-    CompletionContext, CompletionItemKind, CompletionItemKindCapability, CompletionParams,
-    CompletionResponse, CompletionTriggerKind, DidChangeTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, GeneralClientCapabilities,
-    InitializeParams, InitializedParams, PartialResultParams, Position,
-    PublishDiagnosticsClientCapabilities, ServerCapabilities, TextDocumentClientCapabilities,
-    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem,
-    TextDocumentPositionParams, Url, VersionedTextDocumentIdentifier, WorkDoneProgressParams,
-    WorkspaceClientCapabilities,
-};
+use lsp_types::*;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
@@ -18,6 +8,7 @@ use std::process::{self, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
+use crate::components::component::ComponentId;
 use crate::screen::ScreenMessage;
 use crate::utils::consolidate_errors;
 
@@ -32,19 +23,37 @@ struct LspServerProcess {
 
     server_capabilities: Option<ServerCapabilities>,
     current_working_directory: PathBuf,
-    next_request_id: u64,
-    pending_response_requests: HashMap<u64, /* method */ String>,
+    next_request_id: RequestId,
+    pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
     screen_message_sender: Sender<ScreenMessage>,
 
     receiver: Receiver<LspServerProcessMessage>,
     sender: Sender<LspServerProcessMessage>,
 }
 
+type RequestId = u64;
+
+#[derive(Debug)]
+struct PendingResponseRequest {
+    method: String,
+
+    /// This indicates that this request was sent by a component,
+    /// and the response should be sent back to that component.
+    ///
+    /// If the response of this request need not be sent back to a component,
+    /// just use the default value `ComponentId::default()`.
+    ///
+    /// This field is purposefully not an `Option` so that we do not need to
+    /// use `unwrap()` to obtain the `component_id`.
+    component_id: ComponentId,
+}
+
 #[derive(Debug)]
 pub enum LspNotification {
-    Completion(lsp_types::CompletionResponse),
     Initialized(Language),
-    PublishDiagnostics(lsp_types::PublishDiagnosticsParams),
+    PublishDiagnostics(PublishDiagnosticsParams),
+    Completion(ComponentId, CompletionResponse),
+    Hover(ComponentId, Hover),
 }
 
 #[derive(Debug)]
@@ -55,9 +64,15 @@ enum LspServerProcessMessage {
 
 #[derive(Debug)]
 enum FromEditor {
+    RequestHover {
+        file_path: PathBuf,
+        position: Position,
+        component_id: ComponentId,
+    },
     RequestCompletion {
         file_path: PathBuf,
         position: Position,
+        component_id: ComponentId,
     },
     TextDocumentDidOpen {
         file_path: PathBuf,
@@ -91,11 +106,32 @@ impl LspServerProcessChannel {
         LspServerProcess::start(language, screen_message_sender)
     }
 
-    pub fn request_completion(&self, path: &PathBuf, position: Position) -> anyhow::Result<()> {
+    pub fn request_hover(
+        &self,
+        component_id: ComponentId,
+        path: &PathBuf,
+        position: Position,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestHover {
+                file_path: path.clone(),
+                component_id,
+                position,
+            },
+        ))
+    }
+
+    pub fn request_completion(
+        &self,
+        component_id: ComponentId,
+        path: &PathBuf,
+        position: Position,
+    ) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestCompletion {
                 file_path: path.clone(),
                 position,
+                component_id,
             },
         ))
     }
@@ -218,32 +254,39 @@ impl LspServerProcess {
     }
 
     fn initialize(&mut self) -> anyhow::Result<()> {
-        self.send_request::<lsp_request!("initialize")>(InitializeParams {
-            process_id: None,
-            root_uri: Some(
-                Url::parse(&format!("file://{:?}", self.current_working_directory)).unwrap(),
-            ),
+        self.send_request::<lsp_request!("initialize")>(
+            ComponentId::default(),
+            InitializeParams {
+                process_id: None,
+                root_uri: Some(
+                    Url::parse(&format!("file://{:?}", self.current_working_directory)).unwrap(),
+                ),
 
-            capabilities: ClientCapabilities {
-                workspace: Some(WorkspaceClientCapabilities {
-                    apply_edit: Some(true),
-                    ..WorkspaceClientCapabilities::default()
-                }),
-                text_document: Some(TextDocumentClientCapabilities {
-                    completion: Some(CompletionClientCapabilities {
-                        completion_item_kind: Some(CompletionItemKindCapability {
-                            value_set: Some(vec![CompletionItemKind::TEXT]),
-                        }),
-                        ..CompletionClientCapabilities::default()
+                capabilities: ClientCapabilities {
+                    workspace: Some(WorkspaceClientCapabilities {
+                        apply_edit: Some(true),
+                        ..WorkspaceClientCapabilities::default()
                     }),
-                    ..TextDocumentClientCapabilities::default()
-                }),
-                ..ClientCapabilities::default()
+                    text_document: Some(TextDocumentClientCapabilities {
+                        completion: Some(CompletionClientCapabilities {
+                            completion_item_kind: Some(CompletionItemKindCapability {
+                                value_set: Some(vec![CompletionItemKind::TEXT]),
+                            }),
+                            ..CompletionClientCapabilities::default()
+                        }),
+                        hover: Some(HoverClientCapabilities {
+                            content_format: Some(vec![MarkupKind::PlainText]),
+                            ..HoverClientCapabilities::default()
+                        }),
+                        ..TextDocumentClientCapabilities::default()
+                    }),
+                    ..ClientCapabilities::default()
+                },
+                workspace_folders: None,
+                client_info: None,
+                ..InitializeParams::default()
             },
-            workspace_folders: None,
-            client_info: None,
-            ..InitializeParams::default()
-        })?;
+        )?;
         Ok(())
     }
 
@@ -294,7 +337,8 @@ impl LspServerProcess {
                     FromEditor::RequestCompletion {
                         file_path,
                         position,
-                    } => self.text_document_completion(file_path, position),
+                        component_id,
+                    } => self.text_document_completion(file_path, component_id, position),
                     FromEditor::TextDocumentDidOpen {
                         file_path,
                         language_id,
@@ -310,6 +354,11 @@ impl LspServerProcess {
                     FromEditor::TextDocumentDidSave { file_path } => {
                         self.text_document_did_save(file_path)
                     }
+                    FromEditor::RequestHover {
+                        file_path,
+                        position,
+                        component_id,
+                    } => self.text_document_hover(file_path, component_id, position),
                 },
             }
             .unwrap_or_else(|error| {
@@ -331,7 +380,8 @@ impl LspServerProcess {
                 let request_id = reply.get("id").unwrap().as_u64().unwrap();
 
                 // Get the method of the request
-                let method = self.pending_response_requests.remove(&request_id).unwrap();
+                let pending_response_request =
+                    self.pending_response_requests.remove(&request_id).unwrap();
 
                 // Parse the reply as a Response
                 let response = serde_json::from_value::<
@@ -354,6 +404,10 @@ impl LspServerProcess {
                     )
                 })?;
 
+                let PendingResponseRequest {
+                    method,
+                    component_id,
+                } = pending_response_request;
                 match method.as_str() {
                     "initialize" => {
                         log::info!("Initialize response: {:?}", response);
@@ -380,12 +434,28 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(LspNotification::Completion(
+                                    component_id,
                                     payload,
                                 )))
                                 .unwrap();
                         }
                     }
-                    _ => todo!(),
+                    "textDocument/hover" => {
+                        let payload: <lsp_request!("textDocument/hover") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::Hover(
+                                    component_id,
+                                    payload,
+                                )))
+                                .unwrap();
+                        }
+                    }
+                    _ => {
+                        log::info!("Unknown method: {:#?}", method);
+                    }
                 }
             }
 
@@ -427,17 +497,16 @@ impl LspServerProcess {
     pub fn text_document_completion(
         &mut self,
         file_path: PathBuf,
+        component_id: ComponentId,
         position: Position,
     ) -> anyhow::Result<()> {
-        let result =
-            self.send_request::<lsp_request!("textDocument/completion")>(CompletionParams {
+        let result = self.send_request::<lsp_request!("textDocument/completion")>(
+            component_id,
+            CompletionParams {
                 text_document_position: TextDocumentPositionParams {
                     position,
                     text_document: TextDocumentIdentifier {
-                        uri: Url::parse(&format!(
-                            "file://{}",
-                            file_path.canonicalize()?.display()
-                        ))?,
+                        uri: path_buf_to_url(file_path)?,
                     },
                 },
                 work_done_progress_params: WorkDoneProgressParams {
@@ -450,14 +519,15 @@ impl LspServerProcess {
                     trigger_kind: CompletionTriggerKind::INVOKED,
                     trigger_character: None,
                 }),
-            })?;
+            },
+        )?;
 
         log::info!("{:?}", result);
         Ok(())
     }
 
     pub fn shutdown(&mut self) -> anyhow::Result<()> {
-        self.send_request::<lsp_request!("shutdown")>(())?;
+        self.send_request::<lsp_request!("shutdown")>(ComponentId::default(), ())?;
         Ok(())
     }
 
@@ -483,7 +553,11 @@ impl LspServerProcess {
     }
 
     /// Returns the request ID
-    fn send_request<R: Request>(&mut self, params: R::Params) -> anyhow::Result<()>
+    fn send_request<R: Request>(
+        &mut self,
+        component_id: ComponentId,
+        params: R::Params,
+    ) -> anyhow::Result<()>
     where
         R::Params: serde::Serialize,
     {
@@ -512,8 +586,13 @@ impl LspServerProcess {
             message
         )?;
 
-        self.pending_response_requests
-            .insert(id, R::METHOD.to_string());
+        self.pending_response_requests.insert(
+            id,
+            PendingResponseRequest {
+                component_id,
+                method: R::METHOD.to_string(),
+            },
+        );
 
         Ok(())
     }
@@ -528,7 +607,7 @@ impl LspServerProcess {
         self.send_notification::<lsp_notification!("textDocument/didOpen")>(
             DidOpenTextDocumentParams {
                 text_document: TextDocumentItem {
-                    uri: Url::parse(&format!("file://{}", file_path.canonicalize()?.display()))?,
+                    uri: path_buf_to_url(file_path)?,
                     language_id,
                     version: version as i32,
                     text: content,
@@ -546,7 +625,7 @@ impl LspServerProcess {
         self.send_notification::<lsp_notification!("textDocument/didChange")>(
             DidChangeTextDocumentParams {
                 text_document: VersionedTextDocumentIdentifier {
-                    uri: Url::parse(&format!("file://{}", file_path.canonicalize()?.display()))?,
+                    uri: path_buf_to_url(file_path)?,
                     version,
                 },
                 content_changes: vec![TextDocumentContentChangeEvent {
@@ -562,10 +641,39 @@ impl LspServerProcess {
         self.send_notification::<lsp_notification!("textDocument/didSave")>(
             DidSaveTextDocumentParams {
                 text_document: TextDocumentIdentifier {
-                    uri: Url::parse(&format!("file://{}", file_path.canonicalize()?.display()))?,
+                    uri: path_buf_to_url(file_path)?,
                 },
                 text: None,
             },
         )
     }
+
+    fn text_document_hover(
+        &mut self,
+        file_path: PathBuf,
+        component_id: ComponentId,
+        position: Position,
+    ) -> anyhow::Result<()> {
+        self.send_request::<lsp_request!("textDocument/hover")>(
+            component_id,
+            HoverParams {
+                text_document_position_params: TextDocumentPositionParams {
+                    position,
+                    text_document: TextDocumentIdentifier {
+                        uri: path_buf_to_url(file_path)?,
+                    },
+                },
+                work_done_progress_params: WorkDoneProgressParams {
+                    work_done_token: None,
+                },
+            },
+        )
+    }
+}
+
+fn path_buf_to_url(path: PathBuf) -> Result<Url, anyhow::Error> {
+    Ok(Url::parse(&format!(
+        "file://{}",
+        path.canonicalize()?.display()
+    ))?)
 }

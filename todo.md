@@ -29,11 +29,13 @@
 - [x] feat(editor/normal): backspace should not yank
 - [x] fix(editor): swap sibling will skip sibling sometimes
 - [x] fix(editor): p e ^z e , does not work as expected
-- [] LSP Diagnostics
+- [x] LSP hover
+- [x] LSP Diagnostics highlight error range
+- [] LSP Diagnostics show error message
 - [] LSP get references
 - [] LSP go to definition
 - [] LSP quick action
-- [] LSP hover
+- [] LSP completion pass in trigger characters, so that typing . or :: provides better completion in Rust
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
