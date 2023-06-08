@@ -13,7 +13,7 @@ use crossterm::{
     event::{EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute, queue,
     style::{Color, Print, SetBackgroundColor, SetForegroundColor},
-    terminal::{self, Clear, ClearType},
+    terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
 use lsp_types::Position;
@@ -99,12 +99,11 @@ impl Screen {
     }
 
     pub fn run(&mut self, entry_path: PathBuf) -> Result<(), anyhow::Error> {
-        crossterm::terminal::enable_raw_mode()?;
-
         self.open_file(entry_path)?;
 
         let mut stdout = stdout();
-
+        stdout.execute(EnterAlternateScreen)?;
+        crossterm::terminal::enable_raw_mode()?;
         stdout.execute(EnableMouseCapture)?;
 
         self.render(&mut stdout)?;
@@ -121,16 +120,29 @@ impl Screen {
         });
 
         while let Ok(message) = self.receiver.recv() {
-            match message {
+            let should_quit = match message {
                 ScreenMessage::Event(event) => self.handle_event(event),
                 ScreenMessage::LspNotification(notification) => {
-                    self.handle_lsp_notification(notification)
+                    self.handle_lsp_notification(notification).map(|_| false)
                 }
             }
-            .unwrap_or_else(|e| log::error!("{:?}", e));
+            .unwrap_or_else(|e| {
+                log::error!("{:?}", e);
+                false
+            });
+
+            if should_quit {
+                break;
+            }
 
             self.render(&mut stdout)?;
         }
+
+        stdout.execute(LeaveAlternateScreen)?;
+        crossterm::terminal::disable_raw_mode()?;
+
+        // TODO: this line is a hack
+        std::process::exit(0);
 
         Ok(())
     }
@@ -150,7 +162,8 @@ impl Screen {
             .unwrap()
     }
 
-    fn handle_event(&mut self, event: Event) -> anyhow::Result<()> {
+    /// Returns true if the screen should quit.
+    fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.get_component(self.focused_component_id);
         match event {
@@ -167,11 +180,7 @@ impl Screen {
                 }
                 KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                     if self.quit() {
-                        // self.lsp_server_process.lock().unwrap().shutdown()?;
-                        crossterm::terminal::disable_raw_mode()?;
-
-                        // Quit the process
-                        std::process::exit(0);
+                        return Ok(true);
                     }
                 }
                 KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
@@ -195,7 +204,7 @@ impl Screen {
                 self.handle_dispatches_result(dispatches);
             }
         }
-        Ok(())
+        Ok(false)
     }
 
     fn remove_current_component(&mut self) {
