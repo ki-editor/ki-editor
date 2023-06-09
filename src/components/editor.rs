@@ -833,8 +833,9 @@ impl Editor {
             KeyCode::Char('C') => self.select_character(Direction::Backward),
             KeyCode::Char('d') => return self.delete(Direction::Forward),
             KeyCode::Char('D') => return self.delete(Direction::Backward),
-            KeyCode::Char('e') => return self.eat(Direction::Forward),
-            KeyCode::Char('E') => return self.eat(Direction::Backward),
+            // e
+            // f
+            // g
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             KeyCode::Char('i') => self.enter_insert_mode(),
             KeyCode::Char('j') => self.jump(Direction::Forward),
@@ -847,20 +848,25 @@ impl Editor {
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('N') => self.select_named_node(Direction::Backward),
             KeyCode::Char('o') => self.change_cursor_direction(),
+            // O
+            KeyCode::Char('p') => self.select_parent(Direction::Forward),
+            KeyCode::Char('P') => self.select_parent(Direction::Backward),
+            KeyCode::Char('r') => return self.replace(),
+            // R
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
             KeyCode::Char('S') => self.select_sibling(Direction::Backward),
             KeyCode::Char('t') => self.select_token(Direction::Forward),
             KeyCode::Char('T') => self.select_token(Direction::Backward),
-            KeyCode::Char('r') => return self.replace(),
-            KeyCode::Char('p') => self.select_parent(Direction::Forward),
-            KeyCode::Char('P') => self.select_parent(Direction::Backward),
+            KeyCode::Char('u') => return self.upend(Direction::Forward),
             KeyCode::Char('v') => self.select_view(Direction::Forward),
             KeyCode::Char('V') => self.select_view(Direction::Backward),
             KeyCode::Char('w') => self.select_word(Direction::Forward),
             KeyCode::Char('W') => self.select_word(Direction::Backward),
             KeyCode::Char('x') => return self.exchange(Direction::Forward),
             KeyCode::Char('X') => return self.exchange(Direction::Backward),
+            // y
             KeyCode::Char('z') => self.align_cursor_to_center(),
+            // Z
             KeyCode::Char('0') => self.reset(),
             KeyCode::Backspace => {
                 self.change();
@@ -1075,7 +1081,12 @@ impl Editor {
     }
 
     fn exchange(&mut self, direction: Direction) -> Vec<Dispatch> {
-        self.replace_faultlessly(&self.selection_set.mode.clone(), direction)
+        let selection_mode = if self.selection_set.mode.is_node() {
+            SelectionMode::SiblingNode
+        } else {
+            self.selection_set.mode.clone()
+        };
+        self.replace_faultlessly(&selection_mode, direction)
     }
 
     fn add_selection(&mut self) {
@@ -1170,6 +1181,13 @@ impl Editor {
 
     fn delete(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
+        let mode = if self.selection_set.mode.is_node() {
+            // If the selection is a node, the mode should be SiblingNode
+            // because other node-based movement does not make sense for delete
+            SelectionMode::SiblingNode
+        } else {
+            self.selection_set.mode.clone()
+        };
         let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
                 |current_selection: &Selection, other_selection: &Selection| {
@@ -1216,7 +1234,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 &selection,
-                &self.selection_set.mode,
+                &mode,
                 &direction,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
@@ -1225,7 +1243,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn eat(&mut self, direction: Direction) -> Vec<Dispatch> {
+    /// Replace the parent node of the current node with the current node
+    fn upend(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
@@ -1273,7 +1292,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 &selection,
-                &self.selection_set.mode,
+                &SelectionMode::ParentNode,
                 &direction,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
@@ -1550,8 +1569,6 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["1"]);
 
         editor.select_parent(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["1"]);
-        editor.select_parent(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
         editor.select_parent(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
@@ -1570,10 +1587,8 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..4 {
-            editor.select_token(Direction::Forward);
+            editor.select_named_node(Direction::Forward);
         }
-        editor.select_parent(Direction::Forward);
-        editor.select_parent(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
         editor.select_sibling(Direction::Forward);
@@ -1633,6 +1648,19 @@ fn main() {
     }
 
     #[test]
+    fn select_named_node_from_line_mode() {
+        let mut editor = Editor::from_text(language(), "fn main(x: usize) { \n let x = 1; }");
+        // Select the second line
+        editor.select_line(Direction::Forward);
+        editor.select_line(Direction::Forward);
+
+        // Select next name node
+        editor.select_named_node(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
+    }
+
+    #[test]
     fn copy_replace() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         editor.select_token(Direction::Forward);
@@ -1677,12 +1705,11 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..4 {
-            editor.select_token(Direction::Forward);
+            editor.select_named_node(Direction::Forward);
         }
-        editor.select_parent(Direction::Forward);
-        editor.select_parent(Direction::Forward);
 
-        editor.select_sibling(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
+
         editor.exchange(Direction::Forward);
         assert_eq!(editor.get_text(), "fn main(y: Vec<A>, x: usize) {}");
 
@@ -1700,7 +1727,7 @@ fn main() {
 
         editor.select_parent(Direction::Forward);
         editor.select_parent(Direction::Forward);
-        editor.select_sibling(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
         editor.exchange(Direction::Forward);
         assert_eq!(editor.get_text(), "use b;\nuse a;\nuse c;");
@@ -1709,7 +1736,7 @@ fn main() {
     }
 
     #[test]
-    fn eat_parent() {
+    fn upend() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
         // Move selection to "c()"
         for _ in 0..10 {
@@ -1718,12 +1745,10 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
-        editor.select_parent(Direction::Forward);
-
-        editor.eat(Direction::Forward);
+        editor.upend(Direction::Forward);
         assert_eq!(editor.get_text(), "fn main() { let x = c(); }");
 
-        editor.eat(Direction::Forward);
+        editor.upend(Direction::Forward);
         assert_eq!(editor.get_text(), "fn main() { c() }");
     }
 
@@ -1789,7 +1814,6 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
 
-        editor.select_sibling(Direction::Forward);
         editor.add_selection();
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
         editor.enter_insert_mode();
@@ -1804,7 +1828,7 @@ fn main() {
     }
 
     #[test]
-    fn multi_eat_parent() {
+    fn multi_upend() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
         for _ in 0..5 {
@@ -1813,7 +1837,6 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
 
-        editor.select_sibling(Direction::Forward);
         editor.add_selection();
 
         assert_eq!(
@@ -1821,14 +1844,13 @@ fn main() {
             vec!["let x = S(a);", "let y = S(b);"]
         );
 
-        for _ in 0..5 {
+        for _ in 0..4 {
             editor.select_named_node(Direction::Forward);
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
-        editor.select_parent(Direction::Forward);
-        editor.eat(Direction::Forward);
+        editor.upend(Direction::Forward);
 
         assert_eq!(editor.get_text(), "fn f(){ let x = a; let y = b; }");
 
@@ -1849,11 +1871,9 @@ fn main() {
         // Select 'fn f(x:a,y:b){}'
         editor.select_token(Direction::Forward);
         editor.select_parent(Direction::Forward);
-        editor.select_parent(Direction::Forward);
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
-        editor.select_sibling(Direction::Forward);
         editor.add_selection();
 
         assert_eq!(
@@ -1864,11 +1884,8 @@ fn main() {
         editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
-        editor.select_named_node(Direction::Forward);
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
-
-        editor.select_sibling(Direction::Forward);
 
         editor.exchange(Direction::Forward);
         assert_eq!(editor.get_text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
@@ -1895,9 +1912,7 @@ fn main() {
             vec!["let x = S(spongebob_squarepants);"]
         );
 
-        editor.select_sibling(Direction::Forward);
         editor.add_selection();
-        editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
 

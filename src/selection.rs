@@ -120,11 +120,16 @@ impl SelectionSet {
     }
 
     pub fn add_selection(&mut self, buffer: &Buffer, cursor_direction: &CursorDirection) {
+        let mode = if self.mode.is_node() {
+            SelectionMode::SiblingNode
+        } else {
+            self.mode.clone()
+        };
         let last_selection = &self.primary;
         let next_selection = Selection::get_selection_(
             buffer,
             last_selection,
-            &self.mode,
+            &mode,
             &Direction::Forward,
             cursor_direction,
         );
@@ -156,17 +161,17 @@ pub enum SelectionMode {
     Token,
     NamedNode,
     ParentNode,
-    SiblingNode, // TODO: I think this should be quickfix list instead
+    SiblingNode,
+    List,
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
-        self == other
-        // || self.is_node() && other.is_node()
+        self == other || self.is_node() && other.is_node()
     }
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, NamedNode | ParentNode | SiblingNode)
+        matches!(self, NamedNode | ParentNode | SiblingNode | Token)
     }
 
     pub fn display(&self) -> String {
@@ -180,6 +185,7 @@ impl SelectionMode {
             SelectionMode::ParentNode => "PARENT".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
             SelectionMode::Match { regex } => format!("MATCH {:?}", regex),
+            SelectionMode::List => "LIST".to_string(),
         }
     }
 }
@@ -401,6 +407,7 @@ impl Selection {
                 copied_text,
                 initial_range: current_selection.initial_range.clone(),
             },
+            SelectionMode::List => todo!(),
         }
     }
 
