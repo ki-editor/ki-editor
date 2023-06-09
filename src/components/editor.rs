@@ -453,10 +453,16 @@ impl Editor {
     }
 
     pub fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
-        let direction = if self.selection_set.mode.similar_to(&selection_mode) {
-            direction
-        } else {
-            Direction::Current
+        //  There are a few selection modes where Current make sense.
+        let direction = match selection_mode {
+            SelectionMode::Line | SelectionMode::Character | SelectionMode::Token
+                if self.selection_set.mode != selection_mode =>
+            {
+                // TODO: Current only applies to a few selection mode
+                //       we need to rethink how to solve this discrepancies
+                Direction::Current
+            }
+            _ => direction,
         };
         let selection = self.get_selection_set(&selection_mode, direction);
 
@@ -1586,7 +1592,7 @@ fn main() {
     fn select_sibling() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
-        for _ in 0..4 {
+        for _ in 0..3 {
             editor.select_named_node(Direction::Forward);
         }
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
@@ -1620,8 +1626,6 @@ fn main() {
     fn select_named_node() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize) { let x = 1; }");
 
-        editor.select_named_node(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
         editor.select_named_node(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         editor.select_named_node(Direction::Forward);
@@ -1704,7 +1708,7 @@ fn main() {
     fn exchange_sibling() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
-        for _ in 0..4 {
+        for _ in 0..3 {
             editor.select_named_node(Direction::Forward);
         }
 
@@ -1726,7 +1730,6 @@ fn main() {
         editor.select_character(Direction::Forward);
 
         editor.select_parent(Direction::Forward);
-        editor.select_parent(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
         editor.exchange(Direction::Forward);
@@ -1739,7 +1742,7 @@ fn main() {
     fn upend() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
         // Move selection to "c()"
-        for _ in 0..10 {
+        for _ in 0..9 {
             editor.select_named_node(Direction::Forward);
         }
 
@@ -1808,7 +1811,7 @@ fn main() {
     fn multi_insert() {
         let mut editor = Editor::from_text(language(), "struct A(usize, char)");
         // Select 'usize'
-        for _ in 0..4 {
+        for _ in 0..3 {
             editor.select_named_node(Direction::Forward);
         }
 
@@ -1831,7 +1834,7 @@ fn main() {
     fn multi_upend() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
-        for _ in 0..5 {
+        for _ in 0..4 {
             editor.select_named_node(Direction::Forward);
         }
 
@@ -1903,7 +1906,7 @@ fn main() {
         );
 
         // Select 'let x = S(a)'
-        for _ in 0..5 {
+        for _ in 0..4 {
             editor.select_named_node(Direction::Forward);
         }
 
@@ -2024,7 +2027,6 @@ fn main() {
 
         editor.copy();
 
-        editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
 
         assert_eq!(
@@ -2161,7 +2163,6 @@ let y = S(b);
     fn delete_sibling() {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
         // Select 'x: a'
-        editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
         editor.select_named_node(Direction::Forward);
