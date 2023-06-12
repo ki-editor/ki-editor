@@ -3,8 +3,8 @@ use std::{collections::HashMap, path::PathBuf, sync::mpsc::Sender};
 use itertools::Itertools;
 
 use crate::{
-    components::component::ComponentId, lsp::language::get_languages, screen::ScreenMessage,
-    utils::consolidate_errors,
+    components::component::ComponentId, lsp::language::get_languages, position::Position,
+    screen::ScreenMessage, utils::consolidate_errors,
 };
 
 use super::{language::Language, process::LspServerProcessChannel};
@@ -51,7 +51,7 @@ impl LspManager {
         &self,
         component_id: ComponentId,
         path: std::path::PathBuf,
-        position: lsp_types::Position,
+        position: Position,
     ) -> anyhow::Result<()> {
         self.invoke_channels(&path, "Failed to request completion", |channel| {
             channel.request_completion(component_id, &path, position)
@@ -62,7 +62,7 @@ impl LspManager {
         &self,
         component_id: ComponentId,
         path: PathBuf,
-        position: lsp_types::Position,
+        position: Position,
     ) -> anyhow::Result<()> {
         self.invoke_channels(&path, "Failed to request hover", |channel| {
             channel.request_hover(component_id, &path, position)

@@ -1,3 +1,4 @@
+use crate::position::Position;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
 use lsp_types::*;
@@ -504,7 +505,7 @@ impl LspServerProcess {
             component_id,
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
-                    position,
+                    position: position.into(),
                     text_document: TextDocumentIdentifier {
                         uri: path_buf_to_url(file_path)?,
                     },
@@ -658,7 +659,7 @@ impl LspServerProcess {
             component_id,
             HoverParams {
                 text_document_position_params: TextDocumentPositionParams {
-                    position,
+                    position: position.into(),
                     text_document: TextDocumentIdentifier {
                         uri: path_buf_to_url(file_path)?,
                     },

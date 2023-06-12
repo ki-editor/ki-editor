@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use itertools::Itertools;
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -16,7 +17,6 @@ use crossterm::{
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
-use lsp_types::Position;
 use tree_sitter::Point;
 
 use crate::{
@@ -24,12 +24,16 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         editor::Direction,
+        editor::Editor,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
     grid::{Grid, Style},
     lsp::{manager::LspManager, process::LspNotification},
+    position::Position,
+    quickfix_list::{QuickfixListItem, QuickfixListType},
     rectangle::{Border, Rectangle},
+    selection::Selection,
 };
 
 pub struct Screen {
@@ -60,6 +64,10 @@ pub struct Screen {
     suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
 
     diagnostics: HashMap<PathBuf, Vec<lsp_types::Diagnostic>>,
+
+    quickfix_list_type: Option<QuickfixListType>,
+
+    info_panel: Option<Rc<RefCell<Editor>>>,
 }
 
 pub struct State {
@@ -94,6 +102,8 @@ impl Screen {
             sender,
             suggestive_editors: Vec::new(),
             diagnostics: HashMap::new(),
+            quickfix_list_type: None,
+            info_panel: None,
         };
         Ok(screen)
     }
@@ -186,6 +196,12 @@ impl Screen {
                 KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
                     self.change_view()
                 }
+                KeyCode::Char('q') => {
+                    self.to_quickfix_list_item(Direction::Forward)?;
+                }
+                KeyCode::Char('Q') => {
+                    self.to_quickfix_list_item(Direction::Backward)?;
+                }
                 _ => {
                     let dispatches = component
                         .borrow_mut()
@@ -230,6 +246,11 @@ impl Screen {
         }
     }
 
+    fn add_component(&mut self, component: Rc<RefCell<dyn Component>>) {
+        self.root_components.push(component);
+        self.recalculate_layout()
+    }
+
     fn add_and_focus_component(&mut self, entry_component: Rc<RefCell<dyn Component>>) {
         self.focused_component_id = entry_component.borrow().id();
         self.root_components.push(entry_component);
@@ -261,18 +282,18 @@ impl Screen {
 
                 let component_grid = component.get_grid(diagnostics);
                 let cursor_point = if component.id() == self.focused_component_id {
-                    let cursor_position = component.get_cursor_point();
+                    let cursor_position = component.get_cursor_position();
                     let scroll_offset = component.scroll_offset();
 
                     // If cursor position is not in view
-                    if cursor_position.row < scroll_offset as usize
-                        || cursor_position.row
+                    if cursor_position.line < scroll_offset as usize
+                        || cursor_position.line
                             >= (scroll_offset + rectangle.dimension().height) as usize
                     {
                         None
                     } else {
                         Some(Point::new(
-                            (cursor_position.row + rectangle.origin.row)
+                            (cursor_position.line + rectangle.origin.row)
                                 .saturating_sub(scroll_offset as usize),
                             cursor_position.column + rectangle.origin.column,
                         ))
@@ -394,7 +415,9 @@ impl Screen {
                 self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch { search } => self.set_search(search),
-            Dispatch::OpenFile { path } => self.open_file(path)?,
+            Dispatch::OpenFile { path } => {
+                self.open_file(path)?;
+            }
             Dispatch::RequestCompletion {
                 component_id,
                 path,
@@ -417,6 +440,9 @@ impl Screen {
             } => {
                 self.lsp_manager
                     .request_hover(component_id, path, position)?;
+            }
+            Dispatch::SetQuickfixList(quickfix_list_type) => {
+                self.set_quickfix_list_type(quickfix_list_type)
             }
         }
         Ok(())
@@ -554,18 +580,30 @@ impl Screen {
         }
     }
 
-    fn open_file(&mut self, entry_path: PathBuf) -> anyhow::Result<()> {
-        // TODO: check if the file is opened before
+    fn open_file(&mut self, entry_path: PathBuf) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
+        // Check if the file is opened before
         // so that we won't notify the LSP twice
+        if let Some(matching_editor) = self.components().iter().find(|component| {
+            component
+                .borrow()
+                .editor()
+                .buffer()
+                .path()
+                .map(|path| path == entry_path)
+                .unwrap_or(false)
+        }) {
+            return Ok(matching_editor.clone());
+        }
+
         let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)?));
         self.buffers.push(buffer.clone());
         let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
         self.suggestive_editors.push(entry_component.clone());
-        self.add_and_focus_component(entry_component);
+        self.add_and_focus_component(entry_component.clone());
 
         self.lsp_manager.open_file(entry_path.clone())?;
 
-        Ok(())
+        Ok(entry_component)
     }
 
     fn get_suggestive_editor(
@@ -621,6 +659,79 @@ impl Screen {
             }
         }
     }
+
+    fn set_quickfix_list_type(&mut self, quickfix_list_type: QuickfixListType) {
+        self.quickfix_list_type = Some(quickfix_list_type);
+    }
+
+    fn to_quickfix_list_item(&mut self, direction: Direction) -> anyhow::Result<()> {
+        let quickfix_list_type = match &self.quickfix_list_type {
+            None => return Ok(()),
+            Some(quickfix_list_type) => quickfix_list_type,
+        };
+
+        let current_component = self.current_component();
+        let cursor_position = current_component.borrow().get_cursor_position();
+        let items: Vec<QuickfixListItem> = match quickfix_list_type {
+            QuickfixListType::LspDiagnosticError => {
+                if let Some(path) = self.current_buffer_path() {
+                    if let Some(diagnostics) = self.diagnostics.get(&path) {
+                        diagnostics
+                            .iter()
+                            .filter(|diagnostic| {
+                                matches!(
+                                    diagnostic.severity,
+                                    None | Some(lsp_types::DiagnosticSeverity::ERROR)
+                                )
+                            })
+                            .map(|diagnostic| QuickfixListItem {
+                                path: path.clone(),
+                                range: Position::from(diagnostic.range.start)
+                                    ..Position::from(diagnostic.range.end),
+                                info: Some(diagnostic.message.clone()),
+                            })
+                            .collect_vec()
+                    } else {
+                        vec![]
+                    }
+                } else {
+                    vec![]
+                }
+            }
+        };
+
+        let next_item = items.into_iter().find(|item| match direction {
+            Direction::Current => item.range.start == cursor_position,
+            Direction::Forward => item.range.start > cursor_position,
+            Direction::Backward => item.range.start < cursor_position,
+        });
+
+        if let Some(next_item) = next_item {
+            let component = self.open_file(next_item.path)?;
+            component.borrow_mut().editor_mut().set_selection(
+                Position::from(next_item.range.start)..Position::from(next_item.range.end),
+            );
+
+            if let Some(info) = next_item.info {
+                match &self.info_panel {
+                    None => {
+                        let info_panel = Rc::new(RefCell::new(Editor::from_text(
+                            tree_sitter_md::language(),
+                            &info,
+                        )));
+                        self.info_panel = Some(info_panel.clone());
+                        self.add_component(info_panel)
+                    }
+                    Some(info_panel) => info_panel.borrow_mut().update(&info),
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn current_buffer_path(&self) -> Option<PathBuf> {
+        self.current_component().borrow().editor().buffer().path()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -666,6 +777,7 @@ pub enum Dispatch {
     DocumentDidSave {
         path: PathBuf,
     },
+    SetQuickfixList(QuickfixListType),
 }
 
 #[derive(Debug)]

@@ -38,7 +38,7 @@ impl Component for SuggestiveEditor {
         state: &crate::screen::State,
         event: crossterm::event::Event,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        let cursor_point = self.editor().get_cursor_point();
+        let cursor_position = self.editor().get_cursor_position();
         if self.editor.mode == Mode::Insert {
             match (event, &self.dropdown) {
                 (Event::Key(key), Some(dropdown)) if key.code == KeyCode::Down => {
@@ -83,10 +83,7 @@ impl Component for SuggestiveEditor {
                             Some(path) => vec![Dispatch::RequestCompletion {
                                 component_id: self.id(),
                                 path,
-                                position: lsp_types::Position {
-                                    line: cursor_point.row as u32,
-                                    character: cursor_point.column as u32,
-                                },
+                                position: cursor_position,
                             }],
                         })
                         .collect())
@@ -100,10 +97,7 @@ impl Component for SuggestiveEditor {
                         Some(path) => Ok(vec![Dispatch::RequestHover {
                             component_id: self.id(),
                             path,
-                            position: lsp_types::Position {
-                                line: cursor_point.row as u32,
-                                character: cursor_point.column as u32,
-                            },
+                            position: cursor_position,
                         }]),
                     }
                 }

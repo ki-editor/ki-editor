@@ -4,6 +4,8 @@ mod components;
 mod edit;
 mod grid;
 mod lsp;
+mod position;
+mod quickfix_list;
 mod rectangle;
 mod screen;
 mod selection;

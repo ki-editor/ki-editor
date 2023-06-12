@@ -10,13 +10,15 @@ use crossterm::{
 };
 use itertools::Itertools;
 use ropey::{Rope, RopeSlice};
-use tree_sitter::{Node, Point};
+use tree_sitter::Node;
 
 use crate::{
     buffer::Buffer,
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
+    position::Position,
+    quickfix_list::QuickfixListType,
     rectangle::Rectangle,
     screen::{Dimension, Dispatch, State},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
@@ -29,6 +31,7 @@ pub enum Mode {
     Normal,
     Insert,
     Jump { jumps: Vec<Jump> },
+    G,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -65,6 +68,9 @@ impl Component for Editor {
             Mode::Jump { .. } => {
                 format!("{} [JUMP]", &self.title)
             }
+            Mode::G => {
+                format!("{} [G]", &self.title)
+            }
         }
     }
     fn set_title(&mut self, title: String) {
@@ -94,14 +100,8 @@ impl Component for Editor {
         let secondary_selections = &editor.selection_set.secondary;
 
         let diagnostics = diagnostics.into_iter().map(|diagnostic| {
-            let start = buffer.point_to_char(Point {
-                column: diagnostic.range.start.character as usize,
-                row: diagnostic.range.start.line as usize,
-            });
-            let end = buffer.point_to_char(Point {
-                column: diagnostic.range.end.character as usize,
-                row: diagnostic.range.end.line as usize,
-            });
+            let start = buffer.position_to_char(Position::from(diagnostic.range.start));
+            let end = buffer.position_to_char(Position::from(diagnostic.range.end));
             let end = if start == end { end + 1 } else { end };
             let char_index_range = start..end;
             (diagnostic, char_index_range)
@@ -179,7 +179,7 @@ impl Component for Editor {
             });
 
             let column = point.column as u16;
-            let row = (point.row as u16).saturating_sub(scroll_offset as u16);
+            let line = (point.line as u16).saturating_sub(scroll_offset as u16);
 
             // Background color: Odd index red, even index blue
             let background_color = if index % 2 == 0 {
@@ -189,8 +189,8 @@ impl Component for Editor {
             };
 
             // If column and row is within view
-            if column < width as u16 && row < height as u16 {
-                grid.rows[row as usize][column as usize] = Cell {
+            if column < width as u16 && line < height as u16 {
+                grid.rows[line as usize][column as usize] = Cell {
                     symbol: jump.character.to_string(),
                     background_color,
                     foreground_color: Color::White,
@@ -214,7 +214,7 @@ impl Component for Editor {
         Ok(dispatches)
     }
 
-    fn get_cursor_point(&self) -> Point {
+    fn get_cursor_position(&self) -> Position {
         self.buffer
             .borrow()
             .char_to_point(self.get_cursor_char_index())
@@ -419,6 +419,20 @@ impl Editor {
         self.selection_set = selection_set.clone();
         self.selection_history.push(selection_set);
         self.recalculate_scroll_offset()
+    }
+
+    pub fn set_selection(&mut self, range: Range<Position>) {
+        let selection_set = SelectionSet {
+            primary: Selection {
+                range: self.buffer().position_to_char(range.start)
+                    ..self.buffer().position_to_char(range.end),
+                copied_text: self.selection_set.primary.copied_text.clone(),
+                initial_range: None,
+            },
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+        };
+        self.update_selection_set(selection_set)
     }
 
     fn cursor_row(&self) -> u16 {
@@ -675,6 +689,7 @@ impl Editor {
                     self.handle_jump_mode(key_event);
                     vec![]
                 }
+                Mode::G => self.handle_g_mode(key_event),
             },
             HandleEventResult::Handled(dispatches) => dispatches,
             _ => vec![],
@@ -829,6 +844,21 @@ impl Editor {
         vec![]
     }
 
+    fn handle_g_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+        let dispatches = match event.code {
+            KeyCode::Char('e') => {
+                vec![Dispatch::SetQuickfixList(
+                    QuickfixListType::LspDiagnosticError,
+                )]
+            }
+            _ => vec![],
+        };
+
+        self.enter_normal_mode();
+
+        dispatches
+    }
+
     fn handle_normal_mode(&mut self, state: &State, event: KeyEvent) -> Vec<Dispatch> {
         match event.code {
             // Objects
@@ -840,10 +870,15 @@ impl Editor {
             KeyCode::Char('d') => return self.delete(Direction::Forward),
             KeyCode::Char('D') => return self.delete(Direction::Backward),
             // e
+            // E
             // f
-            // g
+            // F
+            KeyCode::Char('g') => self.enter_g_mode(),
+            // G
             KeyCode::Char('h') => self.toggle_highlight_mode(),
+            // H
             KeyCode::Char('i') => self.enter_insert_mode(),
+            // I
             KeyCode::Char('j') => self.jump(Direction::Forward),
             KeyCode::Char('J') => self.jump(Direction::Backward),
             KeyCode::Char('k') => self.select_kids(),
@@ -1391,6 +1426,10 @@ impl Editor {
         let dispatches = self.apply_edit_transaction(edit_transaction);
         self.enter_insert_mode();
         dispatches
+    }
+
+    fn enter_g_mode(&mut self) {
+        self.mode = Mode::G;
     }
 }
 

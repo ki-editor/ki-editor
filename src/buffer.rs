@@ -1,5 +1,6 @@
 use crate::{
     edit::{Edit, EditTransaction},
+    position::Position,
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,
 };
@@ -10,7 +11,7 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
 };
-use tree_sitter::{InputEdit, Node, Parser, Point, Tree};
+use tree_sitter::{InputEdit, Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 #[derive(Clone)]
@@ -46,6 +47,7 @@ impl Buffer {
     pub fn find_words(&self, substring: &str) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
+
         regex
             .find_iter(&str)
             .map(|m| m.as_str().to_string())
@@ -100,10 +102,10 @@ impl Buffer {
         self.rope.char_to_byte(char_index.0)
     }
 
-    pub fn char_to_point(&self, char_index: CharIndex) -> tree_sitter::Point {
+    pub fn char_to_point(&self, char_index: CharIndex) -> Position {
         let line = self.char_to_line(char_index);
-        Point {
-            row: line,
+        Position {
+            line,
             column: self
                 .rope
                 .try_line_to_char(line)
@@ -112,8 +114,8 @@ impl Buffer {
         }
     }
 
-    pub fn point_to_char(&self, point: tree_sitter::Point) -> CharIndex {
-        CharIndex(self.rope.line_to_char(point.row) + point.column)
+    pub fn position_to_char(&self, position: Position) -> CharIndex {
+        CharIndex(self.rope.line_to_char(position.line) + position.column)
     }
 
     pub fn byte_to_char(&self, byte_index: usize) -> CharIndex {
@@ -272,9 +274,9 @@ impl Buffer {
             start_byte,
             old_end_byte,
             new_end_byte,
-            start_position,
-            old_end_position,
-            new_end_position,
+            start_position: start_position.into(),
+            old_end_position: old_end_position.into(),
+            new_end_position: new_end_position.into(),
         });
 
         self.tree = parser.parse(&self.rope.to_string(), None).unwrap();

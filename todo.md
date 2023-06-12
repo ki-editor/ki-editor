@@ -48,7 +48,7 @@
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
-- [] remove e, make px the same as pe
+- [x] remove e, make px the same as pe
 - [] screen: show error to user
 - [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
@@ -56,3 +56,4 @@
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
 - [] refactor: SuggestiveEditor and Prompt should use the same underlying component
 - [] feat: workspaces (similar to tab in Vim)
+- [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word

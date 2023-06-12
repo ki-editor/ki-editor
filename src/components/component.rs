@@ -1,10 +1,10 @@
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 use crossterm::event::Event;
-use tree_sitter::Point;
 
 use crate::{
     grid::Grid,
+    position::Position,
     rectangle::Rectangle,
     screen::{Dispatch, State},
 };
@@ -24,8 +24,8 @@ pub trait Component: Any + AnyComponent {
     }
     fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>>;
 
-    fn get_cursor_point(&self) -> Point {
-        self.editor().get_cursor_point()
+    fn get_cursor_position(&self) -> Position {
+        self.editor().get_cursor_position()
     }
 
     fn scroll_offset(&self) -> u16 {
