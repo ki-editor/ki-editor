@@ -551,11 +551,13 @@ impl Editor {
     {
         let edit_transactions = self.selection_set.map(|selection| {
             if let Some(copied_text) = &f(selection) {
-                let start = selection.to_char_index(&self.cursor_direction);
+                let range = selection.extended_range();
+                let start = range.start;
+                let old = self.buffer.borrow().slice(&range);
                 EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
                     Action::Edit(Edit {
                         start,
-                        old: self.buffer.borrow().slice(&selection.range),
+                        old,
                         new: copied_text.clone(),
                     }),
                     Action::Select(Selection {
@@ -2076,6 +2078,26 @@ fn main() {
         editor.replace();
 
         assert_eq!(editor.get_text(), "fn f()fn f()");
+    }
+
+    #[test]
+    fn highlight_mode_paste() {
+        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        editor.select_token(Direction::Forward);
+        editor.copy();
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+
+        editor.toggle_highlight_mode();
+        editor.select_token(Direction::Forward);
+        editor.select_token(Direction::Forward);
+        editor.select_token(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
+
+        editor.paste();
+
+        assert_eq!(editor.get_text(), "fn{ let x = S(a); let y = S(b); }");
     }
 
     #[test]
