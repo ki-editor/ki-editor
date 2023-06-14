@@ -8,6 +8,9 @@ use super::process::LspServerProcessChannel;
 pub enum Language {
     Rust,
     Typescript,
+    TypescriptReact,
+    JavaScript,
+    JavaScriptReact,
 }
 
 /// This returns a list because some files may have multiple languages,
@@ -18,7 +21,10 @@ pub fn get_languages(path: &PathBuf) -> Vec<Language> {
         .flatten()
         .map(|extension| match extension {
             "rs" => vec![Language::Rust],
-            "ts" | "tsx" => vec![Language::Typescript],
+            "ts" => vec![Language::Typescript],
+            "tsx" => vec![Language::TypescriptReact],
+            "js" => vec![Language::JavaScript],
+            "jsx" => vec![Language::JavaScriptReact],
             _ => vec![],
         })
         .unwrap_or(vec![])
@@ -35,7 +41,10 @@ impl Language {
     pub fn get_command_args(&self) -> (&str, Vec<&str>) {
         match self {
             Language::Rust => ("rust-analyzer", vec![]),
-            Language::Typescript => ("typescript-language-server", vec!["--stdio"]),
+            Language::Typescript
+            | Language::TypescriptReact
+            | Language::JavaScript
+            | Language::JavaScriptReact => ("typescript-language-server", vec!["--stdio"]),
         }
     }
 
@@ -44,6 +53,9 @@ impl Language {
         match self {
             Language::Rust => "rust".to_string(),
             Language::Typescript => "typescript".to_string(),
+            Language::TypescriptReact => "typescriptreact".to_string(),
+            Language::JavaScript => "javascript".to_string(),
+            Language::JavaScriptReact => "javascriptreact".to_string(),
         }
     }
 }
