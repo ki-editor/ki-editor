@@ -233,7 +233,7 @@ impl LspServerProcess {
             language,
             stdin,
             stdout: Some(stdout),
-            current_working_directory: std::env::current_dir()?,
+            current_working_directory: std::env::current_dir()?.canonicalize()?,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
             server_capabilities: None,
@@ -260,7 +260,11 @@ impl LspServerProcess {
             InitializeParams {
                 process_id: None,
                 root_uri: Some(
-                    Url::parse(&format!("file://{:?}", self.current_working_directory)).unwrap(),
+                    Url::parse(&format!(
+                        "file://{}",
+                        self.current_working_directory.display()
+                    ))
+                    .unwrap(),
                 ),
 
                 capabilities: ClientCapabilities {
