@@ -485,7 +485,10 @@ impl Editor {
     pub fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
         //  There are a few selection modes where Current make sense.
         let direction = match selection_mode {
-            SelectionMode::Line | SelectionMode::Character | SelectionMode::Token
+            SelectionMode::Line
+            | SelectionMode::Character
+            | SelectionMode::Token
+            | SelectionMode::Diagnostic
                 if self.selection_set.mode != selection_mode =>
             {
                 // TODO: Current only applies to a few selection mode
@@ -1798,6 +1801,13 @@ fn main() {
 
         editor.select_diagnostic(Direction::Backward);
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
+
+        editor.select_line(Direction::Forward);
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["  let x = 1; }"]);
+
+        editor.select_diagnostic(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["l"]);
     }
 
     #[test]

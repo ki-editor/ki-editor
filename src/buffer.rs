@@ -70,7 +70,7 @@ impl Buffer {
     pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.language, text);
     }
-    
+
     pub fn get_line(&self, char_index: CharIndex) -> Rope {
         self.rope.line(self.char_to_line(char_index)).into()
     }
@@ -356,7 +356,16 @@ impl Buffer {
     ) -> Option<Range<CharIndex>> {
         let mut iter = self.diagnostics.iter();
         match direction {
-            Direction::Forward | Direction::Current => iter.find_map(|diagnostic| {
+            Direction::Current => iter.find_map(|diagnostic| {
+                let start = diagnostic.range.start.to_char_index(&self);
+                let end = diagnostic.range.end.to_char_index(&self);
+                if start >= current_range.start {
+                    Some(start..end)
+                } else {
+                    None
+                }
+            }),
+            Direction::Forward => iter.find_map(|diagnostic| {
                 let start = diagnostic.range.start.to_char_index(&self);
                 let end = diagnostic.range.end.to_char_index(&self);
                 if start >= current_range.end {
