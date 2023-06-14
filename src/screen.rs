@@ -39,8 +39,6 @@ use crate::{
 pub struct Screen {
     focused_component_id: ComponentId,
 
-    root_components: Vec<Rc<RefCell<dyn Component>>>,
-
     state: State,
 
     rectangles: Vec<Rectangle>,
@@ -67,7 +65,12 @@ pub struct Screen {
 
     quickfix_list_type: Option<QuickfixListType>,
 
+    /// The layout of the app is split into 3 section: the main panel, info panel and prompts.
+    /// The main panel is where the user edits code, and the info panel is for displaying info like
+    /// hover text, diagnostics, etc.
+    main_panel: Option<Rc<RefCell<SuggestiveEditor>>>,
     info_panel: Option<Rc<RefCell<Editor>>>,
+    prompts: Vec<Rc<RefCell<Prompt>>>,
 }
 
 pub struct State {
@@ -94,7 +97,6 @@ impl Screen {
             focused_component_id: ComponentId::new(),
             rectangles,
             borders,
-            root_components: Vec::new(),
             previous_grid: None,
             buffers: Vec::new(),
             receiver,
@@ -103,7 +105,9 @@ impl Screen {
             suggestive_editors: Vec::new(),
             diagnostics: HashMap::new(),
             quickfix_list_type: None,
+            main_panel: None,
             info_panel: None,
+            prompts: Vec::new(),
         };
         Ok(screen)
     }
@@ -158,8 +162,27 @@ impl Screen {
     }
 
     fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        let mut components = self.root_components.clone();
-        for component in self.root_components.iter() {
+        let root_components = vec![]
+            .into_iter()
+            .chain(
+                self.main_panel
+                    .iter()
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.prompts
+                    .iter()
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.info_panel
+                    .iter()
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .collect::<Vec<_>>();
+
+        let mut components = root_components.clone();
+        for component in root_components.iter() {
             components.extend(component.borrow().children());
         }
         components
@@ -202,6 +225,12 @@ impl Screen {
                 KeyCode::Char('Q') => {
                     self.to_quickfix_list_item(Direction::Backward)?;
                 }
+                KeyCode::Char(']') => {
+                    self.to_editor(Direction::Forward);
+                }
+                KeyCode::Char('[') => {
+                    self.to_editor(Direction::Backward);
+                }
                 _ => {
                     let dispatches = component
                         .borrow_mut()
@@ -224,12 +253,31 @@ impl Screen {
     }
 
     fn remove_current_component(&mut self) {
-        self.root_components = self
-            .root_components
+        self.suggestive_editors = self
+            .suggestive_editors
             .iter()
             .filter(|c| c.borrow().id() != self.focused_component_id)
             .cloned()
             .collect();
+
+        self.prompts = self
+            .prompts
+            .iter()
+            .filter(|c| c.borrow().id() != self.focused_component_id)
+            .cloned()
+            .collect();
+
+        self.main_panel = self
+            .main_panel
+            .take()
+            .filter(|c| c.borrow().id() != self.focused_component_id);
+
+        self.info_panel = self
+            .info_panel
+            .take()
+            .filter(|c| c.borrow().id() != self.focused_component_id);
+
+        self.set_main_panel(self.suggestive_editors.last().cloned());
     }
 
     // Return true if there's no more windows
@@ -246,14 +294,9 @@ impl Screen {
         }
     }
 
-    fn add_component(&mut self, component: Rc<RefCell<dyn Component>>) {
-        self.root_components.push(component);
-        self.recalculate_layout()
-    }
-
-    fn add_and_focus_component(&mut self, entry_component: Rc<RefCell<dyn Component>>) {
-        self.focused_component_id = entry_component.borrow().id();
-        self.root_components.push(entry_component);
+    fn add_and_focus_prompt(&mut self, prompt: Rc<RefCell<Prompt>>) {
+        self.focused_component_id = prompt.borrow().id();
+        self.prompts.push(prompt);
         self.recalculate_layout();
     }
 
@@ -513,7 +556,7 @@ impl Screen {
                 Ok(owner.borrow().editor().buffer().find_words(&text))
             }),
         });
-        self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
+        self.add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
     fn open_file_picker(&mut self) {
@@ -559,7 +602,7 @@ impl Screen {
                 Ok(result)
             }),
         });
-        self.add_and_focus_component(Rc::new(RefCell::new(prompt)));
+        self.add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
     fn change_view(&mut self) {
@@ -583,7 +626,7 @@ impl Screen {
     fn open_file(&mut self, entry_path: PathBuf) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.components().iter().find(|component| {
+        if let Some(matching_editor) = self.suggestive_editors.iter().cloned().find(|component| {
             component
                 .borrow()
                 .editor()
@@ -592,14 +635,18 @@ impl Screen {
                 .map(|path| path == entry_path)
                 .unwrap_or(false)
         }) {
+            self.set_main_panel(Some(matching_editor.clone()));
             return Ok(matching_editor.clone());
         }
 
         let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)?));
         self.buffers.push(buffer.clone());
         let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
+
         self.suggestive_editors.push(entry_component.clone());
-        self.add_and_focus_component(entry_component.clone());
+
+        log::info!("self.main_panel = {:?}", entry_component.borrow().id());
+        self.set_main_panel(Some(entry_component.clone()));
 
         self.update_component_diagnotics(
             &entry_path,
@@ -784,7 +831,6 @@ impl Screen {
                     &info,
                 )));
                 self.info_panel = Some(info_panel.clone());
-                self.add_component(info_panel)
             }
             Some(info_panel) => info_panel.borrow_mut().update(&info),
         }
@@ -792,6 +838,30 @@ impl Screen {
 
     fn current_buffer_path(&self) -> Option<PathBuf> {
         self.current_component().borrow().editor().buffer().path()
+    }
+
+    fn set_main_panel(&mut self, editor: Option<Rc<RefCell<SuggestiveEditor>>>) {
+        if let Some(editor) = &editor {
+            self.focused_component_id = editor.borrow().id();
+        }
+        self.main_panel = editor;
+    }
+
+    fn to_editor(&mut self, direction: Direction) {
+        let editor = self
+            .suggestive_editors
+            .iter()
+            .find(|editor| {
+                let id = editor.borrow().id();
+
+                match direction {
+                    Direction::Forward | Direction::Current => id > self.focused_component_id,
+                    Direction::Backward => id < self.focused_component_id,
+                }
+            })
+            .cloned()
+            .or_else(|| self.main_panel.take());
+        self.set_main_panel(editor);
     }
 }
 

@@ -134,10 +134,6 @@ impl Buffer {
         self.rope.len_chars()
     }
 
-    pub fn tree(&self) -> &Tree {
-        &self.tree
-    }
-
     pub fn slice(&self, range: &Range<CharIndex>) -> Rope {
         self.rope.slice(range.to_usize_range()).into()
     }
@@ -173,10 +169,6 @@ impl Buffer {
             |node, _| node.child_count() == 0 && (!is_named || node.is_named()),
             |node| node.start_byte() >= byte,
         )
-    }
-
-    fn get_node_by_id(&self, node_id: usize) -> Option<Node> {
-        traverse(self.tree.walk(), Order::Pre).find(|node| node.id() == node_id)
     }
 
     pub fn traverse(&self, order: Order) -> impl Iterator<Item = Node> {
@@ -249,10 +241,6 @@ impl Buffer {
             selection_set: current_selection_set,
             patch: diffy::create_patch(&after, &before).to_string(),
         }
-    }
-
-    pub fn language(&self) -> tree_sitter::Language {
-        self.tree.language()
     }
 
     pub fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {

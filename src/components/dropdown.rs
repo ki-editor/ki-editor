@@ -1,9 +1,7 @@
 use crossterm::event::Event;
 
 use crate::components::component::Component;
-use crate::edit::Edit;
 use crate::screen::{Dispatch, State};
-use crate::selection::SelectionMode;
 
 use super::editor::{Direction, Editor};
 
