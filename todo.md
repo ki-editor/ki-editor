@@ -32,11 +32,12 @@
 - [x] LSP hover
 - [x] LSP Diagnostics highlight error range
 - [x] LSP Diagnostics show error message
+- [x] LSP completion pass in trigger characters, so that typing . or :: provides better completion in Rust
+- [x] LSP completion allow edit
+- [x] remove e, make px the same as pe
 - [] LSP get references
 - [] LSP go to definition
 - [] LSP quick action
-- [x] LSP completion pass in trigger characters, so that typing . or :: provides better completion in Rust
-- [] LSP completion allow edit
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -49,7 +50,6 @@
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
-- [x] remove e, make px the same as pe
 - [] screen: show editor error to user
 - [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
@@ -63,3 +63,4 @@
 - [] screen '[' and ']' not working as expected, now cannot type []
 - [] Enter not working as expected in insert mode
 - [] pressing 'b' remove the copied text
+- [] Suggestive editor, pressing Enter when there's no filtered item should not get the item

@@ -14,6 +14,7 @@ use tree_sitter::Node;
 
 use crate::{
     buffer::Buffer,
+    completion::PositionalEdit,
     components::component::Component,
     diagnostic::Diagnostic,
     edit::{Action, ActionGroup, Edit, EditTransaction},
@@ -1473,6 +1474,25 @@ impl Editor {
 
     pub fn set_diagnostics(&mut self, diagnostics: Vec<Diagnostic>) {
         self.buffer.borrow_mut().set_diagnostics(diagnostics)
+    }
+
+    pub fn apply_positional_edit(&mut self, edit: PositionalEdit) {
+        let range = edit.range.start.to_char_index(&self.buffer())
+            ..edit.range.end.to_char_index(&self.buffer());
+        let edit = Edit {
+            start: range.start,
+            old: self.buffer().slice(&range),
+            new: edit.new_text.into(),
+        };
+
+        self.apply_edit_transaction(EditTransaction::from_action_groups(vec![
+            ActionGroup::new(vec![Action::Edit(edit)]),
+            ActionGroup::new(vec![Action::Select(Selection {
+                range: range.end..range.end,
+                copied_text: self.selection_set.primary.copied_text.clone(),
+                initial_range: None,
+            })]),
+        ]));
     }
 }
 

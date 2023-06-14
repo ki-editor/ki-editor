@@ -60,8 +60,14 @@ impl Component for SuggestiveEditor {
                     if key.code == KeyCode::Enter && dropdown.borrow().current_item().is_some() =>
                 {
                     if let Some(completion) = dropdown.borrow().current_item() {
-                        // TODO: should use edit if available
-                        self.editor.replace_previous_word(&completion.label());
+                        match completion.edit {
+                            None => {
+                                self.editor.replace_previous_word(&completion.label());
+                            }
+                            Some(edit) => {
+                                self.editor.apply_positional_edit(edit);
+                            }
+                        }
                     }
                     self.dropdown = None;
                     self.info = None;
