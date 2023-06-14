@@ -1,4 +1,6 @@
 use crate::{
+    components::editor::Direction,
+    diagnostic::Diagnostic,
     edit::{Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
@@ -22,6 +24,7 @@ pub struct Buffer {
     undo_patches: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<PathBuf>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl Buffer {
@@ -37,6 +40,7 @@ impl Buffer {
             undo_patches: Vec::new(),
             redo_patches: Vec::new(),
             path: None,
+            diagnostics: Vec::new(),
         }
     }
 
@@ -321,6 +325,50 @@ impl Buffer {
         } else {
             log::info!("Buffer has no path");
             None
+        }
+    }
+
+    pub fn find_diagnostic(&self, range: &Range<CharIndex>) -> Option<&Diagnostic> {
+        self.diagnostics.iter().find(|diagnostic| {
+            let start = diagnostic.range.start.to_char_index(&self);
+            let end = diagnostic.range.end.to_char_index(&self);
+
+            start == range.start && end == range.end
+        })
+    }
+
+    pub fn set_diagnostics(&mut self, mut diagnostics: Vec<Diagnostic>) {
+        diagnostics.sort_by(|a, b| a.range.start.cmp(&b.range.start));
+        self.diagnostics = diagnostics;
+    }
+
+    pub fn get_diagnostic(
+        &self,
+        current_range: &Range<CharIndex>,
+        direction: &Direction,
+    ) -> Option<Range<CharIndex>> {
+        let mut iter = self.diagnostics.iter();
+        match direction {
+            Direction::Forward | Direction::Current => iter.find_map(|diagnostic| {
+                let start = diagnostic.range.start.to_char_index(&self);
+                let end = diagnostic.range.end.to_char_index(&self);
+                if start >= current_range.end {
+                    Some(start..end)
+                } else {
+                    None
+                }
+            }),
+            Direction::Backward => find_previous(
+                iter,
+                |_, _| true,
+                |match_| {
+                    Position::from(match_.range.start).to_char_index(&self) >= current_range.start
+                },
+            )
+            .map(|item| {
+                Position::from(item.range.start).to_char_index(&self)
+                    ..Position::from(item.range.end).to_char_index(&self)
+            }),
         }
     }
 }

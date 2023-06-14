@@ -68,6 +68,7 @@ impl Component for SuggestiveEditor {
                     self.editor.enter_normal_mode();
                     Ok(vec![])
                 }
+
                 (event, _) => {
                     let dispatches = self.editor.handle_event(state, event)?;
                     if let Some(dropdown) = &self.dropdown {
@@ -90,19 +91,7 @@ impl Component for SuggestiveEditor {
                 }
             }
         } else {
-            match event {
-                Event::Key(key) if key.code == KeyCode::Char('1') => {
-                    match self.editor().buffer().path() {
-                        None => Ok(vec![]),
-                        Some(path) => Ok(vec![Dispatch::RequestHover {
-                            component_id: self.id(),
-                            path,
-                            position: cursor_position,
-                        }]),
-                    }
-                }
-                _ => Ok(self.editor.handle_event(state, event)?),
-            }
+            self.editor.handle_event(state, event)
         }
     }
 
@@ -136,27 +125,6 @@ impl SuggestiveEditor {
                 items: dropdown_items,
             }))));
         }
-    }
-
-    pub fn set_hover(&mut self, hover: lsp_types::Hover) {
-        fn marked_string_to_string(marked_string: lsp_types::MarkedString) -> String {
-            match marked_string {
-                lsp_types::MarkedString::String(string) => string,
-                lsp_types::MarkedString::LanguageString(language_string) => language_string.value,
-            }
-        }
-        let content = match hover.contents {
-            lsp_types::HoverContents::Scalar(marked_string) => {
-                marked_string_to_string(marked_string)
-            }
-            lsp_types::HoverContents::Array(contents) => contents
-                .into_iter()
-                .map(marked_string_to_string)
-                .collect::<Vec<_>>()
-                .join("----------------\n\n"),
-            lsp_types::HoverContents::Markup(content) => content.value,
-        };
-        self.set_info("Hover", content)
     }
 
     fn show_documentation(&mut self, completion: Option<CompletionItem>) {

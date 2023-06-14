@@ -15,6 +15,7 @@ use tree_sitter::Node;
 use crate::{
     buffer::Buffer,
     components::component::Component,
+    diagnostic::Diagnostic,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
     position::Position,
@@ -76,7 +77,7 @@ impl Component for Editor {
     fn set_title(&mut self, title: String) {
         self.title = title;
     }
-    fn get_grid(&self, diagnostics: &[lsp_types::Diagnostic]) -> Grid {
+    fn get_grid(&self, diagnostics: &[Diagnostic]) -> Grid {
         let editor = self;
         let Dimension { height, width } = editor.dimension();
         let mut grid: Grid = Grid::new(Dimension { height, width });
@@ -396,6 +397,21 @@ impl Editor {
         self.select(SelectionMode::Character, direction);
     }
 
+    fn select_diagnostic(&mut self, direction: Direction) -> Vec<Dispatch> {
+        self.select(SelectionMode::Diagnostic, direction);
+        if let Some(diagnostic) = self
+            .buffer
+            .borrow()
+            .find_diagnostic(&self.selection_set.primary.range)
+        {
+            vec![Dispatch::ShowInfo {
+                content: diagnostic.message.clone(),
+            }]
+        } else {
+            vec![]
+        }
+    }
+
     fn select_backward(&mut self) {
         while let Some(selection_set) = self.selection_history.pop() {
             if selection_set != self.selection_set {
@@ -437,8 +453,8 @@ impl Editor {
 
     fn cursor_row(&self) -> u16 {
         self.get_cursor_char_index()
-            .to_point(&self.buffer.borrow().rope())
-            .row as u16
+            .to_position(&self.buffer.borrow().rope())
+            .line as u16
     }
 
     fn recalculate_scroll_offset(&mut self) {
@@ -871,7 +887,8 @@ impl Editor {
             KeyCode::Char('C') => self.select_character(Direction::Backward),
             KeyCode::Char('d') => return self.delete(Direction::Forward),
             KeyCode::Char('D') => return self.delete(Direction::Backward),
-            // e
+            KeyCode::Char('e') => return self.select_diagnostic(Direction::Forward),
+            KeyCode::Char('E') => return self.select_diagnostic(Direction::Backward),
             // E
             // f
             // F
@@ -915,6 +932,19 @@ impl Editor {
                 self.change();
             }
             KeyCode::Enter => return self.open_new_line(),
+            KeyCode::Char('?') => {
+                self.editor_mut().set_mode(Mode::Normal);
+                return match self.editor().buffer().path() {
+                    None => vec![],
+                    Some(path) => {
+                        vec![Dispatch::RequestHover {
+                            component_id: self.id(),
+                            path,
+                            position: self.get_cursor_position(),
+                        }]
+                    }
+                };
+            }
             _ => {
                 log::info!("event: {:?}", event);
             }
@@ -1431,7 +1461,15 @@ impl Editor {
     }
 
     fn enter_g_mode(&mut self) {
-        self.mode = Mode::G;
+        self.mode = Mode::G
+    }
+
+    pub fn set_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+    }
+
+    pub fn set_diagnostics(&mut self, diagnostics: Vec<Diagnostic>) {
+        self.buffer.borrow_mut().set_diagnostics(diagnostics)
     }
 }
 
@@ -1457,7 +1495,7 @@ pub enum HandleEventResult {
 
 mod test_editor {
 
-    use crate::components::editor::Mode;
+    use crate::{components::editor::Mode, diagnostic::Diagnostic, position::Position};
 
     use super::{Direction, Editor};
     use pretty_assertions::assert_eq;
@@ -1690,6 +1728,51 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
         editor.select_named_node(Direction::Backward);
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
+    }
+
+    #[test]
+    fn select_diagnostic() {
+        let mut editor = Editor::from_text(language(), "fn main(x: usize) {\n  let x = 1; }");
+
+        // Note that the diagnostics given are not sorted by range
+        editor.set_diagnostics(vec![
+            Diagnostic {
+                range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
+                message: "patrick".to_string(),
+                severity: None,
+            },
+            Diagnostic {
+                range: Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
+                message: "spongebob".to_string(),
+                severity: None,
+            },
+            Diagnostic {
+                range: Position { line: 1, column: 3 }..Position { line: 1, column: 5 },
+                message: "squidward".to_string(),
+                severity: None,
+            },
+        ]);
+
+        editor.select_diagnostic(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["f"]);
+
+        editor.select_diagnostic(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["l"]);
+
+        editor.select_diagnostic(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["et"]);
+
+        editor.select_diagnostic(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["et"]);
+
+        editor.select_diagnostic(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["l"]);
+
+        editor.select_diagnostic(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["f"]);
+
+        editor.select_diagnostic(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["f"]);
     }
 
     #[test]

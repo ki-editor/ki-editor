@@ -1,9 +1,16 @@
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
+use crate::buffer::Buffer;
+
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Ord)]
 pub struct Position {
     /// 0-based
     pub line: usize,
     /// 0-based
     pub column: usize,
+}
+impl Position {
+    pub fn to_char_index(self, buffer: &Buffer) -> crate::selection::CharIndex {
+        buffer.position_to_char(self)
+    }
 }
 
 impl PartialOrd for Position {

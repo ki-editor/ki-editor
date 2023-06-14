@@ -28,12 +28,12 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
+    diagnostic::Diagnostic,
     grid::{Grid, Style},
     lsp::{manager::LspManager, process::LspNotification},
     position::Position,
     quickfix_list::{QuickfixListItem, QuickfixListType},
     rectangle::{Border, Rectangle},
-    selection::Selection,
 };
 
 pub struct Screen {
@@ -63,7 +63,7 @@ pub struct Screen {
     /// Saved for populating completions
     suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
 
-    diagnostics: HashMap<PathBuf, Vec<lsp_types::Diagnostic>>,
+    diagnostics: HashMap<PathBuf, Vec<Diagnostic>>,
 
     quickfix_list_type: Option<QuickfixListType>,
 
@@ -430,7 +430,6 @@ impl Screen {
                 self.lsp_manager.document_did_change(path, content)?;
             }
             Dispatch::DocumentDidSave { path } => {
-                log::info!("Document did save: {:?}", path);
                 self.lsp_manager.document_did_save(path)?;
             }
             Dispatch::RequestHover {
@@ -444,6 +443,7 @@ impl Screen {
             Dispatch::SetQuickfixList(quickfix_list_type) => {
                 self.set_quickfix_list_type(quickfix_list_type)
             }
+            Dispatch::ShowInfo { content } => self.show_info(content),
         }
         Ok(())
     }
@@ -601,6 +601,14 @@ impl Screen {
         self.suggestive_editors.push(entry_component.clone());
         self.add_and_focus_component(entry_component.clone());
 
+        self.update_component_diagnotics(
+            &entry_path,
+            self.diagnostics
+                .get(&entry_path)
+                .cloned()
+                .unwrap_or_default(),
+        );
+
         self.lsp_manager.open_file(entry_path.clone())?;
 
         Ok(entry_component)
@@ -620,9 +628,26 @@ impl Screen {
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::Hover(component_id, hover) => {
-                self.get_suggestive_editor(component_id)?
-                    .borrow_mut()
-                    .set_hover(hover);
+                fn marked_string_to_string(marked_string: lsp_types::MarkedString) -> String {
+                    match marked_string {
+                        lsp_types::MarkedString::String(string) => string,
+                        lsp_types::MarkedString::LanguageString(language_string) => {
+                            language_string.value
+                        }
+                    }
+                }
+                let content = match hover.contents {
+                    lsp_types::HoverContents::Scalar(marked_string) => {
+                        marked_string_to_string(marked_string)
+                    }
+                    lsp_types::HoverContents::Array(contents) => contents
+                        .into_iter()
+                        .map(marked_string_to_string)
+                        .collect::<Vec<_>>()
+                        .join("----------------\n\n"),
+                    lsp_types::HoverContents::Markup(content) => content.value,
+                };
+                self.show_info(content);
                 Ok(())
             }
             LspNotification::Completion(component_id, completion_response) => {
@@ -649,14 +674,46 @@ impl Screen {
             }
             LspNotification::PublishDiagnostics(params) => {
                 log::info!("Received diagnostics");
-                self.diagnostics.insert(
+                self.update_diagnostics(
                     params.uri.to_file_path().map_err(|err| {
-                        anyhow::anyhow!("Unable to convert URI to file path: {:?}", err)
+                        anyhow::anyhow!("Couldn't convert URI to file path: {:?}", err)
                     })?,
-                    params.diagnostics,
+                    params
+                        .diagnostics
+                        .into_iter()
+                        .map(Diagnostic::from)
+                        .collect::<Vec<_>>(),
                 );
                 Ok(())
             }
+        }
+    }
+
+    fn update_diagnostics(&mut self, path: PathBuf, diagnostics: Vec<Diagnostic>) {
+        self.update_component_diagnotics(&path, diagnostics.clone());
+        self.diagnostics.insert(path, diagnostics);
+    }
+
+    fn update_component_diagnotics(&self, path: &PathBuf, diagnostics: Vec<Diagnostic>) {
+        let component = self
+            .components()
+            .iter()
+            .find(|component| {
+                component
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .path()
+                    .map(|buffer_path| &buffer_path == path)
+                    .unwrap_or(false)
+            })
+            .cloned();
+
+        if let Some(component) = component {
+            component
+                .borrow_mut()
+                .editor_mut()
+                .set_diagnostics(diagnostics);
         }
     }
 
@@ -713,20 +770,24 @@ impl Screen {
             );
 
             if let Some(info) = next_item.info {
-                match &self.info_panel {
-                    None => {
-                        let info_panel = Rc::new(RefCell::new(Editor::from_text(
-                            tree_sitter_md::language(),
-                            &info,
-                        )));
-                        self.info_panel = Some(info_panel.clone());
-                        self.add_component(info_panel)
-                    }
-                    Some(info_panel) => info_panel.borrow_mut().update(&info),
-                }
+                self.show_info(info)
             }
         }
         Ok(())
+    }
+
+    fn show_info(&mut self, info: String) {
+        match &self.info_panel {
+            None => {
+                let info_panel = Rc::new(RefCell::new(Editor::from_text(
+                    tree_sitter_md::language(),
+                    &info,
+                )));
+                self.info_panel = Some(info_panel.clone());
+                self.add_component(info_panel)
+            }
+            Some(info_panel) => info_panel.borrow_mut().update(&info),
+        }
     }
 
     fn current_buffer_path(&self) -> Option<PathBuf> {
@@ -759,6 +820,9 @@ pub enum Dispatch {
     },
     OpenFile {
         path: PathBuf,
+    },
+    ShowInfo {
+        content: String,
     },
     RequestCompletion {
         component_id: ComponentId,

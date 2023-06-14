@@ -3,6 +3,7 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 use crossterm::event::Event;
 
 use crate::{
+    diagnostic::Diagnostic,
     grid::Grid,
     position::Position,
     rectangle::Rectangle,
@@ -19,7 +20,7 @@ pub trait Component: Any + AnyComponent {
     }
     fn editor(&self) -> &Editor;
     fn editor_mut(&mut self) -> &mut Editor;
-    fn get_grid(&self, diagnostics: &[lsp_types::Diagnostic]) -> Grid {
+    fn get_grid(&self, diagnostics: &[Diagnostic]) -> Grid {
         self.editor().get_grid(diagnostics)
     }
     fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>>;

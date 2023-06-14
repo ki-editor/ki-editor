@@ -8,6 +8,7 @@ use tree_sitter_traversal::Order;
 use crate::{
     buffer::Buffer,
     components::editor::{node_to_selection, CursorDirection, Direction},
+    position::Position,
     utils::find_previous,
 };
 
@@ -162,7 +163,9 @@ pub enum SelectionMode {
     NamedNode,
     ParentNode,
     SiblingNode,
-    List,
+
+    // LSP
+    Diagnostic,
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -185,7 +188,7 @@ impl SelectionMode {
             SelectionMode::ParentNode => "PARENT".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
             SelectionMode::Match { regex } => format!("MATCH {:?}", regex),
-            SelectionMode::List => "LIST".to_string(),
+            SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
         }
     }
 }
@@ -407,7 +410,17 @@ impl Selection {
                 copied_text,
                 initial_range: current_selection.initial_range.clone(),
             },
-            SelectionMode::List => todo!(),
+            SelectionMode::Diagnostic => {
+                if let Some(range) = buffer.get_diagnostic(&current_selection.range, direction) {
+                    Selection {
+                        range,
+                        copied_text,
+                        initial_range: current_selection.initial_range.clone(),
+                    }
+                } else {
+                    current_selection.clone()
+                }
+            }
         }
     }
 
@@ -539,10 +552,10 @@ impl Sub<usize> for CharIndex {
 pub struct CharIndex(pub usize);
 
 impl CharIndex {
-    pub fn to_point(self, rope: &Rope) -> Point {
+    pub fn to_position(self, rope: &Rope) -> Position {
         let line = self.to_line(rope);
-        Point {
-            row: line,
+        Position {
+            line,
             column: rope
                 .try_line_to_char(line)
                 .map(|char_index| self.0.saturating_sub(char_index))

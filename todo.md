@@ -31,7 +31,7 @@
 - [x] fix(editor): p e ^z e , does not work as expected
 - [x] LSP hover
 - [x] LSP Diagnostics highlight error range
-- [] LSP Diagnostics show error message
+- [x] LSP Diagnostics show error message
 - [] LSP get references
 - [] LSP go to definition
 - [] LSP quick action
