@@ -1,11 +1,12 @@
 use crossterm::event::Event;
+use itertools::Itertools;
 
 use crate::components::component::Component;
 use crate::screen::{Dispatch, State};
 
 use super::editor::Editor;
 
-pub trait DropdownItem: Clone + std::fmt::Debug {
+pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
     fn label(&self) -> String;
 }
 
@@ -81,6 +82,7 @@ impl<T: DropdownItem> Dropdown<T> {
                     .contains(&self.filter.to_lowercase())
             })
             .cloned()
+            .sorted()
             .collect();
     }
 
@@ -171,8 +173,10 @@ mod test_dropdown {
             "ipsum".to_string(),
             "dolor".to_string(),
         ]);
-        assert_eq!(dropdown.current_item().unwrap().label(), "lorem");
-        assert_eq!(dropdown.editor.get_current_line(), "lorem\n");
+
+        // The current item should be `dolor` because dropdown will sort the items
+        assert_eq!(dropdown.current_item().unwrap().label(), "dolor");
+        assert_eq!(dropdown.editor.get_current_line(), "dolor\n");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
         assert_eq!(dropdown.editor.get_current_line(), "ipsum\n");
