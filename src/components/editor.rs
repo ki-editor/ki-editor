@@ -174,7 +174,7 @@ impl Component for Editor {
         }
 
         for (index, jump) in editor.jumps().into_iter().enumerate() {
-            let point = buffer.char_to_point(match editor.cursor_direction {
+            let point = buffer.char_to_position(match editor.cursor_direction {
                 CursorDirection::Start => jump.selection.range.start,
                 CursorDirection::End => jump.selection.range.end,
             });
@@ -218,7 +218,7 @@ impl Component for Editor {
     fn get_cursor_position(&self) -> Position {
         self.buffer
             .borrow()
-            .char_to_point(self.get_cursor_char_index())
+            .char_to_position(self.get_cursor_char_index())
     }
 
     fn scroll_offset(&self) -> u16 {

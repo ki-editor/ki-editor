@@ -70,7 +70,7 @@ impl Buffer {
     pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.language, text);
     }
-
+    
     pub fn get_line(&self, char_index: CharIndex) -> Rope {
         self.rope.line(self.char_to_line(char_index)).into()
     }
@@ -106,7 +106,7 @@ impl Buffer {
         self.rope.char_to_byte(char_index.0)
     }
 
-    pub fn char_to_point(&self, char_index: CharIndex) -> Position {
+    pub fn char_to_position(&self, char_index: CharIndex) -> Position {
         let line = self.char_to_line(char_index);
         Position {
             line,
@@ -269,15 +269,15 @@ impl Buffer {
 
         let start_byte = self.char_to_byte(start_char_index);
         let old_end_byte = self.char_to_byte(old_end_char_index);
-        let start_position = self.char_to_point(start_char_index);
-        let old_end_position = self.char_to_point(old_end_char_index);
+        let start_position = self.char_to_position(start_char_index);
+        let old_end_position = self.char_to_position(old_end_char_index);
 
         self.rope.remove(edit.start.0..edit.end().0);
         self.rope
             .insert(edit.start.0, edit.new.to_string().as_str());
 
         let new_end_byte = self.char_to_byte(new_end_char_index);
-        let new_end_position = self.char_to_point(new_end_char_index);
+        let new_end_position = self.char_to_position(new_end_char_index);
 
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(self.tree.language()).unwrap();
@@ -381,6 +381,11 @@ impl Buffer {
 
     pub fn language(&self) -> tree_sitter::Language {
         self.language
+    }
+
+    pub fn get_char_at_position(&self, position: Position) -> Option<char> {
+        let char_index = position.to_char_index(&self).0;
+        self.rope.get_char(char_index)
     }
 }
 

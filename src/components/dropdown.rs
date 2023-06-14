@@ -3,7 +3,7 @@ use crossterm::event::Event;
 use crate::components::component::Component;
 use crate::screen::{Dispatch, State};
 
-use super::editor::{Direction, Editor};
+use super::editor::Editor;
 
 pub trait DropdownItem: Clone + std::fmt::Debug {
     fn label(&self) -> String;
@@ -23,20 +23,19 @@ pub struct Dropdown<T: DropdownItem> {
     current_item_index: usize,
 }
 
-pub struct DropdownConfig<T: DropdownItem> {
+pub struct DropdownConfig {
     pub title: String,
-    pub items: Vec<T>,
 }
 
 impl<T: DropdownItem> Dropdown<T> {
-    pub fn new(config: DropdownConfig<T>) -> Self {
+    pub fn new(config: DropdownConfig) -> Self {
         let mut editor = Editor::from_text(tree_sitter_md::language(), "");
         editor.set_title(config.title);
         let mut dropdown = Self {
             editor,
             filter: String::new(),
-            filtered_items: config.items.clone(),
-            items: config.items,
+            items: vec![],
+            filtered_items: vec![],
             current_item_index: 0,
         };
         dropdown.update_editor();
@@ -134,8 +133,8 @@ mod test_dropdown {
     fn test_dropdown() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
-            items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
         });
+        dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
         assert_eq!(
             dropdown.editor.selection_set.primary.range,
@@ -183,8 +182,8 @@ mod test_dropdown {
     fn filter_should_work_regardless_of_case() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
-            items: vec!["a".to_string(), "b".to_string(), "c".to_string()],
         });
+        dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         dropdown.set_filter("A");
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
     }

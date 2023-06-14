@@ -1,3 +1,4 @@
+use crate::completion::Completion;
 use crate::position::Position;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
@@ -9,6 +10,7 @@ use std::process::{self, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
+use crate::completion::CompletionItem;
 use crate::components::component::ComponentId;
 use crate::screen::ScreenMessage;
 use crate::utils::consolidate_errors;
@@ -53,7 +55,7 @@ struct PendingResponseRequest {
 pub enum LspNotification {
     Initialized(Language),
     PublishDiagnostics(PublishDiagnosticsParams),
-    Completion(ComponentId, CompletionResponse),
+    Completion(ComponentId, Completion),
     Hover(ComponentId, Hover),
 }
 
@@ -274,8 +276,11 @@ impl LspServerProcess {
                     }),
                     text_document: Some(TextDocumentClientCapabilities {
                         completion: Some(CompletionClientCapabilities {
+                            completion_item: Some(CompletionItemCapability {
+                                ..CompletionItemCapability::default()
+                            }),
                             completion_item_kind: Some(CompletionItemKindCapability {
-                                value_set: Some(vec![CompletionItemKind::TEXT]),
+                                ..Default::default()
                             }),
                             ..CompletionClientCapabilities::default()
                         }),
@@ -436,11 +441,22 @@ impl LspServerProcess {
                         let payload: <lsp_request!("textDocument/completion") as Request>::Result =
                             serde_json::from_value(response)?;
 
+                        log::info!("Recevied completion");
+
                         if let Some(payload) = payload {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(LspNotification::Completion(
                                     component_id,
-                                    payload,
+                                    Completion {
+                                        trigger_characters: self.trigger_characters(),
+                                        items: match payload {
+                                            CompletionResponse::Array(items) => items,
+                                            CompletionResponse::List(list) => list.items,
+                                        }
+                                        .into_iter()
+                                        .map(CompletionItem::from)
+                                        .collect(),
+                                    },
                                 )))
                                 .unwrap();
                         }
@@ -509,7 +525,12 @@ impl LspServerProcess {
             component_id,
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
-                    position: position.into(),
+                    position: Position {
+                        // Need to add 1 for completion after trigger characters to work
+                        column: position.column + 1,
+                        ..position
+                    }
+                    .into(),
                     text_document: TextDocumentIdentifier {
                         uri: path_buf_to_url(file_path)?,
                     },
@@ -520,15 +541,26 @@ impl LspServerProcess {
                 partial_result_params: PartialResultParams {
                     partial_result_token: None,
                 },
-                context: Some(CompletionContext {
-                    trigger_kind: CompletionTriggerKind::INVOKED,
-                    trigger_character: None,
-                }),
+                context: None,
             },
         )?;
 
         log::info!("{:?}", result);
         Ok(())
+    }
+
+    fn trigger_characters(&self) -> Vec<String> {
+        self.server_capabilities
+            .as_ref()
+            .map(|capabilities| {
+                capabilities
+                    .completion_provider
+                    .as_ref()
+                    .map(|provider| provider.trigger_characters.clone())
+            })
+            .flatten()
+            .flatten()
+            .unwrap_or_else(|| vec![])
     }
 
     pub fn shutdown(&mut self) -> anyhow::Result<()> {

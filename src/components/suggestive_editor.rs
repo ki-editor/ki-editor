@@ -1,9 +1,13 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crossterm::event::{Event, KeyCode};
-use lsp_types::CompletionItem;
 
-use crate::{buffer::Buffer, screen::Dispatch};
+use crate::{
+    buffer::Buffer,
+    completion::{Completion, CompletionItem},
+    position::Position,
+    screen::Dispatch,
+};
 
 use super::{
     component::Component,
@@ -16,11 +20,12 @@ pub struct SuggestiveEditor {
     editor: Editor,
     dropdown: Option<Rc<RefCell<Dropdown<CompletionItem>>>>,
     info: Option<Rc<RefCell<Editor>>>,
+    trigger_characters: Vec<String>,
 }
 
 impl DropdownItem for CompletionItem {
     fn label(&self) -> String {
-        self.label.clone()
+        self.label()
     }
 }
 
@@ -56,7 +61,7 @@ impl Component for SuggestiveEditor {
                 {
                     if let Some(completion) = dropdown.borrow().current_item() {
                         // TODO: should use edit if available
-                        self.editor.replace_previous_word(&completion.label);
+                        self.editor.replace_previous_word(&completion.label());
                     }
                     self.dropdown = None;
                     self.info = None;
@@ -69,12 +74,34 @@ impl Component for SuggestiveEditor {
                     Ok(vec![])
                 }
 
+                // Every other character typed in Insert mode should update the dropdown to show
+                // relevant completions.
                 (event, _) => {
                     let dispatches = self.editor.handle_event(state, event)?;
                     if let Some(dropdown) = &self.dropdown {
-                        dropdown
-                            .borrow_mut()
-                            .set_filter(&self.editor.get_current_word());
+                        let filter = {
+                            // We need to subtract 1 because we need to get the character
+                            // before the cursor, not the character at the cursor
+                            let cursor_position = self.editor().get_cursor_position().sub_column(1);
+
+                            match self.editor().buffer().get_char_at_position(cursor_position) {
+                                // The filter should be empty if the current character is a trigger
+                                // character, so that we can show all the completion items.
+                                Some(current_char)
+                                    if self
+                                        .trigger_characters
+                                        .contains(&current_char.to_string()) =>
+                                {
+                                    "".to_string()
+                                }
+
+                                // If the current character is not a trigger character, we should
+                                // filter based on the current word under the cursor.
+                                _ => self.editor.get_current_word(),
+                            }
+                        };
+
+                        dropdown.borrow_mut().set_filter(&filter);
                     }
 
                     Ok(dispatches
@@ -113,32 +140,31 @@ impl SuggestiveEditor {
             editor: Editor::from_buffer(buffer),
             dropdown: None,
             info: None,
+            trigger_characters: vec![],
         }
     }
 
-    pub fn set_completion(&mut self, dropdown_items: Vec<CompletionItem>) {
-        if let Some(dropdown) = &self.dropdown {
-            dropdown.borrow_mut().set_items(dropdown_items);
-        } else {
-            self.dropdown = Some(Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
-                title: "Completion".to_string(),
-                items: dropdown_items,
-            }))));
-        }
+    pub fn set_completion(&mut self, completion: Completion) {
+        let dropdown = match &self.dropdown {
+            Some(dropdown) => dropdown.clone(),
+            None => {
+                let dropdown = Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
+                    title: "Completion".to_string(),
+                })));
+                self.dropdown = Some(dropdown.clone());
+                dropdown
+            }
+        };
+
+        dropdown.borrow_mut().set_items(completion.items);
+        self.trigger_characters = completion.trigger_characters;
     }
 
     fn show_documentation(&mut self, completion: Option<CompletionItem>) {
         if let Some(completion) = completion {
-            self.set_info(
-                "Documentation",
-                completion
-                    .documentation
-                    .map(|doc| match doc {
-                        lsp_types::Documentation::String(s) => s,
-                        lsp_types::Documentation::MarkupContent(content) => content.value,
-                    })
-                    .unwrap_or_default(),
-            )
+            if !completion.documentation().is_empty() {
+                self.set_info("Documentation", completion.documentation())
+            }
         }
     }
 

@@ -11,6 +11,13 @@ impl Position {
     pub fn to_char_index(self, buffer: &Buffer) -> crate::selection::CharIndex {
         buffer.position_to_char(self)
     }
+
+    pub fn sub_column(&self, column: usize) -> Self {
+        Self {
+            line: self.line,
+            column: self.column.saturating_sub(column),
+        }
+    }
 }
 
 impl PartialOrd for Position {

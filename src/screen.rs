@@ -423,8 +423,6 @@ impl Screen {
             queue!(stdout, Show)?;
             queue!(stdout, SetCursorStyle::BlinkingBlock)?;
             execute!(stdout, MoveTo(point.column as u16, point.row as u16))?;
-            queue!(stdout, MoveTo(point.column as u16, point.row as u16))?;
-            queue!(stdout, MoveTo(point.column as u16, point.row as u16))?;
         }
 
         Ok(())
@@ -697,15 +695,10 @@ impl Screen {
                 self.show_info(content);
                 Ok(())
             }
-            LspNotification::Completion(component_id, completion_response) => {
-                let items = match completion_response {
-                    lsp_types::CompletionResponse::Array(completion_items) => completion_items,
-                    lsp_types::CompletionResponse::List(list) => list.items,
-                };
-
+            LspNotification::Completion(component_id, completion) => {
                 self.get_suggestive_editor(component_id)?
                     .borrow_mut()
-                    .set_completion(items);
+                    .set_completion(completion);
                 Ok(())
             }
             LspNotification::Initialized(language) => {

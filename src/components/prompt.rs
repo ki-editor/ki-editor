@@ -68,7 +68,6 @@ impl Prompt {
             text: "".to_string(),
             dropdown: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
                 title: "Suggestions".to_string(),
-                items: vec![],
             }))),
             owner: config.owner,
             on_enter: config.on_enter,

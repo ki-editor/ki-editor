@@ -35,7 +35,8 @@
 - [] LSP get references
 - [] LSP go to definition
 - [] LSP quick action
-- [] LSP completion pass in trigger characters, so that typing . or :: provides better completion in Rust
+- [x] LSP completion pass in trigger characters, so that typing . or :: provides better completion in Rust
+- [] LSP completion allow edit
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -49,7 +50,7 @@
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
 - [x] remove e, make px the same as pe
-- [] screen: show error to user
+- [] screen: show editor error to user
 - [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
@@ -58,3 +59,7 @@
 - [] feat: workspaces (similar to tab in Vim)
 - [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
 - [] copy should work between different editors
+- [] i = insert at end of selection, I = insert at beginning of selection
+- [] screen '[' and ']' not working as expected, now cannot type []
+- [] Enter not working as expected in insert mode
+- [] pressing 'b' remove the copied text
