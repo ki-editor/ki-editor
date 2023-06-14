@@ -57,3 +57,4 @@
 - [] refactor: SuggestiveEditor and Prompt should use the same underlying component
 - [] feat: workspaces (similar to tab in Vim)
 - [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
+- [] copy should work between different editors

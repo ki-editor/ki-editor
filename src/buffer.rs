@@ -146,13 +146,32 @@ impl Buffer {
     }
 
     pub fn get_current_node<'a>(&'a self, selection: &Selection) -> Node<'a> {
-        self.tree
+        let node = self
+            .tree
             .root_node()
             .descendant_for_byte_range(
                 self.char_to_byte(selection.range.start),
                 self.char_to_byte(selection.range.end),
             )
-            .unwrap_or_else(|| self.tree.root_node())
+            .unwrap_or_else(|| self.tree.root_node());
+
+        // Get the most ancestral node of this range
+        //
+        // This is because sometimes the parent of a node can have the same range as the node
+        // itself.
+        //
+        // If we don't get the most ancestral node, then movements like "go to next sibling" will
+        // not work as expected.
+        let mut result = node;
+        while let Some(parent) = result.parent() {
+            if parent.start_byte() == node.start_byte() && parent.end_byte() == node.end_byte() {
+                result = parent;
+            } else {
+                return result;
+            }
+        }
+
+        node
     }
 
     pub fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
@@ -358,6 +377,10 @@ impl Buffer {
                     ..Position::from(item.range.end).to_char_index(&self)
             }),
         }
+    }
+
+    pub fn language(&self) -> tree_sitter::Language {
+        self.language
     }
 }
 

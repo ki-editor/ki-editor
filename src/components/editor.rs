@@ -1689,6 +1689,31 @@ fn main() {
     }
 
     #[test]
+    /// Should select the most ancestral node if the node's child and its parents has the same range.
+    fn select_sibling_2() {
+        let mut editor = Editor::from_text(language(), "fn main() { let x = X {a,b,c:d} }");
+
+        // Select `a`
+        for _ in 0..11 {
+            editor.select_token(Direction::Forward);
+        }
+
+        assert_eq!(editor.get_selected_texts(), vec!["a"]);
+
+        editor.select_sibling(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["b"]);
+
+        editor.select_sibling(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["c:d"]);
+
+        editor.select_sibling(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["b"]);
+
+        editor.select_sibling(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["a"]);
+    }
+
+    #[test]
     fn select_kids() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x"
