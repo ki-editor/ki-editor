@@ -36,7 +36,7 @@
 - [x] LSP completion allow edit
 - [x] remove e, make px the same as pe
 - [x] LSP go to definition
-- [] LSP get references
+- [x] LSP get references
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -64,3 +64,4 @@
 - [] Enter not working as expected in insert mode
 - [] pressing 'b' remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
+- [] Format on save

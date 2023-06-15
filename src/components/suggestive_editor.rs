@@ -1,12 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
-
+use crate::screen::RequestParams;
 use crossterm::event::{Event, KeyCode};
-
+use crate::screen::Dispatch;
 use crate::{
     buffer::Buffer,
-    lsp::completion::{Completion, CompletionItem},
-    position::Position,
-    screen::Dispatch,
+    lsp::completion::{Completion, CompletionItem}
 };
 
 use super::{
@@ -114,11 +112,11 @@ impl Component for SuggestiveEditor {
                         .into_iter()
                         .chain(match self.editor().buffer().path() {
                             None => vec![],
-                            Some(path) => vec![Dispatch::RequestCompletion {
+                            Some(path) => vec![Dispatch::RequestCompletion(RequestParams{
                                 component_id: self.id(),
                                 path,
                                 position: cursor_position,
-                            }],
+                            })],
                         })
                         .collect())
                 }

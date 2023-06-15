@@ -1,3 +1,4 @@
+use crate::screen::RequestParams;
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::Sender};
 
 use itertools::Itertools;
@@ -47,36 +48,27 @@ impl LspManager {
         consolidate_errors(error, results)
     }
 
-    pub fn request_completion(
-        &self,
-        component_id: ComponentId,
-        path: std::path::PathBuf,
-        position: Position,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&path, "Failed to request completion", |channel| {
-            channel.request_completion(component_id, &path, position)
+    pub fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to request completion", |channel| {
+            channel.request_completion(params.clone())
         })
     }
 
-    pub fn request_hover(
-        &self,
-        component_id: ComponentId,
-        path: PathBuf,
-        position: Position,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&path, "Failed to request hover", |channel| {
-            channel.request_hover(component_id, &path, position)
+    pub fn request_hover(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to request hover", |channel| {
+            channel.request_hover(params.clone())
         })
     }
 
-    pub fn request_definition(
-        &self,
-        component_id: ComponentId,
-        path: PathBuf,
-        position: Position,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&path, "Failed to go to definition", |channel| {
-            channel.request_definition(component_id, &path, position)
+    pub fn request_definition(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to go to definition", |channel| {
+            channel.request_definition(params.clone())
+        })
+    }
+
+    pub fn request_references(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to find references", |channel| {
+            channel.request_references(params.clone())
         })
     }
 

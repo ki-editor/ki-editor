@@ -4,6 +4,7 @@ use std::{
     path::PathBuf,
     rc::Rc,
 };
+use crate::screen::RequestParams;
 
 use crossterm::{
     event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind},
@@ -101,13 +102,17 @@ impl Component for Editor {
 
         let secondary_selections = &editor.selection_set.secondary;
 
-        let diagnostics = diagnostics.into_iter().map(|diagnostic| {
-            let start = buffer.position_to_char(Position::from(diagnostic.range.start));
-            let end = buffer.position_to_char(Position::from(diagnostic.range.end));
-            let end = if start == end { end + 1 } else { end };
-            let char_index_range = start..end;
-            (diagnostic, char_index_range)
-        });
+        let diagnostics = diagnostics
+            .into_iter()
+            // Remove diagnostics that are out of bound
+            .filter(|diagnostic| buffer.contains_position_range(&diagnostic.range))
+            .map(|diagnostic| {
+                let start = buffer.position_to_char(Position::from(diagnostic.range.start));
+                let end = buffer.position_to_char(Position::from(diagnostic.range.end));
+                let end = if start == end { end + 1 } else { end };
+                let char_index_range = start..end;
+                (diagnostic, char_index_range)
+            });
 
         let errors = diagnostics.clone().filter(|(diagnostic, _)| {
             diagnostic.severity == Some(lsp_types::DiagnosticSeverity::ERROR)
@@ -867,18 +872,30 @@ impl Editor {
     }
 
     fn handle_g_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+        let component_id = self.id();
+        let position = self.get_cursor_position();
         let dispatches = match event.code {
-            KeyCode::Char('e') => {
-                vec![Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic)]
-            }
             KeyCode::Char('d') => self
                 .path()
                 .map(|path| {
-                    vec![Dispatch::RequestDefinition {
-                        component_id: self.id(),
+                    vec![Dispatch::RequestDefinition(RequestParams{
+                        component_id,
                         path,
-                        position: self.get_cursor_position(),
-                    }]
+                        position,
+                    })]
+                })
+                .unwrap_or(vec![]),
+            KeyCode::Char('e') => {
+                vec![Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic)]
+            }
+            KeyCode::Char('r') => self
+                .path()
+                .map(|path| {
+                    vec![Dispatch::RequestReferences(RequestParams{
+                        component_id,
+                        path,
+                        position,
+                    })]
                 })
                 .unwrap_or(vec![]),
             _ => vec![],
@@ -965,12 +982,11 @@ impl Editor {
         match self.path() {
             None => vec![],
             Some(path) => {
-                vec![Dispatch::RequestHover {
+                vec![Dispatch::RequestHover(RequestParams{
                     component_id: self.id(),
                     path,
                     position: self.get_cursor_position(),
-                }]
-            }
+                })]   }
         }
     }
 

@@ -396,6 +396,17 @@ impl Buffer {
         let char_index = position.to_char_index(&self).0;
         self.rope.get_char(char_index)
     }
+
+    pub fn contains_position_range(&self, range: &Range<Position>) -> bool {
+        self.try_position_to_char_index(range.end)
+            .map(|end| end.0 < self.rope.len_chars())
+            .unwrap_or(false)
+    }
+
+    pub fn try_position_to_char_index(&self, position: Position) -> Option<CharIndex> {
+        let index = self.rope.try_line_to_char(position.line).ok()?;
+        Some(CharIndex(index + position.column))
+    }
 }
 
 #[derive(Clone, Debug)]

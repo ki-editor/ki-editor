@@ -7,7 +7,7 @@ use lsp_types::DiagnosticSeverity;
 #[derive(Debug, Clone)]
 pub struct Diagnostic {
     pub range: Range<Position>,
-    message: String,
+    pub message: String,
     pub severity: Option<DiagnosticSeverity>,
 }
 

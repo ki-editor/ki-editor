@@ -449,35 +449,21 @@ impl Screen {
             Dispatch::OpenFile { path } => {
                 self.open_file(&path)?;
             }
-            Dispatch::RequestCompletion {
-                component_id,
-                path,
-                position,
-            } => {
-                self.lsp_manager
-                    .request_completion(component_id, path, position)?;
+            Dispatch::RequestCompletion(params) => {
+                self.lsp_manager.request_completion(params)?;
+            }
+            Dispatch::RequestReferences(params) => self.lsp_manager.request_references(params)?,
+            Dispatch::RequestHover(params) => {
+                self.lsp_manager.request_hover(params)?;
+            }
+            Dispatch::RequestDefinition(params) => {
+                self.lsp_manager.request_definition(params)?;
             }
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
             }
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
-            }
-            Dispatch::RequestHover {
-                component_id,
-                path,
-                position,
-            } => {
-                self.lsp_manager
-                    .request_hover(component_id, path, position)?;
-            }
-            Dispatch::RequestDefinition {
-                component_id,
-                path,
-                position,
-            } => {
-                self.lsp_manager
-                    .request_definition(component_id, path, position)?;
             }
             Dispatch::ShowInfo { content } => self.show_info(content),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
@@ -694,6 +680,14 @@ impl Screen {
 
                 Ok(())
             }
+            LspNotification::References(component_id, locations) => {
+                if self.focused_component_id != component_id {
+                    return Ok(());
+                }
+                self.set_quickfix_list(QuickfixList::new(
+                    locations.into_iter().map(QuickfixListItem::from).collect(),
+                ))
+            }
             LspNotification::Completion(component_id, completion) => {
                 self.get_suggestive_editor(component_id)?
                     .borrow_mut()
@@ -873,43 +867,26 @@ fn reveal(s: String) -> String {
 #[derive(Clone, Debug)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
-    CloseCurrentWindow {
-        change_focused_to: ComponentId,
-    },
-    SetSearch {
-        search: String,
-    },
-    OpenFile {
-        path: PathBuf,
-    },
-    ShowInfo {
-        content: Vec<String>,
-    },
-    RequestCompletion {
-        component_id: ComponentId,
-        path: PathBuf,
-        position: Position,
-    },
-    RequestHover {
-        component_id: ComponentId,
-        path: PathBuf,
-        position: Position,
-    },
-    RequestDefinition {
-        component_id: ComponentId,
-        path: PathBuf,
-        position: Position,
-    },
-    DocumentDidChange {
-        path: PathBuf,
-        content: String,
-    },
-    DocumentDidSave {
-        path: PathBuf,
-    },
+    CloseCurrentWindow { change_focused_to: ComponentId },
+    SetSearch { search: String },
+    OpenFile { path: PathBuf },
+    ShowInfo { content: Vec<String> },
+    RequestCompletion(RequestParams),
+    RequestHover(RequestParams),
+    RequestDefinition(RequestParams),
+    RequestReferences(RequestParams),
+    DocumentDidChange { path: PathBuf, content: String },
+    DocumentDidSave { path: PathBuf },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Direction),
     GotoOpenedEditor(Direction),
+}
+
+#[derive(Debug, Clone)]
+pub struct RequestParams {
+    pub component_id: ComponentId,
+    pub path: PathBuf,
+    pub position: Position,
 }
 
 #[derive(Debug)]
