@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crossterm::event::Event;
 use itertools::Itertools;
 
@@ -8,11 +11,16 @@ use super::editor::Editor;
 
 pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
     fn label(&self) -> String;
+    fn info(&self) -> Option<String>;
 }
 
 impl DropdownItem for String {
     fn label(&self) -> String {
         self.clone()
+    }
+
+    fn info(&self) -> Option<String> {
+        None
     }
 }
 
@@ -22,6 +30,7 @@ pub struct Dropdown<T: DropdownItem> {
     items: Vec<T>,
     filtered_items: Vec<T>,
     current_item_index: usize,
+    info_panel: Option<Rc<RefCell<Editor>>>,
 }
 
 pub struct DropdownConfig {
@@ -38,6 +47,7 @@ impl<T: DropdownItem> Dropdown<T> {
             items: vec![],
             filtered_items: vec![],
             current_item_index: 0,
+            info_panel: None,
         };
         dropdown.update_editor();
         dropdown
@@ -61,8 +71,14 @@ impl<T: DropdownItem> Dropdown<T> {
         self.current_item()
     }
 
-    pub fn current_item(&self) -> Option<T> {
-        self.filtered_items.get(self.current_item_index).cloned()
+    pub fn current_item(&mut self) -> Option<T> {
+        self.filtered_items
+            .get(self.current_item_index)
+            .cloned()
+            .map(|item| {
+                self.show_info(item.info());
+                item
+            })
     }
 
     pub fn set_items(&mut self, items: Vec<T>) {
@@ -94,7 +110,7 @@ impl<T: DropdownItem> Dropdown<T> {
     }
 
     fn update_editor(&mut self) {
-        self.editor.update(
+        self.editor.set_content(
             &self
                 .filtered_items
                 .iter()
@@ -104,6 +120,27 @@ impl<T: DropdownItem> Dropdown<T> {
         );
 
         self.editor.select_line_at(0);
+    }
+
+    fn show_info(&mut self, info: Option<String>) {
+        match info {
+            None => self.info_panel = None,
+            Some(info) => {
+                let info_panel = match self.info_panel.take() {
+                    Some(info_panel) => info_panel,
+                    None => {
+                        let info_panel = Rc::new(RefCell::new(Editor::from_text(
+                            tree_sitter_md::language(),
+                            "INFO",
+                        )));
+                        self.info_panel = Some(info_panel.clone());
+                        info_panel
+                    }
+                };
+
+                info_panel.borrow_mut().set_content(&info);
+            }
+        }
     }
 }
 
@@ -121,7 +158,10 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
     }
 
     fn children(&self) -> Vec<std::rc::Rc<std::cell::RefCell<dyn Component>>> {
-        vec![]
+        self.info_panel
+            .clone()
+            .map(|info_panel| vec![info_panel as Rc<RefCell<dyn Component>>])
+            .unwrap_or_default()
     }
 }
 

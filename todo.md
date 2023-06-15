@@ -37,6 +37,8 @@
 - [x] remove e, make px the same as pe
 - [x] LSP go to definition
 - [x] LSP get references
+- [x] screen '[' and ']' not working as expected, now cannot type []
+- [x] refactor: SuggestiveEditor and Prompt should use the same underlying component
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -55,12 +57,10 @@
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
-- [] refactor: SuggestiveEditor and Prompt should use the same underlying component
 - [] feat: workspaces (similar to tab in Vim)
 - [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
 - [] copy should work between different editors
 - [] i = insert at end of selection, I = insert at beginning of selection
-- [] screen '[' and ']' not working as expected, now cannot type []
 - [] Enter not working as expected in insert mode
 - [] pressing 'b' remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item

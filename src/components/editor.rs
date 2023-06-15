@@ -1,10 +1,10 @@
+use crate::screen::RequestParams;
 use std::{
     cell::{Ref, RefCell},
     ops::Range,
     path::PathBuf,
     rc::Rc,
 };
-use crate::screen::RequestParams;
 
 use crossterm::{
     event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind},
@@ -53,7 +53,7 @@ impl Component for Editor {
     fn editor_mut(&mut self) -> &mut Editor {
         self
     }
-    fn update(&mut self, str: &str) {
+    fn set_content(&mut self, str: &str) {
         self.update_buffer(str);
     }
     fn title(&self) -> String {
@@ -373,7 +373,7 @@ impl Editor {
 
     pub fn select_line_at(&mut self, line: usize) {
         let start = self.buffer.borrow().line_to_char(line);
-        self.selection_set = SelectionSet {
+        let selection_set = SelectionSet {
             primary: Selection {
                 range: start..start + self.buffer.borrow().get_line(start).len_chars(),
                 copied_text: None,
@@ -382,6 +382,7 @@ impl Editor {
             secondary: vec![],
             mode: SelectionMode::Line,
         };
+        self.update_selection_set(selection_set);
     }
 
     pub fn select_match(&mut self, direction: Direction, search: &Option<String>) {
@@ -878,7 +879,7 @@ impl Editor {
             KeyCode::Char('d') => self
                 .path()
                 .map(|path| {
-                    vec![Dispatch::RequestDefinition(RequestParams{
+                    vec![Dispatch::RequestDefinition(RequestParams {
                         component_id,
                         path,
                         position,
@@ -891,7 +892,7 @@ impl Editor {
             KeyCode::Char('r') => self
                 .path()
                 .map(|path| {
-                    vec![Dispatch::RequestReferences(RequestParams{
+                    vec![Dispatch::RequestReferences(RequestParams {
                         component_id,
                         path,
                         position,
@@ -982,11 +983,12 @@ impl Editor {
         match self.path() {
             None => vec![],
             Some(path) => {
-                vec![Dispatch::RequestHover(RequestParams{
+                vec![Dispatch::RequestHover(RequestParams {
                     component_id: self.id(),
                     path,
                     position: self.get_cursor_position(),
-                })]   }
+                })]
+            }
         }
     }
 

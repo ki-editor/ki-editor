@@ -1,11 +1,12 @@
-use std::{cell::RefCell, rc::Rc};
-use crate::screen::RequestParams;
-use crossterm::event::{Event, KeyCode};
 use crate::screen::Dispatch;
+use crate::screen::RequestParams;
 use crate::{
     buffer::Buffer,
-    lsp::completion::{Completion, CompletionItem}
+    lsp::completion::{Completion, CompletionItem},
 };
+use crossterm::event::KeyModifiers;
+use crossterm::event::{Event, KeyCode};
+use std::{cell::RefCell, rc::Rc};
 
 use super::{
     component::Component,
@@ -17,13 +18,15 @@ use super::{
 pub struct SuggestiveEditor {
     editor: Editor,
     dropdown: Option<Rc<RefCell<Dropdown<CompletionItem>>>>,
-    info: Option<Rc<RefCell<Editor>>>,
     trigger_characters: Vec<String>,
 }
 
 impl DropdownItem for CompletionItem {
     fn label(&self) -> String {
         self.label()
+    }
+    fn info(&self) -> Option<String> {
+        self.documentation()
     }
 }
 
@@ -44,20 +47,27 @@ impl Component for SuggestiveEditor {
         let cursor_position = self.editor().get_cursor_position();
         if self.editor.mode == Mode::Insert {
             match (event, &self.dropdown) {
-                (Event::Key(key), Some(dropdown)) if key.code == KeyCode::Down => {
-                    let completion = dropdown.borrow_mut().next_item();
-                    self.show_documentation(completion);
-                    Ok(vec![])
-                }
-                (Event::Key(key), Some(dropdown)) if key.code == KeyCode::Up => {
-                    let completion = dropdown.borrow_mut().previous_item();
-                    self.show_documentation(completion);
+                (Event::Key(key), Some(dropdown))
+                    if key.code == KeyCode::Down
+                        || (key.modifiers == KeyModifiers::CONTROL
+                            && key.code == KeyCode::Char('n')) =>
+                {
+                    dropdown.borrow_mut().next_item();
                     Ok(vec![])
                 }
                 (Event::Key(key), Some(dropdown))
-                    if key.code == KeyCode::Enter && dropdown.borrow().current_item().is_some() =>
+                    if key.code == KeyCode::Up
+                        || (key.modifiers == KeyModifiers::CONTROL
+                            && key.code == KeyCode::Char('p')) =>
                 {
-                    if let Some(completion) = dropdown.borrow().current_item() {
+                    dropdown.borrow_mut().previous_item();
+                    Ok(vec![])
+                }
+                (Event::Key(key), Some(dropdown))
+                    if key.code == KeyCode::Enter
+                        && dropdown.borrow_mut().current_item().is_some() =>
+                {
+                    if let Some(completion) = dropdown.borrow_mut().current_item() {
                         match completion.edit {
                             None => {
                                 self.editor.replace_previous_word(&completion.label());
@@ -68,12 +78,10 @@ impl Component for SuggestiveEditor {
                         }
                     }
                     self.dropdown = None;
-                    self.info = None;
                     Ok(vec![])
                 }
                 (Event::Key(key), Some(_)) if key.code == KeyCode::Esc => {
                     self.dropdown = None;
-                    self.info = None;
                     self.editor.enter_normal_mode();
                     Ok(vec![])
                 }
@@ -112,7 +120,7 @@ impl Component for SuggestiveEditor {
                         .into_iter()
                         .chain(match self.editor().buffer().path() {
                             None => vec![],
-                            Some(path) => vec![Dispatch::RequestCompletion(RequestParams{
+                            Some(path) => vec![Dispatch::RequestCompletion(RequestParams {
                                 component_id: self.id(),
                                 path,
                                 position: cursor_position,
@@ -127,14 +135,10 @@ impl Component for SuggestiveEditor {
     }
 
     fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        self.get_children(vec![
-            self.dropdown
-                .clone()
-                .map(|dropdown| dropdown as Rc<RefCell<dyn Component>>),
-            self.info
-                .clone()
-                .map(|info| info as Rc<RefCell<dyn Component>>),
-        ])
+        self.get_children(vec![self
+            .dropdown
+            .clone()
+            .map(|dropdown| dropdown as Rc<RefCell<dyn Component>>)])
     }
 }
 
@@ -143,7 +147,6 @@ impl SuggestiveEditor {
         Self {
             editor: Editor::from_buffer(buffer),
             dropdown: None,
-            info: None,
             trigger_characters: vec![],
         }
     }
@@ -164,20 +167,18 @@ impl SuggestiveEditor {
         self.trigger_characters = completion.trigger_characters;
     }
 
-    fn show_documentation(&mut self, completion: Option<CompletionItem>) {
-        if let Some(completion) = completion {
-            if !completion.documentation().is_empty() {
-                self.set_info("Documentation", completion.documentation())
-            }
-        }
+    pub fn enter_insert_mode(&mut self) {
+        self.editor.enter_insert_mode()
     }
 
-    fn set_info(&mut self, title: &str, content: String) {
-        let mut editor = Editor::from_buffer(Rc::new(RefCell::new(Buffer::new(
-            tree_sitter_md::language(),
-            &content,
-        ))));
-        editor.set_title(title.to_string());
-        self.info = Some(Rc::new(RefCell::new(editor)))
+    pub fn current_item(&mut self) -> Option<CompletionItem> {
+        self.dropdown
+            .as_ref()
+            .map(|dropdown| dropdown.borrow_mut().current_item())
+            .flatten()
+    }
+
+    pub fn dropdown_opened(&self) -> bool {
+        self.dropdown.is_some()
     }
 }

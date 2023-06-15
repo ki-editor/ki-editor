@@ -30,8 +30,9 @@ use crate::{
     },
     grid::{Grid, Style},
     lsp::{
-        diagnostic::Diagnostic, goto_definition_response::GotoDefinitionResponse,
-        manager::LspManager, process::LspNotification,
+        completion::CompletionItem, diagnostic::Diagnostic,
+        goto_definition_response::GotoDefinitionResponse, manager::LspManager,
+        process::LspNotification,
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
@@ -211,7 +212,7 @@ impl Screen {
                     self.open_search_prompt()
                 }
                 KeyCode::Char('o') if event.modifiers == KeyModifiers::CONTROL => {
-                    self.open_file_picker()
+                    self.open_file_picker()?;
                 }
                 KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                     if self.quit() {
@@ -517,8 +518,8 @@ impl Screen {
         let prompt = Prompt::new(PromptConfig {
             title: "Search".to_string(),
             history: self.state.previous_searches.clone(),
-            owner: current_component,
-            on_enter: Box::new(|text, _, owner| {
+            owner: current_component.clone(),
+            on_enter: Box::new(|text, owner| {
                 owner
                     .borrow_mut()
                     .editor_mut()
@@ -534,26 +535,37 @@ impl Screen {
                     .select_match(Direction::Forward, &Some(current_text.to_string()));
                 Ok(vec![])
             }),
-            get_suggestions: Box::new(|text, owner| {
-                Ok(owner.borrow().editor().buffer().find_words(&text))
-            }),
+            items: current_component
+                .borrow()
+                .editor()
+                .buffer()
+                .words()
+                .into_iter()
+                .map(|word| CompletionItem {
+                    label: word,
+                    documentation: None,
+                    sort_text: None,
+                    edit: None,
+                })
+                .collect_vec(),
         });
         self.add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_file_picker(&mut self) {
+    fn open_file_picker(&mut self) -> anyhow::Result<()> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Open File".to_string(),
             history: vec![],
             owner: current_component,
-            on_enter: Box::new(|_, current_item, _| {
+            on_enter: Box::new(|current_item, _| {
+                log::info!("Opening file: {}", current_item);
                 vec![Dispatch::OpenFile {
                     path: Path::new(current_item).to_path_buf(),
                 }]
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
-            get_suggestions: Box::new(|text, _| {
+            items: {
                 let repo = git2::Repository::open(".")?;
 
                 // Get the current branch name
@@ -576,15 +588,23 @@ impl Screen {
                     let entry_name = entry.name().unwrap_or_default();
                     let name = Path::new(root).join(entry_name);
                     let name = name.to_string_lossy();
-                    if name.to_lowercase().contains(&text.to_lowercase()) {
-                        result.push(name.to_string());
-                    }
+                    result.push(name.to_string());
                     git2::TreeWalkResult::Ok
                 })?;
-                Ok(result)
-            }),
+
+                result
+                    .into_iter()
+                    .map(|word| CompletionItem {
+                        label: word,
+                        documentation: None,
+                        sort_text: None,
+                        edit: None,
+                    })
+                    .collect_vec()
+            },
         });
         self.add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        Ok(())
     }
 
     fn change_view(&mut self) {
@@ -778,7 +798,7 @@ impl Screen {
                 )));
                 self.info_panel = Some(info_panel.clone());
             }
-            Some(info_panel) => info_panel.borrow_mut().update(&info),
+            Some(info_panel) => info_panel.borrow_mut().set_content(&info),
         }
     }
 

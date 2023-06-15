@@ -41,8 +41,8 @@ pub trait Component: Any + AnyComponent {
         self.editor().rectangle()
     }
 
-    fn update(&mut self, str: &str) {
-        self.editor_mut().update(str);
+    fn set_content(&mut self, str: &str) {
+        self.editor_mut().set_content(str);
     }
 
     fn title(&self) -> String {

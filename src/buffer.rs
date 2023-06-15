@@ -48,6 +48,17 @@ impl Buffer {
         self.path.clone()
     }
 
+    pub fn words(&self) -> Vec<String> {
+        let regex = regex::Regex::new(r"\b\w+").unwrap();
+        let str = self.rope.to_string();
+
+        regex
+            .find_iter(&str)
+            .map(|m| m.as_str().to_string())
+            .unique()
+            .collect()
+    }
+
     pub fn find_words(&self, substring: &str) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();

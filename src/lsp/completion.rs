@@ -10,9 +10,9 @@ pub struct Completion {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
-    label: String,
-    documentation: Option<String>,
-    sort_text: Option<String>,
+    pub label: String,
+    pub documentation: Option<String>,
+    pub sort_text: Option<String>,
     pub edit: Option<PositionalEdit>,
 }
 
@@ -43,8 +43,8 @@ impl CompletionItem {
         self.label.clone()
     }
 
-    pub fn documentation(&self) -> String {
-        self.documentation.clone().unwrap_or_default()
+    pub fn documentation(&self) -> Option<String> {
+        self.documentation.clone()
     }
 }
 
