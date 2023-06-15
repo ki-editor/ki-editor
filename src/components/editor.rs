@@ -869,9 +869,7 @@ impl Editor {
     fn handle_g_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
         let dispatches = match event.code {
             KeyCode::Char('e') => {
-                vec![Dispatch::SetQuickfixList(
-                    QuickfixListType::LspDiagnosticError,
-                )]
+                vec![Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic)]
             }
             _ => vec![],
         };
@@ -915,6 +913,8 @@ impl Editor {
             // O
             KeyCode::Char('p') => self.select_parent(Direction::Forward),
             KeyCode::Char('P') => self.select_parent(Direction::Backward),
+            KeyCode::Char('q') => return vec![Dispatch::NextQuickfixListItem],
+            KeyCode::Char('Q') => return vec![Dispatch::PreviousQuickfixListItem],
             KeyCode::Char('r') => return self.replace(),
             // R
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
