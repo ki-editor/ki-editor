@@ -1,4 +1,3 @@
-use crate::completion::Completion;
 use crate::position::Position;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
@@ -10,11 +9,13 @@ use std::process::{self, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
-use crate::completion::CompletionItem;
 use crate::components::component::ComponentId;
 use crate::screen::ScreenMessage;
 use crate::utils::consolidate_errors;
 
+use super::completion::{Completion, CompletionItem};
+use super::goto_definition_response::GotoDefinitionResponse;
+use super::hover::Hover;
 use super::language::Language;
 
 struct LspServerProcess {
@@ -57,6 +58,7 @@ pub enum LspNotification {
     PublishDiagnostics(PublishDiagnosticsParams),
     Completion(ComponentId, Completion),
     Hover(ComponentId, Hover),
+    Definition(ComponentId, GotoDefinitionResponse),
 }
 
 #[derive(Debug)]
@@ -92,6 +94,11 @@ enum FromEditor {
     TextDocumentDidSave {
         file_path: PathBuf,
     },
+    RequestDefinition {
+        file_path: PathBuf,
+        component_id: ComponentId,
+        position: Position,
+    },
 }
 
 pub struct LspServerProcessChannel {
@@ -117,6 +124,21 @@ impl LspServerProcessChannel {
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestHover {
+                file_path: path.clone(),
+                component_id,
+                position,
+            },
+        ))
+    }
+
+    pub fn request_definition(
+        &self,
+        component_id: ComponentId,
+        path: &PathBuf,
+        position: Position,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestDefinition {
                 file_path: path.clone(),
                 component_id,
                 position,
@@ -369,10 +391,15 @@ impl LspServerProcess {
                         position,
                         component_id,
                     } => self.text_document_hover(file_path, component_id, position),
+                    FromEditor::RequestDefinition {
+                        file_path,
+                        component_id,
+                        position,
+                    } => self.text_document_definition(file_path, component_id, position),
                 },
             }
             .unwrap_or_else(|error| {
-                log::error!("[LspServerProcess] Error handling reply: {:?}", error);
+                log::info!("[LspServerProcess] Error handling reply: {:?}", error);
             })
         }
 
@@ -469,7 +496,20 @@ impl LspServerProcess {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(LspNotification::Hover(
                                     component_id,
-                                    payload,
+                                    payload.into(),
+                                )))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/definition" => {
+                        let payload: <lsp_request!("textDocument/definition") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::Definition(
+                                    component_id,
+                                    payload.try_into()?,
                                 )))
                                 .unwrap();
                         }
@@ -531,9 +571,7 @@ impl LspServerProcess {
                         ..position
                     }
                     .into(),
-                    text_document: TextDocumentIdentifier {
-                        uri: path_buf_to_url(file_path)?,
-                    },
+                    text_document: path_buf_to_text_document_identifier(file_path)?,
                 },
                 work_done_progress_params: WorkDoneProgressParams {
                     work_done_token: None,
@@ -677,9 +715,7 @@ impl LspServerProcess {
     fn text_document_did_save(&mut self, file_path: PathBuf) -> Result<(), anyhow::Error> {
         self.send_notification::<lsp_notification!("textDocument/didSave")>(
             DidSaveTextDocumentParams {
-                text_document: TextDocumentIdentifier {
-                    uri: path_buf_to_url(file_path)?,
-                },
+                text_document: path_buf_to_text_document_identifier(file_path)?,
                 text: None,
             },
         )
@@ -696,13 +732,30 @@ impl LspServerProcess {
             HoverParams {
                 text_document_position_params: TextDocumentPositionParams {
                     position: position.into(),
-                    text_document: TextDocumentIdentifier {
-                        uri: path_buf_to_url(file_path)?,
-                    },
+                    text_document: path_buf_to_text_document_identifier(file_path)?,
                 },
                 work_done_progress_params: WorkDoneProgressParams {
                     work_done_token: None,
                 },
+            },
+        )
+    }
+
+    fn text_document_definition(
+        &mut self,
+        file_path: PathBuf,
+        component_id: ComponentId,
+        position: Position,
+    ) -> anyhow::Result<()> {
+        self.send_request::<lsp_request!("textDocument/definition")>(
+            component_id,
+            GotoDefinitionParams {
+                partial_result_params: Default::default(),
+                text_document_position_params: TextDocumentPositionParams {
+                    position: position.into(),
+                    text_document: path_buf_to_text_document_identifier(file_path)?,
+                },
+                work_done_progress_params: Default::default(),
             },
         )
     }
@@ -713,4 +766,12 @@ fn path_buf_to_url(path: PathBuf) -> Result<Url, anyhow::Error> {
         "file://{}",
         path.canonicalize()?.display()
     ))?)
+}
+
+fn path_buf_to_text_document_identifier(
+    path: PathBuf,
+) -> Result<TextDocumentIdentifier, anyhow::Error> {
+    Ok(TextDocumentIdentifier {
+        uri: path_buf_to_url(path)?,
+    })
 }

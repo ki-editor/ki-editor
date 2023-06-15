@@ -1,7 +1,7 @@
 use crate::{
     components::editor::Direction,
-    diagnostic::Diagnostic,
     edit::{Edit, EditTransaction},
+    lsp::diagnostic::Diagnostic,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,

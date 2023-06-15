@@ -28,9 +28,11 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
-    diagnostic::Diagnostic,
     grid::{Grid, Style},
-    lsp::{manager::LspManager, process::LspNotification},
+    lsp::{
+        diagnostic::Diagnostic, goto_definition_response::GotoDefinitionResponse,
+        manager::LspManager, process::LspNotification,
+    },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
     rectangle::{Border, Rectangle},
@@ -469,33 +471,18 @@ impl Screen {
                 self.lsp_manager
                     .request_hover(component_id, path, position)?;
             }
-            Dispatch::ShowInfo { content } => self.show_info(content),
-            Dispatch::SetQuickfixList(r#type) => match r#type {
-                QuickfixListType::LspDiagnostic => {
-                    let quickfix_list = QuickfixList::new(
-                        self.diagnostics
-                            .iter()
-                            .flat_map(|(path, diagnostics)| {
-                                diagnostics.iter().map(|diagnostic| {
-                                    QuickfixListItem::new(
-                                        Location {
-                                            path: path.clone(),
-                                            range: diagnostic.range.clone(),
-                                        },
-                                        vec![diagnostic.message.clone()],
-                                    )
-                                })
-                            })
-                            .collect(),
-                    );
-
-                    self.quickfix_lists.push(quickfix_list);
-                }
-            },
-            Dispatch::NextQuickfixListItem => self.to_quickfix_list_item(Direction::Forward)?,
-            Dispatch::PreviousQuickfixListItem => {
-                self.to_quickfix_list_item(Direction::Backward)?
+            Dispatch::RequestDefinition {
+                component_id,
+                path,
+                position,
+            } => {
+                self.lsp_manager
+                    .request_definition(component_id, path, position)?;
             }
+            Dispatch::ShowInfo { content } => self.show_info(content),
+            Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
+            Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
+            Dispatch::GotoOpenedEditor(direction) => self.goto_opened_editor(direction),
         }
         Ok(())
     }
@@ -684,26 +671,27 @@ impl Screen {
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::Hover(component_id, hover) => {
-                fn marked_string_to_string(marked_string: lsp_types::MarkedString) -> String {
-                    match marked_string {
-                        lsp_types::MarkedString::String(string) => string,
-                        lsp_types::MarkedString::LanguageString(language_string) => {
-                            language_string.value
-                        }
+                if self.focused_component_id != component_id {
+                    return Ok(());
+                }
+                self.show_info(hover.contents);
+                Ok(())
+            }
+            LspNotification::Definition(component_id, response) => {
+                log::info!("Definition response: {:?}", response);
+                if self.focused_component_id != component_id {
+                    return Ok(());
+                }
+
+                match response {
+                    GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
+                    GotoDefinitionResponse::Multiple(locations) => {
+                        self.set_quickfix_list(QuickfixList::new(
+                            locations.into_iter().map(QuickfixListItem::from).collect(),
+                        ))?
                     }
                 }
-                let content = match hover.contents {
-                    lsp_types::HoverContents::Scalar(marked_string) => {
-                        marked_string_to_string(marked_string)
-                    }
-                    lsp_types::HoverContents::Array(contents) => contents
-                        .into_iter()
-                        .map(marked_string_to_string)
-                        .collect::<Vec<_>>()
-                        .join("----------------\n\n"),
-                    lsp_types::HoverContents::Markup(content) => content.value,
-                };
-                self.show_info(content);
+
                 Ok(())
             }
             LspNotification::Completion(component_id, completion) => {
@@ -768,7 +756,7 @@ impl Screen {
         }
     }
 
-    fn to_quickfix_list_item(&mut self, direction: Direction) -> anyhow::Result<()> {
+    fn goto_quickfix_list_item(&mut self, direction: Direction) -> anyhow::Result<()> {
         if let Some(item) = self
             .quickfix_lists
             .current_mut()
@@ -780,15 +768,14 @@ impl Screen {
             .flatten()
             .cloned()
         {
-            if let Some(info) = item.info() {
-                self.show_info(info);
-            }
+            self.show_info(item.infos());
             self.go_to_location(item.location())?;
         }
         Ok(())
     }
 
-    fn show_info(&mut self, info: String) {
+    fn show_info(&mut self, contents: Vec<String>) {
+        let info = contents.join("\n===========\n");
         match &self.info_panel {
             None => {
                 let info_panel = Rc::new(RefCell::new(Editor::from_text(
@@ -812,7 +799,7 @@ impl Screen {
         self.main_panel = editor;
     }
 
-    fn to_editor(&mut self, direction: Direction) {
+    fn goto_opened_editor(&mut self, direction: Direction) {
         let editor = self
             .suggestive_editors
             .iter()
@@ -836,6 +823,36 @@ impl Screen {
             .editor_mut()
             .set_selection(location.range.clone());
         Ok(())
+    }
+
+    fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
+        match r#type {
+            QuickfixListType::LspDiagnostic => {
+                let quickfix_list = QuickfixList::new(
+                    self.diagnostics
+                        .iter()
+                        .flat_map(|(path, diagnostics)| {
+                            diagnostics.iter().map(|diagnostic| {
+                                QuickfixListItem::new(
+                                    Location {
+                                        path: path.clone(),
+                                        range: diagnostic.range.clone(),
+                                    },
+                                    vec![diagnostic.message()],
+                                )
+                            })
+                        })
+                        .collect(),
+                );
+
+                self.set_quickfix_list(quickfix_list)
+            }
+        }
+    }
+
+    fn set_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
+        self.quickfix_lists.push(quickfix_list);
+        self.goto_quickfix_list_item(Direction::Forward)
     }
 }
 
@@ -866,7 +883,7 @@ pub enum Dispatch {
         path: PathBuf,
     },
     ShowInfo {
-        content: String,
+        content: Vec<String>,
     },
     RequestCompletion {
         component_id: ComponentId,
@@ -874,6 +891,11 @@ pub enum Dispatch {
         position: Position,
     },
     RequestHover {
+        component_id: ComponentId,
+        path: PathBuf,
+        position: Position,
+    },
+    RequestDefinition {
         component_id: ComponentId,
         path: PathBuf,
         position: Position,
@@ -886,8 +908,8 @@ pub enum Dispatch {
         path: PathBuf,
     },
     SetQuickfixList(QuickfixListType),
-    NextQuickfixListItem,
-    PreviousQuickfixListItem,
+    GotoQuickfixListItem(Direction),
+    GotoOpenedEditor(Direction),
 }
 
 #[derive(Debug)]

@@ -69,6 +69,17 @@ impl LspManager {
         })
     }
 
+    pub fn request_definition(
+        &self,
+        component_id: ComponentId,
+        path: PathBuf,
+        position: Position,
+    ) -> anyhow::Result<()> {
+        self.invoke_channels(&path, "Failed to go to definition", |channel| {
+            channel.request_definition(component_id, &path, position)
+        })
+    }
+
     pub fn document_did_change(&self, path: PathBuf, content: String) -> anyhow::Result<()> {
         self.invoke_channels(&path, "Failed to notify document did change", |channel| {
             channel.document_did_change(&path, &content)

@@ -1,6 +1,7 @@
 use std::{
     cell::{Ref, RefCell},
     ops::Range,
+    path::PathBuf,
     rc::Rc,
 };
 
@@ -14,11 +15,10 @@ use tree_sitter::Node;
 
 use crate::{
     buffer::Buffer,
-    completion::PositionalEdit,
     components::component::Component,
-    diagnostic::Diagnostic,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
+    lsp::{completion::PositionalEdit, diagnostic::Diagnostic},
     position::Position,
     quickfix_list::QuickfixListType,
     rectangle::Rectangle,
@@ -406,7 +406,7 @@ impl Editor {
             .find_diagnostic(&self.selection_set.primary.range)
         {
             vec![Dispatch::ShowInfo {
-                content: diagnostic.message.clone(),
+                content: vec![diagnostic.message()],
             }]
         } else {
             vec![]
@@ -871,6 +871,16 @@ impl Editor {
             KeyCode::Char('e') => {
                 vec![Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic)]
             }
+            KeyCode::Char('d') => self
+                .path()
+                .map(|path| {
+                    vec![Dispatch::RequestDefinition {
+                        component_id: self.id(),
+                        path,
+                        position: self.get_cursor_position(),
+                    }]
+                })
+                .unwrap_or(vec![]),
             _ => vec![],
         };
 
@@ -891,11 +901,9 @@ impl Editor {
             KeyCode::Char('D') => return self.delete(Direction::Backward),
             KeyCode::Char('e') => return self.select_diagnostic(Direction::Forward),
             KeyCode::Char('E') => return self.select_diagnostic(Direction::Backward),
-            // E
             // f
             // F
             KeyCode::Char('g') => self.enter_g_mode(),
-            // G
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             // H
             KeyCode::Char('i') => self.enter_insert_mode(),
@@ -913,8 +921,8 @@ impl Editor {
             // O
             KeyCode::Char('p') => self.select_parent(Direction::Forward),
             KeyCode::Char('P') => self.select_parent(Direction::Backward),
-            KeyCode::Char('q') => return vec![Dispatch::NextQuickfixListItem],
-            KeyCode::Char('Q') => return vec![Dispatch::PreviousQuickfixListItem],
+            KeyCode::Char('q') => return vec![Dispatch::GotoQuickfixListItem(Direction::Forward)],
+            KeyCode::Char('Q') => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
             KeyCode::Char('r') => return self.replace(),
             // R
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
@@ -938,22 +946,32 @@ impl Editor {
             KeyCode::Enter => return self.open_new_line(),
             KeyCode::Char('?') => {
                 self.editor_mut().set_mode(Mode::Normal);
-                return match self.editor().buffer().path() {
-                    None => vec![],
-                    Some(path) => {
-                        vec![Dispatch::RequestHover {
-                            component_id: self.id(),
-                            path,
-                            position: self.get_cursor_position(),
-                        }]
-                    }
-                };
+                return self.request_hover();
             }
+            KeyCode::Char('[') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
+            KeyCode::Char(']') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
             _ => {
                 log::info!("event: {:?}", event);
             }
         };
         vec![]
+    }
+
+    fn path(&self) -> Option<PathBuf> {
+        self.editor().buffer().path()
+    }
+
+    fn request_hover(&self) -> Vec<Dispatch> {
+        match self.path() {
+            None => vec![],
+            Some(path) => {
+                vec![Dispatch::RequestHover {
+                    component_id: self.id(),
+                    path,
+                    position: self.get_cursor_position(),
+                }]
+            }
+        }
     }
 
     pub fn enter_insert_mode(&mut self) {
@@ -1518,7 +1536,7 @@ pub enum HandleEventResult {
 
 mod test_editor {
 
-    use crate::{components::editor::Mode, diagnostic::Diagnostic, position::Position};
+    use crate::{components::editor::Mode, lsp::diagnostic::Diagnostic, position::Position};
 
     use super::{Direction, Editor};
     use pretty_assertions::assert_eq;

@@ -1,8 +1,6 @@
 mod auto_key_map;
 mod buffer;
-mod completion;
 mod components;
-mod diagnostic;
 mod edit;
 mod grid;
 mod lsp;

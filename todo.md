@@ -35,8 +35,8 @@
 - [x] LSP completion pass in trigger characters, so that typing . or :: provides better completion in Rust
 - [x] LSP completion allow edit
 - [x] remove e, make px the same as pe
+- [x] LSP go to definition
 - [] LSP get references
-- [] LSP go to definition
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node

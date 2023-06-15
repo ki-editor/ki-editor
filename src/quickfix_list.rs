@@ -79,6 +79,15 @@ pub struct QuickfixListItem {
     infos: Vec<String>,
 }
 
+impl From<Location> for QuickfixListItem {
+    fn from(value: Location) -> Self {
+        QuickfixListItem {
+            location: value,
+            infos: vec![],
+        }
+    }
+}
+
 impl QuickfixListItem {
     pub fn new(location: Location, infos: Vec<String>) -> QuickfixListItem {
         QuickfixListItem { location, infos }
@@ -88,13 +97,8 @@ impl QuickfixListItem {
         &self.location
     }
 
-    pub fn info(&self) -> Option<String> {
-        let result = self.infos.join("\n\n");
-        if result.is_empty() {
-            None
-        } else {
-            Some(result)
-        }
+    pub fn infos(&self) -> Vec<String> {
+        self.infos.clone()
     }
 }
 
@@ -102,6 +106,20 @@ impl QuickfixListItem {
 pub struct Location {
     pub path: PathBuf,
     pub range: Range<Position>,
+}
+
+impl TryFrom<lsp_types::Location> for Location {
+    type Error = anyhow::Error;
+
+    fn try_from(value: lsp_types::Location) -> Result<Self, Self::Error> {
+        Ok(Location {
+            path: value
+                .uri
+                .to_file_path()
+                .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?,
+            range: value.range.start.into()..value.range.end.into(),
+        })
+    }
 }
 
 impl PartialOrd for Location {

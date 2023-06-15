@@ -4,7 +4,7 @@ use crossterm::event::{Event, KeyCode};
 
 use crate::{
     buffer::Buffer,
-    completion::{Completion, CompletionItem},
+    lsp::completion::{Completion, CompletionItem},
     position::Position,
     screen::Dispatch,
 };

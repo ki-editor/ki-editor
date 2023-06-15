@@ -3,8 +3,8 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 use crossterm::event::Event;
 
 use crate::{
-    diagnostic::Diagnostic,
     grid::Grid,
+    lsp::diagnostic::Diagnostic,
     position::Position,
     rectangle::Rectangle,
     screen::{Dispatch, State},
