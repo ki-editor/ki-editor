@@ -6,7 +6,7 @@ use lsp_types::request::Request;
 use lsp_types::*;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::PathBuf;
+
 use std::process::{self, Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
@@ -176,13 +176,13 @@ impl LspServerProcessChannel {
     pub fn document_did_change(
         &self,
         path: &CanonicalizedPath,
-        content: &String,
+        content: &str,
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidChange {
                 file_path: path.clone(),
                 version: 2,
-                content: content.clone(),
+                content: content.to_string(),
             },
         ))
     }
@@ -306,7 +306,7 @@ impl LspServerProcess {
                 reader.read_line(&mut line).unwrap();
 
                 let content_length = line
-                    .split(":")
+                    .split(':')
                     .nth(1)
                     .unwrap()
                     .trim()
@@ -543,7 +543,7 @@ impl LspServerProcess {
             position,
         }: RequestParams,
     ) -> anyhow::Result<()> {
-        let result = self.send_request::<lsp_request!("textDocument/completion")>(
+        self.send_request::<lsp_request!("textDocument/completion")>(
             component_id,
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
@@ -563,24 +563,19 @@ impl LspServerProcess {
                 },
                 context: None,
             },
-        )?;
-
-        log::info!("{:?}", result);
-        Ok(())
+        )
     }
 
     fn trigger_characters(&self) -> Vec<String> {
         self.server_capabilities
             .as_ref()
-            .map(|capabilities| {
+            .and_then(|capabilities| {
                 capabilities
                     .completion_provider
                     .as_ref()
-                    .map(|provider| provider.trigger_characters.clone())
+                    .and_then(|provider| provider.trigger_characters.clone())
             })
-            .flatten()
-            .flatten()
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_default()
     }
 
     pub fn shutdown(&mut self) -> anyhow::Result<()> {

@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::mpsc::Sender};
+use std::sync::mpsc::Sender;
 
 use crate::{canonicalized_path::CanonicalizedPath, screen::ScreenMessage};
 

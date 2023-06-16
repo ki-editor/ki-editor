@@ -1,4 +1,3 @@
-mod auto_key_map;
 mod buffer;
 mod canonicalized_path;
 mod components;
@@ -13,7 +12,7 @@ mod selection;
 mod terminal;
 mod utils;
 
-use std::path::Path;
+
 
 use canonicalized_path::CanonicalizedPath;
 use log::LevelFilter;

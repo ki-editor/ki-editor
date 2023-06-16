@@ -33,7 +33,7 @@ impl Buffer {
             tree: {
                 let mut parser = Parser::new();
                 parser.set_language(language).unwrap();
-                parser.parse(text.to_string(), None).unwrap()
+                parser.parse(text, None).unwrap()
             },
             undo_patches: Vec::new(),
             redo_patches: Vec::new(),
@@ -72,7 +72,7 @@ impl Buffer {
     fn get_rope_and_tree(language: tree_sitter::Language, text: &str) -> (Rope, Tree) {
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
-        let tree = parser.parse(text.to_string(), None).unwrap();
+        let tree = parser.parse(text, None).unwrap();
         (Rope::from_str(text), tree)
     }
 
@@ -214,7 +214,7 @@ impl Buffer {
             .into_iter()
             .fold(Ok(()), |result, edit| match result {
                 Err(err) => Err(err),
-                Ok(()) => self.apply_edit(&edit),
+                Ok(()) => self.apply_edit(edit),
             })?;
 
         let after = self.rope.to_string();
@@ -346,8 +346,8 @@ impl Buffer {
 
     pub fn find_diagnostic(&self, range: &Range<CharIndex>) -> Option<&Diagnostic> {
         self.diagnostics.iter().find(|diagnostic| {
-            let start = diagnostic.range.start.to_char_index(&self);
-            let end = diagnostic.range.end.to_char_index(&self);
+            let start = diagnostic.range.start.to_char_index(self);
+            let end = diagnostic.range.end.to_char_index(self);
 
             start == range.start && end == range.end
         })
@@ -366,8 +366,8 @@ impl Buffer {
         let mut iter = self.diagnostics.iter();
         match direction {
             Direction::Current => iter.find_map(|diagnostic| {
-                let start = diagnostic.range.start.to_char_index(&self);
-                let end = diagnostic.range.end.to_char_index(&self);
+                let start = diagnostic.range.start.to_char_index(self);
+                let end = diagnostic.range.end.to_char_index(self);
                 if start >= current_range.start {
                     Some(start..end)
                 } else {
@@ -375,8 +375,8 @@ impl Buffer {
                 }
             }),
             Direction::Forward => iter.find_map(|diagnostic| {
-                let start = diagnostic.range.start.to_char_index(&self);
-                let end = diagnostic.range.end.to_char_index(&self);
+                let start = diagnostic.range.start.to_char_index(self);
+                let end = diagnostic.range.end.to_char_index(self);
                 if start >= current_range.end {
                     Some(start..end)
                 } else {
@@ -387,12 +387,12 @@ impl Buffer {
                 iter,
                 |_, _| true,
                 |match_| {
-                    Position::from(match_.range.start).to_char_index(&self) >= current_range.start
+                    match_.range.start.to_char_index(self) >= current_range.start
                 },
             )
             .map(|item| {
-                Position::from(item.range.start).to_char_index(&self)
-                    ..Position::from(item.range.end).to_char_index(&self)
+                item.range.start.to_char_index(self)
+                    ..item.range.end.to_char_index(self)
             }),
         }
     }
@@ -402,7 +402,7 @@ impl Buffer {
     }
 
     pub fn get_char_at_position(&self, position: Position) -> Option<char> {
-        let char_index = position.to_char_index(&self).0;
+        let char_index = position.to_char_index(self).0;
         self.rope.get_char(char_index)
     }
 

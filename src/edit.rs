@@ -14,9 +14,9 @@ pub struct Edit {
 impl Edit {
     fn apply_offset(self, offset: isize) -> Edit {
         let start = if offset.is_positive() {
-            CharIndex(self.start.0.saturating_add(offset.abs() as usize))
+            CharIndex(self.start.0.saturating_add(offset.unsigned_abs()))
         } else {
-            CharIndex(self.start.0.saturating_sub(offset.abs() as usize))
+            CharIndex(self.start.0.saturating_sub(offset.unsigned_abs()))
         };
         Edit {
             start,

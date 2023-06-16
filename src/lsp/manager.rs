@@ -1,12 +1,9 @@
 use crate::{canonicalized_path::CanonicalizedPath, screen::RequestParams};
-use std::{collections::HashMap, path::PathBuf, sync::mpsc::Sender};
+use std::{collections::HashMap, sync::mpsc::Sender};
 
 use itertools::Itertools;
 
-use crate::{
-    components::component::ComponentId, lsp::language::get_languages, position::Position,
-    screen::ScreenMessage, utils::consolidate_errors,
-};
+use crate::{lsp::language::get_languages, screen::ScreenMessage, utils::consolidate_errors};
 
 use super::{language::Language, process::LspServerProcessChannel};
 
@@ -39,11 +36,11 @@ impl LspManager {
         error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        let languages = get_languages(&path);
+        let languages = get_languages(path);
         let results = languages
             .into_iter()
             .filter_map(|language| self.lsp_server_process_channels.get(&language))
-            .map(|channel| f(channel))
+            .map(f)
             .collect_vec();
         consolidate_errors(error, results)
     }

@@ -83,7 +83,7 @@ pub struct State {
 }
 impl State {
     pub fn last_search(&self) -> Option<String> {
-        self.previous_searches.last().map(|s| s.clone())
+        self.previous_searches.last().cloned()
     }
 }
 
@@ -245,19 +245,11 @@ impl Screen {
     }
 
     fn remove_current_component(&mut self) {
-        self.suggestive_editors = self
-            .suggestive_editors
-            .iter()
-            .filter(|c| c.borrow().id() != self.focused_component_id)
-            .cloned()
-            .collect();
+        self.suggestive_editors
+            .retain(|c| c.borrow().id() != self.focused_component_id);
 
-        self.prompts = self
-            .prompts
-            .iter()
-            .filter(|c| c.borrow().id() != self.focused_component_id)
-            .cloned()
-            .collect();
+        self.prompts
+            .retain(|c| c.borrow().id() != self.focused_component_id);
 
         self.main_panel = self
             .main_panel
@@ -310,8 +302,7 @@ impl Screen {
 
                 let path = component.editor().buffer().path();
                 let diagnostics = path
-                    .map(|path| self.diagnostics.get(&path))
-                    .flatten()
+                    .and_then(|path| self.diagnostics.get(&path))
                     .map(|diagnostics| diagnostics.as_slice())
                     .unwrap_or(&[]);
 
@@ -341,7 +332,7 @@ impl Screen {
                     component_grid,
                     rectangle.clone(),
                     cursor_point,
-                    component.title().to_string(),
+                    component.title(),
                 )
             })
             .fold(
@@ -361,7 +352,7 @@ impl Screen {
                             grid.update(&component_grid, &rectangle)
                                 // Set title
                                 .update(&title_grid, &title_rectangle),
-                            current_cursor_point.or_else(|| cursor_point),
+                            current_cursor_point.or(cursor_point),
                         )
                     }
                 },
@@ -393,7 +384,7 @@ impl Screen {
                 grid.to_position_cells()
             };
 
-            self.previous_grid = Some(grid.clone());
+            self.previous_grid = Some(grid);
 
             diff
         };
@@ -401,7 +392,7 @@ impl Screen {
         for cell in cells.into_iter() {
             queue!(
                 stdout,
-                MoveTo(cell.position.column as u16, cell.position.row as u16)
+                MoveTo(cell.position.column as u16, cell.position.line as u16)
             )?;
             queue!(
                 stdout,
@@ -510,7 +501,7 @@ impl Screen {
             .for_each(|(component, rectangle)| {
                 // Leave 1 row on top for rendering the title
                 let (_, rectangle) = rectangle.split_vertically_at(1);
-                component.borrow_mut().set_rectangle(rectangle.clone())
+                component.borrow_mut().set_rectangle(rectangle)
             });
     }
 
@@ -619,7 +610,7 @@ impl Screen {
                         .iter()
                         .min_by(|x, y| x.borrow().id().cmp(&y.borrow().id()))
                 },
-                |component| Some(component),
+                Some,
             )
         {
             self.focused_component_id = component.borrow().id()
@@ -642,7 +633,7 @@ impl Screen {
                 .unwrap_or(false)
         }) {
             self.set_main_panel(Some(matching_editor.clone()));
-            return Ok(matching_editor.clone());
+            return Ok(matching_editor);
         }
 
         let buffer = Rc::new(RefCell::new(Buffer::from_path(entry_path)?));
@@ -655,9 +646,9 @@ impl Screen {
         self.set_main_panel(Some(entry_component.clone()));
 
         self.update_component_diagnotics(
-            &entry_path,
+            entry_path,
             self.diagnostics
-                .get(&entry_path)
+                .get(entry_path)
                 .cloned()
                 .unwrap_or_default(),
         );
@@ -782,12 +773,11 @@ impl Screen {
         if let Some(item) = self
             .quickfix_lists
             .current_mut()
-            .map(|quickfix_list| match direction {
+            .and_then(|quickfix_list| match direction {
                 Direction::Current => quickfix_list.current_item(),
                 Direction::Forward => quickfix_list.next_item(),
                 Direction::Backward => quickfix_list.previous_item(),
             })
-            .flatten()
             .cloned()
         {
             self.show_info(item.infos());
@@ -804,14 +794,10 @@ impl Screen {
                     tree_sitter_md::language(),
                     &info,
                 )));
-                self.info_panel = Some(info_panel.clone());
+                self.info_panel = Some(info_panel);
             }
             Some(info_panel) => info_panel.borrow_mut().set_content(&info),
         }
-    }
-
-    fn current_buffer_path(&self) -> Option<CanonicalizedPath> {
-        self.current_component().borrow().editor().buffer().path()
     }
 
     fn set_main_panel(&mut self, editor: Option<Rc<RefCell<SuggestiveEditor>>>) {

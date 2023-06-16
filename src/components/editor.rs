@@ -2,7 +2,6 @@ use crate::{canonicalized_path::CanonicalizedPath, screen::RequestParams};
 use std::{
     cell::{Ref, RefCell},
     ops::Range,
-    path::PathBuf,
     rc::Rc,
 };
 
@@ -103,12 +102,12 @@ impl Component for Editor {
         let secondary_selections = &editor.selection_set.secondary;
 
         let diagnostics = diagnostics
-            .into_iter()
+            .iter()
             // Remove diagnostics that are out of bound
             .filter(|diagnostic| buffer.contains_position_range(&diagnostic.range))
             .map(|diagnostic| {
-                let start = buffer.position_to_char(Position::from(diagnostic.range.start));
-                let end = buffer.position_to_char(Position::from(diagnostic.range.end));
+                let start = buffer.position_to_char(diagnostic.range.start);
+                let end = buffer.position_to_char(diagnostic.range.end);
                 let end = if start == end { end + 1 } else { end };
                 let char_index_range = start..end;
                 (diagnostic, char_index_range)
@@ -186,7 +185,7 @@ impl Component for Editor {
             });
 
             let column = point.column as u16;
-            let line = (point.line as u16).saturating_sub(scroll_offset as u16);
+            let line = (point.line as u16).saturating_sub(scroll_offset);
 
             // Background color: Odd index red, even index blue
             let background_color = if index % 2 == 0 {
@@ -196,7 +195,7 @@ impl Component for Editor {
             };
 
             // If column and row is within view
-            if column < width as u16 && line < height as u16 {
+            if column < width && line < height {
                 grid.rows[line as usize][column as usize] = Cell {
                     symbol: jump.character.to_string(),
                     background_color,
@@ -251,11 +250,11 @@ impl Clone for Editor {
             selection_set: self.selection_set.clone(),
             cursor_direction: self.cursor_direction.clone(),
             selection_history: self.selection_history.clone(),
-            scroll_offset: self.scroll_offset.clone(),
+            scroll_offset: self.scroll_offset,
             rectangle: self.rectangle.clone(),
             buffer: self.buffer.clone(),
             title: self.title.clone(),
-            id: self.id.clone(),
+            id: self.id,
         }
     }
 }
@@ -461,7 +460,7 @@ impl Editor {
 
     fn cursor_row(&self) -> u16 {
         self.get_cursor_char_index()
-            .to_position(&self.buffer.borrow().rope())
+            .to_position(self.buffer.borrow().rope())
             .line as u16
     }
 
@@ -642,7 +641,7 @@ impl Editor {
             self.selection_set = SelectionSet {
                 primary: (*head).clone(),
                 secondary: tail
-                    .into_iter()
+                    .iter()
                     .map(|selection| (*selection).clone())
                     .collect(),
                 mode: self.selection_set.mode.clone(),
@@ -822,11 +821,11 @@ impl Editor {
     fn change(&mut self) {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let copied_text: Rope = self.buffer.borrow().slice(&selection.range).into();
+                let copied_text: Rope = self.buffer.borrow().slice(&selection.range);
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
                         start: selection.range.start,
-                        old: copied_text.clone(),
+                        old: copied_text,
                         new: Rope::new(),
                     }),
                     Action::Select(Selection {
@@ -1064,7 +1063,7 @@ impl Editor {
             &buffer,
             &current_selection,
             selection_mode,
-            &direction,
+            direction,
             &self.cursor_direction,
         );
 
@@ -1101,7 +1100,7 @@ impl Editor {
                 &buffer,
                 &next_selection,
                 selection_mode,
-                &direction,
+                direction,
                 &self.cursor_direction,
             );
 
@@ -1146,7 +1145,7 @@ impl Editor {
                         new: Rope::from_str(
                             &(" ".to_string()
                                 + &text_at_current_selection.to_string()
-                                + &" ".to_string()),
+                                + " "),
                         ),
                     })]),
                 ])
@@ -1186,8 +1185,8 @@ impl Editor {
 
         let edit_transactions = self.selection_set.map(|selection| {
             self.get_valid_selection(
-                &selection,
-                &selection_mode,
+                selection,
+                selection_mode,
                 &direction,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
@@ -1270,8 +1269,7 @@ impl Editor {
         self.scroll_offset = if scroll_height.is_positive() {
             self.scroll_offset.saturating_add(scroll_height as u16)
         } else {
-            self.scroll_offset
-                .saturating_sub(scroll_height.abs() as u16)
+            self.scroll_offset.saturating_sub(scroll_height as u16)
         };
     }
 
@@ -1316,7 +1314,7 @@ impl Editor {
 
                     // Add whitespace padding
                     let new: Rope =
-                        format!(" {} ", buffer.slice(&current_selection.range).to_string()).into();
+                        format!(" {} ", buffer.slice(&current_selection.range)).into();
 
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
                         Edit {
@@ -1350,7 +1348,7 @@ impl Editor {
                     ])])
                 };
             self.get_valid_selection(
-                &selection,
+                selection,
                 &mode,
                 &direction,
                 get_trial_edit_transaction,
@@ -1373,8 +1371,7 @@ impl Editor {
                         ..current_selection.range.end.max(other_selection.range.end);
 
                     // Add whitespace padding
-                    let new: Rope =
-                        format!(" {} ", buffer.slice(&current_selection.range).to_string()).into();
+                    let new: Rope = format!(" {} ", buffer.slice(&current_selection.range)).into();
 
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
                         Edit {
@@ -1408,7 +1405,7 @@ impl Editor {
                     ])])
                 };
             self.get_valid_selection(
-                &selection,
+                selection,
                 &SelectionMode::ParentNode,
                 &direction,
                 get_trial_edit_transaction,
@@ -1423,7 +1420,7 @@ impl Editor {
     }
 
     fn update_buffer(&mut self, s: &str) {
-        self.buffer.borrow_mut().update(&s)
+        self.buffer.borrow_mut().update(s)
     }
     fn select_view(&mut self, direction: Direction) {
         self.scroll_offset = match direction {

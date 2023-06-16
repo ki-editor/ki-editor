@@ -62,7 +62,7 @@ pub trait Component: Any + AnyComponent {
     ) -> Vec<Rc<RefCell<dyn Component>>> {
         components
             .into_iter()
-            .filter_map(|component| component)
+            .flatten()
             .flat_map(|component| {
                 component
                     .clone()

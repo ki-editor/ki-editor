@@ -1,4 +1,4 @@
-use std::{ops::Range, path::PathBuf};
+use std::ops::Range;
 
 use itertools::Itertools;
 
@@ -134,8 +134,7 @@ impl PartialOrd for Location {
 
 impl Ord for Location {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other)
-            .unwrap_or_else(|| std::cmp::Ordering::Equal)
+        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -155,21 +154,21 @@ mod test_quickfix_list {
     fn should_sort_items() {
         let foo = QuickfixListItem {
             location: Location {
-                path: "a".try_into().unwrap(),
+                path: ".gitignore".try_into().unwrap(),
                 range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
             },
             infos: vec![],
         };
         let bar = QuickfixListItem {
             location: Location {
-                path: "b".try_into().unwrap(),
+                path: "readme.md".try_into().unwrap(),
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
             infos: vec![],
         };
         let spam = QuickfixListItem {
             location: Location {
-                path: "a".try_into().unwrap(),
+                path: ".gitignore".try_into().unwrap(),
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
             infos: vec![],
@@ -184,14 +183,14 @@ mod test_quickfix_list {
         let items = vec![
             QuickfixListItem {
                 location: Location {
-                    path: "a".try_into().unwrap(),
+                    path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 infos: vec!["spongebob".to_string()],
             },
             QuickfixListItem {
                 location: Location {
-                    path: "a".try_into().unwrap(),
+                    path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 infos: vec!["squarepants".to_string()],
@@ -204,7 +203,7 @@ mod test_quickfix_list {
             quickfix_list.items,
             vec![QuickfixListItem {
                 location: Location {
-                    path: "a".try_into().unwrap(),
+                    path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 infos: vec!["spongebob".to_string(), "squarepants".to_string()],

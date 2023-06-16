@@ -37,7 +37,7 @@ impl CanonicalizedPath {
     }
 
     pub fn extension(&self) -> Option<&str> {
-        self.0.extension().map(|s| s.to_str()).flatten()
+        self.0.extension().and_then(|s| s.to_str())
     }
 
     /// Get the relative path of this file from the current working directory.

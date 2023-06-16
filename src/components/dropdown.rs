@@ -165,6 +165,7 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
     }
 }
 
+#[cfg(test)]
 mod test_dropdown {
     use crate::{
         components::dropdown::{Dropdown, DropdownConfig, DropdownItem},

@@ -151,7 +151,7 @@ impl Rectangle {
     pub fn move_up(&self, offset: usize) -> Rectangle {
         Rectangle {
             origin: Point {
-                row: self.origin.row - offset as usize,
+                row: self.origin.row - offset,
                 ..self.origin
             },
             ..*self

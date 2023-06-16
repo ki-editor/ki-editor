@@ -33,8 +33,7 @@ impl PartialOrd for CompletionItem {
 
 impl Ord for CompletionItem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other)
-            .unwrap_or_else(|| std::cmp::Ordering::Equal)
+        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -57,16 +56,13 @@ impl From<lsp_types::CompletionItem> for CompletionItem {
                 lsp_types::Documentation::MarkupContent(content) => content.value,
             }),
             sort_text: item.sort_text,
-            edit: item
-                .text_edit
-                .map(|edit| match edit {
-                    lsp_types::CompletionTextEdit::Edit(edit) => Some(PositionalEdit {
-                        range: edit.range.start.into()..edit.range.end.into(),
-                        new_text: edit.new_text,
-                    }),
-                    lsp_types::CompletionTextEdit::InsertAndReplace(_) => None,
-                })
-                .flatten(),
+            edit: item.text_edit.and_then(|edit| match edit {
+                lsp_types::CompletionTextEdit::Edit(edit) => Some(PositionalEdit {
+                    range: edit.range.start.into()..edit.range.end.into(),
+                    new_text: edit.new_text,
+                }),
+                lsp_types::CompletionTextEdit::InsertAndReplace(_) => None,
+            }),
         }
     }
 }

@@ -2,7 +2,7 @@ use std::ops::{Add, Range, Sub};
 
 use regex::Regex;
 use ropey::Rope;
-use tree_sitter::{Node, Point};
+use tree_sitter::Node;
 use tree_sitter_traversal::Order;
 
 use crate::{
@@ -330,7 +330,7 @@ impl Selection {
                 get_selection_via_regex(
                     buffer,
                     cursor_byte,
-                    &regex,
+                    regex,
                     direction,
                     current_selection,
                     copied_text,
@@ -481,7 +481,7 @@ fn get_selection_via_regex(
     current_selection: &Selection,
     copied_text: Option<Rope>,
 ) -> Selection {
-    let regex = Regex::new(&regex);
+    let regex = Regex::new(regex);
     let regex = match regex {
         Err(_) => return current_selection.clone(),
         Ok(regex) => regex,
@@ -572,7 +572,7 @@ impl CharIndex {
         if change.is_positive() {
             *self + (change as usize)
         } else {
-            *self - (change.abs() as usize)
+            *self - change.unsigned_abs()
         }
     }
 }

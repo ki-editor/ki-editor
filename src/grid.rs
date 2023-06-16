@@ -1,7 +1,7 @@
 use crossterm::style::Color;
-use tree_sitter::Point;
 
 use crate::{
+    position::Position,
     rectangle::{Border, BorderDirection, Rectangle},
     screen::Dimension,
 };
@@ -45,7 +45,7 @@ impl Default for Cell {
 #[derive(Debug, PartialEq, Eq)]
 pub struct PositionedCell {
     pub cell: Cell,
-    pub position: Point,
+    pub position: Position,
 }
 
 impl Grid {
@@ -57,8 +57,7 @@ impl Grid {
                 match self
                     .rows
                     .get(row_index)
-                    .map(|old_row| old_row.get(column_index))
-                    .flatten()
+                    .and_then(|old_row| old_row.get(column_index))
                 {
                     Some(old_cell) if new_cell == old_cell => {
                         // Do nothing
@@ -66,7 +65,10 @@ impl Grid {
                     // Otherwise
                     _ => cells.push(PositionedCell {
                         cell: new_cell.clone(),
-                        position: Point::new(row_index as usize, column_index as usize),
+                        position: Position {
+                            line: row_index,
+                            column: column_index,
+                        },
                     }),
                 }
             }
@@ -78,7 +80,7 @@ impl Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
         cells.resize_with(dimension.height.into(), || {
             let mut cells = vec![];
-            cells.resize_with(dimension.width.into(), || Cell::default());
+            cells.resize_with(dimension.width.into(), Cell::default);
             cells
         });
         Grid { rows: cells }
@@ -90,7 +92,10 @@ impl Grid {
             for (column_index, cell) in row.iter().enumerate() {
                 cells.push(PositionedCell {
                     cell: cell.clone(),
-                    position: Point::new(row_index as usize, column_index as usize),
+                    position: Position {
+                        line: row_index,
+                        column: column_index,
+                    },
                 })
             }
         }
@@ -188,12 +193,12 @@ pub struct Style {
 
 #[cfg(test)]
 mod test_grid {
-    use tree_sitter::Point;
 
     use pretty_assertions::assert_eq;
 
     use crate::{
         grid::{Cell, Grid, PositionedCell},
+        position::Position,
         screen::Dimension,
     };
 
@@ -208,19 +213,19 @@ mod test_grid {
         let actual = old.diff(&new);
         let expected = vec![
             PositionedCell {
-                position: Point { row: 0, column: 0 },
+                position: Position { line: 0, column: 0 },
                 cell: Cell::from_char('b'),
             },
             PositionedCell {
-                position: Point { row: 0, column: 1 },
+                position: Position { line: 0, column: 1 },
                 cell: Cell::from_char('c'),
             },
             PositionedCell {
-                position: Point { row: 1, column: 0 },
+                position: Position { line: 1, column: 0 },
                 cell: Cell::from_char(' '),
             },
             PositionedCell {
-                position: Point { row: 1, column: 1 },
+                position: Position { line: 1, column: 1 },
                 cell: Cell::from_char(' '),
             },
         ];

@@ -174,8 +174,7 @@ impl SuggestiveEditor {
     pub fn current_item(&mut self) -> Option<CompletionItem> {
         self.dropdown
             .as_ref()
-            .map(|dropdown| dropdown.borrow_mut().current_item())
-            .flatten()
+            .and_then(|dropdown| dropdown.borrow_mut().current_item())
     }
 
     pub fn dropdown_opened(&self) -> bool {

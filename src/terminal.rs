@@ -1,6 +1,6 @@
 use portable_pty::{native_pty_system, PtySize};
 use std::io::{Read, Write};
-use vt100::Parser;
+
 
 pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error> {
     crossterm::terminal::enable_raw_mode()?;
@@ -69,8 +69,8 @@ pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error
             let (row, column) = parser.screen().cursor_position();
 
             // Apply the offset to the cursor position
-            let new_line = row + row_offset;
-            let new_col = column + column_offset;
+            let _new_line = row + row_offset;
+            let _new_col = column + column_offset;
 
             // Set the new cursor position
             // parser
@@ -82,7 +82,7 @@ pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error
 
             // Print the output
             // print!("{}", output);
-            write!(std::io::stdout(), "{}", output).unwrap();
+            print!("{}", output);
 
             // Flush the standard output
             std::io::stdout().flush().unwrap();

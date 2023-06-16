@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crossterm::event::{Event, KeyCode, KeyModifiers};
+use crossterm::event::{Event, KeyCode};
 use itertools::Itertools;
 
 use crate::{
@@ -10,9 +10,8 @@ use crate::{
 };
 
 use super::{
-    component::{Component, ComponentId},
-    dropdown::{Dropdown, DropdownConfig},
-    editor::{Direction, Editor, Mode},
+    component::Component,
+    editor::{Editor, Mode},
     suggestive_editor::SuggestiveEditor,
 };
 
@@ -118,7 +117,7 @@ impl Component for Prompt {
             _ => {}
         };
 
-        let dispatches = self.editor.handle_event(state, event.clone())?;
+        let dispatches = self.editor.handle_event(state, event)?;
 
         let current_text = self
             .editor()
