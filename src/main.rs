@@ -1,5 +1,6 @@
 mod auto_key_map;
 mod buffer;
+mod canonicalized_path;
 mod components;
 mod edit;
 mod grid;
@@ -14,6 +15,7 @@ mod utils;
 
 use std::path::Path;
 
+use canonicalized_path::CanonicalizedPath;
 use log::LevelFilter;
 
 use screen::Screen;
@@ -33,9 +35,9 @@ fn run() -> anyhow::Result<()> {
 
     let default_path = "./src/main.rs".to_string();
 
-    let path = Path::new(args.get(1).unwrap_or(&default_path));
+    let path = CanonicalizedPath::try_from(args.get(1).unwrap_or(&default_path)).unwrap();
 
     let mut screen = Screen::new()?;
-    screen.run(&path.to_path_buf()).unwrap();
+    screen.run(&path).unwrap();
     Ok(())
 }

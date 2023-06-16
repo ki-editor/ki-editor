@@ -1,4 +1,4 @@
-use crate::screen::RequestParams;
+use crate::{canonicalized_path::CanonicalizedPath, screen::RequestParams};
 use std::{collections::HashMap, path::PathBuf, sync::mpsc::Sender};
 
 use itertools::Itertools;
@@ -35,7 +35,7 @@ impl LspManager {
 
     fn invoke_channels(
         &self,
-        path: &PathBuf,
+        path: &CanonicalizedPath,
         error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
@@ -72,13 +72,17 @@ impl LspManager {
         })
     }
 
-    pub fn document_did_change(&self, path: PathBuf, content: String) -> anyhow::Result<()> {
+    pub fn document_did_change(
+        &self,
+        path: CanonicalizedPath,
+        content: String,
+    ) -> anyhow::Result<()> {
         self.invoke_channels(&path, "Failed to notify document did change", |channel| {
             channel.document_did_change(&path, &content)
         })
     }
 
-    pub fn document_did_save(&self, path: PathBuf) -> anyhow::Result<()> {
+    pub fn document_did_save(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.invoke_channels(&path, "Failed to notify document did save", |channel| {
             channel.document_did_save(&path)
         })
@@ -88,7 +92,7 @@ impl LspManager {
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
-    pub fn open_file(&mut self, path: PathBuf) -> Result<(), anyhow::Error> {
+    pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let languages = get_languages(&path);
 
         consolidate_errors(
@@ -112,7 +116,7 @@ impl LspManager {
         )
     }
 
-    pub fn initialized(&mut self, language: Language, opened_documents: Vec<PathBuf>) {
+    pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
         self.lsp_server_process_channels
             .get_mut(&language)
             .map(|channel| {

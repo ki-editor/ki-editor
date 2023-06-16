@@ -1,3 +1,4 @@
+use crate::canonicalized_path::CanonicalizedPath;
 use crate::position::Position;
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
@@ -28,7 +29,7 @@ struct LspServerProcess {
     stdout: Option<process::ChildStdout>,
 
     server_capabilities: Option<ServerCapabilities>,
-    current_working_directory: PathBuf,
+    current_working_directory: CanonicalizedPath,
     next_request_id: RequestId,
     pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
     screen_message_sender: Sender<ScreenMessage>,
@@ -77,19 +78,19 @@ enum FromEditor {
     RequestDefinition(RequestParams),
     RequestReferences(RequestParams),
     TextDocumentDidOpen {
-        file_path: PathBuf,
+        file_path: CanonicalizedPath,
         language_id: String,
         version: usize,
         content: String,
     },
     Shutdown,
     TextDocumentDidChange {
-        file_path: PathBuf,
+        file_path: CanonicalizedPath,
         version: i32,
         content: String,
     },
     TextDocumentDidSave {
-        file_path: PathBuf,
+        file_path: CanonicalizedPath,
     },
 }
 
@@ -147,7 +148,10 @@ impl LspServerProcessChannel {
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
     }
 
-    pub fn documents_did_open(&mut self, paths: Vec<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn documents_did_open(
+        &mut self,
+        paths: Vec<CanonicalizedPath>,
+    ) -> Result<(), anyhow::Error> {
         consolidate_errors(
             "[documents_did_open]",
             paths
@@ -157,8 +161,8 @@ impl LspServerProcessChannel {
         )
     }
 
-    pub fn document_did_open(&self, path: PathBuf) -> Result<(), anyhow::Error> {
-        let content = std::fs::read_to_string(&path)?;
+    pub fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+        let content = path.read()?;
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidOpen {
                 file_path: path,
@@ -171,7 +175,7 @@ impl LspServerProcessChannel {
 
     pub fn document_did_change(
         &self,
-        path: &PathBuf,
+        path: &CanonicalizedPath,
         content: &String,
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
@@ -190,7 +194,7 @@ impl LspServerProcessChannel {
         self.is_initialized = true
     }
 
-    pub fn document_did_save(&self, path: &PathBuf) -> Result<(), anyhow::Error> {
+    pub fn document_did_save(&self, path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidSave {
                 file_path: path.clone(),
@@ -228,7 +232,7 @@ impl LspServerProcess {
             language,
             stdin,
             stdout: Some(stdout),
-            current_working_directory: std::env::current_dir()?.canonicalize()?,
+            current_working_directory: std::env::current_dir()?.try_into()?,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
             server_capabilities: None,
@@ -652,7 +656,7 @@ impl LspServerProcess {
 
     fn text_document_did_open(
         &mut self,
-        file_path: PathBuf,
+        file_path: CanonicalizedPath,
         language_id: String,
         version: usize,
         content: String,
@@ -671,7 +675,7 @@ impl LspServerProcess {
 
     fn text_document_did_change(
         &mut self,
-        file_path: PathBuf,
+        file_path: CanonicalizedPath,
         version: i32,
         content: String,
     ) -> Result<(), anyhow::Error> {
@@ -690,7 +694,10 @@ impl LspServerProcess {
         )
     }
 
-    fn text_document_did_save(&mut self, file_path: PathBuf) -> Result<(), anyhow::Error> {
+    fn text_document_did_save(
+        &mut self,
+        file_path: CanonicalizedPath,
+    ) -> Result<(), anyhow::Error> {
         self.send_notification::<lsp_notification!("textDocument/didSave")>(
             DidSaveTextDocumentParams {
                 text_document: path_buf_to_text_document_identifier(file_path)?,
@@ -767,15 +774,12 @@ impl LspServerProcess {
     }
 }
 
-fn path_buf_to_url(path: PathBuf) -> Result<Url, anyhow::Error> {
-    Ok(Url::parse(&format!(
-        "file://{}",
-        path.canonicalize()?.display()
-    ))?)
+fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
+    Ok(Url::parse(&format!("file://{}", path.display()))?)
 }
 
 fn path_buf_to_text_document_identifier(
-    path: PathBuf,
+    path: CanonicalizedPath,
 ) -> Result<TextDocumentIdentifier, anyhow::Error> {
     Ok(TextDocumentIdentifier {
         uri: path_buf_to_url(path)?,

@@ -13,8 +13,13 @@ pub struct Edit {
 }
 impl Edit {
     fn apply_offset(self, offset: isize) -> Edit {
+        let start = if offset.is_positive() {
+            CharIndex(self.start.0.saturating_add(offset.abs() as usize))
+        } else {
+            CharIndex(self.start.0.saturating_sub(offset.abs() as usize))
+        };
         Edit {
-            start: CharIndex((self.start.0 as isize + offset) as usize),
+            start,
             old: self.old,
             new: self.new,
         }

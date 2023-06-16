@@ -1,4 +1,4 @@
-use crate::screen::RequestParams;
+use crate::{canonicalized_path::CanonicalizedPath, screen::RequestParams};
 use std::{
     cell::{Ref, RefCell},
     ops::Range,
@@ -318,8 +318,9 @@ impl Editor {
         let title = buffer
             .borrow()
             .path()
-            .map(|path| path.to_string_lossy().to_string())
-            .unwrap_or_else(|| "[Untitled]".to_string());
+            .map(|path| path.display_relative())
+            .unwrap_or_else(|| Ok("<Untitled>".to_string()))
+            .unwrap_or_else(|_| "<Untitled>".to_string());
         Self {
             selection_set: SelectionSet {
                 primary: Selection {
@@ -752,7 +753,7 @@ impl Editor {
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
-                let dispatches = if let Some(path) = self.buffer.borrow().save() {
+                let dispatches = if let Some(path) = self.buffer.borrow().save().unwrap() {
                     vec![Dispatch::DocumentDidSave { path }]
                 } else {
                     vec![]
@@ -975,7 +976,7 @@ impl Editor {
         vec![]
     }
 
-    fn path(&self) -> Option<PathBuf> {
+    fn path(&self) -> Option<CanonicalizedPath> {
         self.editor().buffer().path()
     }
 
@@ -1124,6 +1125,7 @@ impl Editor {
             |current_selection: &Selection, next_selection: &Selection| {
                 let current_selection_range = current_selection.extended_range();
                 let text_at_current_selection = buffer.slice(&current_selection_range);
+
                 EditTransaction::from_action_groups(vec![
                     ActionGroup::new(vec![Action::Edit(Edit {
                         start: current_selection_range.start,
@@ -1174,7 +1176,9 @@ impl Editor {
                                 ..(next_selection.range.start
                                     + text_at_current_selection.len_chars()),
                             copied_text: current_selection.copied_text.clone(),
-                            initial_range: None,
+
+                            // TODO: fix this, the initial_range should be updated as well
+                            initial_range: current_selection.initial_range.clone(),
                         }),
                     ]),
                 ])
@@ -2275,7 +2279,7 @@ fn main() {
     }
 
     #[test]
-    fn highlight_mode_exchange() {
+    fn highlight_mode_exchange_word() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         editor.select_word(Direction::Forward);
         editor.toggle_highlight_mode();
@@ -2291,6 +2295,37 @@ fn main() {
         editor.exchange(Direction::Forward);
 
         assert_eq!(editor.get_text(), "let(){ x fn f = S(a); let y = S(b); }");
+    }
+
+    #[test]
+    fn highlight_mode_exchange_sibling() {
+        let mut editor = Editor::from_text(language(), "fn f(){} fn g(){} fn h(){} fn i(){}");
+
+        // select `fn f(){}`
+        editor.select_token(Direction::Forward);
+        editor.select_parent(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn f(){}"]);
+
+        editor.toggle_highlight_mode();
+        editor.select_sibling(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn f(){} fn g(){}"]);
+
+        editor.exchange(Direction::Forward);
+
+        assert_eq!(editor.get_text(), "fn h(){} fn f(){} fn g(){} fn i(){}");
+
+        editor.select_sibling(Direction::Forward);
+
+        assert_eq!(
+            editor.get_selected_texts(),
+            vec!["fn f(){} fn g(){} fn i(){}"]
+        );
+
+        editor.exchange(Direction::Forward);
+
+        assert_eq!(editor.get_text(), "fn h(){} fn i(){} fn f(){} fn g(){}");
     }
 
     #[test]

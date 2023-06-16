@@ -2,7 +2,7 @@ use std::{ops::Range, path::PathBuf};
 
 use itertools::Itertools;
 
-use crate::position::Position;
+use crate::{canonicalized_path::CanonicalizedPath, position::Position};
 
 pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
@@ -104,7 +104,7 @@ impl QuickfixListItem {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Location {
-    pub path: PathBuf,
+    pub path: CanonicalizedPath,
     pub range: Range<Position>,
 }
 
@@ -116,7 +116,8 @@ impl TryFrom<lsp_types::Location> for Location {
             path: value
                 .uri
                 .to_file_path()
-                .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?,
+                .map_err(|_| anyhow::anyhow!("Failed to convert uri to file path"))?
+                .try_into()?,
             range: value.range.start.into()..value.range.end.into(),
         })
     }
@@ -154,21 +155,21 @@ mod test_quickfix_list {
     fn should_sort_items() {
         let foo = QuickfixListItem {
             location: Location {
-                path: "a".into(),
+                path: "a".try_into().unwrap(),
                 range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
             },
             infos: vec![],
         };
         let bar = QuickfixListItem {
             location: Location {
-                path: "b".into(),
+                path: "b".try_into().unwrap(),
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
             infos: vec![],
         };
         let spam = QuickfixListItem {
             location: Location {
-                path: "a".into(),
+                path: "a".try_into().unwrap(),
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
             infos: vec![],
@@ -183,14 +184,14 @@ mod test_quickfix_list {
         let items = vec![
             QuickfixListItem {
                 location: Location {
-                    path: "a".into(),
+                    path: "a".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 infos: vec!["spongebob".to_string()],
             },
             QuickfixListItem {
                 location: Location {
-                    path: "a".into(),
+                    path: "a".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 infos: vec!["squarepants".to_string()],
@@ -203,7 +204,7 @@ mod test_quickfix_list {
             quickfix_list.items,
             vec![QuickfixListItem {
                 location: Location {
-                    path: "a".into(),
+                    path: "a".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 infos: vec!["spongebob".to_string(), "squarepants".to_string()],

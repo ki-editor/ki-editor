@@ -28,7 +28,7 @@ type OnEnter = Box<
     dyn Fn(
         /* current_suggestion */ &str,
         /*owner*/ Rc<RefCell<dyn Component>>,
-    ) -> Vec<Dispatch>,
+    ) -> anyhow::Result<Vec<Dispatch>>,
 >;
 
 type OnTextChange = Box<
@@ -105,7 +105,7 @@ impl Component for Prompt {
                     } else {
                         self.text.clone()
                     };
-                    let dispatches = (self.on_enter)(&current_item, self.owner.clone());
+                    let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
                     return Ok(vec![Dispatch::CloseCurrentWindow {
                         change_focused_to: self.owner.borrow().id(),
                     }]

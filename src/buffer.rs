@@ -1,4 +1,5 @@
 use crate::{
+    canonicalized_path::CanonicalizedPath,
     components::editor::Direction,
     edit::{Edit, EditTransaction},
     lsp::diagnostic::Diagnostic,
@@ -9,10 +10,7 @@ use crate::{
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use std::{
-    ops::Range,
-    path::{Path, PathBuf},
-};
+use std::ops::Range;
 use tree_sitter::{InputEdit, Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -23,7 +21,7 @@ pub struct Buffer {
     language: tree_sitter::Language,
     undo_patches: Vec<Patch>,
     redo_patches: Vec<Patch>,
-    path: Option<PathBuf>,
+    path: Option<CanonicalizedPath>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -44,7 +42,7 @@ impl Buffer {
         }
     }
 
-    pub fn path(&self) -> Option<PathBuf> {
+    pub fn path(&self) -> Option<CanonicalizedPath> {
         self.path.clone()
     }
 
@@ -318,9 +316,9 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: &Path) -> anyhow::Result<Buffer> {
-        let content = std::fs::read_to_string(path)?;
-        let language = match path.extension().unwrap().to_str().unwrap() {
+    pub fn from_path(path: &CanonicalizedPath) -> anyhow::Result<Buffer> {
+        let content = path.read()?;
+        let language = match path.extension().unwrap_or_default() {
             "js" | "jsx" => tree_sitter_javascript::language(),
             "ts" => tree_sitter_typescript::language_typescript(),
             "tsx" => tree_sitter_typescript::language_tsx(),
@@ -332,17 +330,17 @@ impl Buffer {
         };
 
         let mut buffer = Buffer::new(language, &content);
-        buffer.path = Some(path.canonicalize()?.to_path_buf());
+        buffer.path = Some(path.clone());
         Ok(buffer)
     }
 
-    pub fn save(&self) -> Option<PathBuf> {
+    pub fn save(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
         if let Some(path) = &self.path {
-            std::fs::write(path, self.rope.to_string()).unwrap();
-            Some(path.clone())
+            path.write(&self.rope.to_string())?;
+            Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
-            None
+            Ok(None)
         }
     }
 

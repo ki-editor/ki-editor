@@ -4,7 +4,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     io::stdout,
-    path::{Path, PathBuf},
+    path::Path,
     rc::Rc,
     sync::mpsc::{Receiver, Sender},
 };
@@ -21,6 +21,7 @@ use tree_sitter::Point;
 
 use crate::{
     buffer::Buffer,
+    canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId},
         editor::Direction,
@@ -64,7 +65,7 @@ pub struct Screen {
     /// Saved for populating completions
     suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
 
-    diagnostics: HashMap<PathBuf, Vec<Diagnostic>>,
+    diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
 
     quickfix_lists: QuickfixLists,
 
@@ -115,7 +116,7 @@ impl Screen {
         Ok(screen)
     }
 
-    pub fn run(&mut self, entry_path: &PathBuf) -> Result<(), anyhow::Error> {
+    pub fn run(&mut self, entry_path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
         self.open_file(entry_path)?;
 
         let mut stdout = stdout();
@@ -524,9 +525,9 @@ impl Screen {
                     .borrow_mut()
                     .editor_mut()
                     .select_match(Direction::Forward, &Some(text.to_string()));
-                vec![Dispatch::SetSearch {
+                Ok(vec![Dispatch::SetSearch {
                     search: text.to_string(),
-                }]
+                }])
             }),
             on_text_change: Box::new(|current_text, owner| {
                 owner
@@ -560,9 +561,9 @@ impl Screen {
             owner: current_component,
             on_enter: Box::new(|current_item, _| {
                 log::info!("Opening file: {}", current_item);
-                vec![Dispatch::OpenFile {
-                    path: Path::new(current_item).to_path_buf(),
-                }]
+                Ok(vec![Dispatch::OpenFile {
+                    path: CanonicalizedPath::try_from(current_item)?,
+                }])
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             items: {
@@ -625,7 +626,10 @@ impl Screen {
         }
     }
 
-    fn open_file(&mut self, entry_path: &PathBuf) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
+    fn open_file(
+        &mut self,
+        entry_path: &CanonicalizedPath,
+    ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
         if let Some(matching_editor) = self.suggestive_editors.iter().cloned().find(|component| {
@@ -641,7 +645,7 @@ impl Screen {
             return Ok(matching_editor.clone());
         }
 
-        let buffer = Rc::new(RefCell::new(Buffer::from_path(&entry_path)?));
+        let buffer = Rc::new(RefCell::new(Buffer::from_path(entry_path)?));
         self.buffers.push(buffer.clone());
         let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
 
@@ -653,7 +657,7 @@ impl Screen {
         self.update_component_diagnotics(
             &entry_path,
             self.diagnostics
-                .get(entry_path)
+                .get(&entry_path)
                 .cloned()
                 .unwrap_or_default(),
         );
@@ -728,9 +732,13 @@ impl Screen {
             LspNotification::PublishDiagnostics(params) => {
                 log::info!("Received diagnostics");
                 self.update_diagnostics(
-                    params.uri.to_file_path().map_err(|err| {
-                        anyhow::anyhow!("Couldn't convert URI to file path: {:?}", err)
-                    })?,
+                    params
+                        .uri
+                        .to_file_path()
+                        .map_err(|err| {
+                            anyhow::anyhow!("Couldn't convert URI to file path: {:?}", err)
+                        })?
+                        .try_into()?,
                     params
                         .diagnostics
                         .into_iter()
@@ -742,12 +750,12 @@ impl Screen {
         }
     }
 
-    fn update_diagnostics(&mut self, path: PathBuf, diagnostics: Vec<Diagnostic>) {
+    fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
         self.update_component_diagnotics(&path, diagnostics.clone());
         self.diagnostics.insert(path, diagnostics);
     }
 
-    fn update_component_diagnotics(&self, path: &PathBuf, diagnostics: Vec<Diagnostic>) {
+    fn update_component_diagnotics(&self, path: &CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
         let component = self
             .components()
             .iter()
@@ -802,7 +810,7 @@ impl Screen {
         }
     }
 
-    fn current_buffer_path(&self) -> Option<PathBuf> {
+    fn current_buffer_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().editor().buffer().path()
     }
 
@@ -887,16 +895,29 @@ fn reveal(s: String) -> String {
 #[derive(Clone, Debug)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
-    CloseCurrentWindow { change_focused_to: ComponentId },
-    SetSearch { search: String },
-    OpenFile { path: PathBuf },
-    ShowInfo { content: Vec<String> },
+    CloseCurrentWindow {
+        change_focused_to: ComponentId,
+    },
+    SetSearch {
+        search: String,
+    },
+    OpenFile {
+        path: CanonicalizedPath,
+    },
+    ShowInfo {
+        content: Vec<String>,
+    },
     RequestCompletion(RequestParams),
     RequestHover(RequestParams),
     RequestDefinition(RequestParams),
     RequestReferences(RequestParams),
-    DocumentDidChange { path: PathBuf, content: String },
-    DocumentDidSave { path: PathBuf },
+    DocumentDidChange {
+        path: CanonicalizedPath,
+        content: String,
+    },
+    DocumentDidSave {
+        path: CanonicalizedPath,
+    },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Direction),
     GotoOpenedEditor(Direction),
@@ -905,7 +926,7 @@ pub enum Dispatch {
 #[derive(Debug, Clone)]
 pub struct RequestParams {
     pub component_id: ComponentId,
-    pub path: PathBuf,
+    pub path: CanonicalizedPath,
     pub position: Position,
 }
 

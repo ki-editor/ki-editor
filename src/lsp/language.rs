@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::mpsc::Sender};
 
-use crate::screen::ScreenMessage;
+use crate::{canonicalized_path::CanonicalizedPath, screen::ScreenMessage};
 
 use super::process::LspServerProcessChannel;
 
@@ -15,10 +15,8 @@ pub enum Language {
 
 /// This returns a list because some files may have multiple languages,
 /// for example, HTML file may contains CSS and JavaScript.
-pub fn get_languages(path: &PathBuf) -> Vec<Language> {
+pub fn get_languages(path: &CanonicalizedPath) -> Vec<Language> {
     path.extension()
-        .map(|extension| extension.to_str())
-        .flatten()
         .map(|extension| match extension {
             "rs" => vec![Language::Rust],
             "ts" => vec![Language::Typescript],
