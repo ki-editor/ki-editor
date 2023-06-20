@@ -1,4 +1,4 @@
-use crate::{clipboard::Clipboard, screen::Dimension};
+use crate::{clipboard::Clipboard};
 
 pub struct Context {
     previous_searches: Vec<String>,

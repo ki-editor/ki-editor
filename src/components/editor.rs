@@ -246,7 +246,7 @@ impl Component for Editor {
         vec![]
     }
 
-    fn remove_child(&mut self, component_id: ComponentId) {}
+    fn remove_child(&mut self, _component_id: ComponentId) {}
 }
 
 impl Clone for Editor {

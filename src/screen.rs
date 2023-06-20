@@ -25,7 +25,6 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         editor::Direction,
-        editor::Editor,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
@@ -39,7 +38,6 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
-    rectangle::{Border, Rectangle},
 };
 
 pub struct Screen {
@@ -545,7 +543,7 @@ impl Screen {
                     .show_info(hover.contents.join("\n\n"));
                 Ok(())
             }
-            LspNotification::Definition(component_id, response) => {
+            LspNotification::Definition(_component_id, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
@@ -557,7 +555,7 @@ impl Screen {
 
                 Ok(())
             }
-            LspNotification::References(component_id, locations) => self.set_quickfix_list(
+            LspNotification::References(_component_id, locations) => self.set_quickfix_list(
                 QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
             ),
             LspNotification::Completion(component_id, completion) => {

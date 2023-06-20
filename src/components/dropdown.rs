@@ -132,16 +132,16 @@ impl<T: DropdownItem> Dropdown<T> {
                 let info_panel = match self.info_panel.take() {
                     Some(info_panel) => info_panel,
                     None => {
-                        let info_panel = Rc::new(RefCell::new(Editor::from_text(
+                        
+                        Rc::new(RefCell::new(Editor::from_text(
                             tree_sitter_md::language(),
                             "INFO",
-                        )));
-                        info_panel
+                        )))
                     }
                 };
 
                 info_panel.borrow_mut().set_content(&info);
-                self.info_panel = Some(info_panel.clone());
+                self.info_panel = Some(info_panel);
             }
         }
     }
