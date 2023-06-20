@@ -3,11 +3,8 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 use crossterm::event::Event;
 
 use crate::{
-    grid::Grid,
-    lsp::diagnostic::Diagnostic,
-    position::Position,
-    rectangle::Rectangle,
-    screen::{Dispatch, State},
+    context::Context, grid::Grid, lsp::diagnostic::Diagnostic, position::Position,
+    rectangle::Rectangle, screen::Dispatch,
 };
 
 use super::editor::Editor;
@@ -23,7 +20,11 @@ pub trait Component: Any + AnyComponent {
     fn get_grid(&self, diagnostics: &[Diagnostic]) -> Grid {
         self.editor().get_grid(diagnostics)
     }
-    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>>;
+    fn handle_event(
+        &mut self,
+        context: &mut Context,
+        event: Event,
+    ) -> anyhow::Result<Vec<Dispatch>>;
 
     fn get_cursor_position(&self) -> Position {
         self.editor().get_cursor_position()

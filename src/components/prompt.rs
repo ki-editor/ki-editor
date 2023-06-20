@@ -5,8 +5,9 @@ use itertools::Itertools;
 
 use crate::{
     buffer::Buffer,
+    context::Context,
     lsp::completion::{Completion, CompletionItem},
-    screen::{Dispatch, State},
+    screen::Dispatch,
 };
 
 use super::{
@@ -87,7 +88,11 @@ impl Component for Prompt {
     fn editor_mut(&mut self) -> &mut Editor {
         self.editor.editor_mut()
     }
-    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_event(
+        &mut self,
+        context: &mut Context,
+        event: Event,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Esc if self.editor().mode == Mode::Normal => {
@@ -117,7 +122,7 @@ impl Component for Prompt {
             _ => {}
         };
 
-        let dispatches = self.editor.handle_event(state, event)?;
+        let dispatches = self.editor.handle_event(context, event)?;
 
         let current_text = self
             .editor()

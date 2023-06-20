@@ -1,4 +1,4 @@
-use crate::{canonicalized_path::CanonicalizedPath, screen::RequestParams};
+use crate::{canonicalized_path::CanonicalizedPath, context::Context, screen::RequestParams};
 use std::{
     cell::{Ref, RefCell},
     ops::Range,
@@ -22,7 +22,7 @@ use crate::{
     position::Position,
     quickfix_list::QuickfixListType,
     rectangle::Rectangle,
-    screen::{Dimension, Dispatch, State},
+    screen::{Dimension, Dispatch},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
@@ -207,9 +207,13 @@ impl Component for Editor {
         grid
     }
 
-    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_event(
+        &mut self,
+        context: &mut Context,
+        event: Event,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let dispatches = match event {
-            Event::Key(key_event) => self.handle_key_event(state, key_event),
+            Event::Key(key_event) => self.handle_key_event(context, key_event),
             Event::Mouse(mouse_event) => {
                 self.handle_mouse_event(mouse_event);
                 vec![]
@@ -545,7 +549,17 @@ impl Editor {
         self.jump_from_selection(direction, &self.selection_set.primary.clone());
     }
 
-    fn cut(&mut self) -> Vec<Dispatch> {
+    fn cut(&mut self, context: &mut Context) -> Vec<Dispatch> {
+        // Set the clipboard content to the current selection
+        // if there is only one cursor.
+        if self.selection_set.secondary.is_empty() {
+            context.set_clipboard_content(
+                self.buffer
+                    .borrow()
+                    .slice(&self.selection_set.primary.range)
+                    .into(),
+            )
+        }
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let old_range = selection.extended_range();
@@ -567,8 +581,8 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn copy(&mut self) {
-        self.selection_set.copy(&self.buffer.borrow());
+    fn copy(&mut self, context: &mut Context) {
+        self.selection_set.copy(&self.buffer.borrow(), context);
     }
 
     fn replace_current_selection_with<F>(&mut self, f: F) -> Vec<Dispatch>
@@ -576,7 +590,7 @@ impl Editor {
         F: Fn(&Selection) -> Option<Rope>,
     {
         let edit_transactions = self.selection_set.map(|selection| {
-            if let Some(copied_text) = &f(selection) {
+            if let Some(copied_text) = f(selection) {
                 let range = selection.extended_range();
                 let start = range.start;
                 let old = self.buffer.borrow().slice(&range);
@@ -591,7 +605,7 @@ impl Editor {
                             let start = start + copied_text.len_chars();
                             start..start
                         },
-                        copied_text: Some(copied_text.clone()),
+                        copied_text: Some(copied_text),
                         initial_range: None,
                     }),
                 ])])
@@ -603,8 +617,13 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn paste(&mut self) -> Vec<Dispatch> {
-        self.replace_current_selection_with(|selection| selection.copied_text.clone())
+    fn paste(&mut self, context: &Context) -> Vec<Dispatch> {
+        self.replace_current_selection_with(|selection| {
+            selection
+                .copied_text
+                .clone()
+                .or_else(|| context.get_clipboard_content().map(Rope::from))
+        })
     }
 
     fn replace(&mut self) -> Vec<Dispatch> {
@@ -640,10 +659,7 @@ impl Editor {
         if let Some((head, tail)) = edit_transaction.selections().split_first() {
             self.selection_set = SelectionSet {
                 primary: (*head).clone(),
-                secondary: tail
-                    .iter()
-                    .map(|selection| (*selection).clone())
-                    .collect(),
+                secondary: tail.iter().map(|selection| (*selection).clone()).collect(),
                 mode: self.selection_set.mode.clone(),
             }
         }
@@ -708,10 +724,14 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
-    pub fn handle_key_event(&mut self, state: &State, key_event: KeyEvent) -> Vec<Dispatch> {
-        match self.handle_universal_key(key_event) {
+    pub fn handle_key_event(
+        &mut self,
+        context: &mut Context,
+        key_event: KeyEvent,
+    ) -> Vec<Dispatch> {
+        match self.handle_universal_key(context, key_event) {
             HandleEventResult::Ignored(Event::Key(key_event)) => match &self.mode {
-                Mode::Normal => self.handle_normal_mode(state, key_event),
+                Mode::Normal => self.handle_normal_mode(context, key_event),
                 Mode::Insert => self.handle_insert_mode(key_event),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
@@ -724,7 +744,11 @@ impl Editor {
         }
     }
 
-    fn handle_universal_key(&mut self, event: KeyEvent) -> HandleEventResult {
+    fn handle_universal_key(
+        &mut self,
+        context: &mut Context,
+        event: KeyEvent,
+    ) -> HandleEventResult {
         match event.code {
             KeyCode::Left => {
                 self.selection_set.move_left(&self.cursor_direction);
@@ -748,7 +772,7 @@ impl Editor {
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
-                self.copy();
+                self.copy(context);
                 HandleEventResult::Handled(vec![])
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
@@ -760,10 +784,10 @@ impl Editor {
                 HandleEventResult::Handled(dispatches)
             }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
-                HandleEventResult::Handled(self.cut())
+                HandleEventResult::Handled(self.cut(context))
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
-                HandleEventResult::Handled(self.paste())
+                HandleEventResult::Handled(self.paste(context))
             }
             KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
                 HandleEventResult::Handled(self.redo())
@@ -907,7 +931,7 @@ impl Editor {
         dispatches
     }
 
-    fn handle_normal_mode(&mut self, state: &State, event: KeyEvent) -> Vec<Dispatch> {
+    fn handle_normal_mode(&mut self, context: &mut Context, event: KeyEvent) -> Vec<Dispatch> {
         match event.code {
             // Objects
             KeyCode::Char('a') => self.add_selection(),
@@ -931,8 +955,8 @@ impl Editor {
             KeyCode::Char('k') => self.select_kids(),
             KeyCode::Char('l') => self.select_line(Direction::Forward),
             KeyCode::Char('L') => self.select_line(Direction::Backward),
-            KeyCode::Char('m') => self.select_match(Direction::Forward, &state.last_search()),
-            KeyCode::Char('M') => self.select_match(Direction::Backward, &state.last_search()),
+            KeyCode::Char('m') => self.select_match(Direction::Forward, &context.last_search()),
+            KeyCode::Char('M') => self.select_match(Direction::Backward, &context.last_search()),
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('N') => self.select_named_node(Direction::Backward),
             KeyCode::Char('o') => self.change_cursor_direction(),
@@ -1143,9 +1167,7 @@ impl Editor {
                         // Result (with whitespace padding):    baz
                         // Result (without padding):            foo.barbaz
                         new: Rope::from_str(
-                            &(" ".to_string()
-                                + &text_at_current_selection.to_string()
-                                + " "),
+                            &(" ".to_string() + &text_at_current_selection.to_string() + " "),
                         ),
                     })]),
                 ])
@@ -1313,8 +1335,7 @@ impl Editor {
                         ..current_selection.range.end.max(other_selection.range.end);
 
                     // Add whitespace padding
-                    let new: Rope =
-                        format!(" {} ", buffer.slice(&current_selection.range)).into();
+                    let new: Rope = format!(" {} ", buffer.slice(&current_selection.range)).into();
 
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
                         Edit {
@@ -1555,7 +1576,9 @@ pub enum HandleEventResult {
 
 mod test_editor {
 
-    use crate::{components::editor::Mode, lsp::diagnostic::Diagnostic, position::Position};
+    use crate::{
+        components::editor::Mode, context::Context, lsp::diagnostic::Diagnostic, position::Position,
+    };
 
     use super::{Direction, Editor};
     use pretty_assertions::assert_eq;
@@ -1884,7 +1907,8 @@ fn main() {
     fn copy_replace() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         editor.select_token(Direction::Forward);
-        editor.copy();
+        let mut context = Context::default();
+        editor.copy(&mut context);
         editor.select_token(Direction::Forward);
         editor.replace();
         assert_eq!(editor.get_text(), "fn fn() { let x = 1; }");
@@ -1898,9 +1922,10 @@ fn main() {
     fn copy_paste() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         editor.select_token(Direction::Forward);
-        editor.copy();
+        let mut context = Context::default();
+        editor.copy(&mut context);
         editor.select_token(Direction::Forward);
-        editor.paste();
+        editor.paste(&context);
         assert_eq!(editor.get_text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
     }
@@ -1908,13 +1933,14 @@ fn main() {
     #[test]
     fn cut_paste() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
+        let mut context = Context::default();
         editor.select_token(Direction::Forward);
-        editor.cut();
+        editor.cut(&mut context);
         assert_eq!(editor.get_text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
         editor.select_token(Direction::Forward);
-        editor.paste();
+        editor.paste(&context);
 
         assert_eq!(editor.get_text(), " fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
@@ -2140,11 +2166,12 @@ fn main() {
             vec!["S(spongebob_squarepants)", "S(b)"]
         );
 
-        editor.cut();
+        let mut context = Context::default();
+        editor.cut(&mut context);
         editor.enter_insert_mode();
 
         editor.insert("Some(");
-        editor.paste();
+        editor.paste(&context);
         editor.insert(")");
 
         assert_eq!(
@@ -2196,11 +2223,12 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        editor.cut();
+        let mut context = Context::default();
+        editor.cut(&mut context);
 
         assert_eq!(editor.get_text(), "{ let x = S(a); let y = S(b); }");
 
-        editor.paste();
+        editor.paste(&context);
 
         assert_eq!(editor.get_text(), "fn f(){ let x = S(a); let y = S(b); }");
     }
@@ -2216,13 +2244,14 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        editor.copy();
+        let mut context = Context::default();
+        editor.copy(&mut context);
 
         editor.select_token(Direction::Forward);
 
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
 
-        editor.paste();
+        editor.paste(&context);
 
         assert_eq!(
             editor.get_text(),
@@ -2241,7 +2270,8 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        editor.copy();
+        let mut context = Context::default();
+        editor.copy(&mut context);
 
         editor.select_named_node(Direction::Forward);
 
@@ -2259,7 +2289,9 @@ fn main() {
     fn highlight_mode_paste() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         editor.select_token(Direction::Forward);
-        editor.copy();
+
+        let mut context = Context::default();
+        editor.copy(&mut context);
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
@@ -2270,7 +2302,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        editor.paste();
+        editor.paste(&context);
 
         assert_eq!(editor.get_text(), "fn{ let x = S(a); let y = S(b); }");
     }
@@ -2445,5 +2477,22 @@ let y = S(b);
         editor.delete(Direction::Backward);
 
         assert_eq!(editor.get_text(), "fn f(y: b){}");
+    }
+
+    #[test]
+    fn paste_from_clipboard() {
+        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        let mut context = Context::default();
+
+        context.set_clipboard_content("let z = S(c);".to_string());
+
+        editor.reset();
+
+        editor.paste(&context);
+
+        assert_eq!(
+            editor.get_text(),
+            "let z = S(c);fn f(){ let x = S(a); let y = S(b); }"
+        );
     }
 }

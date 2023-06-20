@@ -8,6 +8,7 @@ use tree_sitter_traversal::Order;
 use crate::{
     buffer::Buffer,
     components::editor::{node_to_selection, CursorDirection, Direction},
+    context::Context,
     position::Position,
     utils::find_previous,
 };
@@ -70,11 +71,25 @@ impl SelectionSet {
         result
     }
 
-    pub fn copy(&mut self, buffer: &Buffer) {
-        self.apply_mut(|selection| {
-            selection.copied_text = Some(buffer.slice(&selection.extended_range()));
-            selection.initial_range = None;
-        });
+    pub fn copy(&mut self, buffer: &Buffer, context: &mut Context) {
+        if self.secondary.is_empty() {
+            // Copy the primary selected text to clipboard
+            let copied_text = buffer.slice(&self.primary.extended_range());
+            context.set_clipboard_content(copied_text.to_string());
+            self.primary = Selection {
+                range: self.primary.range.clone(),
+                initial_range: None,
+                copied_text: Some(copied_text),
+            }
+        } else {
+            // Otherwise, don't copy to clipboard, since there's multiple selection,
+            // we don't know which one to copy.
+            self.apply_mut(|selection| {
+                selection.copied_text = Some(buffer.slice(&selection.extended_range()))
+                    .or_else(|| context.get_clipboard_content().map(Rope::from));
+                selection.initial_range = None;
+            });
+        }
     }
 
     pub fn select_kids(&self, buffer: &Buffer, cursor_direction: &CursorDirection) -> SelectionSet {

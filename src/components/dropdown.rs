@@ -5,7 +5,8 @@ use crossterm::event::Event;
 use itertools::Itertools;
 
 use crate::components::component::Component;
-use crate::screen::{Dispatch, State};
+use crate::context::Context;
+use crate::screen::Dispatch;
 
 use super::editor::Editor;
 
@@ -153,8 +154,12 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
         &mut self.editor
     }
 
-    fn handle_event(&mut self, state: &State, event: Event) -> anyhow::Result<Vec<Dispatch>> {
-        self.editor.handle_event(state, event)
+    fn handle_event(
+        &mut self,
+        context: &mut Context,
+        event: Event,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        self.editor.handle_event(context, event)
     }
 
     fn children(&self) -> Vec<std::rc::Rc<std::cell::RefCell<dyn Component>>> {

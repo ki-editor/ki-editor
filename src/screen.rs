@@ -29,6 +29,7 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::SuggestiveEditor,
     },
+    context::Context,
     grid::{Grid, Style},
     lsp::{
         completion::CompletionItem, diagnostic::Diagnostic,
@@ -43,7 +44,7 @@ use crate::{
 pub struct Screen {
     focused_component_id: ComponentId,
 
-    state: State,
+    context: Context,
 
     rectangles: Vec<Rectangle>,
     borders: Vec<Border>,
@@ -77,16 +78,6 @@ pub struct Screen {
     prompts: Vec<Rc<RefCell<Prompt>>>,
 }
 
-pub struct State {
-    terminal_dimension: Dimension,
-    previous_searches: Vec<String>,
-}
-impl State {
-    pub fn last_search(&self) -> Option<String> {
-        self.previous_searches.last().cloned()
-    }
-}
-
 impl Screen {
     pub fn new() -> anyhow::Result<Screen> {
         let (sender, receiver) = std::sync::mpsc::channel();
@@ -94,10 +85,7 @@ impl Screen {
         let dimension = Dimension { height, width };
         let (rectangles, borders) = Rectangle::generate(1, dimension);
         let screen = Screen {
-            state: State {
-                terminal_dimension: dimension,
-                previous_searches: vec![],
-            },
+            context: Context::new(dimension),
             focused_component_id: ComponentId::new(),
             rectangles,
             borders,
@@ -226,7 +214,7 @@ impl Screen {
                 _ => {
                     let dispatches = component
                         .borrow_mut()
-                        .handle_event(&self.state, Event::Key(event));
+                        .handle_event(&mut self.context, Event::Key(event));
                     self.handle_dispatches_result(dispatches)
                 }
             },
@@ -237,7 +225,9 @@ impl Screen {
                 });
             }
             event => {
-                let dispatches = component.borrow_mut().handle_event(&self.state, event);
+                let dispatches = component
+                    .borrow_mut()
+                    .handle_event(&mut self.context, event);
                 self.handle_dispatches_result(dispatches);
             }
         }
@@ -289,7 +279,7 @@ impl Screen {
         self.recalculate_layout();
 
         // Generate layout
-        let grid = Grid::new(self.state.terminal_dimension);
+        let grid = Grid::new(self.context.terminal_dimension);
 
         // Render every window
         let (grid, cursor_point) = self
@@ -477,21 +467,21 @@ impl Screen {
     }
 
     fn set_search(&mut self, search: String) {
-        self.state.previous_searches.push(search)
+        self.context.set_search(search);
     }
 
     fn resize(&mut self, dimension: Dimension) {
         // Remove the previous_grid so that the entire screen is re-rendered
         // Because diffing when the size has change is not supported yet.
         self.previous_grid.take();
-        self.state.terminal_dimension = dimension;
+        self.context.terminal_dimension = dimension;
 
         self.recalculate_layout()
     }
 
     fn recalculate_layout(&mut self) {
         let (rectangles, borders) =
-            Rectangle::generate(self.components().len(), self.state.terminal_dimension);
+            Rectangle::generate(self.components().len(), self.context.terminal_dimension);
         self.rectangles = rectangles;
         self.borders = borders;
 
@@ -509,7 +499,7 @@ impl Screen {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Search".to_string(),
-            history: self.state.previous_searches.clone(),
+            history: self.context.previous_searches(),
             owner: current_component.clone(),
             on_enter: Box::new(|text, owner| {
                 owner

@@ -1,6 +1,8 @@
 mod buffer;
 mod canonicalized_path;
+mod clipboard;
 mod components;
+mod context;
 mod edit;
 mod grid;
 mod lsp;
@@ -11,8 +13,6 @@ mod screen;
 mod selection;
 mod terminal;
 mod utils;
-
-
 
 use canonicalized_path::CanonicalizedPath;
 use log::LevelFilter;

@@ -1,3 +1,4 @@
+use crate::context::Context;
 use crate::screen::Dispatch;
 use crate::screen::RequestParams;
 use crate::{
@@ -41,7 +42,7 @@ impl Component for SuggestiveEditor {
 
     fn handle_event(
         &mut self,
-        state: &crate::screen::State,
+        context: &mut Context,
         event: crossterm::event::Event,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let cursor_position = self.editor().get_cursor_position();
@@ -89,7 +90,7 @@ impl Component for SuggestiveEditor {
                 // Every other character typed in Insert mode should update the dropdown to show
                 // relevant completions.
                 (event, _) => {
-                    let dispatches = self.editor.handle_event(state, event)?;
+                    let dispatches = self.editor.handle_event(context, event)?;
                     if let Some(dropdown) = &self.dropdown {
                         let filter = {
                             // We need to subtract 1 because we need to get the character
@@ -130,7 +131,7 @@ impl Component for SuggestiveEditor {
                 }
             }
         } else {
-            self.editor.handle_event(state, event)
+            self.editor.handle_event(context, event)
         }
     }
 
