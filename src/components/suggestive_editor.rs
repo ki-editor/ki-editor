@@ -9,6 +9,7 @@ use crossterm::event::KeyModifiers;
 use crossterm::event::{Event, KeyCode};
 use std::{cell::RefCell, rc::Rc};
 
+use super::component::ComponentId;
 use super::{
     component::Component,
     dropdown::{Dropdown, DropdownConfig, DropdownItem},
@@ -18,6 +19,7 @@ use super::{
 /// Editor with auto-complete
 pub struct SuggestiveEditor {
     editor: Editor,
+    info_panel: Option<Rc<RefCell<Editor>>>,
     dropdown: Option<Rc<RefCell<Dropdown<CompletionItem>>>>,
     trigger_characters: Vec<String>,
 }
@@ -136,10 +138,24 @@ impl Component for SuggestiveEditor {
     }
 
     fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        self.get_children(vec![self
-            .dropdown
-            .clone()
-            .map(|dropdown| dropdown as Rc<RefCell<dyn Component>>)])
+        self.get_children(vec![
+            self.dropdown
+                .clone()
+                .map(|dropdown| dropdown as Rc<RefCell<dyn Component>>),
+            self.info_panel
+                .clone()
+                .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>),
+        ])
+    }
+
+    fn remove_child(&mut self, component_id: ComponentId) {
+        if matches!(&self.dropdown, Some(dropdown) if dropdown.borrow().id() == component_id) {
+            self.dropdown = None;
+        }
+        if matches!(&self.info_panel, Some(info_panel) if info_panel.borrow().id() == component_id)
+        {
+            self.info_panel = None;
+        }
     }
 }
 
@@ -147,9 +163,17 @@ impl SuggestiveEditor {
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
+            info_panel: None,
             dropdown: None,
             trigger_characters: vec![],
         }
+    }
+
+    pub fn show_info(&mut self, info: String) {
+        self.info_panel = Some(Rc::new(RefCell::new(Editor::from_text(
+            tree_sitter_md::language(),
+            &info,
+        ))));
     }
 
     pub fn set_completion(&mut self, completion: Completion) {

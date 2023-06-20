@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    component::Component,
+    component::{Component, ComponentId},
     editor::{Editor, Mode},
     suggestive_editor::SuggestiveEditor,
 };
@@ -19,7 +19,7 @@ use super::{
 pub struct Prompt {
     editor: SuggestiveEditor,
     text: String,
-    owner: Rc<RefCell<dyn Component>>,
+    owner: Option<Rc<RefCell<dyn Component>>>,
     on_enter: OnEnter,
     on_text_change: OnTextChange,
 }
@@ -40,7 +40,7 @@ type OnTextChange = Box<
 
 pub struct PromptConfig {
     pub history: Vec<String>,
-    pub owner: Rc<RefCell<dyn Component>>,
+    pub owner: Option<Rc<RefCell<dyn Component>>>,
     pub on_enter: OnEnter,
     pub on_text_change: OnTextChange,
     pub items: Vec<CompletionItem>,
@@ -96,9 +96,11 @@ impl Component for Prompt {
         match event {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Esc if self.editor().mode == Mode::Normal => {
-                    return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner.borrow().id(),
-                    }]);
+                    if let Some(owner) = self.owner.clone() {
+                        return Ok(vec![Dispatch::CloseCurrentWindow {
+                            change_focused_to: owner.borrow().id(),
+                        }]);
+                    }
                 }
                 KeyCode::Enter => {
                     let current_item = if self.editor.dropdown_opened() {
@@ -109,13 +111,16 @@ impl Component for Prompt {
                     } else {
                         self.text.clone()
                     };
-                    let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
-                    return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner.borrow().id(),
-                    }]
-                    .into_iter()
-                    .chain(dispatches)
-                    .collect());
+
+                    if let Some(owner) = self.owner.clone() {
+                        let dispatches = (self.on_enter)(&current_item, owner.clone())?;
+                        return Ok(vec![Dispatch::CloseCurrentWindow {
+                            change_focused_to: owner.borrow().id(),
+                        }]
+                        .into_iter()
+                        .chain(dispatches)
+                        .collect());
+                    }
                 }
                 _ => {}
             },
@@ -136,7 +141,9 @@ impl Component for Prompt {
         } else {
             self.text = current_text.clone();
 
-            (self.on_text_change)(&current_text, self.owner.clone())?;
+            if let Some(owner) = self.owner.clone() {
+                (self.on_text_change)(&current_text, owner.clone())?;
+            }
 
             dispatches.into_iter().chain(vec![]).collect_vec()
         };
@@ -145,5 +152,9 @@ impl Component for Prompt {
 
     fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
         self.editor.children()
+    }
+
+    fn remove_child(&mut self, id: ComponentId) {
+        self.editor.remove_child(id)
     }
 }

@@ -1,13 +1,13 @@
+use crate::components::component::Component;
+use crate::components::editor::Direction;
+use crate::context::Context;
+use crate::screen::Dispatch;
+use crossterm::event::Event;
+use itertools::Itertools;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crossterm::event::Event;
-use itertools::Itertools;
-
-use crate::components::component::Component;
-use crate::context::Context;
-use crate::screen::Dispatch;
-
+use super::component::ComponentId;
 use super::editor::Editor;
 
 pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
@@ -115,7 +115,8 @@ impl<T: DropdownItem> Dropdown<T> {
             &self
                 .filtered_items
                 .iter()
-                .map(|item| item.label())
+                .enumerate()
+                .map(|(index, item)| format!("[{}] {}", index + 1, item.label()))
                 .collect::<Vec<String>>()
                 .join("\n"),
         );
@@ -127,6 +128,7 @@ impl<T: DropdownItem> Dropdown<T> {
         match info {
             None => self.info_panel = None,
             Some(info) => {
+                log::info!("self.info_panel.is_some(): {}", self.info_panel.is_some());
                 let info_panel = match self.info_panel.take() {
                     Some(info_panel) => info_panel,
                     None => {
@@ -134,13 +136,21 @@ impl<T: DropdownItem> Dropdown<T> {
                             tree_sitter_md::language(),
                             "INFO",
                         )));
-                        self.info_panel = Some(info_panel.clone());
                         info_panel
                     }
                 };
 
                 info_panel.borrow_mut().set_content(&info);
+                self.info_panel = Some(info_panel.clone());
             }
+        }
+    }
+
+    pub fn get_item(&mut self, direction: Direction) -> Option<T> {
+        match direction {
+            Direction::Forward => self.next_item(),
+            Direction::Current => self.current_item(),
+            Direction::Backward => self.previous_item(),
         }
     }
 }
@@ -168,6 +178,13 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
             .map(|info_panel| vec![info_panel as Rc<RefCell<dyn Component>>])
             .unwrap_or_default()
     }
+
+    fn remove_child(&mut self, component_id: ComponentId) {
+        if matches!(self.info_panel, Some(ref info_panel) if info_panel.borrow().id() == component_id)
+        {
+            self.info_panel = None;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -185,8 +202,13 @@ mod test_dropdown {
         dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
         assert_eq!(
+            dropdown.editor.buffer().rope().to_string(),
+            "[1] a\n[2] b\n[3] c".to_string()
+        );
+        assert_eq!(dropdown.editor.get_selected_texts(), vec!["[1] a\n"]);
+        assert_eq!(
             dropdown.editor.selection_set.primary.range,
-            CharIndex(0)..CharIndex(2)
+            CharIndex(0)..CharIndex(6)
         );
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "b");
@@ -222,10 +244,10 @@ mod test_dropdown {
 
         // The current item should be `dolor` because dropdown will sort the items
         assert_eq!(dropdown.current_item().unwrap().label(), "dolor");
-        assert_eq!(dropdown.editor.get_current_line(), "dolor\n");
+        assert_eq!(dropdown.editor.get_current_line(), "[1] dolor\n");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
-        assert_eq!(dropdown.editor.get_current_line(), "ipsum\n");
+        assert_eq!(dropdown.editor.get_current_line(), "[2] ipsum\n");
     }
 
     #[test]

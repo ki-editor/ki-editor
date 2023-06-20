@@ -2,15 +2,65 @@ use std::ops::Range;
 
 use itertools::Itertools;
 
-use crate::{canonicalized_path::CanonicalizedPath, position::Position};
+use crate::{
+    canonicalized_path::CanonicalizedPath,
+    components::{
+        component::{Component, ComponentId},
+        dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        editor::Direction,
+    },
+    position::Position,
+};
 
 pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
+    dropdown: Dropdown<QuickfixListItem>,
+}
+
+impl DropdownItem for QuickfixListItem {
+    fn label(&self) -> String {
+        self.location().display()
+    }
+
+    fn info(&self) -> Option<String> {
+        self.infos.join("\n").into()
+    }
+}
+
+impl Component for QuickfixLists {
+    fn editor(&self) -> &crate::components::editor::Editor {
+        self.dropdown.editor()
+    }
+
+    fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
+        self.dropdown.editor_mut()
+    }
+
+    fn handle_event(
+        &mut self,
+        context: &mut crate::context::Context,
+        event: crossterm::event::Event,
+    ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+        self.dropdown.handle_event(context, event)
+    }
+
+    fn children(&self) -> Vec<std::rc::Rc<std::cell::RefCell<dyn Component>>> {
+        self.dropdown.children()
+    }
+
+    fn remove_child(&mut self, component_id: ComponentId) {
+        self.dropdown.remove_child(component_id)
+    }
 }
 
 impl QuickfixLists {
     pub fn new() -> QuickfixLists {
-        QuickfixLists { lists: vec![] }
+        QuickfixLists {
+            lists: vec![],
+            dropdown: Dropdown::new(DropdownConfig {
+                title: "Quickfix".to_string(),
+            }),
+        }
     }
 
     pub fn current_mut(&mut self) -> Option<&mut QuickfixList> {
@@ -18,7 +68,12 @@ impl QuickfixLists {
     }
 
     pub fn push(&mut self, quickfix_list: QuickfixList) {
+        self.dropdown.set_items(quickfix_list.items.clone());
         self.lists.push(quickfix_list);
+    }
+
+    pub fn get_item(&mut self, direction: Direction) -> Option<QuickfixListItem> {
+        self.dropdown.get_item(direction)
     }
 }
 
@@ -51,32 +106,24 @@ impl QuickfixList {
             },
         }
     }
-
-    pub fn current_item(&self) -> Option<&QuickfixListItem> {
-        self.items.get(self.current_index)
-    }
-
-    pub fn next_item(&mut self) -> Option<&QuickfixListItem> {
-        if self.current_index == self.items.len() - 1 {
-            return self.current_item();
-        }
-        self.current_index += 1;
-        self.current_item()
-    }
-
-    pub fn previous_item(&mut self) -> Option<&QuickfixListItem> {
-        if self.current_index == 0 {
-            return self.current_item();
-        }
-        self.current_index -= 1;
-        self.current_item()
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuickfixListItem {
     location: Location,
     infos: Vec<String>,
+}
+
+impl PartialOrd for QuickfixListItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.location.partial_cmp(&other.location)
+    }
+}
+
+impl Ord for QuickfixListItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+    }
 }
 
 impl From<Location> for QuickfixListItem {
@@ -106,6 +153,21 @@ impl QuickfixListItem {
 pub struct Location {
     pub path: CanonicalizedPath,
     pub range: Range<Position>,
+}
+
+impl Location {
+    pub fn display(&self) -> String {
+        format!(
+            "{}:{}:{}-{}:{}",
+            self.path
+                .display_relative()
+                .unwrap_or_else(|_| self.path.display()),
+            self.range.start.line + 1,
+            self.range.start.column + 1,
+            self.range.end.line + 1,
+            self.range.end.column + 1
+        )
+    }
 }
 
 impl TryFrom<lsp_types::Location> for Location {

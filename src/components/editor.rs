@@ -245,6 +245,8 @@ impl Component for Editor {
     fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
         vec![]
     }
+
+    fn remove_child(&mut self, component_id: ComponentId) {}
 }
 
 impl Clone for Editor {

@@ -31,6 +31,7 @@ use crate::{
     },
     context::Context,
     grid::{Grid, Style},
+    layout::Layout,
     lsp::{
         completion::CompletionItem, diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse, manager::LspManager,
@@ -42,12 +43,7 @@ use crate::{
 };
 
 pub struct Screen {
-    focused_component_id: ComponentId,
-
     context: Context,
-
-    rectangles: Vec<Rectangle>,
-    borders: Vec<Border>,
 
     /// Used for diffing to reduce unnecessary re-painting.
     previous_grid: Option<Grid>,
@@ -63,43 +59,27 @@ pub struct Screen {
 
     lsp_manager: LspManager,
 
-    /// Saved for populating completions
-    suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
-
     diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
 
-    quickfix_lists: QuickfixLists,
+    quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
-    /// The layout of the app is split into 3 section: the main panel, info panel and prompts.
-    /// The main panel is where the user edits code, and the info panel is for displaying info like
-    /// hover text, diagnostics, etc.
-    main_panel: Option<Rc<RefCell<SuggestiveEditor>>>,
-    info_panel: Option<Rc<RefCell<Editor>>>,
-    prompts: Vec<Rc<RefCell<Prompt>>>,
+    layout: Layout,
 }
 
 impl Screen {
     pub fn new() -> anyhow::Result<Screen> {
         let (sender, receiver) = std::sync::mpsc::channel();
         let (width, height) = terminal::size()?;
-        let dimension = Dimension { height, width };
-        let (rectangles, borders) = Rectangle::generate(1, dimension);
         let screen = Screen {
-            context: Context::new(dimension),
-            focused_component_id: ComponentId::new(),
-            rectangles,
-            borders,
+            context: Context::new(),
             previous_grid: None,
             buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone()),
             sender,
-            suggestive_editors: Vec::new(),
             diagnostics: HashMap::new(),
-            quickfix_lists: QuickfixLists::new(),
-            main_panel: None,
-            info_panel: None,
-            prompts: Vec::new(),
+            quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
+            layout: Layout::new(Dimension { height, width }),
         };
         Ok(screen)
     }
@@ -154,43 +134,13 @@ impl Screen {
     }
 
     fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        let root_components = vec![]
-            .into_iter()
-            .chain(
-                self.main_panel
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.prompts
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.info_panel
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .collect::<Vec<_>>();
-
-        let mut components = root_components.clone();
-        for component in root_components.iter() {
-            components.extend(component.borrow().children());
-        }
-        components
-    }
-
-    fn get_component(&self, id: ComponentId) -> Rc<RefCell<dyn Component>> {
-        self.components()
-            .into_iter()
-            .find(|c| c.borrow().id() == id)
-            .unwrap()
+        self.layout.components()
     }
 
     /// Returns true if the screen should quit.
     fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
-        let component = self.get_component(self.focused_component_id);
+        let component = self.current_component();
         match event {
             Event::Key(event) => match event.code {
                 KeyCode::Char('%') => {
@@ -209,13 +159,15 @@ impl Screen {
                     }
                 }
                 KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
-                    self.change_view()
+                    self.layout.change_view()
                 }
                 _ => {
-                    let dispatches = component
-                        .borrow_mut()
-                        .handle_event(&mut self.context, Event::Key(event));
-                    self.handle_dispatches_result(dispatches)
+                    component.map(|component| {
+                        let dispatches = component
+                            .borrow_mut()
+                            .handle_event(&mut self.context, Event::Key(event));
+                        self.handle_dispatches_result(dispatches)
+                    });
                 }
             },
             Event::Resize(columns, rows) => {
@@ -225,61 +177,28 @@ impl Screen {
                 });
             }
             event => {
-                let dispatches = component
-                    .borrow_mut()
-                    .handle_event(&mut self.context, event);
-                self.handle_dispatches_result(dispatches);
+                component.map(|component| {
+                    let dispatches = component
+                        .borrow_mut()
+                        .handle_event(&mut self.context, event);
+                    self.handle_dispatches_result(dispatches);
+                });
             }
         }
         Ok(false)
     }
 
-    fn remove_current_component(&mut self) {
-        self.suggestive_editors
-            .retain(|c| c.borrow().id() != self.focused_component_id);
-
-        self.prompts
-            .retain(|c| c.borrow().id() != self.focused_component_id);
-
-        self.main_panel = self
-            .main_panel
-            .take()
-            .filter(|c| c.borrow().id() != self.focused_component_id);
-
-        self.info_panel = self
-            .info_panel
-            .take()
-            .filter(|c| c.borrow().id() != self.focused_component_id);
-
-        self.set_main_panel(self.suggestive_editors.last().cloned());
-    }
-
-    // Return true if there's no more windows
+    /// Return true if there's no more windows
     fn quit(&mut self) -> bool {
-        // Remove current component
-        self.remove_current_component();
-
-        if let Some(component) = self.components().last() {
-            self.focused_component_id = component.borrow().id();
-            self.recalculate_layout();
-            false
-        } else {
-            true
-        }
-    }
-
-    fn add_and_focus_prompt(&mut self, prompt: Rc<RefCell<Prompt>>) {
-        self.focused_component_id = prompt.borrow().id();
-        self.prompts.push(prompt);
-        self.recalculate_layout();
+        self.layout.remove_current_component()
     }
 
     fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
         // Recalculate layout before each render
-        self.recalculate_layout();
+        self.layout.recalculate_layout();
 
         // Generate layout
-        let grid = Grid::new(self.context.terminal_dimension);
+        let grid = Grid::new(self.layout.terminal_dimension());
 
         // Render every window
         let (grid, cursor_point) = self
@@ -297,7 +216,11 @@ impl Screen {
                     .unwrap_or(&[]);
 
                 let component_grid = component.get_grid(diagnostics);
-                let cursor_point = if component.id() == self.focused_component_id {
+                let focused_component_id = self.layout.focused_component_id();
+                let cursor_point = if focused_component_id
+                    .map(|focused_component_id| component.id() == focused_component_id)
+                    .unwrap_or(false)
+                {
                     let cursor_position = component.get_cursor_position();
                     let scroll_offset = component.scroll_offset();
 
@@ -350,7 +273,8 @@ impl Screen {
 
         // Render every border
         let grid = self
-            .borders
+            .layout
+            .borders()
             .iter()
             .fold(grid, |grid, border| grid.set_border(border));
 
@@ -451,19 +375,17 @@ impl Screen {
             Dispatch::ShowInfo { content } => self.show_info(content),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::GotoOpenedEditor(direction) => self.goto_opened_editor(direction),
+            Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
         }
         Ok(())
     }
 
-    fn current_component(&self) -> Rc<RefCell<dyn Component>> {
-        self.get_component(self.focused_component_id)
+    fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.current_component()
     }
 
     fn close_current_window(&mut self, change_focused_to: ComponentId) {
-        self.remove_current_component();
-        self.focused_component_id = change_focused_to;
-        self.recalculate_layout();
+        self.layout.close_current_window(change_focused_to)
     }
 
     fn set_search(&mut self, search: String) {
@@ -474,25 +396,7 @@ impl Screen {
         // Remove the previous_grid so that the entire screen is re-rendered
         // Because diffing when the size has change is not supported yet.
         self.previous_grid.take();
-        self.context.terminal_dimension = dimension;
-
-        self.recalculate_layout()
-    }
-
-    fn recalculate_layout(&mut self) {
-        let (rectangles, borders) =
-            Rectangle::generate(self.components().len(), self.context.terminal_dimension);
-        self.rectangles = rectangles;
-        self.borders = borders;
-
-        self.components()
-            .into_iter()
-            .zip(self.rectangles.iter())
-            .for_each(|(component, rectangle)| {
-                // Leave 1 row on top for rendering the title
-                let (_, rectangle) = rectangle.split_vertically_at(1);
-                component.borrow_mut().set_rectangle(rectangle)
-            });
+        self.layout.set_terminal_dimension(dimension);
     }
 
     fn open_search_prompt(&mut self) {
@@ -518,20 +422,26 @@ impl Screen {
                 Ok(vec![])
             }),
             items: current_component
-                .borrow()
-                .editor()
-                .buffer()
-                .words()
-                .into_iter()
-                .map(|word| CompletionItem {
-                    label: word,
-                    documentation: None,
-                    sort_text: None,
-                    edit: None,
+                .map(|current_component| {
+                    current_component
+                        .borrow()
+                        .editor()
+                        .buffer()
+                        .words()
+                        .into_iter()
+                        .map(|word| CompletionItem {
+                            label: word,
+                            documentation: None,
+                            sort_text: None,
+                            edit: None,
+                        })
+                        .collect_vec()
                 })
-                .collect_vec(),
+                .unwrap_or_default(),
         });
-        self.add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
     fn open_file_picker(&mut self) -> anyhow::Result<()> {
@@ -585,26 +495,9 @@ impl Screen {
                     .collect_vec()
             },
         });
-        self.add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
         Ok(())
-    }
-
-    fn change_view(&mut self) {
-        let components = self.components();
-        if let Some(component) = components
-            .iter()
-            .find(|component| component.borrow().id() > self.focused_component_id)
-            .map_or_else(
-                || {
-                    components
-                        .iter()
-                        .min_by(|x, y| x.borrow().id().cmp(&y.borrow().id()))
-                },
-                Some,
-            )
-        {
-            self.focused_component_id = component.borrow().id()
-        }
     }
 
     fn open_file(
@@ -613,27 +506,16 @@ impl Screen {
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.suggestive_editors.iter().cloned().find(|component| {
-            component
-                .borrow()
-                .editor()
-                .buffer()
-                .path()
-                .map(|path| &path == entry_path)
-                .unwrap_or(false)
-        }) {
-            self.set_main_panel(Some(matching_editor.clone()));
+        if let Some(matching_editor) = self.layout.open_file(entry_path) {
             return Ok(matching_editor);
         }
 
         let buffer = Rc::new(RefCell::new(Buffer::from_path(entry_path)?));
         self.buffers.push(buffer.clone());
-        let entry_component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
+        let component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
 
-        self.suggestive_editors.push(entry_component.clone());
-
-        log::info!("self.main_panel = {:?}", entry_component.borrow().id());
-        self.set_main_panel(Some(entry_component.clone()));
+        self.layout
+            .add_and_focus_suggestive_editor(component.clone());
 
         self.update_component_diagnotics(
             entry_path,
@@ -645,35 +527,25 @@ impl Screen {
 
         self.lsp_manager.open_file(entry_path.clone())?;
 
-        Ok(entry_component)
+        Ok(component)
     }
 
     fn get_suggestive_editor(
         &mut self,
         component_id: ComponentId,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
-        self.suggestive_editors
-            .iter()
-            .find(|editor| editor.borrow().id() == component_id)
-            .cloned()
-            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
+        self.layout.get_suggestive_editor(component_id)
     }
 
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::Hover(component_id, hover) => {
-                if self.focused_component_id != component_id {
-                    return Ok(());
-                }
-                self.show_info(hover.contents);
+                self.get_suggestive_editor(component_id)?
+                    .borrow_mut()
+                    .show_info(hover.contents.join("\n\n"));
                 Ok(())
             }
             LspNotification::Definition(component_id, response) => {
-                log::info!("Definition response: {:?}", response);
-                if self.focused_component_id != component_id {
-                    return Ok(());
-                }
-
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
@@ -685,14 +557,9 @@ impl Screen {
 
                 Ok(())
             }
-            LspNotification::References(component_id, locations) => {
-                if self.focused_component_id != component_id {
-                    return Ok(());
-                }
-                self.set_quickfix_list(QuickfixList::new(
-                    locations.into_iter().map(QuickfixListItem::from).collect(),
-                ))
-            }
+            LspNotification::References(component_id, locations) => self.set_quickfix_list(
+                QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
+            ),
             LspNotification::Completion(component_id, completion) => {
                 self.get_suggestive_editor(component_id)?
                     .borrow_mut()
@@ -760,58 +627,15 @@ impl Screen {
     }
 
     fn goto_quickfix_list_item(&mut self, direction: Direction) -> anyhow::Result<()> {
-        if let Some(item) = self
-            .quickfix_lists
-            .current_mut()
-            .and_then(|quickfix_list| match direction {
-                Direction::Current => quickfix_list.current_item(),
-                Direction::Forward => quickfix_list.next_item(),
-                Direction::Backward => quickfix_list.previous_item(),
-            })
-            .cloned()
-        {
-            self.show_info(item.infos());
+        let item = self.quickfix_lists.borrow_mut().get_item(direction);
+        if let Some(item) = item {
             self.go_to_location(item.location())?;
         }
         Ok(())
     }
 
     fn show_info(&mut self, contents: Vec<String>) {
-        let info = contents.join("\n===========\n");
-        match &self.info_panel {
-            None => {
-                let info_panel = Rc::new(RefCell::new(Editor::from_text(
-                    tree_sitter_md::language(),
-                    &info,
-                )));
-                self.info_panel = Some(info_panel);
-            }
-            Some(info_panel) => info_panel.borrow_mut().set_content(&info),
-        }
-    }
-
-    fn set_main_panel(&mut self, editor: Option<Rc<RefCell<SuggestiveEditor>>>) {
-        if let Some(editor) = &editor {
-            self.focused_component_id = editor.borrow().id();
-        }
-        self.main_panel = editor;
-    }
-
-    fn goto_opened_editor(&mut self, direction: Direction) {
-        let editor = self
-            .suggestive_editors
-            .iter()
-            .find(|editor| {
-                let id = editor.borrow().id();
-
-                match direction {
-                    Direction::Forward | Direction::Current => id > self.focused_component_id,
-                    Direction::Backward => id < self.focused_component_id,
-                }
-            })
-            .cloned()
-            .or_else(|| self.main_panel.take());
-        self.set_main_panel(editor);
+        self.layout.show_info(contents)
     }
 
     fn go_to_location(&mut self, location: &Location) -> Result<(), anyhow::Error> {
@@ -849,7 +673,8 @@ impl Screen {
     }
 
     fn set_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
-        self.quickfix_lists.push(quickfix_list);
+        self.quickfix_lists.borrow_mut().push(quickfix_list);
+        self.layout.show_quickfix_lists(self.quickfix_lists.clone());
         self.goto_quickfix_list_item(Direction::Forward)
     }
 }

@@ -5,6 +5,7 @@ mod components;
 mod context;
 mod edit;
 mod grid;
+mod layout;
 mod lsp;
 mod position;
 mod quickfix_list;

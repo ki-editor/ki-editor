@@ -10,14 +10,14 @@ pub struct Rectangle {
     pub height: u16,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 // A struct to represent a border with direction, start and length
 pub struct Border {
     pub direction: BorderDirection,
     pub start: Point,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 // An enum to represent the direction of a border (horizontal or vertical)
 pub enum BorderDirection {
     Horizontal,

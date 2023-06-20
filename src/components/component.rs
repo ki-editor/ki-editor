@@ -74,6 +74,8 @@ pub trait Component: Any + AnyComponent {
             })
             .collect()
     }
+
+    fn remove_child(&mut self, component_id: ComponentId);
 }
 
 /// Modified from https://github.com/helix-editor/helix/blob/91da0dc172dde1a972be7708188a134db70562c3/helix-term/src/compositor.rs#L212

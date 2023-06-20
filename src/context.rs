@@ -1,7 +1,6 @@
 use crate::{clipboard::Clipboard, screen::Dimension};
 
 pub struct Context {
-    pub terminal_dimension: Dimension,
     previous_searches: Vec<String>,
     clipboard: Clipboard,
     clipboard_content: Option<String>,
@@ -10,7 +9,6 @@ pub struct Context {
 impl Default for Context {
     fn default() -> Self {
         Self {
-            terminal_dimension: Dimension::default(),
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
             clipboard_content: None,
@@ -19,9 +17,8 @@ impl Default for Context {
 }
 
 impl Context {
-    pub fn new(terminal_dimension: Dimension) -> Self {
+    pub fn new() -> Self {
         Self {
-            terminal_dimension,
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
             clipboard_content: None,
