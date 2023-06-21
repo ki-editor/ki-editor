@@ -137,15 +137,15 @@ impl Component for SuggestiveEditor {
         }
     }
 
-    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        self.get_children(vec![
+    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
+        vec![
             self.dropdown
                 .clone()
                 .map(|dropdown| dropdown as Rc<RefCell<dyn Component>>),
             self.info_panel
                 .clone()
                 .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>),
-        ])
+        ]
     }
 
     fn remove_child(&mut self, component_id: ComponentId) {

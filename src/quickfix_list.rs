@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use itertools::Itertools;
 
@@ -44,7 +44,7 @@ impl Component for QuickfixLists {
         self.dropdown.handle_event(context, event)
     }
 
-    fn children(&self) -> Vec<std::rc::Rc<std::cell::RefCell<dyn Component>>> {
+    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         self.dropdown.children()
     }
 

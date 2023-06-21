@@ -242,7 +242,7 @@ impl Component for Editor {
         &self.rectangle
     }
 
-    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         vec![]
     }
 

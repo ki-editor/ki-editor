@@ -66,3 +66,5 @@
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
 - [] Format on save
 - [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
+- [] location list (local to each editor), local diagnostics should use this
+- [] dropdown: handle up/down/enter event

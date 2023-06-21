@@ -54,25 +54,19 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().set_title(title);
     }
 
-    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>>;
+    /// This should only return the direct children of this component.
+    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>>;
 
-    /// Helper function to get children from a vector of Option<Rc<RefCell<dyn Component>>>
-    fn get_children(
-        &self,
-        components: Vec<Option<Rc<RefCell<dyn Component>>>>,
-    ) -> Vec<Rc<RefCell<dyn Component>>> {
-        components
+    /// Does not include the component itself
+    fn descendants(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+        self.children()
             .into_iter()
             .flatten()
             .flat_map(|component| {
-                component
-                    .clone()
-                    .borrow()
-                    .children()
-                    .into_iter()
-                    .chain(std::iter::once(component))
+                std::iter::once(component.clone())
+                    .chain(component.borrow().descendants().into_iter())
             })
-            .collect()
+            .collect::<Vec<_>>()
     }
 
     fn remove_child(&mut self, component_id: ComponentId);
@@ -101,5 +95,126 @@ pub struct ComponentId(uuid::Uuid);
 impl ComponentId {
     pub fn new() -> ComponentId {
         ComponentId(uuid::Uuid::new_v4())
+    }
+}
+
+#[cfg(test)]
+mod component {
+    use std::{cell::RefCell, rc::Rc};
+
+    use crate::components::component::Component;
+
+    #[test]
+    fn child_should_rank_lower_than_parent() {
+        struct GrandChild {}
+        impl Component for GrandChild {
+            fn title(&self) -> String {
+                "GrandChild".to_string()
+            }
+            fn editor(&self) -> &crate::components::editor::Editor {
+                todo!()
+            }
+
+            fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
+                todo!()
+            }
+
+            fn handle_event(
+                &mut self,
+                _context: &mut crate::context::Context,
+                _event: crossterm::event::Event,
+            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+                todo!()
+            }
+
+            fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
+                vec![]
+            }
+
+            fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
+                todo!()
+            }
+        }
+        struct Child {
+            grand_child: Rc<RefCell<GrandChild>>,
+        }
+        impl Component for Child {
+            fn title(&self) -> String {
+                "Child".to_string()
+            }
+            fn editor(&self) -> &crate::components::editor::Editor {
+                todo!()
+            }
+
+            fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
+                todo!()
+            }
+
+            fn handle_event(
+                &mut self,
+                _context: &mut crate::context::Context,
+                _event: crossterm::event::Event,
+            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+                todo!()
+            }
+
+            fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
+                vec![Some(self.grand_child.clone())]
+            }
+
+            fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
+                todo!()
+            }
+        }
+
+        struct Parent {
+            child: Rc<RefCell<Child>>,
+        }
+        impl Component for Parent {
+            fn title(&self) -> String {
+                "Parent".to_string()
+            }
+            fn editor(&self) -> &crate::components::editor::Editor {
+                todo!()
+            }
+
+            fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
+                todo!()
+            }
+
+            fn handle_event(
+                &mut self,
+                _context: &mut crate::context::Context,
+                _event: crossterm::event::Event,
+            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+                todo!()
+            }
+
+            fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
+                vec![Some(self.child.clone())]
+            }
+
+            fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
+                todo!()
+            }
+        }
+
+        let parent = Parent {
+            child: Rc::new(RefCell::new(Child {
+                grand_child: Rc::new(RefCell::new(GrandChild {})),
+            })),
+        };
+
+        let descendants = parent.descendants();
+
+        assert_eq!(descendants.len(), 2);
+
+        assert_eq!(
+            descendants
+                .into_iter()
+                .map(|d| d.borrow().title())
+                .collect::<Vec<_>>(),
+            vec!["Child".to_string(), "GrandChild".to_string()],
+        )
     }
 }

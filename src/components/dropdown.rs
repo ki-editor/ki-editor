@@ -128,16 +128,12 @@ impl<T: DropdownItem> Dropdown<T> {
         match info {
             None => self.info_panel = None,
             Some(info) => {
-                log::info!("self.info_panel.is_some(): {}", self.info_panel.is_some());
                 let info_panel = match self.info_panel.take() {
                     Some(info_panel) => info_panel,
-                    None => {
-                        
-                        Rc::new(RefCell::new(Editor::from_text(
-                            tree_sitter_md::language(),
-                            "INFO",
-                        )))
-                    }
+                    None => Rc::new(RefCell::new(Editor::from_text(
+                        tree_sitter_md::language(),
+                        "INFO",
+                    ))),
                 };
 
                 info_panel.borrow_mut().set_content(&info);
@@ -172,11 +168,12 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
         self.editor.handle_event(context, event)
     }
 
-    fn children(&self) -> Vec<std::rc::Rc<std::cell::RefCell<dyn Component>>> {
-        self.info_panel
+    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
+        vec![self
+            .info_panel
             .clone()
-            .map(|info_panel| vec![info_panel as Rc<RefCell<dyn Component>>])
-            .unwrap_or_default()
+            .map(|info_panel| Some(info_panel as Rc<RefCell<dyn Component>>))
+            .unwrap_or_default()]
     }
 
     fn remove_child(&mut self, component_id: ComponentId) {

@@ -76,7 +76,7 @@ impl Layout {
 
         let mut components = root_components.clone();
         for component in root_components.iter() {
-            components.extend(component.borrow().children());
+            components.extend(component.borrow().descendants());
         }
         components
     }
@@ -102,6 +102,9 @@ impl Layout {
             self.info_panel = self.info_panel.take().filter(|c| c.borrow().id() != id);
 
             self.quickfix_lists = self.quickfix_lists.take().filter(|c| c.borrow().id() != id);
+
+            self.background_suggestive_editors
+                .retain(|c| c.borrow().id() != id);
 
             self.set_main_panel(self.background_suggestive_editors.last().cloned());
 

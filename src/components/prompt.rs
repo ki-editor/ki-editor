@@ -150,7 +150,7 @@ impl Component for Prompt {
         Ok(result)
     }
 
-    fn children(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         self.editor.children()
     }
 
