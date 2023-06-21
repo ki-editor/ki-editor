@@ -20,6 +20,22 @@ pub trait Component: Any + AnyComponent {
     fn get_grid(&self, diagnostics: &[Diagnostic]) -> Grid {
         self.editor().get_grid(diagnostics)
     }
+
+    #[cfg(test)]
+    /// This is for writing tests for components.
+    fn handle_events(&mut self, events: &str) -> anyhow::Result<Vec<Dispatch>> {
+        use crate::key_event_parser::parse_key_events;
+
+        let mut context = Context::default();
+        Ok(parse_key_events(events)?
+            .into_iter()
+            .map(|event| self.handle_event(&mut context, Event::Key(event)))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>())
+    }
+
     fn handle_event(
         &mut self,
         context: &mut Context,

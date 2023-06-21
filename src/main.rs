@@ -5,6 +5,7 @@ mod components;
 mod context;
 mod edit;
 mod grid;
+mod key_event_parser;
 mod layout;
 mod lsp;
 mod position;

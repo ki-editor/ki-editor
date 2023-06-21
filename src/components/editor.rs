@@ -1251,7 +1251,7 @@ impl Editor {
     }
 
     #[cfg(test)]
-    fn get_text(&self) -> String {
+    pub fn text(&self) -> String {
         let buffer = self.buffer.borrow().clone();
         buffer.rope().slice(0..buffer.len_chars()).to_string()
     }
@@ -1912,10 +1912,10 @@ fn main() {
         editor.copy(&mut context);
         editor.select_token(Direction::Forward);
         editor.replace();
-        assert_eq!(editor.get_text(), "fn fn() { let x = 1; }");
+        assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
         editor.replace();
-        assert_eq!(editor.get_text(), "fn main() { let x = 1; }");
+        assert_eq!(editor.text(), "fn main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
     }
 
@@ -1927,7 +1927,7 @@ fn main() {
         editor.copy(&mut context);
         editor.select_token(Direction::Forward);
         editor.paste(&context);
-        assert_eq!(editor.get_text(), "fn fn() { let x = 1; }");
+        assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
     }
 
@@ -1937,13 +1937,13 @@ fn main() {
         let mut context = Context::default();
         editor.select_token(Direction::Forward);
         editor.cut(&mut context);
-        assert_eq!(editor.get_text(), " main() { let x = 1; }");
+        assert_eq!(editor.text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
         editor.select_token(Direction::Forward);
         editor.paste(&context);
 
-        assert_eq!(editor.get_text(), " fn() { let x = 1; }");
+        assert_eq!(editor.text(), " fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
     }
 
@@ -1958,10 +1958,10 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "fn main(y: Vec<A>, x: usize) {}");
+        assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
         editor.exchange(Direction::Backward);
-        assert_eq!(editor.get_text(), "fn main(x: usize, y: Vec<A>) {}");
+        assert_eq!(editor.text(), "fn main(x: usize, y: Vec<A>) {}");
     }
 
     #[test]
@@ -1976,9 +1976,9 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "use b;\nuse a;\nuse c;");
+        assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "use b;\nuse c;\nuse a;");
+        assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
     }
 
     #[test]
@@ -1992,10 +1992,10 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
         editor.upend(Direction::Forward);
-        assert_eq!(editor.get_text(), "fn main() { let x = c(); }");
+        assert_eq!(editor.text(), "fn main() { let x = c(); }");
 
         editor.upend(Direction::Forward);
-        assert_eq!(editor.get_text(), "fn main() { c() }");
+        assert_eq!(editor.text(), "fn main() { c() }");
     }
 
     #[test]
@@ -2015,7 +2015,7 @@ fn main() {
 
         editor.exchange(Direction::Forward);
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "
     let x = 1;
 fn main() {
@@ -2025,7 +2025,7 @@ fn main() {
 
         editor.exchange(Direction::Backward);
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "
 fn main() {
     let x = 1;
@@ -2040,14 +2040,14 @@ fn main() {
         editor.select_character(Direction::Forward);
 
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "nf main() { let x = 1; }");
+        assert_eq!(editor.text(), "nf main() { let x = 1; }");
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "n fmain() { let x = 1; }");
+        assert_eq!(editor.text(), "n fmain() { let x = 1; }");
 
         editor.exchange(Direction::Backward);
-        assert_eq!(editor.get_text(), "nf main() { let x = 1; }");
+        assert_eq!(editor.text(), "nf main() { let x = 1; }");
         editor.exchange(Direction::Backward);
-        assert_eq!(editor.get_text(), "fn main() { let x = 1; }");
+        assert_eq!(editor.text(), "fn main() { let x = 1; }");
     }
 
     #[test]
@@ -2065,11 +2065,11 @@ fn main() {
         editor.enter_insert_mode();
         editor.insert("pub ");
 
-        assert_eq!(editor.get_text(), "struct A(pub usize, pub char)");
+        assert_eq!(editor.text(), "struct A(pub usize, pub char)");
 
         editor.backspace();
 
-        assert_eq!(editor.get_text(), "struct A(pubusize, pubchar)");
+        assert_eq!(editor.text(), "struct A(pubusize, pubchar)");
         assert_eq!(editor.get_selected_texts(), vec!["", ""]);
     }
 
@@ -2098,16 +2098,16 @@ fn main() {
 
         editor.upend(Direction::Forward);
 
-        assert_eq!(editor.get_text(), "fn f(){ let x = a; let y = b; }");
+        assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
 
         editor.undo();
 
-        assert_eq!(editor.get_text(), "fn f(){ let x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
         editor.redo();
 
-        assert_eq!(editor.get_text(), "fn f(){ let x = a; let y = b; }");
+        assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
     }
 
@@ -2134,11 +2134,11 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
         editor.exchange(Direction::Forward);
-        assert_eq!(editor.get_text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
+        assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
         editor.exchange(Direction::Backward);
-        assert_eq!(editor.get_text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
+        assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
     }
 
     #[test]
@@ -2176,7 +2176,7 @@ fn main() {
         editor.insert(")");
 
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }"
         );
     }
@@ -2227,11 +2227,11 @@ fn main() {
         let mut context = Context::default();
         editor.cut(&mut context);
 
-        assert_eq!(editor.get_text(), "{ let x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "{ let x = S(a); let y = S(b); }");
 
         editor.paste(&context);
 
-        assert_eq!(editor.get_text(), "fn f(){ let x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
     }
 
     #[test]
@@ -2254,10 +2254,7 @@ fn main() {
 
         editor.paste(&context);
 
-        assert_eq!(
-            editor.get_text(),
-            "fn f()fn f() let x = S(a); let y = S(b); }"
-        );
+        assert_eq!(editor.text(), "fn f()fn f() let x = S(a); let y = S(b); }");
     }
 
     #[test]
@@ -2283,7 +2280,7 @@ fn main() {
 
         editor.replace();
 
-        assert_eq!(editor.get_text(), "fn f()fn f()");
+        assert_eq!(editor.text(), "fn f()fn f()");
     }
 
     #[test]
@@ -2305,7 +2302,7 @@ fn main() {
 
         editor.paste(&context);
 
-        assert_eq!(editor.get_text(), "fn{ let x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "fn{ let x = S(a); let y = S(b); }");
     }
 
     #[test]
@@ -2319,12 +2316,12 @@ fn main() {
 
         editor.exchange(Direction::Forward);
 
-        assert_eq!(editor.get_text(), "let(){ fn f x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "let(){ fn f x = S(a); let y = S(b); }");
         assert_eq!(editor.get_selected_texts(), vec!["fn f"]);
 
         editor.exchange(Direction::Forward);
 
-        assert_eq!(editor.get_text(), "let(){ x fn f = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "let(){ x fn f = S(a); let y = S(b); }");
     }
 
     #[test]
@@ -2344,7 +2341,7 @@ fn main() {
 
         editor.exchange(Direction::Forward);
 
-        assert_eq!(editor.get_text(), "fn h(){} fn f(){} fn g(){} fn i(){}");
+        assert_eq!(editor.text(), "fn h(){} fn f(){} fn g(){} fn i(){}");
 
         editor.select_sibling(Direction::Forward);
 
@@ -2355,7 +2352,7 @@ fn main() {
 
         editor.exchange(Direction::Forward);
 
-        assert_eq!(editor.get_text(), "fn h(){} fn i(){} fn f(){} fn g(){}");
+        assert_eq!(editor.text(), "fn h(){} fn i(){} fn f(){} fn g(){}");
     }
 
     #[test]
@@ -2382,7 +2379,7 @@ fn f() {
         editor.insert("let y = S(b);");
 
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "
 fn f() {
     let x = S(a);
@@ -2400,17 +2397,17 @@ fn f() {
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
         editor.delete(Direction::Forward);
-        assert_eq!(editor.get_text(), "n f(){ let x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
 
         editor.delete(Direction::Forward);
-        assert_eq!(editor.get_text(), " f(){ let x = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
         editor.select_match(Direction::Forward, &Some("x".to_string()));
         editor.select_character(Direction::Forward);
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
         editor.delete(Direction::Backward);
-        assert_eq!(editor.get_text(), " f(){ let  = S(a); let y = S(b); }");
+        assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
     }
 
     #[test]
@@ -2431,7 +2428,7 @@ let y = S(b);
 
         editor.delete(Direction::Forward);
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "
 let x = S(a);
 
@@ -2442,7 +2439,7 @@ let y = S(b);
 
         editor.delete(Direction::Forward);
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "
 let y = S(b);
 }"
@@ -2453,7 +2450,7 @@ let y = S(b);
         assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
         editor.delete(Direction::Backward);
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "
 }"
         );
@@ -2472,12 +2469,12 @@ let y = S(b);
         editor.select_sibling(Direction::Current);
         editor.delete(Direction::Forward);
 
-        assert_eq!(editor.get_text(), "fn f(y: b, z: c){}");
+        assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
         editor.select_sibling(Direction::Forward);
         editor.delete(Direction::Backward);
 
-        assert_eq!(editor.get_text(), "fn f(y: b){}");
+        assert_eq!(editor.text(), "fn f(y: b){}");
     }
 
     #[test]
@@ -2492,7 +2489,7 @@ let y = S(b);
         editor.paste(&context);
 
         assert_eq!(
-            editor.get_text(),
+            editor.text(),
             "let z = S(c);fn f(){ let x = S(a); let y = S(b); }"
         );
     }

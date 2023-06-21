@@ -149,6 +149,10 @@ impl<T: DropdownItem> Dropdown<T> {
             Direction::Backward => self.previous_item(),
         }
     }
+
+    pub fn filtered_items(&self) -> &Vec<T> {
+        &self.filtered_items
+    }
 }
 
 impl<T: DropdownItem + 'static> Component for Dropdown<T> {

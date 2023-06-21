@@ -38,6 +38,14 @@ impl Ord for CompletionItem {
 }
 
 impl CompletionItem {
+    pub fn from_label(label: String) -> Self {
+        Self {
+            label,
+            documentation: None,
+            sort_text: None,
+            edit: None,
+        }
+    }
     pub fn label(&self) -> String {
         self.label.clone()
     }
