@@ -982,7 +982,7 @@ impl Editor {
             KeyCode::Char('X') => return self.exchange(Direction::Backward),
             // y
             KeyCode::Char('z') => self.align_cursor_to_center(),
-            // Z
+            KeyCode::Char('Z') => self.align_cursor_to_top(),
             KeyCode::Char('0') => self.reset(),
             KeyCode::Backspace => {
                 self.change();
