@@ -22,6 +22,12 @@ pub struct SuggestiveEditor {
     info_panel: Option<Rc<RefCell<Editor>>>,
     dropdown: Option<Rc<RefCell<Dropdown<CompletionItem>>>>,
     trigger_characters: Vec<String>,
+    filter: SuggestiveEditorFilter,
+}
+
+pub enum SuggestiveEditorFilter {
+    CurrentWord,
+    CurrentLine,
 }
 
 impl DropdownItem for CompletionItem {
@@ -94,25 +100,34 @@ impl Component for SuggestiveEditor {
                 (event, _) => {
                     let dispatches = self.editor.handle_event(context, event)?;
                     if let Some(dropdown) = &self.dropdown {
-                        let filter = {
-                            // We need to subtract 1 because we need to get the character
-                            // before the cursor, not the character at the cursor
-                            let cursor_position = self.editor().get_cursor_position().sub_column(1);
+                        let filter = match self.filter {
+                            SuggestiveEditorFilter::CurrentWord => {
+                                // We need to subtract 1 because we need to get the character
+                                // before the cursor, not the character at the cursor
+                                let cursor_position =
+                                    self.editor().get_cursor_position().sub_column(1);
 
-                            match self.editor().buffer().get_char_at_position(cursor_position) {
-                                // The filter should be empty if the current character is a trigger
-                                // character, so that we can show all the completion items.
-                                Some(current_char)
-                                    if self
-                                        .trigger_characters
-                                        .contains(&current_char.to_string()) =>
-                                {
-                                    "".to_string()
+                                match self.editor().buffer().get_char_at_position(cursor_position) {
+                                    // The filter should be empty if the current character is a trigger
+                                    // character, so that we can show all the completion items.
+                                    Some(current_char)
+                                        if self
+                                            .trigger_characters
+                                            .contains(&current_char.to_string()) =>
+                                    {
+                                        "".to_string()
+                                    }
+
+                                    // If the current character is not a trigger character, we should
+                                    // filter based on the current word under the cursor.
+                                    _ => self.editor.get_current_word(),
                                 }
-
-                                // If the current character is not a trigger character, we should
-                                // filter based on the current word under the cursor.
-                                _ => self.editor.get_current_word(),
+                            }
+                            SuggestiveEditorFilter::CurrentLine => {
+                                let buffer = self.editor().buffer();
+                                buffer
+                                    .get_line(self.get_cursor_position().to_char_index(&buffer))
+                                    .to_string()
                             }
                         };
 
@@ -160,12 +175,13 @@ impl Component for SuggestiveEditor {
 }
 
 impl SuggestiveEditor {
-    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
+    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             info_panel: None,
             dropdown: None,
             trigger_characters: vec![],
+            filter,
         }
     }
 

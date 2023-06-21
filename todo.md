@@ -68,3 +68,4 @@
 - [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 - [] location list (local to each editor), local diagnostics should use this
 - [] dropdown: handle up/down/enter event
+- [] apply actions to all quickfix list items

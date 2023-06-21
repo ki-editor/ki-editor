@@ -26,7 +26,7 @@ use crate::{
         component::{Component, ComponentId},
         editor::Direction,
         prompt::{Prompt, PromptConfig},
-        suggestive_editor::SuggestiveEditor,
+        suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
     },
     context::Context,
     grid::{Grid, Style},
@@ -510,7 +510,10 @@ impl Screen {
 
         let buffer = Rc::new(RefCell::new(Buffer::from_path(entry_path)?));
         self.buffers.push(buffer.clone());
-        let component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(buffer)));
+        let component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(
+            buffer,
+            SuggestiveEditorFilter::CurrentWord,
+        )));
 
         self.layout
             .add_and_focus_suggestive_editor(component.clone());

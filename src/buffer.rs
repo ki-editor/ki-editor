@@ -386,14 +386,9 @@ impl Buffer {
             Direction::Backward => find_previous(
                 iter,
                 |_, _| true,
-                |match_| {
-                    match_.range.start.to_char_index(self) >= current_range.start
-                },
+                |match_| match_.range.start.to_char_index(self) >= current_range.start,
             )
-            .map(|item| {
-                item.range.start.to_char_index(self)
-                    ..item.range.end.to_char_index(self)
-            }),
+            .map(|item| item.range.start.to_char_index(self)..item.range.end.to_char_index(self)),
         }
     }
 

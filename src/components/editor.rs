@@ -1024,7 +1024,6 @@ impl Editor {
             selection.range = char_index..char_index
         });
         self.selection_set.mode = SelectionMode::Custom;
-        // self.extended_selection_anchor = None;
         self.mode = Mode::Insert;
         self.cursor_direction = CursorDirection::Start;
     }

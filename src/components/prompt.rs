@@ -13,7 +13,7 @@ use crate::{
 use super::{
     component::{Component, ComponentId},
     editor::{Editor, Mode},
-    suggestive_editor::SuggestiveEditor,
+    suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
 };
 
 pub struct Prompt {
@@ -56,10 +56,10 @@ impl Prompt {
             history.reverse();
             format!("\n{}", history.join("\n"))
         };
-        let mut editor = SuggestiveEditor::from_buffer(Rc::new(RefCell::new(Buffer::new(
-            tree_sitter_md::language(),
-            text,
-        ))));
+        let mut editor = SuggestiveEditor::from_buffer(
+            Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), text))),
+            SuggestiveEditorFilter::CurrentLine,
+        );
         editor.enter_insert_mode();
         editor.set_title(config.title);
         editor.set_completion(Completion {
