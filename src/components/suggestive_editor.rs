@@ -193,6 +193,9 @@ impl SuggestiveEditor {
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
+        if self.editor.mode != Mode::Insert {
+            return;
+        }
         let dropdown = match &self.dropdown {
             Some(dropdown) => dropdown.clone(),
             None => {
