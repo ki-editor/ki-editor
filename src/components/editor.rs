@@ -1578,7 +1578,10 @@ pub enum HandleEventResult {
 mod test_editor {
 
     use crate::{
-        components::editor::Mode, context::Context, lsp::diagnostic::Diagnostic, position::Position,
+        components::{component::Component, editor::Mode},
+        context::Context,
+        lsp::diagnostic::Diagnostic,
+        position::Position,
     };
 
     use super::{Direction, Editor};
@@ -2492,5 +2495,34 @@ let y = S(b);
             editor.text(),
             "let z = S(c);fn f(){ let x = S(a); let y = S(b); }"
         );
+    }
+
+    #[test]
+    fn enter_newline() {
+        let mut editor = Editor::from_text(language(), "");
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Type in 'hello'
+        editor.handle_events("h e l l o").unwrap();
+
+        // Type in enter
+        editor.handle_events("enter").unwrap();
+
+        // Type in 'world'
+        editor.handle_events("w o r l d").unwrap();
+
+        // Expect the text to be 'hello\nworld'
+        assert_eq!(editor.text(), "hello\nworld");
+
+        // Move cursor left
+        editor.handle_events("left").unwrap();
+
+        // Type in enter
+        editor.handle_events("enter").unwrap();
+
+        // Expect the text to be 'hello\nworl\nd'
+        assert_eq!(editor.text(), "hello\nworl\nd");
     }
 }
