@@ -69,3 +69,5 @@
 - [] location list (local to each editor), local diagnostics should use this
 - [] dropdown: handle up/down/enter event
 - [] apply actions to all quickfix list items
+- [] multi-autocomplete with insert
+- [] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious

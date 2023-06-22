@@ -7,7 +7,11 @@ pub struct Position {
     /// 0-based
     pub column: usize,
 }
+
 impl Position {
+    pub fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
     pub fn to_char_index(self, buffer: &Buffer) -> crate::selection::CharIndex {
         buffer.position_to_char(self)
     }

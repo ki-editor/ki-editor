@@ -153,9 +153,13 @@ impl Component for SuggestiveEditor {
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         vec![
-            self.dropdown
-                .clone()
-                .map(|dropdown| dropdown as Rc<RefCell<dyn Component>>),
+            self.dropdown.clone().and_then(|dropdown| {
+                if dropdown.borrow().filtered_items().is_empty() {
+                    None
+                } else {
+                    Some(dropdown as Rc<RefCell<dyn Component>>)
+                }
+            }),
             self.info_panel
                 .clone()
                 .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>),
@@ -221,7 +225,13 @@ impl SuggestiveEditor {
     }
 
     pub fn dropdown_opened(&self) -> bool {
-        self.dropdown.is_some()
+        self.descendants().iter().any(|descendant| {
+            descendant
+                .borrow()
+                .as_any()
+                .downcast_ref::<Dropdown<CompletionItem>>()
+                .is_some()
+        })
     }
 
     #[cfg(test)]
@@ -241,42 +251,46 @@ impl SuggestiveEditor {
 }
 
 #[cfg(test)]
-mod suggestive_editor {
+mod test_suggestive_editor {
     use std::{cell::RefCell, rc::Rc};
-
-    use crossterm::event::Event;
 
     use crate::{
         buffer::Buffer,
         components::component::Component,
-        context::Context,
-        lsp::completion::{Completion, CompletionItem},
+        lsp::completion::{Completion, CompletionItem, PositionalEdit},
+        position::Position,
     };
 
     use super::{SuggestiveEditor, SuggestiveEditorFilter};
+    use pretty_assertions::assert_eq;
 
-    #[test]
-    fn test_handle_event_filter_current_word() {
-        let mut editor = SuggestiveEditor::from_buffer(
-            Rc::new(RefCell::new(Buffer::new(
-                tree_sitter_md::language(),
-                "Hello world",
-            ))),
-            SuggestiveEditorFilter::CurrentWord,
-        );
-
-        // Delete the first word
-        editor.handle_events("w backspace").unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(Completion {
+    fn dummy_completion() -> Completion {
+        Completion {
             trigger_characters: vec![".".to_string()],
             items: vec![
                 CompletionItem::from_label("Spongebob".to_string()),
                 CompletionItem::from_label("Patrick".to_string()),
                 CompletionItem::from_label("Squidward".to_string()),
             ],
-        });
+        }
+    }
+
+    fn editor(filter: SuggestiveEditorFilter) -> SuggestiveEditor {
+        SuggestiveEditor::from_buffer(
+            Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), ""))),
+            filter,
+        )
+    }
+
+    #[test]
+    fn navigate_dropdown() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
 
         // Expect the completion dropdown to be open
         assert!(editor.dropdown_opened());
@@ -293,22 +307,13 @@ mod suggestive_editor {
             Some(CompletionItem::from_label("Patrick".to_string()))
         );
 
-        // Type in character 's'
-        editor.handle_events("s").unwrap();
-
-        // Expect the completion dropdown to show only the items that contains 's'
-        assert_eq!(
-            editor.filtered_dropdown_items(),
-            vec!["Spongebob", "Squidward"]
-        );
-
         // Go to the next item using the down arrow key
         editor.handle_events("down").unwrap();
 
         // Expect the selected item to be the second item
         assert_eq!(
             editor.current_item(),
-            Some(CompletionItem::from_label("Squidward".to_string()))
+            Some(CompletionItem::from_label("Spongebob".to_string()))
         );
 
         // Go to the previous item using the up arrow key
@@ -317,7 +322,7 @@ mod suggestive_editor {
         // Expect the selected item to be the first item
         assert_eq!(
             editor.current_item(),
-            Some(CompletionItem::from_label("Spongebob".to_string()))
+            Some(CompletionItem::from_label("Patrick".to_string()))
         );
 
         // Go to the next item using Ctrl-n
@@ -326,7 +331,7 @@ mod suggestive_editor {
         // Expect the selected item to be the second item
         assert_eq!(
             editor.current_item(),
-            Some(CompletionItem::from_label("Squidward".to_string()))
+            Some(CompletionItem::from_label("Spongebob".to_string()))
         );
 
         // Go to the previous item using Ctrl-p
@@ -335,16 +340,182 @@ mod suggestive_editor {
         // Expect the selected item to be the first item
         assert_eq!(
             editor.current_item(),
-            Some(CompletionItem::from_label("Spongebob".to_string()))
+            Some(CompletionItem::from_label("Patrick".to_string()))
         );
+    }
 
-        // Select the current item using the enter key
+    #[test]
+    fn trigger_characters() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
+
+        // Type in 'pa'
+        editor.handle_events("p a").unwrap();
+
+        // Expect the completion dropdown to be open,
+        // and the dropdown items to be filtered
+        assert!(editor.dropdown_opened());
+        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
+
+        // Type in one of the trigger characters, '.'
+        editor.handle_events(".").unwrap();
+
+        // Expect the completion dropdown to be open,
+        // and the dropdown items to be unfiltered (showing all items)
+        assert!(editor.dropdown_opened());
+
+        // Expect the completion dropdown to show all the items
+        assert_eq!(
+            editor.filtered_dropdown_items(),
+            vec!["Patrick", "Spongebob", "Squidward"]
+        );
+    }
+
+    #[test]
+    fn completion_without_edit() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
+
+        // Type in 'pa'
+        editor.handle_events("p a").unwrap();
+
+        // Expect the completion dropdown to be open,
+        // and the dropdown items to be filtered
+        assert!(editor.dropdown_opened());
+        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
+
+        // Press enter
         editor.handle_events("enter").unwrap();
 
         // Expect the completion dropdown to be closed
         assert!(!editor.dropdown_opened());
 
-        // Expect the current item to be inserted
-        assert_eq!(editor.editor.text(), "Spongebob world");
+        // Expect the buffer to contain the selected item
+        assert_eq!(editor.editor().text(), "Patrick");
+    }
+
+    #[test]
+    fn completion_with_edit() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Enter a word 'sponge'
+        editor.handle_events("s p o n g e").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(Completion {
+            trigger_characters: vec![".".to_string()],
+            items: vec![CompletionItem {
+                label: "Spongebob".to_string(),
+                edit: Some(PositionalEdit {
+                    range: Position::new(0, 0)..Position::new(0, 6),
+                    new_text: "Spongebob".to_string(),
+                }),
+                documentation: None,
+                sort_text: None,
+            }],
+        });
+
+        // Press enter
+        editor.handle_events("enter").unwrap();
+
+        // Expect the content of the buffer to be applied with the new edit,
+        // resulting in 'Spongebob'
+        assert_eq!(editor.editor().text(), "Spongebob");
+    }
+
+    #[test]
+    fn filter_with_current_word() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
+
+        // Type in 'pa'
+        editor.handle_events("p a").unwrap();
+
+        // Expect the completion dropdown to be open,
+        // and the dropdown items to be filtered
+        assert!(editor.dropdown_opened());
+        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
+
+        // Type in space, then 's'
+        editor.handle_events("space s").unwrap();
+
+        // Expect the completion dropdown to be open,
+        // and the dropdown items to be filtered by the current word, 's'
+        assert_eq!(
+            editor.filtered_dropdown_items(),
+            vec!["Spongebob", "Squidward"]
+        );
+    }
+
+    #[test]
+    fn filter_with_current_line() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentLine);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
+
+        // Type in 'pa'
+        editor.handle_events("p a").unwrap();
+
+        // Expect the completion dropdown to be open,
+        // and the dropdown items to be filtered
+        assert!(editor.dropdown_opened());
+        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
+
+        // Type in space, then 's'
+        editor.handle_events("space s").unwrap();
+
+        // Expect the completion dropdown to be hidden,
+        // and the dropdown items to be filtered by the current line, 'pa s'
+        assert!(!editor.dropdown_opened());
+        assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
+    }
+
+    #[test]
+    fn enter_when_no_filtered_items() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor.handle_events("i").unwrap();
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
+
+        // Expect the completion dropdown to be opened
+        assert!(editor.dropdown_opened());
+
+        // Type in 'x'
+        editor.handle_events("x").unwrap();
+
+        // Expect the completion dropdown to be closed,
+        // since there are no filtered items
+        assert!(!editor.dropdown_opened());
+
+        // Press enter
+        editor.handle_events("enter").unwrap();
+
+        // Expect a newline to be inserted
+        assert_eq!(editor.editor().text(), "x\n");
     }
 }
