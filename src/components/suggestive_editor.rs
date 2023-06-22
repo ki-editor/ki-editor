@@ -256,7 +256,7 @@ mod test_suggestive_editor {
 
     use crate::{
         buffer::Buffer,
-        components::component::Component,
+        components::{component::Component, editor::Mode},
         lsp::completion::{Completion, CompletionItem, PositionalEdit},
         position::Position,
     };
@@ -517,5 +517,20 @@ mod test_suggestive_editor {
 
         // Expect a newline to be inserted
         assert_eq!(editor.editor().text(), "x\n");
+    }
+
+    #[test]
+    fn setting_completion_when_not_in_insert_mode() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Expect the editor to not be in insert mode
+        assert_ne!(editor.editor().mode, Mode::Insert);
+
+        // Pretend that the LSP server returned a completion
+        editor.set_completion(dummy_completion());
+
+        // Expect the completion dropdown to not be opened,
+        // since the editor is not in insert mode
+        assert!(!editor.dropdown_opened());
     }
 }
