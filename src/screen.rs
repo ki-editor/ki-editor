@@ -406,9 +406,13 @@ impl Screen {
             owner: current_component.clone(),
             on_enter: Box::new(|text, owner| {
                 owner
-                    .borrow_mut()
-                    .editor_mut()
-                    .select_match(Direction::Forward, &Some(text.to_string()));
+                    .map(|owner| {
+                        owner
+                            .borrow_mut()
+                            .editor_mut()
+                            .select_match(Direction::Forward, &Some(text.to_string()));
+                    })
+                    .unwrap_or_default();
                 Ok(vec![Dispatch::SetSearch {
                     search: text.to_string(),
                 }])

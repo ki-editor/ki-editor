@@ -27,7 +27,7 @@ pub struct Prompt {
 type OnEnter = Box<
     dyn Fn(
         /* current_suggestion */ &str,
-        /*owner*/ Rc<RefCell<dyn Component>>,
+        /*owner*/ Option<Rc<RefCell<dyn Component>>>,
     ) -> anyhow::Result<Vec<Dispatch>>,
 >;
 
@@ -112,15 +112,19 @@ impl Component for Prompt {
                         self.text.clone()
                     };
 
-                    if let Some(owner) = self.owner.clone() {
-                        let dispatches = (self.on_enter)(&current_item, owner.clone())?;
-                        return Ok(vec![Dispatch::CloseCurrentWindow {
-                            change_focused_to: owner.borrow().id(),
-                        }]
-                        .into_iter()
-                        .chain(dispatches)
-                        .collect());
-                    }
+                    let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
+                    return Ok(self
+                        .owner
+                        .clone()
+                        .map(|owner| {
+                            vec![Dispatch::CloseCurrentWindow {
+                                change_focused_to: owner.borrow().id(),
+                            }]
+                            .into_iter()
+                            .chain(dispatches)
+                            .collect_vec()
+                        })
+                        .unwrap_or_default());
                 }
                 _ => {}
             },
