@@ -212,7 +212,9 @@ impl SuggestiveEditor {
     }
 
     pub fn dropdown_opened(&self) -> bool {
-        self.dropdown_opened && !self.dropdown.borrow().filtered_items().is_empty()
+        self.dropdown_opened
+            && !self.dropdown.borrow().filtered_items().is_empty()
+            && self.editor.mode == Mode::Insert
     }
 
     #[cfg(test)]
@@ -604,10 +606,21 @@ mod test_suggestive_editor {
         editor.handle_events("i").unwrap();
 
         // Type something
-        let dispatches = editor.handle_events("p a").unwrap();
+        let dispatches = editor.handle_events("p").unwrap();
 
         // Expect the completion request to be sent
         assert!(dispatches
+            .into_iter()
+            .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
+
+        // Enter normal mode
+        editor.handle_events("esc").unwrap();
+
+        // Type something
+        let dispatches = editor.handle_events("l").unwrap();
+
+        // Expect the completion request to not be sent
+        assert!(!dispatches
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
     }
