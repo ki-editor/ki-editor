@@ -1,6 +1,6 @@
 use crate::buffer::Buffer;
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Ord)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Ord, Default)]
 pub struct Position {
     /// 0-based
     pub line: usize,

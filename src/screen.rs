@@ -413,11 +413,11 @@ impl Screen {
                     search: text.to_string(),
                 }])
             }),
-            on_text_change: Box::new(|current_text, owner| {
-                owner
-                    .borrow_mut()
-                    .editor_mut()
-                    .select_match(Direction::Forward, &Some(current_text.to_string()));
+            on_text_change: Box::new(|_current_text, _owner| {
+                // owner
+                //     .borrow_mut()
+                //     .editor_mut()
+                //     .select_match(Direction::Forward, &Some(current_text.to_string()));
                 Ok(vec![])
             }),
             items: current_component
@@ -695,7 +695,7 @@ fn reveal(s: String) -> String {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     CloseCurrentWindow {
@@ -726,7 +726,7 @@ pub enum Dispatch {
     GotoOpenedEditor(Direction),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestParams {
     pub component_id: ComponentId,
     pub path: CanonicalizedPath,

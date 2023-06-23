@@ -49,6 +49,10 @@ impl Buffer {
         self.path.clone()
     }
 
+    pub fn set_path(&mut self, path: CanonicalizedPath) {
+        self.path = Some(path);
+    }
+
     pub fn words(&self) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
@@ -469,13 +473,7 @@ pub struct Patch {
 
 #[cfg(test)]
 mod test_buffer {
-    use crate::canonicalized_path::CanonicalizedPath;
-    use crate::selection::{CharIndex, SelectionSet};
-
     use super::Buffer;
-    use std::fs::File;
-    use std::io::{Read, Write};
-    use tempfile::tempdir;
 
     #[test]
     fn find_words() {
@@ -489,7 +487,7 @@ mod test_buffer {
     mod auto_format {
         use std::fs::File;
 
-        use tempfile::{tempdir, TempDir};
+        use tempfile::tempdir;
 
         use crate::{
             buffer::Buffer,

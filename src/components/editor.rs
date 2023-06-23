@@ -1,6 +1,6 @@
 use crate::{canonicalized_path::CanonicalizedPath, context::Context, screen::RequestParams};
 use std::{
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
     ops::Range,
     rc::Rc,
 };
@@ -347,9 +347,14 @@ impl Editor {
         }
     }
 
-    pub fn get_current_line(&self) -> Rope {
+    pub fn current_line(&self) -> String {
         let cursor = self.get_cursor_char_index();
-        self.buffer.borrow().get_line(cursor)
+        self.buffer
+            .borrow()
+            .get_line(cursor)
+            .to_string()
+            .trim()
+            .into()
     }
 
     pub fn get_current_word(&self) -> String {
@@ -1441,6 +1446,10 @@ impl Editor {
 
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
+    }
+
+    pub fn buffer_mut(&mut self) -> RefMut<Buffer> {
+        self.buffer.borrow_mut()
     }
 
     fn update_buffer(&mut self, s: &str) {

@@ -71,8 +71,12 @@
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
 - [] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
-- [] feat(editor/slurp):
+- [] feat(editor/slurp or barf):
   - exchange last nameless sibling (closing bracket), with the next sibling of parent
     - and reverse
   - exchange first nameless sibling (opening bracket), with the previous sibling of parent
     - and reverse
+- [] editor(bug): go to previous error always step to the next first before going to the first
+- [] perf: when LSP is enable, handling key event is very slow
+- [] editor(lift): move an expression upwards, can be implemented by swapping
+  the "section before the current node until its parent" with "current node"

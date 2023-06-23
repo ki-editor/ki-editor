@@ -200,7 +200,7 @@ impl Ord for Location {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuickfixListType {
     LspDiagnostic,
 }

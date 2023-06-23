@@ -101,6 +101,8 @@ impl<T: DropdownItem> Dropdown<T> {
             .cloned()
             .sorted()
             .collect();
+
+        self.current_item();
     }
 
     pub fn set_filter(&mut self, filter: &str) {
@@ -245,10 +247,10 @@ mod test_dropdown {
 
         // The current item should be `dolor` because dropdown will sort the items
         assert_eq!(dropdown.current_item().unwrap().label(), "dolor");
-        assert_eq!(dropdown.editor.get_current_line(), "[1] dolor\n");
+        assert_eq!(dropdown.editor.current_line(), "[1] dolor");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
-        assert_eq!(dropdown.editor.get_current_line(), "[2] ipsum\n");
+        assert_eq!(dropdown.editor.current_line(), "[2] ipsum");
     }
 
     #[test]
