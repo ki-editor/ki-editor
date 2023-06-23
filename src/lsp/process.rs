@@ -1,4 +1,5 @@
 use crate::canonicalized_path::CanonicalizedPath;
+use crate::language;
 use crate::position::Position;
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
@@ -18,9 +19,9 @@ use crate::utils::consolidate_errors;
 use super::completion::{Completion, CompletionItem};
 use super::goto_definition_response::GotoDefinitionResponse;
 use super::hover::Hover;
-use super::language::Language;
 use crate::quickfix_list::Location;
 
+type Language = Box<dyn language::Language>;
 struct LspServerProcess {
     language: Language,
     stdin: process::ChildStdin,
@@ -166,7 +167,7 @@ impl LspServerProcessChannel {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidOpen {
                 file_path: path,
-                language_id: self.language.id(),
+                language_id: self.language.id().to_string(),
                 version: 1,
                 content,
             },
@@ -208,17 +209,14 @@ impl LspServerProcess {
         language: Language,
         screen_message_sender: Sender<ScreenMessage>,
     ) -> anyhow::Result<Option<LspServerProcessChannel>> {
-        let (command, args) = match language.get_lsp_command_args() {
+        let process_command = match language.lsp_process_command() {
             Some(result) => result,
             None => return Ok(None),
         };
 
-        let mut command = Command::new(command);
+        let mut command = Command::new(process_command.command);
         command.stdin(Stdio::piped()).stdout(Stdio::piped());
-
-        args.into_iter().for_each(|arg| {
-            command.arg(arg);
-        });
+        command.args(process_command.args);
 
         let mut process = command.spawn()?;
 
@@ -232,7 +230,7 @@ impl LspServerProcess {
             .ok_or_else(|| anyhow::anyhow!("Unable to obtain stdout"))?;
         let (sender, receiver) = std::sync::mpsc::channel::<LspServerProcessMessage>();
         let mut lsp_server_process = LspServerProcess {
-            language,
+            language: language.clone(),
             stdin,
             stdout: Some(stdout),
             current_working_directory: std::env::current_dir()?.try_into()?,
@@ -428,7 +426,7 @@ impl LspServerProcess {
 
                         self.screen_message_sender
                             .send(ScreenMessage::LspNotification(
-                                LspNotification::Initialized(self.language),
+                                LspNotification::Initialized(self.language.clone()),
                             ))?;
                     }
                     "textDocument/completion" => {

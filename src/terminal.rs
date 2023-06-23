@@ -1,7 +1,6 @@
 use portable_pty::{native_pty_system, PtySize};
 use std::io::{Read, Write};
 
-
 pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error> {
     crossterm::terminal::enable_raw_mode()?;
     use portable_pty::CommandBuilder;

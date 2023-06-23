@@ -2,7 +2,8 @@ use crate::{
     canonicalized_path::CanonicalizedPath,
     components::editor::Direction,
     edit::{Edit, EditTransaction},
-    lsp::{diagnostic::Diagnostic, language::Language},
+    language::{self, Language},
+    lsp::diagnostic::Diagnostic,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,
@@ -19,7 +20,7 @@ pub struct Buffer {
     rope: Rope,
     tree: Tree,
     ts_language: tree_sitter::Language,
-    language: Option<Language>,
+    language: Option<Box<dyn Language>>,
     undo_patches: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
@@ -219,12 +220,14 @@ impl Buffer {
                 Ok(()) => self.apply_edit(edit),
             })?;
 
-        self.update_content(current_selection_set, &before, &self.rope.to_string());
+        self.add_undo_patch(current_selection_set, &before);
 
         Ok(())
     }
 
-    fn update_content(&mut self, current_selection_set: SelectionSet, before: &str, after: &str) {
+    /// This method assumes `self.rope` is already updated
+    fn add_undo_patch(&mut self, current_selection_set: SelectionSet, before: &str) {
+        let after = &self.rope.to_string();
         if before == after {
             return;
         }
@@ -234,7 +237,6 @@ impl Buffer {
             selection_set: current_selection_set,
             patch: diffy::create_patch(after, before).to_string(),
         });
-        self.rope = Rope::from(after.to_string());
     }
 
     pub fn undo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
@@ -327,12 +329,12 @@ impl Buffer {
 
     pub fn from_path(path: &CanonicalizedPath) -> anyhow::Result<Buffer> {
         let content = path.read()?;
-        let language = Language::from_path(path);
+        let language = language::from_path(path);
 
         let mut buffer = Buffer::new(
             language
                 .as_ref()
-                .map(|language| language.tree_sitter_language())
+                .and_then(|language| language.tree_sitter_language())
                 .unwrap_or_else(tree_sitter_md::language),
             &content,
         );
@@ -349,21 +351,26 @@ impl Buffer {
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
         let before = self.rope.to_string();
         if let Some(path) = &self.path.clone() {
-            let content = if let Some(content) = self.language.as_ref().and_then(|language| {
+            if let Some(content) = self.language.as_ref().and_then(|language| {
                 language
                     .formatter()
                     .map(|formatter| formatter.format(&self.rope.to_string()))
             }) {
-                content.unwrap_or_else(|error| {
-                    log::info!("Error formatting: {}", error);
-                    self.rope.to_string()
-                })
+                match content {
+                    Ok(content) => {
+                        self.update(&content);
+                        self.add_undo_patch(current_selection_set, &before);
+                        path.write(&content)?;
+                    }
+                    Err(error) => {
+                        log::info!("Error formatting: {}", error);
+                        path.write(&before)?;
+                    }
+                }
             } else {
-                self.rope.to_string()
+                path.write(&before)?;
             };
 
-            self.update_content(current_selection_set, &before, &content);
-            path.write(&content)?;
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
@@ -452,7 +459,7 @@ pub struct Patch {
 #[cfg(test)]
 mod test_buffer {
     use crate::canonicalized_path::CanonicalizedPath;
-    use crate::selection::SelectionSet;
+    use crate::selection::{CharIndex, SelectionSet};
 
     use super::Buffer;
     use std::fs::File;
@@ -476,7 +483,7 @@ mod test_buffer {
         File::create(&file_path).unwrap();
         let path = CanonicalizedPath::try_from(file_path).unwrap();
 
-        let original = "fn main\n() {}";
+        let original = " fn main\n() {}";
 
         path.write(original).unwrap();
 
@@ -491,6 +498,15 @@ mod test_buffer {
         assert_eq!(saved_content, "fn main() {}\n");
         assert_eq!(buffer_content, "fn main() {}\n");
 
+        // Expect the syntax tree is also updated
+        assert_eq!(
+            buffer
+                .get_next_token(CharIndex::default(), false)
+                .unwrap()
+                .byte_range(),
+            0..2
+        );
+
         // The formatted output should be undoable,
         // in case the formatter messed up the code.
         buffer.undo(SelectionSet::default()).unwrap();
@@ -498,6 +514,6 @@ mod test_buffer {
         let content = buffer.rope.to_string();
 
         // Expect the content is reverted to the original
-        assert_eq!(content, "fn main\n() {}");
+        assert_eq!(content, " fn main\n() {}");
     }
 }

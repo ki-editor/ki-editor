@@ -1,14 +1,16 @@
-use crate::{canonicalized_path::CanonicalizedPath, screen::RequestParams};
+use crate::{
+    canonicalized_path::CanonicalizedPath,
+    language::{self, Language, LanguageId},
+    screen::RequestParams,
+};
 use std::{collections::HashMap, sync::mpsc::Sender};
 
-use itertools::Itertools;
+use crate::screen::ScreenMessage;
 
-use crate::{lsp::language::get_language, screen::ScreenMessage, utils::consolidate_errors};
-
-use super::{language::Language, process::LspServerProcessChannel};
+use super::process::LspServerProcessChannel;
 
 pub struct LspManager {
-    lsp_server_process_channels: HashMap<Language, LspServerProcessChannel>,
+    lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
     sender: Sender<ScreenMessage>,
 }
 
@@ -33,16 +35,13 @@ impl LspManager {
     fn invoke_channels(
         &self,
         path: &CanonicalizedPath,
-        error: &str,
+        _error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        let languages = get_language(path);
-        let results = languages
-            .into_iter()
-            .filter_map(|language| self.lsp_server_process_channels.get(&language))
+        language::from_path(path)
+            .and_then(|language| self.lsp_server_process_channels.get(&language.id()))
             .map(f)
-            .collect_vec();
-        consolidate_errors(error, results)
+            .unwrap_or_else(|| Ok(()))
     }
 
     pub fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
@@ -90,34 +89,37 @@ impl LspManager {
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
     pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
-        let languages = get_language(&path);
+        let languages = language::from_path(&path);
 
-        consolidate_errors(
-            "Failed to start language server",
-            languages
-                .into_iter()
-                .map(|language| {
-                    if let Some(channel) = self.lsp_server_process_channels.get(&language) {
-                        if channel.is_initialized() {
-                            channel.document_did_open(path.clone())
-                        } else {
-                            Ok(())
-                        }
+        languages
+            .map(|language| {
+                if let Some(channel) = self.lsp_server_process_channels.get(&language.id()) {
+                    if channel.is_initialized() {
+                        channel.document_did_open(path.clone())
                     } else {
-                        language.spawn_lsp(self.sender.clone()).map(|channel| {
-                            if let Some(channel) = channel {
-                                self.lsp_server_process_channels.insert(language, channel);
-                            }
-                        })
+                        Ok(())
                     }
-                })
-                .collect_vec(),
-        )
+                } else {
+                    LspServerProcessChannel::new(language.clone(), self.sender.clone()).map(
+                        |channel| {
+                            if let Some(channel) = channel {
+                                self.lsp_server_process_channels
+                                    .insert(language.id(), channel);
+                            }
+                        },
+                    )
+                }
+            })
+            .unwrap_or_else(|| Ok(()))
     }
 
-    pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
+    pub fn initialized(
+        &mut self,
+        language: Box<dyn Language>,
+        opened_documents: Vec<CanonicalizedPath>,
+    ) {
         self.lsp_server_process_channels
-            .get_mut(&language)
+            .get_mut(&language.id())
             .map(|channel| {
                 channel.initialized();
                 channel.documents_did_open(opened_documents)
