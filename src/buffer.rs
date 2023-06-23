@@ -345,12 +345,8 @@ impl Buffer {
         Ok(buffer)
     }
 
-    pub fn save(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
-        let before = self.rope.to_string();
-        if let Some(path) = &self.path.clone() {
+    fn get_formatted_content(&self) -> Option<String> {
+        if !self.tree.root_node().has_error() {
             if let Some(content) = self.language.as_ref().and_then(|language| {
                 language
                     .formatter()
@@ -358,18 +354,33 @@ impl Buffer {
             }) {
                 match content {
                     Ok(content) => {
-                        self.update(&content);
-                        self.add_undo_patch(current_selection_set, &before);
-                        path.write(&content)?;
+                        return Some(content);
                     }
                     Err(error) => {
                         log::info!("Error formatting: {}", error);
-                        path.write(&before)?;
                     }
                 }
-            } else {
-                path.write(&before)?;
-            };
+            }
+        }
+        None
+    }
+
+    pub fn save(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+        let before = self.rope.to_string();
+
+        let content = if let Some(formatted_content) = self.get_formatted_content() {
+            self.update(&formatted_content);
+            self.add_undo_patch(current_selection_set, &before);
+            formatted_content
+        } else {
+            before
+        };
+
+        if let Some(path) = &self.path.clone() {
+            path.write(&content)?;
 
             Ok(Some(path.clone()))
         } else {
@@ -475,45 +486,95 @@ mod test_buffer {
         assert_eq!(words, vec!["bar", "baz"]);
     }
 
-    #[test]
-    fn save_with_formatting() {
-        let dir = tempdir().unwrap();
+    mod auto_format {
+        use std::fs::File;
 
-        let file_path = dir.path().join("main.rs");
-        File::create(&file_path).unwrap();
-        let path = CanonicalizedPath::try_from(file_path).unwrap();
+        use tempfile::{tempdir, TempDir};
 
-        let original = " fn main\n() {}";
+        use crate::{
+            buffer::Buffer,
+            canonicalized_path::CanonicalizedPath,
+            selection::{CharIndex, SelectionSet},
+        };
 
-        path.write(original).unwrap();
+        /// The TempDir is returned so that the directory is not deleted
+        /// when the TempDir object is dropped
+        fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {
+            let dir = tempdir().unwrap();
 
-        let mut buffer = Buffer::from_path(&path).unwrap();
+            let file_path = dir.path().join("main.rs");
+            File::create(&file_path).unwrap();
+            let path = CanonicalizedPath::try_from(file_path).unwrap();
+            path.write("").unwrap();
 
-        buffer.save(SelectionSet::default()).unwrap();
+            let buffer = Buffer::from_path(&path).unwrap();
 
-        // Expect the output is formatted
-        let saved_content = path.read().unwrap();
-        let buffer_content = buffer.rope.to_string();
+            f(path, buffer)
+        }
 
-        assert_eq!(saved_content, "fn main() {}\n");
-        assert_eq!(buffer_content, "fn main() {}\n");
+        #[test]
+        fn should_format_code() {
+            run_test(|path, mut buffer| {
+                // Update the buffer with unformatted code
+                buffer.update(" fn main\n() {}");
 
-        // Expect the syntax tree is also updated
-        assert_eq!(
-            buffer
-                .get_next_token(CharIndex::default(), false)
-                .unwrap()
-                .byte_range(),
-            0..2
-        );
+                // Save the buffer
+                buffer.save(SelectionSet::default()).unwrap();
 
-        // The formatted output should be undoable,
-        // in case the formatter messed up the code.
-        buffer.undo(SelectionSet::default()).unwrap();
+                // Expect the output is formatted
+                let saved_content = path.read().unwrap();
+                let buffer_content = buffer.rope.to_string();
 
-        let content = buffer.rope.to_string();
+                assert_eq!(saved_content, "fn main() {}\n");
+                assert_eq!(buffer_content, "fn main() {}\n");
 
-        // Expect the content is reverted to the original
-        assert_eq!(content, " fn main\n() {}");
+                // Expect the syntax tree is also updated
+                assert_eq!(
+                    buffer
+                        .get_next_token(CharIndex::default(), false)
+                        .unwrap()
+                        .byte_range(),
+                    0..2
+                );
+            })
+        }
+
+        #[test]
+        /// The formatted output should be undoable,
+        /// in case the formatter messed up the code.
+        fn should_be_undoable() {
+            run_test(|_, mut buffer| {
+                let original = " fn main\n() {}";
+                buffer.update(original);
+
+                buffer.save(SelectionSet::default()).unwrap();
+
+                // Expect the buffer is formatted
+                assert_ne!(buffer.rope.to_string(), original);
+
+                // Undo the buffer
+                buffer.undo(SelectionSet::default()).unwrap();
+
+                let content = buffer.rope.to_string();
+
+                // Expect the content is reverted to the original
+                assert_eq!(content, " fn main\n() {}");
+            })
+        }
+
+        #[test]
+        fn should_not_run_when_syntax_tree_is_malformed() {
+            run_test(|_, mut buffer| {
+                // Update the buffer to be invalid Rust code
+                buffer.update("fn main() {");
+
+                // Save the buffer
+                buffer.save(SelectionSet::default()).unwrap();
+
+                // Expect the buffer remain unchanged,
+                // because the syntax tree is invalid
+                assert_eq!(buffer.rope.to_string(), "fn main() {");
+            })
+        }
     }
 }
