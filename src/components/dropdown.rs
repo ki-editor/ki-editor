@@ -60,7 +60,7 @@ impl<T: DropdownItem> Dropdown<T> {
         }
         self.current_item_index += 1;
         self.editor.select_line_at(self.current_item_index);
-        self.current_item()
+        self.show_current_item()
     }
 
     pub fn previous_item(&mut self) -> Option<T> {
@@ -69,10 +69,10 @@ impl<T: DropdownItem> Dropdown<T> {
         }
         self.current_item_index -= 1;
         self.editor.select_line_at(self.current_item_index);
-        self.current_item()
+        self.show_current_item()
     }
 
-    pub fn current_item(&mut self) -> Option<T> {
+    pub fn show_current_item(&mut self) -> Option<T> {
         self.filtered_items
             .get(self.current_item_index)
             .cloned()
@@ -80,6 +80,10 @@ impl<T: DropdownItem> Dropdown<T> {
                 self.show_info(item.info());
                 item
             })
+    }
+
+    pub fn current_item(&self) -> Option<T> {
+        self.filtered_items.get(self.current_item_index).cloned()
     }
 
     pub fn set_items(&mut self, items: Vec<T>) {
@@ -102,7 +106,7 @@ impl<T: DropdownItem> Dropdown<T> {
             .sorted()
             .collect();
 
-        self.current_item();
+        self.show_current_item();
     }
 
     pub fn set_filter(&mut self, filter: &str) {
@@ -261,5 +265,55 @@ mod test_dropdown {
         dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         dropdown.set_filter("A");
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
+    }
+
+    #[test]
+    fn setting_filter_should_show_info_of_the_new_first_item() {
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+        struct Item {
+            label: String,
+            info: String,
+        }
+
+        impl Item {
+            fn new(label: &str, info: &str) -> Self {
+                Self {
+                    label: label.to_string(),
+                    info: info.to_string(),
+                }
+            }
+        }
+
+        impl DropdownItem for Item {
+            fn label(&self) -> String {
+                self.label.to_string()
+            }
+
+            fn info(&self) -> Option<String> {
+                Some(self.info.to_string())
+            }
+        }
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+        });
+        dropdown.set_items(vec![
+            Item::new("a", "info a"),
+            Item::new("b", "info b"),
+            Item::new("c", "info c"),
+        ]);
+
+        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        assert_eq!(
+            dropdown.info_panel.as_ref().unwrap().borrow().text(),
+            "info a"
+        );
+
+        dropdown.set_filter("b");
+
+        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        assert_eq!(
+            dropdown.info_panel.as_ref().unwrap().borrow().text(),
+            "info b"
+        );
     }
 }
