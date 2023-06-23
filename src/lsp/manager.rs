@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::mpsc::Sender};
 
 use itertools::Itertools;
 
-use crate::{lsp::language::get_languages, screen::ScreenMessage, utils::consolidate_errors};
+use crate::{lsp::language::get_language, screen::ScreenMessage, utils::consolidate_errors};
 
 use super::{language::Language, process::LspServerProcessChannel};
 
@@ -36,7 +36,7 @@ impl LspManager {
         error: &str,
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
-        let languages = get_languages(path);
+        let languages = get_language(path);
         let results = languages
             .into_iter()
             .filter_map(|language| self.lsp_server_process_channels.get(&language))
@@ -90,7 +90,7 @@ impl LspManager {
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
     pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
-        let languages = get_languages(&path);
+        let languages = get_language(&path);
 
         consolidate_errors(
             "Failed to start language server",
@@ -105,7 +105,9 @@ impl LspManager {
                         }
                     } else {
                         language.spawn_lsp(self.sender.clone()).map(|channel| {
-                            self.lsp_server_process_channels.insert(language, channel);
+                            if let Some(channel) = channel {
+                                self.lsp_server_process_channels.insert(language, channel);
+                            }
                         })
                     }
                 })

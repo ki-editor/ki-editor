@@ -39,6 +39,8 @@
 - [x] LSP get references
 - [x] screen '[' and ']' not working as expected, now cannot type []
 - [x] refactor: SuggestiveEditor and Prompt should use the same underlying component
+- [x] screen: show editor error to user
+- [x] Format on save
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -52,7 +54,6 @@
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
-- [] screen: show editor error to user
 - [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
@@ -64,10 +65,14 @@
 - [] Enter not working as expected in insert mode
 - [] pressing 'b' remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
-- [] Format on save
 - [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 - [] location list (local to each editor), local diagnostics should use this
 - [] dropdown: handle up/down/enter event
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
 - [] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
+- [] feat(editor/slurp):
+  - exchange last nameless sibling (closing bracket), with the next sibling of parent
+    - and reverse
+  - exchange first nameless sibling (opening bracket), with the previous sibling of parent
+    - and reverse

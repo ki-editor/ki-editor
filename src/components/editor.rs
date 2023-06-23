@@ -213,7 +213,7 @@ impl Component for Editor {
         event: Event,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let dispatches = match event {
-            Event::Key(key_event) => self.handle_key_event(context, key_event),
+            Event::Key(key_event) => self.handle_key_event(context, key_event)?,
             Event::Mouse(mouse_event) => {
                 self.handle_mouse_event(mouse_event);
                 vec![]
@@ -730,19 +730,19 @@ impl Editor {
         &mut self,
         context: &mut Context,
         key_event: KeyEvent,
-    ) -> Vec<Dispatch> {
-        match self.handle_universal_key(context, key_event) {
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match self.handle_universal_key(context, key_event)? {
             HandleEventResult::Ignored(Event::Key(key_event)) => match &self.mode {
-                Mode::Normal => self.handle_normal_mode(context, key_event),
-                Mode::Insert => self.handle_insert_mode(key_event),
+                Mode::Normal => Ok(self.handle_normal_mode(context, key_event)),
+                Mode::Insert => Ok(self.handle_insert_mode(key_event)),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
-                    vec![]
+                    Ok(vec![])
                 }
-                Mode::G => self.handle_g_mode(key_event),
+                Mode::G => Ok(self.handle_g_mode(key_event)),
             },
-            HandleEventResult::Handled(dispatches) => dispatches,
-            _ => vec![],
+            HandleEventResult::Handled(dispatches) => Ok(dispatches),
+            _ => Ok(vec![]),
         }
     }
 
@@ -750,15 +750,15 @@ impl Editor {
         &mut self,
         context: &mut Context,
         event: KeyEvent,
-    ) -> HandleEventResult {
+    ) -> anyhow::Result<HandleEventResult> {
         match event.code {
             KeyCode::Left => {
                 self.selection_set.move_left(&self.cursor_direction);
-                HandleEventResult::Handled(vec![])
+                Ok(HandleEventResult::Handled(vec![]))
             }
             KeyCode::Right => {
                 self.selection_set.move_right(&self.cursor_direction);
-                HandleEventResult::Handled(vec![])
+                Ok(HandleEventResult::Handled(vec![]))
             }
             KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
                 let selection_set = SelectionSet {
@@ -771,33 +771,35 @@ impl Editor {
                     mode: SelectionMode::Custom,
                 };
                 self.update_selection_set(selection_set);
-                HandleEventResult::Handled(vec![])
+                Ok(HandleEventResult::Handled(vec![]))
             }
             KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
                 self.copy(context);
-                HandleEventResult::Handled(vec![])
+                Ok(HandleEventResult::Handled(vec![]))
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
-                let dispatches = if let Some(path) = self.buffer.borrow().save().unwrap() {
+                let dispatches = if let Some(path) =
+                    self.buffer.borrow_mut().save(self.selection_set.clone())?
+                {
                     vec![Dispatch::DocumentDidSave { path }]
                 } else {
                     vec![]
                 };
-                HandleEventResult::Handled(dispatches)
+                Ok(HandleEventResult::Handled(dispatches))
             }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
-                HandleEventResult::Handled(self.cut(context))
+                Ok(HandleEventResult::Handled(self.cut(context)))
             }
             KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
-                HandleEventResult::Handled(self.paste(context))
+                Ok(HandleEventResult::Handled(self.paste(context)))
             }
             KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
-                HandleEventResult::Handled(self.redo())
+                Ok(HandleEventResult::Handled(self.redo()))
             }
             KeyCode::Char('z') if event.modifiers == KeyModifiers::CONTROL => {
-                HandleEventResult::Handled(self.undo())
+                Ok(HandleEventResult::Handled(self.undo()))
             }
-            _ => HandleEventResult::Ignored(Event::Key(event)),
+            _ => Ok(HandleEventResult::Ignored(Event::Key(event))),
         }
     }
 

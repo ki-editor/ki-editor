@@ -105,7 +105,7 @@ impl LspServerProcessChannel {
     pub fn new(
         language: Language,
         screen_message_sender: Sender<ScreenMessage>,
-    ) -> Result<LspServerProcessChannel, anyhow::Error> {
+    ) -> Result<Option<LspServerProcessChannel>, anyhow::Error> {
         LspServerProcess::start(language, screen_message_sender)
     }
 
@@ -207,8 +207,11 @@ impl LspServerProcess {
     fn start(
         language: Language,
         screen_message_sender: Sender<ScreenMessage>,
-    ) -> anyhow::Result<LspServerProcessChannel> {
-        let (command, args) = language.get_command_args();
+    ) -> anyhow::Result<Option<LspServerProcessChannel>> {
+        let (command, args) = match language.get_lsp_command_args() {
+            Some(result) => result,
+            None => return Ok(None),
+        };
 
         let mut command = Command::new(command);
         command.stdin(Stdio::piped()).stdout(Stdio::piped());
@@ -245,12 +248,12 @@ impl LspServerProcess {
 
         let join_handle = std::thread::spawn(move || lsp_server_process.listen());
 
-        Ok(LspServerProcessChannel {
+        Ok(Some(LspServerProcessChannel {
             language,
             join_handle,
             sender,
             is_initialized: false,
-        })
+        }))
     }
 
     fn initialize(&mut self) -> anyhow::Result<()> {

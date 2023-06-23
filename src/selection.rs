@@ -19,6 +19,17 @@ pub struct SelectionSet {
     pub secondary: Vec<Selection>,
     pub mode: SelectionMode,
 }
+
+impl Default for SelectionSet {
+    fn default() -> Self {
+        Self {
+            primary: Selection::default(),
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+        }
+    }
+}
+
 impl SelectionSet {
     pub fn map<F, A>(&self, f: F) -> Vec<A>
     where
@@ -208,7 +219,7 @@ impl SelectionMode {
     }
 }
 
-#[derive(PartialEq, Clone, Debug, Eq, Hash)]
+#[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
 pub struct Selection {
     pub range: Range<CharIndex>,
     pub copied_text: Option<Rope>,
@@ -563,7 +574,7 @@ impl Sub<usize> for CharIndex {
     }
 }
 
-#[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord, Hash)]
+#[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord, Hash, Default)]
 pub struct CharIndex(pub usize);
 
 impl CharIndex {

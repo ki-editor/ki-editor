@@ -2,7 +2,7 @@ use crate::{
     canonicalized_path::CanonicalizedPath,
     components::editor::Direction,
     edit::{Edit, EditTransaction},
-    lsp::diagnostic::Diagnostic,
+    lsp::{diagnostic::Diagnostic, language::Language},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
     utils::find_previous,
@@ -18,7 +18,8 @@ use tree_sitter_traversal::{traverse, Order};
 pub struct Buffer {
     rope: Rope,
     tree: Tree,
-    language: tree_sitter::Language,
+    ts_language: tree_sitter::Language,
+    language: Option<Language>,
     undo_patches: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
@@ -29,7 +30,8 @@ impl Buffer {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
-            language,
+            ts_language: language,
+            language: None,
             tree: {
                 let mut parser = Parser::new();
                 parser.set_language(language).unwrap();
@@ -77,7 +79,7 @@ impl Buffer {
     }
 
     pub fn update(&mut self, text: &str) {
-        (self.rope, self.tree) = Self::get_rope_and_tree(self.language, text);
+        (self.rope, self.tree) = Self::get_rope_and_tree(self.ts_language, text);
     }
 
     pub fn get_line(&self, char_index: CharIndex) -> Rope {
@@ -217,15 +219,22 @@ impl Buffer {
                 Ok(()) => self.apply_edit(edit),
             })?;
 
-        let after = self.rope.to_string();
+        self.update_content(current_selection_set, &before, &self.rope.to_string());
+
+        Ok(())
+    }
+
+    fn update_content(&mut self, current_selection_set: SelectionSet, before: &str, after: &str) {
+        if before == after {
+            return;
+        }
 
         self.redo_patches.clear();
         self.undo_patches.push(Patch {
             selection_set: current_selection_set,
-            patch: diffy::create_patch(&after, &before).to_string(),
+            patch: diffy::create_patch(after, before).to_string(),
         });
-
-        Ok(())
+        self.rope = Rope::from(after.to_string());
     }
 
     pub fn undo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
@@ -318,25 +327,43 @@ impl Buffer {
 
     pub fn from_path(path: &CanonicalizedPath) -> anyhow::Result<Buffer> {
         let content = path.read()?;
-        let language = match path.extension().unwrap_or_default() {
-            "js" | "jsx" => tree_sitter_javascript::language(),
-            "ts" => tree_sitter_typescript::language_typescript(),
-            "tsx" => tree_sitter_typescript::language_tsx(),
-            "rs" => tree_sitter_rust::language(),
-            "md" => tree_sitter_md::language(),
+        let language = Language::from_path(path);
 
-            // By default use the Markdown language
-            _ => tree_sitter_md::language(),
-        };
+        let mut buffer = Buffer::new(
+            language
+                .as_ref()
+                .map(|language| language.tree_sitter_language())
+                .unwrap_or_else(tree_sitter_md::language),
+            &content,
+        );
 
-        let mut buffer = Buffer::new(language, &content);
         buffer.path = Some(path.clone());
+        buffer.language = language;
+
         Ok(buffer)
     }
 
-    pub fn save(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
-        if let Some(path) = &self.path {
-            path.write(&self.rope.to_string())?;
+    pub fn save(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+        let before = self.rope.to_string();
+        if let Some(path) = &self.path.clone() {
+            let content = if let Some(content) = self.language.as_ref().and_then(|language| {
+                language
+                    .formatter()
+                    .map(|formatter| formatter.format(&self.rope.to_string()))
+            }) {
+                content.unwrap_or_else(|error| {
+                    log::info!("Error formatting: {}", error);
+                    self.rope.to_string()
+                })
+            } else {
+                self.rope.to_string()
+            };
+
+            self.update_content(current_selection_set, &before, &content);
+            path.write(&content)?;
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
@@ -393,7 +420,7 @@ impl Buffer {
     }
 
     pub fn language(&self) -> tree_sitter::Language {
-        self.language
+        self.ts_language
     }
 
     pub fn get_char_at_position(&self, position: Position) -> Option<char> {
@@ -424,7 +451,13 @@ pub struct Patch {
 
 #[cfg(test)]
 mod test_buffer {
+    use crate::canonicalized_path::CanonicalizedPath;
+    use crate::selection::SelectionSet;
+
     use super::Buffer;
+    use std::fs::File;
+    use std::io::{Read, Write};
+    use tempfile::tempdir;
 
     #[test]
     fn find_words() {
@@ -433,5 +466,38 @@ mod test_buffer {
 
         // Should return unique words
         assert_eq!(words, vec!["bar", "baz"]);
+    }
+
+    #[test]
+    fn save_with_formatting() {
+        let dir = tempdir().unwrap();
+
+        let file_path = dir.path().join("main.rs");
+        File::create(&file_path).unwrap();
+        let path = CanonicalizedPath::try_from(file_path).unwrap();
+
+        let original = "fn main\n() {}";
+
+        path.write(original).unwrap();
+
+        let mut buffer = Buffer::from_path(&path).unwrap();
+
+        buffer.save(SelectionSet::default()).unwrap();
+
+        // Expect the output is formatted
+        let saved_content = path.read().unwrap();
+        let buffer_content = buffer.rope.to_string();
+
+        assert_eq!(saved_content, "fn main() {}\n");
+        assert_eq!(buffer_content, "fn main() {}\n");
+
+        // The formatted output should be undoable,
+        // in case the formatter messed up the code.
+        buffer.undo(SelectionSet::default()).unwrap();
+
+        let content = buffer.rope.to_string();
+
+        // Expect the content is reverted to the original
+        assert_eq!(content, "fn main\n() {}");
     }
 }

@@ -35,3 +35,4 @@ serde = "1.0.163"
 json-rpc-types = "1.3.0"
 uuid = {version="1.3.3", features = ["v4"]}
 arboard = "3.2.0"
+tempfile = "3.6.0"

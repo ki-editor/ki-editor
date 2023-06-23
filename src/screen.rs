@@ -111,6 +111,7 @@ impl Screen {
                 }
             }
             .unwrap_or_else(|e| {
+                self.show_info(vec![e.to_string()]);
                 log::error!("{:?}", e);
                 false
             });
