@@ -83,6 +83,15 @@ impl Buffer {
         (Rope::from_str(text), tree)
     }
 
+    pub fn given_range_is_node(&self, range: &Range<CharIndex>) -> bool {
+        let byte_range = self.char_to_byte(range.start)..self.char_to_byte(range.end);
+        self.tree
+            .root_node()
+            .descendant_for_byte_range(byte_range.start, byte_range.end)
+            .map(|node| node.byte_range() == byte_range)
+            .unwrap_or(false)
+    }
+
     pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.ts_language, text);
     }

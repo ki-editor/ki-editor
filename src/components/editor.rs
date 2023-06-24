@@ -456,15 +456,22 @@ impl Editor {
     }
 
     pub fn set_selection(&mut self, range: Range<Position>) {
+        let range =
+            self.buffer().position_to_char(range.start)..self.buffer().position_to_char(range.end);
+
+        let mode = if self.buffer().given_range_is_node(&range) {
+            SelectionMode::NamedNode
+        } else {
+            SelectionMode::Custom
+        };
         let selection_set = SelectionSet {
             primary: Selection {
-                range: self.buffer().position_to_char(range.start)
-                    ..self.buffer().position_to_char(range.end),
+                range,
                 copied_text: self.selection_set.primary.copied_text.clone(),
                 initial_range: None,
             },
             secondary: vec![],
-            mode: SelectionMode::Custom,
+            mode,
         };
         self.update_selection_set(selection_set)
     }
@@ -1593,6 +1600,7 @@ mod test_editor {
         context::Context,
         lsp::diagnostic::Diagnostic,
         position::Position,
+        selection::SelectionMode,
     };
 
     use super::{Direction, Editor};
@@ -2535,5 +2543,21 @@ let y = S(b);
 
         // Expect the text to be 'hello\nworl\nd'
         assert_eq!(editor.text(), "hello\nworl\nd");
+    }
+
+    #[test]
+    fn set_selection() {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+
+        // Select a range which highlights a node
+        editor.set_selection(Position::new(0, 0)..Position::new(0, 2));
+
+        assert_eq!(editor.selection_set.mode, SelectionMode::NamedNode);
+
+        // Select a range which does not highlights a node
+        editor.set_selection(Position::new(0, 0)..Position::new(0, 1));
+        editor.selection_set();
+
+        assert_eq!(editor.selection_set.mode, SelectionMode::Custom);
     }
 }
