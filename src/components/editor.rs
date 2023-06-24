@@ -126,50 +126,53 @@ impl Component for Editor {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
-                let (foreground_color, background_color) =
-                    if selection.extended_range().contains(&char_index) {
-                        // Primary selection
-                        (Color::Black, Color::Yellow)
-                    } else if secondary_selections.iter().any(|secondary_selection| {
-                        // Secondary selection cursor
-                        secondary_selection.to_char_index(&editor.cursor_direction) == char_index
-                    }) {
-                        (Color::White, Color::Black)
-                    } else if secondary_selections
-                        .iter()
-                        .any(|secondary_selection| secondary_selection.range.contains(&char_index))
-                    {
-                        // Secondary selection
-                        (Color::Black, Color::DarkYellow)
-                    } else if errors.clone().any(|(_, range)| range.contains(&char_index)) {
-                        // Errors
-                        // Pink
-                        (
-                            Color::Black,
-                            Color::Rgb {
-                                r: 255,
-                                g: 102,
-                                b: 102,
-                            },
-                        )
-                    } else if warnings
-                        .clone()
-                        .any(|(_, range)| range.contains(&char_index))
-                    {
-                        // Warnings
-                        // Light orange
-                        (
-                            Color::Black,
-                            Color::Rgb {
-                                r: 255,
-                                g: 204,
-                                b: 153,
-                            },
-                        )
-                    } else {
-                        // Default
-                        (Color::Black, Color::White)
-                    };
+                let (foreground_color, background_color) = if selection.is_start_or_end(&char_index)
+                {
+                    // Primary cursors
+                    (Color::White, Color::Black)
+                } else if selection.extended_range().contains(&char_index) {
+                    // Primary selection
+                    (Color::Black, Color::Yellow)
+                } else if secondary_selections.iter().any(|secondary_selection| {
+                    // Secondary selection cursors
+                    secondary_selection.is_start_or_end(&char_index)
+                }) {
+                    (Color::White, Color::Black)
+                } else if secondary_selections
+                    .iter()
+                    .any(|secondary_selection| secondary_selection.range.contains(&char_index))
+                {
+                    // Secondary selection
+                    (Color::Black, Color::DarkYellow)
+                } else if errors.clone().any(|(_, range)| range.contains(&char_index)) {
+                    // Errors
+                    // Pink
+                    (
+                        Color::Black,
+                        Color::Rgb {
+                            r: 255,
+                            g: 102,
+                            b: 102,
+                        },
+                    )
+                } else if warnings
+                    .clone()
+                    .any(|(_, range)| range.contains(&char_index))
+                {
+                    // Warnings
+                    // Light orange
+                    (
+                        Color::Black,
+                        Color::Rgb {
+                            r: 255,
+                            g: 204,
+                            b: 153,
+                        },
+                    )
+                } else {
+                    // Default
+                    (Color::Black, Color::White)
+                };
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color,

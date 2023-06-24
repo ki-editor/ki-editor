@@ -249,6 +249,11 @@ impl Selection {
         }
     }
 
+    pub fn is_start_or_end(&self, other: &CharIndex) -> bool {
+        let Range { start, end } = self.extended_range();
+        &start == other || &(end - 1) == other
+    }
+
     #[cfg(test)]
     pub fn default() -> Selection {
         Selection {

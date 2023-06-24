@@ -41,6 +41,7 @@
 - [x] refactor: SuggestiveEditor and Prompt should use the same underlying component
 - [x] screen: show editor error to user
 - [x] Format on save
+- [x] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -70,7 +71,6 @@
 - [] dropdown: handle up/down/enter event
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
-- [] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
 - [] feat(editor/slurp or barf):
   - exchange last nameless sibling (closing bracket), with the next sibling of parent
     - and reverse
