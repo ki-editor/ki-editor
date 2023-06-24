@@ -962,6 +962,10 @@ impl Editor {
             KeyCode::Char('e') => return self.select_diagnostic(Direction::Forward),
             KeyCode::Char('E') => return self.select_diagnostic(Direction::Backward),
             // f
+            // TODO: f goes into file picker mode,
+            // for example, pressing fg means select git tracked files
+            // fc means changed files
+            // fb means opened editor
             // F
             KeyCode::Char('g') => self.enter_g_mode(),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
@@ -2558,7 +2562,6 @@ let y = S(b);
 
         // Select a range which does not highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 1));
-        editor.selection_set();
 
         assert_eq!(editor.selection_set.mode, SelectionMode::Custom);
     }
