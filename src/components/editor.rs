@@ -797,6 +797,8 @@ impl Editor {
                 } else {
                     vec![]
                 };
+
+                self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
             }
             KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
