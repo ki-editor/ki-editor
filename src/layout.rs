@@ -242,12 +242,16 @@ impl Layout {
         self.borders.clone()
     }
 
+    pub fn add_suggestive_editor(&mut self, suggestive_editor: Rc<RefCell<SuggestiveEditor>>) {
+        self.background_suggestive_editors
+            .push(suggestive_editor);
+    }
+
     pub fn add_and_focus_suggestive_editor(
         &mut self,
         suggestive_editor: Rc<RefCell<SuggestiveEditor>>,
     ) {
-        self.background_suggestive_editors
-            .push(suggestive_editor.clone());
+        self.add_suggestive_editor(suggestive_editor.clone());
         self.set_main_panel(Some(suggestive_editor));
     }
 

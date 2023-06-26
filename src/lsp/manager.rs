@@ -68,6 +68,18 @@ impl LspManager {
         })
     }
 
+    pub fn prepare_rename_symbol(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to prepare rename symbol", |channel| {
+            channel.prepare_rename_symbol(params.clone())
+        })
+    }
+
+    pub fn rename_symbol(&self, params: RequestParams, new_name: String) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to rename symbol", |channel| {
+            channel.rename_symbol(params.clone(), new_name.clone())
+        })
+    }
+
     pub fn document_did_change(
         &self,
         path: CanonicalizedPath,

@@ -5,3 +5,4 @@ pub mod goto_definition_response;
 pub mod hover;
 pub mod manager;
 pub mod process;
+pub mod workspace_edit;

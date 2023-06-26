@@ -43,6 +43,7 @@
 - [x] Format on save
 - [x] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
 - [x] i = insert at end of selection, I = insert at beginning of selection
+- [x] LSP rename
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node

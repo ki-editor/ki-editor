@@ -21,7 +21,7 @@ pub struct Buffer {
     tree: Tree,
     ts_language: tree_sitter::Language,
     language: Option<Box<dyn Language>>,
-    undo_patches: Vec<Patch>,
+    undo_patch: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
     diagnostics: Vec<Diagnostic>,
@@ -38,7 +38,7 @@ impl Buffer {
                 parser.set_language(language).unwrap();
                 parser.parse(text, None).unwrap()
             },
-            undo_patches: Vec::new(),
+            undo_patch: Vec::new(),
             redo_patches: Vec::new(),
             path: None,
             diagnostics: Vec::new(),
@@ -246,14 +246,14 @@ impl Buffer {
         }
 
         self.redo_patches.clear();
-        self.undo_patches.push(Patch {
+        self.undo_patch.push(Patch {
             selection_set: current_selection_set,
             patch: diffy::create_patch(after, before).to_string(),
         });
     }
 
     pub fn undo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
-        if let Some(patch) = self.undo_patches.pop() {
+        if let Some(patch) = self.undo_patch.pop() {
             let redo_patch = self.revert_change(&patch, current_selection_set);
             self.redo_patches.push(redo_patch);
             Some(patch.selection_set)
@@ -266,7 +266,7 @@ impl Buffer {
     pub fn redo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
         if let Some(patch) = self.redo_patches.pop() {
             let undo_patch = self.revert_change(&patch, current_selection_set);
-            self.undo_patches.push(undo_patch);
+            self.undo_patch.push(undo_patch);
             Some(patch.selection_set)
         } else {
             log::info!("Nothing else to be redone");

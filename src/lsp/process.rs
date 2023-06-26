@@ -19,6 +19,7 @@ use crate::utils::consolidate_errors;
 use super::completion::{Completion, CompletionItem};
 use super::goto_definition_response::GotoDefinitionResponse;
 use super::hover::Hover;
+use super::workspace_edit::WorkspaceEdit;
 use crate::quickfix_list::Location;
 
 type Language = Box<dyn language::Language>;
@@ -64,6 +65,9 @@ pub enum LspNotification {
     Hover(ComponentId, Hover),
     Definition(ComponentId, GotoDefinitionResponse),
     References(ComponentId, Vec<Location>),
+    PrepareRenameResponse(ComponentId, PrepareRenameResponse),
+    Error(String),
+    WorkspaceEdit(ComponentId, WorkspaceEdit),
 }
 
 #[derive(Debug)]
@@ -92,6 +96,11 @@ enum FromEditor {
     },
     TextDocumentDidSave {
         file_path: CanonicalizedPath,
+    },
+    PrepareRenameSymbol(RequestParams),
+    RenameSymbol {
+        params: RequestParams,
+        new_name: String,
     },
 }
 
@@ -131,6 +140,22 @@ impl LspServerProcessChannel {
     pub fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestCompletion(params),
+        ))
+    }
+
+    pub fn prepare_rename_symbol(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::PrepareRenameSymbol(params),
+        ))
+    }
+
+    pub fn rename_symbol(
+        &self,
+        params: RequestParams,
+        new_name: String,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RenameSymbol { params, new_name },
         ))
     }
 
@@ -286,6 +311,13 @@ impl LspServerProcess {
                             content_format: Some(vec![MarkupKind::PlainText]),
                             ..HoverClientCapabilities::default()
                         }),
+                        code_action: Some(CodeActionClientCapabilities {
+                            ..Default::default()
+                        }),
+                        rename: Some(RenameClientCapabilities {
+                            prepare_support: Some(true),
+                            ..Default::default()
+                        }),
                         ..TextDocumentClientCapabilities::default()
                     }),
                     ..ClientCapabilities::default()
@@ -346,6 +378,13 @@ impl LspServerProcess {
                     FromEditor::RequestHover(params) => self.text_document_hover(params),
                     FromEditor::RequestDefinition(params) => self.text_document_definition(params),
                     FromEditor::RequestReferences(params) => self.text_document_references(params),
+                    FromEditor::RenameSymbol { params, new_name } => {
+                        self.text_document_rename(params, new_name)
+                    }
+                    FromEditor::PrepareRenameSymbol(params) => {
+                        self.text_document_prepare_rename(params)
+                    }
+
                     FromEditor::TextDocumentDidOpen {
                         file_path,
                         language_id,
@@ -399,6 +438,11 @@ impl LspServerProcess {
                 .map_err(|e| anyhow::anyhow!("Serde error = {:?}", e))?
                 .payload
                 .map_err(|e| {
+                    self.screen_message_sender
+                        .send(ScreenMessage::LspNotification(LspNotification::Error(
+                            format!("LSP JSON-RPC Error: {:?}: {}", e.code, e.message),
+                        )))
+                        .unwrap();
                     anyhow::anyhow!(
                         "LSP JSON-RPC Error: Code={:?} Message={}",
                         e.code,
@@ -492,6 +536,38 @@ impl LspServerProcess {
                                         .map(|r| r.try_into())
                                         .collect::<Result<Vec<_>, _>>()?,
                                 )))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/prepareRename" => {
+                        let payload: <lsp_request!("textDocument/prepareRename") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(
+                                    LspNotification::PrepareRenameResponse(
+                                        component_id,
+                                        payload,
+                                    ),
+                                ))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/rename" => {
+                        let payload: <lsp_request!("textDocument/rename") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        log::info!("Rename response: {:?}", payload);
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(
+                                    LspNotification::WorkspaceEdit(
+                                        component_id,
+                                        payload.try_into()?,
+                                    ),
+                                ))
                                 .unwrap();
                         }
                     }
@@ -765,6 +841,34 @@ impl LspServerProcess {
                     text_document: path_buf_to_text_document_identifier(path)?,
                 },
                 work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    fn text_document_prepare_rename(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/prepareRename")>(
+            params.component_id,
+            TextDocumentPositionParams {
+                position: params.position.into(),
+                text_document: path_buf_to_text_document_identifier(params.path)?,
+            },
+        )
+    }
+
+    fn text_document_rename(
+        &mut self,
+        params: RequestParams,
+        new_name: String,
+    ) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/rename")>(
+            params.component_id,
+            RenameParams {
+                new_name,
+                text_document_position: TextDocumentPositionParams {
+                    position: params.position.into(),
+                    text_document: path_buf_to_text_document_identifier(params.path)?,
+                },
+                work_done_progress_params: WorkDoneProgressParams::default(),
             },
         )
     }

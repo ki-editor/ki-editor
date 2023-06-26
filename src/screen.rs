@@ -34,7 +34,7 @@ use crate::{
     lsp::{
         completion::CompletionItem, diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse, manager::LspManager,
-        process::LspNotification,
+        process::LspNotification, workspace_edit::WorkspaceEdit,
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
@@ -83,7 +83,7 @@ impl Screen {
     }
 
     pub fn run(&mut self, entry_path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
-        self.open_file(entry_path)?;
+        self.open_file(entry_path, true)?;
 
         let mut stdout = stdout();
         stdout.execute(EnterAlternateScreen)?;
@@ -353,7 +353,7 @@ impl Screen {
             }
             Dispatch::SetSearch { search } => self.set_search(search),
             Dispatch::OpenFile { path } => {
-                self.open_file(&path)?;
+                self.open_file(&path, true)?;
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
@@ -364,6 +364,12 @@ impl Screen {
             }
             Dispatch::RequestDefinition(params) => {
                 self.lsp_manager.request_definition(params)?;
+            }
+            Dispatch::PrepareRename(params) => {
+                self.lsp_manager.prepare_rename_symbol(params)?;
+            }
+            Dispatch::RenameSymbol { params, new_name } => {
+                self.lsp_manager.rename_symbol(params, new_name)?;
             }
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
@@ -396,6 +402,27 @@ impl Screen {
         // Because diffing when the size has change is not supported yet.
         self.previous_grid.take();
         self.layout.set_terminal_dimension(dimension);
+    }
+
+    fn open_rename_prompt(&mut self, params: RequestParams) {
+        log::info!("Open rename prompt");
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Rename".to_string(),
+            history: vec![],
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok(vec![Dispatch::RenameSymbol {
+                    params: params.clone(),
+                    new_name: text.to_string(),
+                }])
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: vec![],
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
     fn open_search_prompt(&mut self) {
@@ -506,6 +533,7 @@ impl Screen {
     fn open_file(
         &mut self,
         entry_path: &CanonicalizedPath,
+        focus_editor: bool,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
@@ -520,8 +548,12 @@ impl Screen {
             SuggestiveEditorFilter::CurrentWord,
         )));
 
-        self.layout
-            .add_and_focus_suggestive_editor(component.clone());
+        if focus_editor {
+            self.layout
+                .add_and_focus_suggestive_editor(component.clone());
+        } else {
+            self.layout.add_suggestive_editor(component.clone());
+        }
 
         self.update_component_diagnotics(
             entry_path,
@@ -601,6 +633,31 @@ impl Screen {
                 );
                 Ok(())
             }
+            LspNotification::PrepareRenameResponse(component_id, response) => {
+                let editor = self.get_suggestive_editor(component_id)?;
+
+                let params = editor.borrow().editor().get_request_params();
+
+                // Note: we cannot refactor the following code into the below code, otherwise we will get error,
+                // because RefCell is borrow_mut twice. The borrow has to be dropped.
+                //
+                //
+                // if let Some(params) = editor.borrow().editor().get_request_params() {
+                //   self.open_rename_prompt(params);
+                // }
+                if let Some(params) = params {
+                    self.open_rename_prompt(params);
+                }
+
+                Ok(())
+            }
+            LspNotification::Error(error) => {
+                self.show_info(vec![error]);
+                Ok(())
+            }
+            LspNotification::WorkspaceEdit(component_id, workspace_edit) => {
+                self.apply_workspace_edit(workspace_edit)
+            }
         }
     }
 
@@ -645,7 +702,7 @@ impl Screen {
     }
 
     fn go_to_location(&mut self, location: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(&location.path)?;
+        let component = self.open_file(&location.path, true)?;
         component
             .borrow_mut()
             .editor_mut()
@@ -683,6 +740,21 @@ impl Screen {
         self.layout.show_quickfix_lists(self.quickfix_lists.clone());
         self.goto_quickfix_list_item(Direction::Forward)
     }
+
+    fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
+        for edit in workspace_edit.edits {
+            let component = self.open_file(&edit.path, false)?;
+            let dispatches = component
+                .borrow_mut()
+                .editor_mut()
+                .apply_positional_edits(edit.edits);
+
+            self.handle_dispatches(dispatches)?;
+
+            component.borrow_mut().editor_mut().save()?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -718,6 +790,11 @@ pub enum Dispatch {
     RequestHover(RequestParams),
     RequestDefinition(RequestParams),
     RequestReferences(RequestParams),
+    PrepareRename(RequestParams),
+    RenameSymbol {
+        params: RequestParams,
+        new_name: String,
+    },
     DocumentDidChange {
         path: CanonicalizedPath,
         content: String,

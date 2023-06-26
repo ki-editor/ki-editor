@@ -126,57 +126,53 @@ impl Component for Editor {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
-                let (foreground_color, background_color) = if char_index
-                    == selection.to_char_index(&self.cursor_direction)
-                {
-                    // Primary selection primary cursor
-                    (Color::White, Color::Black)
-                } else if char_index == selection.to_char_index(&self.cursor_direction.reverse()) {
-                    // Primary selection secondary cursor
-                    (Color::White, Color::DarkGrey)
-                } else if selection.extended_range().contains(&char_index) {
-                    // Primary selection
-                    (Color::Black, Color::Yellow)
-                } else if secondary_selections.iter().any(|secondary_selection| {
-                    // Secondary selection cursors
-                    secondary_selection.is_start_or_end(&char_index)
-                }) {
-                    (Color::White, Color::Black)
-                } else if secondary_selections
-                    .iter()
-                    .any(|secondary_selection| secondary_selection.range.contains(&char_index))
-                {
-                    // Secondary selection
-                    (Color::Black, Color::DarkYellow)
-                } else if errors.clone().any(|(_, range)| range.contains(&char_index)) {
-                    // Errors
-                    // Pink
-                    (
-                        Color::Black,
-                        Color::Rgb {
-                            r: 255,
-                            g: 102,
-                            b: 102,
-                        },
-                    )
-                } else if warnings
-                    .clone()
-                    .any(|(_, range)| range.contains(&char_index))
-                {
-                    // Warnings
-                    // Light orange
-                    (
-                        Color::Black,
-                        Color::Rgb {
-                            r: 255,
-                            g: 204,
-                            b: 153,
-                        },
-                    )
-                } else {
-                    // Default
-                    (Color::Black, Color::White)
-                };
+                let (foreground_color, background_color) =
+                    if char_index == selection.to_char_index(&self.cursor_direction.reverse()) {
+                        // Primary selection secondary cursor
+                        (Color::White, Color::DarkGrey)
+                    } else if selection.extended_range().contains(&char_index) {
+                        // Primary selection
+                        (Color::Black, Color::Yellow)
+                    } else if secondary_selections.iter().any(|secondary_selection| {
+                        // Secondary selection cursors
+                        secondary_selection.is_start_or_end(&char_index)
+                    }) {
+                        (Color::White, Color::Black)
+                    } else if secondary_selections
+                        .iter()
+                        .any(|secondary_selection| secondary_selection.range.contains(&char_index))
+                    {
+                        // Secondary selection
+                        (Color::Black, Color::DarkYellow)
+                    } else if errors.clone().any(|(_, range)| range.contains(&char_index)) {
+                        // Errors
+                        // Pink
+                        (
+                            Color::Black,
+                            Color::Rgb {
+                                r: 255,
+                                g: 102,
+                                b: 102,
+                            },
+                        )
+                    } else if warnings
+                        .clone()
+                        .any(|(_, range)| range.contains(&char_index))
+                    {
+                        // Warnings
+                        // Light orange
+                        (
+                            Color::Black,
+                            Color::Rgb {
+                                r: 255,
+                                g: 204,
+                                b: 153,
+                            },
+                        )
+                    } else {
+                        // Default
+                        (Color::Black, Color::White)
+                    };
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color,
@@ -806,9 +802,7 @@ impl Editor {
                 Ok(HandleEventResult::Handled(vec![]))
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
-                let dispatches = if let Some(path) =
-                    self.buffer.borrow_mut().save(self.selection_set.clone())?
-                {
+                let dispatches = if let Some(path) = self.save()? {
                     vec![Dispatch::DocumentDidSave { path }]
                 } else {
                     vec![]
@@ -930,32 +924,28 @@ impl Editor {
         vec![]
     }
 
-    fn handle_g_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+    pub fn get_request_params(&self) -> Option<RequestParams> {
         let component_id = self.id();
         let position = self.get_cursor_position();
+        self.path().map(|path| RequestParams {
+            component_id,
+            path,
+            position,
+        })
+    }
+
+    fn handle_g_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
         let dispatches = match event.code {
             KeyCode::Char('d') => self
-                .path()
-                .map(|path| {
-                    vec![Dispatch::RequestDefinition(RequestParams {
-                        component_id,
-                        path,
-                        position,
-                    })]
-                })
+                .get_request_params()
+                .map(|request_param| vec![Dispatch::RequestDefinition(request_param)])
                 .unwrap_or(vec![]),
             KeyCode::Char('e') => {
                 vec![Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic)]
             }
             KeyCode::Char('r') => self
-                .path()
-                .map(|path| {
-                    vec![Dispatch::RequestReferences(RequestParams {
-                        component_id,
-                        path,
-                        position,
-                    })]
-                })
+                .get_request_params()
+                .map(|params| vec![Dispatch::RequestReferences(params)])
                 .unwrap_or(vec![]),
             _ => vec![],
         };
@@ -1005,7 +995,12 @@ impl Editor {
             KeyCode::Char('q') => return vec![Dispatch::GotoQuickfixListItem(Direction::Forward)],
             KeyCode::Char('Q') => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
             KeyCode::Char('r') => return self.replace(),
-            // R
+            KeyCode::Char('R') => {
+                return self
+                    .get_request_params()
+                    .map(|params| vec![Dispatch::PrepareRename(params)])
+                    .unwrap_or_default()
+            }
             KeyCode::Char('s') => self.select_sibling(Direction::Forward),
             KeyCode::Char('S') => self.select_sibling(Direction::Backward),
             KeyCode::Char('t') => self.select_token(Direction::Forward),
@@ -1526,10 +1521,11 @@ impl Editor {
         };
     }
 
-    pub fn replace_previous_word(&mut self, completion: &str) {
+    pub fn replace_previous_word(&mut self, completion: &str) -> Vec<Dispatch> {
         let selection = self.get_selection_set(&SelectionMode::Word, Direction::Backward);
         self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
+        self.get_document_did_change_dispatch()
     }
 
     fn open_new_line(&mut self) -> Vec<Dispatch> {
@@ -1579,23 +1575,30 @@ impl Editor {
         self.buffer.borrow_mut().set_diagnostics(diagnostics)
     }
 
-    pub fn apply_positional_edit(&mut self, edit: PositionalEdit) {
-        let range = edit.range.start.to_char_index(&self.buffer())
-            ..edit.range.end.to_char_index(&self.buffer());
-        let edit = Edit {
-            start: range.start,
-            old: self.buffer().slice(&range),
-            new: edit.new_text.into(),
-        };
+    pub fn apply_positional_edits(&mut self, edits: Vec<PositionalEdit>) -> Vec<Dispatch> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            edits
+                .into_iter()
+                .map(|edit| {
+                    let range = edit.range.start.to_char_index(&self.buffer())
+                        ..edit.range.end.to_char_index(&self.buffer());
+                    ActionGroup::new(vec![Action::Edit(Edit {
+                        start: range.start,
+                        old: self.buffer().slice(&range),
+                        new: edit.new_text.into(),
+                    })])
+                })
+                .collect(),
+        );
+        self.apply_edit_transaction(edit_transaction)
+    }
 
-        self.apply_edit_transaction(EditTransaction::from_action_groups(vec![
-            ActionGroup::new(vec![Action::Edit(edit)]),
-            ActionGroup::new(vec![Action::Select(Selection {
-                range: range.end..range.end,
-                copied_text: self.selection_set.primary.copied_text.clone(),
-                initial_range: None,
-            })]),
-        ]));
+    pub fn apply_positional_edit(&mut self, edit: PositionalEdit) -> Vec<Dispatch> {
+        self.apply_positional_edits(vec![edit])
+    }
+
+    pub fn save(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.buffer.borrow_mut().save(self.selection_set.clone())
     }
 }
 

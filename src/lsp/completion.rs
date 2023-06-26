@@ -22,6 +22,25 @@ pub struct PositionalEdit {
     pub new_text: String,
 }
 
+impl TryFrom<lsp_types::AnnotatedTextEdit> for PositionalEdit {
+    type Error = anyhow::Error;
+
+    fn try_from(value: lsp_types::AnnotatedTextEdit) -> Result<Self, Self::Error> {
+        value.text_edit.try_into()
+    }
+}
+
+impl TryFrom<lsp_types::TextEdit> for PositionalEdit {
+    type Error = anyhow::Error;
+
+    fn try_from(value: lsp_types::TextEdit) -> Result<Self, Self::Error> {
+        Ok(PositionalEdit {
+            range: value.range.start.into()..value.range.end.into(),
+            new_text: value.new_text,
+        })
+    }
+}
+
 impl PartialOrd for CompletionItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self.sort_text.as_ref(), other.sort_text.as_ref()) {

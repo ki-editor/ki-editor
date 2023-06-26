@@ -75,16 +75,13 @@ impl Component for SuggestiveEditor {
                 }
                 Event::Key(key) if key.code == KeyCode::Enter => {
                     if let Some(completion) = self.dropdown.borrow_mut().current_item() {
-                        match completion.edit {
-                            None => {
-                                self.editor.replace_previous_word(&completion.label());
-                            }
-                            Some(edit) => {
-                                self.editor.apply_positional_edit(edit);
-                            }
-                        }
+                        let dispatches = match completion.edit {
+                            None => self.editor.replace_previous_word(&completion.label()),
+                            Some(edit) => self.editor.apply_positional_edit(edit),
+                        };
+                        self.dropdown_opened = false;
+                        return Ok(dispatches);
                     }
-                    self.dropdown_opened = false;
                     return Ok(vec![]);
                 }
                 Event::Key(key) if key.code == KeyCode::Esc => {
