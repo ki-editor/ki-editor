@@ -1,4 +1,6 @@
 use crate::context::Context;
+use crate::lsp::code_action::CodeAction;
+use crate::lsp::completion::CompletionItemEdit;
 use crate::screen::Dispatch;
 use crate::screen::RequestParams;
 use crate::{
@@ -19,6 +21,10 @@ use super::{
 pub struct SuggestiveEditor {
     editor: Editor,
     info_panel: Option<Rc<RefCell<Editor>>>,
+
+    menu: Rc<RefCell<Dropdown<CodeAction>>>,
+    menu_opened: bool,
+
     dropdown: Rc<RefCell<Dropdown<CompletionItem>>>,
     dropdown_opened: bool,
     trigger_characters: Vec<String>,
@@ -28,6 +34,15 @@ pub struct SuggestiveEditor {
 pub enum SuggestiveEditorFilter {
     CurrentWord,
     CurrentLine,
+}
+
+impl DropdownItem for CodeAction {
+    fn label(&self) -> String {
+        self.title()
+    }
+    fn info(&self) -> Option<String> {
+        None
+    }
 }
 
 impl DropdownItem for CompletionItem {
@@ -62,7 +77,9 @@ impl Component for SuggestiveEditor {
                         || (key.modifiers == KeyModifiers::CONTROL
                             && key.code == KeyCode::Char('n')) =>
                 {
-                    self.dropdown.borrow_mut().next_item();
+                    if self.dropdown_opened() {
+                        self.dropdown.borrow_mut().next_item();
+                    }
                     return Ok(vec![]);
                 }
                 Event::Key(key)
@@ -77,7 +94,11 @@ impl Component for SuggestiveEditor {
                     if let Some(completion) = self.dropdown.borrow_mut().current_item() {
                         let dispatches = match completion.edit {
                             None => self.editor.replace_previous_word(&completion.label()),
-                            Some(edit) => self.editor.apply_positional_edit(edit),
+                            Some(edit) => match edit {
+                                CompletionItemEdit::PositionalEdit(edit) => {
+                                    self.editor.apply_positional_edit(edit)
+                                }
+                            },
                         };
                         self.dropdown_opened = false;
                         return Ok(dispatches);
@@ -86,6 +107,43 @@ impl Component for SuggestiveEditor {
                 }
                 Event::Key(key) if key.code == KeyCode::Esc => {
                     self.dropdown_opened = false;
+                    return Ok(vec![]);
+                }
+
+                // Every other character typed in Insert mode should update the dropdown to show
+                // relevant completions.
+                event => self.editor.handle_event(context, event)?,
+            }
+        } else if self.editor.mode == Mode::Normal && self.menu_opened() {
+            match event {
+                Event::Key(key)
+                    if key.code == KeyCode::Down
+                        || (key.modifiers == KeyModifiers::CONTROL
+                            && key.code == KeyCode::Char('n')) =>
+                {
+                    if self.menu_opened() {
+                        self.menu.borrow_mut().next_item();
+                    }
+                    return Ok(vec![]);
+                }
+                Event::Key(key)
+                    if key.code == KeyCode::Up
+                        || (key.modifiers == KeyModifiers::CONTROL
+                            && key.code == KeyCode::Char('p')) =>
+                {
+                    self.menu.borrow_mut().previous_item();
+                    return Ok(vec![]);
+                }
+                Event::Key(key) if key.code == KeyCode::Enter => {
+                    if let Some(code_action) = self.menu.borrow_mut().current_item() {
+                        let dispatches = vec![Dispatch::ApplyWorkspaceEdit(code_action.edit)];
+                        self.menu_opened = false;
+                        return Ok(dispatches);
+                    }
+                    return Ok(vec![]);
+                }
+                Event::Key(key) if key.code == KeyCode::Esc => {
+                    self.menu_opened = false;
                     return Ok(vec![]);
                 }
 
@@ -152,6 +210,11 @@ impl Component for SuggestiveEditor {
             } else {
                 None
             },
+            if self.menu_opened() {
+                Some(self.menu.clone() as Rc<RefCell<dyn Component>>)
+            } else {
+                None
+            },
             self.info_panel
                 .clone()
                 .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>),
@@ -161,6 +224,9 @@ impl Component for SuggestiveEditor {
     fn remove_child(&mut self, component_id: ComponentId) {
         if self.dropdown.borrow().id() == component_id {
             self.dropdown_opened = false
+        }
+        if self.menu.borrow().id() == component_id {
+            self.menu_opened = false
         }
         if matches!(&self.info_panel, Some(info_panel) if info_panel.borrow().id() == component_id)
         {
@@ -174,6 +240,10 @@ impl SuggestiveEditor {
         Self {
             editor: Editor::from_buffer(buffer),
             info_panel: None,
+            menu: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
+                title: "Menu".to_string(),
+            }))),
+            menu_opened: false,
             dropdown: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
             }))),
@@ -188,6 +258,15 @@ impl SuggestiveEditor {
             tree_sitter_md::language(),
             &info,
         ))));
+    }
+
+    pub fn set_code_actions(&mut self, code_actions: Vec<CodeAction>) {
+        if self.editor.mode != Mode::Normal {
+            return;
+        }
+
+        self.menu_opened = true;
+        self.menu.borrow_mut().set_items(code_actions);
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
@@ -224,6 +303,10 @@ impl SuggestiveEditor {
             .map(|item| item.label())
             .collect()
     }
+
+    fn menu_opened(&self) -> bool {
+        self.menu_opened
+    }
 }
 
 #[cfg(test)]
@@ -234,7 +317,7 @@ mod test_suggestive_editor {
         buffer::Buffer,
         canonicalized_path::CanonicalizedPath,
         components::{component::Component, editor::Mode},
-        lsp::completion::{Completion, CompletionItem, PositionalEdit},
+        lsp::completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
         position::Position,
         screen::Dispatch,
     };
@@ -397,10 +480,10 @@ mod test_suggestive_editor {
             trigger_characters: vec![".".to_string()],
             items: vec![CompletionItem {
                 label: "Spongebob".to_string(),
-                edit: Some(PositionalEdit {
+                edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
                     range: Position::new(0, 0)..Position::new(0, 6),
                     new_text: "Spongebob".to_string(),
-                }),
+                })),
                 documentation: None,
                 sort_text: None,
             }],
@@ -412,6 +495,12 @@ mod test_suggestive_editor {
         // Expect the content of the buffer to be applied with the new edit,
         // resulting in 'Spongebob'
         assert_eq!(editor.editor().text(), "Spongebob");
+
+        // Type in 'end'
+        editor.handle_events("e n d").unwrap();
+
+        // Expect the content of the buffer to be 'Spongebobend'
+        assert_eq!(editor.editor().text(), "Spongebobend");
     }
 
     #[test]

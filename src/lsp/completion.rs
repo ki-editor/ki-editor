@@ -13,7 +13,12 @@ pub struct CompletionItem {
     pub label: String,
     pub documentation: Option<String>,
     pub sort_text: Option<String>,
-    pub edit: Option<PositionalEdit>,
+    pub edit: Option<CompletionItemEdit>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompletionItemEdit {
+    PositionalEdit(PositionalEdit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,10 +89,12 @@ impl From<lsp_types::CompletionItem> for CompletionItem {
             }),
             sort_text: item.sort_text,
             edit: item.text_edit.and_then(|edit| match edit {
-                lsp_types::CompletionTextEdit::Edit(edit) => Some(PositionalEdit {
-                    range: edit.range.start.into()..edit.range.end.into(),
-                    new_text: edit.new_text,
-                }),
+                lsp_types::CompletionTextEdit::Edit(edit) => {
+                    Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                        range: edit.range.start.into()..edit.range.end.into(),
+                        new_text: edit.new_text,
+                    }))
+                }
                 lsp_types::CompletionTextEdit::InsertAndReplace(_) => None,
             }),
         }

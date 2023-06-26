@@ -897,7 +897,7 @@ impl Editor {
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
-                        start: selection.range.start,
+                        start: selection.to_char_index(&CursorDirection::End),
                         old: Rope::new(),
                         new: Rope::from_str(s),
                     }),
@@ -1020,6 +1020,12 @@ impl Editor {
                 self.change();
             }
             KeyCode::Enter => return self.open_new_line(),
+            KeyCode::Char(',') => {
+                return self
+                    .get_request_params()
+                    .map(|params| vec![Dispatch::RequestCodeAction(params)])
+                    .unwrap_or_default()
+            }
             KeyCode::Char('?') => {
                 self.editor_mut().set_mode(Mode::Normal);
                 return self.request_hover();
@@ -1579,14 +1585,32 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             edits
                 .into_iter()
-                .map(|edit| {
+                .enumerate()
+                .map(|(index, edit)| {
                     let range = edit.range.start.to_char_index(&self.buffer())
                         ..edit.range.end.to_char_index(&self.buffer());
-                    ActionGroup::new(vec![Action::Edit(Edit {
+                    let next_text_len = edit.new_text.chars().count();
+
+                    let action_edit = Action::Edit(Edit {
                         start: range.start,
                         old: self.buffer().slice(&range),
                         new: edit.new_text.into(),
-                    })])
+                    });
+
+                    let action_select = Action::Select(Selection {
+                        range: {
+                            let end = range.start + next_text_len;
+                            end..end
+                        },
+                        copied_text: None,
+                        initial_range: None,
+                    });
+
+                    if index == 0 {
+                        ActionGroup::new(vec![action_edit, action_select])
+                    } else {
+                        ActionGroup::new(vec![action_edit])
+                    }
                 })
                 .collect(),
         );

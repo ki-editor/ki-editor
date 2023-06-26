@@ -80,6 +80,12 @@ impl LspManager {
         })
     }
 
+    pub fn request_code_action(&self, action: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&action.path, "Failed to request code action", |channel| {
+            channel.request_code_action(action.clone())
+        })
+    }
+
     pub fn document_did_change(
         &self,
         path: CanonicalizedPath,

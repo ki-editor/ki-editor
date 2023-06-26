@@ -2,7 +2,7 @@ use crate::canonicalized_path::CanonicalizedPath;
 
 use super::completion::PositionalEdit;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceEdit {
     pub edits: Vec<TextDocumentEdit>,
 }
@@ -10,6 +10,25 @@ pub struct WorkspaceEdit {
 impl TryFrom<lsp_types::WorkspaceEdit> for WorkspaceEdit {
     type Error = anyhow::Error;
     fn try_from(value: lsp_types::WorkspaceEdit) -> Result<Self, Self::Error> {
+        if let Some(changes) = value.changes {
+            return Ok(WorkspaceEdit {
+                edits: changes
+                    .into_iter()
+                    .map(|(url, edits)| {
+                        Ok(TextDocumentEdit {
+                            path: url
+                                .to_file_path()
+                                .map_err(|_| anyhow::anyhow!("Invalid URI"))?
+                                .try_into()?,
+                            edits: edits
+                                .into_iter()
+                                .map(|edit| edit.try_into())
+                                .collect::<Result<Vec<_>, _>>()?,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Self::Error>>()?,
+            });
+        }
         Ok(WorkspaceEdit {
             edits: value
                 .document_changes
@@ -54,7 +73,7 @@ impl TryFrom<lsp_types::TextDocumentEdit> for TextDocumentEdit {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TextDocumentEdit {
     pub path: CanonicalizedPath,
     pub edits: Vec<PositionalEdit>,

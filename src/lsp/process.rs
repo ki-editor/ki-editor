@@ -16,6 +16,7 @@ use crate::components::component::ComponentId;
 use crate::screen::ScreenMessage;
 use crate::utils::consolidate_errors;
 
+use super::code_action::CodeAction;
 use super::completion::{Completion, CompletionItem};
 use super::goto_definition_response::GotoDefinitionResponse;
 use super::hover::Hover;
@@ -67,7 +68,8 @@ pub enum LspNotification {
     References(ComponentId, Vec<Location>),
     PrepareRenameResponse(ComponentId, PrepareRenameResponse),
     Error(String),
-    WorkspaceEdit(ComponentId, WorkspaceEdit),
+    WorkspaceEdit(WorkspaceEdit),
+    CodeAction(ComponentId, Vec<CodeAction>),
 }
 
 #[derive(Debug)]
@@ -102,6 +104,7 @@ enum FromEditor {
         params: RequestParams,
         new_name: String,
     },
+    RequestCodeAction(RequestParams),
 }
 
 pub struct LspServerProcessChannel {
@@ -156,6 +159,12 @@ impl LspServerProcessChannel {
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RenameSymbol { params, new_name },
+        ))
+    }
+
+    pub fn request_code_action(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestCodeAction(params),
         ))
     }
 
@@ -295,6 +304,9 @@ impl LspServerProcess {
                 capabilities: ClientCapabilities {
                     workspace: Some(WorkspaceClientCapabilities {
                         apply_edit: Some(true),
+                        workspace_edit: Some(WorkspaceEditClientCapabilities {
+                            ..WorkspaceEditClientCapabilities::default()
+                        }),
                         ..WorkspaceClientCapabilities::default()
                     }),
                     text_document: Some(TextDocumentClientCapabilities {
@@ -312,6 +324,9 @@ impl LspServerProcess {
                             ..HoverClientCapabilities::default()
                         }),
                         code_action: Some(CodeActionClientCapabilities {
+                            code_action_literal_support: Some(CodeActionLiteralSupport {
+                                code_action_kind: CodeActionKindLiteralSupport::default(),
+                            }),
                             ..Default::default()
                         }),
                         rename: Some(RenameClientCapabilities {
@@ -323,7 +338,6 @@ impl LspServerProcess {
                     ..ClientCapabilities::default()
                 },
                 workspace_folders: None,
-                client_info: None,
                 ..InitializeParams::default()
             },
         )?;
@@ -384,6 +398,7 @@ impl LspServerProcess {
                     FromEditor::PrepareRenameSymbol(params) => {
                         self.text_document_prepare_rename(params)
                     }
+                    FromEditor::RequestCodeAction(params) => self.text_document_code_action(params),
 
                     FromEditor::TextDocumentDidOpen {
                         file_path,
@@ -546,10 +561,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(
-                                    LspNotification::PrepareRenameResponse(
-                                        component_id,
-                                        payload,
-                                    ),
+                                    LspNotification::PrepareRenameResponse(component_id, payload),
                                 ))
                                 .unwrap();
                         }
@@ -563,11 +575,29 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(
-                                    LspNotification::WorkspaceEdit(
-                                        component_id,
-                                        payload.try_into()?,
-                                    ),
+                                    LspNotification::WorkspaceEdit(payload.try_into()?),
                                 ))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/codeAction" => {
+                        let payload: <lsp_request!("textDocument/codeAction") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::CodeAction(
+                                    component_id,
+                                    payload
+                                        .into_iter()
+                                        .map(|r| match r {
+                                            CodeActionOrCommand::Command(_) => todo!(),
+                                            CodeActionOrCommand::CodeAction(code_action) => {
+                                                code_action.try_into()
+                                            }
+                                        })
+                                        .collect::<Result<Vec<_>, _>>()?,
+                                )))
                                 .unwrap();
                         }
                     }
@@ -869,6 +899,26 @@ impl LspServerProcess {
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
                 work_done_progress_params: WorkDoneProgressParams::default(),
+            },
+        )
+    }
+
+    fn text_document_code_action(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/codeAction")>(
+            params.component_id,
+            CodeActionParams {
+                context: CodeActionContext {
+                    trigger_kind: Some(CodeActionTriggerKind::INVOKED),
+                    diagnostics: vec![],
+                    only: None,
+                },
+                partial_result_params: Default::default(),
+                range: Range {
+                    start: params.position.into(),
+                    end: params.position.into(),
+                },
+                text_document: path_buf_to_text_document_identifier(params.path)?,
+                work_done_progress_params: Default::default(),
             },
         )
     }

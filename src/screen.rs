@@ -371,6 +371,9 @@ impl Screen {
             Dispatch::RenameSymbol { params, new_name } => {
                 self.lsp_manager.rename_symbol(params, new_name)?;
             }
+            Dispatch::RequestCodeAction(action) => {
+                self.lsp_manager.request_code_action(action)?;
+            }
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
             }
@@ -381,6 +384,10 @@ impl Screen {
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
+            Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
+                log::info!("Applying workspace edit: {:#?}", workspace_edit);
+                self.apply_workspace_edit(workspace_edit)?;
+            }
         }
         Ok(())
     }
@@ -405,7 +412,6 @@ impl Screen {
     }
 
     fn open_rename_prompt(&mut self, params: RequestParams) {
-        log::info!("Open rename prompt");
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Rename".to_string(),
@@ -481,7 +487,6 @@ impl Screen {
             history: vec![],
             owner: current_component,
             on_enter: Box::new(|current_item, _| {
-                log::info!("Opening file: {}", current_item);
                 Ok(vec![Dispatch::OpenFile {
                     path: CanonicalizedPath::try_from(current_item)?,
                 }])
@@ -633,7 +638,7 @@ impl Screen {
                 );
                 Ok(())
             }
-            LspNotification::PrepareRenameResponse(component_id, response) => {
+            LspNotification::PrepareRenameResponse(component_id, _response) => {
                 let editor = self.get_suggestive_editor(component_id)?;
 
                 let params = editor.borrow().editor().get_request_params();
@@ -655,8 +660,13 @@ impl Screen {
                 self.show_info(vec![error]);
                 Ok(())
             }
-            LspNotification::WorkspaceEdit(component_id, workspace_edit) => {
+            LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
+            }
+            LspNotification::CodeAction(component_id, code_actions) => {
+                let editor = self.get_suggestive_editor(component_id)?;
+                editor.borrow_mut().set_code_actions(code_actions);
+                Ok(())
             }
         }
     }
@@ -791,6 +801,7 @@ pub enum Dispatch {
     RequestDefinition(RequestParams),
     RequestReferences(RequestParams),
     PrepareRename(RequestParams),
+    RequestCodeAction(RequestParams),
     RenameSymbol {
         params: RequestParams,
         new_name: String,
@@ -805,6 +816,7 @@ pub enum Dispatch {
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Direction),
     GotoOpenedEditor(Direction),
+    ApplyWorkspaceEdit(WorkspaceEdit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

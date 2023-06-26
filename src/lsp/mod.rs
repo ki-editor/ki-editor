@@ -1,3 +1,4 @@
+pub mod code_action;
 pub mod completion;
 pub mod diagnostic;
 pub mod formatter;

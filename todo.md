@@ -44,7 +44,9 @@
 - [x] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
 - [x] i = insert at end of selection, I = insert at beginning of selection
 - [x] LSP rename
-- [] LSP quick action
+- [] LSP signature help
+- [x] LSP quick action
+- [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -69,6 +71,7 @@
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
 - [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 - [] location list (local to each editor), local diagnostics should use this
+- [] feat(editor/diagnostics-movement): should work for overlapped ranges, A:0-3, B:1-3, C:4-5, starting from A, forward should go to B first before C
 - [] dropdown: handle up/down/enter event
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
