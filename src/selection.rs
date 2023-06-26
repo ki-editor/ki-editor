@@ -235,7 +235,7 @@ impl Selection {
         // the cursor will be one line below the current selected line
         match cursor_direction {
             CursorDirection::Start => self.range.start,
-            CursorDirection::End => self.range.end,
+            CursorDirection::End => (self.range.end - 1).max(self.range.start),
         }
     }
 
@@ -251,7 +251,7 @@ impl Selection {
 
     pub fn is_start_or_end(&self, other: &CharIndex) -> bool {
         let Range { start, end } = self.extended_range();
-        &start == other || &(end - 1) == other
+        &start == other || (end > start && &(end - 1) == other)
     }
 
     #[cfg(test)]

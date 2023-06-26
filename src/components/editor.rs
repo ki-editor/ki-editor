@@ -126,10 +126,14 @@ impl Component for Editor {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
-                let (foreground_color, background_color) = if selection.is_start_or_end(&char_index)
+                let (foreground_color, background_color) = if char_index
+                    == selection.to_char_index(&self.cursor_direction)
                 {
-                    // Primary cursors
+                    // Primary selection primary cursor
                     (Color::White, Color::Black)
+                } else if char_index == selection.to_char_index(&self.cursor_direction.reverse()) {
+                    // Primary selection secondary cursor
+                    (Color::White, Color::DarkGrey)
                 } else if selection.extended_range().contains(&char_index) {
                     // Primary selection
                     (Color::Black, Color::Yellow)
@@ -290,6 +294,15 @@ pub struct Editor {
 pub enum CursorDirection {
     Start,
     End,
+}
+
+impl CursorDirection {
+    pub fn reverse(&self) -> Self {
+        match self {
+            CursorDirection::Start => CursorDirection::End,
+            CursorDirection::End => CursorDirection::Start,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
