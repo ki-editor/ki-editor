@@ -204,7 +204,8 @@ impl SuggestiveEditor {
     }
 
     pub fn enter_insert_mode(&mut self) {
-        self.editor.enter_insert_mode()
+        self.editor
+            .enter_insert_mode(super::editor::CursorDirection::Start)
     }
 
     pub fn current_item(&mut self) -> Option<CompletionItem> {

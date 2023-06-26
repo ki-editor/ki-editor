@@ -42,6 +42,7 @@
 - [x] screen: show editor error to user
 - [x] Format on save
 - [x] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
+- [x] i = insert at end of selection, I = insert at beginning of selection
 - [] LSP quick action
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -62,7 +63,6 @@
 - [] feat: workspaces (similar to tab in Vim)
 - [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
 - [] copy should work between different editors
-- [] i = insert at end of selection, I = insert at beginning of selection
 - [] Enter not working as expected in insert mode
 - [] pressing 'b' remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item

@@ -895,7 +895,7 @@ impl Editor {
             }));
 
         self.apply_edit_transaction(edit_transaction);
-        self.enter_insert_mode();
+        self.enter_insert_mode(CursorDirection::Start);
     }
 
     fn insert(&mut self, s: &str) -> Vec<Dispatch> {
@@ -986,7 +986,8 @@ impl Editor {
             KeyCode::Char('g') => self.enter_g_mode(),
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             // H
-            KeyCode::Char('i') => self.enter_insert_mode(),
+            KeyCode::Char('i') => self.enter_insert_mode(CursorDirection::End),
+            KeyCode::Char('I') => self.enter_insert_mode(CursorDirection::Start),
             // I
             KeyCode::Char('j') => self.jump(Direction::Forward),
             KeyCode::Char('J') => self.jump(Direction::Backward),
@@ -1054,9 +1055,12 @@ impl Editor {
         }
     }
 
-    pub fn enter_insert_mode(&mut self) {
+    pub fn enter_insert_mode(&mut self, direction: CursorDirection) {
         self.selection_set.apply_mut(|selection| {
-            let char_index = selection.to_char_index(&self.cursor_direction);
+            let char_index = match direction {
+                CursorDirection::Start => selection.range.start,
+                CursorDirection::End => selection.range.end,
+            };
             selection.range = char_index..char_index
         });
         self.selection_set.mode = SelectionMode::Custom;
@@ -1559,7 +1563,7 @@ impl Editor {
             }));
 
         let dispatches = self.apply_edit_transaction(edit_transaction);
-        self.enter_insert_mode();
+        self.enter_insert_mode(CursorDirection::End);
         dispatches
     }
 
@@ -1618,7 +1622,10 @@ pub enum HandleEventResult {
 mod test_editor {
 
     use crate::{
-        components::{component::Component, editor::Mode},
+        components::{
+            component::Component,
+            editor::{CursorDirection, Mode},
+        },
         context::Context,
         lsp::diagnostic::Diagnostic,
         position::Position,
@@ -2106,7 +2113,7 @@ fn main() {
 
         editor.add_selection();
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
-        editor.enter_insert_mode();
+        editor.enter_insert_mode(CursorDirection::Start);
         editor.insert("pub ");
 
         assert_eq!(editor.text(), "struct A(pub usize, pub char)");
@@ -2213,7 +2220,7 @@ fn main() {
 
         let mut context = Context::default();
         editor.cut(&mut context);
-        editor.enter_insert_mode();
+        editor.enter_insert_mode(CursorDirection::Start);
 
         editor.insert("Some(");
         editor.paste(&context);
@@ -2580,5 +2587,39 @@ let y = S(b);
         editor.set_selection(Position::new(0, 0)..Position::new(0, 1));
 
         assert_eq!(editor.selection_set.mode, SelectionMode::Custom);
+    }
+
+    #[test]
+    fn insert_mode_start() {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+
+        // Select the first word
+        editor.select_word(Direction::Current);
+
+        // Enter insert mode
+        editor.enter_insert_mode(CursorDirection::Start);
+
+        // Type something
+        editor.insert("hello");
+
+        // Expect the text to be 'hellofn main() {}'
+        assert_eq!(editor.text(), "hellofn main() {}");
+    }
+
+    #[test]
+    fn insert_mode_end() {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+
+        // Select the first word
+        editor.select_word(Direction::Current);
+
+        // Enter insert mode
+        editor.enter_insert_mode(CursorDirection::End);
+
+        // Type something
+        editor.insert("hello");
+
+        // Expect the text to be 'fnhello main() {}'
+        assert_eq!(editor.text(), "fnhello main() {}");
     }
 }
