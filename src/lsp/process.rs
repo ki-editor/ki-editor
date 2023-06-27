@@ -690,12 +690,7 @@ impl LspServerProcess {
             component_id,
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
-                    position: Position {
-                        // Need to add 1 for completion after trigger characters to work
-                        column: position.column + 1,
-                        ..position
-                    }
-                    .into(),
+                    position: position.into(),
                     text_document: path_buf_to_text_document_identifier(path)?,
                 },
                 work_done_progress_params: WorkDoneProgressParams {
