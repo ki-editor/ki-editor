@@ -679,9 +679,21 @@ impl Screen {
                     signature_help
                         .signatures
                         .into_iter()
-                        .map(|signature| signature.label)
+                        .map(|signature| {
+                            signature
+                                .documentation
+                                .map(|doc| {
+                                    format!(
+                                        "{}\n{}\n{}",
+                                        signature.label,
+                                        "-".repeat(signature.label.len()),
+                                        doc.content
+                                    )
+                                })
+                                .unwrap_or_else(|| signature.label)
+                        })
                         .collect_vec()
-                        .join("\n\n"),
+                        .join("================================\n"),
                 );
                 Ok(())
             }

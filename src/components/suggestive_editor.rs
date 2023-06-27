@@ -50,7 +50,7 @@ impl DropdownItem for CompletionItem {
         self.label()
     }
     fn info(&self) -> Option<String> {
-        self.documentation()
+        self.documentation().map(|d| d.content)
     }
 }
 

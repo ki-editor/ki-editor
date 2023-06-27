@@ -2,6 +2,8 @@ use std::ops::Range;
 
 use crate::position::Position;
 
+use super::documentation::Documentation;
+
 #[derive(Debug, Clone)]
 pub struct Completion {
     pub items: Vec<CompletionItem>,
@@ -11,7 +13,7 @@ pub struct Completion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
     pub label: String,
-    pub documentation: Option<String>,
+    pub documentation: Option<Documentation>,
     pub sort_text: Option<String>,
     pub edit: Option<CompletionItemEdit>,
 }
@@ -75,7 +77,7 @@ impl CompletionItem {
         self.label.clone()
     }
 
-    pub fn documentation(&self) -> Option<String> {
+    pub fn documentation(&self) -> Option<Documentation> {
         self.documentation.clone()
     }
 }
@@ -84,10 +86,7 @@ impl From<lsp_types::CompletionItem> for CompletionItem {
     fn from(item: lsp_types::CompletionItem) -> Self {
         Self {
             label: item.label,
-            documentation: item.documentation.map(|doc| match doc {
-                lsp_types::Documentation::String(s) => s,
-                lsp_types::Documentation::MarkupContent(content) => content.value,
-            }),
+            documentation: item.documentation.map(|doc| doc.into()),
             sort_text: item.sort_text,
             edit: item.text_edit.and_then(|edit| match edit {
                 lsp_types::CompletionTextEdit::Edit(edit) => {

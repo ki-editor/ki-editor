@@ -1,9 +1,11 @@
 pub mod code_action;
 pub mod completion;
 pub mod diagnostic;
+pub mod documentation;
 pub mod formatter;
 pub mod goto_definition_response;
 pub mod hover;
 pub mod manager;
 pub mod process;
+pub mod signature_help;
 pub mod workspace_edit;

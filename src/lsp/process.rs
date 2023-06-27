@@ -20,6 +20,7 @@ use super::code_action::CodeAction;
 use super::completion::{Completion, CompletionItem};
 use super::goto_definition_response::GotoDefinitionResponse;
 use super::hover::Hover;
+use super::signature_help::SignatureHelp;
 use super::workspace_edit::WorkspaceEdit;
 use crate::quickfix_list::Location;
 
@@ -631,7 +632,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(
-                                    LspNotification::SignatureHelp(component_id, payload),
+                                    LspNotification::SignatureHelp(component_id, payload.into()),
                                 ))
                                 .unwrap();
                         }
