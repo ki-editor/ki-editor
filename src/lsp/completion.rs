@@ -62,6 +62,7 @@ impl Ord for CompletionItem {
 }
 
 impl CompletionItem {
+    #[cfg(test)]
     pub fn from_label(label: String) -> Self {
         Self {
             label,

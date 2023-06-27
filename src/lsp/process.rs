@@ -70,6 +70,7 @@ pub enum LspNotification {
     Error(String),
     WorkspaceEdit(WorkspaceEdit),
     CodeAction(ComponentId, Vec<CodeAction>),
+    SignatureHelp(ComponentId, SignatureHelp),
 }
 
 #[derive(Debug)]
@@ -105,6 +106,7 @@ enum FromEditor {
         new_name: String,
     },
     RequestCodeAction(RequestParams),
+    RequestSignatureHelp(RequestParams),
 }
 
 pub struct LspServerProcessChannel {
@@ -143,6 +145,12 @@ impl LspServerProcessChannel {
     pub fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestCompletion(params),
+        ))
+    }
+
+    pub fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestSignatureHelp(params),
         ))
     }
 
@@ -333,6 +341,16 @@ impl LspServerProcess {
                             prepare_support: Some(true),
                             ..Default::default()
                         }),
+                        signature_help: Some(SignatureHelpClientCapabilities {
+                            signature_information: Some(SignatureInformationSettings {
+                                documentation_format: Some(vec![MarkupKind::PlainText]),
+                                parameter_information: Some(ParameterInformationSettings {
+                                    label_offset_support: Some(true),
+                                }),
+                                active_parameter_support: Some(true),
+                            }),
+                            ..Default::default()
+                        }),
                         ..TextDocumentClientCapabilities::default()
                     }),
                     ..ClientCapabilities::default()
@@ -414,6 +432,9 @@ impl LspServerProcess {
                     } => self.text_document_did_change(file_path, version, content),
                     FromEditor::TextDocumentDidSave { file_path } => {
                         self.text_document_did_save(file_path)
+                    }
+                    FromEditor::RequestSignatureHelp(params) => {
+                        self.text_document_signature_help(params)
                     }
                 },
             }
@@ -598,6 +619,20 @@ impl LspServerProcess {
                                         })
                                         .collect::<Result<Vec<_>, _>>()?,
                                 )))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/signatureHelp" => {
+                        let payload: <lsp_request!("textDocument/signatureHelp") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        log::info!("SignatureHelp response: {:?}", payload);
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(
+                                    LspNotification::SignatureHelp(component_id, payload),
+                                ))
                                 .unwrap();
                         }
                     }
@@ -918,6 +953,23 @@ impl LspServerProcess {
                     end: params.position.into(),
                 },
                 text_document: path_buf_to_text_document_identifier(params.path)?,
+                work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    pub fn text_document_signature_help(
+        &mut self,
+        params: RequestParams,
+    ) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/signatureHelp")>(
+            params.component_id,
+            SignatureHelpParams {
+                context: None,
+                text_document_position_params: TextDocumentPositionParams {
+                    position: params.position.into(),
+                    text_document: path_buf_to_text_document_identifier(params.path)?,
+                },
                 work_done_progress_params: Default::default(),
             },
         )

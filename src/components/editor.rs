@@ -695,7 +695,7 @@ impl Editor {
         self.get_document_did_change_dispatch()
     }
 
-    fn get_document_did_change_dispatch(&mut self) -> Vec<Dispatch> {
+    pub fn get_document_did_change_dispatch(&self) -> Vec<Dispatch> {
         if let Some(path) = self.buffer().path() {
             vec![Dispatch::DocumentDidChange {
                 path,
@@ -802,12 +802,7 @@ impl Editor {
                 Ok(HandleEventResult::Handled(vec![]))
             }
             KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
-                let dispatches = if let Some(path) = self.save()? {
-                    vec![Dispatch::DocumentDidSave { path }]
-                } else {
-                    vec![]
-                };
-
+                let dispatches = self.save()?;
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
             }
@@ -1621,8 +1616,12 @@ impl Editor {
         self.apply_positional_edits(vec![edit])
     }
 
-    pub fn save(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
-        self.buffer.borrow_mut().save(self.selection_set.clone())
+    pub fn save(&self) -> anyhow::Result<Vec<Dispatch>> {
+        if let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? {
+            Ok(vec![Dispatch::DocumentDidSave { path }])
+        } else {
+            Ok(vec![])
+        }
     }
 }
 

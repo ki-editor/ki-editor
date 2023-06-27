@@ -34,9 +34,9 @@ impl Buffer {
             ts_language: language,
             language: None,
             tree: {
-                let mut lol = Parser::new();
-                lol.set_language(language).unwrap();
-                lol.parse(text, None).unwrap()
+                let mut parser = Parser::new();
+                parser.set_language(language).unwrap();
+                parser.parse(text, None).unwrap()
             },
             undo_patch: Vec::new(),
             redo_patches: Vec::new(),
@@ -56,7 +56,6 @@ impl Buffer {
     pub fn words(&self) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
-
         regex
             .find_iter(&str)
             .map(|m| m.as_str().to_string())

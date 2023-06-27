@@ -86,6 +86,14 @@ impl LspManager {
         })
     }
 
+    pub fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(
+            &params.path,
+            "Failed to request signature help",
+            |channel| channel.request_signature_help(params.clone()),
+        )
+    }
+
     pub fn document_did_change(
         &self,
         path: CanonicalizedPath,

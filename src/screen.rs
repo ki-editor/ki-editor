@@ -374,6 +374,9 @@ impl Screen {
             Dispatch::RequestCodeAction(action) => {
                 self.lsp_manager.request_code_action(action)?;
             }
+            Dispatch::RequestSignatureHelp(params) => {
+                self.lsp_manager.request_signature_help(params)?;
+            }
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
             }
@@ -585,7 +588,7 @@ impl Screen {
             LspNotification::Hover(component_id, hover) => {
                 self.get_suggestive_editor(component_id)?
                     .borrow_mut()
-                    .show_info(hover.contents.join("\n\n"));
+                    .show_info("Hover info", hover.contents.join("\n\n"));
                 Ok(())
             }
             LspNotification::Definition(_component_id, response) => {
@@ -666,6 +669,20 @@ impl Screen {
             LspNotification::CodeAction(component_id, code_actions) => {
                 let editor = self.get_suggestive_editor(component_id)?;
                 editor.borrow_mut().set_code_actions(code_actions);
+                Ok(())
+            }
+            LspNotification::SignatureHelp(component_id, signature_help) => {
+                let editor = self.get_suggestive_editor(component_id)?;
+                log::info!("Received signature help: {:?}", signature_help);
+                editor.borrow_mut().show_info(
+                    "Signature help",
+                    signature_help
+                        .signatures
+                        .into_iter()
+                        .map(|signature| signature.label)
+                        .collect_vec()
+                        .join("\n\n"),
+                );
                 Ok(())
             }
         }
@@ -761,7 +778,9 @@ impl Screen {
 
             self.handle_dispatches(dispatches)?;
 
-            component.borrow_mut().editor_mut().save()?;
+            let dispatches = component.borrow_mut().editor_mut().save()?;
+
+            self.handle_dispatches(dispatches)?;
         }
         Ok(())
     }
@@ -797,6 +816,7 @@ pub enum Dispatch {
         content: Vec<String>,
     },
     RequestCompletion(RequestParams),
+    RequestSignatureHelp(RequestParams),
     RequestHover(RequestParams),
     RequestDefinition(RequestParams),
     RequestReferences(RequestParams),

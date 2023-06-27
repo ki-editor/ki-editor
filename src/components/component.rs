@@ -115,7 +115,7 @@ impl ComponentId {
 }
 
 #[cfg(test)]
-mod component {
+mod test_component {
     use std::{cell::RefCell, rc::Rc};
 
     use crate::components::component::Component;

@@ -2,7 +2,7 @@ use crate::context::Context;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::screen::Dispatch;
-use crate::screen::RequestParams;
+
 use crate::{
     buffer::Buffer,
     lsp::completion::{Completion, CompletionItem},
@@ -68,8 +68,6 @@ impl Component for SuggestiveEditor {
         context: &mut Context,
         event: crossterm::event::Event,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        let cursor_position = self.editor().get_cursor_position();
-
         let dispatches = if self.editor.mode == Mode::Insert && self.dropdown_opened() {
             match event {
                 Event::Key(key)
@@ -107,6 +105,8 @@ impl Component for SuggestiveEditor {
                 }
                 Event::Key(key) if key.code == KeyCode::Esc => {
                     self.dropdown_opened = false;
+                    self.menu_opened = false;
+                    self.info_panel = None;
                     return Ok(vec![]);
                 }
 
@@ -188,15 +188,18 @@ impl Component for SuggestiveEditor {
 
         let dispatches = dispatches
             .into_iter()
-            .chain(match self.editor().buffer().path() {
-                Some(path) if self.editor.mode == Mode::Insert => {
-                    vec![Dispatch::RequestCompletion(RequestParams {
-                        component_id: self.id(),
-                        path,
-                        position: cursor_position,
-                    })]
-                }
-                _ => vec![],
+            .chain(if self.editor.mode == Mode::Insert {
+                self.editor
+                    .get_request_params()
+                    .map(|params| {
+                        vec![
+                            Dispatch::RequestCompletion(params.clone()),
+                            Dispatch::RequestSignatureHelp(params),
+                        ]
+                    })
+                    .unwrap_or_default()
+            } else {
+                vec![]
             })
             .collect::<Vec<_>>();
 
@@ -253,15 +256,14 @@ impl SuggestiveEditor {
         }
     }
 
-    pub fn show_info(&mut self, info: String) {
-        self.info_panel = Some(Rc::new(RefCell::new(Editor::from_text(
-            tree_sitter_md::language(),
-            &info,
-        ))));
+    pub fn show_info(&mut self, title: &str, info: String) {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), &info);
+        editor.set_title(title.into());
+        self.info_panel = Some(Rc::new(RefCell::new(editor)));
     }
 
     pub fn set_code_actions(&mut self, code_actions: Vec<CodeAction>) {
-        if self.editor.mode != Mode::Normal {
+        if self.editor.mode != Mode::Normal || code_actions.is_empty() {
             return;
         }
 

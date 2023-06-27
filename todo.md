@@ -44,7 +44,7 @@
 - [x] feat(ui): decorate both sides of a selection with cursor, so that shrinking selection is more obvious
 - [x] i = insert at end of selection, I = insert at beginning of selection
 - [x] LSP rename
-- [] LSP signature help
+- [x] LSP signature help
 - [x] LSP quick action
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
@@ -84,3 +84,4 @@
 - [] perf: when LSP is enable, handling key event is very slow
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
+- [] add integration test for every LSP Actions
