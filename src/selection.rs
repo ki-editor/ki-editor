@@ -200,7 +200,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, NamedNode | ParentNode | SiblingNode | Token)
+        matches!(self, NamedNode | ParentNode | SiblingNode)
     }
 
     pub fn display(&self) -> String {

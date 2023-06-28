@@ -2555,6 +2555,31 @@ let y = S(b);
     }
 
     #[test]
+    fn delete_token() {
+        let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
+        // Select 'fn'
+        editor.select_token(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+
+        editor.delete(Direction::Forward);
+
+        assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
+
+        editor.delete(Direction::Forward);
+
+        assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
+
+        editor.select_token(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["x"]);
+
+        editor.delete(Direction::Backward);
+
+        assert_eq!(editor.text(), "(: a, y: b, z: c){}");
+    }
+
+    #[test]
     fn paste_from_clipboard() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let mut context = Context::default();
