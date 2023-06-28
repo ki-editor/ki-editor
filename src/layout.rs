@@ -155,6 +155,7 @@ impl Layout {
         let components = self.components();
         if let Some(component) = components
             .iter()
+            .sorted_by_key(|component| component.borrow().id())
             .find(|component| {
                 if let Some(id) = self.focused_component_id {
                     component.borrow().id() > id
