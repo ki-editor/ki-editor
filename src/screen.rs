@@ -82,9 +82,16 @@ impl Screen {
         Ok(screen)
     }
 
-    pub fn run(&mut self, entry_path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
-        self.open_file(entry_path, true)?;
-
+    pub fn run(
+        &mut self,
+        entry_path: Option<CanonicalizedPath>,
+        event_receiver: Receiver<crossterm::event::Event>,
+    ) -> Result<(), anyhow::Error> {
+        if let Some(entry_path) = entry_path {
+            self.open_file(&entry_path, true)?;
+        } else {
+            self.open_file_picker()?;
+        }
         let mut stdout = stdout();
         stdout.execute(EnterAlternateScreen)?;
         crossterm::terminal::enable_raw_mode()?;
@@ -94,7 +101,7 @@ impl Screen {
 
         let sender = self.sender.clone();
         std::thread::spawn(move || loop {
-            if let Ok(event) = crossterm::event::read() {
+            if let Ok(event) = event_receiver.recv() {
                 sender
                     .send(ScreenMessage::Event(event))
                     .unwrap_or_else(|e| {
@@ -388,8 +395,10 @@ impl Screen {
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
-                log::info!("Applying workspace edit: {:#?}", workspace_edit);
                 self.apply_workspace_edit(workspace_edit)?;
+            }
+            Dispatch::Null => {
+                // do nothing
             }
         }
         Ok(())
@@ -399,7 +408,7 @@ impl Screen {
         self.layout.current_component()
     }
 
-    fn close_current_window(&mut self, change_focused_to: ComponentId) {
+    fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
         self.layout.close_current_window(change_focused_to)
     }
 
@@ -490,9 +499,8 @@ impl Screen {
             history: vec![],
             owner: current_component,
             on_enter: Box::new(|current_item, _| {
-                Ok(vec![Dispatch::OpenFile {
-                    path: CanonicalizedPath::try_from(current_item)?,
-                }])
+                let path = CanonicalizedPath::try_from(current_item)?;
+                Ok(vec![Dispatch::OpenFile { path }])
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             items: {
@@ -816,7 +824,7 @@ fn reveal(s: String) -> String {
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     CloseCurrentWindow {
-        change_focused_to: ComponentId,
+        change_focused_to: Option<ComponentId>,
     },
     SetSearch {
         search: String,
@@ -849,6 +857,9 @@ pub enum Dispatch {
     GotoQuickfixListItem(Direction),
     GotoOpenedEditor(Direction),
     ApplyWorkspaceEdit(WorkspaceEdit),
+
+    /// Used for testing
+    Null,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

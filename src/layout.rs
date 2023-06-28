@@ -175,10 +175,9 @@ impl Layout {
         }
     }
 
-    pub fn close_current_window(&mut self, change_focused_to: ComponentId) {
+    pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
         self.remove_current_component();
-        self.focused_component_id = Some(change_focused_to);
-        self.recalculate_layout();
+        self.focused_component_id = change_focused_to;
     }
 
     pub fn add_and_focus_prompt(&mut self, prompt: Rc<RefCell<Prompt>>) {
@@ -243,8 +242,7 @@ impl Layout {
     }
 
     pub fn add_suggestive_editor(&mut self, suggestive_editor: Rc<RefCell<SuggestiveEditor>>) {
-        self.background_suggestive_editors
-            .push(suggestive_editor);
+        self.background_suggestive_editors.push(suggestive_editor);
     }
 
     pub fn add_and_focus_suggestive_editor(

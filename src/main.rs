@@ -5,6 +5,7 @@ mod components;
 mod context;
 mod edit;
 mod grid;
+mod integration_test;
 mod key_event_parser;
 pub mod language;
 mod layout;
@@ -36,10 +37,29 @@ fn run() -> anyhow::Result<()> {
     // run_integrated_terminal(24, 80).unwrap();
     // return;
 
-    let default_path = "./src/main.rs".to_string();
-
-    let path = CanonicalizedPath::try_from(args.get(1).unwrap_or(&default_path)).unwrap();
+    let path = args.get(1).and_then(|arg| {
+        CanonicalizedPath::try_from(arg)
+            .map(Some)
+            .unwrap_or_else(|err| {
+                println!("Invalid path: {}", err);
+                None
+            })
+    });
     let mut screen = Screen::new()?;
-    screen.run(&path).unwrap();
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::spawn(move || loop {
+        crossterm::event::read()
+            .map_err(|error| anyhow::anyhow!("{:?}", error))
+            .and_then(|event| {
+                sender
+                    .send(event)
+                    .map_err(|error| anyhow::anyhow!("{:?}", error))
+            })
+            .unwrap_or_else(|error| {
+                log::info!("Error running crossterm::event::read: {:?}", error);
+            });
+    });
+    screen.run(path, receiver).unwrap();
     Ok(())
 }

@@ -96,11 +96,9 @@ impl Component for Prompt {
         match event {
             Event::Key(key_event) => match key_event.code {
                 KeyCode::Esc if self.editor().mode == Mode::Normal => {
-                    if let Some(owner) = self.owner.clone() {
-                        return Ok(vec![Dispatch::CloseCurrentWindow {
-                            change_focused_to: owner.borrow().id(),
-                        }]);
-                    }
+                    return Ok(vec![Dispatch::CloseCurrentWindow {
+                        change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
+                    }])
                 }
                 KeyCode::Enter => {
                     let current_item = if self.editor.dropdown_opened() {
@@ -113,18 +111,12 @@ impl Component for Prompt {
                     };
 
                     let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
-                    return Ok(self
-                        .owner
-                        .clone()
-                        .map(|owner| {
-                            vec![Dispatch::CloseCurrentWindow {
-                                change_focused_to: owner.borrow().id(),
-                            }]
-                            .into_iter()
-                            .chain(dispatches)
-                            .collect_vec()
-                        })
-                        .unwrap_or_default());
+                    return Ok(vec![Dispatch::CloseCurrentWindow {
+                        change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
+                    }]
+                    .into_iter()
+                    .chain(dispatches)
+                    .collect_vec());
                 }
                 _ => {}
             },
@@ -155,5 +147,44 @@ impl Component for Prompt {
 
     fn remove_child(&mut self, id: ComponentId) {
         self.editor.remove_child(id)
+    }
+}
+
+#[cfg(test)]
+mod test_prompt {
+    use std::{cell::RefCell, rc::Rc};
+
+    use crate::{
+        components::{component::Component, prompt::Prompt},
+        screen::Dispatch,
+    };
+
+    use super::*;
+
+    #[test]
+    fn should_return_custom_dispatches_regardless_of_owner_id() {
+        fn run_test(owner: Option<Rc<RefCell<dyn Component>>>) {
+            let mut prompt = Prompt::new(super::PromptConfig {
+                history: vec![],
+                owner,
+                on_enter: Box::new(|_, _| Ok(vec![Dispatch::Null])),
+                on_text_change: Box::new(|_, _| Ok(vec![])),
+                items: vec![],
+                title: "".to_string(),
+            });
+
+            let dispatches = prompt.handle_events("enter").unwrap();
+
+            assert!(dispatches
+                .iter()
+                .any(|dispatch| matches!(dispatch, Dispatch::Null)));
+        }
+
+        run_test(None);
+
+        run_test(Some(Rc::new(RefCell::new(Editor::from_text(
+            tree_sitter_md::language(),
+            "",
+        )))))
     }
 }

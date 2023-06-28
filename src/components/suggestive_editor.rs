@@ -99,6 +99,8 @@ impl Component for SuggestiveEditor {
                             },
                         };
                         self.dropdown_opened = false;
+                        self.menu_opened = false;
+                        self.info_panel = None;
                         return Ok(dispatches);
                     }
                     return Ok(vec![]);
