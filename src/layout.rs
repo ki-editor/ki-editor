@@ -278,3 +278,13 @@ impl Layout {
         }
     }
 }
+
+#[cfg(test)]
+mod test_layout {
+    use super::*;
+    #[test]
+    fn recalculate_layout_should_not_panic_when_there_are_no_components() {
+        let mut layout = Layout::new(Dimension::default());
+        layout.recalculate_layout();
+    }
+}

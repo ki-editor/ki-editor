@@ -100,7 +100,7 @@ impl Rectangle {
         rectangles.push(root);
 
         // Loop through the count and split the last rectangle in the vector
-        for _ in 0..count - 1 {
+        for _ in 0..count.saturating_sub(1) {
             // Pop the last rectangle from the vector
             let last = rectangles.pop().unwrap();
 
