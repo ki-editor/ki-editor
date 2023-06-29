@@ -46,12 +46,12 @@
 - [x] LSP rename
 - [x] LSP signature help
 - [x] LSP quick action
+- [x] ([{ for enclosing current selection with brackets
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
 - [] e for enclose the current node with one of the brackets
-- [] ([{ for enclosing current selection with brackets
 - [] f for moving to the next node which has the same field name as the current node
 - [] mechanism for adding selection to all matching selection within current selection
 - [] incorporate AST grep (https://github.com/ast-grep/ast-grep), the result is not very satisfying
@@ -85,3 +85,4 @@
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions
+- [] crash when formatting

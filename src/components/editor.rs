@@ -1051,9 +1051,15 @@ impl Editor {
                 self.editor_mut().set_mode(Mode::Normal);
                 return self.request_hover();
             }
-            KeyCode::Char('[') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
-            KeyCode::Char(']') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
             KeyCode::Char('%') => self.change_cursor_direction(),
+            KeyCode::Char('(' | ')') => return self.enclose(Enclosure::RoundBracket),
+            KeyCode::Char('[' | ']') => return self.enclose(Enclosure::SquareBracket),
+            KeyCode::Char('{' | '}') => return self.enclose(Enclosure::CurlyBracket),
+            KeyCode::Char('<' | '>') => return self.enclose(Enclosure::AngleBracket),
+
+            // TODO: - and = are temporarily assigned keys
+            KeyCode::Char('-') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
+            KeyCode::Char('=') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
             _ => {
                 log::info!("event: {:?}", event);
             }
@@ -1646,6 +1652,50 @@ impl Editor {
             Ok(vec![])
         }
     }
+
+    fn enclose(&mut self, enclosure: Enclosure) -> Vec<Dispatch> {
+        let edit_transaction =
+            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
+                let old = self.buffer().slice(&selection.extended_range());
+                ActionGroup::new(vec![
+                    Action::Edit(Edit {
+                        start: selection.range.start,
+                        new: format!(
+                            "{}{}{}",
+                            match enclosure {
+                                Enclosure::RoundBracket => "(",
+                                Enclosure::SquareBracket => "[",
+                                Enclosure::CurlyBracket => "{",
+                                Enclosure::AngleBracket => "<",
+                            },
+                            old,
+                            match enclosure {
+                                Enclosure::RoundBracket => ")",
+                                Enclosure::SquareBracket => "]",
+                                Enclosure::CurlyBracket => "}",
+                                Enclosure::AngleBracket => ">",
+                            }
+                        )
+                        .into(),
+                        old,
+                    }),
+                    Action::Select(Selection {
+                        range: selection.range.start..selection.range.end + 2,
+                        copied_text: selection.copied_text.clone(),
+                        initial_range: selection.initial_range.clone(),
+                    }),
+                ])
+            }));
+
+        self.apply_edit_transaction(edit_transaction)
+    }
+}
+
+enum Enclosure {
+    RoundBracket,
+    SquareBracket,
+    CurlyBracket,
+    AngleBracket,
 }
 
 pub fn node_to_selection(
@@ -2695,5 +2745,41 @@ let y = S(b);
 
         // Expect the text to be 'fnhello main() {}'
         assert_eq!(editor.text(), "fnhello main() {}");
+    }
+
+    #[test]
+    fn enclose_left_bracket() {
+        let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
+
+        // Select 'x.y()'
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
+
+        editor.handle_events("( { [ <").unwrap();
+
+        assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
+        assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);
+    }
+
+    #[test]
+    fn enclose_right_bracket() {
+        let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
+
+        // Select 'x.y()'
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+        editor.select_named_node(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
+
+        editor.handle_events(") } ] >").unwrap();
+
+        assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
+        assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);
     }
 }
