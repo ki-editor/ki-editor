@@ -25,6 +25,7 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         editor::Direction,
+        keymap_legend::KeymapLegendConfig,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
     },
@@ -155,9 +156,6 @@ impl Screen {
                 }
                 KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
                     self.open_search_prompt()
-                }
-                KeyCode::Char('o') if event.modifiers == KeyModifiers::CONTROL => {
-                    self.open_file_picker()?;
                 }
                 KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
                     if self.quit() {
@@ -356,11 +354,17 @@ impl Screen {
     fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
+                log::info!("Close current window");
+                log::info!("Change focused to: {:?}", change_focused_to);
                 self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch { search } => self.set_search(search),
             Dispatch::OpenFile { path } => {
                 self.open_file(&path, true)?;
+            }
+
+            Dispatch::OpenFilePicker => {
+                self.open_file_picker()?;
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
@@ -369,7 +373,7 @@ impl Screen {
             Dispatch::RequestHover(params) => {
                 self.lsp_manager.request_hover(params)?;
             }
-            Dispatch::RequestDefinition(params) => {
+            Dispatch::RequestDefinitions(params) => {
                 self.lsp_manager.request_definition(params)?;
             }
             Dispatch::PrepareRename(params) => {
@@ -397,9 +401,12 @@ impl Screen {
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
-            Dispatch::Null => {
-                // do nothing
+            Dispatch::ShowKeymapLegend(keymap_legend_config) => {
+                self.show_keymap_legend(keymap_legend_config)
             }
+
+            #[cfg(test)]
+            Dispatch::Custom(_) => unreachable!(),
         }
         Ok(())
     }
@@ -681,28 +688,8 @@ impl Screen {
             }
             LspNotification::SignatureHelp(component_id, signature_help) => {
                 let editor = self.get_suggestive_editor(component_id)?;
-                log::info!("Received signature help: {:?}", signature_help);
-                editor.borrow_mut().show_info(
-                    "Signature help",
-                    signature_help
-                        .signatures
-                        .into_iter()
-                        .map(|signature| {
-                            signature
-                                .documentation
-                                .map(|doc| {
-                                    format!(
-                                        "{}\n{}\n{}",
-                                        signature.label,
-                                        "-".repeat(signature.label.len()),
-                                        doc.content
-                                    )
-                                })
-                                .unwrap_or_else(|| signature.label)
-                        })
-                        .collect_vec()
-                        .join("================================\n"),
-                );
+
+                editor.borrow_mut().show_signature_help(signature_help);
                 Ok(())
             }
         }
@@ -804,6 +791,10 @@ impl Screen {
         }
         Ok(())
     }
+
+    fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+        self.layout.show_keymap_legend(keymap_legend_config)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -829,6 +820,7 @@ pub enum Dispatch {
     SetSearch {
         search: String,
     },
+    OpenFilePicker,
     OpenFile {
         path: CanonicalizedPath,
     },
@@ -838,7 +830,7 @@ pub enum Dispatch {
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),
     RequestHover(RequestParams),
-    RequestDefinition(RequestParams),
+    RequestDefinitions(RequestParams),
     RequestReferences(RequestParams),
     PrepareRename(RequestParams),
     RequestCodeAction(RequestParams),
@@ -857,9 +849,11 @@ pub enum Dispatch {
     GotoQuickfixListItem(Direction),
     GotoOpenedEditor(Direction),
     ApplyWorkspaceEdit(WorkspaceEdit),
+    ShowKeymapLegend(KeymapLegendConfig),
 
+    #[cfg(test)]
     /// Used for testing
-    Null,
+    Custom(&'static str),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

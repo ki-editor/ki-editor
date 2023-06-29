@@ -143,10 +143,6 @@ impl QuickfixListItem {
     pub fn location(&self) -> &Location {
         &self.location
     }
-
-    pub fn infos(&self) -> Vec<String> {
-        self.infos.clone()
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

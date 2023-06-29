@@ -6,8 +6,12 @@ struct Token(String);
 pub fn parse_key_events(input: &str) -> Result<Vec<KeyEvent>, ParseError> {
     input
         .split(' ')
-        .map(|s| Token(s.into()).to_key_event())
+        .map(parse_key_event)
         .collect::<Result<Vec<_>, _>>()
+}
+
+pub fn parse_key_event(input: &str) -> Result<KeyEvent, ParseError> {
+    Token(input.into()).to_key_event()
 }
 
 impl Token {
@@ -26,13 +30,13 @@ impl Token {
 
     fn parse_modifier(s: &str) -> Result<KeyModifiers, ParseError> {
         match s {
-            "c" => Ok(KeyModifiers::CONTROL),
-            "a" => Ok(KeyModifiers::ALT),
-            "s" => Ok(KeyModifiers::SHIFT),
-            "ca" => Ok(KeyModifiers::CONTROL | KeyModifiers::ALT),
-            "cs" => Ok(KeyModifiers::CONTROL | KeyModifiers::SHIFT),
-            "as" => Ok(KeyModifiers::ALT | KeyModifiers::SHIFT),
-            "cas" => Ok(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT),
+            "ctrl" => Ok(KeyModifiers::CONTROL),
+            "alt" => Ok(KeyModifiers::ALT),
+            "shift" => Ok(KeyModifiers::SHIFT),
+            "ctrl+alt" => Ok(KeyModifiers::CONTROL | KeyModifiers::ALT),
+            "ctrl+shift" => Ok(KeyModifiers::CONTROL | KeyModifiers::SHIFT),
+            "alt+shift" => Ok(KeyModifiers::ALT | KeyModifiers::SHIFT),
+            "ctrl+alt+shift" => Ok(KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT),
             _ => Err(ParseError::UnknownModifier(s.to_string())),
         }
     }
@@ -80,6 +84,7 @@ mod test_parse_keys {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
     use super::parse_key_events;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn alphabetic_char() {
@@ -92,22 +97,22 @@ mod test_parse_keys {
     #[test]
     fn modifier() {
         assert_eq!(
-            parse_key_events("c-a").unwrap(),
+            parse_key_events("ctrl-a").unwrap(),
             vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::CONTROL)]
         );
 
         assert_eq!(
-            parse_key_events("a-a").unwrap(),
+            parse_key_events("alt-a").unwrap(),
             vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT)]
         );
 
         assert_eq!(
-            parse_key_events("s-a").unwrap(),
+            parse_key_events("shift-a").unwrap(),
             vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::SHIFT)]
         );
 
         assert_eq!(
-            parse_key_events("ca-a").unwrap(),
+            parse_key_events("ctrl+alt-a").unwrap(),
             vec![KeyEvent::new(
                 KeyCode::Char('a'),
                 KeyModifiers::CONTROL | KeyModifiers::ALT
@@ -115,7 +120,7 @@ mod test_parse_keys {
         );
 
         assert_eq!(
-            parse_key_events("cs-a").unwrap(),
+            parse_key_events("ctrl+shift-a").unwrap(),
             vec![KeyEvent::new(
                 KeyCode::Char('a'),
                 KeyModifiers::CONTROL | KeyModifiers::SHIFT
@@ -123,7 +128,7 @@ mod test_parse_keys {
         );
 
         assert_eq!(
-            parse_key_events("as-a").unwrap(),
+            parse_key_events("alt+shift-a").unwrap(),
             vec![KeyEvent::new(
                 KeyCode::Char('a'),
                 KeyModifiers::ALT | KeyModifiers::SHIFT
@@ -131,7 +136,7 @@ mod test_parse_keys {
         );
 
         assert_eq!(
-            parse_key_events("cas-a").unwrap(),
+            parse_key_events("ctrl+alt+shift-a").unwrap(),
             vec![KeyEvent::new(
                 KeyCode::Char('a'),
                 KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT
@@ -207,14 +212,15 @@ mod test_parse_keys {
         );
     }
 
+    #[test]
     fn multiple() {
         assert_eq!(
-            parse_key_events("a b c a-enter").unwrap(),
+            parse_key_events("a b c alt-enter").unwrap(),
             vec![
                 KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
                 KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
                 KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
-                KeyEvent::new(KeyCode::Char('a'), KeyModifiers::ALT),
+                KeyEvent::new(KeyCode::Enter, KeyModifiers::ALT),
             ]
         );
     }

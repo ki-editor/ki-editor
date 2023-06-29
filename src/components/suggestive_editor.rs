@@ -1,6 +1,7 @@
 use crate::context::Context;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
+use crate::lsp::signature_help::SignatureHelp;
 use crate::screen::Dispatch;
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
     lsp::completion::{Completion, CompletionItem},
 };
 use crossterm::event::{Event, KeyCode, KeyModifiers};
+use itertools::Itertools;
 use std::{cell::RefCell, rc::Rc};
 
 use super::component::ComponentId;
@@ -258,6 +260,34 @@ impl SuggestiveEditor {
         }
     }
 
+    pub fn show_signature_help(&mut self, signature_help: Option<SignatureHelp>) {
+        if let Some(signature_help) = signature_help {
+            self.show_info(
+                "Signature help",
+                signature_help
+                    .signatures
+                    .into_iter()
+                    .map(|signature| {
+                        signature
+                            .documentation
+                            .map(|doc| {
+                                format!(
+                                    "{}\n{}\n{}",
+                                    signature.label,
+                                    "-".repeat(signature.label.len()),
+                                    doc.content
+                                )
+                            })
+                            .unwrap_or_else(|| signature.label)
+                    })
+                    .collect_vec()
+                    .join("================================\n"),
+            );
+        } else {
+            self.info_panel = None;
+        }
+    }
+
     pub fn show_info(&mut self, title: &str, info: String) {
         let mut editor = Editor::from_text(tree_sitter_md::language(), &info);
         editor.set_title(title.into());
@@ -391,7 +421,7 @@ mod test_suggestive_editor {
         );
 
         // Go to the next item using Ctrl-n
-        editor.handle_events("c-n").unwrap();
+        editor.handle_events("ctrl-n").unwrap();
 
         // Expect the selected item to be the second item
         assert_eq!(
@@ -400,7 +430,7 @@ mod test_suggestive_editor {
         );
 
         // Go to the previous item using Ctrl-p
-        editor.handle_events("c-p").unwrap();
+        editor.handle_events("ctrl-p").unwrap();
 
         // Expect the selected item to be the first item
         assert_eq!(

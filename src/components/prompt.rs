@@ -74,11 +74,6 @@ impl Prompt {
             on_text_change: config.on_text_change,
         }
     }
-
-    fn set_text(&mut self, text: String) {
-        self.text = text;
-        self.editor.set_content(&self.text);
-    }
 }
 
 impl Component for Prompt {
@@ -167,7 +162,7 @@ mod test_prompt {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
                 owner,
-                on_enter: Box::new(|_, _| Ok(vec![Dispatch::Null])),
+                on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha")])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),
                 items: vec![],
                 title: "".to_string(),
@@ -177,7 +172,7 @@ mod test_prompt {
 
             assert!(dispatches
                 .iter()
-                .any(|dispatch| matches!(dispatch, Dispatch::Null)));
+                .any(|dispatch| matches!(dispatch, Dispatch::Custom("haha"))));
         }
 
         run_test(None);

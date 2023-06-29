@@ -26,14 +26,16 @@ use crate::{
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
-use super::component::ComponentId;
+use super::{
+    component::ComponentId,
+    keymap_legend::{Keymap, KeymapLegendConfig},
+};
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Mode {
     Normal,
     Insert,
     Jump { jumps: Vec<Jump> },
-    G,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -69,9 +71,6 @@ impl Component for Editor {
             }
             Mode::Jump { .. } => {
                 format!("{} [JUMP]", &self.title)
-            }
-            Mode::G => {
-                format!("{} [G]", &self.title)
             }
         }
     }
@@ -750,6 +749,47 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
+    fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Get",
+            owner_id: self.id(),
+            keymaps: vec![]
+                .into_iter()
+                .chain(
+                    self.get_request_params()
+                        .map(|params| {
+                            vec![
+                                Keymap::new(
+                                    "d",
+                                    "Definition(s)",
+                                    Dispatch::RequestDefinitions(params.clone()),
+                                ),
+                                Keymap::new("r", "References", Dispatch::RequestReferences(params)),
+                                Keymap::new(
+                                    "e",
+                                    "Errors",
+                                    Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
+                                ),
+                            ]
+                        })
+                        .unwrap_or_default(),
+                )
+                .collect(),
+        }
+    }
+
+    fn open_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Open",
+            owner_id: self.id(),
+            keymaps: vec![Keymap::new(
+                "f",
+                "Git tracked files",
+                Dispatch::OpenFilePicker,
+            )],
+        }
+    }
+
     pub fn handle_key_event(
         &mut self,
         context: &mut Context,
@@ -763,7 +803,6 @@ impl Editor {
                     self.handle_jump_mode(key_event);
                     Ok(vec![])
                 }
-                Mode::G => Ok(self.handle_g_mode(key_event)),
             },
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
             _ => Ok(vec![]),
@@ -929,27 +968,6 @@ impl Editor {
         })
     }
 
-    fn handle_g_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
-        let dispatches = match event.code {
-            KeyCode::Char('d') => self
-                .get_request_params()
-                .map(|request_param| vec![Dispatch::RequestDefinition(request_param)])
-                .unwrap_or(vec![]),
-            KeyCode::Char('e') => {
-                vec![Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic)]
-            }
-            KeyCode::Char('r') => self
-                .get_request_params()
-                .map(|params| vec![Dispatch::RequestReferences(params)])
-                .unwrap_or(vec![]),
-            _ => vec![],
-        };
-
-        self.enter_normal_mode();
-
-        dispatches
-    }
-
     fn handle_normal_mode(&mut self, context: &mut Context, event: KeyEvent) -> Vec<Dispatch> {
         match event.code {
             // Objects
@@ -968,7 +986,11 @@ impl Editor {
             // fc means changed files
             // fb means opened editor
             // F
-            KeyCode::Char('g') => self.enter_g_mode(),
+            KeyCode::Char('g') => {
+                return vec![Dispatch::ShowKeymapLegend(
+                    self.g_mode_keymap_legend_config(),
+                )]
+            }
             KeyCode::Char('h') => self.toggle_highlight_mode(),
             // H
             KeyCode::Char('i') => self.enter_insert_mode(CursorDirection::End),
@@ -983,7 +1005,11 @@ impl Editor {
             KeyCode::Char('M') => self.select_match(Direction::Backward, &context.last_search()),
             KeyCode::Char('n') => self.select_named_node(Direction::Forward),
             KeyCode::Char('N') => self.select_named_node(Direction::Backward),
-            KeyCode::Char('o') => self.change_cursor_direction(),
+            KeyCode::Char('o') => {
+                return vec![Dispatch::ShowKeymapLegend(
+                    self.open_mode_keymap_legend_config(),
+                )]
+            }
             // O
             KeyCode::Char('p') => self.select_parent(Direction::Forward),
             KeyCode::Char('P') => self.select_parent(Direction::Backward),
@@ -1027,6 +1053,7 @@ impl Editor {
             }
             KeyCode::Char('[') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
             KeyCode::Char(']') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
+            KeyCode::Char('%') => self.change_cursor_direction(),
             _ => {
                 log::info!("event: {:?}", event);
             }
@@ -1562,10 +1589,6 @@ impl Editor {
         let dispatches = self.apply_edit_transaction(edit_transaction);
         self.enter_insert_mode(CursorDirection::End);
         dispatches
-    }
-
-    fn enter_g_mode(&mut self) {
-        self.mode = Mode::G
     }
 
     pub fn set_mode(&mut self, mode: Mode) {

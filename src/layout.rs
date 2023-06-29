@@ -1,4 +1,5 @@
 use anyhow::anyhow;
+use itertools::Itertools;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
@@ -6,6 +7,7 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         editor::{Direction, Editor},
+        keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
         suggestive_editor::SuggestiveEditor,
     },
@@ -15,12 +17,13 @@ use crate::{
 };
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
-/// lists and prompts.
+/// lists, prompts, and etc.
 /// The main panel is where the user edits code, and the info panel is for displaying info like
 /// hover text, diagnostics, etc.
 pub struct Layout {
     main_panel: Option<Rc<RefCell<SuggestiveEditor>>>,
     info_panel: Option<Rc<RefCell<Editor>>>,
+    keymap_legend: Option<Rc<RefCell<KeymapLegend>>>,
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
@@ -39,6 +42,7 @@ impl Layout {
         Layout {
             main_panel: None,
             info_panel: None,
+            keymap_legend: None,
             quickfix_lists: None,
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
@@ -54,6 +58,11 @@ impl Layout {
             .into_iter()
             .chain(
                 self.main_panel
+                    .iter()
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.keymap_legend
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
@@ -99,6 +108,8 @@ impl Layout {
 
             self.main_panel = self.main_panel.take().filter(|c| c.borrow().id() != id);
 
+            self.keymap_legend = self.keymap_legend.take().filter(|c| c.borrow().id() != id);
+
             self.info_panel = self.info_panel.take().filter(|c| c.borrow().id() != id);
 
             self.quickfix_lists = self.quickfix_lists.take().filter(|c| c.borrow().id() != id);
@@ -135,6 +146,7 @@ impl Layout {
         let editor = self
             .background_suggestive_editors
             .iter()
+            .sorted_by_key(|editor| editor.borrow().id())
             .find(|editor| {
                 let id = editor.borrow().id();
                 if let Some(focused_component_id) = self.focused_component_id {
@@ -277,6 +289,12 @@ impl Layout {
             }
             Some(info_panel) => info_panel.borrow_mut().set_content(&info),
         }
+    }
+
+    pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+        let keymap_legend = KeymapLegend::new(keymap_legend_config);
+        self.focused_component_id = Some(keymap_legend.id());
+        self.keymap_legend = Some(Rc::new(RefCell::new(keymap_legend)));
     }
 }
 

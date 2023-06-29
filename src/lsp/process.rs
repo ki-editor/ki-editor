@@ -1,6 +1,5 @@
 use crate::canonicalized_path::CanonicalizedPath;
 use crate::language;
-use crate::position::Position;
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
 use lsp_types::request::Request;
@@ -71,7 +70,7 @@ pub enum LspNotification {
     Error(String),
     WorkspaceEdit(WorkspaceEdit),
     CodeAction(ComponentId, Vec<CodeAction>),
-    SignatureHelp(ComponentId, SignatureHelp),
+    SignatureHelp(ComponentId, Option<SignatureHelp>),
 }
 
 #[derive(Debug)]
@@ -629,13 +628,14 @@ impl LspServerProcess {
 
                         log::info!("SignatureHelp response: {:?}", payload);
 
-                        if let Some(payload) = payload {
-                            self.screen_message_sender
-                                .send(ScreenMessage::LspNotification(
-                                    LspNotification::SignatureHelp(component_id, payload.into()),
-                                ))
-                                .unwrap();
-                        }
+                        self.screen_message_sender
+                            .send(ScreenMessage::LspNotification(
+                                LspNotification::SignatureHelp(
+                                    component_id,
+                                    payload.map(|payload| payload.into()),
+                                ),
+                            ))
+                            .unwrap();
                     }
                     _ => {
                         log::info!("Unknown method: {:#?}", method);

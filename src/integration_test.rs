@@ -4,9 +4,7 @@ mod integration_test {
 
     use crossterm::event::Event;
 
-    use crate::{
-        canonicalized_path::CanonicalizedPath, key_event_parser::parse_key_events, screen::Screen,
-    };
+    use crate::{key_event_parser::parse_key_events, screen::Screen};
 
     // #[test]
     fn lsp_completion() {
