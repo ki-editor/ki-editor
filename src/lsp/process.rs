@@ -7,7 +7,7 @@ use lsp_types::*;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 
-use std::process::{self, Command, Stdio};
+use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
 
@@ -256,12 +256,7 @@ impl LspServerProcess {
             None => return Ok(None),
         };
 
-        let mut command = Command::new(process_command.command);
-        command.stdin(Stdio::piped()).stdout(Stdio::piped());
-        command.args(process_command.args);
-
-        let mut process = command.spawn()?;
-
+        let mut process = process_command.spawn()?;
         let stdin = process
             .stdin
             .take()

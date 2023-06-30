@@ -20,13 +20,7 @@ impl Formatter {
         // pass in the content using stdin,
         // get the output from the stdout
 
-        let mut command = std::process::Command::new(&self.process_command.command);
-        command.args(&self.process_command.args);
-
-        let mut child = command
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .spawn()?;
+        let mut child = self.process_command.spawn()?;
 
         let stdin = child.stdin.as_mut().ok_or_else(|| {
             anyhow::anyhow!(
@@ -35,12 +29,20 @@ impl Formatter {
             )
         })?;
 
-        // Read from stdout
-
         stdin.write_all(content.as_bytes())?;
 
+        // Read from stdout
         let output = child.wait_with_output()?;
 
-        Ok(String::from_utf8(output.stdout)?)
+        // Get the stderr
+        if !output.stderr.is_empty() {
+            Err(anyhow::anyhow!(
+                "Failed to format the content: {:#?}",
+                String::from_utf8(output.stderr.clone())
+                    .unwrap_or_else(|_| format!("{:?}", output.stderr))
+            ))
+        } else {
+            Ok(String::from_utf8(output.stdout)?)
+        }
     }
 }

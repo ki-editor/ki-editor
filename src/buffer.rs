@@ -580,5 +580,27 @@ mod test_buffer {
                 assert_eq!(buffer.rope.to_string(), "fn main() {");
             })
         }
+
+        #[test]
+        fn should_not_update_buffer_if_formatter_returns_error() {
+            let code = r#"
+            let x = "1";
+                "#;
+
+            run_test(|_, mut buffer| {
+                // Update the buffer to be valid Rust code
+                // but unformatable
+                buffer.update(code);
+
+                // The code should be deemed as valid by Tree-sitter,
+                // but not to the formatter
+                assert!(!buffer.tree.root_node().has_error());
+
+                buffer.save(SelectionSet::default()).unwrap();
+
+                // Expect the buffer remain unchanged
+                assert_eq!(buffer.rope.to_string(), code);
+            })
+        }
     }
 }

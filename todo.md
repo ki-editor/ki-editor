@@ -47,6 +47,7 @@
 - [x] LSP signature help
 - [x] LSP quick action
 - [x] ([{ for enclosing current selection with brackets
+- [x] crash when formatting
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -85,4 +86,3 @@
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions
-- [] crash when formatting
