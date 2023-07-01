@@ -6,7 +6,6 @@ mod context;
 mod edit;
 mod grid;
 mod integration_test;
-mod key_event_parser;
 pub mod language;
 mod layout;
 mod lsp;

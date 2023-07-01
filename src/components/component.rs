@@ -23,13 +23,11 @@ pub trait Component: Any + AnyComponent {
 
     #[cfg(test)]
     /// This is for writing tests for components.
-    fn handle_events(&mut self, events: &str) -> anyhow::Result<Vec<Dispatch>> {
-        use crate::key_event_parser::parse_key_events;
-
+    fn handle_events(&mut self, events: &[key_event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
         let mut context = Context::default();
-        Ok(parse_key_events(events)?
-            .into_iter()
-            .map(|event| self.handle_event(&mut context, Event::Key(event)))
+        Ok(events
+            .iter()
+            .map(|event| self.handle_key_event(&mut context, event.clone()))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
@@ -40,6 +38,30 @@ pub trait Component: Any + AnyComponent {
         &mut self,
         context: &mut Context,
         event: Event,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match event {
+            Event::Key(event) => self.handle_key_event(context, event.into()),
+            Event::Paste(content) => self.handle_paste_event(content),
+            Event::Mouse(event) => self.handle_mouse_event(event),
+            _ => Ok(vec![]),
+        }
+    }
+
+    fn handle_paste_event(&mut self, _content: String) -> anyhow::Result<Vec<Dispatch>> {
+        Ok(vec![])
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        _event: crossterm::event::MouseEvent,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        Ok(vec![])
+    }
+
+    fn handle_key_event(
+        &mut self,
+        context: &mut Context,
+        event: key_event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>>;
 
     fn get_cursor_position(&self) -> Position {
@@ -135,19 +157,19 @@ mod test_component {
                 todo!()
             }
 
-            fn handle_event(
-                &mut self,
-                _context: &mut crate::context::Context,
-                _event: crossterm::event::Event,
-            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
-                todo!()
-            }
-
             fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
                 vec![]
             }
 
             fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
+                todo!()
+            }
+
+            fn handle_key_event(
+                &mut self,
+                _context: &mut crate::context::Context,
+                _event: key_event::KeyEvent,
+            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
                 todo!()
             }
         }
@@ -166,19 +188,19 @@ mod test_component {
                 todo!()
             }
 
-            fn handle_event(
-                &mut self,
-                _context: &mut crate::context::Context,
-                _event: crossterm::event::Event,
-            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
-                todo!()
-            }
-
             fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
                 vec![Some(self.grand_child.clone())]
             }
 
             fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
+                todo!()
+            }
+
+            fn handle_key_event(
+                &mut self,
+                _context: &mut crate::context::Context,
+                _event: key_event::KeyEvent,
+            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
                 todo!()
             }
         }
@@ -198,19 +220,19 @@ mod test_component {
                 todo!()
             }
 
-            fn handle_event(
-                &mut self,
-                _context: &mut crate::context::Context,
-                _event: crossterm::event::Event,
-            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
-                todo!()
-            }
-
             fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
                 vec![Some(self.child.clone())]
             }
 
             fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
+                todo!()
+            }
+
+            fn handle_key_event(
+                &mut self,
+                _context: &mut crate::context::Context,
+                _event: key_event::KeyEvent,
+            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
                 todo!()
             }
         }

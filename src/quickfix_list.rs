@@ -36,12 +36,12 @@ impl Component for QuickfixLists {
         self.dropdown.editor_mut()
     }
 
-    fn handle_event(
+    fn handle_key_event(
         &mut self,
         context: &mut crate::context::Context,
-        event: crossterm::event::Event,
+        event: key_event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
-        self.dropdown.handle_event(context, event)
+        self.dropdown.handle_key_event(context, event)
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {

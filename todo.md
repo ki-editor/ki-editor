@@ -48,6 +48,7 @@
 - [x] LSP quick action
 - [x] ([{ for enclosing current selection with brackets
 - [x] crash when formatting
+- [x] create a key event macro so that handle_event can be less tedious: e.g. key!(ctrl-a) => do_something()
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -86,3 +87,7 @@
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions
+- [] TODO(editor/word): word should move by camelCase / snake_case, so we can select a word within a variable name
+- [] word wrapping
+- [] refactor: handle_event should not mutate the component, but should return dispatch instead, like Elm.
+  - This is to standardize the event handling architecture, and also allow keymap to be defined declaractively

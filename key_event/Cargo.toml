@@ -1,0 +1,10 @@
+[package]
+name = "key_event"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+crossterm.workspace = true
+
+[dev-dependencies]
+pretty_assertions = "1.3.0"

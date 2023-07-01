@@ -1,7 +1,8 @@
-use crossterm::event::{Event, KeyCode, KeyEvent};
 use itertools::Itertools;
+use key_event::{parse_key_event, KeyEvent};
+use key_event_macro::key;
 
-use crate::{key_event_parser::parse_key_event, screen::Dispatch};
+use crate::screen::Dispatch;
 
 use super::{
     component::{Component, ComponentId},
@@ -101,24 +102,24 @@ impl Component for KeymapLegend {
         &mut self.editor
     }
 
-    fn handle_event(
+    fn handle_key_event(
         &mut self,
         context: &mut crate::context::Context,
-        event: crossterm::event::Event,
+        event: key_event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
         if self.editor.mode == Mode::Insert {
-            match event {
-                Event::Key(key_event) if key_event.code == KeyCode::Esc => {
+            match &event {
+                key!("esc") => {
                     return Ok(vec![Dispatch::CloseCurrentWindow {
                         change_focused_to: Some(self.config.owner_id),
                     }])
                 }
-                Event::Key(key_event) => {
+                key_event => {
                     if let Some(keymap) = self
                         .config
                         .keymaps
                         .iter()
-                        .find(|keymap| keymap.event == key_event)
+                        .find(|keymap| &keymap.event == key_event)
                     {
                         return Ok(vec![Dispatch::CloseCurrentWindow {
                             change_focused_to: Some(self.config.owner_id),
@@ -128,10 +129,9 @@ impl Component for KeymapLegend {
                         .collect());
                     }
                 }
-                _ => {}
             }
         }
-        self.editor.handle_event(context, event)
+        self.editor.handle_key_event(context, event)
     }
 
     fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
@@ -145,6 +145,8 @@ impl Component for KeymapLegend {
 
 #[cfg(test)]
 mod test_keymap_legend {
+    use key_event_macro::keys;
+
     use super::*;
     #[test]
     fn should_intercept_key_event_defined_in_config() {
@@ -155,7 +157,7 @@ mod test_keymap_legend {
             owner_id,
         });
 
-        let dispatches = keymap_legend.handle_events("s").unwrap();
+        let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
 
         assert_eq!(
             dispatches,
@@ -177,7 +179,7 @@ mod test_keymap_legend {
             owner_id,
         });
 
-        let dispatches = keymap_legend.handle_events("esc").unwrap();
+        let dispatches = keymap_legend.handle_events(keys!("esc")).unwrap();
 
         assert_eq!(
             dispatches,

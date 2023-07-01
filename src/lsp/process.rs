@@ -261,6 +261,12 @@ impl LspServerProcess {
             .stdin
             .take()
             .ok_or_else(|| anyhow::anyhow!("Unable to obtain stdin"))?;
+
+        let _stderr = process
+            .stderr
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Unable to obtain stderr"))?;
+
         let stdout = process
             .stdout
             .take()

@@ -2,18 +2,19 @@
 mod integration_test {
     use std::time::Duration;
 
-    use crossterm::event::Event;
+    
+    
 
-    use crate::{key_event_parser::parse_key_events, screen::Screen};
+    use crate::screen::Screen;
 
     // #[test]
     fn lsp_completion() {
         let mut screen = Screen::new().unwrap();
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (_sender, receiver) = std::sync::mpsc::channel();
         std::thread::sleep(Duration::from_secs(5));
-        for event in parse_key_events("c-q").unwrap() {
-            sender.send(Event::Key(event)).unwrap();
-        }
+        // for event in parse_key_events("c-q").unwrap() {
+        //     sender.send(event).unwrap();
+        // }
         screen.run(None, receiver).unwrap();
     }
 }

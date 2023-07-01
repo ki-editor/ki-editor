@@ -6,10 +6,12 @@ use std::{
 };
 
 use crossterm::{
-    event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEventKind},
+    event::{KeyCode, MouseButton, MouseEventKind},
     style::Color,
 };
 use itertools::Itertools;
+use key_event::KeyEvent;
+use key_event_macro::key;
 use ropey::{Rope, RopeSlice};
 use tree_sitter::Node;
 
@@ -209,21 +211,8 @@ impl Component for Editor {
         grid
     }
 
-    fn handle_event(
-        &mut self,
-        context: &mut Context,
-        event: Event,
-    ) -> anyhow::Result<Vec<Dispatch>> {
-        let dispatches = match event {
-            Event::Key(key_event) => self.handle_key_event(context, key_event)?,
-            Event::Mouse(mouse_event) => {
-                self.handle_mouse_event(mouse_event);
-                vec![]
-            }
-            Event::Paste(str) => self.insert(&str),
-            _ => vec![],
-        };
-        Ok(dispatches)
+    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Vec<Dispatch>> {
+        Ok(self.insert(&content))
     }
 
     fn get_cursor_position(&self) -> Position {
@@ -249,6 +238,38 @@ impl Component for Editor {
     }
 
     fn remove_child(&mut self, _component_id: ComponentId) {}
+
+    fn handle_key_event(
+        &mut self,
+        context: &mut Context,
+        event: key_event::KeyEvent,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        self.handle_key_event(context, event)
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        mouse_event: crossterm::event::MouseEvent,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        const SCROLL_HEIGHT: isize = 1;
+        match mouse_event.kind {
+            MouseEventKind::ScrollUp => {
+                self.apply_scroll(-SCROLL_HEIGHT);
+                Ok(vec![])
+            }
+            MouseEventKind::ScrollDown => {
+                self.apply_scroll(SCROLL_HEIGHT);
+                Ok(vec![])
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                Ok(vec![])
+
+                // self
+                // .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
+            }
+            _ => Ok(vec![]),
+        }
+    }
 }
 
 impl Clone for Editor {
@@ -796,7 +817,7 @@ impl Editor {
         key_event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match self.handle_universal_key(context, key_event)? {
-            HandleEventResult::Ignored(Event::Key(key_event)) => match &self.mode {
+            HandleEventResult::Ignored(key_event) => match &self.mode {
                 Mode::Normal => Ok(self.handle_normal_mode(context, key_event)),
                 Mode::Insert => Ok(self.handle_insert_mode(key_event)),
                 Mode::Jump { .. } => {
@@ -814,16 +835,16 @@ impl Editor {
         context: &mut Context,
         event: KeyEvent,
     ) -> anyhow::Result<HandleEventResult> {
-        match event.code {
-            KeyCode::Left => {
+        match event {
+            key!("left") => {
                 self.selection_set.move_left(&self.cursor_direction);
                 Ok(HandleEventResult::Handled(vec![]))
             }
-            KeyCode::Right => {
+            key!("right") => {
                 self.selection_set.move_right(&self.cursor_direction);
                 Ok(HandleEventResult::Handled(vec![]))
             }
-            KeyCode::Char('a') if event.modifiers == KeyModifiers::CONTROL => {
+            key!("ctrl+a") => {
                 let selection_set = SelectionSet {
                     primary: Selection {
                         range: CharIndex(0)..CharIndex(self.buffer.borrow().len_chars()),
@@ -836,28 +857,20 @@ impl Editor {
                 self.update_selection_set(selection_set);
                 Ok(HandleEventResult::Handled(vec![]))
             }
-            KeyCode::Char('c') if event.modifiers == KeyModifiers::CONTROL => {
+            key!("ctrl+c") => {
                 self.copy(context);
                 Ok(HandleEventResult::Handled(vec![]))
             }
-            KeyCode::Char('s') if event.modifiers == KeyModifiers::CONTROL => {
+            key!("ctrl+s") => {
                 let dispatches = self.save()?;
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
             }
-            KeyCode::Char('x') if event.modifiers == KeyModifiers::CONTROL => {
-                Ok(HandleEventResult::Handled(self.cut(context)))
-            }
-            KeyCode::Char('v') if event.modifiers == KeyModifiers::CONTROL => {
-                Ok(HandleEventResult::Handled(self.paste(context)))
-            }
-            KeyCode::Char('y') if event.modifiers == KeyModifiers::CONTROL => {
-                Ok(HandleEventResult::Handled(self.redo()))
-            }
-            KeyCode::Char('z') if event.modifiers == KeyModifiers::CONTROL => {
-                Ok(HandleEventResult::Handled(self.undo()))
-            }
-            _ => Ok(HandleEventResult::Ignored(Event::Key(event))),
+            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut(context))),
+            key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context))),
+            key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo())),
+            key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo())),
+            _ => Ok(HandleEventResult::Ignored(event)),
         }
     }
 
@@ -1333,30 +1346,6 @@ impl Editor {
         self.rectangle.dimension()
     }
 
-    pub fn handle_mouse_event(
-        &mut self,
-        mouse_event: crossterm::event::MouseEvent,
-    ) -> HandleEventResult {
-        const SCROLL_HEIGHT: isize = 1;
-        match mouse_event.kind {
-            MouseEventKind::ScrollUp => {
-                self.apply_scroll(-SCROLL_HEIGHT);
-                HandleEventResult::Handled(vec![])
-            }
-            MouseEventKind::ScrollDown => {
-                self.apply_scroll(SCROLL_HEIGHT);
-                HandleEventResult::Handled(vec![])
-            }
-            MouseEventKind::Down(MouseButton::Left) => {
-                HandleEventResult::Handled(vec![])
-
-                // self
-                // .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
-            }
-            _ => HandleEventResult::Ignored(Event::Mouse(mouse_event)),
-        }
-    }
-
     fn apply_scroll(&mut self, scroll_height: isize) {
         self.scroll_offset = if scroll_height.is_positive() {
             self.scroll_offset.saturating_add(scroll_height as u16)
@@ -1713,7 +1702,7 @@ pub fn node_to_selection(
 
 pub enum HandleEventResult {
     Handled(Vec<Dispatch>),
-    Ignored(Event),
+    Ignored(KeyEvent),
 }
 
 #[cfg(test)]
@@ -1732,6 +1721,7 @@ mod test_editor {
     };
 
     use super::{Direction, Editor};
+    use key_event_macro::keys;
     use pretty_assertions::assert_eq;
     use tree_sitter_rust::language;
 
@@ -2674,25 +2664,25 @@ let y = S(b);
         let mut editor = Editor::from_text(language(), "");
 
         // Enter insert mode
-        editor.handle_events("i").unwrap();
+        editor.handle_events(keys!("i")).unwrap();
 
         // Type in 'hello'
-        editor.handle_events("h e l l o").unwrap();
+        editor.handle_events(keys!("h e l l o")).unwrap();
 
         // Type in enter
-        editor.handle_events("enter").unwrap();
+        editor.handle_events(keys!("enter")).unwrap();
 
         // Type in 'world'
-        editor.handle_events("w o r l d").unwrap();
+        editor.handle_events(keys!("w o r l d")).unwrap();
 
         // Expect the text to be 'hello\nworld'
         assert_eq!(editor.text(), "hello\nworld");
 
         // Move cursor left
-        editor.handle_events("left").unwrap();
+        editor.handle_events(keys!("left")).unwrap();
 
         // Type in enter
-        editor.handle_events("enter").unwrap();
+        editor.handle_events(keys!("enter")).unwrap();
 
         // Expect the text to be 'hello\nworl\nd'
         assert_eq!(editor.text(), "hello\nworl\nd");
@@ -2759,7 +2749,7 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
-        editor.handle_events("( { [ <").unwrap();
+        editor.handle_events(keys!("( { [ <")).unwrap();
 
         assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
         assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);
@@ -2777,7 +2767,7 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
-        editor.handle_events(") } ] >").unwrap();
+        editor.handle_events(keys!(") } ] >")).unwrap();
 
         assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
         assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);

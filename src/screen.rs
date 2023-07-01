@@ -150,10 +150,6 @@ impl Screen {
         let component = self.current_component();
         match event {
             Event::Key(event) => match event.code {
-                KeyCode::Char('%') => {
-                    // let cloned = component.clone();
-                    // self.focused_component_id = self.add_component(cloned);
-                }
                 KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
                     self.open_search_prompt()
                 }

@@ -1,7 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crossterm::event::{Event, KeyCode};
+
 use itertools::Itertools;
+use key_event_macro::key;
 
 use crate::{
     buffer::Buffer,
@@ -83,42 +84,39 @@ impl Component for Prompt {
     fn editor_mut(&mut self) -> &mut Editor {
         self.editor.editor_mut()
     }
-    fn handle_event(
+    fn handle_key_event(
         &mut self,
         context: &mut Context,
-        event: Event,
+        event: key_event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
-            Event::Key(key_event) => match key_event.code {
-                KeyCode::Esc if self.editor().mode == Mode::Normal => {
-                    return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
-                    }])
-                }
-                KeyCode::Enter => {
-                    let current_item = if self.editor.dropdown_opened() {
-                        self.editor
-                            .current_item()
-                            .map(|item| item.label())
-                            .unwrap_or(String::new())
-                    } else {
-                        self.text.clone()
-                    };
+            key!("esc") if self.editor().mode == Mode::Normal => {
+                return Ok(vec![Dispatch::CloseCurrentWindow {
+                    change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
+                }])
+            }
+            key!("enter") => {
+                let current_item = if self.editor.dropdown_opened() {
+                    self.editor
+                        .current_item()
+                        .map(|item| item.label())
+                        .unwrap_or(String::new())
+                } else {
+                    self.text.clone()
+                };
 
-                    let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
-                    return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
-                    }]
-                    .into_iter()
-                    .chain(dispatches)
-                    .collect_vec());
-                }
-                _ => {}
-            },
+                let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
+                return Ok(vec![Dispatch::CloseCurrentWindow {
+                    change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
+                }]
+                .into_iter()
+                .chain(dispatches)
+                .collect_vec());
+            }
             _ => {}
         };
 
-        let dispatches = self.editor.handle_event(context, event)?;
+        let dispatches = self.editor.handle_key_event(context, event)?;
 
         let current_text = self.editor().current_line();
 
@@ -147,6 +145,7 @@ impl Component for Prompt {
 
 #[cfg(test)]
 mod test_prompt {
+    use key_event_macro::keys;
     use std::{cell::RefCell, rc::Rc};
 
     use crate::{
@@ -168,7 +167,7 @@ mod test_prompt {
                 title: "".to_string(),
             });
 
-            let dispatches = prompt.handle_events("enter").unwrap();
+            let dispatches = prompt.handle_events(keys!("enter")).unwrap();
 
             assert!(dispatches
                 .iter()
