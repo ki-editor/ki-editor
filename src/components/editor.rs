@@ -1,4 +1,7 @@
-use crate::{canonicalized_path::CanonicalizedPath, context::Context, screen::RequestParams};
+use crate::{
+    canonicalized_path::CanonicalizedPath, context::Context, grid::CellUpdate,
+    screen::RequestParams,
+};
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::Range,
@@ -12,6 +15,7 @@ use crossterm::{
 use itertools::Itertools;
 use key_event::KeyEvent;
 use key_event_macro::key;
+use lsp_types::DiagnosticSeverity;
 use ropey::{Rope, RopeSlice};
 use tree_sitter::Node;
 
@@ -114,14 +118,6 @@ impl Component for Editor {
                 (diagnostic, char_index_range)
             });
 
-        let errors = diagnostics.clone().filter(|(diagnostic, _)| {
-            diagnostic.severity == Some(lsp_types::DiagnosticSeverity::ERROR)
-        });
-
-        let warnings = diagnostics.clone().filter(|(diagnostic, _)| {
-            diagnostic.severity != Some(lsp_types::DiagnosticSeverity::ERROR)
-        });
-
         for (line_index, line) in lines {
             let line_start_char_index = buffer.line_to_char(line_index);
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
@@ -145,31 +141,6 @@ impl Component for Editor {
                     {
                         // Secondary selection
                         (Color::Black, Color::DarkYellow)
-                    } else if errors.clone().any(|(_, range)| range.contains(&char_index)) {
-                        // Errors
-                        // Pink
-                        (
-                            Color::Black,
-                            Color::Rgb {
-                                r: 255,
-                                g: 102,
-                                b: 102,
-                            },
-                        )
-                    } else if warnings
-                        .clone()
-                        .any(|(_, range)| range.contains(&char_index))
-                    {
-                        // Warnings
-                        // Light orange
-                        (
-                            Color::Black,
-                            Color::Rgb {
-                                r: 255,
-                                g: 204,
-                                b: 153,
-                            },
-                        )
                     } else {
                         // Default
                         (Color::Black, Color::White)
@@ -182,33 +153,65 @@ impl Component for Editor {
             }
         }
 
-        for (index, jump) in editor.jumps().into_iter().enumerate() {
-            let point = buffer.char_to_position(match editor.cursor_direction {
-                CursorDirection::Start => jump.selection.range.start,
-                CursorDirection::End => jump.selection.range.end,
-            });
+        let updates = vec![]
+            .into_iter()
+            //
+            // Jumps
+            //
+            .chain(editor.jumps().into_iter().enumerate().map(|(index, jump)| {
+                let position = buffer.char_to_position(match editor.cursor_direction {
+                    CursorDirection::Start => jump.selection.range.start,
+                    CursorDirection::End => jump.selection.range.end,
+                });
 
-            let column = point.column as u16;
-            let line = (point.line as u16).saturating_sub(scroll_offset);
-
-            // Background color: Odd index red, even index blue
-            let background_color = if index % 2 == 0 {
-                Color::Red
-            } else {
-                Color::Blue
-            };
-
-            // If column and row is within view
-            if column < width && line < height {
-                grid.rows[line as usize][column as usize] = Cell {
-                    symbol: jump.character.to_string(),
-                    background_color,
-                    foreground_color: Color::White,
+                // Background color: Odd index red, even index blue
+                let background_color = if index % 2 == 0 {
+                    Color::Red
+                } else {
+                    Color::Blue
                 };
-            }
-        }
 
-        grid
+                CellUpdate::new(Position {
+                    column: position.column,
+                    line: position.line.saturating_sub(scroll_offset.into()),
+                })
+                .background_color(background_color)
+                .foreground_color(Color::White)
+                .symbol(jump.character.to_string())
+            }))
+            //
+            // Diagnostics
+            //
+            .chain(diagnostics.into_iter().flat_map(|(diagnostic, range)| {
+                (range.start.0..range.end.0).map(|char_index| {
+                    let char_index = CharIndex(char_index);
+                    let position = buffer.char_to_position(char_index);
+                    let position = Position {
+                        column: position.column,
+                        line: position.line.saturating_sub(scroll_offset.into()),
+                    };
+
+                    let background_color = match diagnostic.severity {
+                        Some(severity) => match severity {
+                            DiagnosticSeverity::ERROR => Color::Rgb {
+                                r: 255,
+                                g: 102,
+                                b: 102,
+                            },
+                            _ => Color::Rgb {
+                                r: 255,
+                                g: 204,
+                                b: 153,
+                            },
+                        },
+                        None => Color::White,
+                    };
+                    CellUpdate::new(position).background_color(background_color)
+                })
+            }))
+            .collect::<Vec<_>>();
+
+        grid.apply_cell_updates(updates)
     }
 
     fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Vec<Dispatch>> {

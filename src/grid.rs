@@ -30,6 +30,14 @@ impl Cell {
             background_color: Color::White,
         }
     }
+
+    fn apply_update(&self, update: CellUpdate) -> Cell {
+        Cell {
+            symbol: update.symbol.unwrap_or(self.symbol.clone()),
+            foreground_color: update.foreground_color.unwrap_or(self.foreground_color),
+            background_color: update.background_color.unwrap_or(self.background_color),
+        }
+    }
 }
 
 impl Default for Cell {
@@ -38,6 +46,45 @@ impl Default for Cell {
             symbol: " ".to_string(),
             foreground_color: Color::White,
             background_color: Color::White,
+        }
+    }
+}
+
+pub struct CellUpdate {
+    pub position: Position,
+    pub symbol: Option<String>,
+    pub background_color: Option<Color>,
+    pub foreground_color: Option<Color>,
+}
+
+impl CellUpdate {
+    pub fn new(position: Position) -> Self {
+        CellUpdate {
+            position,
+            symbol: None,
+            background_color: None,
+            foreground_color: None,
+        }
+    }
+
+    pub fn symbol(self, symbol: String) -> Self {
+        CellUpdate {
+            symbol: Some(symbol),
+            ..self
+        }
+    }
+
+    pub fn background_color(self, background_color: Color) -> Self {
+        CellUpdate {
+            background_color: Some(background_color),
+            ..self
+        }
+    }
+
+    pub fn foreground_color(self, foreground_color: Color) -> Self {
+        CellUpdate {
+            foreground_color: Some(foreground_color),
+            ..self
         }
     }
 }
@@ -183,6 +230,20 @@ impl Grid {
             }
         }
         grid
+    }
+
+    pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
+        let Position { line, column } = update.position;
+        if line < self.rows.len() && column < self.rows[line].len() {
+            self.rows[line][column] = self.rows[line][column].apply_update(update);
+        }
+        self
+    }
+
+    pub fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
+        updates
+            .into_iter()
+            .fold(self, |grid, update| grid.apply_cell_update(update))
     }
 }
 

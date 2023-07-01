@@ -49,6 +49,7 @@
 - [x] ([{ for enclosing current selection with brackets
 - [x] crash when formatting
 - [x] create a key event macro so that handle_event can be less tedious: e.g. key!(ctrl-a) => do_something()
+- [x] perf: rendering is laggy when there's too many diagnostics
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
