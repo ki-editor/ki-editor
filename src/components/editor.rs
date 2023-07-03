@@ -985,97 +985,97 @@ impl Editor {
     }
 
     fn handle_normal_mode(&mut self, context: &mut Context, event: KeyEvent) -> Vec<Dispatch> {
-        match event.code {
+        match event {
             // Objects
-            KeyCode::Char('a') => self.add_selection(),
-            KeyCode::Char('A') => self.add_selection(),
-            KeyCode::Char('b') => self.select_backward(),
-            KeyCode::Char('c') => self.select_character(Direction::Forward),
-            KeyCode::Char('C') => self.select_character(Direction::Backward),
-            KeyCode::Char('d') => return self.delete(Direction::Forward),
-            KeyCode::Char('D') => return self.delete(Direction::Backward),
-            KeyCode::Char('e') => return self.select_diagnostic(Direction::Forward),
-            KeyCode::Char('E') => return self.select_diagnostic(Direction::Backward),
+            key!("a") => self.add_selection(),
+            key!("A") => self.add_selection(),
+            key!("b") => self.select_backward(),
+            key!("c") => self.select_character(Direction::Forward),
+            key!("C") => self.select_character(Direction::Backward),
+            key!("d") => return self.delete(Direction::Forward),
+            key!("D") => return self.delete(Direction::Backward),
+            key!("e") => return self.select_diagnostic(Direction::Forward),
+            key!("E") => return self.select_diagnostic(Direction::Backward),
             // f
             // TODO: f goes into file picker mode,
             // for example, pressing fg means select git tracked files
             // fc means changed files
             // fb means opened editor
             // F
-            KeyCode::Char('g') => {
+            key!("g") => {
                 return vec![Dispatch::ShowKeymapLegend(
                     self.g_mode_keymap_legend_config(),
                 )]
             }
-            KeyCode::Char('h') => self.toggle_highlight_mode(),
+            key!("h") => self.toggle_highlight_mode(),
             // H
-            KeyCode::Char('i') => self.enter_insert_mode(CursorDirection::End),
-            KeyCode::Char('I') => self.enter_insert_mode(CursorDirection::Start),
+            key!("i") => self.enter_insert_mode(CursorDirection::End),
+            key!("I") => self.enter_insert_mode(CursorDirection::Start),
             // I
-            KeyCode::Char('j') => self.jump(Direction::Forward),
-            KeyCode::Char('J') => self.jump(Direction::Backward),
-            KeyCode::Char('k') => self.select_kids(),
-            KeyCode::Char('l') => self.select_line(Direction::Forward),
-            KeyCode::Char('L') => self.select_line(Direction::Backward),
-            KeyCode::Char('m') => self.select_match(Direction::Forward, &context.last_search()),
-            KeyCode::Char('M') => self.select_match(Direction::Backward, &context.last_search()),
-            KeyCode::Char('n') => self.select_named_node(Direction::Forward),
-            KeyCode::Char('N') => self.select_named_node(Direction::Backward),
-            KeyCode::Char('o') => {
+            key!("j") => self.jump(Direction::Forward),
+            key!("J") => self.jump(Direction::Backward),
+            key!("k") => self.select_kids(),
+            key!("l") => self.select_line(Direction::Forward),
+            key!("L") => self.select_line(Direction::Backward),
+            key!("m") => self.select_match(Direction::Forward, &context.last_search()),
+            key!("M") => self.select_match(Direction::Backward, &context.last_search()),
+            key!("n") => self.select_named_node(Direction::Forward),
+            key!("N") => self.select_named_node(Direction::Backward),
+            key!("o") => {
                 return vec![Dispatch::ShowKeymapLegend(
                     self.open_mode_keymap_legend_config(),
                 )]
             }
             // O
-            KeyCode::Char('p') => self.select_parent(Direction::Forward),
-            KeyCode::Char('P') => self.select_parent(Direction::Backward),
-            KeyCode::Char('q') => return vec![Dispatch::GotoQuickfixListItem(Direction::Forward)],
-            KeyCode::Char('Q') => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
-            KeyCode::Char('r') => return self.replace(),
-            KeyCode::Char('R') => {
+            key!("p") => self.select_parent(Direction::Forward),
+            key!("P") => self.select_parent(Direction::Backward),
+            key!("q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Forward)],
+            key!("Q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
+            key!("r") => return self.replace(),
+            key!("R") => {
                 return self
                     .get_request_params()
                     .map(|params| vec![Dispatch::PrepareRename(params)])
                     .unwrap_or_default()
             }
-            KeyCode::Char('s') => self.select_sibling(Direction::Forward),
-            KeyCode::Char('S') => self.select_sibling(Direction::Backward),
-            KeyCode::Char('t') => self.select_token(Direction::Forward),
-            KeyCode::Char('T') => self.select_token(Direction::Backward),
-            KeyCode::Char('u') => return self.upend(Direction::Forward),
-            KeyCode::Char('v') => self.select_view(Direction::Forward),
-            KeyCode::Char('V') => self.select_view(Direction::Backward),
-            KeyCode::Char('w') => self.select_word(Direction::Forward),
-            KeyCode::Char('W') => self.select_word(Direction::Backward),
-            KeyCode::Char('x') => return self.exchange(Direction::Forward),
-            KeyCode::Char('X') => return self.exchange(Direction::Backward),
+            key!("s") => self.select_sibling(Direction::Forward),
+            key!("S") => self.select_sibling(Direction::Backward),
+            key!("t") => self.select_token(Direction::Forward),
+            key!("T") => self.select_token(Direction::Backward),
+            key!("u") => return self.upend(Direction::Forward),
+            key!("v") => self.select_view(Direction::Forward),
+            key!("V") => self.select_view(Direction::Backward),
+            key!("w") => self.select_word(Direction::Forward),
+            key!("W") => self.select_word(Direction::Backward),
+            key!("x") => return self.exchange(Direction::Forward),
+            key!("X") => return self.exchange(Direction::Backward),
             // y
-            KeyCode::Char('z') => self.align_cursor_to_center(),
-            KeyCode::Char('Z') => self.align_cursor_to_top(),
-            KeyCode::Char('0') => self.reset(),
-            KeyCode::Backspace => {
+            key!("z") => self.align_cursor_to_center(),
+            key!("Z") => self.align_cursor_to_top(),
+            key!("0") => self.reset(),
+            key!("backspace") => {
                 self.change();
             }
-            KeyCode::Enter => return self.open_new_line(),
-            KeyCode::Char(',') => {
+            key!("enter") => return self.open_new_line(),
+            key!(",") => {
                 return self
                     .get_request_params()
                     .map(|params| vec![Dispatch::RequestCodeAction(params)])
                     .unwrap_or_default()
             }
-            KeyCode::Char('?') => {
+            key!("?") => {
                 self.editor_mut().set_mode(Mode::Normal);
                 return self.request_hover();
             }
-            KeyCode::Char('%') => self.change_cursor_direction(),
-            KeyCode::Char('(' | ')') => return self.enclose(Enclosure::RoundBracket),
-            KeyCode::Char('[' | ']') => return self.enclose(Enclosure::SquareBracket),
-            KeyCode::Char('{' | '}') => return self.enclose(Enclosure::CurlyBracket),
-            KeyCode::Char('<' | '>') => return self.enclose(Enclosure::AngleBracket),
+            key!("%") => self.change_cursor_direction(),
+            key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
+            key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
+            key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
+            key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
 
             // TODO: - and = are temporarily assigned keys
-            KeyCode::Char('-') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
-            KeyCode::Char('=') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
+            key!('-') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
+            key!('=') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
             _ => {
                 log::info!("event: {:?}", event);
             }

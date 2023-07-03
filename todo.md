@@ -94,3 +94,4 @@
   - This is to standardize the event handling architecture, and also allow keymap to be defined declaractively
 - [] feat(lsp/completion): snippet support
 - [] treesitter injections, support nested languages like Rust in Markdown
+- [] feat(lsp): go to declaration, type definition of symbol, and implementations
