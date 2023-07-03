@@ -4,7 +4,7 @@ use crate::position::Position;
 
 use lsp_types::DiagnosticSeverity;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub range: Range<Position>,
     pub message: String,

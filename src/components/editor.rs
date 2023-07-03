@@ -1720,6 +1720,7 @@ mod test_editor {
         context::Context,
         lsp::diagnostic::Diagnostic,
         position::Position,
+        screen::Dispatch,
         selection::SelectionMode,
     };
 
@@ -1986,52 +1987,70 @@ fn main() {
     fn select_diagnostic() {
         let mut editor = Editor::from_text(language(), "fn main(x: usize) {\n  let x = 1; }");
 
-        // Note that the diagnostics given are not sorted by range
+        // We should have diagnostics with the following combinations:
+        // 1. No intersection
+        // 2. Intersected
+        // 3. Subset
+
+        // 'spongebob' and 'patrick' are not intersected
+        // 'spongebob' and 'squidward' are intersected
         editor.set_diagnostics(vec![
-            Diagnostic {
-                range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
-                message: "patrick".to_string(),
-                severity: None,
-            },
             Diagnostic {
                 range: Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
                 message: "spongebob".to_string(),
                 severity: None,
             },
             Diagnostic {
-                range: Position { line: 1, column: 3 }..Position { line: 1, column: 5 },
+                range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                message: "sandy".to_string(),
+                severity: None,
+            },
+            Diagnostic {
+                range: Position { line: 0, column: 1 }..Position { line: 0, column: 3 },
+                message: "patrick".to_string(),
+                severity: None,
+            },
+            Diagnostic {
+                range: Position { line: 0, column: 2 }..Position { line: 0, column: 4 },
                 message: "squidward".to_string(),
                 severity: None,
             },
         ]);
 
-        editor.select_diagnostic(Direction::Forward);
+        fn show_info(info: String) -> Vec<Dispatch> {
+            vec![Dispatch::ShowInfo {
+                content: vec![info],
+            }]
+        }
+
+        let dispatches = editor.select_diagnostic(Direction::Forward);
+        assert_eq!(dispatches, show_info("spongebob".to_string()));
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.select_diagnostic(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["l"]);
+        let dispatches = editor.select_diagnostic(Direction::Forward);
+        assert_eq!(dispatches, show_info("sandy".to_string()));
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        editor.select_diagnostic(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["et"]);
+        let dispatches = editor.select_diagnostic(Direction::Forward);
+        assert_eq!(dispatches, show_info("patrick".to_string()));
+        assert_eq!(editor.get_selected_texts(), vec!["n "]);
 
-        editor.select_diagnostic(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["et"]);
+        let dispatches = editor.select_diagnostic(Direction::Forward);
+        assert_eq!(dispatches, show_info("squidward".to_string()));
+        assert_eq!(editor.get_selected_texts(), vec![" m"]);
 
-        editor.select_diagnostic(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec!["l"]);
+        let dispatches = editor.select_diagnostic(Direction::Forward);
+        assert_eq!(dispatches, show_info("squidward".to_string()));
+        assert_eq!(editor.get_selected_texts(), vec![" m"]);
 
-        editor.select_diagnostic(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
+        let dispatches = editor.select_diagnostic(Direction::Backward);
+        assert_eq!(dispatches, show_info("patrick".to_string()));
 
-        editor.select_diagnostic(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
+        let dispatches = editor.select_diagnostic(Direction::Backward);
+        assert_eq!(dispatches, show_info("sandy".to_string()));
 
-        editor.select_line(Direction::Forward);
-        editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["  let x = 1; }"]);
-
-        editor.select_diagnostic(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["l"]);
+        let dispatches = editor.select_diagnostic(Direction::Backward);
+        assert_eq!(dispatches, show_info("spongebob".to_string()));
     }
 
     #[test]

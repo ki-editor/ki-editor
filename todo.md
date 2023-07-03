@@ -50,6 +50,7 @@
 - [x] crash when formatting
 - [x] create a key event macro so that handle_event can be less tedious: e.g. key!(ctrl-a) => do_something()
 - [x] perf: rendering is laggy when there's too many diagnostics
+- [x] feat(editor/diagnostics-movement): should work for overlapped ranges, A:0-3, B:1-3, C:4-5, starting from A, forward should go to B first before C
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -74,7 +75,6 @@
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
 - [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 - [] location list (local to each editor), local diagnostics should use this
-- [] feat(editor/diagnostics-movement): should work for overlapped ranges, A:0-3, B:1-3, C:4-5, starting from A, forward should go to B first before C
 - [] dropdown: handle up/down/enter event
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert

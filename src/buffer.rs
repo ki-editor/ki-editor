@@ -419,6 +419,9 @@ impl Buffer {
         direction: &Direction,
     ) -> Option<Range<CharIndex>> {
         let mut iter = self.diagnostics.iter();
+
+        let current_positional_range =
+            current_range.start.to_position(&self.rope)..current_range.end.to_position(&self.rope);
         match direction {
             Direction::Current => iter.find_map(|diagnostic| {
                 let start = diagnostic.range.start.to_char_index(self);
@@ -432,7 +435,9 @@ impl Buffer {
             Direction::Forward => iter.find_map(|diagnostic| {
                 let start = diagnostic.range.start.to_char_index(self);
                 let end = diagnostic.range.end.to_char_index(self);
-                if start >= current_range.end {
+                if start > current_range.start
+                    || (start == current_range.start && end > current_range.end)
+                {
                     Some(start..end)
                 } else {
                     None
@@ -441,7 +446,7 @@ impl Buffer {
             Direction::Backward => find_previous(
                 iter,
                 |_, _| true,
-                |match_| match_.range.start.to_char_index(self) >= current_range.start,
+                |match_| match_.range == current_positional_range,
             )
             .map(|item| item.range.start.to_char_index(self)..item.range.end.to_char_index(self)),
         }
@@ -479,6 +484,8 @@ pub struct Patch {
 
 #[cfg(test)]
 mod test_buffer {
+    use crate::{lsp::diagnostic::Diagnostic, position::Position};
+
     use super::Buffer;
 
     #[test]
@@ -488,6 +495,26 @@ mod test_buffer {
 
         // Should return unique words
         assert_eq!(words, vec!["bar", "baz"]);
+    }
+
+    #[test]
+    fn set_diagnostics_should_sort() {
+        let mut buffer = Buffer::new(tree_sitter_md::language(), "");
+
+        let patrick = Diagnostic {
+            range: Position { line: 1, column: 2 }..Position { line: 1, column: 4 },
+            message: "patrick".to_string(),
+            severity: None,
+        };
+
+        let spongebob = Diagnostic {
+            range: Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
+            message: "spongebob".to_string(),
+            severity: None,
+        };
+        buffer.set_diagnostics(vec![patrick.clone(), spongebob.clone()]);
+
+        assert_eq!(buffer.diagnostics, vec![spongebob, patrick])
     }
 
     mod auto_format {

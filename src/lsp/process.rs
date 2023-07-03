@@ -319,6 +319,17 @@ impl LspServerProcess {
                         ..WorkspaceClientCapabilities::default()
                     }),
                     text_document: Some(TextDocumentClientCapabilities {
+                        publish_diagnostics: Some(PublishDiagnosticsClientCapabilities {
+                            related_information: Some(true),
+                            tag_support: Some(TagSupport {
+                                value_set: vec![
+                                    DiagnosticTag::DEPRECATED,
+                                    DiagnosticTag::UNNECESSARY,
+                                ],
+                            }),
+                            code_description_support: Some(true),
+                            ..PublishDiagnosticsClientCapabilities::default()
+                        }),
                         completion: Some(CompletionClientCapabilities {
                             completion_item: Some(CompletionItemCapability {
                                 ..CompletionItemCapability::default()
