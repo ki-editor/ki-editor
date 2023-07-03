@@ -92,3 +92,5 @@
 - [] word wrapping
 - [] refactor: handle_event should not mutate the component, but should return dispatch instead, like Elm.
   - This is to standardize the event handling architecture, and also allow keymap to be defined declaractively
+- [] feat(lsp/completion): snippet support
+- [] treesitter injections, support nested languages like Rust in Markdown

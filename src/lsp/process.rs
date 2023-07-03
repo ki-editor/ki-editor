@@ -345,7 +345,21 @@ impl LspServerProcess {
                         }),
                         code_action: Some(CodeActionClientCapabilities {
                             code_action_literal_support: Some(CodeActionLiteralSupport {
-                                code_action_kind: CodeActionKindLiteralSupport::default(),
+                                code_action_kind: CodeActionKindLiteralSupport {
+                                    value_set: vec![
+                                        CodeActionKind::QUICKFIX,
+                                        CodeActionKind::REFACTOR,
+                                        CodeActionKind::REFACTOR_EXTRACT,
+                                        CodeActionKind::REFACTOR_INLINE,
+                                        CodeActionKind::REFACTOR_REWRITE,
+                                        CodeActionKind::SOURCE,
+                                        CodeActionKind::SOURCE_ORGANIZE_IMPORTS,
+                                        CodeActionKind::SOURCE_FIX_ALL,
+                                    ]
+                                    .into_iter()
+                                    .map(|kind| kind.as_str().to_string())
+                                    .collect(),
+                                },
                             }),
                             ..Default::default()
                         }),
@@ -616,6 +630,8 @@ impl LspServerProcess {
                     "textDocument/codeAction" => {
                         let payload: <lsp_request!("textDocument/codeAction") as Request>::Result =
                             serde_json::from_value(response)?;
+
+                        log::info!("CodeAction response: {:?}", payload);
 
                         if let Some(payload) = payload {
                             self.screen_message_sender
