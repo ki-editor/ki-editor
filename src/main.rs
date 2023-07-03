@@ -4,6 +4,7 @@ mod clipboard;
 mod components;
 mod context;
 mod edit;
+pub mod frontend;
 mod grid;
 mod integration_test;
 pub mod language;

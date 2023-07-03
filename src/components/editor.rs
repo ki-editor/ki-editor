@@ -1,6 +1,6 @@
 use crate::{
     canonicalized_path::CanonicalizedPath, context::Context, grid::CellUpdate,
-    screen::RequestParams,
+    screen::RequestParams, selection::RangeCharIndex,
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -123,32 +123,10 @@ impl Component for Editor {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 let char_index = line_start_char_index + column_index;
 
-                let (foreground_color, background_color) =
-                    if char_index == selection.to_char_index(&self.cursor_direction.reverse()) {
-                        // Primary selection secondary cursor
-                        (Color::White, Color::DarkGrey)
-                    } else if selection.extended_range().contains(&char_index) {
-                        // Primary selection
-                        (Color::Black, Color::Yellow)
-                    } else if secondary_selections.iter().any(|secondary_selection| {
-                        // Secondary selection cursors
-                        secondary_selection.is_start_or_end(&char_index)
-                    }) {
-                        (Color::White, Color::Black)
-                    } else if secondary_selections
-                        .iter()
-                        .any(|secondary_selection| secondary_selection.range.contains(&char_index))
-                    {
-                        // Secondary selection
-                        (Color::Black, Color::DarkYellow)
-                    } else {
-                        // Default
-                        (Color::Black, Color::White)
-                    };
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
-                    background_color,
-                    foreground_color,
+                    background_color: Color::White,
+                    foreground_color: Color::Black,
                 };
             }
         }
@@ -171,25 +149,18 @@ impl Component for Editor {
                     Color::Blue
                 };
 
-                CellUpdate::new(Position {
-                    column: position.column,
-                    line: position.line.saturating_sub(scroll_offset.into()),
-                })
-                .background_color(background_color)
-                .foreground_color(Color::White)
-                .symbol(jump.character.to_string())
+                CellUpdate::new(position)
+                    .background_color(background_color)
+                    .foreground_color(Color::White)
+                    .symbol(jump.character.to_string())
             }))
             //
             // Diagnostics
             //
             .chain(diagnostics.into_iter().flat_map(|(diagnostic, range)| {
-                (range.start.0..range.end.0).map(|char_index| {
+                range.to_usize_range().map(|char_index| {
                     let char_index = CharIndex(char_index);
                     let position = buffer.char_to_position(char_index);
-                    let position = Position {
-                        column: position.column,
-                        line: position.line.saturating_sub(scroll_offset.into()),
-                    };
 
                     let background_color = match diagnostic.severity {
                         Some(severity) => match severity {
@@ -209,6 +180,58 @@ impl Component for Editor {
                     CellUpdate::new(position).background_color(background_color)
                 })
             }))
+            .chain(
+                // Primary selection
+                selection
+                    .extended_range()
+                    .to_usize_range()
+                    .map(|char_index| {
+                        CellUpdate::new(buffer.char_to_position(CharIndex(char_index)))
+                            .background_color(Color::Yellow)
+                    }),
+            )
+            .chain(
+                // Primary selection secondary cursor
+                Some(
+                    CellUpdate::new(buffer.char_to_position(
+                        selection.to_char_index(&editor.cursor_direction.reverse()),
+                    ))
+                    .background_color(Color::DarkGrey)
+                    .foreground_color(Color::White),
+                ),
+            )
+            .chain(
+                // Secondary selection
+                secondary_selections.iter().flat_map(|secondary_selection| {
+                    secondary_selection
+                        .range
+                        .to_usize_range()
+                        .map(|char_index| {
+                            let char_index = CharIndex(char_index);
+                            let position = buffer.char_to_position(char_index);
+
+                            CellUpdate::new(position).background_color(Color::DarkYellow)
+                        })
+                }),
+            )
+            .chain(
+                // Secondary selection cursors
+                secondary_selections.iter().flat_map(|secondary_selection| {
+                    vec![
+                        CellUpdate::new(buffer.char_to_position(
+                            secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
+                        ))
+                        .background_color(Color::Black)
+                        .foreground_color(Color::White),
+                        CellUpdate::new(buffer.char_to_position(
+                            secondary_selection.to_char_index(&editor.cursor_direction),
+                        ))
+                        .background_color(Color::DarkGrey)
+                        .foreground_color(Color::White),
+                    ]
+                }),
+            )
+            .filter_map(|update| update.subtract_vertical_offset(scroll_offset.into()))
             .collect::<Vec<_>>();
 
         grid.apply_cell_updates(updates)
@@ -988,14 +1011,14 @@ impl Editor {
         match event {
             // Objects
             key!("a") => self.add_selection(),
-            key!("A") => self.add_selection(),
+            key!("shift+A") => self.add_selection(),
             key!("b") => self.select_backward(),
             key!("c") => self.select_character(Direction::Forward),
-            key!("C") => self.select_character(Direction::Backward),
+            key!("shift+C") => self.select_character(Direction::Backward),
             key!("d") => return self.delete(Direction::Forward),
-            key!("D") => return self.delete(Direction::Backward),
+            key!("shift+D") => return self.delete(Direction::Backward),
             key!("e") => return self.select_diagnostic(Direction::Forward),
-            key!("E") => return self.select_diagnostic(Direction::Backward),
+            key!("shift+E") => return self.select_diagnostic(Direction::Backward),
             // f
             // TODO: f goes into file picker mode,
             // for example, pressing fg means select git tracked files
@@ -1013,14 +1036,14 @@ impl Editor {
             key!("I") => self.enter_insert_mode(CursorDirection::Start),
             // I
             key!("j") => self.jump(Direction::Forward),
-            key!("J") => self.jump(Direction::Backward),
+            key!("shift+J") => self.jump(Direction::Backward),
             key!("k") => self.select_kids(),
             key!("l") => self.select_line(Direction::Forward),
-            key!("L") => self.select_line(Direction::Backward),
+            key!("shift+L") => self.select_line(Direction::Backward),
             key!("m") => self.select_match(Direction::Forward, &context.last_search()),
-            key!("M") => self.select_match(Direction::Backward, &context.last_search()),
+            key!("shift+M") => self.select_match(Direction::Backward, &context.last_search()),
             key!("n") => self.select_named_node(Direction::Forward),
-            key!("N") => self.select_named_node(Direction::Backward),
+            key!("shift+N") => self.select_named_node(Direction::Backward),
             key!("o") => {
                 return vec![Dispatch::ShowKeymapLegend(
                     self.open_mode_keymap_legend_config(),
@@ -1028,30 +1051,30 @@ impl Editor {
             }
             // O
             key!("p") => self.select_parent(Direction::Forward),
-            key!("P") => self.select_parent(Direction::Backward),
+            key!("shift+P") => self.select_parent(Direction::Backward),
             key!("q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Forward)],
-            key!("Q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
+            key!("shift+Q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
             key!("r") => return self.replace(),
-            key!("R") => {
+            key!("shift+R") => {
                 return self
                     .get_request_params()
                     .map(|params| vec![Dispatch::PrepareRename(params)])
                     .unwrap_or_default()
             }
             key!("s") => self.select_sibling(Direction::Forward),
-            key!("S") => self.select_sibling(Direction::Backward),
+            key!("shift+S") => self.select_sibling(Direction::Backward),
             key!("t") => self.select_token(Direction::Forward),
-            key!("T") => self.select_token(Direction::Backward),
+            key!("shift+T") => self.select_token(Direction::Backward),
             key!("u") => return self.upend(Direction::Forward),
             key!("v") => self.select_view(Direction::Forward),
-            key!("V") => self.select_view(Direction::Backward),
+            key!("shift+V") => self.select_view(Direction::Backward),
             key!("w") => self.select_word(Direction::Forward),
-            key!("W") => self.select_word(Direction::Backward),
+            key!("shift+W") => self.select_word(Direction::Backward),
             key!("x") => return self.exchange(Direction::Forward),
-            key!("X") => return self.exchange(Direction::Backward),
+            key!("shift+X") => return self.exchange(Direction::Backward),
             // y
             key!("z") => self.align_cursor_to_center(),
-            key!("Z") => self.align_cursor_to_top(),
+            key!("shift+Z") => self.align_cursor_to_top(),
             key!("0") => self.reset(),
             key!("backspace") => {
                 self.change();

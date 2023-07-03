@@ -5,7 +5,7 @@ use crate::{
     language::{self, Language},
     lsp::diagnostic::Diagnostic,
     position::Position,
-    selection::{CharIndex, Selection, SelectionSet, ToRangeUsize},
+    selection::{CharIndex, RangeCharIndex, Selection, SelectionSet},
     utils::find_previous,
 };
 use itertools::Itertools;

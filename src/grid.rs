@@ -87,6 +87,20 @@ impl CellUpdate {
             ..self
         }
     }
+
+    pub fn subtract_vertical_offset(self, scroll_offset: usize) -> Option<CellUpdate> {
+        if scroll_offset > self.position.line {
+            None
+        } else {
+            Some(CellUpdate {
+                position: Position {
+                    line: self.position.line - scroll_offset,
+                    ..self.position
+                },
+                ..self
+            })
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
