@@ -501,17 +501,15 @@ mod test_buffer {
     fn set_diagnostics_should_sort() {
         let mut buffer = Buffer::new(tree_sitter_md::language(), "");
 
-        let patrick = Diagnostic {
-            range: Position { line: 1, column: 2 }..Position { line: 1, column: 4 },
-            message: "patrick".to_string(),
-            severity: None,
-        };
+        let patrick = Diagnostic::new(
+            Position { line: 1, column: 2 }..Position { line: 1, column: 4 },
+            "patrick".to_string(),
+        );
 
-        let spongebob = Diagnostic {
-            range: Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
-            message: "spongebob".to_string(),
-            severity: None,
-        };
+        let spongebob = Diagnostic::new(
+            Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
+            "spongebob".to_string(),
+        );
         buffer.set_diagnostics(vec![patrick.clone(), spongebob.clone()]);
 
         assert_eq!(buffer.diagnostics, vec![spongebob, patrick])

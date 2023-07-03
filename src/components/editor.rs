@@ -1995,26 +1995,22 @@ fn main() {
         // 'spongebob' and 'patrick' are not intersected
         // 'spongebob' and 'squidward' are intersected
         editor.set_diagnostics(vec![
-            Diagnostic {
-                range: Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
-                message: "spongebob".to_string(),
-                severity: None,
-            },
-            Diagnostic {
-                range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
-                message: "sandy".to_string(),
-                severity: None,
-            },
-            Diagnostic {
-                range: Position { line: 0, column: 1 }..Position { line: 0, column: 3 },
-                message: "patrick".to_string(),
-                severity: None,
-            },
-            Diagnostic {
-                range: Position { line: 0, column: 2 }..Position { line: 0, column: 4 },
-                message: "squidward".to_string(),
-                severity: None,
-            },
+            Diagnostic::new(
+                Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
+                "spongebob".to_string(),
+            ),
+            Diagnostic::new(
+                Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                "sandy".to_string(),
+            ),
+            Diagnostic::new(
+                Position { line: 0, column: 1 }..Position { line: 0, column: 3 },
+                "patrick".to_string(),
+            ),
+            Diagnostic::new(
+                Position { line: 0, column: 2 }..Position { line: 0, column: 4 },
+                "squidward".to_string(),
+            ),
         ]);
 
         fn show_info(info: String) -> Vec<Dispatch> {

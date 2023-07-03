@@ -636,6 +636,11 @@ impl Screen {
             }
             LspNotification::PublishDiagnostics(params) => {
                 log::info!("Received diagnostics");
+                let diagnostics = params
+                    .diagnostics
+                    .into_iter()
+                    .map(Diagnostic::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
                 self.update_diagnostics(
                     params
                         .uri
@@ -644,11 +649,7 @@ impl Screen {
                             anyhow::anyhow!("Couldn't convert URI to file path: {:?}", err)
                         })?
                         .try_into()?,
-                    params
-                        .diagnostics
-                        .into_iter()
-                        .map(Diagnostic::from)
-                        .collect::<Vec<_>>(),
+                    diagnostics,
                 );
                 Ok(())
             }

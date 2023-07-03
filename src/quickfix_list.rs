@@ -164,6 +164,31 @@ impl Location {
             self.range.end.column + 1
         )
     }
+
+    pub fn read(&self) -> anyhow::Result<String> {
+        // TODO: optimize this function, should not read the whole file
+        self.path
+            .read()
+            .map(|result| {
+                // Return only the specified range
+                result
+                    .lines()
+                    .enumerate()
+                    .filter(|(line_index, _)| {
+                        line_index >= &self.range.start.line && line_index <= &self.range.end.line
+                    })
+                    .map(|(_, line)| line)
+                    .collect_vec()
+                    .join("\n")
+            })
+            .map_err(|err| {
+                anyhow::anyhow!(
+                    "Failed to read file {}: {}",
+                    self.path.display(),
+                    err.to_string()
+                )
+            })
+    }
 }
 
 impl TryFrom<lsp_types::Location> for Location {
