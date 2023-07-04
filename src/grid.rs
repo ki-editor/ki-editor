@@ -19,6 +19,7 @@ pub struct Cell {
     pub symbol: String,
     pub foreground_color: Color,
     pub background_color: Color,
+    pub undercurl: Option<Color>,
 }
 
 impl Cell {
@@ -28,6 +29,7 @@ impl Cell {
             symbol: c.to_string(),
             foreground_color: Color::White,
             background_color: Color::White,
+            undercurl: None,
         }
     }
 
@@ -36,6 +38,7 @@ impl Cell {
             symbol: update.symbol.unwrap_or(self.symbol.clone()),
             foreground_color: update.foreground_color.unwrap_or(self.foreground_color),
             background_color: update.background_color.unwrap_or(self.background_color),
+            undercurl: update.undercurl.or(self.undercurl),
         }
     }
 }
@@ -46,6 +49,7 @@ impl Default for Cell {
             symbol: " ".to_string(),
             foreground_color: Color::White,
             background_color: Color::White,
+            undercurl: None,
         }
     }
 }
@@ -55,6 +59,7 @@ pub struct CellUpdate {
     pub symbol: Option<String>,
     pub background_color: Option<Color>,
     pub foreground_color: Option<Color>,
+    pub undercurl: Option<Color>,
 }
 
 impl CellUpdate {
@@ -64,6 +69,7 @@ impl CellUpdate {
             symbol: None,
             background_color: None,
             foreground_color: None,
+            undercurl: None,
         }
     }
 
@@ -99,6 +105,13 @@ impl CellUpdate {
                 },
                 ..self
             })
+        }
+    }
+
+    pub fn undercurl(self, color: Option<Color>) -> CellUpdate {
+        CellUpdate {
+            undercurl: color,
+            ..self
         }
     }
 }
@@ -230,6 +243,7 @@ impl Grid {
         }
     }
 
+    /// TODO: should use CellUpdate
     pub fn set_line(self, row: usize, title: &str, style: Style) -> Grid {
         let mut grid = self;
         for (column_index, character) in title
@@ -241,6 +255,7 @@ impl Grid {
                 symbol: character.to_string(),
                 foreground_color: style.foreground_color,
                 background_color: style.background_color,
+                ..Cell::default()
             }
         }
         grid

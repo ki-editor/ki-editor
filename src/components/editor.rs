@@ -99,9 +99,7 @@ impl Component for Editor {
             .lines()
             .enumerate()
             .skip(scroll_offset.into())
-            // Minus 1 is a hack that prevents the rendering from breaking.
-            // Reasons unknown yet.
-            .take((height - 1) as usize)
+            .take(height as usize)
             .collect::<Vec<(_, RopeSlice)>>();
 
         let secondary_selections = &editor.selection_set.secondary;
@@ -119,14 +117,12 @@ impl Component for Editor {
             });
 
         for (line_index, line) in lines {
-            let line_start_char_index = buffer.line_to_char(line_index);
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
-                let char_index = line_start_char_index + column_index;
-
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color: Color::White,
                     foreground_color: Color::Black,
+                    undercurl: None,
                 };
             }
         }
@@ -162,22 +158,17 @@ impl Component for Editor {
                     let char_index = CharIndex(char_index);
                     let position = buffer.char_to_position(char_index);
 
-                    let background_color = match diagnostic.severity {
+                    let undercurl_color = match diagnostic.severity {
                         Some(severity) => match severity {
-                            DiagnosticSeverity::ERROR => Color::Rgb {
-                                r: 255,
-                                g: 102,
-                                b: 102,
-                            },
-                            _ => Color::Rgb {
-                                r: 255,
-                                g: 204,
-                                b: 153,
-                            },
+                            DiagnosticSeverity::ERROR => Color::DarkRed,
+                            DiagnosticSeverity::WARNING => Color::DarkMagenta,
+                            DiagnosticSeverity::INFORMATION => Color::DarkBlue,
+                            DiagnosticSeverity::HINT => Color::DarkGreen,
+                            _ => Color::Black,
                         },
                         None => Color::White,
                     };
-                    CellUpdate::new(position).background_color(background_color)
+                    CellUpdate::new(position).undercurl(Some(undercurl_color))
                 })
             }))
             .chain(
@@ -1033,7 +1024,7 @@ impl Editor {
             key!("h") => self.toggle_highlight_mode(),
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
-            key!("I") => self.enter_insert_mode(CursorDirection::Start),
+            key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
             // I
             key!("j") => self.jump(Direction::Forward),
             key!("shift+J") => self.jump(Direction::Backward),

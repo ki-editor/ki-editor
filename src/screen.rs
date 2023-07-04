@@ -13,7 +13,10 @@ use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute, queue,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    style::{
+        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
+        SetUnderlineColor,
+    },
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
@@ -310,9 +313,16 @@ impl Screen {
             )?;
             queue!(
                 stdout,
+                SetUnderlineColor(cell.cell.undercurl.unwrap_or(Color::Reset)),
+                SetAttribute(if cell.cell.undercurl.is_some() {
+                    Attribute::Undercurled
+                } else {
+                    Attribute::NoUnderline
+                }),
                 SetBackgroundColor(cell.cell.background_color),
                 SetForegroundColor(cell.cell.foreground_color),
-                Print(reveal(cell.cell.symbol))
+                Print(reveal(cell.cell.symbol)),
+                SetAttribute(Attribute::Reset),
             )?;
         }
 
