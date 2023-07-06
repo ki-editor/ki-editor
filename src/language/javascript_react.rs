@@ -23,6 +23,10 @@ impl Language for JavascriptReact {
         Some(tree_sitter_javascript::language())
     }
 
+    fn highlight_query(&self) -> Option<&'static str> {
+        Some(tree_sitter_javascript::JSX_HIGHLIGHT_QUERY)
+    }
+
     fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)> {
         Some((
             ProcessCommand::new("prettierd", &[".jsx"]),

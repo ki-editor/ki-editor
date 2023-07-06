@@ -23,6 +23,10 @@ impl Language for TypescriptReact {
         Some(tree_sitter_typescript::language_tsx())
     }
 
+    fn highlight_query(&self) -> Option<&'static str> {
+        Some(tree_sitter_typescript::HIGHLIGHT_QUERY)
+    }
+
     fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)> {
         Some((
             ProcessCommand::new("prettierd", &[".tsx"]),
