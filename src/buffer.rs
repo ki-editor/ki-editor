@@ -6,32 +6,34 @@ use crate::{
     lsp::diagnostic::Diagnostic,
     position::Position,
     selection::{CharIndex, RangeCharIndex, Selection, SelectionSet},
+    syntax_highlight::{self, HighlighedSpan},
     utils::find_previous,
 };
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
 use std::ops::Range;
-use tree_sitter::{InputEdit, Node, Parser, Tree};
+use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
 #[derive(Clone)]
 pub struct Buffer {
     rope: Rope,
     tree: Tree,
-    ts_language: tree_sitter::Language,
+    treesitter_language: tree_sitter::Language,
     language: Option<Box<dyn Language>>,
     undo_patch: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
     diagnostics: Vec<Diagnostic>,
+    highlighted_spans: Vec<HighlighedSpan>,
 }
 
 impl Buffer {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
-            ts_language: language,
+            treesitter_language: language,
             language: None,
             tree: {
                 let mut parser = Parser::new();
@@ -42,6 +44,7 @@ impl Buffer {
             redo_patches: Vec::new(),
             path: None,
             diagnostics: Vec::new(),
+            highlighted_spans: Vec::new(),
         }
     }
 
@@ -90,7 +93,7 @@ impl Buffer {
     }
 
     pub fn update(&mut self, text: &str) {
-        (self.rope, self.tree) = Self::get_rope_and_tree(self.ts_language, text);
+        (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language, text);
     }
 
     pub fn get_line(&self, char_index: CharIndex) -> Rope {
@@ -231,7 +234,15 @@ impl Buffer {
             })?;
 
         self.add_undo_patch(current_selection_set, &before);
+        self.reparse_tree()?;
 
+        Ok(())
+    }
+
+    fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
+        self.rope.remove(edit.start.0..edit.end().0);
+        self.rope
+            .insert(edit.start.0, edit.new.to_string().as_str());
         Ok(())
     }
 
@@ -249,29 +260,39 @@ impl Buffer {
         });
     }
 
-    pub fn undo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
+    pub fn undo(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<SelectionSet>> {
         if let Some(patch) = self.undo_patch.pop() {
-            let redo_patch = self.revert_change(&patch, current_selection_set);
+            let redo_patch = self.revert_change(&patch, current_selection_set)?;
             self.redo_patches.push(redo_patch);
-            Some(patch.selection_set)
+            Ok(Some(patch.selection_set))
         } else {
             log::info!("Nothing else to be undone");
-            None
+            Ok(None)
         }
     }
 
-    pub fn redo(&mut self, current_selection_set: SelectionSet) -> Option<SelectionSet> {
+    pub fn redo(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<SelectionSet>> {
         if let Some(patch) = self.redo_patches.pop() {
-            let undo_patch = self.revert_change(&patch, current_selection_set);
+            let undo_patch = self.revert_change(&patch, current_selection_set)?;
             self.undo_patch.push(undo_patch);
-            Some(patch.selection_set)
+            Ok(Some(patch.selection_set))
         } else {
             log::info!("Nothing else to be redone");
-            None
+            Ok(None)
         }
     }
 
-    fn revert_change(&mut self, patch: &Patch, current_selection_set: SelectionSet) -> Patch {
+    fn revert_change(
+        &mut self,
+        patch: &Patch,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Patch> {
         let before = self.rope.to_string();
         self.rope = diffy::apply(
             &self.rope.to_string(),
@@ -282,47 +303,12 @@ impl Buffer {
 
         let after = self.rope.to_string();
 
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(self.tree.language()).unwrap();
-        self.tree = parser.parse(&self.rope.to_string(), None).unwrap();
+        self.reparse_tree()?;
 
-        Patch {
+        Ok(Patch {
             selection_set: current_selection_set,
             patch: diffy::create_patch(&after, &before).to_string(),
-        }
-    }
-
-    pub fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
-        let start_char_index = edit.start;
-        let old_end_char_index = edit.end();
-        let new_end_char_index = edit.start + edit.new.len_chars();
-
-        let start_byte = self.char_to_byte(start_char_index);
-        let old_end_byte = self.char_to_byte(old_end_char_index);
-        let start_position = self.char_to_position(start_char_index);
-        let old_end_position = self.char_to_position(old_end_char_index);
-
-        self.rope.remove(edit.start.0..edit.end().0);
-        self.rope
-            .insert(edit.start.0, edit.new.to_string().as_str());
-
-        let new_end_byte = self.char_to_byte(new_end_char_index);
-        let new_end_position = self.char_to_position(new_end_char_index);
-
-        let mut parser = tree_sitter::Parser::new();
-        parser.set_language(self.tree.language()).unwrap();
-        self.tree.edit(&InputEdit {
-            start_byte,
-            old_end_byte,
-            new_end_byte,
-            start_position: start_position.into(),
-            old_end_position: old_end_position.into(),
-            new_end_position: new_end_position.into(),
-        });
-
-        self.tree = parser.parse(&self.rope.to_string(), None).unwrap();
-
-        Ok(())
+        })
     }
 
     pub fn has_syntax_error_at(&self, range: Range<CharIndex>) -> bool {
@@ -352,7 +338,30 @@ impl Buffer {
         buffer.path = Some(path.clone());
         buffer.language = language;
 
+        buffer.recompute_highlighted_spans()?;
         Ok(buffer)
+    }
+
+    fn reparse_tree(&mut self) -> anyhow::Result<()> {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(self.tree.language())?;
+        if let Some(tree) = parser.parse(&self.rope.to_string(), None) {
+            self.tree = tree
+        }
+        self.recompute_highlighted_spans()?;
+
+        Ok(())
+    }
+
+    fn recompute_highlighted_spans(&mut self) -> anyhow::Result<()> {
+        if let Some(language) = &self.language {
+            self.highlighted_spans = syntax_highlight::highlight(
+                language.clone(),
+                &crate::themes::VSCODE_LIGHT,
+                &self.rope.to_string(),
+            )?;
+        }
+        Ok(())
     }
 
     fn get_formatted_content(&self) -> Option<String> {
@@ -452,8 +461,16 @@ impl Buffer {
         }
     }
 
-    pub fn language(&self) -> tree_sitter::Language {
-        self.ts_language
+    pub fn highlighted_spans(&self) -> &Vec<HighlighedSpan> {
+        &self.highlighted_spans
+    }
+
+    pub fn language(&self) -> Option<Box<dyn Language>> {
+        self.language.clone()
+    }
+
+    pub fn treesitter_language(&self) -> tree_sitter::Language {
+        self.treesitter_language
     }
 
     pub fn get_char_at_position(&self, position: Position) -> Option<char> {

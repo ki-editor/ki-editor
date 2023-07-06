@@ -32,6 +32,21 @@ pub trait Language: dyn_clone::DynClone + std::fmt::Debug + Send + Sync {
 
     fn tree_sitter_language(&self) -> Option<tree_sitter::Language>;
 
+    /// Used for tree-sitter syntax highlighting.
+    fn highlight_query(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Used for tree-sitter language injection.
+    fn injection_query(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Used for tree-sitter locals.
+    fn locals_query(&self) -> Option<&'static str> {
+        None
+    }
+
     fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)>;
 
     fn formatter(&self) -> Option<Formatter> {

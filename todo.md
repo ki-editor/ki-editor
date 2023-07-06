@@ -96,3 +96,4 @@
 - [] treesitter injections, support nested languages like Rust in Markdown
 - [] feat(lsp): go to declaration, type definition of symbol, and implementations
 - [] feat(lsp/code-action): command string execution (code action without edit)
+- [] infinite loop when changing window

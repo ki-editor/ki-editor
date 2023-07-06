@@ -16,7 +16,9 @@ mod quickfix_list;
 mod rectangle;
 mod screen;
 mod selection;
+pub mod syntax_highlight;
 mod terminal;
+pub mod themes;
 mod utils;
 
 use canonicalized_path::CanonicalizedPath;
@@ -61,5 +63,6 @@ fn run() -> anyhow::Result<()> {
             });
     });
     screen.run(path, receiver).unwrap();
+
     Ok(())
 }

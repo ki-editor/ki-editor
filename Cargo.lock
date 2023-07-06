@@ -76,6 +76,7 @@ dependencies = [
  "json-rpc-types",
  "key_event",
  "key_event_macro",
+ "lazy_static",
  "log",
  "lsp-types",
  "portable-pty",
@@ -87,6 +88,7 @@ dependencies = [
  "simple-logging",
  "tempfile",
  "tree-sitter",
+ "tree-sitter-highlight",
  "tree-sitter-javascript",
  "tree-sitter-md",
  "tree-sitter-rust",
@@ -1493,6 +1495,17 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "web-tree-sitter-sg",
+]
+
+[[package]]
+name = "tree-sitter-highlight"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "042342584c5a7a0b833d9fc4e2bdab3f9868ddc6c4b339a1e01451c6720868bc"
+dependencies = [
+ "regex",
+ "thiserror",
+ "tree-sitter",
 ]
 
 [[package]]

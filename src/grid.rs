@@ -36,9 +36,15 @@ impl Cell {
     fn apply_update(&self, update: CellUpdate) -> Cell {
         Cell {
             symbol: update.symbol.unwrap_or(self.symbol.clone()),
-            foreground_color: update.foreground_color.unwrap_or(self.foreground_color),
-            background_color: update.background_color.unwrap_or(self.background_color),
-            undercurl: update.undercurl.or(self.undercurl),
+            foreground_color: update
+                .style
+                .foreground_color
+                .unwrap_or(self.foreground_color),
+            background_color: update
+                .style
+                .background_color
+                .unwrap_or(self.background_color),
+            undercurl: update.style.undercurl.or(self.undercurl),
         }
     }
 }
@@ -57,9 +63,7 @@ impl Default for Cell {
 pub struct CellUpdate {
     pub position: Position,
     pub symbol: Option<String>,
-    pub background_color: Option<Color>,
-    pub foreground_color: Option<Color>,
-    pub undercurl: Option<Color>,
+    pub style: Style,
 }
 
 impl CellUpdate {
@@ -67,9 +71,7 @@ impl CellUpdate {
         CellUpdate {
             position,
             symbol: None,
-            background_color: None,
-            foreground_color: None,
-            undercurl: None,
+            style: Style::default(),
         }
     }
 
@@ -82,14 +84,15 @@ impl CellUpdate {
 
     pub fn background_color(self, background_color: Color) -> Self {
         CellUpdate {
-            background_color: Some(background_color),
+            style: self.style.background_color(background_color),
             ..self
         }
     }
 
     pub fn foreground_color(self, foreground_color: Color) -> Self {
         CellUpdate {
-            foreground_color: Some(foreground_color),
+            style: self.style.foreground_color(foreground_color),
+
             ..self
         }
     }
@@ -110,9 +113,13 @@ impl CellUpdate {
 
     pub fn undercurl(self, color: Option<Color>) -> CellUpdate {
         CellUpdate {
-            undercurl: color,
+            style: self.style.undercurl(color),
             ..self
         }
+    }
+
+    pub fn style(self, style: Style) -> CellUpdate {
+        CellUpdate { style, ..self }
     }
 }
 
@@ -243,7 +250,6 @@ impl Grid {
         }
     }
 
-    /// TODO: should use CellUpdate
     pub fn set_line(self, row: usize, title: &str, style: Style) -> Grid {
         let mut grid = self;
         for (column_index, character) in title
@@ -251,11 +257,12 @@ impl Grid {
             .take(grid.dimension().width as usize)
             .enumerate()
         {
+            let default = Cell::default();
             grid.rows[row][column_index] = Cell {
                 symbol: character.to_string(),
-                foreground_color: style.foreground_color,
-                background_color: style.background_color,
-                ..Cell::default()
+                foreground_color: style.foreground_color.unwrap_or(default.foreground_color),
+                background_color: style.background_color.unwrap_or(default.background_color),
+                ..default
             }
         }
         grid
@@ -276,9 +283,41 @@ impl Grid {
     }
 }
 
+#[derive(Default, Clone, Copy)]
 pub struct Style {
-    pub foreground_color: Color,
-    pub background_color: Color,
+    /// TODO: use own Color struct instead of crossterm's
+    /// so that user can use hex colors instead of RGB
+    /// TODO: also, use a macro to convert hex to rgb at compile time
+    pub foreground_color: Option<Color>,
+    pub background_color: Option<Color>,
+    pub undercurl: Option<Color>,
+}
+
+impl Style {
+    pub fn new() -> Style {
+        Style::default()
+    }
+
+    pub fn foreground_color(self, color: Color) -> Style {
+        Style {
+            foreground_color: Some(color),
+            ..self
+        }
+    }
+
+    pub fn background_color(self, color: Color) -> Style {
+        Style {
+            background_color: Some(color),
+            ..self
+        }
+    }
+
+    fn undercurl(self, color: Option<Color>) -> Style {
+        Style {
+            undercurl: color,
+            ..self
+        }
+    }
 }
 
 #[cfg(test)]

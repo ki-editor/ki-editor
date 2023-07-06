@@ -259,10 +259,9 @@ impl Screen {
                         let title_grid = Grid::new(title_rectangle.dimension()).set_line(
                             0,
                             &title,
-                            Style {
-                                foreground_color: Color::White,
-                                background_color: Color::DarkGrey,
-                            },
+                            Style::new()
+                                .foreground_color(Color::White)
+                                .background_color(Color::DarkGrey),
                         );
                         (
                             grid.update(&component_grid, &rectangle)

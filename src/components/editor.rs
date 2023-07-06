@@ -94,8 +94,9 @@ impl Component for Editor {
 
         let scroll_offset = editor.scroll_offset();
         let buffer = editor.buffer();
-        let lines = buffer
-            .rope()
+        let rope = buffer.rope();
+
+        let lines = rope
             .lines()
             .enumerate()
             .skip(scroll_offset.into())
@@ -171,6 +172,18 @@ impl Component for Editor {
                     CellUpdate::new(position).undercurl(Some(undercurl_color))
                 })
             }))
+            .chain(
+                // Syntax highlight
+                buffer
+                    .highlighted_spans()
+                    .iter()
+                    .flat_map(|highlighted_span| {
+                        highlighted_span.range.to_usize_range().map(|char_index| {
+                            CellUpdate::new(buffer.char_to_position(CharIndex(char_index)))
+                                .style(highlighted_span.style)
+                        })
+                    }),
+            )
             .chain(
                 // Primary selection
                 selection
@@ -743,20 +756,20 @@ impl Editor {
         }
     }
 
-    fn undo(&mut self) -> Vec<Dispatch> {
-        let selection_set = self.buffer.borrow_mut().undo(self.selection_set.clone());
+    fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+        let selection_set = self.buffer.borrow_mut().undo(self.selection_set.clone())?;
         if let Some(selection_set) = selection_set {
             self.update_selection_set(selection_set);
         }
-        self.get_document_did_change_dispatch()
+        Ok(self.get_document_did_change_dispatch())
     }
 
-    fn redo(&mut self) -> Vec<Dispatch> {
-        let selection_set = self.buffer.borrow_mut().redo(self.selection_set.clone());
+    fn redo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+        let selection_set = self.buffer.borrow_mut().redo(self.selection_set.clone())?;
         if let Some(selection_set) = selection_set {
             self.update_selection_set(selection_set);
         }
-        self.get_document_did_change_dispatch()
+        Ok(self.get_document_did_change_dispatch())
     }
 
     fn change_cursor_direction(&mut self) {
@@ -885,8 +898,8 @@ impl Editor {
             }
             key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut(context))),
             key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context))),
-            key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo())),
-            key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo())),
+            key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo()?)),
+            key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo()?)),
             _ => Ok(HandleEventResult::Ignored(event)),
         }
     }

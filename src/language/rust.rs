@@ -20,6 +20,10 @@ impl Language for Rust {
         Some(tree_sitter_rust::language())
     }
 
+    fn highlight_query(&self) -> Option<&'static str> {
+        Some(tree_sitter_rust::HIGHLIGHT_QUERY)
+    }
+
     fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)> {
         Some((
             ProcessCommand::new("rustfmt", &[]),
