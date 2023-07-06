@@ -60,8 +60,8 @@ impl Component for Editor {
     fn editor_mut(&mut self) -> &mut Editor {
         self
     }
-    fn set_content(&mut self, str: &str) {
-        self.update_buffer(str);
+    fn set_content(&mut self, str: &str) -> anyhow::Result<()> {
+        self.update_buffer(str)
     }
     fn title(&self) -> String {
         match &self.mode {
@@ -1533,7 +1533,7 @@ impl Editor {
         self.buffer.borrow_mut()
     }
 
-    fn update_buffer(&mut self, s: &str) {
+    fn update_buffer(&mut self, s: &str) -> anyhow::Result<()> {
         self.buffer.borrow_mut().update(s)
     }
     fn select_view(&mut self, direction: Direction) {

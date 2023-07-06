@@ -277,7 +277,7 @@ impl Layout {
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
-    pub fn show_info(&mut self, contents: Vec<String>) {
+    pub fn show_info(&mut self, contents: Vec<String>) -> anyhow::Result<()> {
         let info = contents.join("\n===========\n");
         match &self.info_panel {
             None => {
@@ -287,8 +287,9 @@ impl Layout {
                 )));
                 self.info_panel = Some(info_panel);
             }
-            Some(info_panel) => info_panel.borrow_mut().set_content(&info),
+            Some(info_panel) => info_panel.borrow_mut().set_content(&info)?,
         }
+        Ok(())
     }
 
     pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {

@@ -399,7 +399,7 @@ impl Screen {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowInfo { content } => self.show_info(content),
+            Dispatch::ShowInfo { content } => self.show_info(content)?,
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
@@ -737,7 +737,7 @@ impl Screen {
         Ok(())
     }
 
-    fn show_info(&mut self, contents: Vec<String>) {
+    fn show_info(&mut self, contents: Vec<String>) -> anyhow::Result<()> {
         self.layout.show_info(contents)
     }
 
