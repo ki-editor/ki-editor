@@ -51,6 +51,7 @@
 - [x] create a key event macro so that handle_event can be less tedious: e.g. key!(ctrl-a) => do_something()
 - [x] perf: rendering is laggy when there's too many diagnostics
 - [x] feat(editor/diagnostics-movement): should work for overlapped ranges, A:0-3, B:1-3, C:4-5, starting from A, forward should go to B first before C
+- [x] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -63,7 +64,6 @@
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] file tree
-- [] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
@@ -99,3 +99,5 @@
 - [] infinite loop when changing window
 - [] when cursor at last position, and after formatting the cursor is out of bound, should not crash
 - [] refactor: change all rope.x_to_y to rope.try_x_to_y to avoid crashing
+- [] feat(editor/delete): allow edit even if there's no next sibling, in this case, collapse the selection
+- [] feat: small g for going to locations of this file, G for locations to anywhere

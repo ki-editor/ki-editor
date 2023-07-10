@@ -589,6 +589,46 @@ impl Editor {
         self.update_selection_set(selection);
     }
 
+    fn select_final(&mut self, direction: Direction) {
+        let selection_mode = if self.selection_set.mode.is_node() {
+            SelectionMode::SiblingNode
+        } else {
+            self.selection_set.mode.clone()
+        };
+        fn get_final_selection(
+            buffer: &Buffer,
+            selection: &Selection,
+            mode: &SelectionMode,
+            direction: &Direction,
+        ) -> Selection {
+            let next_selection = Selection::get_selection_(
+                buffer,
+                selection,
+                mode,
+                direction,
+                &CursorDirection::Start,
+            );
+            if next_selection == *selection {
+                selection.clone()
+            } else {
+                get_final_selection(buffer, &next_selection, mode, direction)
+            }
+        }
+
+        let selection_set = self
+            .selection_set
+            .apply(selection_mode.clone(), |selection| {
+                get_final_selection(
+                    &self.buffer.borrow(),
+                    &selection,
+                    &selection_mode,
+                    &direction,
+                )
+            });
+
+        self.update_selection_set(selection_set)
+    }
+
     fn jump_from_selection(&mut self, direction: Direction, selection: &Selection) {
         let mut current_selection = selection.clone();
         let mut jumps = Vec::new();
@@ -1025,6 +1065,8 @@ impl Editor {
             key!("shift+D") => return self.delete(Direction::Backward),
             key!("e") => return self.select_diagnostic(Direction::Forward),
             key!("shift+E") => return self.select_diagnostic(Direction::Backward),
+            key!("f") => self.select_final(Direction::Forward),
+            key!("shift+F") => self.select_final(Direction::Backward),
             // f
             // TODO: f goes into file picker mode,
             // for example, pressing fg means select git tracked files
@@ -2261,7 +2303,7 @@ fn main() {
     }
 
     #[test]
-    fn multi_upend() {
+    fn multi_upend() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
         for _ in 0..4 {
@@ -2287,15 +2329,16 @@ fn main() {
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
 
-        editor.undo();
+        editor.undo()?;
 
         assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
-        editor.redo();
+        editor.redo()?;
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
+        Ok(())
     }
 
     #[test]
@@ -2818,5 +2861,22 @@ let y = S(b);
 
         assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
         assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);
+    }
+
+    #[test]
+    fn select_final() {
+        let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y() }");
+
+        editor.select_line(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+
+        editor.select_final(Direction::Forward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["{ x.y() }"]);
+
+        editor.select_final(Direction::Backward);
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
     }
 }

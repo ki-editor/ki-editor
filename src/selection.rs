@@ -46,7 +46,7 @@ impl SelectionSet {
         self.primary.initial_range = None;
     }
 
-    fn apply<F>(&self, mode: SelectionMode, f: F) -> SelectionSet
+    pub fn apply<F>(&self, mode: SelectionMode, f: F) -> SelectionSet
     where
         F: Fn(&Selection) -> Selection,
     {
