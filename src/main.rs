@@ -21,15 +21,18 @@ mod terminal;
 pub mod themes;
 mod utils;
 
+use std::sync::{Arc, Mutex};
+
 use canonicalized_path::CanonicalizedPath;
 
+use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 
 use screen::Screen;
 
 fn main() {
     run().unwrap_or_else(|error| {
-        log::error!("{:?}", error);
+        log::error!("main run {:?}", error);
     });
 }
 
@@ -47,7 +50,10 @@ fn run() -> anyhow::Result<()> {
                 None
             })
     });
-    let mut screen = Screen::new()?;
+    let mut screen = Screen::new(
+        Arc::new(Mutex::new(Crossterm::new())),
+        CanonicalizedPath::try_from(".")?,
+    )?;
 
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || loop {
@@ -55,14 +61,18 @@ fn run() -> anyhow::Result<()> {
             .map_err(|error| anyhow::anyhow!("{:?}", error))
             .and_then(|event| {
                 sender
-                    .send(event)
+                    .send(event.into())
                     .map_err(|error| anyhow::anyhow!("{:?}", error))
             })
             .unwrap_or_else(|error| {
                 log::info!("Error running crossterm::event::read: {:?}", error);
             });
     });
-    screen.run(path, receiver).unwrap();
+    screen
+        .run(path, receiver)
+        .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
+
+    println!("Goodbye!");
 
     Ok(())
 }

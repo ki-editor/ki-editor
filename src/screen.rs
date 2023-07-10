@@ -1,26 +1,18 @@
 use anyhow::anyhow;
+use crossterm::style::Color;
+use event::event::Event;
 use itertools::Itertools;
+use key_event_macro::key;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    io::stdout,
-    path::Path,
+    path::{Path, PathBuf},
     rc::Rc,
-    sync::mpsc::{Receiver, Sender},
-};
-
-use crossterm::{
-    cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::{EnableMouseCapture, Event, KeyCode, KeyModifiers},
-    execute, queue,
-    style::{
-        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-        SetUnderlineColor,
+    sync::{
+        mpsc::{Receiver, Sender},
+        Arc, Mutex,
     },
-    terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
-    ExecutableCommand,
 };
-use tree_sitter::Point;
 
 use crate::{
     buffer::Buffer,
@@ -33,6 +25,7 @@ use crate::{
         suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
     },
     context::Context,
+    frontend::frontend::Frontend,
     grid::{Grid, Style},
     layout::Layout,
     lsp::{
@@ -44,11 +37,8 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
 };
 
-pub struct Screen {
+pub struct Screen<T: Frontend> {
     context: Context,
-
-    /// Used for diffing to reduce unnecessary re-painting.
-    previous_grid: Option<Grid>,
 
     buffers: Vec<Rc<RefCell<Buffer>>>,
 
@@ -66,22 +56,30 @@ pub struct Screen {
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
     layout: Layout,
+
+    frontend: Arc<Mutex<T>>,
 }
 
-impl Screen {
-    pub fn new() -> anyhow::Result<Screen> {
+impl<T: Frontend> Screen<T> {
+    pub fn new(
+        frontend: Arc<Mutex<T>>,
+        working_directory: CanonicalizedPath,
+    ) -> anyhow::Result<Screen<T>> {
+        // Change working directory
+        std::env::set_current_dir(&working_directory.into() as &PathBuf)?;
+
         let (sender, receiver) = std::sync::mpsc::channel();
-        let (width, height) = terminal::size()?;
+        let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let screen = Screen {
             context: Context::new(),
-            previous_grid: None,
             buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone()),
             sender,
             diagnostics: HashMap::new(),
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
-            layout: Layout::new(Dimension { height, width }),
+            layout: Layout::new(dimension),
+            frontend,
         };
         Ok(screen)
     }
@@ -89,19 +87,22 @@ impl Screen {
     pub fn run(
         &mut self,
         entry_path: Option<CanonicalizedPath>,
-        event_receiver: Receiver<crossterm::event::Event>,
+        event_receiver: Receiver<Event>,
     ) -> Result<(), anyhow::Error> {
+        {
+            let mut frontend = self.frontend.lock().unwrap();
+            frontend.enter_alternate_screen()?;
+            frontend.enable_raw_mode()?;
+            frontend.enable_mouse_capture()?;
+        }
+
         if let Some(entry_path) = entry_path {
             self.open_file(&entry_path, true)?;
         } else {
             self.open_file_picker()?;
         }
-        let mut stdout = stdout();
-        stdout.execute(EnterAlternateScreen)?;
-        crossterm::terminal::enable_raw_mode()?;
-        stdout.execute(EnableMouseCapture)?;
 
-        self.render(&mut stdout)?;
+        self.render()?;
 
         let sender = self.sender.clone();
         std::thread::spawn(move || loop {
@@ -116,13 +117,13 @@ impl Screen {
 
         while let Ok(message) = self.receiver.recv() {
             let should_quit = match message {
-                ScreenMessage::Event(event) => self.handle_event(event),
+                ScreenMessage::Event(event) => self.handle_event(event).map(|_| false),
                 ScreenMessage::LspNotification(notification) => {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
             }
             .unwrap_or_else(|e| {
-                self.show_info(vec![e.to_string()]);
+                self.show_info(vec![e.to_string()]).unwrap();
                 log::error!("{:?}", e);
                 false
             });
@@ -131,11 +132,12 @@ impl Screen {
                 break;
             }
 
-            self.render(&mut stdout)?;
+            self.render()?;
         }
 
-        stdout.execute(LeaveAlternateScreen)?;
-        crossterm::terminal::disable_raw_mode()?;
+        let mut frontend = self.frontend.lock().unwrap();
+        frontend.leave_alternate_screen()?;
+        frontend.disable_raw_mode()?;
 
         // TODO: this line is a hack
         std::process::exit(0);
@@ -152,27 +154,15 @@ impl Screen {
         // Pass event to focused window
         let component = self.current_component();
         match event {
-            Event::Key(event) => match event.code {
-                KeyCode::Char('f') if event.modifiers == KeyModifiers::CONTROL => {
-                    self.open_search_prompt()
+            Event::Key(key!("ctrl+f")) => {
+                self.open_search_prompt();
+            }
+            Event::Key(key!("ctrl+q")) => {
+                if self.quit() {
+                    return Ok(true);
                 }
-                KeyCode::Char('q') if event.modifiers == KeyModifiers::CONTROL => {
-                    if self.quit() {
-                        return Ok(true);
-                    }
-                }
-                KeyCode::Char('w') if event.modifiers == KeyModifiers::CONTROL => {
-                    self.layout.change_view()
-                }
-                _ => {
-                    component.map(|component| {
-                        let dispatches = component
-                            .borrow_mut()
-                            .handle_event(&mut self.context, Event::Key(event));
-                        self.handle_dispatches_result(dispatches)
-                    });
-                }
-            },
+            }
+            Event::Key(key!("ctrl+w")) => self.layout.change_view(),
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
                     height: rows,
@@ -188,6 +178,7 @@ impl Screen {
                 });
             }
         }
+
         Ok(false)
     }
 
@@ -196,7 +187,7 @@ impl Screen {
         self.layout.remove_current_component()
     }
 
-    fn render(&mut self, stdout: &mut std::io::Stdout) -> Result<(), anyhow::Error> {
+    fn render(&mut self) -> Result<(), anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
 
@@ -234,8 +225,8 @@ impl Screen {
                     {
                         None
                     } else {
-                        Some(Point::new(
-                            (cursor_position.line + rectangle.origin.row)
+                        Some(Position::new(
+                            (cursor_position.line + rectangle.origin.line)
                                 .saturating_sub(scroll_offset as usize),
                             cursor_position.column + rectangle.origin.column,
                         ))
@@ -280,7 +271,7 @@ impl Screen {
             .iter()
             .fold(grid, |grid, border| grid.set_border(border));
 
-        self.render_grid(grid, cursor_point, stdout)?;
+        self.render_grid(grid, cursor_point)?;
 
         Ok(())
     }
@@ -288,47 +279,13 @@ impl Screen {
     fn render_grid(
         &mut self,
         grid: Grid,
-        cursor_point: Option<Point>,
-        stdout: &mut std::io::Stdout,
+        cursor_position: Option<Position>,
     ) -> Result<(), anyhow::Error> {
-        queue!(stdout, Hide)?;
-        let cells = {
-            let diff = if let Some(previous_grid) = self.previous_grid.take() {
-                previous_grid.diff(&grid)
-            } else {
-                queue!(stdout, Clear(ClearType::All)).unwrap();
-                grid.to_position_cells()
-            };
-
-            self.previous_grid = Some(grid);
-
-            diff
-        };
-
-        for cell in cells.into_iter() {
-            queue!(
-                stdout,
-                MoveTo(cell.position.column as u16, cell.position.line as u16)
-            )?;
-            queue!(
-                stdout,
-                SetUnderlineColor(cell.cell.undercurl.unwrap_or(Color::Reset)),
-                SetAttribute(if cell.cell.undercurl.is_some() {
-                    Attribute::Undercurled
-                } else {
-                    Attribute::NoUnderline
-                }),
-                SetBackgroundColor(cell.cell.background_color),
-                SetForegroundColor(cell.cell.foreground_color),
-                Print(reveal(cell.cell.symbol)),
-                SetAttribute(Attribute::Reset),
-            )?;
-        }
-
-        if let Some(point) = cursor_point {
-            queue!(stdout, Show)?;
-            queue!(stdout, SetCursorStyle::BlinkingBlock)?;
-            execute!(stdout, MoveTo(point.column as u16, point.row as u16))?;
+        let mut frontend = self.frontend.lock().unwrap();
+        frontend.hide_cursor()?;
+        frontend.render_grid(grid)?;
+        if let Some(position) = cursor_position {
+            frontend.show_cursor(&position)?;
         }
 
         Ok(())
@@ -429,9 +386,6 @@ impl Screen {
     }
 
     fn resize(&mut self, dimension: Dimension) {
-        // Remove the previous_grid so that the entire screen is re-rendered
-        // Because diffing when the size has change is not supported yet.
-        self.previous_grid.take();
         self.layout.set_terminal_dimension(dimension);
     }
 
@@ -803,18 +757,10 @@ impl Screen {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Dimension {
     pub height: u16,
     pub width: u16,
-}
-
-/// Convert invisible character to visible character
-fn reveal(s: String) -> String {
-    match s.as_str() {
-        "\n" => " ".to_string(),
-        _ => s,
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

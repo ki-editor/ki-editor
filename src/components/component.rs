@@ -1,6 +1,6 @@
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-use crossterm::event::Event;
+use event::event::Event;
 
 use crate::{
     context::Context, grid::Grid, lsp::diagnostic::Diagnostic, position::Position,
@@ -23,7 +23,7 @@ pub trait Component: Any + AnyComponent {
 
     #[cfg(test)]
     /// This is for writing tests for components.
-    fn handle_events(&mut self, events: &[key_event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
         let mut context = Context::default();
         Ok(events
             .iter()
@@ -40,7 +40,7 @@ pub trait Component: Any + AnyComponent {
         event: Event,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
-            Event::Key(event) => self.handle_key_event(context, event.into()),
+            Event::Key(event) => self.handle_key_event(context, event),
             Event::Paste(content) => self.handle_paste_event(content),
             Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(vec![]),
@@ -61,7 +61,7 @@ pub trait Component: Any + AnyComponent {
     fn handle_key_event(
         &mut self,
         context: &mut Context,
-        event: key_event::KeyEvent,
+        event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>>;
 
     fn get_cursor_position(&self) -> Position {
@@ -168,7 +168,7 @@ mod test_component {
             fn handle_key_event(
                 &mut self,
                 _context: &mut crate::context::Context,
-                _event: key_event::KeyEvent,
+                _event: event::KeyEvent,
             ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
                 todo!()
             }
@@ -199,7 +199,7 @@ mod test_component {
             fn handle_key_event(
                 &mut self,
                 _context: &mut crate::context::Context,
-                _event: key_event::KeyEvent,
+                _event: event::KeyEvent,
             ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
                 todo!()
             }
@@ -231,7 +231,7 @@ mod test_component {
             fn handle_key_event(
                 &mut self,
                 _context: &mut crate::context::Context,
-                _event: key_event::KeyEvent,
+                _event: event::KeyEvent,
             ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
                 todo!()
             }

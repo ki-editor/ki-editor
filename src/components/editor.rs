@@ -12,8 +12,8 @@ use crossterm::{
     event::{KeyCode, MouseButton, MouseEventKind},
     style::Color,
 };
+use event::KeyEvent;
 use itertools::Itertools;
-use key_event::KeyEvent;
 use key_event_macro::key;
 use lsp_types::DiagnosticSeverity;
 use ropey::{Rope, RopeSlice};
@@ -136,7 +136,7 @@ impl Component for Editor {
             .chain(editor.jumps().into_iter().enumerate().map(|(index, jump)| {
                 let position = buffer.char_to_position(match editor.cursor_direction {
                     CursorDirection::Start => jump.selection.range.start,
-                    CursorDirection::End => jump.selection.range.end,
+                    CursorDirection::End => jump.selection.range.start,
                 });
 
                 // Background color: Odd index red, even index blue
@@ -272,7 +272,7 @@ impl Component for Editor {
     fn handle_key_event(
         &mut self,
         context: &mut Context,
-        event: key_event::KeyEvent,
+        event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         self.handle_key_event(context, event)
     }
@@ -1019,7 +1019,9 @@ impl Editor {
             key!("b") => self.select_backward(),
             key!("c") => self.select_character(Direction::Forward),
             key!("shift+C") => self.select_character(Direction::Backward),
-            key!("d") => return self.delete(Direction::Forward),
+            key!("d") => {
+                return self.delete(Direction::Forward);
+            }
             key!("shift+D") => return self.delete(Direction::Backward),
             key!("e") => return self.select_diagnostic(Direction::Forward),
             key!("shift+E") => return self.select_diagnostic(Direction::Backward),

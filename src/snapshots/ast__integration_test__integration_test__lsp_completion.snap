@@ -1,0 +1,28 @@
+---
+source: src/integration_test.rs
+expression: frontend.lock().unwrap().content()
+---
+src/main.rs [INSERT]                    │Completion [NORMAL:LINE]               
+fn main() {                            │[1] ops                               
+std::op                                │[2] option                            
+    println!("Hello, world!");         │[3] option_env!                        
+}                                      │                                       
+                                        │                                       
+                                        │                                       
+                                        │                                       
+                                        │                                       
+                                        │                                       
+                                        │                                       
+                                        │                                       
+                                        │───────────────────────────────────────
+                                        │ [NORMAL:CUSTOM]                       
+                                        │Overloadable operators.               
+                                        │                                      
+                                        │Implementing these traits allows you to
+                                        │                                      
+                                        │Some of these traits are imported by th
+                                        │every Rust program. Only operators back
+                                        │example, the addition operator (`+`) ca
+                                        │trait, but since the assignment operato
+                                        │is no way of overloading its semantics.
+                                        │provide any mechanism to create new ope

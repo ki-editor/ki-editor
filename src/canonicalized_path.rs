@@ -11,6 +11,12 @@ impl TryFrom<PathBuf> for CanonicalizedPath {
     }
 }
 
+impl From<CanonicalizedPath> for PathBuf {
+    fn from(val: CanonicalizedPath) -> Self {
+        val.0
+    }
+}
+
 impl TryFrom<&str> for CanonicalizedPath {
     type Error = anyhow::Error;
 

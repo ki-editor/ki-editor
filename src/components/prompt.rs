@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-
 use itertools::Itertools;
 use key_event_macro::key;
 
@@ -87,7 +86,7 @@ impl Component for Prompt {
     fn handle_key_event(
         &mut self,
         context: &mut Context,
-        event: key_event::KeyEvent,
+        event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {

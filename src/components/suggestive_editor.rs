@@ -69,7 +69,7 @@ impl Component for SuggestiveEditor {
     fn handle_key_event(
         &mut self,
         context: &mut Context,
-        event: key_event::KeyEvent,
+        event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let dispatches = if self.editor.mode == Mode::Insert && self.dropdown_opened() {
             match event {

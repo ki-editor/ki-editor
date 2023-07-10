@@ -97,3 +97,5 @@
 - [] feat(lsp): go to declaration, type definition of symbol, and implementations
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] infinite loop when changing window
+- [] when cursor at last position, and after formatting the cursor is out of bound, should not crash
+- [] refactor: change all rope.x_to_y to rope.try_x_to_y to avoid crashing

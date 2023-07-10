@@ -1,11 +1,9 @@
-use tree_sitter::Point;
-
-use crate::screen::Dimension;
+use crate::{position::Position, screen::Dimension};
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 // A struct to represent a rectangle with origin, width and height
 pub struct Rectangle {
-    pub origin: Point,
+    pub origin: Position,
     pub width: u16,
     pub height: u16,
 }
@@ -14,7 +12,7 @@ pub struct Rectangle {
 // A struct to represent a border with direction, start and length
 pub struct Border {
     pub direction: BorderDirection,
-    pub start: Point,
+    pub start: Position,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -37,7 +35,7 @@ impl Rectangle {
                 ..*self
             };
             let rectangle2 = Rectangle {
-                origin: Point {
+                origin: Position {
                     column: self.origin.column + (width1 as usize) + 1,
                     ..self.origin
                 },
@@ -47,9 +45,9 @@ impl Rectangle {
             // Create a vertical border between the two rectangles
             let border = Border {
                 direction: BorderDirection::Vertical,
-                start: Point {
+                start: Position {
                     column: self.origin.column + (width1 as usize),
-                    row: self.origin.row,
+                    line: self.origin.line,
                 },
             };
             (rectangle1, rectangle2, border)
@@ -62,8 +60,8 @@ impl Rectangle {
                 ..*self
             };
             let rectangle2 = Rectangle {
-                origin: Point {
-                    row: self.origin.row + height1 as usize + 1,
+                origin: Position {
+                    line: self.origin.line + height1 as usize + 1,
                     ..self.origin
                 },
                 height: height2,
@@ -72,8 +70,8 @@ impl Rectangle {
             // Create a horizontal border between the two rectangles
             let border = Border {
                 direction: BorderDirection::Horizontal,
-                start: Point {
-                    row: self.origin.row + height1 as usize,
+                start: Position {
+                    line: self.origin.line + height1 as usize,
                     column: self.origin.column,
                 },
             };
@@ -91,7 +89,7 @@ impl Rectangle {
 
         // Create a root rectangle that covers the whole screen
         let root = Rectangle {
-            origin: Point { row: 0, column: 0 },
+            origin: Position { line: 0, column: 0 },
             width: dimension.width,
             height: dimension.height,
         };
@@ -130,28 +128,28 @@ impl Rectangle {
         }
     }
 
-    /// Split the rectangle vertically at the given row.
-    pub fn split_vertically_at(&self, row: usize) -> (Rectangle, Rectangle) {
+    /// Split the rectangle vertically at the given line.
+    pub fn split_vertically_at(&self, line: usize) -> (Rectangle, Rectangle) {
         let rectangle1 = Rectangle {
             origin: self.origin,
             width: self.width,
-            height: row as u16,
+            height: line as u16,
         };
         let rectangle2 = Rectangle {
-            origin: Point {
-                row: self.origin.row + row,
+            origin: Position {
+                line: self.origin.line + line,
                 ..self.origin
             },
             width: self.width,
-            height: self.height - row as u16,
+            height: self.height - line as u16,
         };
         (rectangle1, rectangle2)
     }
 
     pub fn move_up(&self, offset: usize) -> Rectangle {
         Rectangle {
-            origin: Point {
-                row: self.origin.row - offset,
+            origin: Position {
+                line: self.origin.line - offset,
                 ..self.origin
             },
             ..*self
@@ -168,8 +166,8 @@ impl Rectangle {
 
 #[cfg(test)]
 mod test_rectangle {
-    use tree_sitter::Point;
 
+    use crate::position::Position;
     use crate::rectangle::Border;
     use crate::screen::Dimension;
 
@@ -179,7 +177,7 @@ mod test_rectangle {
     #[test]
     fn split_vertically_at() {
         let rectangle = Rectangle {
-            origin: Point { row: 0, column: 0 },
+            origin: Position { line: 0, column: 0 },
             width: 100,
             height: 100,
         };
@@ -187,7 +185,7 @@ mod test_rectangle {
         assert_eq!(
             rectangle1,
             Rectangle {
-                origin: Point { row: 0, column: 0 },
+                origin: Position { line: 0, column: 0 },
                 width: 100,
                 height: 50,
             }
@@ -195,7 +193,10 @@ mod test_rectangle {
         assert_eq!(
             rectangle2,
             Rectangle {
-                origin: Point { row: 50, column: 0 },
+                origin: Position {
+                    line: 50,
+                    column: 0
+                },
                 width: 100,
                 height: 50,
             }
@@ -220,16 +221,22 @@ mod test_rectangle {
             vec![
                 Border {
                     direction: Horizontal,
-                    start: Point { row: 50, column: 0 }
+                    start: Position {
+                        line: 50,
+                        column: 0
+                    }
                 },
                 Border {
                     direction: Horizontal,
-                    start: Point { row: 75, column: 0 }
+                    start: Position {
+                        line: 75,
+                        column: 0
+                    }
                 },
                 Border {
                     direction: Vertical,
-                    start: Point {
-                        row: 76,
+                    start: Position {
+                        line: 76,
                         column: 50
                     }
                 }
@@ -240,23 +247,29 @@ mod test_rectangle {
             rectangles,
             vec![
                 Rectangle {
-                    origin: Point { row: 0, column: 0 },
+                    origin: Position { line: 0, column: 0 },
                     width: 100,
                     height: 50
                 },
                 Rectangle {
-                    origin: Point { row: 51, column: 0 },
+                    origin: Position {
+                        line: 51,
+                        column: 0
+                    },
                     width: 100,
                     height: 24
                 },
                 Rectangle {
-                    origin: Point { row: 76, column: 0 },
+                    origin: Position {
+                        line: 76,
+                        column: 0
+                    },
                     width: 50,
                     height: 24
                 },
                 Rectangle {
-                    origin: Point {
-                        row: 76,
+                    origin: Position {
+                        line: 76,
                         column: 51
                     },
                     width: 49,

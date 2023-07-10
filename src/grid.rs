@@ -123,7 +123,7 @@ impl CellUpdate {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct PositionedCell {
     pub cell: Cell,
     pub position: Position,
@@ -167,7 +167,7 @@ impl Grid {
         Grid { rows: cells }
     }
 
-    pub fn to_position_cells(&self) -> Vec<PositionedCell> {
+    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         let mut cells = vec![];
         for (row_index, row) in self.rows.iter().enumerate() {
             for (column_index, cell) in row.iter().enumerate() {
@@ -211,7 +211,7 @@ impl Grid {
         let mut grid = self;
         for (row_index, rows) in other.rows.iter().enumerate() {
             for (column_index, cell) in rows.iter().enumerate() {
-                grid.rows[row_index + rectangle.origin.row]
+                grid.rows[row_index + rectangle.origin.line]
                     [column_index + rectangle.origin.column] = cell.clone();
             }
         }
@@ -223,7 +223,7 @@ impl Grid {
         match border.direction {
             BorderDirection::Horizontal => {
                 for i in 0..dimension.width.saturating_sub(border.start.column as u16) {
-                    self.rows[border.start.row][border.start.column + i as usize] = Cell {
+                    self.rows[border.start.line][border.start.column + i as usize] = Cell {
                         symbol: "─".to_string(),
                         foreground_color: Color::Black,
                         ..Cell::default()
@@ -231,8 +231,8 @@ impl Grid {
                 }
             }
             BorderDirection::Vertical => {
-                for i in 0..dimension.height.saturating_sub(border.start.row as u16) {
-                    self.rows[border.start.row + i as usize][border.start.column] = Cell {
+                for i in 0..dimension.height.saturating_sub(border.start.line as u16) {
+                    self.rows[border.start.line + i as usize][border.start.column] = Cell {
                         symbol: "│".to_string(),
                         foreground_color: Color::Black,
                         ..Cell::default()
@@ -243,7 +243,7 @@ impl Grid {
         self
     }
 
-    fn dimension(&self) -> Dimension {
+    pub fn dimension(&self) -> Dimension {
         Dimension {
             height: self.rows.len() as u16,
             width: self.rows[0].len() as u16,
@@ -280,6 +280,20 @@ impl Grid {
         updates
             .into_iter()
             .fold(self, |grid, update| grid.apply_cell_update(update))
+    }
+
+    pub fn content(&self) -> String {
+        self.rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.symbol.clone())
+                    .collect::<Vec<String>>()
+                    .join("")
+            })
+            .map(|line| line.replace('\n', ""))
+            .collect::<Vec<String>>()
+            .join("\n")
     }
 }
 

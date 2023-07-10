@@ -1,5 +1,5 @@
+use event::{parse_key_event, KeyEvent};
 use itertools::Itertools;
-use key_event::{parse_key_event, KeyEvent};
 use key_event_macro::key;
 
 use crate::screen::Dispatch;
@@ -105,7 +105,7 @@ impl Component for KeymapLegend {
     fn handle_key_event(
         &mut self,
         context: &mut crate::context::Context,
-        event: key_event::KeyEvent,
+        event: event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
         if self.editor.mode == Mode::Insert {
             match &event {

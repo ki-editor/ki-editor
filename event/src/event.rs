@@ -1,5 +1,28 @@
 use std::collections::HashSet;
 
+#[derive(Debug)]
+pub enum Event {
+    Key(KeyEvent),
+    FocusGained,
+    FocusLost,
+    Mouse(crossterm::event::MouseEvent),
+    Paste(String),
+    Resize(u16, u16),
+}
+
+impl From<crossterm::event::Event> for Event {
+    fn from(value: crossterm::event::Event) -> Self {
+        match value {
+            crossterm::event::Event::Key(key) => Event::Key(key.into()),
+            crossterm::event::Event::FocusGained => Event::FocusGained,
+            crossterm::event::Event::FocusLost => Event::FocusLost,
+            crossterm::event::Event::Mouse(mouse_event) => Event::Mouse(mouse_event),
+            crossterm::event::Event::Paste(string) => Event::Paste(string),
+            crossterm::event::Event::Resize(columns, rows) => Event::Resize(columns, rows),
+        }
+    }
+}
+
 /// This struct is created to enable pattern-matching
 /// on combined modifier keys like Ctrl+Alt+Shift.
 ///
@@ -19,7 +42,7 @@ impl KeyEvent {
 
     pub fn to_rust_code(&self) -> String {
         format!(
-            "key_event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: key_event::KeyModifiers::{:#?}, }}",
+            "event::KeyEvent {{ code: crossterm::event::KeyCode::{:#?}, modifiers: event::KeyModifiers::{:#?}, }}",
             self.code, self.modifiers
         )
     }

@@ -1,8 +1,8 @@
-pub mod key_event;
+pub mod event;
 
 use std::collections::HashSet;
 
-pub use crate::key_event::{KeyEvent, KeyModifiers};
+pub use crate::event::{KeyEvent, KeyModifiers};
 
 use crossterm::event::KeyCode;
 

@@ -1,5 +1,5 @@
 extern crate proc_macro;
-use key_event::parse_key_event;
+use event::parse_key_event;
 use proc_macro::TokenStream;
 
 #[proc_macro]
@@ -21,7 +21,7 @@ pub fn keys(item: TokenStream) -> TokenStream {
     // Remove the quotes
     let str = &str[1..str.len() - 1];
 
-    let events = key_event::parse_key_events(str)
+    let events = event::parse_key_events(str)
         .unwrap()
         .into_iter()
         .map(|event| event.to_rust_code())

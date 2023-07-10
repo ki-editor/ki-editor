@@ -6,6 +6,7 @@ pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error
     use portable_pty::CommandBuilder;
 
     let mut parser = vt100::Parser::new(rows, cols, 0);
+    parser.screen().contents();
 
     // Use the native pty implementation for the system
     let pty_system = native_pty_system();
