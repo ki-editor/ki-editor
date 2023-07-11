@@ -6,7 +6,7 @@ use key_event_macro::key;
 use std::{
     cell::RefCell,
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
     rc::Rc,
     sync::{
         mpsc::{Receiver, Sender},
@@ -65,16 +65,13 @@ impl<T: Frontend> Screen<T> {
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
     ) -> anyhow::Result<Screen<T>> {
-        // Change working directory
-        std::env::set_current_dir(&working_directory.into() as &PathBuf)?;
-
         let (sender, receiver) = std::sync::mpsc::channel();
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let screen = Screen {
             context: Context::new(),
             buffers: Vec::new(),
             receiver,
-            lsp_manager: LspManager::new(sender.clone()),
+            lsp_manager: LspManager::new(sender.clone(), working_directory),
             sender,
             diagnostics: HashMap::new(),
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),

@@ -2,7 +2,7 @@
 source: src/integration_test.rs
 expression: frontend.lock().unwrap().content()
 ---
-src/main.rs [INSERT]                    │Completion [NORMAL:LINE]               
+tests/mock_repos/rust1/src/main.rs [INSE│Completion [NORMAL:LINE]               
 fn main() {                            │[1] ops                               
 std::op                                │[2] option                            
     println!("Hello, world!");         │[3] option_env!                        

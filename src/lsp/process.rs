@@ -120,8 +120,9 @@ impl LspServerProcessChannel {
     pub fn new(
         language: Language,
         screen_message_sender: Sender<ScreenMessage>,
+        current_working_directory: CanonicalizedPath,
     ) -> Result<Option<LspServerProcessChannel>, anyhow::Error> {
-        LspServerProcess::start(language, screen_message_sender)
+        LspServerProcess::start(language, screen_message_sender, current_working_directory)
     }
 
     pub fn request_hover(&self, params: RequestParams) -> Result<(), anyhow::Error> {
@@ -250,6 +251,7 @@ impl LspServerProcess {
     fn start(
         language: Language,
         screen_message_sender: Sender<ScreenMessage>,
+        current_working_directory: CanonicalizedPath,
     ) -> anyhow::Result<Option<LspServerProcessChannel>> {
         let process_command = match language.lsp_process_command() {
             Some(result) => result,
@@ -276,7 +278,7 @@ impl LspServerProcess {
             language: language.clone(),
             stdin,
             stdout: Some(stdout),
-            current_working_directory: std::env::current_dir()?.try_into()?,
+            current_working_directory,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
             server_capabilities: None,

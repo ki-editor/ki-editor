@@ -231,8 +231,6 @@ pub struct Selection {
 }
 impl Selection {
     pub fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
-        // TODO(bug): when SelectionMode is Line and CursorDirection is End,
-        // the cursor will be one line below the current selected line
         match cursor_direction {
             CursorDirection::Start => self.range.start,
             CursorDirection::End => (self.range.end - 1).max(self.range.start),
@@ -332,11 +330,12 @@ impl Selection {
                 let line_start = buffer.line_to_char(current_line);
                 let current_line = buffer.get_line(line_start);
 
-                let line_end = line_start
-                    + Rope::from_str(current_line.to_string().trim_end_matches('\n')).len_chars();
+                let line_end = line_start + current_line.len_chars();
+
+                let range = line_start..line_end;
 
                 Selection {
-                    range: line_start..line_end,
+                    range,
                     copied_text,
                     initial_range,
                 }

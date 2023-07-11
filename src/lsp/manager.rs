@@ -12,6 +12,7 @@ use super::process::LspServerProcessChannel;
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
     sender: Sender<ScreenMessage>,
+    current_working_directory: CanonicalizedPath,
 }
 
 impl Drop for LspManager {
@@ -25,10 +26,14 @@ impl Drop for LspManager {
 }
 
 impl LspManager {
-    pub fn new(clone: Sender<ScreenMessage>) -> LspManager {
+    pub fn new(
+        clone: Sender<ScreenMessage>,
+        current_working_directory: CanonicalizedPath,
+    ) -> LspManager {
         LspManager {
             lsp_server_process_channels: HashMap::new(),
             sender: clone,
+            current_working_directory,
         }
     }
 
@@ -126,14 +131,17 @@ impl LspManager {
                         Ok(())
                     }
                 } else {
-                    LspServerProcessChannel::new(language.clone(), self.sender.clone()).map(
-                        |channel| {
-                            if let Some(channel) = channel {
-                                self.lsp_server_process_channels
-                                    .insert(language.id(), channel);
-                            }
-                        },
+                    LspServerProcessChannel::new(
+                        language.clone(),
+                        self.sender.clone(),
+                        self.current_working_directory.clone(),
                     )
+                    .map(|channel| {
+                        if let Some(channel) = channel {
+                            self.lsp_server_process_channels
+                                .insert(language.id(), channel);
+                        }
+                    })
                 }
             })
             .unwrap_or_else(|| Ok(()))

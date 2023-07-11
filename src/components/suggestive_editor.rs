@@ -553,17 +553,17 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    fn filter_with_current_line() {
+    fn filter_with_current_line() -> anyhow::Result<()> {
         let mut editor = editor(SuggestiveEditorFilter::CurrentLine);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor.handle_events(keys!("i"))?;
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
 
         // Type in 'pa'
-        editor.handle_events(keys!("p a")).unwrap();
+        editor.handle_events(keys!("p a"))?;
 
         // Expect the completion dropdown to be open,
         // and the dropdown items to be filtered
@@ -571,7 +571,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
 
         // Type in space, then 's'
-        editor.handle_events(keys!("space s")).unwrap();
+        editor.handle_events(keys!("space s"))?;
 
         // Expect the completion dropdown to be hidden,
         // and the dropdown items to be filtered by the current line, 'pa s'
@@ -579,7 +579,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
 
         // Type in enter
-        editor.handle_events(keys!("enter")).unwrap();
+        editor.handle_events(keys!("enter"))?;
 
         // Expect a new line is added
         assert_eq!(editor.editor().text(), "pa s\n");
@@ -597,7 +597,7 @@ mod test_suggestive_editor {
         );
 
         // Enter a next line
-        editor.handle_events(keys!("esc enter h e l l o")).unwrap();
+        editor.handle_events(keys!("esc enter h e l l o"))?;
 
         // Expect the content to be updated
         assert_eq!(editor.editor().text(), "pa s\n\nhello");
@@ -606,13 +606,13 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().current_line(), "hello");
 
         // Go to the previous line
-        editor.handle_events(keys!("esc L L i")).unwrap();
+        editor.handle_events(keys!("esc shift+L shift+L"))?;
 
         // Expect the current line is empty
         assert_eq!(editor.editor().current_line(), "");
 
         // Type in 's'
-        editor.handle_events(keys!("s")).unwrap();
+        editor.handle_events(keys!("shift+I s"))?;
 
         // Expect the current line is 's'
         assert_eq!(editor.editor().current_line(), "s");
@@ -626,6 +626,7 @@ mod test_suggestive_editor {
             editor.filtered_dropdown_items(),
             vec!["Spongebob", "Squidward"]
         );
+        Ok(())
     }
 
     #[test]

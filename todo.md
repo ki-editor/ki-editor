@@ -52,6 +52,7 @@
 - [x] perf: rendering is laggy when there's too many diagnostics
 - [x] feat(editor/diagnostics-movement): should work for overlapped ranges, A:0-3, B:1-3, C:4-5, starting from A, forward should go to B first before C
 - [x] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
+- [x] feat(editor/delete): allow edit even if there's no next sibling, in this case, collapse the selection
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -99,5 +100,4 @@
 - [] infinite loop when changing window
 - [] when cursor at last position, and after formatting the cursor is out of bound, should not crash
 - [] refactor: change all rope.x_to_y to rope.try_x_to_y to avoid crashing
-- [] feat(editor/delete): allow edit even if there's no next sibling, in this case, collapse the selection
 - [] feat: small g for going to locations of this file, G for locations to anywhere

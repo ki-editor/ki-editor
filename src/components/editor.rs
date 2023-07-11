@@ -13,7 +13,7 @@ use crossterm::{
     style::Color,
 };
 use event::KeyEvent;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use key_event_macro::key;
 use lsp_types::DiagnosticSeverity;
 use ropey::{Rope, RopeSlice};
@@ -620,7 +620,7 @@ impl Editor {
             .apply(selection_mode.clone(), |selection| {
                 get_final_selection(
                     &self.buffer.borrow(),
-                    &selection,
+                    selection,
                     &selection_mode,
                     &direction,
                 )
@@ -1221,6 +1221,9 @@ impl Editor {
     /// ## `get_actual_edit_transaction`
     /// Same as `get_trial_edit_transaction` but returns the actual edit transaction,
     /// which should not include any extra modifications such as white-space padding.
+    ///
+    /// # Returns
+    /// Returns a valid edit transaction if there is any, otherwise `Left(current_selection)`.
     fn get_valid_selection(
         &self,
         current_selection: &Selection,
@@ -1234,7 +1237,7 @@ impl Editor {
             /* current */ &Selection,
             /* next */ &Selection,
         ) -> EditTransaction,
-    ) -> EditTransaction {
+    ) -> Either<Selection, EditTransaction> {
         let current_selection = current_selection.clone();
 
         let buffer = self.buffer.borrow();
@@ -1248,18 +1251,20 @@ impl Editor {
             &self.cursor_direction,
         );
 
-        // println!("====================");
-        // println!("current_selection: {:?}", current_selection);
-        // println!("next_selection: {:?}", next_selection);
+        if next_selection.eq(&current_selection) {
+            return Either::Left(current_selection);
+        }
 
         loop {
             let edit_transaction = get_trial_edit_transaction(&current_selection, &next_selection);
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
-                new_buffer
-                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
-                    .unwrap();
+                if let Err(_) =
+                    new_buffer.apply_edit_transaction(&edit_transaction, self.selection_set.clone())
+                {
+                    continue;
+                }
                 new_buffer
             };
 
@@ -1272,11 +1277,13 @@ impl Editor {
                 || (!text_at_next_selection.to_string().trim().is_empty()
                     && !new_buffer.has_syntax_error_at(edit_transaction.range()))
             {
-                return get_actual_edit_transaction(&current_selection, &next_selection);
+                return Either::Right(get_actual_edit_transaction(
+                    &current_selection,
+                    &next_selection,
+                ));
             }
 
             // Get the next selection
-
             let new_selection = Selection::get_selection_(
                 &buffer,
                 &next_selection,
@@ -1286,7 +1293,7 @@ impl Editor {
             );
 
             if next_selection.eq(&new_selection) {
-                return EditTransaction::from_action_groups(vec![]);
+                return Either::Left(current_selection);
             }
 
             next_selection = new_selection;
@@ -1372,7 +1379,12 @@ impl Editor {
             )
         });
 
-        self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
+        self.apply_edit_transaction(EditTransaction::merge(
+            edit_transactions
+                .into_iter()
+                .filter_map(|transaction| transaction.map_right(Some).right_or(None))
+                .collect(),
+        ))
     }
 
     fn exchange(&mut self, direction: Direction) -> Vec<Dispatch> {
@@ -1458,7 +1470,8 @@ impl Editor {
         } else {
             self.selection_set.mode.clone()
         };
-        let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
+
+        let edit_transactions = self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
                 |current_selection: &Selection, other_selection: &Selection| {
                     let range = current_selection
@@ -1508,14 +1521,43 @@ impl Editor {
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
-        }));
+        });
+        let edit_transaction = EditTransaction::merge(
+            edit_transactions
+                .into_iter()
+                .map(|edit_transaction| match edit_transaction {
+                    Either::Right(edit_transaction) => {
+                        println!("edit_transaction: {:?}", edit_transaction);
+                        edit_transaction
+                    }
+
+                    // If no `edit_transaction` is returned, it means that the selection
+                    // does not has a next item in the given direction. In this case,
+                    // we should just delete the selection and collapse the cursor.
+                    Either::Left(selection) => {
+                        EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
+                            Action::Edit(Edit {
+                                start: selection.range.start,
+                                old: buffer.slice(&selection.range),
+                                new: Rope::from(""),
+                            }),
+                            Action::Select(Selection {
+                                range: selection.range.start..selection.range.start,
+                                copied_text: selection.copied_text.clone(),
+                                initial_range: selection.initial_range.clone(),
+                            }),
+                        ])])
+                    }
+                })
+                .collect(),
+        );
         self.apply_edit_transaction(edit_transaction)
     }
 
     /// Replace the parent node of the current node with the current node
     fn upend(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
-        let edit_transaction = EditTransaction::merge(self.selection_set.map(|selection| {
+        let edit_transactions = self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
                 |current_selection: &Selection, other_selection: &Selection| {
                     let range = current_selection
@@ -1565,7 +1607,13 @@ impl Editor {
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
-        }));
+        });
+        let edit_transaction = EditTransaction::merge(
+            edit_transactions
+                .into_iter()
+                .filter_map(|edit_transaction| edit_transaction.map_right(Some).right_or(None))
+                .collect(),
+        );
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -1815,33 +1863,30 @@ mod test_editor {
     #[test]
     fn select_line() {
         // Multiline source code
-        let mut editor = Editor::from_text(
-            language(),
-            "
-fn main() {
-
-    let x = 1;
-}
-"
-            .trim(),
-        );
+        let mut editor = Editor::from_text(language(), "\nfn main() {\n\n\nlet x = 1;\n}\n");
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec![""]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["    let x = 1;"]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["}"]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["}"]);
+        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;\n"]);
+        editor.select_line(Direction::Forward);
+        assert_eq!(editor.get_selected_texts(), vec!["}\n"]);
 
         editor.select_line(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec!["    let x = 1;"]);
+        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;\n"]);
         editor.select_line(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec![""]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
         editor.select_line(Direction::Backward);
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
+        editor.select_line(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
+        editor.select_line(Direction::Backward);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
     }
 
     #[test]
@@ -2084,40 +2129,48 @@ fn main() {
             ),
         ]);
 
-        fn show_info(info: String) -> Vec<Dispatch> {
-            vec![Dispatch::ShowInfo {
-                content: vec![info],
-            }]
+        fn assert_dispatch_contains(dispatches: Vec<Dispatch>, info: &str) {
+            let content = dispatches
+                .into_iter()
+                .find_map(|dispatch| match dispatch {
+                    Dispatch::ShowInfo { content } => Some(content),
+                    _ => None,
+                })
+                .unwrap();
+            assert!(content.join("\n").contains(info))
         }
 
         let dispatches = editor.select_diagnostic(Direction::Forward);
-        assert_eq!(dispatches, show_info("spongebob".to_string()));
+        assert_dispatch_contains(
+            dispatches,
+            "[UNKNOWN]\nspongebob\n\n[RELATED INFORMATION]\n",
+        );
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
         let dispatches = editor.select_diagnostic(Direction::Forward);
-        assert_eq!(dispatches, show_info("sandy".to_string()));
+        assert_dispatch_contains(dispatches, "sandy");
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
         let dispatches = editor.select_diagnostic(Direction::Forward);
-        assert_eq!(dispatches, show_info("patrick".to_string()));
+        assert_dispatch_contains(dispatches, "patrick");
         assert_eq!(editor.get_selected_texts(), vec!["n "]);
 
         let dispatches = editor.select_diagnostic(Direction::Forward);
-        assert_eq!(dispatches, show_info("squidward".to_string()));
+        assert_dispatch_contains(dispatches, "squidward");
         assert_eq!(editor.get_selected_texts(), vec![" m"]);
 
         let dispatches = editor.select_diagnostic(Direction::Forward);
-        assert_eq!(dispatches, show_info("squidward".to_string()));
+        assert_dispatch_contains(dispatches, "squidward");
         assert_eq!(editor.get_selected_texts(), vec![" m"]);
 
         let dispatches = editor.select_diagnostic(Direction::Backward);
-        assert_eq!(dispatches, show_info("patrick".to_string()));
+        assert_dispatch_contains(dispatches, "patrick");
 
         let dispatches = editor.select_diagnostic(Direction::Backward);
-        assert_eq!(dispatches, show_info("sandy".to_string()));
+        assert_dispatch_contains(dispatches, "sandy");
 
         let dispatches = editor.select_diagnostic(Direction::Backward);
-        assert_eq!(dispatches, show_info("spongebob".to_string()));
+        assert_dispatch_contains(dispatches, "spongebob");
     }
 
     #[test]
@@ -2654,7 +2707,7 @@ let y = S(b);
         );
 
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn f() {\n"]);
 
         editor.delete(Direction::Forward);
         assert_eq!(
@@ -2674,16 +2727,22 @@ let y = S(b);
 let y = S(b);
 }"
         );
-        assert_eq!(editor.get_selected_texts(), vec![""]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
 
         editor.select_line(Direction::Forward);
-        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
+        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);\n"]);
         editor.delete(Direction::Backward);
         assert_eq!(
             editor.text(),
             "
 }"
         );
+
+        editor.delete(Direction::Forward);
+        assert_eq!(editor.text(), "}");
+
+        editor.delete(Direction::Forward);
+        assert_eq!(editor.text(), "");
     }
 
     #[test]
@@ -2869,7 +2928,7 @@ let y = S(b);
 
         editor.select_line(Direction::Forward);
 
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn\n"]);
 
         editor.select_final(Direction::Forward);
 
@@ -2877,6 +2936,6 @@ let y = S(b);
 
         editor.select_final(Direction::Backward);
 
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn\n"]);
     }
 }

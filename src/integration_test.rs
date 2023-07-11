@@ -52,7 +52,10 @@ mod integration_test {
                 cloned_frontend.clone(),
                 CanonicalizedPath::try_from("./tests/mock_repos/rust1")?,
             )?;
-            screen.run(Some("src/main.rs".try_into()?), receiver)?;
+            screen.run(
+                Some("./tests/mock_repos/rust1/src/main.rs".try_into()?),
+                receiver,
+            )?;
             Ok(())
         });
 
