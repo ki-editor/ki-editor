@@ -114,7 +114,7 @@ impl<T: Frontend> Screen<T> {
 
         while let Ok(message) = self.receiver.recv() {
             let should_quit = match message {
-                ScreenMessage::Event(event) => self.handle_event(event).map(|_| false),
+                ScreenMessage::Event(event) => self.handle_event(event),
                 ScreenMessage::LspNotification(notification) => {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
