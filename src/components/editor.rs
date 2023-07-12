@@ -1526,10 +1526,7 @@ impl Editor {
             edit_transactions
                 .into_iter()
                 .map(|edit_transaction| match edit_transaction {
-                    Either::Right(edit_transaction) => {
-                        println!("edit_transaction: {:?}", edit_transaction);
-                        edit_transaction
-                    }
+                    Either::Right(edit_transaction) => edit_transaction,
 
                     // If no `edit_transaction` is returned, it means that the selection
                     // does not has a next item in the given direction. In this case,
