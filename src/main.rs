@@ -56,7 +56,7 @@ fn run() -> anyhow::Result<()> {
     )?;
 
     let (sender, receiver) = std::sync::mpsc::channel();
-    std::thread::spawn(move || loop {
+    let join_handle = std::thread::spawn(move || loop {
         crossterm::event::read()
             .map_err(|error| anyhow::anyhow!("{:?}", error))
             .and_then(|event| {
@@ -71,6 +71,8 @@ fn run() -> anyhow::Result<()> {
     screen
         .run(path, receiver)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
+
+    join_handle.join().unwrap();
 
     println!("Goodbye!");
 

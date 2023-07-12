@@ -212,21 +212,24 @@ impl<T: Frontend> Screen<T> {
                     .map(|focused_component_id| component.id() == focused_component_id)
                     .unwrap_or(false)
                 {
-                    let cursor_position = component.get_cursor_position();
-                    let scroll_offset = component.scroll_offset();
+                    if let Ok(cursor_position) = component.get_cursor_position() {
+                        let scroll_offset = component.scroll_offset();
 
-                    // If cursor position is not in view
-                    if cursor_position.line < scroll_offset as usize
-                        || cursor_position.line
-                            >= (scroll_offset + rectangle.dimension().height) as usize
-                    {
-                        None
+                        // If cursor position is not in view
+                        if cursor_position.line < scroll_offset as usize
+                            || cursor_position.line
+                                >= (scroll_offset + rectangle.dimension().height) as usize
+                        {
+                            None
+                        } else {
+                            Some(Position::new(
+                                (cursor_position.line + rectangle.origin.line)
+                                    .saturating_sub(scroll_offset as usize),
+                                cursor_position.column + rectangle.origin.column,
+                            ))
+                        }
                     } else {
-                        Some(Position::new(
-                            (cursor_position.line + rectangle.origin.line)
-                                .saturating_sub(scroll_offset as usize),
-                            cursor_position.column + rectangle.origin.column,
-                        ))
+                        None
                     }
                 } else {
                     None
@@ -697,7 +700,7 @@ impl<T: Frontend> Screen<T> {
         component
             .borrow_mut()
             .editor_mut()
-            .set_selection(location.range.clone());
+            .set_selection(location.range.clone())?;
         Ok(())
     }
 

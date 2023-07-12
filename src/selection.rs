@@ -1,4 +1,6 @@
-use std::ops::{Add, Range, Sub};
+use std::{
+    ops::{Add, Range, Sub},
+};
 
 use regex::Regex;
 use ropey::Rope;
@@ -46,15 +48,19 @@ impl SelectionSet {
         self.primary.initial_range = None;
     }
 
-    pub fn apply<F>(&self, mode: SelectionMode, f: F) -> SelectionSet
+    pub fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
     where
-        F: Fn(&Selection) -> Selection,
+        F: Fn(&Selection) -> anyhow::Result<Selection>,
     {
-        SelectionSet {
-            primary: f(&self.primary),
-            secondary: self.secondary.iter().map(f).collect(),
+        Ok(SelectionSet {
+            primary: f(&self.primary)?,
+            secondary: self
+                .secondary
+                .iter()
+                .map(f)
+                .collect::<anyhow::Result<Vec<_>>>()?,
             mode,
-        }
+        })
     }
 
     pub fn move_left(&mut self, cursor_direction: &CursorDirection) {
@@ -103,7 +109,11 @@ impl SelectionSet {
         }
     }
 
-    pub fn select_kids(&self, buffer: &Buffer, cursor_direction: &CursorDirection) -> SelectionSet {
+    pub fn select_kids(
+        &self,
+        buffer: &Buffer,
+        cursor_direction: &CursorDirection,
+    ) -> anyhow::Result<SelectionSet> {
         fn select_kids(
             selection: &Selection,
             buffer: &Buffer,
@@ -130,7 +140,7 @@ impl SelectionSet {
             selection.clone()
         }
         self.apply(SelectionMode::Custom, |selection| {
-            select_kids(selection, buffer, cursor_direction)
+            Ok(select_kids(selection, buffer, cursor_direction))
         })
     }
 
@@ -140,13 +150,17 @@ impl SelectionSet {
         mode: &SelectionMode,
         direction: &Direction,
         cursor_direction: &CursorDirection,
-    ) -> SelectionSet {
+    ) -> anyhow::Result<SelectionSet> {
         self.apply(mode.clone(), |selection| {
             Selection::get_selection_(buffer, selection, mode, direction, cursor_direction)
         })
     }
 
-    pub fn add_selection(&mut self, buffer: &Buffer, cursor_direction: &CursorDirection) {
+    pub fn add_selection(
+        &mut self,
+        buffer: &Buffer,
+        cursor_direction: &CursorDirection,
+    ) -> anyhow::Result<()> {
         let mode = if self.mode.is_node() {
             SelectionMode::SiblingNode
         } else {
@@ -159,19 +173,26 @@ impl SelectionSet {
             &mode,
             &Direction::Forward,
             cursor_direction,
-        );
+        )?;
 
         if next_selection.range == last_selection.range {
-            return;
+            return Ok(());
         }
 
         let previous_primary = std::mem::replace(&mut self.primary, next_selection);
 
         self.secondary.push(previous_primary);
+        Ok(())
     }
 
     pub fn toggle_highlight_mode(&mut self) {
         self.apply_mut(|selection| selection.toggle_highlight_mode());
+    }
+
+    pub fn clamp(&self, max_char_index: CharIndex) -> anyhow::Result<SelectionSet> {
+        self.apply(self.mode.clone(), |selection| {
+            Ok(selection.clamp(max_char_index))
+        })
     }
 }
 
@@ -267,7 +288,7 @@ impl Selection {
         mode: &SelectionMode,
         direction: &Direction,
         cursor_direction: &CursorDirection,
-    ) -> Selection {
+    ) -> anyhow::Result<Selection> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
         let cursor_char_index = {
             let index = current_selection.to_char_index(cursor_direction);
@@ -278,7 +299,7 @@ impl Selection {
             }
         };
         let initial_range = current_selection.initial_range.clone();
-        let cursor_byte = buffer.char_to_byte(cursor_char_index);
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
         let copied_text = current_selection.copied_text.clone();
 
         let Range {
@@ -286,8 +307,8 @@ impl Selection {
             end: _,
         } = current_selection.extended_range();
         match mode {
-            SelectionMode::NamedNode => match direction {
-                Direction::Current => Some(buffer.get_current_node(current_selection)),
+            SelectionMode::NamedNode => Ok(match direction {
+                Direction::Current => Some(buffer.get_current_node(current_selection)?),
                 Direction::Forward => buffer
                     .traverse(Order::Pre)
                     .find(|node| node.start_byte() > current_selection_start.0 && node.is_named()),
@@ -308,37 +329,39 @@ impl Selection {
                 }
             }
             .map(|node| node_to_selection(node, buffer, copied_text, initial_range))
-            .unwrap_or_else(|| current_selection.clone()),
+            .unwrap_or_else(|| Ok(current_selection.clone()))?),
 
             SelectionMode::Line => {
-                let current_line = buffer.char_to_line(cursor_char_index);
+                let current_line = buffer
+                    .char_to_line(cursor_char_index)
+                    .unwrap_or_else(|_| buffer.len_lines().saturating_sub(1));
                 let current_line = match direction {
                     Direction::Forward => {
                         if current_line == buffer.len_lines() - 1 {
-                            return current_selection.clone();
+                            return Ok(current_selection.clone());
                         }
                         current_line + 1
                     }
                     Direction::Backward => {
                         if current_line == 0 {
-                            return current_selection.clone();
+                            return Ok(current_selection.clone());
                         }
                         current_line - 1
                     }
                     Direction::Current => current_line,
                 };
-                let line_start = buffer.line_to_char(current_line);
-                let current_line = buffer.get_line(line_start);
+                let line_start = buffer.line_to_char(current_line)?;
+                let current_line = buffer.get_line(line_start)?;
 
                 let line_end = line_start + current_line.len_chars();
 
                 let range = line_start..line_end;
 
-                Selection {
+                Ok(Selection {
                     range,
                     copied_text,
                     initial_range,
-                }
+                })
             }
             SelectionMode::Word => get_selection_via_regex(
                 buffer,
@@ -375,7 +398,7 @@ impl Selection {
                 // )
             }
             SelectionMode::ParentNode => {
-                let current_node = buffer.get_current_node(current_selection);
+                let current_node = buffer.get_current_node(current_selection)?;
 
                 fn get_node(node: Node, direction: Direction) -> Option<Node> {
                     match direction {
@@ -411,14 +434,14 @@ impl Selection {
             }
 
             SelectionMode::SiblingNode => {
-                let current_node = buffer.get_current_node(current_selection);
+                let current_node = buffer.get_current_node(current_selection)?;
                 let next_node = match direction {
                     Direction::Current => Some(current_node),
                     Direction::Forward => buffer
-                        .get_current_node(current_selection)
+                        .get_current_node(current_selection)?
                         .next_named_sibling(),
                     Direction::Backward => buffer
-                        .get_current_node(current_selection)
+                        .get_current_node(current_selection)?
                         .prev_named_sibling(),
                 }
                 .unwrap_or(current_node);
@@ -432,15 +455,16 @@ impl Selection {
                     }
                     Direction::Current => buffer.get_next_token(cursor_char_index, false),
                 }
-                .unwrap_or_else(|| buffer.get_current_node(current_selection));
+                .map(Ok)
+                .unwrap_or_else(|| buffer.get_current_node(current_selection))?;
                 node_to_selection(selection, buffer, copied_text, initial_range)
             }
-            SelectionMode::Custom => Selection {
+            SelectionMode::Custom => Ok(Selection {
                 range: cursor_char_index..cursor_char_index,
                 copied_text,
                 initial_range: current_selection.initial_range.clone(),
-            },
-            SelectionMode::Diagnostic => {
+            }),
+            SelectionMode::Diagnostic => Ok(
                 if let Some(range) = buffer.get_diagnostic(&current_selection.range, direction) {
                     Selection {
                         range,
@@ -449,8 +473,8 @@ impl Selection {
                     }
                 } else {
                     current_selection.clone()
-                }
-            }
+                },
+            ),
         }
     }
 
@@ -463,6 +487,16 @@ impl Selection {
             Some(initial_range) => {
                 self.initial_range = Some(std::mem::replace(&mut self.range, initial_range));
             }
+        }
+    }
+
+    fn clamp(&self, max_char_index: CharIndex) -> Self {
+        let range = self.range.start.min(max_char_index)..self.range.end.min(max_char_index);
+        log::info!("Clamped range: {:?}", range);
+        Selection {
+            range,
+            copied_text: self.copied_text.clone(),
+            initial_range: self.initial_range.clone(),
         }
     }
 }
@@ -510,10 +544,10 @@ fn get_selection_via_regex(
     direction: &Direction,
     current_selection: &Selection,
     copied_text: Option<Rope>,
-) -> Selection {
+) -> anyhow::Result<Selection> {
     let regex = Regex::new(regex);
     let regex = match regex {
-        Err(_) => return current_selection.clone(),
+        Err(_) => return Ok(current_selection.clone()),
         Ok(regex) => regex,
     };
     let string = buffer.rope().to_string();
@@ -529,12 +563,12 @@ fn get_selection_via_regex(
     };
 
     match matches {
-        None => current_selection.clone(),
-        Some(matches) => Selection {
-            range: buffer.byte_to_char(matches.start())..buffer.byte_to_char(matches.end()),
+        None => Ok(current_selection.clone()),
+        Some(matches) => Ok(Selection {
+            range: buffer.byte_to_char(matches.start())?..buffer.byte_to_char(matches.end())?,
             copied_text,
             initial_range: current_selection.initial_range.clone(),
-        },
+        }),
     }
 }
 

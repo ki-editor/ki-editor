@@ -56,3 +56,5 @@ lazy_static = "1.4.0"
 tempfile = "3.6.0"
 pretty_assertions = "1.3.0"
 insta = { version = "1.29.0", features = [] }
+fs_extra = "1.3.0"
+rand = "0.8.5"

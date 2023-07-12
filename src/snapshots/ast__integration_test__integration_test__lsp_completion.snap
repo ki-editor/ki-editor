@@ -1,14 +1,14 @@
 ---
 source: src/integration_test.rs
-expression: frontend.lock().unwrap().content()
+expression: test_runner.content()
 ---
-tests/mock_repos/rust1/src/main.rs [INSE│Completion [NORMAL:LINE]               
-fn main() {                            │[1] ops                               
-std::op                                │[2] option                            
-    println!("Hello, world!");         │[3] option_env!                        
-}                                      │                                       
-                                        │                                       
-                                        │                                       
+<Untitled> [INSERT]                     │Completion [NORMAL:LINE]               
+fn main() {                            │[1] option_env!                       
+std::op                                │[2] Copy                              
+    println!("Hello, world!");         │[3] Drop                              
+}                                      │[4] Option                            
+                                        │[5] drop                              
+                                        │[6] loop                               
                                         │                                       
                                         │                                       
                                         │                                       
@@ -16,13 +16,13 @@ std::op                                │[2] option
                                         │                                       
                                         │───────────────────────────────────────
                                         │ [NORMAL:CUSTOM]                       
-                                        │Overloadable operators.               
+                                        │Optionally inspects an environment vari
                                         │                                      
-                                        │Implementing these traits allows you to
+                                        │If the named environment variable is pr
+                                        │expand into an expression of type `Opti
+                                        │`Some` of the value of the environment 
+                                        │variable is not present, then this will
+                                        │[`Option<T>`][Option] for more informat
+                                        │[`std::env::var`] instead if you want t
                                         │                                      
-                                        │Some of these traits are imported by th
-                                        │every Rust program. Only operators back
-                                        │example, the addition operator (`+`) ca
-                                        │trait, but since the assignment operato
-                                        │is no way of overloading its semantics.
-                                        │provide any mechanism to create new ope
+                                        │[`std::env::var`]: ../std/env/fn.var.ht

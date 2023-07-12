@@ -64,7 +64,7 @@ pub trait Component: Any + AnyComponent {
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>>;
 
-    fn get_cursor_position(&self) -> Position {
+    fn get_cursor_position(&self) -> anyhow::Result<Position> {
         self.editor().get_cursor_position()
     }
 

@@ -7,7 +7,9 @@ impl TryFrom<PathBuf> for CanonicalizedPath {
     type Error = anyhow::Error;
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
-        Ok(Self(value.canonicalize()?))
+        Ok(Self(value.canonicalize().map_err(|error| {
+            anyhow::anyhow!("Cannot canonicalize path: {:?}. Error: {:?}", value, error)
+        })?))
     }
 }
 
@@ -55,5 +57,14 @@ impl CanonicalizedPath {
 
     pub fn display(&self) -> String {
         self.0.display().to_string()
+    }
+
+    pub fn join(&self, other_path: &str) -> anyhow::Result<CanonicalizedPath> {
+        let CanonicalizedPath(path) = self.clone();
+        path.join(other_path).try_into()
+    }
+
+    pub fn remove_dir_all(&self) -> anyhow::Result<()> {
+        Ok(std::fs::remove_dir_all(&self.0)?)
     }
 }

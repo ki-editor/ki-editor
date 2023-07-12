@@ -86,7 +86,7 @@ impl Component for SuggestiveEditor {
                 key!("enter") => {
                     if let Some(completion) = self.dropdown.borrow_mut().current_item() {
                         let dispatches = match completion.edit {
-                            None => self.editor.replace_previous_word(&completion.label()),
+                            None => self.editor.replace_previous_word(&completion.label())?,
                             Some(edit) => match edit {
                                 CompletionItemEdit::PositionalEdit(edit) => {
                                     self.editor.apply_positional_edit(edit)
@@ -154,7 +154,7 @@ impl Component for SuggestiveEditor {
             SuggestiveEditorFilter::CurrentWord => {
                 // We need to subtract 1 because we need to get the character
                 // before the cursor, not the character at the cursor
-                let cursor_position = self.editor().get_cursor_position().sub_column(1);
+                let cursor_position = self.editor().get_cursor_position()?.sub_column(1);
 
                 match self.editor().buffer().get_char_at_position(cursor_position) {
                     // The filter should be empty if the current character is a trigger
@@ -167,10 +167,10 @@ impl Component for SuggestiveEditor {
 
                     // If the current character is not a trigger character, we should
                     // filter based on the current word under the cursor.
-                    _ => self.editor.get_current_word(),
+                    _ => self.editor.get_current_word()?,
                 }
             }
-            SuggestiveEditorFilter::CurrentLine => self.editor().current_line(),
+            SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
         };
 
         self.dropdown.borrow_mut().set_filter(&filter);
@@ -585,7 +585,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().text(), "pa s\n");
 
         // Expect the current line is empty
-        assert_eq!(editor.editor().current_line(), "");
+        assert_eq!(editor.editor().current_line()?, "");
 
         // Expect the completion dropdown to be open,
         // and all dropdown items to be shown,
@@ -603,19 +603,19 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().text(), "pa s\n\nhello");
 
         // Expect the current line is 'hello'
-        assert_eq!(editor.editor().current_line(), "hello");
+        assert_eq!(editor.editor().current_line()?, "hello");
 
         // Go to the previous line
         editor.handle_events(keys!("esc shift+L shift+L"))?;
 
         // Expect the current line is empty
-        assert_eq!(editor.editor().current_line(), "");
+        assert_eq!(editor.editor().current_line()?, "");
 
         // Type in 's'
         editor.handle_events(keys!("shift+I s"))?;
 
         // Expect the current line is 's'
-        assert_eq!(editor.editor().current_line(), "s");
+        assert_eq!(editor.editor().current_line()?, "s");
 
         assert_eq!(editor.editor().text(), "pa s\ns\nhello",);
 

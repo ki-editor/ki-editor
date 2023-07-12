@@ -105,17 +105,14 @@ impl Component for Editor {
 
         let secondary_selections = &editor.selection_set.secondary;
 
-        let diagnostics = diagnostics
-            .iter()
-            // Remove diagnostics that are out of bound
-            .filter(|diagnostic| buffer.contains_position_range(&diagnostic.range))
-            .map(|diagnostic| {
-                let start = buffer.position_to_char(diagnostic.range.start);
-                let end = buffer.position_to_char(diagnostic.range.end);
-                let end = if start == end { end + 1 } else { end };
-                let char_index_range = start..end;
-                (diagnostic, char_index_range)
-            });
+        let diagnostics = diagnostics.iter().filter_map(|diagnostic| {
+            // We use `.ok()` to ignore diagnostics that are outside the buffer's range.
+            let start = buffer.position_to_char(diagnostic.range.start).ok()?;
+            let end = buffer.position_to_char(diagnostic.range.end).ok()?;
+            let end = if start == end { end + 1 } else { end };
+            let char_index_range = start..end;
+            Some((diagnostic, char_index_range))
+        });
 
         for (line_index, line) in lines {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
@@ -133,31 +130,41 @@ impl Component for Editor {
             //
             // Jumps
             //
-            .chain(editor.jumps().into_iter().enumerate().map(|(index, jump)| {
-                let position = buffer.char_to_position(match editor.cursor_direction {
-                    CursorDirection::Start => jump.selection.range.start,
-                    CursorDirection::End => jump.selection.range.start,
-                });
+            .chain(
+                editor
+                    .jumps()
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(index, jump)| {
+                        let position = buffer
+                            .char_to_position(match editor.cursor_direction {
+                                CursorDirection::Start => jump.selection.range.start,
+                                CursorDirection::End => jump.selection.range.start,
+                            })
+                            .ok()?;
 
-                // Background color: Odd index red, even index blue
-                let background_color = if index % 2 == 0 {
-                    Color::Red
-                } else {
-                    Color::Blue
-                };
+                        // Background color: Odd index red, even index blue
+                        let background_color = if index % 2 == 0 {
+                            Color::Red
+                        } else {
+                            Color::Blue
+                        };
 
-                CellUpdate::new(position)
-                    .background_color(background_color)
-                    .foreground_color(Color::White)
-                    .symbol(jump.character.to_string())
-            }))
+                        Some(
+                            CellUpdate::new(position)
+                                .background_color(background_color)
+                                .foreground_color(Color::White)
+                                .symbol(jump.character.to_string()),
+                        )
+                    }),
+            )
             //
             // Diagnostics
             //
             .chain(diagnostics.into_iter().flat_map(|(diagnostic, range)| {
-                range.to_usize_range().map(|char_index| {
+                range.to_usize_range().filter_map(|char_index| {
                     let char_index = CharIndex(char_index);
-                    let position = buffer.char_to_position(char_index);
+                    let position = buffer.char_to_position(char_index).ok()?;
 
                     let undercurl_color = match diagnostic.severity {
                         Some(severity) => match severity {
@@ -169,7 +176,7 @@ impl Component for Editor {
                         },
                         None => Color::White,
                     };
-                    CellUpdate::new(position).undercurl(Some(undercurl_color))
+                    Some(CellUpdate::new(position).undercurl(Some(undercurl_color)))
                 })
             }))
             .chain(
@@ -178,10 +185,17 @@ impl Component for Editor {
                     .highlighted_spans()
                     .iter()
                     .flat_map(|highlighted_span| {
-                        highlighted_span.range.to_usize_range().map(|char_index| {
-                            CellUpdate::new(buffer.char_to_position(CharIndex(char_index)))
-                                .style(highlighted_span.style)
-                        })
+                        highlighted_span
+                            .range
+                            .to_usize_range()
+                            .filter_map(|char_index| {
+                                Some(
+                                    CellUpdate::new(
+                                        buffer.char_to_position(CharIndex(char_index)).ok()?,
+                                    )
+                                    .style(highlighted_span.style),
+                                )
+                            })
                     }),
             )
             .chain(
@@ -189,20 +203,20 @@ impl Component for Editor {
                 selection
                     .extended_range()
                     .to_usize_range()
-                    .map(|char_index| {
-                        CellUpdate::new(buffer.char_to_position(CharIndex(char_index)))
-                            .background_color(Color::Yellow)
+                    .filter_map(|char_index| {
+                        Some(
+                            CellUpdate::new(buffer.char_to_position(CharIndex(char_index)).ok()?)
+                                .background_color(Color::Yellow),
+                        )
                     }),
             )
             .chain(
                 // Primary selection secondary cursor
-                Some(
-                    CellUpdate::new(buffer.char_to_position(
-                        selection.to_char_index(&editor.cursor_direction.reverse()),
-                    ))
-                    .background_color(Color::DarkGrey)
-                    .foreground_color(Color::White),
-                ),
+                buffer
+                    .char_to_position(selection.to_char_index(&editor.cursor_direction.reverse()))
+                    .ok().map(|position| CellUpdate::new(position)
+                                .background_color(Color::DarkGrey)
+                                .foreground_color(Color::White)),
             )
             .chain(
                 // Secondary selection
@@ -210,30 +224,53 @@ impl Component for Editor {
                     secondary_selection
                         .range
                         .to_usize_range()
-                        .map(|char_index| {
+                        .filter_map(|char_index| {
                             let char_index = CharIndex(char_index);
-                            let position = buffer.char_to_position(char_index);
+                            let position = buffer.char_to_position(char_index).ok()?;
 
-                            CellUpdate::new(position).background_color(Color::DarkYellow)
+                            Some(CellUpdate::new(position).background_color(Color::DarkYellow))
                         })
                 }),
             )
             .chain(
                 // Secondary selection cursors
-                secondary_selections.iter().flat_map(|secondary_selection| {
-                    vec![
-                        CellUpdate::new(buffer.char_to_position(
-                            secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
-                        ))
-                        .background_color(Color::Black)
-                        .foreground_color(Color::White),
-                        CellUpdate::new(buffer.char_to_position(
-                            secondary_selection.to_char_index(&editor.cursor_direction),
-                        ))
-                        .background_color(Color::DarkGrey)
-                        .foreground_color(Color::White),
-                    ]
-                }),
+                secondary_selections
+                    .iter()
+                    .filter_map(|secondary_selection| {
+                        Some(
+                            vec![
+                                Some(
+                                    CellUpdate::new(
+                                        buffer
+                                            .char_to_position(
+                                                secondary_selection.to_char_index(
+                                                    &editor.cursor_direction.reverse(),
+                                                ),
+                                            )
+                                            .ok()?,
+                                    )
+                                    .background_color(Color::Black)
+                                    .foreground_color(Color::White),
+                                ),
+                                Some(
+                                    CellUpdate::new(
+                                        buffer
+                                            .char_to_position(
+                                                secondary_selection
+                                                    .to_char_index(&editor.cursor_direction),
+                                            )
+                                            .ok()?,
+                                    )
+                                    .background_color(Color::DarkGrey)
+                                    .foreground_color(Color::White),
+                                ),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>(),
+                        )
+                    })
+                    .flatten(),
             )
             .filter_map(|update| update.subtract_vertical_offset(scroll_offset.into()))
             .collect::<Vec<_>>();
@@ -245,7 +282,7 @@ impl Component for Editor {
         Ok(self.insert(&content))
     }
 
-    fn get_cursor_position(&self) -> Position {
+    fn get_cursor_position(&self) -> anyhow::Result<Position> {
         self.buffer
             .borrow()
             .char_to_position(self.get_cursor_char_index())
@@ -409,17 +446,18 @@ impl Editor {
         }
     }
 
-    pub fn current_line(&self) -> String {
+    pub fn current_line(&self) -> anyhow::Result<String> {
         let cursor = self.get_cursor_char_index();
-        self.buffer
+        Ok(self
+            .buffer
             .borrow()
-            .get_line(cursor)
+            .get_line(cursor)?
             .to_string()
             .trim()
-            .into()
+            .into())
     }
 
-    pub fn get_current_word(&self) -> String {
+    pub fn get_current_word(&self) -> anyhow::Result<String> {
         let cursor = self.get_cursor_char_index();
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
@@ -428,12 +466,13 @@ impl Editor {
         self.select(SelectionMode::ParentNode, direction);
     }
 
-    fn select_kids(&mut self) {
+    fn select_kids(&mut self) -> anyhow::Result<()> {
         let buffer = self.buffer.borrow().clone();
         self.update_selection_set(
             self.selection_set
-                .select_kids(&buffer, &self.cursor_direction),
+                .select_kids(&buffer, &self.cursor_direction)?,
         );
+        Ok(())
     }
 
     fn select_sibling(&mut self, direction: Direction) {
@@ -444,11 +483,11 @@ impl Editor {
         self.select(SelectionMode::Line, direction);
     }
 
-    pub fn select_line_at(&mut self, line: usize) {
-        let start = self.buffer.borrow().line_to_char(line);
+    pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<()> {
+        let start = self.buffer.borrow().line_to_char(line)?;
         let selection_set = SelectionSet {
             primary: Selection {
-                range: start..start + self.buffer.borrow().get_line(start).len_chars(),
+                range: start..start + self.buffer.borrow().get_line(start)?.len_chars(),
                 copied_text: None,
                 initial_range: None,
             },
@@ -456,6 +495,7 @@ impl Editor {
             mode: SelectionMode::Line,
         };
         self.update_selection_set(selection_set);
+        Ok(())
     }
 
     pub fn select_match(&mut self, direction: Direction, search: &Option<String>) {
@@ -517,9 +557,9 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
-    pub fn set_selection(&mut self, range: Range<Position>) {
-        let range =
-            self.buffer().position_to_char(range.start)..self.buffer().position_to_char(range.end);
+    pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<()> {
+        let range = self.buffer().position_to_char(range.start)?
+            ..self.buffer().position_to_char(range.end)?;
 
         let mode = if self.buffer().given_range_is_node(&range) {
             SelectionMode::NamedNode
@@ -535,7 +575,8 @@ impl Editor {
             secondary: vec![],
             mode,
         };
-        self.update_selection_set(selection_set)
+        self.update_selection_set(selection_set);
+        Ok(())
     }
 
     fn cursor_row(&self) -> u16 {
@@ -569,7 +610,11 @@ impl Editor {
             .saturating_sub((self.rectangle.height.saturating_sub(2)) / 2);
     }
 
-    pub fn select(&mut self, selection_mode: SelectionMode, direction: Direction) {
+    pub fn select(
+        &mut self,
+        selection_mode: SelectionMode,
+        direction: Direction,
+    ) -> anyhow::Result<()> {
         //  There are a few selection modes where Current make sense.
         let direction = match selection_mode {
             SelectionMode::Line
@@ -584,12 +629,13 @@ impl Editor {
             }
             _ => direction,
         };
-        let selection = self.get_selection_set(&selection_mode, direction);
+        let selection = self.get_selection_set(&selection_mode, direction)?;
 
         self.update_selection_set(selection);
+        Ok(())
     }
 
-    fn select_final(&mut self, direction: Direction) {
+    fn select_final(&mut self, direction: Direction) -> anyhow::Result<()> {
         let selection_mode = if self.selection_set.mode.is_node() {
             SelectionMode::SiblingNode
         } else {
@@ -600,16 +646,16 @@ impl Editor {
             selection: &Selection,
             mode: &SelectionMode,
             direction: &Direction,
-        ) -> Selection {
+        ) -> anyhow::Result<Selection> {
             let next_selection = Selection::get_selection_(
                 buffer,
                 selection,
                 mode,
                 direction,
                 &CursorDirection::Start,
-            );
+            )?;
             if next_selection == *selection {
-                selection.clone()
+                Ok(selection.clone())
             } else {
                 get_final_selection(buffer, &next_selection, mode, direction)
             }
@@ -624,12 +670,17 @@ impl Editor {
                     &selection_mode,
                     &direction,
                 )
-            });
+            })?;
 
-        self.update_selection_set(selection_set)
+        self.update_selection_set(selection_set);
+        Ok(())
     }
 
-    fn jump_from_selection(&mut self, direction: Direction, selection: &Selection) {
+    fn jump_from_selection(
+        &mut self,
+        direction: Direction,
+        selection: &Selection,
+    ) -> anyhow::Result<()> {
         let mut current_selection = selection.clone();
         let mut jumps = Vec::new();
 
@@ -646,7 +697,7 @@ impl Editor {
                 &self.selection_set.mode,
                 &direction,
                 &self.cursor_direction,
-            );
+            )?;
 
             if next_selection != current_selection {
                 jumps.push(Jump {
@@ -659,6 +710,7 @@ impl Editor {
             }
         }
         self.mode = Mode::Jump { jumps };
+        Ok(())
     }
 
     fn jump(&mut self, direction: Direction) {
@@ -820,7 +872,11 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
-    fn get_selection_set(&self, mode: &SelectionMode, direction: Direction) -> SelectionSet {
+    fn get_selection_set(
+        &self,
+        mode: &SelectionMode,
+        direction: Direction,
+    ) -> anyhow::Result<SelectionSet> {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
@@ -888,7 +944,7 @@ impl Editor {
     ) -> anyhow::Result<Vec<Dispatch>> {
         match self.handle_universal_key(context, key_event)? {
             HandleEventResult::Ignored(key_event) => match &self.mode {
-                Mode::Normal => Ok(self.handle_normal_mode(context, key_event)),
+                Mode::Normal => self.handle_normal_mode(context, key_event),
                 Mode::Insert => Ok(self.handle_insert_mode(key_event)),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
@@ -1043,7 +1099,7 @@ impl Editor {
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
         let component_id = self.id();
-        let position = self.get_cursor_position();
+        let position = self.get_cursor_position().ok()?;
         self.path().map(|path| RequestParams {
             component_id,
             path,
@@ -1051,22 +1107,26 @@ impl Editor {
         })
     }
 
-    fn handle_normal_mode(&mut self, context: &mut Context, event: KeyEvent) -> Vec<Dispatch> {
+    fn handle_normal_mode(
+        &mut self,
+        context: &mut Context,
+        event: KeyEvent,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
             // Objects
-            key!("a") => self.add_selection(),
-            key!("shift+A") => self.add_selection(),
+            key!("a") => self.add_selection()?,
+            key!("shift+A") => self.add_selection()?,
             key!("b") => self.select_backward(),
             key!("c") => self.select_character(Direction::Forward),
             key!("shift+C") => self.select_character(Direction::Backward),
             key!("d") => {
-                return self.delete(Direction::Forward);
+                return Ok(self.delete(Direction::Forward));
             }
-            key!("shift+D") => return self.delete(Direction::Backward),
-            key!("e") => return self.select_diagnostic(Direction::Forward),
-            key!("shift+E") => return self.select_diagnostic(Direction::Backward),
-            key!("f") => self.select_final(Direction::Forward),
-            key!("shift+F") => self.select_final(Direction::Backward),
+            key!("shift+D") => return Ok(self.delete(Direction::Backward)),
+            key!("e") => return Ok(self.select_diagnostic(Direction::Forward)),
+            key!("shift+E") => return Ok(self.select_diagnostic(Direction::Backward)),
+            key!("f") => self.select_final(Direction::Forward)?,
+            key!("shift+F") => self.select_final(Direction::Backward)?,
             // f
             // TODO: f goes into file picker mode,
             // for example, pressing fg means select git tracked files
@@ -1074,9 +1134,9 @@ impl Editor {
             // fb means opened editor
             // F
             key!("g") => {
-                return vec![Dispatch::ShowKeymapLegend(
+                return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.g_mode_keymap_legend_config(),
-                )]
+                )])
             }
             key!("h") => self.toggle_highlight_mode(),
             // H
@@ -1085,7 +1145,7 @@ impl Editor {
             // I
             key!("j") => self.jump(Direction::Forward),
             key!("shift+J") => self.jump(Direction::Backward),
-            key!("k") => self.select_kids(),
+            key!("k") => self.select_kids()?,
             key!("l") => self.select_line(Direction::Forward),
             key!("shift+L") => self.select_line(Direction::Backward),
             key!("m") => self.select_match(Direction::Forward, &context.last_search()),
@@ -1093,33 +1153,39 @@ impl Editor {
             key!("n") => self.select_named_node(Direction::Forward),
             key!("shift+N") => self.select_named_node(Direction::Backward),
             key!("o") => {
-                return vec![Dispatch::ShowKeymapLegend(
+                return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.open_mode_keymap_legend_config(),
-                )]
+                )])
             }
             // O
             key!("p") => self.select_parent(Direction::Forward),
             key!("shift+P") => self.select_parent(Direction::Backward),
-            key!("q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Forward)],
-            key!("shift+Q") => return vec![Dispatch::GotoQuickfixListItem(Direction::Backward)],
-            key!("r") => return self.replace(),
+            key!("q") => return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Forward)]),
+            key!("shift+Q") => {
+                return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Backward)])
+            }
+            key!("r") => return Ok(self.replace()),
             key!("shift+R") => {
-                return self
+                return Ok(self
                     .get_request_params()
                     .map(|params| vec![Dispatch::PrepareRename(params)])
-                    .unwrap_or_default()
+                    .unwrap_or_default())
             }
             key!("s") => self.select_sibling(Direction::Forward),
             key!("shift+S") => self.select_sibling(Direction::Backward),
             key!("t") => self.select_token(Direction::Forward),
             key!("shift+T") => self.select_token(Direction::Backward),
-            key!("u") => return self.upend(Direction::Forward),
-            key!("v") => self.select_view(Direction::Forward),
-            key!("shift+V") => self.select_view(Direction::Backward),
-            key!("w") => self.select_word(Direction::Forward),
-            key!("shift+W") => self.select_word(Direction::Backward),
-            key!("x") => return self.exchange(Direction::Forward),
-            key!("shift+X") => return self.exchange(Direction::Backward),
+            key!("u") => return Ok(self.upend(Direction::Forward)),
+            key!("v") => {
+                self.select_view(Direction::Forward)?;
+            }
+            key!("shift+V") => {
+                self.select_view(Direction::Backward)?;
+            }
+            key!("w") => self.select_word(Direction::Forward)?,
+            key!("shift+W") => self.select_word(Direction::Backward)?,
+            key!("x") => return Ok(self.exchange(Direction::Forward)),
+            key!("shift+X") => return Ok(self.exchange(Direction::Backward)),
             // y
             key!("z") => self.align_cursor_to_center(),
             key!("shift+Z") => self.align_cursor_to_top(),
@@ -1127,31 +1193,31 @@ impl Editor {
             key!("backspace") => {
                 self.change();
             }
-            key!("enter") => return self.open_new_line(),
+            key!("enter") => return Ok(self.open_new_line()),
             key!(",") => {
-                return self
+                return Ok(self
                     .get_request_params()
                     .map(|params| vec![Dispatch::RequestCodeAction(params)])
-                    .unwrap_or_default()
+                    .unwrap_or_default())
             }
             key!("?") => {
                 self.editor_mut().set_mode(Mode::Normal);
-                return self.request_hover();
+                return Ok(self.request_hover());
             }
             key!("%") => self.change_cursor_direction(),
-            key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
-            key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
-            key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
-            key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
+            key!("(") | key!(")") => return Ok(self.enclose(Enclosure::RoundBracket)),
+            key!("[") | key!("]") => return Ok(self.enclose(Enclosure::SquareBracket)),
+            key!('{') | key!('}') => return Ok(self.enclose(Enclosure::CurlyBracket)),
+            key!('<') | key!('>') => return Ok(self.enclose(Enclosure::AngleBracket)),
 
             // TODO: - and = are temporarily assigned keys
-            key!('-') => return vec![Dispatch::GotoOpenedEditor(Direction::Backward)],
-            key!('=') => return vec![Dispatch::GotoOpenedEditor(Direction::Forward)],
+            key!('-') => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Backward)]),
+            key!('=') => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Forward)]),
             _ => {
                 log::info!("event: {:?}", event);
             }
         };
-        vec![]
+        Ok(vec![])
     }
 
     fn path(&self) -> Option<CanonicalizedPath> {
@@ -1159,16 +1225,13 @@ impl Editor {
     }
 
     fn request_hover(&self) -> Vec<Dispatch> {
-        match self.path() {
-            None => vec![],
-            Some(path) => {
-                vec![Dispatch::RequestHover(RequestParams {
-                    component_id: self.id(),
-                    path,
-                    position: self.get_cursor_position(),
-                })]
-            }
-        }
+        let Some(path) = self.path() else { return vec![] };
+        let Ok(position) = self.get_cursor_position() else { return vec![] };
+        vec![Dispatch::RequestHover(RequestParams {
+            component_id: self.id(),
+            path,
+            position,
+        })]
     }
 
     pub fn enter_insert_mode(&mut self, direction: CursorDirection) {
@@ -1197,8 +1260,8 @@ impl Editor {
     }
 
     // TODO: handle mouse click
-    pub fn set_cursor_position(&mut self, row: u16, column: u16) {
-        let start = (self.buffer.borrow().line_to_char(row as usize)) + column.into();
+    pub fn set_cursor_position(&mut self, row: u16, column: u16) -> anyhow::Result<()> {
+        let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
         self.update_selection_set(SelectionSet {
             mode: self.selection_set.mode.clone(),
             primary: Selection {
@@ -1207,7 +1270,8 @@ impl Editor {
                 initial_range: self.selection_set.primary.initial_range.clone(),
             },
             ..self.selection_set.clone()
-        })
+        });
+        Ok(())
     }
 
     /// Get the selection that will result in syntactically valid tree
@@ -1237,7 +1301,7 @@ impl Editor {
             /* current */ &Selection,
             /* next */ &Selection,
         ) -> EditTransaction,
-    ) -> Either<Selection, EditTransaction> {
+    ) -> anyhow::Result<Either<Selection, EditTransaction>> {
         let current_selection = current_selection.clone();
 
         let buffer = self.buffer.borrow();
@@ -1249,10 +1313,10 @@ impl Editor {
             selection_mode,
             direction,
             &self.cursor_direction,
-        );
+        )?;
 
         if next_selection.eq(&current_selection) {
-            return Either::Left(current_selection);
+            return Ok(Either::Left(current_selection));
         }
 
         loop {
@@ -1277,10 +1341,10 @@ impl Editor {
                 || (!text_at_next_selection.to_string().trim().is_empty()
                     && !new_buffer.has_syntax_error_at(edit_transaction.range()))
             {
-                return Either::Right(get_actual_edit_transaction(
+                return Ok(Either::Right(get_actual_edit_transaction(
                     &current_selection,
                     &next_selection,
-                ));
+                )));
             }
 
             // Get the next selection
@@ -1290,10 +1354,10 @@ impl Editor {
                 selection_mode,
                 direction,
                 &self.cursor_direction,
-            );
+            )?;
 
             if next_selection.eq(&new_selection) {
-                return Either::Left(current_selection);
+                return Ok(Either::Left(current_selection));
             }
 
             next_selection = new_selection;
@@ -1382,6 +1446,7 @@ impl Editor {
         self.apply_edit_transaction(EditTransaction::merge(
             edit_transactions
                 .into_iter()
+                .filter_map(|transaction| transaction.ok())
                 .filter_map(|transaction| transaction.map_right(Some).right_or(None))
                 .collect(),
         ))
@@ -1396,10 +1461,11 @@ impl Editor {
         self.replace_faultlessly(&selection_mode, direction)
     }
 
-    fn add_selection(&mut self) {
+    fn add_selection(&mut self) -> anyhow::Result<()> {
         self.selection_set
-            .add_selection(&self.buffer.borrow(), &self.cursor_direction);
-        self.recalculate_scroll_offset()
+            .add_selection(&self.buffer.borrow(), &self.cursor_direction)?;
+        self.recalculate_scroll_offset();
+        Ok(())
     }
 
     #[cfg(test)]
@@ -1424,7 +1490,7 @@ impl Editor {
         buffer.rope().slice(0..buffer.len_chars()).to_string()
     }
 
-    fn select_word(&mut self, direction: Direction) {
+    fn select_word(&mut self, direction: Direction) -> anyhow::Result<()> {
         self.select(SelectionMode::Word, direction)
     }
 
@@ -1525,6 +1591,7 @@ impl Editor {
         let edit_transaction = EditTransaction::merge(
             edit_transactions
                 .into_iter()
+                .filter_map(|edit_transaction| edit_transaction.ok())
                 .map(|edit_transaction| match edit_transaction {
                     Either::Right(edit_transaction) => edit_transaction,
 
@@ -1608,6 +1675,7 @@ impl Editor {
         let edit_transaction = EditTransaction::merge(
             edit_transactions
                 .into_iter()
+                .filter_map(|edit_transaction| edit_transaction.ok())
                 .filter_map(|edit_transaction| edit_transaction.map_right(Some).right_or(None))
                 .collect(),
         );
@@ -1625,7 +1693,7 @@ impl Editor {
     fn update_buffer(&mut self, s: &str) -> anyhow::Result<()> {
         self.buffer.borrow_mut().update(s)
     }
-    fn select_view(&mut self, direction: Direction) {
+    fn select_view(&mut self, direction: Direction) -> anyhow::Result<()> {
         self.scroll_offset = match direction {
             Direction::Forward => self
                 .scroll_offset
@@ -1638,7 +1706,7 @@ impl Editor {
         let char_index = self
             .buffer
             .borrow()
-            .line_to_char(self.scroll_offset as usize);
+            .line_to_char(self.scroll_offset as usize)?;
         self.update_selection_set(SelectionSet {
             primary: Selection {
                 range: char_index..char_index,
@@ -1648,7 +1716,8 @@ impl Editor {
             secondary: vec![],
             mode: SelectionMode::Custom,
         });
-        self.align_cursor_to_center()
+        self.align_cursor_to_center();
+        Ok(())
     }
 
     pub fn reset_selection(&mut self) {
@@ -1663,42 +1732,48 @@ impl Editor {
         };
     }
 
-    pub fn replace_previous_word(&mut self, completion: &str) -> Vec<Dispatch> {
-        let selection = self.get_selection_set(&SelectionMode::Word, Direction::Backward);
+    pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Vec<Dispatch>> {
+        let selection = self.get_selection_set(&SelectionMode::Word, Direction::Backward)?;
         self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
-        self.get_document_did_change_dispatch()
+        Ok(self.get_document_did_change_dispatch())
     }
 
     fn open_new_line(&mut self) -> Vec<Dispatch> {
-        let edit_transaction =
-            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let buffer = self.buffer.borrow();
-                let cursor_index = selection.to_char_index(&self.cursor_direction);
-                let line_index = buffer.char_to_line(cursor_index);
-                let line_start = buffer.line_to_char(line_index);
-                let current_line = self.buffer.borrow().get_line(cursor_index);
-                let leading_whitespaces = current_line
-                    .chars()
-                    .take_while(|c| c.is_whitespace())
-                    .join("");
-                ActionGroup::new(vec![
-                    Action::Edit(Edit {
-                        start: line_start + current_line.len_chars(),
-                        old: Rope::new(),
-                        new: format!("{}\n", leading_whitespaces).into(),
-                    }),
-                    Action::Select(Selection {
-                        range: {
-                            let start =
-                                line_start + current_line.len_chars() + leading_whitespaces.len();
-                            start..start
-                        },
-                        copied_text: selection.copied_text.clone(),
-                        initial_range: selection.initial_range.clone(),
-                    }),
-                ])
-            }));
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| {
+                    let buffer = self.buffer.borrow();
+                    let cursor_index = selection.to_char_index(&self.cursor_direction);
+                    let line_index = buffer.char_to_line(cursor_index).ok()?;
+                    let line_start = buffer.line_to_char(line_index).ok()?;
+                    let current_line = self.buffer.borrow().get_line(cursor_index).ok()?;
+                    let leading_whitespaces = current_line
+                        .chars()
+                        .take_while(|c| c.is_whitespace())
+                        .join("");
+                    Some(ActionGroup::new(vec![
+                        Action::Edit(Edit {
+                            start: line_start + current_line.len_chars(),
+                            old: Rope::new(),
+                            new: format!("{}\n", leading_whitespaces).into(),
+                        }),
+                        Action::Select(Selection {
+                            range: {
+                                let start = line_start
+                                    + current_line.len_chars()
+                                    + leading_whitespaces.len();
+                                start..start
+                            },
+                            copied_text: selection.copied_text.clone(),
+                            initial_range: selection.initial_range.clone(),
+                        }),
+                    ]))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
 
         let dispatches = self.apply_edit_transaction(edit_transaction);
         self.enter_insert_mode(CursorDirection::End);
@@ -1718,9 +1793,9 @@ impl Editor {
             edits
                 .into_iter()
                 .enumerate()
-                .map(|(index, edit)| {
-                    let range = edit.range.start.to_char_index(&self.buffer())
-                        ..edit.range.end.to_char_index(&self.buffer());
+                .filter_map(|(index, edit)| {
+                    let range = edit.range.start.to_char_index(&self.buffer()).ok()?
+                        ..edit.range.end.to_char_index(&self.buffer()).ok()?;
                     let next_text_len = edit.new_text.chars().count();
 
                     let action_edit = Action::Edit(Edit {
@@ -1738,11 +1813,11 @@ impl Editor {
                         initial_range: None,
                     });
 
-                    if index == 0 {
+                    Some(if index == 0 {
                         ActionGroup::new(vec![action_edit, action_select])
                     } else {
                         ActionGroup::new(vec![action_edit])
-                    }
+                    })
                 })
                 .collect(),
         );
@@ -1753,12 +1828,23 @@ impl Editor {
         self.apply_positional_edits(vec![edit])
     }
 
-    pub fn save(&self) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? {
-            Ok(vec![Dispatch::DocumentDidSave { path }])
-        } else {
-            Ok(vec![])
-        }
+    pub fn save(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())?  else {
+            return Ok(vec![])
+        };
+        self.clamp()?;
+        Ok(vec![Dispatch::DocumentDidSave { path }])
+    }
+
+    /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
+    fn clamp(&mut self) -> anyhow::Result<()> {
+        let len_chars = self.buffer().len_chars();
+        self.selection_set = self.selection_set.clamp(CharIndex(len_chars))?;
+
+        let len_lines = self.buffer().len_lines();
+        self.scroll_offset = self.scroll_offset.clamp(0, len_lines as u16);
+
+        Ok(())
     }
 
     fn enclose(&mut self, enclosure: Enclosure) -> Vec<Dispatch> {
@@ -1811,12 +1897,12 @@ pub fn node_to_selection(
     buffer: &Buffer,
     copied_text: Option<Rope>,
     initial_range: Option<Range<CharIndex>>,
-) -> Selection {
-    Selection {
-        range: buffer.byte_to_char(node.start_byte())..buffer.byte_to_char(node.end_byte()),
+) -> anyhow::Result<Selection> {
+    Ok(Selection {
+        range: buffer.byte_to_char(node.start_byte())?..buffer.byte_to_char(node.end_byte())?,
         copied_text,
         initial_range,
-    }
+    })
 }
 
 pub enum HandleEventResult {
@@ -2835,18 +2921,20 @@ let y = S(b);
     }
 
     #[test]
-    fn set_selection() {
+    fn set_selection() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() {}");
 
         // Select a range which highlights a node
-        editor.set_selection(Position::new(0, 0)..Position::new(0, 2));
+        editor.set_selection(Position::new(0, 0)..Position::new(0, 2))?;
 
         assert_eq!(editor.selection_set.mode, SelectionMode::NamedNode);
 
         // Select a range which does not highlights a node
-        editor.set_selection(Position::new(0, 0)..Position::new(0, 1));
+        editor.set_selection(Position::new(0, 0)..Position::new(0, 1))?;
 
         assert_eq!(editor.selection_set.mode, SelectionMode::Custom);
+
+        Ok(())
     }
 
     #[test]

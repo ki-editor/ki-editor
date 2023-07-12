@@ -84,7 +84,13 @@ impl Buffer {
     }
 
     pub fn given_range_is_node(&self, range: &Range<CharIndex>) -> bool {
-        let byte_range = self.char_to_byte(range.start)..self.char_to_byte(range.end);
+        let Some(start) = self.char_to_byte(range.start).ok() else {
+            return false
+        };
+        let Some(end) = self.char_to_byte(range.end).ok() else {
+            return false
+        };
+        let byte_range = start..end;
         self.tree
             .root_node()
             .descendant_for_byte_range(byte_range.start, byte_range.end)
@@ -97,59 +103,61 @@ impl Buffer {
         self.recompute_highlighted_spans()
     }
 
-    pub fn get_line(&self, char_index: CharIndex) -> Rope {
-        self.rope.line(self.char_to_line(char_index)).into()
+    pub fn get_line(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
+        Ok(self.rope.line(self.char_to_line(char_index)?).into())
     }
 
-    pub fn get_word_before_char_index(&self, char_index: CharIndex) -> String {
-        let cursor_byte = self.char_to_byte(char_index);
+    pub fn get_word_before_char_index(&self, char_index: CharIndex) -> anyhow::Result<String> {
+        let cursor_byte = self.char_to_byte(char_index)?;
         let regex = Regex::new(r"\b\w+").unwrap();
         let string = self.rope.to_string();
         let mut iter = regex.find_iter(&string);
 
-        find_previous(
+        Ok(find_previous(
             &mut iter,
             |_, _| true,
             |match_| match_.start() >= cursor_byte,
         )
         .map(|match_| match_.as_str().to_string())
-        .unwrap_or_default()
+        .unwrap_or_default())
     }
 
     pub fn len_lines(&self) -> usize {
         self.rope.len_lines()
     }
 
-    pub fn char_to_line(&self, char_index: CharIndex) -> usize {
-        self.rope.char_to_line(char_index.0)
+    pub fn char_to_line(&self, char_index: CharIndex) -> anyhow::Result<usize> {
+        Ok(self.rope.try_char_to_line(char_index.0)?)
     }
 
-    pub fn line_to_char(&self, line_index: usize) -> CharIndex {
-        CharIndex(self.rope.line_to_char(line_index))
+    pub fn line_to_char(&self, line_index: usize) -> anyhow::Result<CharIndex> {
+        Ok(CharIndex(self.rope.try_line_to_char(line_index)?))
     }
 
-    pub fn char_to_byte(&self, char_index: CharIndex) -> usize {
-        self.rope.char_to_byte(char_index.0)
+    pub fn char_to_byte(&self, char_index: CharIndex) -> anyhow::Result<usize> {
+        Ok(self.rope.try_char_to_byte(char_index.0)?)
     }
 
-    pub fn char_to_position(&self, char_index: CharIndex) -> Position {
-        let line = self.char_to_line(char_index);
-        Position {
+    pub fn char_to_position(&self, char_index: CharIndex) -> anyhow::Result<Position> {
+        let line = self.char_to_line(char_index)?;
+        Ok(Position {
             line,
             column: self
                 .rope
                 .try_line_to_char(line)
                 .map(|line_start_char_index| char_index.0.saturating_sub(line_start_char_index))
                 .unwrap_or(0),
-        }
+        })
     }
 
-    pub fn position_to_char(&self, position: Position) -> CharIndex {
-        CharIndex(self.rope.line_to_char(position.line) + position.column)
+    pub fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
+        Ok(CharIndex(
+            self.rope.try_line_to_char(position.line)? + position.column,
+        ))
     }
 
-    pub fn byte_to_char(&self, byte_index: usize) -> CharIndex {
-        CharIndex(self.rope.byte_to_char(byte_index))
+    pub fn byte_to_char(&self, byte_index: usize) -> anyhow::Result<CharIndex> {
+        Ok(CharIndex(self.rope.try_byte_to_char(byte_index)?))
     }
 
     pub fn rope(&self) -> &Rope {
@@ -165,19 +173,19 @@ impl Buffer {
     }
 
     pub fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
-        let byte = self.char_to_byte(char_index);
+        let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
         traverse(self.tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
     }
 
-    pub fn get_current_node<'a>(&'a self, selection: &Selection) -> Node<'a> {
+    pub fn get_current_node<'a>(&'a self, selection: &Selection) -> anyhow::Result<Node<'a>> {
         let node = self
             .tree
             .root_node()
             .descendant_for_byte_range(
-                self.char_to_byte(selection.range.start),
-                self.char_to_byte(selection.range.end),
+                self.char_to_byte(selection.range.start)?,
+                self.char_to_byte(selection.range.end)?,
             )
             .unwrap_or_else(|| self.tree.root_node());
 
@@ -193,22 +201,22 @@ impl Buffer {
             if parent.start_byte() == node.start_byte() && parent.end_byte() == node.end_byte() {
                 result = parent;
             } else {
-                return result;
+                return Ok(result);
             }
         }
 
-        node
+        Ok(node)
     }
 
     pub fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
-        let byte = self.char_to_byte(char_index);
+        let byte = self.char_to_byte(char_index).ok()?;
         self.traverse(Order::Post).find(|&node| {
             node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
         })
     }
 
     pub fn get_prev_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
-        let byte = self.char_to_byte(char_index);
+        let byte = self.char_to_byte(char_index).ok()?;
         find_previous(
             self.traverse(Order::Pre),
             |node, _| node.child_count() == 0 && (!is_named || node.is_named()),
@@ -410,11 +418,15 @@ impl Buffer {
     }
 
     pub fn find_diagnostic(&self, range: &Range<CharIndex>) -> Option<&Diagnostic> {
-        self.diagnostics.iter().find(|diagnostic| {
-            let start = diagnostic.range.start.to_char_index(self);
-            let end = diagnostic.range.end.to_char_index(self);
+        self.diagnostics.iter().find_map(|diagnostic| {
+            let start = diagnostic.range.start.to_char_index(self).ok()?;
+            let end = diagnostic.range.end.to_char_index(self).ok()?;
 
-            start == range.start && end == range.end
+            if start == range.start && end == range.end {
+                Some(diagnostic)
+            } else {
+                None
+            }
         })
     }
 
@@ -434,8 +446,8 @@ impl Buffer {
             current_range.start.to_position(&self.rope)..current_range.end.to_position(&self.rope);
         match direction {
             Direction::Current => iter.find_map(|diagnostic| {
-                let start = diagnostic.range.start.to_char_index(self);
-                let end = diagnostic.range.end.to_char_index(self);
+                let start = diagnostic.range.start.to_char_index(self).ok()?;
+                let end = diagnostic.range.end.to_char_index(self).ok()?;
                 if start >= current_range.start {
                     Some(start..end)
                 } else {
@@ -443,8 +455,8 @@ impl Buffer {
                 }
             }),
             Direction::Forward => iter.find_map(|diagnostic| {
-                let start = diagnostic.range.start.to_char_index(self);
-                let end = diagnostic.range.end.to_char_index(self);
+                let start = diagnostic.range.start.to_char_index(self).ok()?;
+                let end = diagnostic.range.end.to_char_index(self).ok()?;
                 if start > current_range.start
                     || (start == current_range.start && end > current_range.end)
                 {
@@ -458,7 +470,12 @@ impl Buffer {
                 |_, _| true,
                 |match_| match_.range == current_positional_range,
             )
-            .map(|item| item.range.start.to_char_index(self)..item.range.end.to_char_index(self)),
+            .and_then(|item| {
+                Some(
+                    item.range.start.to_char_index(self).ok()?
+                        ..item.range.end.to_char_index(self).ok()?,
+                )
+            }),
         }
     }
 
@@ -475,7 +492,7 @@ impl Buffer {
     }
 
     pub fn get_char_at_position(&self, position: Position) -> Option<char> {
-        let char_index = position.to_char_index(self).0;
+        let char_index = position.to_char_index(self).ok()?.0;
         self.rope.get_char(char_index)
     }
 

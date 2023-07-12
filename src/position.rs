@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::{buffer::Buffer, selection::CharIndex};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Ord, Default)]
 pub struct Position {
@@ -12,7 +12,7 @@ impl Position {
     pub fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
-    pub fn to_char_index(self, buffer: &Buffer) -> crate::selection::CharIndex {
+    pub fn to_char_index(self, buffer: &Buffer) -> anyhow::Result<CharIndex> {
         buffer.position_to_char(self)
     }
 

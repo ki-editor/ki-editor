@@ -117,7 +117,7 @@ impl Component for Prompt {
 
         let dispatches = self.editor.handle_key_event(context, event)?;
 
-        let current_text = self.editor().current_line();
+        let current_text = self.editor().current_line()?;
 
         let result = if current_text == self.text {
             dispatches

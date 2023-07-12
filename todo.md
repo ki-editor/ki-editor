@@ -53,13 +53,16 @@
 - [x] feat(editor/diagnostics-movement): should work for overlapped ranges, A:0-3, B:1-3, C:4-5, starting from A, forward should go to B first before C
 - [x] feat(editor): f = go to final selection, F = go to first selection. e.g. sf = final sibling, mf = final match
 - [x] feat(editor/delete): allow edit even if there's no next sibling, in this case, collapse the selection
+- [x] when cursor at last position, and after formatting the cursor is out of bound, should not crash
+- [x] refactor: change all rope.x_to_y to rope.try_x_to_y to avoid crashing
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
 - [] e for enclose the current node with one of the brackets
 - [] f for moving to the next node which has the same field name as the current node
-- [] mechanism for adding selection to all matching selection within current selection
+- [] mechanism for adding selection to all matching selection within current selection (ctrl+a)
+- [] . for selecting the whole file
 - [] incorporate AST grep (https://github.com/ast-grep/ast-grep), the result is not very satisfying
 - [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
 - [] jump should work for multiple selection?
@@ -98,6 +101,7 @@
 - [] feat(lsp): go to declaration, type definition of symbol, and implementations
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] infinite loop when changing window
-- [] when cursor at last position, and after formatting the cursor is out of bound, should not crash
-- [] refactor: change all rope.x_to_y to rope.try_x_to_y to avoid crashing
 - [] feat: small g for going to locations of this file, G for locations to anywhere
+- [] layout: implement Tall, instead of binary partition
+- [] feat(editor): ctrl+m to search for the current selection (using AST grep maybe?)
+- [] feat(search): don't use regex, regex is not needed 90% of the time

@@ -251,10 +251,10 @@ mod test_dropdown {
 
         // The current item should be `dolor` because dropdown will sort the items
         assert_eq!(dropdown.current_item().unwrap().label(), "dolor");
-        assert_eq!(dropdown.editor.current_line(), "[1] dolor");
+        assert_eq!(dropdown.editor.current_line().unwrap(), "[1] dolor");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
-        assert_eq!(dropdown.editor.current_line(), "[2] ipsum");
+        assert_eq!(dropdown.editor.current_line().unwrap(), "[2] ipsum");
     }
 
     #[test]
