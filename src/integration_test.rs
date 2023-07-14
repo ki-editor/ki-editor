@@ -33,7 +33,7 @@ mod integration_test {
             let (key_event_sender, receiver) = channel();
             let frontend = Arc::new(Mutex::new(MockFrontend::new()));
 
-            const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
+            const MOCK_REPO_PATH: &str = "tests/mock_repos/rust";
 
             // Copy the mock repo to a temporary directory using the current date
             // Why don't we use the `tempfile` crate? Because LSP doesn't work inside a the system temporary directory
@@ -51,7 +51,7 @@ mod integration_test {
             fs_extra::dir::copy(MOCK_REPO_PATH, path.clone(), &options).unwrap();
 
             let temp_dir = CanonicalizedPath::try_from(path).unwrap();
-            let path = temp_dir.join("rust1").unwrap();
+            let path = temp_dir.join("rust").unwrap();
 
             let cloned_frontend = frontend.clone();
             std::thread::spawn(move || -> anyhow::Result<()> {
@@ -92,7 +92,7 @@ mod integration_test {
     fn lsp_completion() -> anyhow::Result<()> {
         let test_runner = TestRunner::new();
         sleep(3);
-        test_runner.send_keys(keys!("enter s t d : : o p t"))?;
+        test_runner.send_keys(keys!("ctrl+f m a i n enter m enter s t d : : o p t"))?;
 
         sleep(1);
         insta::assert_snapshot!(test_runner.content());
@@ -104,6 +104,39 @@ mod integration_test {
     fn saving_should_not_crash() -> anyhow::Result<()> {
         let test_runner = TestRunner::new();
         sleep(1);
+
+        // Go to the last line
+        test_runner.send_keys(keys!("l f"))?;
+
+        // Insert blank spaces at the end
+        test_runner.send_keys(keys!("i space space space"))?;
+
+        // Save the file
+        test_runner.send_keys(keys!("ctrl+s"))?;
+
+        // Insert a b c
+        test_runner.send_keys(keys!("i a b c"))?;
+
+        sleep(1);
+
+        // Expect 'a b c' to be inserted at the end
+        // Because the cursor is clamped to the end of the file, as it was out of bound after the
+        // file is formatted
+        // This will only work if the previous saving didn't crash
+        insta::assert_snapshot!(test_runner.content());
+
+        Ok(())
+    }
+
+    #[test]
+    fn search() -> anyhow::Result<()> {
+        let test_runner = TestRunner::new();
+        sleep(1);
+        // Go to another file
+        // Go to the original file
+        // Search for "main"
+        // Insert "_hello"
+        // Expect the main function to be named "main_hello" in the original file
 
         // Go to the last line
         test_runner.send_keys(keys!("l f"))?;

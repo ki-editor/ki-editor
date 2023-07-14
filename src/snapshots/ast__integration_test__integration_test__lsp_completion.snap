@@ -3,12 +3,12 @@ source: src/integration_test.rs
 expression: test_runner.content()
 ---
 <Untitled> [INSERT]                     │Completion [NORMAL:LINE]               
-fn main() {                            │[1] option                            
-std::opt                               │[2] option_env!                        
+mod foo;                               │[1] option                            
+                                       │[2] option_env!                        
+fn main() {                            │                                       
+std::opt                               │                                       
     println!("Hello, world!");         │                                       
 }                                      │                                       
-                                        │                                       
-                                        │                                       
                                         │                                       
                                         │                                       
                                         │                                       
