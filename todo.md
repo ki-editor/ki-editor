@@ -88,7 +88,7 @@
   - exchange first nameless sibling (opening bracket), with the previous sibling of parent
     - and reverse
 - [] editor(bug): go to previous error always step to the next first before going to the first
-- [] perf: when LSP is enable, handling key event is very slow
+- [x] perf: when LSP is enable, handling key event is very slow
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions

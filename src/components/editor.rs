@@ -60,7 +60,7 @@ impl Component for Editor {
     fn editor_mut(&mut self) -> &mut Editor {
         self
     }
-    fn set_content(&mut self, str: &str) -> anyhow::Result<()> {
+    fn set_content(&mut self, str: &str) {
         self.update_buffer(str)
     }
     fn title(&self) -> String {
@@ -95,7 +95,6 @@ impl Component for Editor {
         let scroll_offset = editor.scroll_offset();
         let buffer = editor.buffer();
         let rope = buffer.rope();
-
         let lines = rope
             .lines()
             .enumerate()
@@ -214,9 +213,12 @@ impl Component for Editor {
                 // Primary selection secondary cursor
                 buffer
                     .char_to_position(selection.to_char_index(&editor.cursor_direction.reverse()))
-                    .ok().map(|position| CellUpdate::new(position)
-                                .background_color(Color::DarkGrey)
-                                .foreground_color(Color::White)),
+                    .ok()
+                    .map(|position| {
+                        CellUpdate::new(position)
+                            .background_color(Color::DarkGrey)
+                            .foreground_color(Color::White)
+                    }),
             )
             .chain(
                 // Secondary selection
@@ -462,8 +464,8 @@ impl Editor {
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
 
-    fn select_parent(&mut self, direction: Direction) {
-        self.select(SelectionMode::ParentNode, direction);
+    fn select_parent(&mut self, direction: Direction) -> anyhow::Result<()> {
+        self.select(SelectionMode::ParentNode, direction)
     }
 
     fn select_kids(&mut self) -> anyhow::Result<()> {
@@ -945,7 +947,7 @@ impl Editor {
         match self.handle_universal_key(context, key_event)? {
             HandleEventResult::Ignored(key_event) => match &self.mode {
                 Mode::Normal => self.handle_normal_mode(context, key_event),
-                Mode::Insert => Ok(self.handle_insert_mode(key_event)),
+                Mode::Insert => self.handle_insert_mode(key_event),
                 Mode::Jump { .. } => {
                     self.handle_jump_mode(key_event);
                     Ok(vec![])
@@ -1085,16 +1087,16 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn handle_insert_mode(&mut self, event: KeyEvent) -> Vec<Dispatch> {
+    fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Vec<Dispatch>> {
         match event.code {
-            KeyCode::Esc => self.enter_normal_mode(),
-            KeyCode::Backspace => return self.backspace(),
-            KeyCode::Enter => return self.insert("\n"),
-            KeyCode::Char(c) => return self.insert(&c.to_string()),
-            KeyCode::Tab => return self.insert("\t"),
+            KeyCode::Esc => self.enter_normal_mode()?,
+            KeyCode::Backspace => return Ok(self.backspace()),
+            KeyCode::Enter => return Ok(self.insert("\n")),
+            KeyCode::Char(c) => return Ok(self.insert(&c.to_string())),
+            KeyCode::Tab => return Ok(self.insert("\t")),
             _ => {}
         };
-        vec![]
+        Ok(vec![])
     }
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
@@ -1158,8 +1160,8 @@ impl Editor {
                 )])
             }
             // O
-            key!("p") => self.select_parent(Direction::Forward),
-            key!("shift+P") => self.select_parent(Direction::Backward),
+            key!("p") => self.select_parent(Direction::Forward)?,
+            key!("shift+P") => self.select_parent(Direction::Backward)?,
             key!("q") => return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Forward)]),
             key!("shift+Q") => {
                 return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Backward)])
@@ -1247,9 +1249,9 @@ impl Editor {
         self.cursor_direction = CursorDirection::Start;
     }
 
-    pub fn enter_normal_mode(&mut self) {
+    pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         self.mode = Mode::Normal;
-        self.select(SelectionMode::Custom, Direction::Current);
+        self.select(SelectionMode::Custom, Direction::Current)
     }
 
     pub fn jumps(&self) -> Vec<&Jump> {
@@ -1690,7 +1692,7 @@ impl Editor {
         self.buffer.borrow_mut()
     }
 
-    fn update_buffer(&mut self, s: &str) -> anyhow::Result<()> {
+    fn update_buffer(&mut self, s: &str) {
         self.buffer.borrow_mut().update(s)
     }
     fn select_view(&mut self, direction: Direction) -> anyhow::Result<()> {

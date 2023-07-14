@@ -100,10 +100,13 @@ impl Component for SuggestiveEditor {
                     }
                     return Ok(vec![]);
                 }
+                key!("ctrl+e") => {
+                    self.close_all_subcomponents();
+                    return Ok(vec![]);
+                }
                 key!("esc") => {
-                    self.dropdown_opened = false;
-                    self.menu_opened = false;
-                    self.info_panel = None;
+                    self.close_all_subcomponents();
+                    self.editor.enter_normal_mode()?;
                     return Ok(vec![]);
                 }
 
@@ -246,6 +249,9 @@ impl SuggestiveEditor {
     }
 
     pub fn show_signature_help(&mut self, signature_help: Option<SignatureHelp>) {
+        if self.editor.mode != Mode::Insert {
+            return;
+        }
         if let Some(signature_help) = signature_help {
             self.show_info(
                 "Signature help",
@@ -325,6 +331,12 @@ impl SuggestiveEditor {
 
     fn menu_opened(&self) -> bool {
         self.menu_opened
+    }
+
+    fn close_all_subcomponents(&mut self) {
+        self.info_panel = None;
+        self.dropdown_opened = false;
+        self.menu_opened = false;
     }
 }
 
@@ -596,8 +608,11 @@ mod test_suggestive_editor {
             vec!["Patrick", "Spongebob", "Squidward"]
         );
 
+        // Close the dropdown menu
+        editor.handle_events(keys!("ctrl+e"))?;
+
         // Enter a next line
-        editor.handle_events(keys!("esc enter h e l l o"))?;
+        editor.handle_events(keys!("enter h e l l o"))?;
 
         // Expect the content to be updated
         assert_eq!(editor.editor().text(), "pa s\n\nhello");

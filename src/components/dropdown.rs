@@ -68,7 +68,7 @@ impl<T: DropdownItem> Dropdown<T> {
             return self.current_item();
         }
         self.current_item_index -= 1;
-        self.editor.select_line_at(self.current_item_index);
+        self.editor.select_line_at(self.current_item_index).ok()?;
         self.show_current_item()
     }
 
@@ -109,14 +109,14 @@ impl<T: DropdownItem> Dropdown<T> {
         self.show_current_item();
     }
 
-    pub fn set_filter(&mut self, filter: &str) {
+    pub fn set_filter(&mut self, filter: &str) -> anyhow::Result<()> {
         self.filter = filter.to_string();
         self.current_item_index = 0;
         self.compute_filtered_items();
         self.update_editor()
     }
 
-    fn update_editor(&mut self) {
+    fn update_editor(&mut self) -> anyhow::Result<()> {
         self.editor.set_content(
             &self
                 .filtered_items
@@ -127,7 +127,8 @@ impl<T: DropdownItem> Dropdown<T> {
                 .join("\n"),
         );
 
-        self.editor.select_line_at(0);
+        self.editor.select_line_at(0)?;
+        Ok(())
     }
 
     fn show_info(&mut self, info: Option<String>) {

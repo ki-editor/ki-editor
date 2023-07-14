@@ -287,7 +287,7 @@ impl Layout {
                 )));
                 self.info_panel = Some(info_panel);
             }
-            Some(info_panel) => info_panel.borrow_mut().set_content(&info)?,
+            Some(info_panel) => info_panel.borrow_mut().set_content(&info),
         }
         Ok(())
     }

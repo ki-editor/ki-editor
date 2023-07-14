@@ -98,9 +98,11 @@ impl Buffer {
             .unwrap_or(false)
     }
 
-    pub fn update(&mut self, text: &str) -> Result<(), anyhow::Error> {
+    pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language, text);
-        self.recompute_highlighted_spans()
+        self.recompute_highlighted_spans().unwrap_or_else(|error| {
+            log::info!("Error recomputing higlighted spans = {:#?}", error)
+        });
     }
 
     pub fn get_line(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -400,7 +402,7 @@ impl Buffer {
         let before = self.rope.to_string();
 
         let content = if let Some(formatted_content) = self.get_formatted_content() {
-            self.update(&formatted_content)?;
+            self.update(&formatted_content);
             self.add_undo_patch(current_selection_set, &before);
             formatted_content
         } else {
@@ -580,7 +582,7 @@ mod test_buffer {
         fn should_format_code() {
             run_test(|path, mut buffer| {
                 // Update the buffer with unformatted code
-                buffer.update(" fn main\n() {}").unwrap();
+                buffer.update(" fn main\n() {}");
 
                 // Save the buffer
                 buffer.save(SelectionSet::default()).unwrap();
@@ -609,7 +611,7 @@ mod test_buffer {
         fn should_be_undoable() {
             run_test(|_, mut buffer| {
                 let original = " fn main\n() {}";
-                buffer.update(original).unwrap();
+                buffer.update(original);
 
                 buffer.save(SelectionSet::default()).unwrap();
 
@@ -630,7 +632,7 @@ mod test_buffer {
         fn should_not_run_when_syntax_tree_is_malformed() {
             run_test(|_, mut buffer| {
                 // Update the buffer to be invalid Rust code
-                buffer.update("fn main() {").unwrap();
+                buffer.update("fn main() {");
 
                 // Save the buffer
                 buffer.save(SelectionSet::default()).unwrap();
@@ -650,7 +652,7 @@ mod test_buffer {
             run_test(|_, mut buffer| {
                 // Update the buffer to be valid Rust code
                 // but unformatable
-                buffer.update(code).unwrap();
+                buffer.update(code);
 
                 // The code should be deemed as valid by Tree-sitter,
                 // but not to the formatter
