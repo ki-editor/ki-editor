@@ -1,6 +1,4 @@
-use std::{
-    ops::{Add, Range, Sub},
-};
+use std::ops::{Add, Range, Sub};
 
 use regex::Regex;
 use ropey::Rope;
@@ -203,7 +201,7 @@ pub enum SelectionMode {
     Line,
     Character,
     Custom,
-    Match { regex: String },
+    Match { search: String },
 
     // Syntax-tree
     Token,
@@ -234,7 +232,7 @@ impl SelectionMode {
             SelectionMode::NamedNode => "NODE".to_string(),
             SelectionMode::ParentNode => "PARENT".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
-            SelectionMode::Match { regex } => format!("MATCH {:?}", regex),
+            SelectionMode::Match { search: regex } => format!("MATCH {:?}", regex),
             SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
         }
     }
@@ -370,6 +368,7 @@ impl Selection {
                 direction,
                 current_selection,
                 copied_text,
+                false,
             ),
             SelectionMode::Character => get_selection_via_regex(
                 buffer,
@@ -378,24 +377,28 @@ impl Selection {
                 direction,
                 current_selection,
                 copied_text,
+                false,
             ),
-            SelectionMode::Match { regex } => {
+            SelectionMode::Match { search } => {
+                if let Some(selection) = get_selection_via_ast_grep(
+                    buffer,
+                    cursor_byte,
+                    search,
+                    direction,
+                    current_selection,
+                    copied_text.clone(),
+                )? {
+                    return Ok(selection);
+                };
                 get_selection_via_regex(
                     buffer,
                     cursor_byte,
-                    regex,
+                    search,
                     direction,
                     current_selection,
                     copied_text,
+                    true,
                 )
-                // get_selection_via_ast_grep(
-                //     buffer,
-                //     cursor_byte,
-                //     search,
-                //     direction,
-                //     current_selection,
-                //     copied_text,
-                // )
             }
             SelectionMode::ParentNode => {
                 let current_node = buffer.get_current_node(current_selection)?;
@@ -503,39 +506,37 @@ impl Selection {
 
 // TODO: this works, but the result is not satisfactory,
 // we will leave this function here as a reference
-// fn get_selection_via_ast_grep(
-//     buffer: &Buffer,
-//     cursor_byte: usize,
-//     pattern: &String,
-//     direction: &Direction,
-//     current_selection: &Selection,
-//     copied_text: Option<Rope>,
-// ) -> Selection {
-//     let lang = ast_grep_core::language::TSLanguage::from(buffer.language());
-//     let pattern = ast_grep_core::matcher::Pattern::new(&pattern, lang.clone());
-//     let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
-//     let mut matches_iter = grep.root().find_all(pattern);
-//     // let mut matches_iter = grep.root().find_all(ast_grep_core::matcher::MatchAll);
-//     let matches = match direction {
-//         Direction::Current => matches_iter.find(|matched| matched.range().contains(&cursor_byte)),
-//         Direction::Forward => matches_iter.find(|matched| matched.range().start > cursor_byte),
-//         Direction::Backward => find_previous(
-//             &mut matches_iter,
-//             |_, _| true,
-//             |match_| match_.range().start >= cursor_byte,
-//         ),
-//     };
+fn get_selection_via_ast_grep(
+    buffer: &Buffer,
+    cursor_byte: usize,
+    pattern: &String,
+    direction: &Direction,
+    current_selection: &Selection,
+    copied_text: Option<Rope>,
+) -> anyhow::Result<Option<Selection>> {
+    let lang = ast_grep_core::language::TSLanguage::from(buffer.treesitter_language());
+    let pattern = ast_grep_core::matcher::Pattern::new(&pattern, lang.clone());
+    let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
+    let mut matches_iter = grep.root().find_all(pattern);
+    // let mut matches_iter = grep.root().find_all(ast_grep_core::matcher::MatchAll);
+    let matches = match direction {
+        Direction::Current => matches_iter.find(|matched| matched.range().contains(&cursor_byte)),
+        Direction::Forward => matches_iter.find(|matched| matched.range().start > cursor_byte),
+        Direction::Backward => find_previous(
+            &mut matches_iter,
+            |_, _| true,
+            |match_| match_.range().start >= cursor_byte,
+        ),
+    };
 
-//     match matches {
-//         None => current_selection.clone(),
-//         Some(matches) => Selection {
-//             range: buffer.byte_to_char(matches.range().start)
-//                 ..buffer.byte_to_char(matches.range().end),
-//             copied_text,
-//             initial_range: current_selection.initial_range.clone(),
-//         },
-//     }
-// }
+    let Some(matches) = matches else {return Ok(None)};
+    Ok(Some(Selection {
+        range: buffer.byte_to_char(matches.range().start)?
+            ..buffer.byte_to_char(matches.range().end)?,
+        copied_text,
+        initial_range: current_selection.initial_range.clone(),
+    }))
+}
 
 fn get_selection_via_regex(
     buffer: &Buffer,
@@ -544,8 +545,14 @@ fn get_selection_via_regex(
     direction: &Direction,
     current_selection: &Selection,
     copied_text: Option<Rope>,
+    escape: bool,
 ) -> anyhow::Result<Selection> {
-    let regex = Regex::new(regex);
+    let escaped = if escape {
+        regex::escape(&regex)
+    } else {
+        regex.to_string()
+    };
+    let regex = Regex::new(&escaped);
     let regex = match regex {
         Err(_) => return Ok(current_selection.clone()),
         Ok(regex) => regex,
