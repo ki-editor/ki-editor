@@ -361,7 +361,7 @@ impl Selection {
                     initial_range,
                 })
             }
-            SelectionMode::Word => get_selection_via_regex(
+            SelectionMode::Word => Ok(get_selection_via_regex(
                 buffer,
                 cursor_byte,
                 r"\b\w+",
@@ -369,8 +369,9 @@ impl Selection {
                 current_selection,
                 copied_text,
                 false,
-            ),
-            SelectionMode::Character => get_selection_via_regex(
+            )?
+            .unwrap_or_else(|| current_selection.clone())),
+            SelectionMode::Character => Ok(get_selection_via_regex(
                 buffer,
                 cursor_byte,
                 r"(?s).",
@@ -378,8 +379,10 @@ impl Selection {
                 current_selection,
                 copied_text,
                 false,
-            ),
+            )?
+            .unwrap_or_else(|| current_selection.clone())),
             SelectionMode::Match { search } => {
+                // Search by AST grep first
                 if let Some(selection) = get_selection_via_ast_grep(
                     buffer,
                     cursor_byte,
@@ -390,15 +393,31 @@ impl Selection {
                 )? {
                     return Ok(selection);
                 };
-                get_selection_via_regex(
+                // If no matches, then seach by string literal
+                if let Some(selection) = get_selection_via_regex(
+                    buffer,
+                    cursor_byte,
+                    search,
+                    direction,
+                    current_selection,
+                    copied_text.clone(),
+                    true,
+                )? {
+                    return Ok(selection);
+                }
+                // If no matches, then seach by regex
+                if let Some(selection) = get_selection_via_regex(
                     buffer,
                     cursor_byte,
                     search,
                     direction,
                     current_selection,
                     copied_text,
-                    true,
-                )
+                    false,
+                )? {
+                    return Ok(selection);
+                }
+                return Ok(current_selection.clone());
             }
             SelectionMode::ParentNode => {
                 let current_node = buffer.get_current_node(current_selection)?;
@@ -546,7 +565,7 @@ fn get_selection_via_regex(
     current_selection: &Selection,
     copied_text: Option<Rope>,
     escape: bool,
-) -> anyhow::Result<Selection> {
+) -> anyhow::Result<Option<Selection>> {
     let escaped = if escape {
         regex::escape(&regex)
     } else {
@@ -554,7 +573,7 @@ fn get_selection_via_regex(
     };
     let regex = Regex::new(&escaped);
     let regex = match regex {
-        Err(_) => return Ok(current_selection.clone()),
+        Err(_) => return Ok(Some(current_selection.clone())),
         Ok(regex) => regex,
     };
     let string = buffer.rope().to_string();
@@ -570,12 +589,12 @@ fn get_selection_via_regex(
     };
 
     match matches {
-        None => Ok(current_selection.clone()),
-        Some(matches) => Ok(Selection {
+        None => Ok(None),
+        Some(matches) => Ok(Some(Selection {
             range: buffer.byte_to_char(matches.start())?..buffer.byte_to_char(matches.end())?,
             copied_text,
             initial_range: current_selection.initial_range.clone(),
-        }),
+        })),
     }
 }
 

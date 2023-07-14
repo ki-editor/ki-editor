@@ -2088,6 +2088,22 @@ mod test_editor {
     }
 
     #[test]
+    /// Should search using regex if literal strig search matches nothing
+    fn select_match_regex() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
+        let search = Some(r"f\([a-z]\)".to_string());
+
+        editor.select_match(Direction::Forward, &search)?;
+        assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
+        editor.select_match(Direction::Forward, &search)?;
+        assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
+        editor.select_match(Direction::Forward, &search)?;
+        assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
+
+        Ok(())
+    }
+
+    #[test]
     fn select_token() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         editor.select_token(Direction::Forward)?;
