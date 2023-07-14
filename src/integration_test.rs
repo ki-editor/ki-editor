@@ -92,7 +92,7 @@ mod integration_test {
     fn lsp_completion() -> anyhow::Result<()> {
         let test_runner = TestRunner::new();
         sleep(3);
-        test_runner.send_keys(keys!("enter s t d : : o p"))?;
+        test_runner.send_keys(keys!("enter s t d : : o p t"))?;
 
         sleep(1);
         insta::assert_snapshot!(test_runner.content());

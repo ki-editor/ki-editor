@@ -3,12 +3,12 @@ source: src/integration_test.rs
 expression: test_runner.content()
 ---
 <Untitled> [INSERT]                     │Completion [NORMAL:LINE]               
-fn main() {                            │[1] option_env!                       
-std::op                                │[2] Copy                              
-    println!("Hello, world!");         │[3] Drop                              
-}                                      │[4] Option                            
-                                        │[5] drop                              
-                                        │[6] loop                               
+fn main() {                            │[1] option                            
+std::opt                               │[2] option_env!                        
+    println!("Hello, world!");         │                                       
+}                                      │                                       
+                                        │                                       
+                                        │                                       
                                         │                                       
                                         │                                       
                                         │                                       
@@ -16,13 +16,13 @@ std::op                                │[2] Copy
                                         │                                       
                                         │───────────────────────────────────────
                                         │ [NORMAL:CUSTOM]                       
-                                        │Optionally inspects an environment vari
+                                        │Optional values.                      
                                         │                                      
-                                        │If the named environment variable is pr
-                                        │expand into an expression of type `Opti
-                                        │`Some` of the value of the environment 
-                                        │variable is not present, then this will
-                                        │[`Option<T>`][Option] for more informat
-                                        │[`std::env::var`] instead if you want t
+                                        │Type [`Option`] represents an optional 
+                                        │is either [`Some`] and contains a value
+                                        │does not. [`Option`] types are very com
+                                        │they have a number of uses:           
                                         │                                      
-                                        │[`std::env::var`]: ../std/env/fn.var.ht
+                                        │* Initial values                      
+                                        │* Return values for functions that are 
+                                        │  over their entire input range (partia
