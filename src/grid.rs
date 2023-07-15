@@ -291,7 +291,7 @@ impl Grid {
                     .collect::<Vec<String>>()
                     .join("")
             })
-            .map(|line| line.replace('\n', ""))
+            .map(|line| line.replace('\n', " "))
             .collect::<Vec<String>>()
             .join("\n")
     }

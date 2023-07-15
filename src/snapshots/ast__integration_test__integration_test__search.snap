@@ -2,13 +2,13 @@
 source: src/integration_test.rs
 expression: test_runner.content()
 ---
-<Untitled> [INSERT]                                                             
-mod foo;                                                                        
+<Untitled> [NORMAL:CUSTOM]                                                      
+pub fn foo() {}                                                                 
                                                                                 
-fn main() {                                                                     
-    println!("Hello, world!");                                                  
-}                                                                               
-abc                                                                             
+                                                                                
+                                                                                
+                                                                                
+                                                                                
                                                                                 
                                                                                 
                                                                                 

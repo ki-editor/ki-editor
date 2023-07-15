@@ -105,6 +105,7 @@ impl Component for Prompt {
                 };
 
                 let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
+
                 return Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
                 }]

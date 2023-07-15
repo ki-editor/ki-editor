@@ -129,10 +129,16 @@ impl<T: Component> AnyComponent for T {
 /// Why do I use UUID instead of a simple u64?
 /// Because with UUID I don't need a global state to keep track of the next ID.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
-pub struct ComponentId(uuid::Uuid);
+pub struct ComponentId(usize);
 impl ComponentId {
     pub fn new() -> ComponentId {
-        ComponentId(uuid::Uuid::new_v4())
+        // Current epoch
+        ComponentId({
+            use std::time::{SystemTime, UNIX_EPOCH};
+            let start = SystemTime::now();
+            let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
+            since_the_epoch.as_millis() as usize
+        })
     }
 }
 

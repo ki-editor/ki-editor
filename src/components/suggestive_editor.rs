@@ -176,7 +176,7 @@ impl Component for SuggestiveEditor {
             SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
         };
 
-        self.dropdown.borrow_mut().set_filter(&filter);
+        self.dropdown.borrow_mut().set_filter(&filter)?;
 
         let dispatches = dispatches
             .into_iter()

@@ -417,7 +417,7 @@ impl Selection {
                 )? {
                     return Ok(selection);
                 }
-                return Ok(current_selection.clone());
+                Ok(current_selection.clone())
             }
             SelectionMode::ParentNode => {
                 let current_node = buffer.get_current_node(current_selection)?;
@@ -534,7 +534,7 @@ fn get_selection_via_ast_grep(
     copied_text: Option<Rope>,
 ) -> anyhow::Result<Option<Selection>> {
     let lang = ast_grep_core::language::TSLanguage::from(buffer.treesitter_language());
-    let pattern = ast_grep_core::matcher::Pattern::new(&pattern, lang.clone());
+    let pattern = ast_grep_core::matcher::Pattern::new(pattern, lang.clone());
     let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
     let mut matches_iter = grep.root().find_all(pattern);
     // let mut matches_iter = grep.root().find_all(ast_grep_core::matcher::MatchAll);
@@ -567,7 +567,7 @@ fn get_selection_via_regex(
     escape: bool,
 ) -> anyhow::Result<Option<Selection>> {
     let escaped = if escape {
-        regex::escape(&regex)
+        regex::escape(regex)
     } else {
         regex.to_string()
     };

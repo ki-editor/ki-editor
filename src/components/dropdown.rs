@@ -59,7 +59,7 @@ impl<T: DropdownItem> Dropdown<T> {
             return self.current_item();
         }
         self.current_item_index += 1;
-        self.editor.select_line_at(self.current_item_index);
+        self.editor.select_line_at(self.current_item_index).ok()?;
         self.show_current_item()
     }
 
@@ -203,7 +203,7 @@ mod test_dropdown {
     };
 
     #[test]
-    fn test_dropdown() {
+    fn test_dropdown() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
@@ -232,14 +232,14 @@ mod test_dropdown {
         dropdown.previous_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
 
-        dropdown.set_filter("b");
+        dropdown.set_filter("b")?;
         assert_eq!(dropdown.current_item().unwrap().label(), "b");
-        dropdown.set_filter("c");
+        dropdown.set_filter("c")?;
         assert_eq!(dropdown.current_item().unwrap().label(), "c");
-        dropdown.set_filter("d");
+        dropdown.set_filter("d")?;
         assert_eq!(dropdown.current_item(), None);
 
-        dropdown.set_filter("");
+        dropdown.set_filter("")?;
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "b");
@@ -256,20 +256,22 @@ mod test_dropdown {
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
         assert_eq!(dropdown.editor.current_line().unwrap(), "[2] ipsum");
+        Ok(())
     }
 
     #[test]
-    fn filter_should_work_regardless_of_case() {
+    fn filter_should_work_regardless_of_case() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
         dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-        dropdown.set_filter("A");
+        dropdown.set_filter("A")?;
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        Ok(())
     }
 
     #[test]
-    fn setting_filter_should_show_info_of_the_new_first_item() {
+    fn setting_filter_should_show_info_of_the_new_first_item() -> anyhow::Result<()> {
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
         struct Item {
             label: String,
@@ -309,12 +311,13 @@ mod test_dropdown {
             "info a"
         );
 
-        dropdown.set_filter("b");
+        dropdown.set_filter("b")?;
 
         assert_eq!(dropdown.current_item().unwrap().label(), "b");
         assert_eq!(
             dropdown.info_panel.as_ref().unwrap().borrow().text(),
             "info b"
         );
+        Ok(())
     }
 }

@@ -29,7 +29,7 @@ mod integration_test {
     }
 
     impl TestRunner {
-        fn new() -> Self {
+        fn new() -> anyhow::Result<Self> {
             let (key_event_sender, receiver) = channel();
             let frontend = Arc::new(Mutex::new(MockFrontend::new()));
 
@@ -45,13 +45,16 @@ mod integration_test {
             let temp_dir = format!("../temp_dir/{}_{}", epoch_time.as_secs(), random_number);
 
             let path: PathBuf = temp_dir.into();
-            std::fs::create_dir_all(path.clone()).unwrap();
+            std::fs::create_dir_all(path.clone())?;
 
             let options = fs_extra::dir::CopyOptions::new();
-            fs_extra::dir::copy(MOCK_REPO_PATH, path.clone(), &options).unwrap();
+            fs_extra::dir::copy(MOCK_REPO_PATH, path.clone(), &options)?;
 
-            let temp_dir = CanonicalizedPath::try_from(path).unwrap();
-            let path = temp_dir.join("rust1").unwrap();
+            let temp_dir = CanonicalizedPath::try_from(path)?;
+            let path = temp_dir.join("rust1")?;
+
+            // Initialize the repo as a Git repo, so that we can test Git related features
+            Self::git_init(path.clone())?;
 
             let cloned_frontend = frontend.clone();
             std::thread::spawn(move || -> anyhow::Result<()> {
@@ -59,11 +62,24 @@ mod integration_test {
                 screen.run(Some(path.join("src/main.rs")?), receiver)?;
                 Ok(())
             });
-            Self {
+            Ok(Self {
                 key_event_sender,
                 temp_dir,
                 frontend,
-            }
+            })
+        }
+
+        fn git_init(path: CanonicalizedPath) -> anyhow::Result<()> {
+            use git2::{Repository, RepositoryInitOptions};
+
+            let repo = Repository::init_opts(path, RepositoryInitOptions::new().mkdir(false))?;
+            let mut index = repo.index()?;
+            index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
+            let tree_oid = index.write_tree()?;
+            let tree = repo.find_tree(tree_oid)?;
+            let sig = repo.signature()?;
+            repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])?;
+            Ok(())
         }
 
         fn send_key(&self, key: KeyEvent) -> anyhow::Result<()> {
@@ -80,6 +96,7 @@ mod integration_test {
         }
 
         fn content(&self) -> String {
+            sleep(1);
             self.frontend.lock().unwrap().content()
         }
     }
@@ -90,11 +107,10 @@ mod integration_test {
 
     #[test]
     fn lsp_completion() -> anyhow::Result<()> {
-        let test_runner = TestRunner::new();
+        let test_runner = TestRunner::new()?;
         sleep(3);
-        test_runner.send_keys(keys!("enter s t d : : o p t"))?;
+        test_runner.send_keys(keys!("enter u s e space s t d : : o p t"))?;
 
-        sleep(1);
         insta::assert_snapshot!(test_runner.content());
 
         Ok(())
@@ -102,7 +118,7 @@ mod integration_test {
 
     #[test]
     fn saving_should_not_crash() -> anyhow::Result<()> {
-        let test_runner = TestRunner::new();
+        let test_runner = TestRunner::new()?;
         sleep(1);
 
         // Go to the last line
@@ -117,12 +133,34 @@ mod integration_test {
         // Insert a b c
         test_runner.send_keys(keys!("i a b c"))?;
 
-        sleep(1);
-
         // Expect 'a b c' to be inserted at the end
         // Because the cursor is clamped to the end of the file, as it was out of bound after the
         // file is formatted
         // This will only work if the previous saving didn't crash
+        insta::assert_snapshot!(test_runner.content());
+
+        Ok(())
+    }
+
+    #[test]
+    fn search() -> anyhow::Result<()> {
+        let test_runner = TestRunner::new()?;
+
+        // Go to foo.rs
+        test_runner.send_keys(keys!("o f f o o enter"))?;
+
+        insta::assert_snapshot!(test_runner.content());
+
+        // Go to the original file
+        test_runner.send_keys(keys!("alt+left"))?;
+
+        // Search for "main"
+        test_runner.send_keys(keys!("ctrl+f m a i n enter"))?;
+
+        // Insert "_hello"
+        test_runner.send_keys(keys!("i _ h e l l o"))?;
+
+        // Expect the main function to be named "main_hello" in the original file
         insta::assert_snapshot!(test_runner.content());
 
         Ok(())

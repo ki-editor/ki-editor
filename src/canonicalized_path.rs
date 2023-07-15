@@ -1,7 +1,13 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CanonicalizedPath(PathBuf);
+
+impl AsRef<Path> for CanonicalizedPath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
 
 impl TryFrom<PathBuf> for CanonicalizedPath {
     type Error = anyhow::Error;
@@ -51,7 +57,11 @@ impl CanonicalizedPath {
     /// Get the relative path of this file from the current working directory.
     pub fn display_relative(&self) -> anyhow::Result<String> {
         let current_dir = std::env::current_dir()?;
-        let relative = self.0.strip_prefix(current_dir)?;
+        self.display_relative_to(&current_dir.try_into()?)
+    }
+
+    pub fn display_relative_to(&self, other: &CanonicalizedPath) -> anyhow::Result<String> {
+        let relative = self.0.strip_prefix(&other.0)?;
         Ok(relative.display().to_string())
     }
 

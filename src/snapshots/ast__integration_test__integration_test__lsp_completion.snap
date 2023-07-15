@@ -3,12 +3,12 @@ source: src/integration_test.rs
 expression: test_runner.content()
 ---
 <Untitled> [INSERT]                     │Completion [NORMAL:LINE]               
-fn main() {                            │[1] option                            
-std::opt                               │[2] option_env!                        
-    println!("Hello, world!");         │                                       
-}                                      │                                       
+mod foo;                                │[1] option                             
+use std::opt                            │[2] option_env                         
                                         │                                       
-                                        │                                       
+fn main() {                             │                                       
+    println!("Hello, world!");          │                                       
+}                                       │                                       
                                         │                                       
                                         │                                       
                                         │                                       
@@ -16,13 +16,13 @@ std::opt                               │[2] option_env!
                                         │                                       
                                         │───────────────────────────────────────
                                         │ [NORMAL:CUSTOM]                       
-                                        │Optional values.                      
-                                        │                                      
+                                        │Optional values.                       
+                                        │                                       
                                         │Type [`Option`] represents an optional 
                                         │is either [`Some`] and contains a value
                                         │does not. [`Option`] types are very com
-                                        │they have a number of uses:           
-                                        │                                      
-                                        │* Initial values                      
+                                        │they have a number of uses:            
+                                        │                                       
+                                        │* Initial values                       
                                         │* Return values for functions that are 
                                         │  over their entire input range (partia

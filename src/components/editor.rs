@@ -427,9 +427,11 @@ impl Editor {
         let title = buffer
             .borrow()
             .path()
-            .map(|path| path.display_relative())
-            .unwrap_or_else(|| Ok("<Untitled>".to_string()))
-            .unwrap_or_else(|_| "<Untitled>".to_string());
+            .map(|path| {
+                path.display_relative()
+                    .unwrap_or_else(|_| "<Untitled>".to_string())
+            })
+            .unwrap_or_else(|| "<Untitled>".to_string());
         Self {
             selection_set: SelectionSet {
                 primary: Selection {
@@ -1221,9 +1223,8 @@ impl Editor {
             key!('{') | key!('}') => return Ok(self.enclose(Enclosure::CurlyBracket)),
             key!('<') | key!('>') => return Ok(self.enclose(Enclosure::AngleBracket)),
 
-            // TODO: - and = are temporarily assigned keys
-            key!('-') => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Backward)]),
-            key!('=') => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Forward)]),
+            key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Backward)]),
+            key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Forward)]),
             key!('*') => return self.match_current_selection(),
             _ => {
                 log::info!("event: {:?}", event);
@@ -1496,7 +1497,6 @@ impl Editor {
             .collect()
     }
 
-    #[cfg(test)]
     pub fn text(&self) -> String {
         let buffer = self.buffer.borrow().clone();
         buffer.rope().slice(0..buffer.len_chars()).to_string()
@@ -1912,9 +1912,9 @@ impl Editor {
             Direction::Current,
         )?;
 
-        return Ok(vec![Dispatch::SetSearch {
+        Ok(vec![Dispatch::SetSearch {
             search: content.into(),
-        }]);
+        }])
     }
 }
 

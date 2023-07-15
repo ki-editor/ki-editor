@@ -55,6 +55,10 @@
 - [x] feat(editor/delete): allow edit even if there's no next sibling, in this case, collapse the selection
 - [x] when cursor at last position, and after formatting the cursor is out of bound, should not crash
 - [x] refactor: change all rope.x_to_y to rope.try_x_to_y to avoid crashing
+- [x] perf: when LSP is enable, handling key event is very slow
+- [x] infinite loop when changing window
+- [x] feat(editor): \* to search for the current selection (using AST grep maybe?)
+- [x] feat(search): don't use regex, regex is not needed 90% of the time
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -88,7 +92,6 @@
   - exchange first nameless sibling (opening bracket), with the previous sibling of parent
     - and reverse
 - [] editor(bug): go to previous error always step to the next first before going to the first
-- [x] perf: when LSP is enable, handling key event is very slow
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions
@@ -100,8 +103,5 @@
 - [] treesitter injections, support nested languages like Rust in Markdown
 - [] feat(lsp): go to declaration, type definition of symbol, and implementations
 - [] feat(lsp/code-action): command string execution (code action without edit)
-- [] infinite loop when changing window
 - [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] layout: implement Tall, instead of binary partition
-- [] feat(editor): ctrl+m to search for the current selection (using AST grep maybe?)
-- [] feat(search): don't use regex, regex is not needed 90% of the time

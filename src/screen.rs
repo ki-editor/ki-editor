@@ -55,6 +55,8 @@ pub struct Screen<T: Frontend> {
 
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
+    working_directory: CanonicalizedPath,
+
     layout: Layout,
 
     frontend: Arc<Mutex<T>>,
@@ -71,10 +73,11 @@ impl<T: Frontend> Screen<T> {
             context: Context::new(),
             buffers: Vec::new(),
             receiver,
-            lsp_manager: LspManager::new(sender.clone(), working_directory),
+            lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             sender,
             diagnostics: HashMap::new(),
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
+            working_directory,
             layout: Layout::new(dimension),
             frontend,
         };
@@ -120,8 +123,7 @@ impl<T: Frontend> Screen<T> {
                 }
             }
             .unwrap_or_else(|e| {
-                self.show_info(vec![e.to_string()]).unwrap();
-                log::error!("{:?}", e);
+                self.show_info(vec![e.to_string()]);
                 false
             });
 
@@ -171,7 +173,8 @@ impl<T: Frontend> Screen<T> {
                     let dispatches = component
                         .borrow_mut()
                         .handle_event(&mut self.context, event);
-                    self.handle_dispatches_result(dispatches);
+                    self.handle_dispatches_result(dispatches)
+                        .unwrap_or_else(|e| self.show_info(vec![e.to_string()]));
                 });
             }
         }
@@ -291,19 +294,11 @@ impl<T: Frontend> Screen<T> {
         Ok(())
     }
 
-    fn handle_dispatches_result(&mut self, dispatches: anyhow::Result<Vec<Dispatch>>) {
-        match dispatches {
-            Ok(dispatches) => {
-                self.handle_dispatches(dispatches).unwrap_or_else(|error| {
-                    // todo!("Show the error to the user")
-                    log::error!("Error: {:?}", error);
-                });
-            }
-            Err(error) => {
-                // todo!("Show the error to the user")
-                log::error!("Error: {:?}", error);
-            }
-        }
+    fn handle_dispatches_result(
+        &mut self,
+        dispatches: anyhow::Result<Vec<Dispatch>>,
+    ) -> anyhow::Result<()> {
+        self.handle_dispatches(dispatches?)
     }
 
     fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) -> Result<(), anyhow::Error> {
@@ -316,8 +311,6 @@ impl<T: Frontend> Screen<T> {
     fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
-                log::info!("Close current window");
-                log::info!("Change focused to: {:?}", change_focused_to);
                 self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch { search } => self.set_search(search),
@@ -356,7 +349,7 @@ impl<T: Frontend> Screen<T> {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowInfo { content } => self.show_info(content)?,
+            Dispatch::ShowInfo { content } => self.show_info(content),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
@@ -416,14 +409,12 @@ impl<T: Frontend> Screen<T> {
             history: self.context.previous_searches(),
             owner: current_component.clone(),
             on_enter: Box::new(|text, owner| {
-                owner
-                    .map(|owner| {
-                        owner
-                            .borrow_mut()
-                            .editor_mut()
-                            .select_match(Direction::Forward, &Some(text.to_string()));
-                    })
-                    .unwrap_or_default();
+                if let Some(owner) = owner {
+                    owner
+                        .borrow_mut()
+                        .editor_mut()
+                        .select_match(Direction::Forward, &Some(text.to_string()))?;
+                }
                 Ok(vec![Dispatch::SetSearch {
                     search: text.to_string(),
                 }])
@@ -460,17 +451,19 @@ impl<T: Frontend> Screen<T> {
 
     fn open_file_picker(&mut self) -> anyhow::Result<()> {
         let current_component = self.current_component().clone();
+
+        let working_directory = self.working_directory.clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Open File".to_string(),
             history: vec![],
             owner: current_component,
-            on_enter: Box::new(|current_item, _| {
-                let path = CanonicalizedPath::try_from(current_item)?;
+            on_enter: Box::new(move |current_item, _| {
+                let path = working_directory.join(current_item)?;
                 Ok(vec![Dispatch::OpenFile { path }])
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             items: {
-                let repo = git2::Repository::open(".")?;
+                let repo = git2::Repository::open(&self.working_directory)?;
 
                 // Get the current branch name
                 let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {
@@ -521,6 +514,7 @@ impl<T: Frontend> Screen<T> {
         // so that we won't notify the LSP twice
         if let Some(matching_editor) = self.layout.open_file(entry_path) {
             return Ok(matching_editor);
+        } else {
         }
 
         let buffer = Rc::new(RefCell::new(Buffer::from_path(entry_path)?));
@@ -619,15 +613,15 @@ impl<T: Frontend> Screen<T> {
             LspNotification::PrepareRenameResponse(component_id, _response) => {
                 let editor = self.get_suggestive_editor(component_id)?;
 
-                let params = editor.borrow().editor().get_request_params();
-
                 // Note: we cannot refactor the following code into the below code, otherwise we will get error,
                 // because RefCell is borrow_mut twice. The borrow has to be dropped.
                 //
                 //
-                // if let Some(params) = editor.borrow().editor().get_request_params() {
-                //   self.open_rename_prompt(params);
-                // }
+                //     if let Some(params) = editor.borrow().editor().get_request_params() {
+                //         self.open_rename_prompt(params);
+                //     }
+                //
+                let params = editor.borrow().editor().get_request_params();
                 if let Some(params) = params {
                     self.open_rename_prompt(params);
                 }
@@ -648,7 +642,6 @@ impl<T: Frontend> Screen<T> {
             }
             LspNotification::SignatureHelp(component_id, signature_help) => {
                 let editor = self.get_suggestive_editor(component_id)?;
-
                 editor.borrow_mut().show_signature_help(signature_help);
                 Ok(())
             }
@@ -691,8 +684,10 @@ impl<T: Frontend> Screen<T> {
         Ok(())
     }
 
-    fn show_info(&mut self, contents: Vec<String>) -> anyhow::Result<()> {
-        self.layout.show_info(contents)
+    fn show_info(&mut self, contents: Vec<String>) {
+        self.layout.show_info(contents).unwrap_or_else(|err| {
+            log::error!("Error showing info: {:?}", err);
+        });
     }
 
     fn go_to_location(&mut self, location: &Location) -> Result<(), anyhow::Error> {

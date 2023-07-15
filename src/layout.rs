@@ -87,6 +87,7 @@ impl Layout {
         for component in root_components.iter() {
             components.extend(component.borrow().descendants());
         }
+
         components
     }
 
@@ -106,7 +107,11 @@ impl Layout {
         self.focused_component_id.map(|id| {
             self.prompts.retain(|c| c.borrow().id() != id);
 
-            self.main_panel = self.main_panel.take().filter(|c| c.borrow().id() != id);
+            self.main_panel = self
+                .main_panel
+                .take()
+                .filter(|c| c.borrow().id() != id)
+                .or_else(|| self.background_suggestive_editors.last().cloned());
 
             self.keymap_legend = self.keymap_legend.take().filter(|c| c.borrow().id() != id);
 
@@ -116,8 +121,6 @@ impl Layout {
 
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
-
-            self.set_main_panel(self.background_suggestive_editors.last().cloned());
 
             self.components().into_iter().for_each(|c| {
                 c.borrow_mut().remove_child(id);
@@ -160,6 +163,7 @@ impl Layout {
             })
             .cloned()
             .or_else(|| self.main_panel.take());
+
         self.set_main_panel(editor);
     }
 
@@ -263,6 +267,7 @@ impl Layout {
         suggestive_editor: Rc<RefCell<SuggestiveEditor>>,
     ) {
         self.add_suggestive_editor(suggestive_editor.clone());
+
         self.set_main_panel(Some(suggestive_editor));
     }
 
