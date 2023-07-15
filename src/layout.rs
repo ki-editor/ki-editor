@@ -22,6 +22,8 @@ use crate::{
 /// hover text, diagnostics, etc.
 pub struct Layout {
     main_panel: Option<Rc<RefCell<SuggestiveEditor>>>,
+    main_panel_history_backward: Vec<Rc<RefCell<SuggestiveEditor>>>,
+    main_panel_history_forward: Vec<Rc<RefCell<SuggestiveEditor>>>,
     info_panel: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Option<Rc<RefCell<KeymapLegend>>>,
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
@@ -41,6 +43,8 @@ impl Layout {
         let (rectangles, borders) = Rectangle::generate(1, terminal_dimension);
         Layout {
             main_panel: None,
+            main_panel_history_backward: vec![],
+            main_panel_history_forward: vec![],
             info_panel: None,
             keymap_legend: None,
             quickfix_lists: None,
@@ -140,31 +144,33 @@ impl Layout {
         self.quickfix_lists = Some(quickfix_lists);
     }
 
-    pub fn set_main_panel(&mut self, editor: Option<Rc<RefCell<SuggestiveEditor>>>) {
+    pub fn set_main_panel(
+        &mut self,
+        editor: Option<Rc<RefCell<SuggestiveEditor>>>,
+        set_backward_history: bool,
+    ) {
         self.focused_component_id = editor.as_ref().map(|editor| editor.borrow().id());
+        if let Some(editor) = &editor {
+            if set_backward_history {
+                self.main_panel_history_backward.push(editor.clone());
+            } else {
+                self.main_panel_history_forward.push(editor.clone());
+            }
+        }
         self.main_panel = editor;
     }
 
     pub fn goto_opened_editor(&mut self, direction: Direction) {
-        let editor = self
-            .background_suggestive_editors
-            .iter()
-            .sorted_by_key(|editor| editor.borrow().id())
-            .find(|editor| {
-                let id = editor.borrow().id();
-                if let Some(focused_component_id) = self.focused_component_id {
-                    match direction {
-                        Direction::Forward | Direction::Current => id > focused_component_id,
-                        Direction::Backward => id < focused_component_id,
-                    }
-                } else {
-                    true
-                }
-            })
-            .cloned()
-            .or_else(|| self.main_panel.take());
-
-        self.set_main_panel(editor);
+        let editor = match direction {
+            Direction::Forward | Direction::Current => self.main_panel_history_forward.pop(),
+            Direction::Backward => self.main_panel_history_backward.pop(),
+        }
+        .or_else(|| self.main_panel.take());
+        let set_backward_history = match direction {
+            Direction::Forward | Direction::Current => true,
+            Direction::Backward => false,
+        };
+        self.set_main_panel(editor, set_backward_history);
     }
 
     pub fn change_view(&mut self) {
@@ -234,7 +240,7 @@ impl Layout {
                         .unwrap_or(false)
                 })
         {
-            self.set_main_panel(Some(matching_editor.clone()));
+            self.set_main_panel(Some(matching_editor.clone()), true);
             Some(matching_editor)
         } else {
             None
@@ -268,7 +274,7 @@ impl Layout {
     ) {
         self.add_suggestive_editor(suggestive_editor.clone());
 
-        self.set_main_panel(Some(suggestive_editor));
+        self.set_main_panel(Some(suggestive_editor), true);
     }
 
     pub fn get_suggestive_editor(
@@ -301,6 +307,19 @@ impl Layout {
         let keymap_legend = KeymapLegend::new(keymap_legend_config);
         self.focused_component_id = Some(keymap_legend.id());
         self.keymap_legend = Some(Rc::new(RefCell::new(keymap_legend)));
+    }
+
+    pub fn close_all_except_main_panel(&mut self) {
+        self.info_panel = None;
+        self.keymap_legend = None;
+        self.quickfix_lists = None;
+        self.prompts = vec![];
+        if self.focused_component_id.is_none() {
+            self.focused_component_id = self
+                .background_suggestive_editors
+                .last()
+                .map(|editor| editor.borrow().id())
+        }
     }
 }
 

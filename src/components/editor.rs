@@ -1153,6 +1153,7 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
+            key!("esc") => return Ok(vec![Dispatch::CloseAllExceptMainPanel]),
             // Objects
             key!("a") => self.add_selection()?,
             key!("shift+A") => self.add_selection()?,

@@ -59,49 +59,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 
 [[package]]
-name = "ast"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "ast-grep-core",
- "crossterm",
- "diffy",
- "dyn-clone",
- "event",
- "fs_extra",
- "git2",
- "grep-cli",
- "grep-regex",
- "grep-searcher",
- "insta",
- "itertools",
- "json-rpc-types",
- "lazy_static",
- "log",
- "lsp-types",
- "my_proc_macros",
- "portable-pty",
- "pretty_assertions",
- "rand",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "simple-logging",
- "tempfile",
- "tree-sitter",
- "tree-sitter-highlight",
- "tree-sitter-javascript",
- "tree-sitter-md",
- "tree-sitter-rust",
- "tree-sitter-traversal",
- "tree-sitter-typescript",
- "uuid",
- "vt100",
-]
-
-[[package]]
 name = "ast-grep-core"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1546,6 +1503,49 @@ dependencies = [
  "flate2",
  "jpeg-decoder",
  "weezl",
+]
+
+[[package]]
+name = "tim"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "ast-grep-core",
+ "crossterm",
+ "diffy",
+ "dyn-clone",
+ "event",
+ "fs_extra",
+ "git2",
+ "grep-cli",
+ "grep-regex",
+ "grep-searcher",
+ "insta",
+ "itertools",
+ "json-rpc-types",
+ "lazy_static",
+ "log",
+ "lsp-types",
+ "my_proc_macros",
+ "portable-pty",
+ "pretty_assertions",
+ "rand",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "simple-logging",
+ "tempfile",
+ "tree-sitter",
+ "tree-sitter-highlight",
+ "tree-sitter-javascript",
+ "tree-sitter-md",
+ "tree-sitter-rust",
+ "tree-sitter-traversal",
+ "tree-sitter-typescript",
+ "uuid",
+ "vt100",
 ]
 
 [[package]]

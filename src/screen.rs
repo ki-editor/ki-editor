@@ -371,6 +371,7 @@ impl<T: Frontend> Screen<T> {
 
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
+            Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
         }
         Ok(())
     }
@@ -605,9 +606,13 @@ impl<T: Frontend> Screen<T> {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
-                        self.set_quickfix_list(QuickfixList::new(
-                            locations.into_iter().map(QuickfixListItem::from).collect(),
-                        ))?
+                        if locations.is_empty() {
+                            self.show_info(vec!["No definitions found".to_string()]);
+                        } else {
+                            self.set_quickfix_list(QuickfixList::new(
+                                locations.into_iter().map(QuickfixListItem::from).collect(),
+                            ))?
+                        }
                     }
                 }
 
@@ -842,6 +847,7 @@ pub enum Dispatch {
     GotoOpenedEditor(Direction),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
+    CloseAllExceptMainPanel,
 
     #[cfg(test)]
     /// Used for testing
