@@ -331,6 +331,15 @@ impl<T: Frontend> Screen<T> {
             Dispatch::RequestDefinitions(params) => {
                 self.lsp_manager.request_definition(params)?;
             }
+            Dispatch::RequestDeclarations(params) => {
+                self.lsp_manager.request_declaration(params)?;
+            }
+            Dispatch::RequestImplementations(params) => {
+                self.lsp_manager.request_implementation(params)?;
+            }
+            Dispatch::RequestTypeDefinitions(params) => {
+                self.lsp_manager.request_type_definition(params)?;
+            }
             Dispatch::PrepareRename(params) => {
                 self.lsp_manager.prepare_rename_symbol(params)?;
             }
@@ -811,6 +820,9 @@ pub enum Dispatch {
     RequestSignatureHelp(RequestParams),
     RequestHover(RequestParams),
     RequestDefinitions(RequestParams),
+    RequestDeclarations(RequestParams),
+    RequestImplementations(RequestParams),
+    RequestTypeDefinitions(RequestParams),
     RequestReferences(RequestParams),
     PrepareRename(RequestParams),
     RequestCodeAction(RequestParams),

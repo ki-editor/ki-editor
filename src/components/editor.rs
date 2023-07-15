@@ -931,7 +931,26 @@ impl Editor {
                                     "Definition(s)",
                                     Dispatch::RequestDefinitions(params.clone()),
                                 ),
-                                Keymap::new("r", "References", Dispatch::RequestReferences(params)),
+                                Keymap::new(
+                                    "shift+D",
+                                    "Declaration(s)",
+                                    Dispatch::RequestDeclarations(params.clone()),
+                                ),
+                                Keymap::new(
+                                    "r",
+                                    "References",
+                                    Dispatch::RequestReferences(params.clone()),
+                                ),
+                                Keymap::new(
+                                    "i",
+                                    "Implementation(s)",
+                                    Dispatch::RequestImplementations(params.clone()),
+                                ),
+                                Keymap::new(
+                                    "t",
+                                    "Type Definition(s)",
+                                    Dispatch::RequestTypeDefinitions(params),
+                                ),
                                 Keymap::new(
                                     "e",
                                     "Errors",

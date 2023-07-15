@@ -2,7 +2,9 @@ use crate::canonicalized_path::CanonicalizedPath;
 use crate::language;
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
-use lsp_types::request::Request;
+use lsp_types::request::{
+    GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
+};
 use lsp_types::*;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -107,6 +109,9 @@ enum FromEditor {
     },
     RequestCodeAction(RequestParams),
     RequestSignatureHelp(RequestParams),
+    RequestDeclaration(RequestParams),
+    RequestImplementation(RequestParams),
+    RequestTypeDefinition(RequestParams),
 }
 
 pub struct LspServerProcessChannel {
@@ -140,6 +145,24 @@ impl LspServerProcessChannel {
     pub fn request_references(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestReferences(params),
+        ))
+    }
+
+    pub fn request_declaration(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestDeclaration(clone),
+        ))
+    }
+
+    pub fn request_implementation(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestImplementation(clone),
+        ))
+    }
+
+    pub fn request_type_definition(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestTypeDefinition(clone),
         ))
     }
 
@@ -438,6 +461,15 @@ impl LspServerProcess {
                     FromEditor::RequestHover(params) => self.text_document_hover(params),
                     FromEditor::RequestDefinition(params) => self.text_document_definition(params),
                     FromEditor::RequestReferences(params) => self.text_document_references(params),
+                    FromEditor::RequestDeclaration(params) => {
+                        self.text_document_declaration(params)
+                    }
+                    FromEditor::RequestImplementation(params) => {
+                        self.text_document_implementation(params)
+                    }
+                    FromEditor::RequestTypeDefinition(params) => {
+                        self.text_document_type_definition(params)
+                    }
                     FromEditor::RenameSymbol { params, new_name } => {
                         self.text_document_rename(params, new_name)
                     }
@@ -599,6 +631,45 @@ impl LspServerProcess {
                                         .into_iter()
                                         .map(|r| r.try_into())
                                         .collect::<Result<Vec<_>, _>>()?,
+                                )))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/declaration" => {
+                        let payload: <lsp_request!("textDocument/declaration") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::Definition(
+                                    component_id,
+                                    payload.try_into()?,
+                                )))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/typeDefinition" => {
+                        let payload: <lsp_request!("textDocument/typeDefinition") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::Definition(
+                                    component_id,
+                                    payload.try_into()?,
+                                )))
+                                .unwrap();
+                        }
+                    }
+                    "textDocument/implementation" => {
+                        let payload: <lsp_request!("textDocument/implementation") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::Definition(
+                                    component_id,
+                                    payload.try_into()?,
                                 )))
                                 .unwrap();
                         }
@@ -930,6 +1001,51 @@ impl LspServerProcess {
                 text_document_position: TextDocumentPositionParams {
                     position: position.into(),
                     text_document: path_buf_to_text_document_identifier(path)?,
+                },
+                work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    fn text_document_declaration(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/declaration")>(
+            params.component_id,
+            GotoDeclarationParams {
+                partial_result_params: Default::default(),
+                text_document_position_params: TextDocumentPositionParams {
+                    position: params.position.into(),
+                    text_document: path_buf_to_text_document_identifier(params.path)?,
+                },
+                work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    fn text_document_implementation(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/implementation")>(
+            params.component_id,
+            GotoImplementationParams {
+                partial_result_params: Default::default(),
+                text_document_position_params: TextDocumentPositionParams {
+                    position: params.position.into(),
+                    text_document: path_buf_to_text_document_identifier(params.path)?,
+                },
+                work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    fn text_document_type_definition(
+        &mut self,
+        params: RequestParams,
+    ) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/typeDefinition")>(
+            params.component_id,
+            GotoTypeDefinitionParams {
+                partial_result_params: Default::default(),
+                text_document_position_params: TextDocumentPositionParams {
+                    position: params.position.into(),
+                    text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
                 work_done_progress_params: Default::default(),
             },

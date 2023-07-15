@@ -73,6 +73,24 @@ impl LspManager {
         })
     }
 
+    pub fn request_declaration(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to go to declaration", |channel| {
+            channel.request_declaration(params.clone())
+        })
+    }
+
+    pub fn request_implementation(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to go to implementation", |channel| {
+            channel.request_implementation(params.clone())
+        })
+    }
+
+    pub fn request_type_definition(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(&params.path, "Failed to go to type definition", |channel| {
+            channel.request_type_definition(params.clone())
+        })
+    }
+
     pub fn prepare_rename_symbol(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to prepare rename symbol", |channel| {
             channel.prepare_rename_symbol(params.clone())
