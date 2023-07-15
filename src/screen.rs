@@ -463,40 +463,73 @@ impl<T: Frontend> Screen<T> {
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             items: {
-                let repo = git2::Repository::open(&self.working_directory)?;
+                use git2::{Repository, StatusOptions};
 
-                // Get the current branch name
-                let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {
-                    Err(anyhow!(
-                        "Couldn't find HEAD for repository {}",
-                        repo.path().display(),
-                    ))
-                })?;
+                let git_status_files = {
+                    let repo = Repository::open(&self.working_directory)?;
+                    let mut opts = StatusOptions::new();
+                    opts.include_untracked(true);
+                    opts.include_ignored(false);
+                    let statuses = repo.statuses(Some(&mut opts))?;
+                    statuses
+                        .iter()
+                        .filter(|entry| !entry.status().is_ignored())
+                        .filter_map(|entry| entry.path().map(|path| path.to_owned()))
+                        .filter_map(|path| {
+                            Some(CompletionItem {
+                                label: CanonicalizedPath::try_from(&path)
+                                    .ok()?
+                                    .display_relative()
+                                    .ok()?,
+                                documentation: None,
+                                sort_text: None,
+                                edit: None,
+                            })
+                        })
+                        .collect::<Vec<_>>()
+                };
 
-                // Get the generic object of the current branch
-                let object = repo.find_object(head, None)?;
+                let git_files = {
+                    let repo = git2::Repository::open(&self.working_directory)?;
 
-                // Get the tree object of the current branch
-                let tree = object.peel_to_tree()?;
+                    // Get the current branch name
+                    let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {
+                        Err(anyhow!(
+                            "Couldn't find HEAD for repository {}",
+                            repo.path().display(),
+                        ))
+                    })?;
 
-                let mut result = vec![];
-                // Iterate over the tree entries and print their names
-                tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
-                    let entry_name = entry.name().unwrap_or_default();
-                    let name = Path::new(root).join(entry_name);
-                    let name = name.to_string_lossy();
-                    result.push(name.to_string());
-                    git2::TreeWalkResult::Ok
-                })?;
+                    // Get the generic object of the current branch
+                    let object = repo.find_object(head, None)?;
 
-                result
+                    // Get the tree object of the current branch
+                    let tree = object.peel_to_tree()?;
+
+                    let mut result = vec![];
+                    // Iterate over the tree entries and print their names
+                    tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
+                        let entry_name = entry.name().unwrap_or_default();
+                        let name = Path::new(root).join(entry_name);
+                        let name = name.to_string_lossy();
+                        result.push(name.to_string());
+                        git2::TreeWalkResult::Ok
+                    })?;
+
+                    result
+                        .into_iter()
+                        .map(|word| CompletionItem {
+                            label: word,
+                            documentation: None,
+                            sort_text: None,
+                            edit: None,
+                        })
+                        .collect_vec()
+                };
+                git_files
                     .into_iter()
-                    .map(|word| CompletionItem {
-                        label: word,
-                        documentation: None,
-                        sort_text: None,
-                        edit: None,
-                    })
+                    .chain(git_status_files)
+                    .unique_by(|item| item.label.clone())
                     .collect_vec()
             },
         });
