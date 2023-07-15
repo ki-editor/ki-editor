@@ -10,7 +10,7 @@ use crate::{
 };
 
 use itertools::Itertools;
-use key_event_macro::key;
+use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
 use super::component::ComponentId;
@@ -352,7 +352,7 @@ mod test_suggestive_editor {
         position::Position,
         screen::Dispatch,
     };
-    use key_event_macro::keys;
+    use my_proc_macros::keys;
 
     use super::{SuggestiveEditor, SuggestiveEditorFilter};
     use pretty_assertions::assert_eq;

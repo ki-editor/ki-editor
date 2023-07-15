@@ -27,27 +27,6 @@ pub fn highlight(
     let mut highlighter = Highlighter::new();
     use tree_sitter_highlight::HighlightConfiguration;
 
-    let highlight_names = &[
-        "attribute",
-        "constant",
-        "function.builtin",
-        "function",
-        "keyword",
-        "operator",
-        "property",
-        "punctuation",
-        "punctuation.bracket",
-        "punctuation.delimiter",
-        "string",
-        "string.special",
-        "tag",
-        "type",
-        "type.builtin",
-        "variable",
-        "variable.builtin",
-        "variable.parameter",
-    ];
-
     let mut config = HighlightConfiguration::new(
         tree_sitter_language,
         language.highlight_query().unwrap_or_default(),
@@ -56,7 +35,7 @@ pub fn highlight(
     )
     .unwrap();
 
-    config.configure(highlight_names);
+    config.configure(&crate::themes::HIGHLIGHT_NAMES);
 
     let highlights = highlighter
         .highlight(&config, source_code.as_bytes(), None, |_| None)
@@ -76,7 +55,7 @@ pub fn highlight(
             }
             HighlightEvent::Source { start, end } => {
                 if let Some(highlight) = highlight {
-                    if let Some(color) = theme.styles.get_color(highlight.0) {
+                    if let Some(color) = theme.syntax.get_color(highlight.0) {
                         highlighted_spans.push(HighlighedSpan {
                             range: CharIndex(start)..CharIndex(end),
                             style: color,

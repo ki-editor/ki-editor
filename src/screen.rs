@@ -1,8 +1,8 @@
 use anyhow::anyhow;
-use crossterm::style::Color;
+
 use event::event::Event;
 use itertools::Itertools;
-use key_event_macro::key;
+use my_proc_macros::{hex, key};
 use std::{
     cell::RefCell,
     collections::HashMap,
@@ -209,7 +209,7 @@ impl<T: Frontend> Screen<T> {
                     .map(|diagnostics| diagnostics.as_slice())
                     .unwrap_or(&[]);
 
-                let component_grid = component.get_grid(diagnostics);
+                let component_grid = component.get_grid(&self.context.theme, diagnostics);
                 let focused_component_id = self.layout.focused_component_id();
                 let cursor_point = if focused_component_id
                     .map(|focused_component_id| component.id() == focused_component_id)
@@ -254,8 +254,8 @@ impl<T: Frontend> Screen<T> {
                             0,
                             &title,
                             Style::new()
-                                .foreground_color(Color::White)
-                                .background_color(Color::DarkGrey),
+                                .foreground_color(hex!("#ffffff"))
+                                .background_color(hex!("#D3D3D3")),
                         );
                         (
                             grid.update(&component_grid, &rectangle)

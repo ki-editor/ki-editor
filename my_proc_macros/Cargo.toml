@@ -1,5 +1,5 @@
 [package]
-name = "key_event_macro"
+name = "my_proc_macros"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 event = { path = "../event" }
 crossterm.workspace = true
+regex.workspace = true
 
 [lib]
 proc-macro = true

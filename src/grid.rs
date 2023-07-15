@@ -1,11 +1,11 @@
-use crossterm::style::Color;
-
 use crate::{
     position::Position,
     rectangle::{Border, BorderDirection, Rectangle},
     screen::Dimension,
+    themes::Color,
 };
 
+use my_proc_macros::hex;
 #[cfg(test)]
 use ropey::Rope;
 
@@ -25,10 +25,12 @@ pub struct Cell {
 impl Cell {
     #[cfg(test)]
     fn from_char(c: char) -> Self {
+        use my_proc_macros::hex;
+
         Cell {
             symbol: c.to_string(),
-            foreground_color: Color::White,
-            background_color: Color::White,
+            foreground_color: hex!("#ffffff"),
+            background_color: hex!("#ffffff"),
             undercurl: None,
         }
     }
@@ -53,8 +55,8 @@ impl Default for Cell {
     fn default() -> Self {
         Cell {
             symbol: " ".to_string(),
-            foreground_color: Color::White,
-            background_color: Color::White,
+            foreground_color: hex!("#ffffff"),
+            background_color: hex!("#ffffff"),
             undercurl: None,
         }
     }
@@ -225,7 +227,7 @@ impl Grid {
                 for i in 0..dimension.width.saturating_sub(border.start.column as u16) {
                     self.rows[border.start.line][border.start.column + i as usize] = Cell {
                         symbol: "─".to_string(),
-                        foreground_color: Color::Black,
+                        foreground_color: hex!("#000000"),
                         ..Cell::default()
                     };
                 }
@@ -234,7 +236,7 @@ impl Grid {
                 for i in 0..dimension.height.saturating_sub(border.start.line as u16) {
                     self.rows[border.start.line + i as usize][border.start.column] = Cell {
                         symbol: "│".to_string(),
-                        foreground_color: Color::Black,
+                        foreground_color: hex!("#000000"),
                         ..Cell::default()
                     };
                 }
@@ -299,9 +301,6 @@ impl Grid {
 
 #[derive(Default, Clone, Copy)]
 pub struct Style {
-    /// TODO: use own Color struct instead of crossterm's
-    /// so that user can use hex colors instead of RGB
-    /// TODO: also, use a macro to convert hex to rgb at compile time
     pub foreground_color: Option<Color>,
     pub background_color: Option<Color>,
     pub undercurl: Option<Color>,
@@ -326,7 +325,7 @@ impl Style {
         }
     }
 
-    fn undercurl(self, color: Option<Color>) -> Style {
+    pub fn undercurl(self, color: Option<Color>) -> Style {
         Style {
             undercurl: color,
             ..self

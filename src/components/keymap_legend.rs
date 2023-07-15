@@ -1,6 +1,6 @@
 use event::{parse_key_event, KeyEvent};
 use itertools::Itertools;
-use key_event_macro::key;
+use my_proc_macros::key;
 
 use crate::screen::Dispatch;
 
@@ -145,7 +145,7 @@ impl Component for KeymapLegend {
 
 #[cfg(test)]
 mod test_keymap_legend {
-    use key_event_macro::keys;
+    use my_proc_macros::keys;
 
     use super::*;
     #[test]

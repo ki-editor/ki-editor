@@ -7,6 +7,7 @@ use crate::{
     position::Position,
     selection::{CharIndex, RangeCharIndex, Selection, SelectionSet},
     syntax_highlight::{self, HighlighedSpan},
+    themes::Theme,
     utils::find_previous,
 };
 use itertools::Itertools;
@@ -27,6 +28,7 @@ pub struct Buffer {
     path: Option<CanonicalizedPath>,
     diagnostics: Vec<Diagnostic>,
     highlighted_spans: Vec<HighlighedSpan>,
+    theme: Theme,
 }
 
 impl Buffer {
@@ -45,6 +47,7 @@ impl Buffer {
             path: None,
             diagnostics: Vec::new(),
             highlighted_spans: Vec::new(),
+            theme: Theme::default(),
         }
     }
 

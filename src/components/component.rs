@@ -4,7 +4,7 @@ use event::event::Event;
 
 use crate::{
     context::Context, grid::Grid, lsp::diagnostic::Diagnostic, position::Position,
-    rectangle::Rectangle, screen::Dispatch,
+    rectangle::Rectangle, screen::Dispatch, themes::Theme,
 };
 
 use super::editor::Editor;
@@ -17,8 +17,8 @@ pub trait Component: Any + AnyComponent {
     }
     fn editor(&self) -> &Editor;
     fn editor_mut(&mut self) -> &mut Editor;
-    fn get_grid(&self, diagnostics: &[Diagnostic]) -> Grid {
-        self.editor().get_grid(diagnostics)
+    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> Grid {
+        self.editor().get_grid(theme, diagnostics)
     }
 
     #[cfg(test)]

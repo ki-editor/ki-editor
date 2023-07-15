@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use itertools::Itertools;
-use key_event_macro::key;
+use my_proc_macros::key;
 
 use crate::{
     buffer::Buffer,
@@ -145,7 +145,7 @@ impl Component for Prompt {
 
 #[cfg(test)]
 mod test_prompt {
-    use key_event_macro::keys;
+    use my_proc_macros::keys;
     use std::{cell::RefCell, rc::Rc};
 
     use crate::{

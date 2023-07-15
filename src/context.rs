@@ -1,9 +1,10 @@
-use crate::clipboard::Clipboard;
+use crate::{clipboard::Clipboard, themes::Theme};
 
 pub struct Context {
     previous_searches: Vec<String>,
     clipboard: Clipboard,
     clipboard_content: Option<String>,
+    pub theme: Theme,
 }
 
 impl Default for Context {
@@ -12,6 +13,7 @@ impl Default for Context {
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
             clipboard_content: None,
+            theme: Theme::default(),
         }
     }
 }
@@ -22,6 +24,7 @@ impl Context {
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
             clipboard_content: None,
+            theme: Theme::default(),
         }
     }
     pub fn last_search(&self) -> Option<String> {

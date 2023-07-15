@@ -10,7 +10,7 @@ mod integration_test {
     };
 
     use event::{event::Event, KeyEvent};
-    use key_event_macro::keys;
+    use my_proc_macros::keys;
 
     use crate::{
         canonicalized_path::CanonicalizedPath, frontend::mock::MockFrontend, screen::Screen,

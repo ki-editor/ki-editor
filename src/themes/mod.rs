@@ -3,34 +3,88 @@ pub use vscode_light::VSCODE_LIGHT;
 
 use crate::grid::Style;
 
+#[derive(Clone)]
 pub struct Theme {
     pub name: &'static str,
-    pub styles: ThemeStyles,
+    pub syntax: SyntaxStyles,
+    pub ui: UiStyles,
+    pub diagnostic: DiagnosticStyles,
 }
 
-#[derive(Default)]
-pub struct ThemeStyles {
-    attribute: Option<Style>,
-    constant: Option<Style>,
-    function_builtin: Option<Style>,
-    function: Option<Style>,
-    keyword: Option<Style>,
-    operator: Option<Style>,
-    property: Option<Style>,
-    punctuation: Option<Style>,
-    punctuation_bracket: Option<Style>,
-    punctuation_delimiter: Option<Style>,
-    string: Option<Style>,
-    string_special: Option<Style>,
-    tag: Option<Style>,
-    type_: Option<Style>,
-    type_builtin: Option<Style>,
-    variable: Option<Style>,
-    variable_builtin: Option<Style>,
-    variable_parameter: Option<Style>,
+impl Default for Theme {
+    fn default() -> Self {
+        vscode_light::theme()
+    }
 }
 
-impl ThemeStyles {
+#[derive(Clone)]
+pub struct DiagnosticStyles {
+    pub error: Style,
+    pub warning: Style,
+    pub info: Style,
+    pub hint: Style,
+    pub default: Style,
+}
+
+#[derive(Default, Clone)]
+pub struct UiStyles {
+    pub jump_mark_odd: Style,
+    pub jump_mark_even: Style,
+    pub text: Style,
+    pub primary_selection: Style,
+    pub primary_selection_secondary_cursor: Style,
+    pub secondary_selection: Style,
+    pub secondary_selection_primary_cursor: Style,
+    pub secondary_selection_secondary_cursor: Style,
+}
+
+#[derive(Default, Clone)]
+pub struct SyntaxStyles {
+    pub attribute: Option<Style>,
+    pub constant: Option<Style>,
+    pub function_builtin: Option<Style>,
+    pub function: Option<Style>,
+    pub keyword: Option<Style>,
+    pub operator: Option<Style>,
+    pub property: Option<Style>,
+    pub punctuation: Option<Style>,
+    pub punctuation_bracket: Option<Style>,
+    pub punctuation_delimiter: Option<Style>,
+    pub string: Option<Style>,
+    pub string_special: Option<Style>,
+    pub tag: Option<Style>,
+    pub type_: Option<Style>,
+    pub type_builtin: Option<Style>,
+    pub variable: Option<Style>,
+    pub variable_builtin: Option<Style>,
+    pub variable_parameter: Option<Style>,
+    pub comment: Option<Style>,
+}
+
+pub const HIGHLIGHT_NAMES: [&str; 19] = [
+    "attribute",
+    "constant",
+    "function.builtin",
+    "function",
+    "keyword",
+    "operator",
+    "property",
+    "punctuation",
+    "punctuation.bracket",
+    "punctuation.delimiter",
+    "string",
+    "string.special",
+    "tag",
+    "type",
+    "type.builtin",
+    "variable",
+    "variable.builtin",
+    "variable.parameter",
+    "comment",
+];
+
+impl SyntaxStyles {
+    /// The `index` should tally with the `HIGHLIGHT_NAMES` array.
     pub fn get_color(&self, index: usize) -> Option<Style> {
         match index {
             0 => self.attribute,
@@ -51,7 +105,32 @@ impl ThemeStyles {
             15 => self.variable,
             16 => self.variable_builtin,
             17 => self.variable_parameter,
+            18 => self.comment,
             _ => None,
+        }
+    }
+}
+
+/// This should be constructed using the `color!` macro.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+impl Color {
+    pub fn new(r: u8, g: u8, b: u8) -> Self {
+        Self { r, g, b }
+    }
+}
+
+impl From<Color> for crossterm::style::Color {
+    fn from(val: Color) -> Self {
+        crossterm::style::Color::Rgb {
+            r: val.r,
+            g: val.g,
+            b: val.b,
         }
     }
 }

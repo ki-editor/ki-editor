@@ -99,14 +99,19 @@ impl Frontend for Crossterm {
             queue!(
                 self.stdout,
                 MoveTo(cell.position.column as u16, cell.position.line as u16),
-                SetUnderlineColor(cell.cell.undercurl.unwrap_or(Color::Reset)),
+                SetUnderlineColor(
+                    cell.cell
+                        .undercurl
+                        .map(|color| color.into())
+                        .unwrap_or(Color::Reset)
+                ),
                 SetAttribute(if cell.cell.undercurl.is_some() {
                     Attribute::Undercurled
                 } else {
                     Attribute::NoUnderline
                 }),
-                SetBackgroundColor(cell.cell.background_color),
-                SetForegroundColor(cell.cell.foreground_color),
+                SetBackgroundColor(cell.cell.background_color.into()),
+                SetForegroundColor(cell.cell.foreground_color.into()),
                 Print(reveal(&cell.cell.symbol)),
                 SetAttribute(Attribute::Reset),
             )?;

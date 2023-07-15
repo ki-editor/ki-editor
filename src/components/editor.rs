@@ -1,6 +1,6 @@
 use crate::{
     canonicalized_path::CanonicalizedPath, context::Context, grid::CellUpdate,
-    screen::RequestParams, selection::RangeCharIndex,
+    screen::RequestParams, selection::RangeCharIndex, themes::Theme,
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -8,14 +8,11 @@ use std::{
     rc::Rc,
 };
 
-use crossterm::{
-    event::{KeyCode, MouseButton, MouseEventKind},
-    style::Color,
-};
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
-use key_event_macro::key;
 use lsp_types::DiagnosticSeverity;
+use my_proc_macros::{hex, key};
 use ropey::{Rope, RopeSlice};
 use tree_sitter::Node;
 
@@ -83,7 +80,7 @@ impl Component for Editor {
     fn set_title(&mut self, title: String) {
         self.title = title;
     }
-    fn get_grid(&self, diagnostics: &[Diagnostic]) -> Grid {
+    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> Grid {
         let editor = self;
         let Dimension { height, width } = editor.dimension();
         let mut grid: Grid = Grid::new(Dimension { height, width });
@@ -120,163 +117,138 @@ impl Component for Editor {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
                     symbol: c.to_string(),
-                    background_color: Color::White,
-                    foreground_color: Color::Black,
+                    background_color: theme.ui.text.background_color.unwrap_or(hex!("#ffffff")),
+                    foreground_color: theme.ui.text.foreground_color.unwrap_or(hex!("#000000")),
                     undercurl: None,
                 };
             }
         }
-
-        let updates = vec![]
-            .into_iter()
-            //
-            // Jumps
-            //
-            .chain(
-                editor
-                    .jumps()
-                    .into_iter()
-                    .enumerate()
-                    .filter_map(|(index, jump)| {
-                        let position = buffer
-                            .char_to_position(match editor.cursor_direction {
-                                CursorDirection::Start => jump.selection.range.start,
-                                CursorDirection::End => jump.selection.range.start,
-                            })
-                            .ok()?;
-
-                        // Background color: Odd index red, even index blue
-                        let background_color = if index % 2 == 0 {
-                            Color::Red
-                        } else {
-                            Color::Blue
-                        };
-
-                        Some(
-                            CellUpdate::new(position)
-                                .background_color(background_color)
-                                .foreground_color(Color::White)
-                                .symbol(jump.character.to_string()),
-                        )
-                    }),
-            )
-            //
-            // Diagnostics
-            //
-            .chain(diagnostics.into_iter().flat_map(|(diagnostic, range)| {
-                range.to_usize_range().filter_map(|char_index| {
+        let primary_selection =
+            selection
+                .extended_range()
+                .to_usize_range()
+                .filter_map(|char_index| {
+                    Some(
+                        CellUpdate::new(buffer.char_to_position(CharIndex(char_index)).ok()?)
+                            .style(theme.ui.primary_selection),
+                    )
+                });
+        let primary_selection_secondary_cursor = buffer
+            .char_to_position(selection.to_char_index(&editor.cursor_direction.reverse()))
+            .ok()
+            .map(|position| {
+                CellUpdate::new(position).style(theme.ui.primary_selection_secondary_cursor)
+            });
+        let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
+            secondary_selection
+                .range
+                .to_usize_range()
+                .filter_map(|char_index| {
                     let char_index = CharIndex(char_index);
                     let position = buffer.char_to_position(char_index).ok()?;
 
-                    let undercurl_color = match diagnostic.severity {
-                        Some(severity) => match severity {
-                            DiagnosticSeverity::ERROR => Color::DarkRed,
-                            DiagnosticSeverity::WARNING => Color::DarkMagenta,
-                            DiagnosticSeverity::INFORMATION => Color::DarkBlue,
-                            DiagnosticSeverity::HINT => Color::DarkGreen,
-                            _ => Color::Black,
-                        },
-                        None => Color::White,
-                    };
-                    Some(CellUpdate::new(position).undercurl(Some(undercurl_color)))
+                    Some(CellUpdate::new(position).style(theme.ui.secondary_selection))
                 })
-            }))
-            .chain(
-                // Syntax highlight
-                buffer
-                    .highlighted_spans()
-                    .iter()
-                    .flat_map(|highlighted_span| {
-                        highlighted_span
-                            .range
-                            .to_usize_range()
-                            .filter_map(|char_index| {
-                                Some(
-                                    CellUpdate::new(
-                                        buffer.char_to_position(CharIndex(char_index)).ok()?,
+        });
+        let secondary_selection_cursors = secondary_selections
+            .iter()
+            .filter_map(|secondary_selection| {
+                Some(
+                    vec![
+                        Some(
+                            CellUpdate::new(
+                                buffer
+                                    .char_to_position(
+                                        secondary_selection
+                                            .to_char_index(&editor.cursor_direction.reverse()),
                                     )
-                                    .style(highlighted_span.style),
-                                )
-                            })
-                    }),
-            )
-            .chain(
-                // Primary selection
-                selection
-                    .extended_range()
+                                    .ok()?,
+                            )
+                            .style(theme.ui.secondary_selection_secondary_cursor),
+                        ),
+                        Some(
+                            CellUpdate::new(
+                                buffer
+                                    .char_to_position(
+                                        secondary_selection.to_char_index(&editor.cursor_direction),
+                                    )
+                                    .ok()?,
+                            )
+                            .style(theme.ui.secondary_selection_primary_cursor),
+                        ),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>(),
+                )
+            })
+            .flatten();
+        let syntax_highlight = buffer
+            .highlighted_spans()
+            .iter()
+            .flat_map(|highlighted_span| {
+                highlighted_span
+                    .range
                     .to_usize_range()
                     .filter_map(|char_index| {
                         Some(
                             CellUpdate::new(buffer.char_to_position(CharIndex(char_index)).ok()?)
-                                .background_color(Color::Yellow),
-                        )
-                    }),
-            )
-            .chain(
-                // Primary selection secondary cursor
-                buffer
-                    .char_to_position(selection.to_char_index(&editor.cursor_direction.reverse()))
-                    .ok()
-                    .map(|position| {
-                        CellUpdate::new(position)
-                            .background_color(Color::DarkGrey)
-                            .foreground_color(Color::White)
-                    }),
-            )
-            .chain(
-                // Secondary selection
-                secondary_selections.iter().flat_map(|secondary_selection| {
-                    secondary_selection
-                        .range
-                        .to_usize_range()
-                        .filter_map(|char_index| {
-                            let char_index = CharIndex(char_index);
-                            let position = buffer.char_to_position(char_index).ok()?;
-
-                            Some(CellUpdate::new(position).background_color(Color::DarkYellow))
-                        })
-                }),
-            )
-            .chain(
-                // Secondary selection cursors
-                secondary_selections
-                    .iter()
-                    .filter_map(|secondary_selection| {
-                        Some(
-                            vec![
-                                Some(
-                                    CellUpdate::new(
-                                        buffer
-                                            .char_to_position(
-                                                secondary_selection.to_char_index(
-                                                    &editor.cursor_direction.reverse(),
-                                                ),
-                                            )
-                                            .ok()?,
-                                    )
-                                    .background_color(Color::Black)
-                                    .foreground_color(Color::White),
-                                ),
-                                Some(
-                                    CellUpdate::new(
-                                        buffer
-                                            .char_to_position(
-                                                secondary_selection
-                                                    .to_char_index(&editor.cursor_direction),
-                                            )
-                                            .ok()?,
-                                    )
-                                    .background_color(Color::DarkGrey)
-                                    .foreground_color(Color::White),
-                                ),
-                            ]
-                            .into_iter()
-                            .flatten()
-                            .collect::<Vec<_>>(),
+                                .style(highlighted_span.style),
                         )
                     })
-                    .flatten(),
-            )
+            });
+        let diagnostics = diagnostics.into_iter().flat_map(|(diagnostic, range)| {
+            range.to_usize_range().filter_map(|char_index| {
+                let char_index = CharIndex(char_index);
+                let position = buffer.char_to_position(char_index).ok()?;
+
+                let style = match diagnostic.severity {
+                    Some(severity) => match severity {
+                        DiagnosticSeverity::ERROR => theme.diagnostic.error,
+                        DiagnosticSeverity::WARNING => theme.diagnostic.warning,
+                        DiagnosticSeverity::INFORMATION => theme.diagnostic.info,
+                        DiagnosticSeverity::HINT => theme.diagnostic.hint,
+                        _ => theme.diagnostic.default,
+                    },
+                    None => theme.diagnostic.default,
+                };
+                Some(CellUpdate::new(position).style(style))
+            })
+        });
+        let jumps = editor
+            .jumps()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, jump)| {
+                let position = buffer
+                    .char_to_position(match editor.cursor_direction {
+                        CursorDirection::Start => jump.selection.range.start,
+                        CursorDirection::End => jump.selection.range.start,
+                    })
+                    .ok()?;
+
+                // Background color: Odd index red, even index blue
+                let style = if index % 2 == 0 {
+                    theme.ui.jump_mark_even
+                } else {
+                    theme.ui.jump_mark_odd
+                };
+
+                Some(
+                    CellUpdate::new(position)
+                        .style(style)
+                        .symbol(jump.character.to_string()),
+                )
+            });
+        let updates = vec![]
+            .into_iter()
+            .chain(primary_selection)
+            .chain(secondary_selection)
+            .chain(diagnostics)
+            .chain(syntax_highlight)
+            .chain(jumps)
+            .chain(primary_selection_secondary_cursor)
+            .chain(secondary_selection_cursors)
             .filter_map(|update| update.subtract_vertical_offset(scroll_offset.into()))
             .collect::<Vec<_>>();
 
@@ -341,6 +313,42 @@ impl Component for Editor {
             }
             _ => Ok(vec![]),
         }
+    }
+
+    #[cfg(test)]
+    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
+        let mut context = Context::default();
+        Ok(events
+            .iter()
+            .map(|event| self.handle_key_event(&mut context, event.clone()))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>())
+    }
+
+    fn handle_event(
+        &mut self,
+        context: &mut Context,
+        event: event::event::Event,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match event {
+            event::event::Event::Key(event) => self.handle_key_event(context, event),
+            event::event::Event::Paste(content) => self.handle_paste_event(content),
+            event::event::Event::Mouse(event) => self.handle_mouse_event(event),
+            _ => Ok(vec![]),
+        }
+    }
+
+    fn descendants(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+        self.children()
+            .into_iter()
+            .flatten()
+            .flat_map(|component| {
+                std::iter::once(component.clone())
+                    .chain(component.borrow().descendants().into_iter())
+            })
+            .collect::<Vec<_>>()
     }
 }
 
@@ -1026,7 +1034,7 @@ impl Editor {
                         self.jump_from_selection(Direction::Forward, &jump.selection.clone())?;
                     }
                 }
-                key!('J') => {
+                key!("shift+J") => {
                     if let Some(jump) = jumps
                         .iter()
                         .min_by(|a, b| a.selection.range.end.cmp(&b.selection.range.end))
@@ -1960,7 +1968,7 @@ mod test_editor {
     };
 
     use super::{Direction, Editor};
-    use key_event_macro::keys;
+    use my_proc_macros::keys;
     use pretty_assertions::assert_eq;
     use tree_sitter_rust::language;
 

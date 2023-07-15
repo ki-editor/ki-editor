@@ -77,10 +77,10 @@ dependencies = [
  "insta",
  "itertools",
  "json-rpc-types",
- "key_event_macro",
  "lazy_static",
  "log",
  "lsp-types",
+ "my_proc_macros",
  "portable-pty",
  "pretty_assertions",
  "rand",
@@ -730,14 +730,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "key_event_macro"
-version = "0.1.0"
-dependencies = [
- "crossterm",
- "event",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -886,6 +878,15 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.45.0",
+]
+
+[[package]]
+name = "my_proc_macros"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "event",
+ "regex",
 ]
 
 [[package]]
