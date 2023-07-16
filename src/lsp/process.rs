@@ -402,6 +402,10 @@ impl LspServerProcess {
                             }),
                             ..Default::default()
                         }),
+                        declaration: Some(GotoCapability {
+                            dynamic_registration: Some(true),
+                            link_support: None,
+                        }),
                         ..TextDocumentClientCapabilities::default()
                     }),
                     ..ClientCapabilities::default()
@@ -431,7 +435,7 @@ impl LspServerProcess {
 
                 // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
                 //
-                // ... this means that TWO ‘\r\n’ sequences always immediately precede the content part of a message.
+                // ... this means that TWO '\r\n' sequences always immediately precede the content part of a message.
                 //
                 // That's why we have to read an empty line here again.
                 reader.read_line(&mut line).unwrap();

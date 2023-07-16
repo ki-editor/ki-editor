@@ -364,7 +364,7 @@ impl Selection {
             SelectionMode::Word => Ok(get_selection_via_regex(
                 buffer,
                 cursor_byte,
-                r"\b\w+",
+                r"[a-z]+|[A-Z][a-z]*|[0-9]+",
                 direction,
                 current_selection,
                 copied_text,

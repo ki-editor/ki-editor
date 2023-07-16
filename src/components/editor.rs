@@ -2037,40 +2037,25 @@ mod test_editor {
 
     #[test]
     fn select_word() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "fn main_fn() { let x = \"hello world lisp-y\"; }",
-        );
+        let mut editor = Editor::from_text(language(), "camelCase, snake_case: 123");
         editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
+        assert_eq!(editor.get_selected_texts(), vec!["camel"]);
         editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main_fn"]);
+        assert_eq!(editor.get_selected_texts(), vec!["Case"]);
         editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let"]);
+        assert_eq!(editor.get_selected_texts(), vec!["snake"]);
         editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
+        assert_eq!(editor.get_selected_texts(), vec!["case"]);
         editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["hello"]);
-        editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["world"]);
-        editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["lisp"]);
-        editor.select_word(Direction::Forward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["y"]);
-
+        assert_eq!(editor.get_selected_texts(), vec!["123"]);
         editor.select_word(Direction::Backward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["lisp"]);
+        assert_eq!(editor.get_selected_texts(), vec!["case"]);
         editor.select_word(Direction::Backward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["world"]);
+        assert_eq!(editor.get_selected_texts(), vec!["snake"]);
         editor.select_word(Direction::Backward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["hello"]);
+        assert_eq!(editor.get_selected_texts(), vec!["Case"]);
         editor.select_word(Direction::Backward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
-        editor.select_word(Direction::Backward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_word(Direction::Backward)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main_fn"]);
-        editor.select_word(Direction::Backward)?;
+        assert_eq!(editor.get_selected_texts(), vec!["camel"]);
         Ok(())
     }
 

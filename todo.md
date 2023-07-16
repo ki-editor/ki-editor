@@ -60,6 +60,7 @@
 - [x] feat(editor): \* to search for the current selection (using AST grep maybe?)
 - [x] feat(lsp): go to declaration, type definition of symbol, and implementations
 - [x] feat(search): don't use regex, regex is not needed 90% of the time
+- [x] feat(editor/word): word should move by camelCase / snake_case, so we can select a word within a variable name
 - [] feat(lsp): search symbols
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
@@ -97,7 +98,6 @@
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions
-- [] TODO(editor/word): word should move by camelCase / snake_case, so we can select a word within a variable name
 - [] word wrapping
 - [] refactor: handle_event should not mutate the component, but should return dispatch instead, like Elm.
   - This is to standardize the event handling architecture, and also allow keymap to be defined declaractively
