@@ -1,6 +1,10 @@
 use crate::{
-    canonicalized_path::CanonicalizedPath, context::Context, grid::CellUpdate,
-    screen::RequestParams, selection::RangeCharIndex, themes::Theme,
+    canonicalized_path::CanonicalizedPath,
+    context::{Context, Search, SearchKind},
+    grid::CellUpdate,
+    screen::RequestParams,
+    selection::RangeCharIndex,
+    themes::Theme,
 };
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -516,7 +520,7 @@ impl Editor {
     pub fn select_match(
         &mut self,
         direction: Direction,
-        search: &Option<String>,
+        search: &Option<Search>,
     ) -> anyhow::Result<()> {
         if let Some(search) = search {
             self.select(
@@ -916,6 +920,26 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
+    fn find_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Find by",
+            owner_id: self.id(),
+            keymaps: vec![
+                Keymap::new(
+                    "a",
+                    "AST Grep",
+                    Dispatch::OpenSearchPrompt(SearchKind::AstGrep),
+                ),
+                Keymap::new(
+                    "l",
+                    "Literal",
+                    Dispatch::OpenSearchPrompt(SearchKind::Literal),
+                ),
+                Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
+            ],
+        }
+    }
+
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Get",
@@ -937,9 +961,14 @@ impl Editor {
                                     Dispatch::RequestDeclarations(params.clone()),
                                 ),
                                 Keymap::new(
-                                    "r",
-                                    "References",
-                                    Dispatch::RequestReferences(params.clone()),
+                                    "e",
+                                    "Errors",
+                                    Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
+                                ),
+                                Keymap::new(
+                                    "f",
+                                    "Files (not git-ignored)",
+                                    Dispatch::OpenFilePicker,
                                 ),
                                 Keymap::new(
                                     "i",
@@ -947,14 +976,14 @@ impl Editor {
                                     Dispatch::RequestImplementations(params.clone()),
                                 ),
                                 Keymap::new(
+                                    "r",
+                                    "References",
+                                    Dispatch::RequestReferences(params.clone()),
+                                ),
+                                Keymap::new(
                                     "t",
                                     "Type Definition(s)",
                                     Dispatch::RequestTypeDefinitions(params),
-                                ),
-                                Keymap::new(
-                                    "e",
-                                    "Errors",
-                                    Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
                                 ),
                             ]
                         })
@@ -1168,17 +1197,17 @@ impl Editor {
             key!("shift+E") => return self.select_diagnostic(Direction::Backward),
             key!("f") => self.select_final(Direction::Forward)?,
             key!("shift+F") => self.select_final(Direction::Backward)?,
-            // f
-            // TODO: f goes into file picker mode,
-            // for example, pressing fg means select git tracked files
-            // fc means changed files
-            // fb means opened editor
-            // F
+            key!("ctrl+f") => {
+                return Ok(vec![Dispatch::ShowKeymapLegend(
+                    self.find_mode_keymap_legend_config(),
+                )])
+            }
             key!("g") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.g_mode_keymap_legend_config(),
                 )])
             }
+            key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             key!("h") => self.toggle_highlight_mode(),
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
@@ -1193,11 +1222,7 @@ impl Editor {
             key!("shift+M") => self.select_match(Direction::Backward, &context.last_search())?,
             key!("n") => self.select_named_node(Direction::Forward)?,
             key!("shift+N") => self.select_named_node(Direction::Backward)?,
-            key!("o") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.open_mode_keymap_legend_config(),
-                )])
-            }
+            // o
             // O
             key!("p") => self.select_parent(Direction::Forward)?,
             key!("shift+P") => self.select_parent(Direction::Backward)?,
@@ -1253,7 +1278,6 @@ impl Editor {
 
             key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Backward)]),
             key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Forward)]),
-            key!('*') => return self.match_current_selection(),
             _ => {
                 log::info!("event: {:?}", event);
             }
@@ -1924,7 +1948,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn match_current_selection(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    fn match_current_selection(&mut self, kind: SearchKind) -> anyhow::Result<Vec<Dispatch>> {
         let content = self
             .buffer()
             .slice(&self.selection_set.primary.extended_range());
@@ -1933,16 +1957,18 @@ impl Editor {
             return Ok(vec![]);
         }
 
+        let search = Search {
+            search: content.to_string(),
+            kind,
+        };
         self.select(
             SelectionMode::Match {
-                search: content.clone().to_string(),
+                search: search.clone(),
             },
             Direction::Current,
         )?;
 
-        Ok(vec![Dispatch::SetSearch {
-            search: content.into(),
-        }])
+        Ok(vec![Dispatch::SetSearch(search)])
     }
 }
 
@@ -1980,7 +2006,7 @@ mod test_editor {
             component::Component,
             editor::{CursorDirection, Mode},
         },
-        context::Context,
+        context::{Context, Search, SearchKind},
         lsp::diagnostic::Diagnostic,
         position::Position,
         screen::Dispatch,
@@ -2037,7 +2063,7 @@ mod test_editor {
 
     #[test]
     fn select_word() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "camelCase, snake_case: 123");
+        let mut editor = Editor::from_text(language(), "camelCase, snake_case, ALLCAPS: 123");
         editor.select_word(Direction::Forward)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
         editor.select_word(Direction::Forward)?;
@@ -2047,7 +2073,12 @@ mod test_editor {
         editor.select_word(Direction::Forward)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
         editor.select_word(Direction::Forward)?;
+        assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
+        editor.select_word(Direction::Forward)?;
         assert_eq!(editor.get_selected_texts(), vec!["123"]);
+
+        editor.select_word(Direction::Backward)?;
+        assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
         editor.select_word(Direction::Backward)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
         editor.select_word(Direction::Backward)?;
@@ -2060,10 +2091,12 @@ mod test_editor {
     }
 
     #[test]
-    /// Should search using AST grep first whenever possible
     fn select_match_ast_grep() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let search = Some("f($EXPR)".to_string());
+        let search = Some(Search {
+            search: "f($EXPR)".to_string(),
+            kind: SearchKind::AstGrep,
+        });
 
         editor.select_match(Direction::Forward, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
@@ -2080,10 +2113,12 @@ mod test_editor {
     }
 
     #[test]
-    /// Should search using string if AST grep matches nothing
     fn select_match_string() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let search = Some("f(".to_string());
+        let search = Some(Search {
+            search: "f(".to_string(),
+            kind: SearchKind::Literal,
+        });
 
         editor.select_match(Direction::Forward, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
@@ -2101,10 +2136,12 @@ mod test_editor {
     }
 
     #[test]
-    /// Should search using regex if literal strig search matches nothing
     fn select_match_regex() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let search = Some(r"f\([a-z]\)".to_string());
+        let search = Some(Search {
+            search: r"f\([a-z]\)".to_string(),
+            kind: SearchKind::Regex,
+        });
 
         editor.select_match(Direction::Forward, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
@@ -2878,7 +2915,13 @@ fn f() {
         editor.delete(Direction::Forward);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
-        editor.select_match(Direction::Forward, &Some("x".to_string()))?;
+        editor.select_match(
+            Direction::Forward,
+            &Some(Search {
+                search: "x".to_string(),
+                kind: SearchKind::Literal,
+            }),
+        )?;
         editor.select_character(Direction::Forward)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
@@ -3156,20 +3199,14 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
-        let dispatches = editor.match_current_selection()?;
+        let dispatches = editor.match_current_selection(SearchKind::Literal)?;
 
-        assert_eq!(
-            dispatches,
-            vec![Dispatch::SetSearch {
-                search: "x.y()".to_string()
-            }]
-        );
-        assert_eq!(
-            editor.selection_set.mode,
-            SelectionMode::Match {
-                search: "x.y()".to_string()
-            }
-        );
+        let search = Search {
+            search: "x.y()".to_string(),
+            kind: SearchKind::Literal,
+        };
+        assert_eq!(dispatches, vec![Dispatch::SetSearch(search.clone())]);
+        assert_eq!(editor.selection_set.mode, SelectionMode::Match { search });
         Ok(())
     }
 }

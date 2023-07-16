@@ -8,7 +8,7 @@ use tree_sitter_traversal::Order;
 use crate::{
     buffer::Buffer,
     components::editor::{node_to_selection, CursorDirection, Direction},
-    context::Context,
+    context::{Context, Search, SearchKind},
     position::Position,
     utils::find_previous,
 };
@@ -201,7 +201,7 @@ pub enum SelectionMode {
     Line,
     Character,
     Custom,
-    Match { search: String },
+    Match { search: Search },
 
     // Syntax-tree
     Token,
@@ -232,7 +232,9 @@ impl SelectionMode {
             SelectionMode::NamedNode => "NODE".to_string(),
             SelectionMode::ParentNode => "PARENT".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
-            SelectionMode::Match { search: regex } => format!("MATCH {:?}", regex),
+            SelectionMode::Match { search } => {
+                format!("MATCH({:?})={:?}", search.kind, search.search)
+            }
             SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
         }
     }
@@ -364,7 +366,7 @@ impl Selection {
             SelectionMode::Word => Ok(get_selection_via_regex(
                 buffer,
                 cursor_byte,
-                r"[a-z]+|[A-Z][a-z]*|[0-9]+",
+                r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
                 direction,
                 current_selection,
                 copied_text,
@@ -381,44 +383,35 @@ impl Selection {
                 false,
             )?
             .unwrap_or_else(|| current_selection.clone())),
-            SelectionMode::Match { search } => {
-                // Search by AST grep first
-                if let Some(selection) = get_selection_via_ast_grep(
+            SelectionMode::Match { search } => Ok(match search.kind {
+                SearchKind::Literal => get_selection_via_regex(
                     buffer,
                     cursor_byte,
-                    search,
-                    direction,
-                    current_selection,
-                    copied_text.clone(),
-                )? {
-                    return Ok(selection);
-                };
-                // If no matches, then seach by string literal
-                if let Some(selection) = get_selection_via_regex(
-                    buffer,
-                    cursor_byte,
-                    search,
+                    &search.search,
                     direction,
                     current_selection,
                     copied_text.clone(),
                     true,
-                )? {
-                    return Ok(selection);
-                }
-                // If no matches, then seach by regex
-                if let Some(selection) = get_selection_via_regex(
+                )?,
+                SearchKind::Regex => get_selection_via_regex(
                     buffer,
                     cursor_byte,
-                    search,
+                    &search.search,
                     direction,
                     current_selection,
                     copied_text,
                     false,
-                )? {
-                    return Ok(selection);
-                }
-                Ok(current_selection.clone())
+                )?,
+                SearchKind::AstGrep => get_selection_via_ast_grep(
+                    buffer,
+                    cursor_byte,
+                    &search.search,
+                    direction,
+                    current_selection,
+                    copied_text.clone(),
+                )?,
             }
+            .unwrap_or_else(|| current_selection.clone())),
             SelectionMode::ParentNode => {
                 let current_node = buffer.get_current_node(current_selection)?;
 

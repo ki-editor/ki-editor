@@ -24,7 +24,7 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
     },
-    context::Context,
+    context::{Context, Search, SearchKind},
     frontend::frontend::Frontend,
     grid::{Grid, Style},
     layout::Layout,
@@ -153,9 +153,6 @@ impl<T: Frontend> Screen<T> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
-            Event::Key(key!("ctrl+f")) => {
-                self.open_search_prompt();
-            }
             Event::Key(key!("ctrl+q")) => {
                 if self.quit() {
                     return Ok(true);
@@ -313,7 +310,8 @@ impl<T: Frontend> Screen<T> {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
             }
-            Dispatch::SetSearch { search } => self.set_search(search),
+            Dispatch::SetSearch(search) => self.set_search(search),
+            Dispatch::OpenSearchPrompt(search_kind) => self.open_search_prompt(search_kind),
             Dispatch::OpenFile { path } => {
                 self.open_file(&path, true)?;
             }
@@ -384,7 +382,7 @@ impl<T: Frontend> Screen<T> {
         self.layout.close_current_window(change_focused_to)
     }
 
-    fn set_search(&mut self, search: String) {
+    fn set_search(&mut self, search: Search) {
         self.context.set_search(search);
     }
 
@@ -412,22 +410,29 @@ impl<T: Frontend> Screen<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_search_prompt(&mut self) {
+    fn open_search_prompt(&mut self, kind: SearchKind) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Search".to_string(),
-            history: self.context.previous_searches(),
+            history: self
+                .context
+                .previous_searches()
+                .into_iter()
+                .map(|search| search.search)
+                .collect_vec(),
             owner: current_component.clone(),
-            on_enter: Box::new(|text, owner| {
+            on_enter: Box::new(move |text, owner| {
+                let search = Search {
+                    kind,
+                    search: text.to_string(),
+                };
                 if let Some(owner) = owner {
                     owner
                         .borrow_mut()
                         .editor_mut()
-                        .select_match(Direction::Forward, &Some(text.to_string()))?;
+                        .select_match(Direction::Forward, &Some(search.clone()))?;
                 }
-                Ok(vec![Dispatch::SetSearch {
-                    search: text.to_string(),
-                }])
+                Ok(vec![Dispatch::SetSearch(search)])
             }),
             on_text_change: Box::new(|_current_text, _owner| {
                 // owner
@@ -811,10 +816,9 @@ pub enum Dispatch {
     CloseCurrentWindow {
         change_focused_to: Option<ComponentId>,
     },
-    SetSearch {
-        search: String,
-    },
+    SetSearch(Search),
     OpenFilePicker,
+    OpenSearchPrompt(SearchKind),
     OpenFile {
         path: CanonicalizedPath,
     },
