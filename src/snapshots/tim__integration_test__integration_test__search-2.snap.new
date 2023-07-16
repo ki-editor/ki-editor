@@ -1,0 +1,29 @@
+---
+source: src/integration_test.rs
+assertion_line: 164
+expression: test_runner.content()
+---
+<Untitled> [INSERT]                                                             
+_hellopub fn foo() {}                                                           
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
