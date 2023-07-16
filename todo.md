@@ -106,3 +106,6 @@
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] layout: implement Tall, instead of binary partition
+- [] feat(editor): match current selection (\*) should open keymap legend
+- [] feat(editor): global search
+- [] feat(editor): "go" for getting opened files, "gg" for getting git status files

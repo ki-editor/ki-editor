@@ -939,6 +939,31 @@ impl Editor {
             ],
         }
     }
+    fn space_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Space",
+            owner_id: self.id(),
+            keymaps: vec![]
+                .into_iter()
+                .chain(
+                    self.get_request_params()
+                        .map(|params| {
+                            [
+                                Keymap::new("h", "Hover", Dispatch::RequestHover(params.clone())),
+                                Keymap::new("r", "Rename", Dispatch::PrepareRename(params.clone())),
+                                Keymap::new(
+                                    "a",
+                                    "Code Actions",
+                                    Dispatch::RequestCodeAction(params),
+                                ),
+                            ]
+                            .to_vec()
+                        })
+                        .unwrap_or_default(),
+                )
+                .collect_vec(),
+        }
+    }
 
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
@@ -949,7 +974,7 @@ impl Editor {
                 .chain(
                     self.get_request_params()
                         .map(|params| {
-                            vec![
+                            [
                                 Keymap::new(
                                     "d",
                                     "Definition(s)",
@@ -986,22 +1011,11 @@ impl Editor {
                                     Dispatch::RequestTypeDefinitions(params),
                                 ),
                             ]
+                            .to_vec()
                         })
                         .unwrap_or_default(),
                 )
                 .collect(),
-        }
-    }
-
-    fn open_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Open",
-            owner_id: self.id(),
-            keymaps: vec![Keymap::new(
-                "f",
-                "Git tracked files",
-                Dispatch::OpenFilePicker,
-            )],
         }
     }
 
@@ -1231,12 +1245,6 @@ impl Editor {
                 return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Backward)])
             }
             key!("r") => return Ok(self.replace()),
-            key!("shift+R") => {
-                return Ok(self
-                    .get_request_params()
-                    .map(|params| vec![Dispatch::PrepareRename(params)])
-                    .unwrap_or_default())
-            }
             key!("s") => self.select_sibling(Direction::Forward)?,
             key!("shift+S") => self.select_sibling(Direction::Backward)?,
             key!("t") => self.select_token(Direction::Forward)?,
@@ -1260,16 +1268,6 @@ impl Editor {
                 self.change();
             }
             key!("enter") => return Ok(self.open_new_line()),
-            key!(",") => {
-                return Ok(self
-                    .get_request_params()
-                    .map(|params| vec![Dispatch::RequestCodeAction(params)])
-                    .unwrap_or_default())
-            }
-            key!("?") => {
-                self.editor_mut().set_mode(Mode::Normal);
-                return Ok(self.request_hover());
-            }
             key!("%") => self.change_cursor_direction(),
             key!("(") | key!(")") => return Ok(self.enclose(Enclosure::RoundBracket)),
             key!("[") | key!("]") => return Ok(self.enclose(Enclosure::SquareBracket)),
@@ -1278,6 +1276,11 @@ impl Editor {
 
             key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Backward)]),
             key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Forward)]),
+            key!("space") => {
+                return Ok(vec![Dispatch::ShowKeymapLegend(
+                    self.space_mode_keymap_legend_config(),
+                )])
+            }
             _ => {
                 log::info!("event: {:?}", event);
             }
