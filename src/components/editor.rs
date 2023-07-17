@@ -1761,28 +1761,26 @@ impl Editor {
         self.buffer.borrow_mut().update(s)
     }
     fn select_view(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.scroll_offset = match direction {
-            Direction::Forward => self
-                .scroll_offset
-                .saturating_add(self.rectangle.height)
-                .min(self.buffer.borrow().len_lines() as u16),
-            Direction::Backward => self.scroll_offset.saturating_sub(self.rectangle.height),
-            Direction::Current => self.scroll_offset,
-        };
-
-        let char_index = self
-            .buffer
-            .borrow()
-            .line_to_char(self.scroll_offset as usize)?;
-        self.update_selection_set(SelectionSet {
-            primary: Selection {
-                range: char_index..char_index,
-                copied_text: self.selection_set.primary.copied_text.clone(),
-                initial_range: self.selection_set.primary.initial_range.clone(),
+        let scroll_height = self.dimension().height / 2;
+        self.update_selection_set(self.selection_set.apply(
+            self.selection_set.mode.clone(),
+            |selection| {
+                let position = selection.range.start.to_position(self.buffer().rope());
+                let position = Position {
+                    line: if direction == Direction::Forward {
+                        position.line.saturating_add(scroll_height as usize)
+                    } else {
+                        position.line.saturating_sub(scroll_height as usize)
+                    },
+                    ..position
+                };
+                let start = position.to_char_index(&self.buffer())?;
+                Ok(Selection {
+                    range: start..start,
+                    ..selection.clone()
+                })
             },
-            secondary: vec![],
-            mode: SelectionMode::Custom,
-        });
+        )?);
         self.align_cursor_to_center();
         Ok(())
     }
