@@ -110,9 +110,8 @@ impl Component for KeymapLegend {
         if self.editor.mode == Mode::Insert {
             match &event {
                 key!("esc") => {
-                    return Ok(vec![Dispatch::CloseCurrentWindow {
-                        change_focused_to: Some(self.config.owner_id),
-                    }])
+                    self.editor.enter_normal_mode()?;
+                    Ok(vec![])
                 }
                 key_event => {
                     if let Some(keymap) = self
@@ -121,17 +120,20 @@ impl Component for KeymapLegend {
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
-                        return Ok(vec![Dispatch::CloseCurrentWindow {
+                        Ok(vec![Dispatch::CloseCurrentWindow {
                             change_focused_to: Some(self.config.owner_id),
                         }]
                         .into_iter()
                         .chain(vec![keymap.dispatch.clone()])
-                        .collect());
+                        .collect())
+                    } else {
+                        Ok(vec![])
                     }
                 }
             }
+        } else {
+            self.editor.handle_key_event(context, event)
         }
-        self.editor.handle_key_event(context, event)
     }
 
     fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {

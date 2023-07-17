@@ -118,7 +118,7 @@ impl Component for Editor {
                 height,
                 width: line_number_separator_width,
             }),
-            |grid, index| grid.set_line(index as usize, "│", theme.ui.line_number_separator),
+            |grid, index| grid.set_line(index as usize, "|", theme.ui.line_number_separator),
         );
 
         let mut grid: Grid = Grid::new(Dimension { height, width });
@@ -1010,6 +1010,36 @@ impl Editor {
         }
     }
 
+    fn view_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "View",
+            keymaps: [
+                ("b", "Align view bottom", DispatchEditor::AlignViewBottom),
+                ("c", "Align view center", DispatchEditor::AlignViewCenter),
+                ("d", "Scroll down", DispatchEditor::ScrollDown),
+                ("t", "Align view top", DispatchEditor::AlignViewTop),
+                ("u", "Scroll up", DispatchEditor::ScrollUp),
+            ]
+            .into_iter()
+            .map(|(key, description, dispatch)| {
+                Keymap::new(key, description, Dispatch::DispatchEditor(dispatch))
+            })
+            .collect_vec(),
+            owner_id: self.id(),
+        }
+    }
+
+    pub fn apply_dispatch(&mut self, dispatch: DispatchEditor) -> anyhow::Result<()> {
+        match dispatch {
+            DispatchEditor::ScrollUp => self.select_view(Direction::Backward)?,
+            DispatchEditor::ScrollDown => self.select_view(Direction::Forward)?,
+            DispatchEditor::AlignViewTop => self.align_cursor_to_top(),
+            DispatchEditor::AlignViewCenter => self.align_cursor_to_center(),
+            DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
+        }
+        Ok(())
+    }
+
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Get",
@@ -1271,7 +1301,6 @@ impl Editor {
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
-            // I
             key!("j") => self.jump(Direction::Forward)?,
             key!("shift+J") => self.jump(Direction::Backward)?,
             key!("k") => self.select_kids()?,
@@ -1296,18 +1325,17 @@ impl Editor {
             key!("shift+T") => self.select_token(Direction::Backward)?,
             key!("u") => return Ok(self.upend(Direction::Forward)),
             key!("v") => {
-                self.select_view(Direction::Forward)?;
-            }
-            key!("shift+V") => {
-                self.select_view(Direction::Backward)?;
+                return Ok(vec![Dispatch::ShowKeymapLegend(
+                    self.view_mode_keymap_legend_config(),
+                )]);
             }
             key!("w") => self.select_word(Direction::Forward)?,
             key!("shift+W") => self.select_word(Direction::Backward)?,
             key!("x") => return Ok(self.exchange(Direction::Forward)),
             key!("shift+X") => return Ok(self.exchange(Direction::Backward)),
             // y
-            key!("z") => self.align_cursor_to_center(),
-            key!("shift+Z") => self.align_cursor_to_top(),
+            // z
+            // Z
             key!("0") => self.reset(),
             key!("backspace") => {
                 self.change();
@@ -2043,8 +2071,16 @@ pub enum HandleEventResult {
     Ignored(KeyEvent),
 }
 
-#[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DispatchEditor {
+    ScrollUp,
+    ScrollDown,
+    AlignViewTop,
+    AlignViewCenter,
+    AlignViewBottom,
+}
 
+#[cfg(test)]
 mod test_editor {
 
     use crate::{

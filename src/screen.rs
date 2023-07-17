@@ -19,7 +19,7 @@ use crate::{
     canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId, GetGridResult},
-        editor::Direction,
+        editor::{Direction, DispatchEditor},
         keymap_legend::KeymapLegendConfig,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
@@ -368,6 +368,14 @@ impl<T: Frontend> Screen<T> {
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
+            Dispatch::DispatchEditor(dispatch_editor) => {
+                if let Some(component) = self.current_component() {
+                    component
+                        .borrow_mut()
+                        .editor_mut()
+                        .apply_dispatch(dispatch_editor)?;
+                }
+            }
         }
         Ok(())
     }
@@ -854,6 +862,7 @@ pub enum Dispatch {
     #[cfg(test)]
     /// Used for testing
     Custom(&'static str),
+    DispatchEditor(DispatchEditor),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
