@@ -34,7 +34,7 @@ use crate::{
 };
 
 use super::{
-    component::ComponentId,
+    component::{ComponentId, GetGridResult},
     keymap_legend::{Keymap, KeymapLegendConfig},
 };
 
@@ -84,18 +84,49 @@ impl Component for Editor {
     fn set_title(&mut self, title: String) {
         self.title = title;
     }
-    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> Grid {
+
+    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.dimension();
+
+        let buffer = editor.buffer();
+        let rope = buffer.rope();
+        let len_lines = rope.len_lines() as u16;
+        let max_line_number_len = len_lines.to_string().len() as u16;
+        let line_number_separator_width = 1;
+        let width = width.saturating_sub(max_line_number_len + line_number_separator_width);
+        let scroll_offset = editor.scroll_offset();
+
+        let line_numbers_grid = (0..height.min(len_lines.saturating_sub(scroll_offset))).fold(
+            Grid::new(Dimension {
+                height,
+                width: max_line_number_len,
+            }),
+            |grid, index| {
+                let line_number = index + scroll_offset + 1;
+                let line_number_str = format!(
+                    "{: >width$}",
+                    line_number.to_string(),
+                    width = max_line_number_len as usize
+                );
+                grid.set_line(index as usize, &line_number_str, theme.ui.line_number)
+            },
+        );
+
+        let line_numbers_separator_grid = (0..height).fold(
+            Grid::new(Dimension {
+                height,
+                width: line_number_separator_width,
+            }),
+            |grid, index| grid.set_line(index as usize, "│", theme.ui.line_number_separator),
+        );
+
         let mut grid: Grid = Grid::new(Dimension { height, width });
         let selection = &editor.selection_set.primary;
 
         // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
-        let scroll_offset = editor.scroll_offset();
-        let buffer = editor.buffer();
-        let rope = buffer.rope();
         let lines = rope
             .lines()
             .enumerate()
@@ -117,6 +148,7 @@ impl Component for Editor {
                 let char_index_range = start..end;
                 Some((diagnostic, char_index_range))
             });
+
         for (line_index, line) in lines {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
                 grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
@@ -256,7 +288,20 @@ impl Component for Editor {
             .filter_map(|update| update.subtract_vertical_offset(scroll_offset.into()))
             .collect::<Vec<_>>();
 
-        grid.apply_cell_updates(updates)
+        let left_width =
+            line_numbers_grid.dimension().width + line_numbers_separator_grid.dimension().width;
+
+        let cursor_position = self
+            .get_cursor_position()
+            .ok()
+            .map(|position| position.move_right(left_width));
+
+        GetGridResult {
+            cursor_position,
+            grid: line_numbers_grid
+                .merge_horizontal(line_numbers_separator_grid)
+                .merge_horizontal(grid.apply_cell_updates(updates)),
+        }
     }
 
     fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Vec<Dispatch>> {

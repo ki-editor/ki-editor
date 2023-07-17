@@ -18,7 +18,7 @@ use crate::{
     buffer::Buffer,
     canonicalized_path::CanonicalizedPath,
     components::{
-        component::{Component, ComponentId},
+        component::{Component, ComponentId, GetGridResult},
         editor::Direction,
         keymap_legend::KeymapLegendConfig,
         prompt::{Prompt, PromptConfig},
@@ -206,13 +206,16 @@ impl<T: Frontend> Screen<T> {
                     .map(|diagnostics| diagnostics.as_slice())
                     .unwrap_or(&[]);
 
-                let component_grid = component.get_grid(&self.context.theme, diagnostics);
+                let GetGridResult {
+                    grid,
+                    cursor_position,
+                } = component.get_grid(&self.context.theme, diagnostics);
                 let focused_component_id = self.layout.focused_component_id();
-                let cursor_point = if focused_component_id
+                let cursor_position = if focused_component_id
                     .map(|focused_component_id| component.id() == focused_component_id)
                     .unwrap_or(false)
                 {
-                    if let Ok(cursor_position) = component.get_cursor_position() {
+                    if let Some(cursor_position) = cursor_position {
                         let scroll_offset = component.scroll_offset();
 
                         // If cursor position is not in view
@@ -235,12 +238,7 @@ impl<T: Frontend> Screen<T> {
                     None
                 };
 
-                (
-                    component_grid,
-                    rectangle.clone(),
-                    cursor_point,
-                    component.title(),
-                )
+                (grid, rectangle.clone(), cursor_position, component.title())
             })
             .fold(
                 (grid, None),
@@ -413,7 +411,7 @@ impl<T: Frontend> Screen<T> {
     fn open_search_prompt(&mut self, kind: SearchKind) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
-            title: "Search".to_string(),
+            title: format!("Search ({})", kind.display()),
             history: self
                 .context
                 .previous_searches()

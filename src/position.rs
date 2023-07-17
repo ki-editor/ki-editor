@@ -22,6 +22,13 @@ impl Position {
             column: self.column.saturating_sub(column),
         }
     }
+
+    pub fn move_right(&self, left_width: u16) -> Position {
+        Position {
+            line: self.line,
+            column: self.column + left_width as usize,
+        }
+    }
 }
 
 impl PartialOrd for Position {

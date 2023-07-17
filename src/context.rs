@@ -20,6 +20,16 @@ pub enum SearchKind {
     AstGrep,
 }
 
+impl SearchKind {
+    pub fn display(&self) -> &'static str {
+        match self {
+            SearchKind::Literal => "Literal",
+            SearchKind::Regex => "Regex",
+            SearchKind::AstGrep => "AST Grep",
+        }
+    }
+}
+
 impl Default for Context {
     fn default() -> Self {
         Self {

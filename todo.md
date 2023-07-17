@@ -109,3 +109,5 @@
 - [] feat(editor): match current selection (\*) should open keymap legend
 - [] feat(editor): global search
 - [] feat(editor): "go" for getting opened files, "gg" for getting git status files
+- [] feat(buffer): use tree-sitter incremental parsing to improve performance
+- [] feat(editor): go to specific line number

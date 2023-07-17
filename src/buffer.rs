@@ -83,6 +83,37 @@ impl Buffer {
         let mut parser = Parser::new();
         parser.set_language(language).unwrap();
         let tree = parser.parse(text, None).unwrap();
+        // let start_char_index = edit.start;
+        // let old_end_char_index = edit.end();
+        // let new_end_char_index = edit.start + edit.new.len_chars();
+
+        // let start_byte = self.char_to_byte(start_char_index);
+        // let old_end_byte = self.char_to_byte(old_end_char_index);
+        // let start_position = self.char_to_point(start_char_index);
+        // let old_end_position = self.char_to_point(old_end_char_index);
+
+        // self.rope.remove(edit.start.0..edit.end().0);
+        // self.rope
+        //     .insert(edit.start.0, edit.new.to_string().as_str());
+
+        // let new_end_byte = self.char_to_byte(new_end_char_index);
+        // let new_end_position = self.char_to_point(new_end_char_index);
+
+        // let mut parser = tree_sitter::Parser::new();
+        // parser.set_language(self.tree.language()).unwrap();
+        // self.tree.edit(&InputEdit {
+        //     start_byte,
+        //     old_end_byte,
+        //     new_end_byte,
+        //     start_position,
+        //     old_end_position,
+        //     new_end_position,
+        // });
+
+        // self.tree = parser
+        //     .parse(&self.rope.to_string(), Some(&self.tree))
+        //     .unwrap();
+
         (Rope::from_str(text), tree)
     }
 

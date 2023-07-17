@@ -10,6 +10,11 @@ use crate::{
 use super::editor::Editor;
 
 // dyn_clone::clone_trait_object!(Component);
+//
+pub struct GetGridResult {
+    pub grid: Grid,
+    pub cursor_position: Option<Position>,
+}
 
 pub trait Component: Any + AnyComponent {
     fn id(&self) -> ComponentId {
@@ -17,7 +22,7 @@ pub trait Component: Any + AnyComponent {
     }
     fn editor(&self) -> &Editor;
     fn editor_mut(&mut self) -> &mut Editor;
-    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> Grid {
+    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> GetGridResult {
         self.editor().get_grid(theme, diagnostics)
     }
 

@@ -52,6 +52,12 @@ pub fn theme() -> Theme {
             secondary_selection_secondary_cursor: Style::new()
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
+            line_number: Style::new()
+                .background_color(hex!("#ffffff"))
+                .foreground_color(hex!("#6a9955")),
+            line_number_separator: Style::new()
+                .background_color(hex!("#ffffff"))
+                .foreground_color(hex!("#d7d7d7")),
         },
         diagnostic: DiagnosticStyles {
             error: Style::new().undercurl(Some(hex!("#ff0000"))),

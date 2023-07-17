@@ -220,6 +220,17 @@ impl Grid {
         grid
     }
 
+    pub fn merge_horizontal(self, right: Grid) -> Grid {
+        let dimension = self.dimension();
+        assert_eq!(dimension.height, right.dimension().height);
+
+        let mut left = self;
+        for (row_index, rows) in left.rows.iter_mut().enumerate() {
+            rows.extend(right.rows[row_index].clone());
+        }
+        left
+    }
+
     pub fn set_border(mut self, border: &Border) -> Grid {
         let dimension = self.dimension();
         match border.direction {

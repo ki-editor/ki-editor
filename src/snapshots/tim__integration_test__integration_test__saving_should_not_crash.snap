@@ -3,26 +3,26 @@ source: src/integration_test.rs
 expression: test_runner.content()
 ---
 <Untitled> [INSERT]                                                             
-mod foo;                                                                        
-                                                                                
-fn main() {                                                                     
-    println!("Hello, world!");                                                  
-}                                                                               
-abc                                                                             
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
+1│mod foo;                                                                      
+2│                                                                              
+3│fn main() {                                                                   
+4│    foo::foo();                                                               
+5│    println!("Hello, world!");                                                
+6│}                                                                             
+7│abc                                                                           
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              

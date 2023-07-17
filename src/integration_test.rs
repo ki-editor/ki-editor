@@ -147,7 +147,7 @@ mod integration_test {
         let test_runner = TestRunner::new()?;
 
         // Go to foo.rs
-        test_runner.send_keys(keys!("o f f o o enter"))?;
+        test_runner.send_keys(keys!("g f f o o enter"))?;
 
         insta::assert_snapshot!(test_runner.content());
 
@@ -155,7 +155,7 @@ mod integration_test {
         test_runner.send_keys(keys!("alt+left"))?;
 
         // Search for "main"
-        test_runner.send_keys(keys!("ctrl+f m a i n enter"))?;
+        test_runner.send_keys(keys!("ctrl+f l m a i n enter"))?;
 
         // Insert "_hello"
         test_runner.send_keys(keys!("i _ h e l l o"))?;

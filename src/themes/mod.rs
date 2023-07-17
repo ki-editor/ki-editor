@@ -36,6 +36,8 @@ pub struct UiStyles {
     pub secondary_selection: Style,
     pub secondary_selection_primary_cursor: Style,
     pub secondary_selection_secondary_cursor: Style,
+    pub line_number: Style,
+    pub line_number_separator: Style,
 }
 
 #[derive(Default, Clone)]
