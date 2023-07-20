@@ -69,6 +69,13 @@ mod integration_test {
             })
         }
 
+        fn dump_log_file(&self) -> anyhow::Result<()> {
+            let log_file = self.temp_dir.join("my_log.txt")?;
+            let log_file = std::fs::read_to_string(log_file)?;
+            println!("{}", log_file);
+            Ok(())
+        }
+
         fn git_init(path: CanonicalizedPath) -> anyhow::Result<()> {
             use git2::{Repository, RepositoryInitOptions};
 
@@ -110,6 +117,11 @@ mod integration_test {
         let test_runner = TestRunner::new()?;
         sleep(3);
         test_runner.send_keys(keys!("enter u s e space s t d : : o p t"))?;
+
+        sleep(1);
+        test_runner
+            .dump_log_file()
+            .unwrap_or_else(|error| println!("Failed to dump log file: {:?}", error));
 
         insta::assert_snapshot!(test_runner.content());
 

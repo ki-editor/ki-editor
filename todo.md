@@ -61,6 +61,7 @@
 - [x] feat(lsp): go to declaration, type definition of symbol, and implementations
 - [x] feat(search): don't use regex, regex is not needed 90% of the time
 - [x] feat(editor/word): word should move by camelCase / snake_case, so we can select a word within a variable name
+- [x] layout: implement Tall, instead of binary partition
 - [] feat(lsp): search symbols
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
@@ -105,9 +106,9 @@
 - [] treesitter injections, support nested languages like Rust in Markdown
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] feat: small g for going to locations of this file, G for locations to anywhere
-- [] layout: implement Tall, instead of binary partition
 - [] feat(editor): match current selection (\*) should open keymap legend
 - [] feat(editor): global search
 - [] feat(editor): "go" for getting opened files, "gg" for getting git status files
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
 - [] feat(editor): go to specific line number
+- [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)

@@ -40,7 +40,7 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(terminal_dimension: Dimension) -> Layout {
-        let (rectangles, borders) = Rectangle::generate(1, terminal_dimension);
+        let (rectangles, borders) = Rectangle::generate_tall(1, terminal_dimension);
         Layout {
             main_panel: None,
             main_panel_history_backward: vec![],
@@ -211,7 +211,7 @@ impl Layout {
 
     pub fn recalculate_layout(&mut self) {
         let (rectangles, borders) =
-            Rectangle::generate(self.components().len(), self.terminal_dimension);
+            Rectangle::generate_tall(self.components().len(), self.terminal_dimension);
         self.rectangles = rectangles;
         self.borders = borders;
 

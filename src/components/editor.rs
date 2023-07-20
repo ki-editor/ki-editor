@@ -118,7 +118,7 @@ impl Component for Editor {
                 height,
                 width: line_number_separator_width,
             }),
-            |grid, index| grid.set_line(index as usize, "|", theme.ui.line_number_separator),
+            |grid, index| grid.set_line(index as usize, "│", theme.ui.line_number_separator),
         );
 
         let mut grid: Grid = Grid::new(Dimension { height, width });

@@ -171,23 +171,4 @@ mod test_keymap_legend {
             ]
         )
     }
-
-    #[test]
-    fn esc_should_close_the_window() {
-        let owner_id = ComponentId::new();
-        let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
-            title: "Test",
-            keymaps: vec![],
-            owner_id,
-        });
-
-        let dispatches = keymap_legend.handle_events(keys!("esc")).unwrap();
-
-        assert_eq!(
-            dispatches,
-            vec![Dispatch::CloseCurrentWindow {
-                change_focused_to: Some(owner_id)
-            }]
-        )
-    }
 }

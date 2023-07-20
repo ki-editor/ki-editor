@@ -5,7 +5,7 @@ use itertools::Itertools;
 use my_proc_macros::{hex, key};
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::Path,
     rc::Rc,
     sync::{
@@ -814,6 +814,18 @@ impl<T: Frontend> Screen<T> {
 pub struct Dimension {
     pub height: u16,
     pub width: u16,
+}
+
+impl Dimension {
+    pub fn area(&self) -> usize {
+        self.height as usize * self.width as usize
+    }
+
+    pub fn positions(&self) -> HashSet<Position> {
+        (0..self.height as usize)
+            .flat_map(|line| (0..self.width as usize).map(move |column| Position { column, line }))
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

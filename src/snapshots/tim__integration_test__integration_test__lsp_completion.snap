@@ -13,7 +13,6 @@ expression: test_runner.content()
 8│                                      │ │                                     
  │                                      │ │                                     
  │                                      │ │                                     
- │                                      │ │                                     
  │                                      │───────────────────────────────────────
  │                                      │ [NORMAL:CUSTOM]                       
  │                                      │  1│Optional values.                   
@@ -26,3 +25,4 @@ expression: test_runner.content()
  │                                      │  8│* Initial values                   
  │                                      │  9│* Return values for functions that 
  │                                      │ 10│  over their entire input range (pa
+ │                                      │ 11│* Return value for otherwise report

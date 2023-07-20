@@ -1,29 +1,29 @@
 ---
 source: src/integration_test.rs
-assertion_line: 164
+assertion_line: 176
 expression: test_runner.content()
 ---
 <Untitled> [INSERT]                                                             
-_hellopub fn foo() {}                                                           
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
-                                                                                
+1│_hellopub struct Foo {                                                        
+2│    a: (),                                                                    
+3│    b: (),                                                                    
+4│}                                                                             
+5│                                                                              
+6│pub fn foo() -> Foo {                                                         
+7│    Foo { a: (), b: () }                                                      
+8│}                                                                             
+9│                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
+ │                                                                              
