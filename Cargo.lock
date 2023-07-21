@@ -1556,7 +1556,6 @@ dependencies = [
  "insta",
  "itertools",
  "json-rpc-types",
- "lazy_static",
  "log",
  "lsp-types",
  "my_proc_macros",

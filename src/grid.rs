@@ -318,25 +318,29 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn new() -> Style {
-        Style::default()
+    pub const fn new() -> Style {
+        Style {
+            foreground_color: None,
+            background_color: None,
+            undercurl: None,
+        }
     }
 
-    pub fn foreground_color(self, color: Color) -> Style {
+    pub const fn foreground_color(self, color: Color) -> Style {
         Style {
             foreground_color: Some(color),
             ..self
         }
     }
 
-    pub fn background_color(self, color: Color) -> Style {
+    pub const fn background_color(self, color: Color) -> Style {
         Style {
             background_color: Some(color),
             ..self
         }
     }
 
-    pub fn undercurl(self, color: Option<Color>) -> Style {
+    pub const fn undercurl(self, color: Option<Color>) -> Style {
         Style {
             undercurl: color,
             ..self

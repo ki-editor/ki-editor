@@ -33,7 +33,7 @@ pub struct KeyEvent {
     pub modifiers: KeyModifiers,
 }
 impl KeyEvent {
-    pub fn new(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
+    pub const fn new(key: crossterm::event::KeyCode, modifiers: KeyModifiers) -> KeyEvent {
         KeyEvent {
             code: key,
             modifiers,
