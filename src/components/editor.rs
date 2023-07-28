@@ -1,6 +1,6 @@
 use crate::{
     canonicalized_path::CanonicalizedPath,
-    context::{Context, Search, SearchKind},
+    context::{Context, GlobalMode, Search, SearchKind},
     grid::CellUpdate,
     screen::RequestParams,
     selection::RangeCharIndex,
@@ -55,23 +55,24 @@ impl Component for Editor {
     fn id(&self) -> ComponentId {
         self.id
     }
+
     fn editor(&self) -> &Editor {
         self
     }
+
     fn editor_mut(&mut self) -> &mut Editor {
         self
     }
+
     fn set_content(&mut self, str: &str) {
         self.update_buffer(str)
     }
+
     fn title(&self) -> String {
+        let selection_mode = self.selection_set.mode.display();
         match &self.mode {
             Mode::Normal => {
-                format!(
-                    "{} [NORMAL:{}]",
-                    &self.title,
-                    self.selection_set.mode.display()
-                )
+                format!("{} [NORMAL:{}]", &self.title, selection_mode)
             }
             Mode::Insert => {
                 format!("{} [INSERT]", &self.title)
@@ -81,6 +82,7 @@ impl Component for Editor {
             }
         }
     }
+
     fn set_title(&mut self, title: String) {
         self.title = title;
     }
@@ -527,7 +529,7 @@ impl Editor {
     }
 
     fn select_parent(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.select(SelectionMode::ParentNode, direction)
+        self.select(SelectionMode::Hierarchy, direction)
     }
 
     fn select_kids(&mut self) -> anyhow::Result<()> {
@@ -704,6 +706,7 @@ impl Editor {
         Ok(())
     }
 
+    /// TODO: this should also show diagnostics
     fn select_final(&mut self, direction: Direction) -> anyhow::Result<()> {
         let selection_mode = if self.selection_set.mode.is_node() {
             SelectionMode::SiblingNode
@@ -753,13 +756,20 @@ impl Editor {
         let mut current_selection = selection.clone();
         let mut jumps = Vec::new();
 
-        for char in ('a'..='z')
-            .interleave('A'..='Z')
-            .interleave('0'..='9')
-            .chain(",.".chars())
-            // 'j' and 'J' are reserved for subsequent jump.
-            .filter(|c| c != &'j' && c != &'J')
-        {
+        use rand::{seq::SliceRandom, thread_rng};
+        let chars = {
+            let mut chars = ('a'..='z')
+                .interleave('A'..='Z')
+                .interleave('0'..='9')
+                .chain(",.!@##$%^&*()[]{}<>=+/_-;:~`'\"\\|".chars())
+                // 'n' and 'p' are reserved for subsequent jump.
+                .filter(|c| c != &'n' && c != &'p')
+                .collect_vec();
+            chars.shuffle(&mut thread_rng());
+            chars
+        };
+
+        for char in chars {
             let next_selection = Selection::get_selection_(
                 &self.buffer.borrow(),
                 &current_selection,
@@ -854,7 +864,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn paste(&mut self, context: &Context) -> Vec<Dispatch> {
+    fn paste(&mut self, context: &mut Context) -> Vec<Dispatch> {
         self.replace_current_selection_with(|selection| {
             selection
                 .copied_text
@@ -1119,14 +1129,14 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<HandleEventResult> {
         match event {
-            key!("left") => {
-                self.selection_set.move_left(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(vec![]))
-            }
-            key!("right") => {
-                self.selection_set.move_right(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(vec![]))
-            }
+            // key!("left") => {
+            //     self.selection_set.move_left(&self.cursor_direction);
+            //     Ok(HandleEventResult::Handled(vec![]))
+            // }
+            // key!("right") => {
+            //     self.selection_set.move_right(&self.cursor_direction);
+            //     Ok(HandleEventResult::Handled(vec![]))
+            // }
             key!("ctrl+a") => {
                 let selection_set = SelectionSet {
                     primary: Selection {
@@ -1265,27 +1275,106 @@ impl Editor {
         })
     }
 
+    fn select_left(&mut self, context: &mut Context) -> anyhow::Result<()> {
+        match &self.selection_set.mode {
+            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+                self.select_parent(Direction::Forward)
+            }
+            mode => self.select(mode.clone(), Direction::Backward),
+        }
+    }
+
+    fn select_right(&mut self, context: &mut Context) -> anyhow::Result<()> {
+        match &self.selection_set.mode {
+            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+                self.select_parent(Direction::Backward)
+            }
+            mode => self.select(mode.clone(), Direction::Forward),
+        }
+    }
+
+    fn select_up(&mut self, context: &mut Context) -> anyhow::Result<()> {
+        match self.selection_set.mode {
+            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+                self.select_sibling(Direction::Backward)
+            }
+            SelectionMode::Line => self.select_line(Direction::Backward),
+            _ => Ok(()),
+        }
+    }
+
+    fn select_down(&mut self, context: &mut Context) -> anyhow::Result<()> {
+        match self.selection_set.mode {
+            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+                self.select_sibling(Direction::Forward)
+            }
+            SelectionMode::Line => self.select_line(Direction::Forward),
+            _ => Ok(()),
+        }
+    }
+
+    fn set_selection_mode(&mut self, selection_mode: SelectionMode) -> anyhow::Result<()> {
+        if self.selection_set.mode == selection_mode {
+            self.select(selection_mode, Direction::Current)
+        } else {
+            self.selection_set.mode = selection_mode;
+            Ok(())
+        }
+    }
+
+    fn select_direction(
+        &mut self,
+        context: &mut Context,
+        direction: Direction,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        if let Some(global_mode) = &context.mode {
+            match global_mode {
+                GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(direction)]),
+            }
+        } else {
+            let mode = self.selection_set.mode.clone();
+            self.select(mode.clone(), direction)?;
+
+            match mode {
+                SelectionMode::Diagnostic => {
+                    if let Some(diagnostic) = self
+                        .buffer
+                        .borrow()
+                        .find_diagnostic(&self.selection_set.primary.range)
+                    {
+                        Ok(vec![Dispatch::ShowInfo {
+                            content: vec![diagnostic.message()],
+                        }])
+                    } else {
+                        Ok(vec![])
+                    }
+                }
+                _ => Ok(vec![]),
+            }
+        }
+    }
+
     fn handle_normal_mode(
         &mut self,
         context: &mut Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
-            key!("esc") => return Ok(vec![Dispatch::CloseAllExceptMainPanel]),
+            key!("esc") => {
+                self.enter_normal_mode()?;
+                return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
+            }
             // Objects
             key!("a") => self.add_selection()?,
             key!("shift+A") => self.add_selection()?,
             key!("b") => self.select_backward(),
-            key!("c") => self.select_character(Direction::Forward)?,
-            key!("shift+C") => self.select_character(Direction::Backward)?,
-            key!("d") => {
-                return Ok(self.delete(Direction::Forward));
-            }
+            key!("c") => self.set_selection_mode(SelectionMode::Character)?,
+            key!("d") => return Ok(self.delete(Direction::Forward)),
             key!("shift+D") => return Ok(self.delete(Direction::Backward)),
-            key!("e") => return self.select_diagnostic(Direction::Forward),
-            key!("shift+E") => return self.select_diagnostic(Direction::Backward),
-            key!("f") => self.select_final(Direction::Forward)?,
-            key!("shift+F") => self.select_final(Direction::Backward)?,
+
+            key!("e") => self.set_selection_mode(SelectionMode::NamedNode)?,
+            key!("e") => self.set_selection_mode(SelectionMode::Diagnostic)?,
+            // f
             key!("ctrl+f") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.find_mode_keymap_legend_config(),
@@ -1296,41 +1385,46 @@ impl Editor {
                     self.g_mode_keymap_legend_config(),
                 )])
             }
-            key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
+            key!("h") => self.set_selection_mode(SelectionMode::Hierarchy)?,
             key!("h") => self.toggle_highlight_mode(),
+            key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
             key!("j") => self.jump(Direction::Forward)?,
             key!("shift+J") => self.jump(Direction::Backward)?,
             key!("k") => self.select_kids()?,
-            key!("l") => self.select_line(Direction::Forward)?,
-            key!("shift+L") => self.select_line(Direction::Backward)?,
-            key!("m") => self.select_match(Direction::Forward, &context.last_search())?,
-            key!("shift+M") => self.select_match(Direction::Backward, &context.last_search())?,
-            key!("n") => self.select_named_node(Direction::Forward)?,
+            key!("l") => self.set_selection_mode(SelectionMode::Line)?,
+            key!("m") => self.set_selection_mode(SelectionMode::Match {
+                search: context.last_search().clone().unwrap_or(Search {
+                    kind: SearchKind::Literal,
+                    search: "".to_string(),
+                }),
+            })?,
+            key!("n") => {
+                return self.select_direction(context, Direction::Forward);
+            }
+            key!("shift+N") => self.select_final(Direction::Forward)?,
             key!("shift+N") => self.select_named_node(Direction::Backward)?,
-            // o
+            key!("o") => self.set_selection_mode(SelectionMode::NamedNode)?,
             // O
-            key!("p") => self.select_parent(Direction::Forward)?,
-            key!("shift+P") => self.select_parent(Direction::Backward)?,
-            key!("q") => return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Forward)]),
-            key!("shift+Q") => {
-                return Ok(vec![Dispatch::GotoQuickfixListItem(Direction::Backward)])
+            key!("p") => {
+                return self.select_direction(context, Direction::Backward);
+            }
+            key!("shift+P") => self.select_final(Direction::Backward)?,
+            key!("q") => {
+                context.mode = Some(GlobalMode::QuickfixListItem);
             }
             key!("r") => return Ok(self.replace()),
-            key!("s") => self.select_sibling(Direction::Forward)?,
-            key!("shift+S") => self.select_sibling(Direction::Backward)?,
-            key!("t") => self.select_token(Direction::Forward)?,
-            key!("shift+T") => self.select_token(Direction::Backward)?,
+            key!("s") => self.set_selection_mode(SelectionMode::SiblingNode)?,
+            key!("t") => self.set_selection_mode(SelectionMode::Token)?,
             key!("u") => return Ok(self.upend(Direction::Forward)),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
-            key!("w") => self.select_word(Direction::Forward)?,
-            key!("shift+W") => self.select_word(Direction::Backward)?,
+            key!("w") => self.set_selection_mode(SelectionMode::Word)?,
             key!("x") => return Ok(self.exchange(Direction::Forward)),
             key!("shift+X") => return Ok(self.exchange(Direction::Backward)),
             // y
@@ -1806,7 +1900,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::ParentNode,
+                &SelectionMode::Hierarchy,
                 &direction,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
@@ -2499,7 +2593,7 @@ mod test_editor {
         let mut context = Context::default();
         editor.copy(&mut context);
         editor.select_token(Direction::Forward)?;
-        editor.paste(&context);
+        editor.paste(&mut context);
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
         Ok(())
@@ -2515,7 +2609,7 @@ mod test_editor {
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
         editor.select_token(Direction::Forward)?;
-        editor.paste(&context);
+        editor.paste(&mut context);
 
         assert_eq!(editor.text(), " fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
@@ -2756,7 +2850,7 @@ fn main() {
         editor.enter_insert_mode(CursorDirection::Start);
 
         editor.insert("Some(");
-        editor.paste(&context);
+        editor.paste(&mut context);
         editor.insert(")");
 
         assert_eq!(
@@ -2815,7 +2909,7 @@ fn main() {
 
         assert_eq!(editor.text(), "{ let x = S(a); let y = S(b); }");
 
-        editor.paste(&context);
+        editor.paste(&mut context);
 
         assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
         Ok(())
@@ -2839,7 +2933,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
 
-        editor.paste(&context);
+        editor.paste(&mut context);
 
         assert_eq!(editor.text(), "fn f()fn f() let x = S(a); let y = S(b); }");
         Ok(())
@@ -2889,7 +2983,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        editor.paste(&context);
+        editor.paste(&mut context);
 
         assert_eq!(editor.text(), "fn{ let x = S(a); let y = S(b); }");
         Ok(())
@@ -3122,7 +3216,7 @@ let y = S(b);
 
         editor.reset();
 
-        editor.paste(&context);
+        editor.paste(&mut context);
 
         assert_eq!(
             editor.text(),

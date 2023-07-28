@@ -4,7 +4,12 @@ pub struct Context {
     previous_searches: Vec<Search>,
     clipboard: Clipboard,
     clipboard_content: Option<String>,
+    pub mode: Option<GlobalMode>,
     pub theme: Theme,
+}
+
+pub enum GlobalMode {
+    QuickfixListItem,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -37,6 +42,7 @@ impl Default for Context {
             clipboard: Clipboard::new(),
             clipboard_content: None,
             theme: Theme::default(),
+            mode: None,
         }
     }
 }
@@ -48,6 +54,7 @@ impl Context {
             clipboard: Clipboard::new(),
             clipboard_content: None,
             theme: Theme::default(),
+            mode: None,
         }
     }
     pub fn last_search(&self) -> Option<Search> {

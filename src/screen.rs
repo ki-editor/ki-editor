@@ -153,6 +153,9 @@ impl<T: Frontend> Screen<T> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
+            Event::Key(key!("enter")) if self.context.mode.is_some() => {
+                self.context.mode = None;
+            }
             Event::Key(key!("ctrl+q")) => {
                 if self.quit() {
                     return Ok(true);
@@ -266,8 +269,10 @@ impl<T: Frontend> Screen<T> {
         let grid = self
             .layout
             .borders()
-            .iter()
-            .fold(grid, |grid, border| grid.set_border(border));
+            .into_iter()
+            .fold(grid, Grid::set_border);
+
+        // TODO: Render the title bar (cwd + global mode)
 
         self.render_grid(grid, cursor_point)?;
 

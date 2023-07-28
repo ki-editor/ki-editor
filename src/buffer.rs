@@ -399,13 +399,13 @@ impl Buffer {
     }
 
     fn recompute_highlighted_spans(&mut self) -> anyhow::Result<()> {
-        if let Some(language) = &self.language {
-            self.highlighted_spans = syntax_highlight::highlight(
-                language.clone(),
-                &crate::themes::VSCODE_LIGHT,
-                &self.rope.to_string(),
-            )?;
-        }
+        // if let Some(language) = &self.language {
+        //     self.highlighted_spans = syntax_highlight::highlight(
+        //         language.clone(),
+        //         &crate::themes::VSCODE_LIGHT,
+        //         &self.rope.to_string(),
+        //     )?;
+        // }
         Ok(())
     }
 
@@ -541,6 +541,10 @@ impl Buffer {
     pub fn try_position_to_char_index(&self, position: Position) -> Option<CharIndex> {
         let index = self.rope.try_line_to_char(position.line).ok()?;
         Some(CharIndex(index + position.column))
+    }
+
+    pub fn tree(&self) -> &Tree {
+        &self.tree
     }
 }
 

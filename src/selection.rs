@@ -206,7 +206,7 @@ pub enum SelectionMode {
     // Syntax-tree
     Token,
     NamedNode,
-    ParentNode,
+    Hierarchy,
     SiblingNode,
 
     // LSP
@@ -219,7 +219,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, NamedNode | ParentNode | SiblingNode)
+        matches!(self, NamedNode | Hierarchy | SiblingNode)
     }
 
     pub fn display(&self) -> String {
@@ -230,7 +230,7 @@ impl SelectionMode {
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::NamedNode => "NODE".to_string(),
-            SelectionMode::ParentNode => "PARENT".to_string(),
+            SelectionMode::Hierarchy => "HIERARCHY".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
             SelectionMode::Match { search } => {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
@@ -412,16 +412,14 @@ impl Selection {
                 )?,
             }
             .unwrap_or_else(|| current_selection.clone())),
-            SelectionMode::ParentNode => {
+            SelectionMode::Hierarchy => {
                 let current_node = buffer.get_current_node(current_selection)?;
 
                 fn get_node(node: Node, direction: Direction) -> Option<Node> {
                     match direction {
                         Direction::Current => Some(node),
-                        Direction::Forward => node.parent(),
-
-                        // Backward of ParentNode = ChildNode
-                        Direction::Backward => node.named_child(0),
+                        Direction::Backward => node.parent(),
+                        Direction::Forward => node.named_child(0),
                     }
                 }
 
@@ -463,16 +461,33 @@ impl Selection {
                 node_to_selection(next_node, buffer, copied_text, initial_range)
             }
             SelectionMode::Token => {
+                use crate::selection_mode::SelectionMode;
+                let mode = crate::selection_mode::token::Token;
+
                 let selection = match direction {
-                    Direction::Forward => buffer.get_next_token(current_selection.range.end, false),
-                    Direction::Backward => {
-                        buffer.get_prev_token(current_selection.range.start, false)
+                    // Direction::Forward => buffer.get_next_token(current_selection.range.end, false),
+                    Direction::Forward => mode.right(buffer, current_selection, cursor_direction),
+                    Direction::Backward => mode.left(buffer, current_selection, cursor_direction),
+                    Direction::Current => {
+                        buffer
+                            .get_next_token(cursor_char_index, false)
+                            .and_then(|node| {
+                                node_to_selection(
+                                    node,
+                                    buffer,
+                                    copied_text.clone(),
+                                    initial_range.clone(),
+                                )
+                                .ok()
+                            })
                     }
-                    Direction::Current => buffer.get_next_token(cursor_char_index, false),
-                }
-                .map(Ok)
-                .unwrap_or_else(|| buffer.get_current_node(current_selection))?;
-                node_to_selection(selection, buffer, copied_text, initial_range)
+                };
+                selection.map(Ok).unwrap_or_else(move || {
+                    buffer.get_current_node(current_selection).and_then(|node| {
+                        node_to_selection(node, buffer, copied_text, initial_range)
+                    })
+                })
+                // node_to_selection(selection, buffer, copied_text, initial_range)
             }
             SelectionMode::Custom => Ok(Selection {
                 range: cursor_char_index..cursor_char_index,

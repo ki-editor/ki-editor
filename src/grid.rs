@@ -231,7 +231,7 @@ impl Grid {
         left
     }
 
-    pub fn set_border(mut self, border: &Border) -> Grid {
+    pub fn set_border(mut self, border: Border) -> Grid {
         let dimension = self.dimension();
         match border.direction {
             BorderDirection::Horizontal => {
