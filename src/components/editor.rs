@@ -457,6 +457,8 @@ pub enum Direction {
     Forward,
     Backward,
     Current,
+    Up,
+    Down,
 }
 
 impl Editor {
@@ -529,7 +531,7 @@ impl Editor {
     }
 
     fn select_parent(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.select(SelectionMode::Hierarchy, direction)
+        self.select(SelectionMode::Node, direction)
     }
 
     fn select_kids(&mut self) -> anyhow::Result<()> {
@@ -581,7 +583,7 @@ impl Editor {
     }
 
     fn select_named_node(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.select(SelectionMode::NamedNode, direction)
+        self.select(SelectionMode::LargestNode, direction)
     }
 
     fn select_character(&mut self, direction: Direction) -> anyhow::Result<()> {
@@ -633,7 +635,7 @@ impl Editor {
             ..self.buffer().position_to_char(range.end)?;
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::NamedNode
+            SelectionMode::LargestNode
         } else {
             SelectionMode::Custom
         };
@@ -1277,7 +1279,7 @@ impl Editor {
 
     fn select_left(&mut self, context: &mut Context) -> anyhow::Result<()> {
         match &self.selection_set.mode {
-            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+            SelectionMode::Node | SelectionMode::SiblingNode => {
                 self.select_parent(Direction::Forward)
             }
             mode => self.select(mode.clone(), Direction::Backward),
@@ -1286,7 +1288,7 @@ impl Editor {
 
     fn select_right(&mut self, context: &mut Context) -> anyhow::Result<()> {
         match &self.selection_set.mode {
-            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+            SelectionMode::Node | SelectionMode::SiblingNode => {
                 self.select_parent(Direction::Backward)
             }
             mode => self.select(mode.clone(), Direction::Forward),
@@ -1295,7 +1297,7 @@ impl Editor {
 
     fn select_up(&mut self, context: &mut Context) -> anyhow::Result<()> {
         match self.selection_set.mode {
-            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+            SelectionMode::Node | SelectionMode::SiblingNode => {
                 self.select_sibling(Direction::Backward)
             }
             SelectionMode::Line => self.select_line(Direction::Backward),
@@ -1305,7 +1307,7 @@ impl Editor {
 
     fn select_down(&mut self, context: &mut Context) -> anyhow::Result<()> {
         match self.selection_set.mode {
-            SelectionMode::Hierarchy | SelectionMode::SiblingNode => {
+            SelectionMode::Node | SelectionMode::SiblingNode => {
                 self.select_sibling(Direction::Forward)
             }
             SelectionMode::Line => self.select_line(Direction::Forward),
@@ -1372,7 +1374,7 @@ impl Editor {
             key!("d") => return Ok(self.delete(Direction::Forward)),
             key!("shift+D") => return Ok(self.delete(Direction::Backward)),
 
-            key!("e") => self.set_selection_mode(SelectionMode::NamedNode)?,
+            key!("e") => self.set_selection_mode(SelectionMode::LargestNode)?,
             key!("e") => self.set_selection_mode(SelectionMode::Diagnostic)?,
             // f
             key!("ctrl+f") => {
@@ -1385,15 +1387,19 @@ impl Editor {
                     self.g_mode_keymap_legend_config(),
                 )])
             }
-            key!("h") => self.set_selection_mode(SelectionMode::Hierarchy)?,
+            key!("h") => self.set_selection_mode(SelectionMode::Node)?,
             key!("h") => self.toggle_highlight_mode(),
             key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             // H
+            key!("i") => return self.select_direction(context, Direction::Up),
+
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
+            key!("j") => return self.select_direction(context, Direction::Backward),
             key!("j") => self.jump(Direction::Forward)?,
             key!("shift+J") => self.jump(Direction::Backward)?,
-            key!("k") => self.select_kids()?,
+            key!("k") => return self.select_direction(context, Direction::Down),
+            key!("l") => return self.select_direction(context, Direction::Forward),
             key!("l") => self.set_selection_mode(SelectionMode::Line)?,
             key!("m") => self.set_selection_mode(SelectionMode::Match {
                 search: context.last_search().clone().unwrap_or(Search {
@@ -1401,12 +1407,10 @@ impl Editor {
                     search: "".to_string(),
                 }),
             })?,
-            key!("n") => {
-                return self.select_direction(context, Direction::Forward);
-            }
+            key!("n") => self.set_selection_mode(SelectionMode::Node)?,
             key!("shift+N") => self.select_final(Direction::Forward)?,
             key!("shift+N") => self.select_named_node(Direction::Backward)?,
-            key!("o") => self.set_selection_mode(SelectionMode::NamedNode)?,
+            key!("o") => self.set_selection_mode(SelectionMode::LargestNode)?,
             // O
             key!("p") => {
                 return self.select_direction(context, Direction::Backward);
@@ -1900,7 +1904,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::Hierarchy,
+                &SelectionMode::Node,
                 &direction,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
@@ -3260,7 +3264,7 @@ let y = S(b);
         // Select a range which highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 2))?;
 
-        assert_eq!(editor.selection_set.mode, SelectionMode::NamedNode);
+        assert_eq!(editor.selection_set.mode, SelectionMode::LargestNode);
 
         // Select a range which does not highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 1))?;

@@ -164,11 +164,15 @@ impl Layout {
         let editor = match direction {
             Direction::Forward | Direction::Current => self.main_panel_history_forward.pop(),
             Direction::Backward => self.main_panel_history_backward.pop(),
+            Direction::Up => todo!(),
+            Direction::Down => todo!(),
         }
         .or_else(|| self.main_panel.take());
         let set_backward_history = match direction {
             Direction::Forward | Direction::Current => true,
             Direction::Backward => false,
+            Direction::Up => todo!(),
+            Direction::Down => todo!(),
         };
         self.set_main_panel(editor, set_backward_history);
     }

@@ -1,3 +1,4 @@
+use selection_mode::SelectionMode as SelectionModeTrait;
 use std::ops::{Add, Range, Sub};
 
 use regex::Regex;
@@ -10,6 +11,7 @@ use crate::{
     components::editor::{node_to_selection, CursorDirection, Direction},
     context::{Context, Search, SearchKind},
     position::Position,
+    selection_mode,
     utils::find_previous,
 };
 
@@ -205,8 +207,8 @@ pub enum SelectionMode {
 
     // Syntax-tree
     Token,
-    NamedNode,
-    Hierarchy,
+    LargestNode,
+    Node,
     SiblingNode,
 
     // LSP
@@ -219,7 +221,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, NamedNode | Hierarchy | SiblingNode)
+        matches!(self, LargestNode | Node | SiblingNode)
     }
 
     pub fn display(&self) -> String {
@@ -229,8 +231,8 @@ impl SelectionMode {
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::NamedNode => "NODE".to_string(),
-            SelectionMode::Hierarchy => "HIERARCHY".to_string(),
+            SelectionMode::LargestNode => "LARGEST NODE".to_string(),
+            SelectionMode::Node => "NODE".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
             SelectionMode::Match { search } => {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
@@ -306,8 +308,52 @@ impl Selection {
             start: current_selection_start,
             end: _,
         } = current_selection.extended_range();
+
+        // TODO: complete the todo!() cases
+        let selection_mode: Box<dyn selection_mode::SelectionMode> = match mode {
+            SelectionMode::Word => Box::new(selection_mode::Regex::new(
+                &buffer,
+                r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
+                false,
+            )?),
+            SelectionMode::Line => todo!(),
+            SelectionMode::Character => {
+                Box::new(selection_mode::Regex::new(&buffer, r"(?s).", false)?)
+            }
+            SelectionMode::Custom => todo!(),
+            SelectionMode::Match { search } => match search.kind {
+                SearchKind::Literal => {
+                    Box::new(selection_mode::Regex::new(&buffer, &search.search, true)?)
+                }
+                SearchKind::Regex => {
+                    Box::new(selection_mode::Regex::new(&buffer, &search.search, false)?)
+                }
+                SearchKind::AstGrep => todo!(),
+            },
+            SelectionMode::Token => Box::new(selection_mode::Token),
+            SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
+            SelectionMode::Node => Box::new(selection_mode::Node),
+            SelectionMode::SiblingNode => unreachable!("Merged into Node"),
+            SelectionMode::Diagnostic => todo!(),
+        };
+
+        return Ok(match direction {
+            Direction::Forward => {
+                selection_mode.right(buffer, current_selection, cursor_direction)?
+            }
+            Direction::Backward => {
+                selection_mode.left(buffer, current_selection, cursor_direction)?
+            }
+            Direction::Up => selection_mode.up(buffer, current_selection, cursor_direction)?,
+            Direction::Down => selection_mode.down(buffer, current_selection, cursor_direction)?,
+            Direction::Current => {
+                selection_mode.current(buffer, current_selection, cursor_direction)?
+            }
+        }
+        .unwrap_or_else(|| current_selection.clone()));
+
         match mode {
-            SelectionMode::NamedNode => Ok(match direction {
+            SelectionMode::LargestNode => Ok(match direction {
                 Direction::Current => Some(buffer.get_current_node(current_selection)?),
                 Direction::Forward => buffer
                     .traverse(Order::Pre)
@@ -327,6 +373,8 @@ impl Selection {
                         |node| node.start_byte() >= current_selection_start.0 && node.is_named(),
                     )
                 }
+                Direction::Up => todo!(),
+                Direction::Down => todo!(),
             }
             .map(|node| node_to_selection(node, buffer, copied_text, initial_range))
             .unwrap_or_else(|| Ok(current_selection.clone()))?),
@@ -349,6 +397,8 @@ impl Selection {
                         current_line - 1
                     }
                     Direction::Current => current_line,
+                    Direction::Up => todo!(),
+                    Direction::Down => todo!(),
                 };
                 let line_start = buffer.line_to_char(current_line)?;
                 let current_line = buffer.get_line(line_start)?;
@@ -384,15 +434,19 @@ impl Selection {
             )?
             .unwrap_or_else(|| current_selection.clone())),
             SelectionMode::Match { search } => Ok(match search.kind {
-                SearchKind::Literal => get_selection_via_regex(
-                    buffer,
-                    cursor_byte,
-                    &search.search,
-                    direction,
-                    current_selection,
-                    copied_text.clone(),
-                    true,
-                )?,
+                SearchKind::Literal => {
+                    let mode = selection_mode::Regex::new(&buffer, &search.search.clone(), true)?;
+                    match direction {
+                        Direction::Forward | Direction::Current => {
+                            mode.right(buffer, current_selection, cursor_direction)?
+                        }
+                        Direction::Backward => {
+                            mode.left(buffer, current_selection, cursor_direction)?
+                        }
+                        Direction::Up => todo!(),
+                        Direction::Down => todo!(),
+                    }
+                }
                 SearchKind::Regex => get_selection_via_regex(
                     buffer,
                     cursor_byte,
@@ -412,7 +466,7 @@ impl Selection {
                 )?,
             }
             .unwrap_or_else(|| current_selection.clone())),
-            SelectionMode::Hierarchy => {
+            SelectionMode::Node => {
                 let current_node = buffer.get_current_node(current_selection)?;
 
                 fn get_node(node: Node, direction: Direction) -> Option<Node> {
@@ -420,6 +474,8 @@ impl Selection {
                         Direction::Current => Some(node),
                         Direction::Backward => node.parent(),
                         Direction::Forward => node.named_child(0),
+                        Direction::Up => todo!(),
+                        Direction::Down => todo!(),
                     }
                 }
 
@@ -456,6 +512,8 @@ impl Selection {
                     Direction::Backward => buffer
                         .get_current_node(current_selection)?
                         .prev_named_sibling(),
+                    Direction::Up => todo!(),
+                    Direction::Down => todo!(),
                 }
                 .unwrap_or(current_node);
                 node_to_selection(next_node, buffer, copied_text, initial_range)
@@ -464,12 +522,16 @@ impl Selection {
                 use crate::selection_mode::SelectionMode;
                 let mode = crate::selection_mode::token::Token;
 
-                let selection = match direction {
-                    // Direction::Forward => buffer.get_next_token(current_selection.range.end, false),
-                    Direction::Forward => mode.right(buffer, current_selection, cursor_direction),
-                    Direction::Backward => mode.left(buffer, current_selection, cursor_direction),
-                    Direction::Current => {
-                        buffer
+                let selection =
+                    match direction {
+                        // Direction::Forward => buffer.get_next_token(current_selection.range.end, false),
+                        Direction::Forward => {
+                            mode.right(buffer, current_selection, cursor_direction)?
+                        }
+                        Direction::Backward => {
+                            mode.left(buffer, current_selection, cursor_direction)?
+                        }
+                        Direction::Current => buffer
                             .get_next_token(cursor_char_index, false)
                             .and_then(|node| {
                                 node_to_selection(
@@ -479,9 +541,10 @@ impl Selection {
                                     initial_range.clone(),
                                 )
                                 .ok()
-                            })
-                    }
-                };
+                            }),
+                        Direction::Up => todo!(),
+                        Direction::Down => todo!(),
+                    };
                 selection.map(Ok).unwrap_or_else(move || {
                     buffer.get_current_node(current_selection).and_then(|node| {
                         node_to_selection(node, buffer, copied_text, initial_range)
@@ -554,6 +617,8 @@ fn get_selection_via_ast_grep(
             |_, _| true,
             |match_| match_.range().start >= cursor_byte,
         ),
+        Direction::Up => todo!(),
+        Direction::Down => todo!(),
     };
 
     let Some(matches) = matches else {return Ok(None)};
@@ -594,6 +659,8 @@ fn get_selection_via_regex(
             |_, _| true,
             |match_| match_.start() >= current_selection.extended_range().start.0,
         ),
+        Direction::Up => todo!(),
+        Direction::Down => todo!(),
     };
 
     match matches {

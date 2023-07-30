@@ -512,6 +512,8 @@ impl Buffer {
                         ..item.range.end.to_char_index(self).ok()?,
                 )
             }),
+            Direction::Up => todo!(),
+            Direction::Down => todo!(),
         }
     }
 
