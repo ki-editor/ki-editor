@@ -203,12 +203,16 @@ pub enum SelectionMode {
     Line,
     Character,
     Custom,
-    Match { search: Search },
+    Match {
+        search: Search,
+    },
 
     // Syntax-tree
     Token,
     LargestNode,
     Node,
+
+    #[deprecated(note = "Use `Node` instead, to be removed soon")]
     SiblingNode,
 
     // LSP
@@ -320,7 +324,9 @@ impl Selection {
             SelectionMode::Character => {
                 Box::new(selection_mode::Regex::new(&buffer, r"(?s).", false)?)
             }
-            SelectionMode::Custom => todo!(),
+            SelectionMode::Custom => {
+                Box::new(selection_mode::Custom::new(current_selection.clone()))
+            }
             SelectionMode::Match { search } => match search.kind {
                 SearchKind::Literal => {
                     Box::new(selection_mode::Regex::new(&buffer, &search.search, true)?)
@@ -334,9 +340,8 @@ impl Selection {
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
-            SelectionMode::Node => Box::new(selection_mode::Node),
-            SelectionMode::SiblingNode => unreachable!("Merged into Node"),
-            SelectionMode::Diagnostic => todo!(),
+            SelectionMode::Node | SelectionMode::SiblingNode => Box::new(selection_mode::Node),
+            SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
         };
 
         return Ok(match direction {

@@ -1,4 +1,6 @@
 pub mod ast_grep;
+pub mod custom;
+pub mod diagnostic;
 pub mod largest_node;
 pub mod line;
 pub mod node;
@@ -7,6 +9,8 @@ pub mod token;
 
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
+pub use custom::Custom;
+pub use diagnostic::Diagnostic;
 use itertools::Itertools;
 pub use largest_node::LargestNode;
 pub use line::Line;

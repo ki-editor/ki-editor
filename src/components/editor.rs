@@ -1378,7 +1378,6 @@ impl Editor {
             key!("d") => return Ok(self.delete(Direction::Forward)),
             key!("shift+D") => return Ok(self.delete(Direction::Backward)),
 
-            key!("e") => self.set_selection_mode(SelectionMode::LargestNode)?,
             key!("e") => self.set_selection_mode(SelectionMode::Diagnostic)?,
             // f
             key!("ctrl+f") => {
@@ -1400,8 +1399,6 @@ impl Editor {
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
             key!("j") => return self.select_direction(context, Direction::Backward),
-            key!("j") => self.jump(Direction::Forward)?,
-            key!("shift+J") => self.jump(Direction::Backward)?,
             key!("k") => return self.select_direction(context, Direction::Down),
             key!("l") => return self.select_direction(context, Direction::Forward),
             key!("l") => self.set_selection_mode(SelectionMode::Line)?,
@@ -1436,8 +1433,9 @@ impl Editor {
             key!("x") => return Ok(self.exchange(Direction::Forward)),
             key!("shift+X") => return Ok(self.exchange(Direction::Backward)),
             key!("y") => self.set_selection_mode(SelectionMode::Line)?,
-            // z
-            // Z
+            // Zap = jump
+            key!("z") => self.jump(Direction::Forward)?,
+            key!("shift+Z") => self.jump(Direction::Backward)?,
             key!("0") => self.reset(),
             key!("backspace") => {
                 self.change();

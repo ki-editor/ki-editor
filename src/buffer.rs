@@ -552,6 +552,15 @@ impl Buffer {
     pub fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {
         Ok(self.rope.try_line_to_byte(line_index)?)
     }
+
+    pub fn diagnostics(&self) -> &Vec<Diagnostic> {
+        &self.diagnostics
+    }
+
+    pub fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
+        let start = self.position_to_char(start)?;
+        Ok(self.char_to_byte(start)?)
+    }
 }
 
 #[derive(Clone, Debug)]
