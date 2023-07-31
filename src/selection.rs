@@ -328,7 +328,9 @@ impl Selection {
                 SearchKind::Regex => {
                     Box::new(selection_mode::Regex::new(&buffer, &search.search, false)?)
                 }
-                SearchKind::AstGrep => todo!(),
+                SearchKind::AstGrep => {
+                    Box::new(selection_mode::AstGrep::new(&buffer, &search.search)?)
+                }
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
