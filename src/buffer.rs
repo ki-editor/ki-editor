@@ -548,6 +548,10 @@ impl Buffer {
     pub fn tree(&self) -> &Tree {
         &self.tree
     }
+
+    pub fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {
+        Ok(self.rope.try_line_to_byte(line_index)?)
+    }
 }
 
 #[derive(Clone, Debug)]

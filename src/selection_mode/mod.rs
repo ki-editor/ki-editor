@@ -1,4 +1,5 @@
 pub mod largest_node;
+pub mod line;
 pub mod node;
 pub mod regex;
 pub mod token;
@@ -6,6 +7,7 @@ pub mod token;
 pub use self::regex::Regex;
 use itertools::Itertools;
 pub use largest_node::LargestNode;
+pub use line::Line;
 pub use node::Node;
 pub use token::Token;
 

@@ -316,7 +316,7 @@ impl Selection {
                 r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
                 false,
             )?),
-            SelectionMode::Line => todo!(),
+            SelectionMode::Line => Box::new(selection_mode::Line),
             SelectionMode::Character => {
                 Box::new(selection_mode::Regex::new(&buffer, r"(?s).", false)?)
             }

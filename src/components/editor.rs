@@ -1362,6 +1362,10 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
+            key!("up") => return self.select_direction(context, Direction::Up),
+            key!("down") => return self.select_direction(context, Direction::Down),
+            key!("left") => return self.select_direction(context, Direction::Backward),
+            key!("right") => return self.select_direction(context, Direction::Forward),
             key!("esc") => {
                 self.enter_normal_mode()?;
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
@@ -1431,7 +1435,7 @@ impl Editor {
             key!("w") => self.set_selection_mode(SelectionMode::Word)?,
             key!("x") => return Ok(self.exchange(Direction::Forward)),
             key!("shift+X") => return Ok(self.exchange(Direction::Backward)),
-            // y
+            key!("y") => self.set_selection_mode(SelectionMode::Line)?,
             // z
             // Z
             key!("0") => self.reset(),
