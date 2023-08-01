@@ -441,7 +441,7 @@ impl<T: Frontend> Screen<T> {
                     owner
                         .borrow_mut()
                         .editor_mut()
-                        .select_match(Direction::Forward, &Some(search.clone()))?;
+                        .select_match(Direction::Right, &Some(search.clone()))?;
                 }
                 Ok(vec![Dispatch::SetSearch(search)])
             }),
@@ -790,7 +790,7 @@ impl<T: Frontend> Screen<T> {
     fn set_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
         self.quickfix_lists.borrow_mut().push(quickfix_list);
         self.layout.show_quickfix_lists(self.quickfix_lists.clone());
-        self.goto_quickfix_list_item(Direction::Forward)
+        self.goto_quickfix_list_item(Direction::Right)
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {

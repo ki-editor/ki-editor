@@ -1,13 +1,13 @@
 use crate::components::editor::node_to_selection;
 
-use super::SelectionMode;
+use super::{SelectionMode, SelectionModeParams};
 
 pub struct Node;
 
 impl SelectionMode for Node {
     fn iter<'a>(
         &'a self,
-        buffer: &'a crate::buffer::Buffer,
+        _buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(std::iter::once(super::ByteRange(0..0))))
     }
@@ -15,9 +15,11 @@ impl SelectionMode for Node {
     /// For `Node`, `left` means parent node
     fn left(
         &self,
-        buffer: &crate::buffer::Buffer,
-        current_selection: &crate::selection::Selection,
-        cursor_direction: &crate::components::editor::CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction: _,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.move_horizontally(buffer, current_selection, false)
     }
@@ -25,20 +27,24 @@ impl SelectionMode for Node {
     /// For `Node`, `right` means first child node
     fn right(
         &self,
-        buffer: &crate::buffer::Buffer,
-        current_selection: &crate::selection::Selection,
-        cursor_direction: &crate::components::editor::CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction: _,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.move_horizontally(buffer, current_selection, true)
     }
 
     fn up(
         &self,
-        buffer: &crate::buffer::Buffer,
-        current_selection: &crate::selection::Selection,
-        cursor_direction: &crate::components::editor::CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction: _,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let current_node = buffer.get_current_node(&current_selection)?;
+        let current_node = buffer.get_current_node(current_selection)?;
 
         if let Some(node) = current_node.prev_named_sibling() {
             Ok(Some(node_to_selection(
@@ -54,11 +60,13 @@ impl SelectionMode for Node {
 
     fn down(
         &self,
-        buffer: &crate::buffer::Buffer,
-        current_selection: &crate::selection::Selection,
-        cursor_direction: &crate::components::editor::CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction: _,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let current_node = buffer.get_current_node(&current_selection)?;
+        let current_node = buffer.get_current_node(current_selection)?;
 
         if let Some(node) = current_node.next_named_sibling() {
             Ok(Some(node_to_selection(
@@ -80,7 +88,7 @@ impl Node {
         current_selection: &crate::selection::Selection,
         go_right: bool,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let current_node = buffer.get_current_node(&current_selection)?;
+        let current_node = buffer.get_current_node(current_selection)?;
         let node = {
             let mut node = get_node(current_node, go_right);
 

@@ -20,10 +20,50 @@ pub use token::Token;
 use std::ops::Range;
 
 use crate::{
-    buffer::Buffer, components::editor::CursorDirection, position::Position, selection::Selection,
+    buffer::Buffer,
+    components::editor::{CursorDirection, Direction, Jump},
+    position::Position,
+    selection::{CharIndex, Selection},
 };
 
+#[derive(PartialEq, Eq)]
 pub struct ByteRange(pub Range<usize>);
+impl ByteRange {
+    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<Range<CharIndex>> {
+        Ok(buffer.byte_to_char(self.0.start)?..buffer.byte_to_char(self.0.end)?)
+    }
+
+    fn to_byte(&self, cursor_direction: &CursorDirection) -> usize {
+        match cursor_direction {
+            CursorDirection::Start => self.0.start,
+            CursorDirection::End => self.0.end,
+        }
+    }
+}
+
+impl PartialOrd for ByteRange {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0
+            .start
+            .partial_cmp(&other.0.start)
+            .or_else(|| self.0.end.partial_cmp(&other.0.end))
+    }
+}
+
+impl Ord for ByteRange {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0
+            .start
+            .cmp(&other.0.start)
+            .then(self.0.end.cmp(&other.0.end))
+    }
+}
+
+pub struct SelectionModeParams<'a> {
+    pub buffer: &'a Buffer,
+    pub current_selection: &'a Selection,
+    pub cursor_direction: &'a CursorDirection,
+}
 
 pub trait SelectionMode {
     fn iter<'a>(
@@ -31,85 +71,132 @@ pub trait SelectionMode {
         buffer: &'a Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
 
-    // TODO: add the jumps method, which can be more efficient the current jump method, which
-    // recomputes again for every jump
-
-    fn right(
+    fn jumps(
         &self,
-        buffer: &Buffer,
-        current_selection: &Selection,
-        cursor_direction: &CursorDirection,
-    ) -> anyhow::Result<Option<Selection>> {
-        let mut iter = self.iter(buffer)?;
-
-        let cursor_char_index = current_selection.to_char_index(cursor_direction);
-
-        while let Some(range) = iter.next() {
-            let start = buffer.byte_to_char(range.0.start)?;
-            let end = buffer.byte_to_char(range.0.end)?;
-            let selection_cursor_index = match cursor_direction {
-                CursorDirection::Start => start,
-                CursorDirection::End => end,
-            };
-
-            if selection_cursor_index > cursor_char_index
-                || (selection_cursor_index == cursor_char_index
-                    && (match cursor_direction {
-                        CursorDirection::Start => end != current_selection.range.end,
-                        CursorDirection::End => start != current_selection.range.start,
-                    }))
-            {
-                return Ok(Some(Selection {
-                    range: start..end,
-                    ..current_selection.clone()
-                }));
-            }
-        }
-        Ok(None)
+        params: SelectionModeParams,
+        chars: Vec<char>,
+        direction: &Direction,
+    ) -> anyhow::Result<Vec<Jump>> {
+        let iter = match direction {
+            Direction::Left => self.left_iter(&params)?,
+            _ => self.right_iter(&params)?,
+        };
+        Ok(chars
+            .into_iter()
+            .zip(iter)
+            .filter_map(|(character, range)| {
+                Some(Jump {
+                    character,
+                    selection: Selection {
+                        range: range.to_char_index_range(params.buffer).ok()?,
+                        ..params.current_selection.clone()
+                    },
+                })
+            })
+            .collect_vec())
     }
 
-    fn left(
+    fn right_iter<'a>(
+        &'a self,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: &SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let iter = self.iter(buffer)?;
+        let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
+        let cursor_direction = (*cursor_direction).clone();
+        Ok(Box::new(iter.sorted().filter(move |range| {
+            range.to_byte(&cursor_direction) > cursor_byte
+        })))
+    }
+
+    fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(self.right_iter(&params)?.next().and_then(|range| {
+            Some(Selection {
+                range: range.to_char_index_range(params.buffer).ok()?,
+                ..params.current_selection.clone()
+            })
+        }))
+    }
+
+    fn right_most(
         &self,
-        buffer: &Buffer,
-        current_selection: &Selection,
-        cursor_direction: &CursorDirection,
+        params @ SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<Selection>> {
-        let mut iter = self.iter(buffer)?;
+        let current_line_range =
+            buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
+        Ok(self
+            .right_iter(&params)?
+            .filter(|range| range.0.start <= current_line_range.0.end)
+            .last()
+            .map(|range| Selection {
+                range: buffer.byte_to_char(range.0.start).unwrap()
+                    ..buffer.byte_to_char(range.0.end).unwrap(),
+                ..current_selection.clone()
+            }))
+    }
 
-        let mut previous_selection = None;
+    fn left_iter<'a>(
+        &'a self,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: &SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let iter = self.iter(buffer)?;
+        let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
+        Ok(Box::new(
+            iter.sorted_by(|a, b| b.cmp(a))
+                .filter(move |range| range.0.start < cursor_byte),
+        ))
+    }
 
-        let cursor_char_index = current_selection.to_char_index(cursor_direction);
+    fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(self.left_iter(&params)?.next().and_then(|range| {
+            Some(Selection {
+                range: range.to_char_index_range(params.buffer).ok()?,
+                ..params.current_selection.clone()
+            })
+        }))
+    }
 
-        while let Some(range) = iter.next() {
-            let start = buffer.byte_to_char(range.0.start)?;
-            let end = buffer.byte_to_char(range.0.end)?;
-            let selection_cursor_index = match cursor_direction {
-                CursorDirection::Start => start,
-                CursorDirection::End => end,
-            };
-
-            // TODO: handle overlap
-            if selection_cursor_index >= cursor_char_index {
-                // log::info!("previous_selection: {:?}", previous_selection);
-                return Ok(previous_selection);
-            } else {
-                previous_selection = Some(Selection {
-                    range: start..end,
-                    ..current_selection.clone()
-                });
-            }
-        }
-
-        Ok(None)
+    fn left_most(
+        &self,
+        params @ SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: SelectionModeParams,
+    ) -> anyhow::Result<Option<Selection>> {
+        let current_line_range =
+            buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
+        Ok(self
+            .left_iter(&params)?
+            .filter(|range| current_line_range.0.start <= range.0.start)
+            .last()
+            .map(|range| Selection {
+                range: buffer.byte_to_char(range.0.start).unwrap()
+                    ..buffer.byte_to_char(range.0.end).unwrap(),
+                ..current_selection.clone()
+            }))
     }
 
     /// By default this means the next selection after the current selection which is on the next
     /// line and of the same column
     fn down(
         &self,
-        buffer: &Buffer,
-        current_selection: &Selection,
-        cursor_direction: &CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<Selection>> {
         self.move_vertically(buffer, current_selection, cursor_direction, false)
     }
@@ -121,9 +208,11 @@ pub trait SelectionMode {
     /// right.
     fn up(
         &self,
-        buffer: &Buffer,
-        current_selection: &Selection,
-        cursor_direction: &CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<Selection>> {
         self.move_vertically(buffer, current_selection, cursor_direction, true)
     }
@@ -176,15 +265,17 @@ pub trait SelectionMode {
 
     fn current(
         &self,
-        buffer: &Buffer,
-        current_selection: &Selection,
-        cursor_direction: &CursorDirection,
+        SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+        }: SelectionModeParams,
     ) -> anyhow::Result<Option<Selection>> {
-        let mut iter = self.iter(buffer)?;
+        let iter = self.iter(buffer)?;
 
         let cursor_char_index = current_selection.to_char_index(cursor_direction);
 
-        while let Some(range) = iter.next() {
+        for range in iter {
             let start = buffer.byte_to_char(range.0.start)?;
             let end = buffer.byte_to_char(range.0.end)?;
 

@@ -4,6 +4,7 @@ use crate::{
     grid::CellUpdate,
     screen::RequestParams,
     selection::RangeCharIndex,
+    selection_mode,
     themes::Theme,
 };
 use std::{
@@ -454,11 +455,13 @@ impl CursorDirection {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
-    Forward,
-    Backward,
+    Right,
+    Left,
+    RightMost,
     Current,
     Up,
     Down,
+    LeftMost,
 }
 
 impl Editor {
@@ -615,9 +618,10 @@ impl Editor {
         }
     }
 
-    fn reset(&mut self) {
-        self.select(SelectionMode::Custom, Direction::Current);
-        self.selection_set.reset()
+    fn reset(&mut self) -> anyhow::Result<()> {
+        self.select(self.selection_set.mode.clone(), Direction::Current)?;
+        self.selection_set.reset();
+        Ok(())
     }
 
     fn select_token(&mut self, direction: Direction) -> anyhow::Result<()> {
@@ -755,9 +759,6 @@ impl Editor {
         direction: Direction,
         selection: &Selection,
     ) -> anyhow::Result<()> {
-        let mut current_selection = selection.clone();
-        let mut jumps = Vec::new();
-
         use rand::{seq::SliceRandom, thread_rng};
         let chars = {
             let mut chars = ('a'..='z')
@@ -771,26 +772,22 @@ impl Editor {
             chars
         };
 
-        for char in chars {
-            let next_selection = Selection::get_selection_(
-                &self.buffer.borrow(),
-                &current_selection,
-                &self.selection_set.mode,
-                &direction,
-                &self.cursor_direction,
-            )?;
+        let object = self
+            .selection_set
+            .mode
+            .to_selection_mode_trait_object(&self.buffer(), selection)?;
 
-            if next_selection != current_selection {
-                jumps.push(Jump {
-                    character: char,
-                    selection: next_selection.clone(),
-                });
-                current_selection = next_selection;
-            } else {
-                break;
-            }
-        }
+        let jumps = object.jumps(
+            selection_mode::SelectionModeParams {
+                buffer: &self.buffer(),
+                current_selection: selection,
+                cursor_direction: &self.cursor_direction,
+            },
+            chars,
+            &direction,
+        )?;
         self.mode = Mode::Jump { jumps };
+
         Ok(())
     }
 
@@ -1043,8 +1040,8 @@ impl Editor {
 
     pub fn apply_dispatch(&mut self, dispatch: DispatchEditor) -> anyhow::Result<()> {
         match dispatch {
-            DispatchEditor::ScrollUp => self.select_view(Direction::Backward)?,
-            DispatchEditor::ScrollDown => self.select_view(Direction::Forward)?,
+            DispatchEditor::ScrollUp => self.select_view(Direction::Left)?,
+            DispatchEditor::ScrollDown => self.select_view(Direction::Right)?,
             DispatchEditor::AlignViewTop => self.align_cursor_to_top(),
             DispatchEditor::AlignViewCenter => self.align_cursor_to_center(),
             DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
@@ -1175,20 +1172,20 @@ impl Editor {
                 key!("esc") => {
                     self.mode = Mode::Normal;
                 }
-                key!('j') => {
+                key!('z') => {
                     if let Some(jump) = jumps
                         .iter()
                         .max_by(|a, b| a.selection.range.start.cmp(&b.selection.range.start))
                     {
-                        self.jump_from_selection(Direction::Forward, &jump.selection.clone())?;
+                        self.jump_from_selection(Direction::Right, &jump.selection.clone())?;
                     }
                 }
-                key!("shift+J") => {
+                key!("shift+Z") => {
                     if let Some(jump) = jumps
                         .iter()
                         .min_by(|a, b| a.selection.range.end.cmp(&b.selection.range.end))
                     {
-                        self.jump_from_selection(Direction::Backward, &jump.selection.clone())?;
+                        self.jump_from_selection(Direction::Left, &jump.selection.clone())?;
                     }
                 }
                 key => {
@@ -1277,40 +1274,38 @@ impl Editor {
         })
     }
 
-    fn select_left(&mut self, context: &mut Context) -> anyhow::Result<()> {
+    fn select_left(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match &self.selection_set.mode {
             SelectionMode::Node | SelectionMode::SiblingNode => {
-                self.select_parent(Direction::Forward)
+                self.select_parent(Direction::Right)
             }
-            mode => self.select(mode.clone(), Direction::Backward),
+            mode => self.select(mode.clone(), Direction::Left),
         }
     }
 
-    fn select_right(&mut self, context: &mut Context) -> anyhow::Result<()> {
+    fn select_right(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match &self.selection_set.mode {
-            SelectionMode::Node | SelectionMode::SiblingNode => {
-                self.select_parent(Direction::Backward)
-            }
-            mode => self.select(mode.clone(), Direction::Forward),
+            SelectionMode::Node | SelectionMode::SiblingNode => self.select_parent(Direction::Left),
+            mode => self.select(mode.clone(), Direction::Right),
         }
     }
 
-    fn select_up(&mut self, context: &mut Context) -> anyhow::Result<()> {
+    fn select_up(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match self.selection_set.mode {
             SelectionMode::Node | SelectionMode::SiblingNode => {
-                self.select_sibling(Direction::Backward)
+                self.select_sibling(Direction::Left)
             }
-            SelectionMode::Line => self.select_line(Direction::Backward),
+            SelectionMode::Line => self.select_line(Direction::Left),
             _ => Ok(()),
         }
     }
 
-    fn select_down(&mut self, context: &mut Context) -> anyhow::Result<()> {
+    fn select_down(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match self.selection_set.mode {
             SelectionMode::Node | SelectionMode::SiblingNode => {
-                self.select_sibling(Direction::Forward)
+                self.select_sibling(Direction::Right)
             }
-            SelectionMode::Line => self.select_line(Direction::Forward),
+            SelectionMode::Line => self.select_line(Direction::Right),
             _ => Ok(()),
         }
     }
@@ -1364,8 +1359,10 @@ impl Editor {
         match event {
             key!("up") => return self.select_direction(context, Direction::Up),
             key!("down") => return self.select_direction(context, Direction::Down),
-            key!("left") => return self.select_direction(context, Direction::Backward),
-            key!("right") => return self.select_direction(context, Direction::Forward),
+            key!("left") => return self.select_direction(context, Direction::Left),
+            key!("shift+left") => return self.select_direction(context, Direction::LeftMost),
+            key!("right") => return self.select_direction(context, Direction::Right),
+            key!("shift+right") => return self.select_direction(context, Direction::RightMost),
             key!("esc") => {
                 self.enter_normal_mode()?;
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
@@ -1375,8 +1372,8 @@ impl Editor {
             key!("shift+A") => self.add_selection()?,
             key!("b") => self.select_backward(),
             key!("c") => self.set_selection_mode(SelectionMode::Character)?,
-            key!("d") => return Ok(self.delete(Direction::Forward)),
-            key!("shift+D") => return Ok(self.delete(Direction::Backward)),
+            key!("d") => return Ok(self.delete(Direction::Right)),
+            key!("shift+D") => return Ok(self.delete(Direction::Left)),
 
             key!("e") => self.set_selection_mode(SelectionMode::Diagnostic)?,
             // f
@@ -1398,9 +1395,9 @@ impl Editor {
 
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
-            key!("j") => return self.select_direction(context, Direction::Backward),
+            key!("j") => return self.select_direction(context, Direction::Left),
             key!("k") => return self.select_direction(context, Direction::Down),
-            key!("l") => return self.select_direction(context, Direction::Forward),
+            key!("l") => return self.select_direction(context, Direction::Right),
             key!("l") => self.set_selection_mode(SelectionMode::Line)?,
             key!("m") => self.set_selection_mode(SelectionMode::Match {
                 search: context.last_search().clone().unwrap_or(Search {
@@ -1409,34 +1406,34 @@ impl Editor {
                 }),
             })?,
             key!("n") => self.set_selection_mode(SelectionMode::Node)?,
-            key!("shift+N") => self.select_final(Direction::Forward)?,
-            key!("shift+N") => self.select_named_node(Direction::Backward)?,
+            key!("shift+N") => self.select_final(Direction::Right)?,
+            key!("shift+N") => self.select_named_node(Direction::Left)?,
             key!("o") => self.set_selection_mode(SelectionMode::LargestNode)?,
             // O
             key!("p") => {
-                return self.select_direction(context, Direction::Backward);
+                return self.select_direction(context, Direction::Left);
             }
-            key!("shift+P") => self.select_final(Direction::Backward)?,
+            key!("shift+P") => self.select_final(Direction::Left)?,
             key!("q") => {
                 context.mode = Some(GlobalMode::QuickfixListItem);
             }
             key!("r") => return Ok(self.replace()),
             key!("s") => self.set_selection_mode(SelectionMode::SiblingNode)?,
             key!("t") => self.set_selection_mode(SelectionMode::Token)?,
-            key!("u") => return Ok(self.upend(Direction::Forward)),
+            key!("u") => return Ok(self.upend(Direction::Right)),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
             key!("w") => self.set_selection_mode(SelectionMode::Word)?,
-            key!("x") => return Ok(self.exchange(Direction::Forward)),
-            key!("shift+X") => return Ok(self.exchange(Direction::Backward)),
+            key!("x") => return Ok(self.exchange(Direction::Right)),
+            key!("shift+X") => return Ok(self.exchange(Direction::Left)),
             key!("y") => self.set_selection_mode(SelectionMode::Line)?,
             // Zap = jump
-            key!("z") => self.jump(Direction::Forward)?,
-            key!("shift+Z") => self.jump(Direction::Backward)?,
-            key!("0") => self.reset(),
+            key!("z") => self.jump(Direction::Right)?,
+            key!("shift+Z") => self.jump(Direction::Left)?,
+            key!("0") => self.reset()?,
             key!("backspace") => {
                 self.change();
             }
@@ -1447,8 +1444,8 @@ impl Editor {
             key!('{') | key!('}') => return Ok(self.enclose(Enclosure::CurlyBracket)),
             key!('<') | key!('>') => return Ok(self.enclose(Enclosure::AngleBracket)),
 
-            key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Backward)]),
-            key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Forward)]),
+            key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Left)]),
+            key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Direction::Right)]),
             key!("space") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.space_mode_keymap_legend_config(),
@@ -1940,7 +1937,7 @@ impl Editor {
             |selection| {
                 let position = selection.range.start.to_position(self.buffer().rope());
                 let position = Position {
-                    line: if direction == Direction::Forward {
+                    line: if direction == Direction::Right {
                         position.line.saturating_add(scroll_height as usize)
                     } else {
                         position.line.saturating_sub(scroll_height as usize)
@@ -1971,7 +1968,7 @@ impl Editor {
     }
 
     pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Vec<Dispatch>> {
-        let selection = self.get_selection_set(&SelectionMode::Word, Direction::Backward)?;
+        let selection = self.get_selection_set(&SelectionMode::Word, Direction::Left)?;
         self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
         Ok(self.get_document_did_change_dispatch())
@@ -2203,12 +2200,12 @@ mod test_editor {
     #[test]
     fn select_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_character(Direction::Forward)?;
+        editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.select_character(Direction::Forward)?;
+        editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["n"]);
 
-        editor.select_character(Direction::Backward)?;
+        editor.select_character(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
         Ok(())
     }
@@ -2217,28 +2214,28 @@ mod test_editor {
     fn select_line() -> anyhow::Result<()> {
         // Multiline source code
         let mut editor = Editor::from_text(language(), "\nfn main() {\n\n\nlet x = 1;\n}\n");
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;\n"]);
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["}\n"]);
 
-        editor.select_line(Direction::Backward)?;
+        editor.select_line(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;\n"]);
-        editor.select_line(Direction::Backward)?;
+        editor.select_line(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Backward)?;
+        editor.select_line(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Backward)?;
+        editor.select_line(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
-        editor.select_line(Direction::Backward)?;
+        editor.select_line(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
         Ok(())
     }
@@ -2246,28 +2243,28 @@ mod test_editor {
     #[test]
     fn select_word() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "camelCase, snake_case, ALLCAPS: 123");
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["123"]);
 
-        editor.select_word(Direction::Backward)?;
+        editor.select_word(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.select_word(Direction::Backward)?;
+        editor.select_word(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.select_word(Direction::Backward)?;
+        editor.select_word(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.select_word(Direction::Backward)?;
+        editor.select_word(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.select_word(Direction::Backward)?;
+        editor.select_word(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
         Ok(())
     }
@@ -2280,16 +2277,16 @@ mod test_editor {
             kind: SearchKind::AstGrep,
         });
 
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f( z )"]);
 
-        editor.select_match(Direction::Backward, &search)?;
+        editor.select_match(Direction::Left, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_match(Direction::Backward, &search)?;
+        editor.select_match(Direction::Left, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
         Ok(())
     }
@@ -2302,11 +2299,11 @@ mod test_editor {
             kind: SearchKind::Literal,
         });
 
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
 
         editor.insert("hello");
@@ -2325,11 +2322,11 @@ mod test_editor {
             kind: SearchKind::Regex,
         });
 
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_match(Direction::Forward, &search)?;
+        editor.select_match(Direction::Right, &search)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
 
         Ok(())
@@ -2338,34 +2335,34 @@ mod test_editor {
     #[test]
     fn select_token() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["("]);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["("]);
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.select_token(Direction::Backward)?;
+        editor.select_token(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
         Ok(())
     }
@@ -2375,22 +2372,22 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         // Move token to 1
         for _ in 0..9 {
-            editor.select_token(Direction::Forward)?;
+            editor.select_token(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["1"]);
 
-        editor.select_parent(Direction::Forward)?;
+        editor.select_parent(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        editor.select_parent(Direction::Forward)?;
+        editor.select_parent(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_parent(Direction::Forward)?;
+        editor.select_parent(Direction::Right)?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn main() { let x = 1; }"]
         );
 
-        editor.select_parent(Direction::Backward)?;
+        editor.select_parent(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
@@ -2400,19 +2397,19 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..3 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
-        editor.select_sibling(Direction::Forward)?;
-        editor.select_sibling(Direction::Forward)?;
+        editor.select_sibling(Direction::Right)?;
+        editor.select_sibling(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["y: Vec<A>"]);
-        editor.select_sibling(Direction::Forward)?;
+        editor.select_sibling(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["y: Vec<A>"]);
 
-        editor.select_sibling(Direction::Backward)?;
+        editor.select_sibling(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_sibling(Direction::Backward)?;
+        editor.select_sibling(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
         Ok(())
     }
@@ -2424,21 +2421,21 @@ mod test_editor {
 
         // Select `a`
         for _ in 0..11 {
-            editor.select_token(Direction::Forward)?;
+            editor.select_token(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["a"]);
 
-        editor.select_sibling(Direction::Forward)?;
+        editor.select_sibling(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["b"]);
 
-        editor.select_sibling(Direction::Forward)?;
+        editor.select_sibling(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["c:d"]);
 
-        editor.select_sibling(Direction::Backward)?;
+        editor.select_sibling(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["b"]);
 
-        editor.select_sibling(Direction::Backward)?;
+        editor.select_sibling(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["a"]);
         Ok(())
     }
@@ -2448,7 +2445,7 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x"
         for _ in 0..4 {
-            editor.select_token(Direction::Forward)?;
+            editor.select_token(Direction::Right)?;
         }
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
@@ -2461,28 +2458,28 @@ mod test_editor {
     fn select_named_node() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize) { let x = 1; }");
 
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
 
-        editor.select_named_node(Direction::Backward)?;
+        editor.select_named_node(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_named_node(Direction::Backward)?;
+        editor.select_named_node(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-        editor.select_named_node(Direction::Backward)?;
+        editor.select_named_node(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_named_node(Direction::Backward)?;
+        editor.select_named_node(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
-        editor.select_named_node(Direction::Backward)?;
+        editor.select_named_node(Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
@@ -2528,36 +2525,36 @@ mod test_editor {
             assert!(content.join("\n").contains(info))
         }
 
-        let dispatches = editor.select_diagnostic(Direction::Forward)?;
+        let dispatches = editor.select_diagnostic(Direction::Right)?;
         assert_dispatch_contains(
             dispatches,
             "[UNKNOWN]\nspongebob\n\n[RELATED INFORMATION]\n",
         );
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        let dispatches = editor.select_diagnostic(Direction::Forward)?;
+        let dispatches = editor.select_diagnostic(Direction::Right)?;
         assert_dispatch_contains(dispatches, "sandy");
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        let dispatches = editor.select_diagnostic(Direction::Forward)?;
+        let dispatches = editor.select_diagnostic(Direction::Right)?;
         assert_dispatch_contains(dispatches, "patrick");
         assert_eq!(editor.get_selected_texts(), vec!["n "]);
 
-        let dispatches = editor.select_diagnostic(Direction::Forward)?;
+        let dispatches = editor.select_diagnostic(Direction::Right)?;
         assert_dispatch_contains(dispatches, "squidward");
         assert_eq!(editor.get_selected_texts(), vec![" m"]);
 
-        let dispatches = editor.select_diagnostic(Direction::Forward)?;
+        let dispatches = editor.select_diagnostic(Direction::Right)?;
         assert_dispatch_contains(dispatches, "squidward");
         assert_eq!(editor.get_selected_texts(), vec![" m"]);
 
-        let dispatches = editor.select_diagnostic(Direction::Backward)?;
+        let dispatches = editor.select_diagnostic(Direction::Left)?;
         assert_dispatch_contains(dispatches, "patrick");
 
-        let dispatches = editor.select_diagnostic(Direction::Backward)?;
+        let dispatches = editor.select_diagnostic(Direction::Left)?;
         assert_dispatch_contains(dispatches, "sandy");
 
-        let dispatches = editor.select_diagnostic(Direction::Backward)?;
+        let dispatches = editor.select_diagnostic(Direction::Left)?;
         assert_dispatch_contains(dispatches, "spongebob");
         Ok(())
     }
@@ -2566,11 +2563,11 @@ mod test_editor {
     fn select_named_node_from_line_mode() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize) { \n let x = 1; }");
         // Select the second line
-        editor.select_line(Direction::Forward)?;
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
+        editor.select_line(Direction::Right)?;
 
         // Select next name node
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
         Ok(())
@@ -2579,10 +2576,10 @@ mod test_editor {
     #[test]
     fn copy_replace() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         let mut context = Context::default();
         editor.copy(&mut context);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.replace();
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
@@ -2595,10 +2592,10 @@ mod test_editor {
     #[test]
     fn copy_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         let mut context = Context::default();
         editor.copy(&mut context);
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.paste(&mut context);
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
@@ -2609,12 +2606,12 @@ mod test_editor {
     fn cut_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let mut context = Context::default();
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.cut(&mut context);
         assert_eq!(editor.text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.paste(&mut context);
 
         assert_eq!(editor.text(), " fn() { let x = 1; }");
@@ -2627,15 +2624,15 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         // Move token to "x: usize"
         for _ in 0..3 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
-        editor.exchange(Direction::Backward);
+        editor.exchange(Direction::Left);
         assert_eq!(editor.text(), "fn main(x: usize, y: Vec<A>) {}");
         Ok(())
     }
@@ -2645,15 +2642,15 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "use a;\nuse b;\nuse c;");
 
         // Select first statement
-        editor.select_character(Direction::Forward)?;
-        editor.select_character(Direction::Forward)?;
+        editor.select_character(Direction::Right)?;
+        editor.select_character(Direction::Right)?;
 
-        editor.select_parent(Direction::Forward)?;
+        editor.select_parent(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
         Ok(())
     }
@@ -2663,15 +2660,15 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
         // Move selection to "c()"
         for _ in 0..9 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
-        editor.upend(Direction::Forward);
+        editor.upend(Direction::Right);
         assert_eq!(editor.text(), "fn main() { let x = c(); }");
 
-        editor.upend(Direction::Forward);
+        editor.upend(Direction::Right);
         assert_eq!(editor.text(), "fn main() { c() }");
         Ok(())
     }
@@ -2688,10 +2685,10 @@ fn main() {
 }",
         );
 
-        editor.select_line(Direction::Forward)?;
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
+        editor.select_line(Direction::Right)?;
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -2701,7 +2698,7 @@ fn main() {
 }"
         );
 
-        editor.exchange(Direction::Backward);
+        editor.exchange(Direction::Left);
         assert_eq!(
             editor.text(),
             "
@@ -2716,16 +2713,16 @@ fn main() {
     #[test]
     fn exchange_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_character(Direction::Forward)?;
+        editor.select_character(Direction::Right)?;
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(editor.text(), "n fmain() { let x = 1; }");
 
-        editor.exchange(Direction::Backward);
+        editor.exchange(Direction::Left);
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(Direction::Backward);
+        editor.exchange(Direction::Left);
 
         assert_eq!(editor.text(), "fn main() { let x = 1; }");
         Ok(())
@@ -2736,7 +2733,7 @@ fn main() {
         let mut editor = Editor::from_text(language(), "struct A(usize, char)");
         // Select 'usize'
         for _ in 0..3 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
@@ -2760,7 +2757,7 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         // Select 'let x = S(a)'
         for _ in 0..4 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
@@ -2773,12 +2770,12 @@ fn main() {
         );
 
         for _ in 0..4 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
-        editor.upend(Direction::Forward);
+        editor.upend(Direction::Right);
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
 
@@ -2798,8 +2795,8 @@ fn main() {
     fn multi_exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
         // Select 'fn f(x:a,y:b){}'
-        editor.select_token(Direction::Forward)?;
-        editor.select_parent(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_parent(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
@@ -2810,17 +2807,17 @@ fn main() {
             vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
         );
 
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
         assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
-        editor.exchange(Direction::Backward);
+        editor.exchange(Direction::Left);
         assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
         Ok(())
     }
@@ -2834,7 +2831,7 @@ fn main() {
 
         // Select 'let x = S(a)'
         for _ in 0..4 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
 
         assert_eq!(
@@ -2843,8 +2840,8 @@ fn main() {
         );
 
         editor.add_selection()?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(
             editor.get_selected_texts(),
@@ -2870,17 +2867,17 @@ fn main() {
     fn toggle_highlight_mode() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
 
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f("]);
 
         // Toggle the second time should inverse the initial_range
         editor.toggle_highlight_mode();
 
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
 
@@ -2888,12 +2885,12 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
         // After reset, expect highlight mode is turned off
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["("]);
         Ok(())
@@ -2902,11 +2899,11 @@ fn main() {
     #[test]
     fn highlight_mode_cut() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
@@ -2924,18 +2921,18 @@ fn main() {
     #[test]
     fn highlight_mode_copy() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         let mut context = Context::default();
         editor.copy(&mut context);
 
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
 
@@ -2948,18 +2945,18 @@ fn main() {
     #[test]
     fn highlight_mode_replace() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         let mut context = Context::default();
         editor.copy(&mut context);
 
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(
             editor.get_selected_texts(),
@@ -2975,7 +2972,7 @@ fn main() {
     #[test]
     fn highlight_mode_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         let mut context = Context::default();
         editor.copy(&mut context);
@@ -2983,9 +2980,9 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
         editor.toggle_highlight_mode();
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
@@ -2999,18 +2996,18 @@ fn main() {
     #[ignore]
     fn highlight_mode_exchange_word() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
         editor.toggle_highlight_mode();
-        editor.select_word(Direction::Forward)?;
+        editor.select_word(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f"]);
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
 
         assert_eq!(editor.text(), "let(){ fn f x = S(a); let y = S(b); }");
         assert_eq!(editor.get_selected_texts(), vec!["fn f"]);
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
 
         assert_eq!(editor.text(), "let(){ x fn f = S(a); let y = S(b); }");
         Ok(())
@@ -3022,28 +3019,28 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn f(){} fn g(){} fn h(){} fn i(){}");
 
         // select `fn f(){}`
-        editor.select_token(Direction::Forward)?;
-        editor.select_parent(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
+        editor.select_parent(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f(){}"]);
 
         editor.toggle_highlight_mode();
-        editor.select_sibling(Direction::Forward)?;
+        editor.select_sibling(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f(){} fn g(){}"]);
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
 
         assert_eq!(editor.text(), "fn h(){} fn f(){} fn g(){} fn i(){}");
 
-        editor.select_sibling(Direction::Forward)?;
+        editor.select_sibling(Direction::Right)?;
 
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn f(){} fn g(){} fn i(){}"]
         );
 
-        editor.exchange(Direction::Forward);
+        editor.exchange(Direction::Right);
 
         assert_eq!(editor.text(), "fn h(){} fn i(){} fn f(){} fn g(){}");
         Ok(())
@@ -3088,26 +3085,26 @@ fn f() {
     fn delete_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
 
-        editor.select_character(Direction::Forward)?;
+        editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
         editor.select_match(
-            Direction::Forward,
+            Direction::Right,
             &Some(Search {
                 search: "x".to_string(),
                 kind: SearchKind::Literal,
             }),
         )?;
-        editor.select_character(Direction::Forward)?;
+        editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.delete(Direction::Backward);
+        editor.delete(Direction::Left);
         assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
         Ok(())
     }
@@ -3125,10 +3122,10 @@ let y = S(b);
             .trim(),
         );
 
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f() {\n"]);
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -3139,7 +3136,7 @@ let y = S(b);
             .trim()
         );
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -3148,19 +3145,19 @@ let y = S(b);
         );
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
 
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);\n"]);
-        editor.delete(Direction::Backward);
+        editor.delete(Direction::Left);
         assert_eq!(
             editor.text(),
             "
 }"
         );
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), "}");
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), "");
         Ok(())
     }
@@ -3169,19 +3166,19 @@ let y = S(b);
     fn delete_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
         // Select 'x: a'
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
         editor.select_sibling(Direction::Current)?;
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
-        editor.select_sibling(Direction::Forward)?;
-        editor.delete(Direction::Backward);
+        editor.select_sibling(Direction::Right)?;
+        editor.delete(Direction::Left);
 
         assert_eq!(editor.text(), "fn f(y: b){}");
         Ok(())
@@ -3191,23 +3188,23 @@ let y = S(b);
     fn delete_token() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
         // Select 'fn'
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
 
         assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
 
-        editor.delete(Direction::Forward);
+        editor.delete(Direction::Right);
 
         assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
 
-        editor.select_token(Direction::Forward)?;
+        editor.select_token(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.delete(Direction::Backward);
+        editor.delete(Direction::Left);
 
         assert_eq!(editor.text(), "(: a, y: b, z: c){}");
         Ok(())
@@ -3317,10 +3314,10 @@ let y = S(b);
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
 
         // Select 'x.y()'
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -3336,10 +3333,10 @@ let y = S(b);
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
 
         // Select 'x.y()'
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
-        editor.select_named_node(Direction::Forward)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
+        editor.select_named_node(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -3354,15 +3351,15 @@ let y = S(b);
     fn select_final() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y() }");
 
-        editor.select_line(Direction::Forward)?;
+        editor.select_line(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn\n"]);
 
-        editor.select_final(Direction::Forward)?;
+        editor.select_final(Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["{ x.y() }"]);
 
-        editor.select_final(Direction::Backward)?;
+        editor.select_final(Direction::Left)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn\n"]);
         Ok(())
@@ -3375,9 +3372,9 @@ let y = S(b);
         // Select x.y()
 
         for _ in 0..4 {
-            editor.select_named_node(Direction::Forward)?;
+            editor.select_named_node(Direction::Right)?;
         }
-        editor.select_parent(Direction::Backward)?;
+        editor.select_parent(Direction::Left)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 

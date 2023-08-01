@@ -1,5 +1,5 @@
 use super::{ByteRange, SelectionMode};
-use itertools::{Itertools, TupleWindows};
+use itertools::Itertools;
 
 pub struct LargestNode;
 
@@ -24,7 +24,6 @@ impl SelectionMode for LargestNode {
                         .byte_range(),
                 )
             })
-            .into_iter()
             .collect_vec()
             .into_iter(),
         ))

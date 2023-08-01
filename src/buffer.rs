@@ -1,12 +1,12 @@
 use crate::{
     canonicalized_path::CanonicalizedPath,
-    components::editor::Direction,
     edit::{Edit, EditTransaction},
     language::{self, Language},
     lsp::diagnostic::Diagnostic,
     position::Position,
     selection::{CharIndex, RangeCharIndex, Selection, SelectionSet},
-    syntax_highlight::{self, HighlighedSpan},
+    selection_mode::ByteRange,
+    syntax_highlight::HighlighedSpan,
     themes::Theme,
     utils::find_previous,
 };
@@ -471,52 +471,6 @@ impl Buffer {
         self.diagnostics = diagnostics;
     }
 
-    pub fn get_diagnostic(
-        &self,
-        current_range: &Range<CharIndex>,
-        direction: &Direction,
-    ) -> Option<Range<CharIndex>> {
-        let mut iter = self.diagnostics.iter();
-
-        let current_positional_range =
-            current_range.start.to_position(&self.rope)..current_range.end.to_position(&self.rope);
-        match direction {
-            Direction::Current => iter.find_map(|diagnostic| {
-                let start = diagnostic.range.start.to_char_index(self).ok()?;
-                let end = diagnostic.range.end.to_char_index(self).ok()?;
-                if start >= current_range.start {
-                    Some(start..end)
-                } else {
-                    None
-                }
-            }),
-            Direction::Forward => iter.find_map(|diagnostic| {
-                let start = diagnostic.range.start.to_char_index(self).ok()?;
-                let end = diagnostic.range.end.to_char_index(self).ok()?;
-                if start > current_range.start
-                    || (start == current_range.start && end > current_range.end)
-                {
-                    Some(start..end)
-                } else {
-                    None
-                }
-            }),
-            Direction::Backward => find_previous(
-                iter,
-                |_, _| true,
-                |match_| match_.range == current_positional_range,
-            )
-            .and_then(|item| {
-                Some(
-                    item.range.start.to_char_index(self).ok()?
-                        ..item.range.end.to_char_index(self).ok()?,
-                )
-            }),
-            Direction::Up => todo!(),
-            Direction::Down => todo!(),
-        }
-    }
-
     pub fn highlighted_spans(&self) -> &Vec<HighlighedSpan> {
         &self.highlighted_spans
     }
@@ -559,7 +513,14 @@ impl Buffer {
 
     pub fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
         let start = self.position_to_char(start)?;
-        Ok(self.char_to_byte(start)?)
+        self.char_to_byte(start)
+    }
+
+    pub fn current_line_byte_range(&self, char_index: CharIndex) -> anyhow::Result<ByteRange> {
+        let current_line = self.char_to_line(char_index)?;
+        let start = self.line_to_byte(current_line)?;
+        let end = self.line_to_byte(current_line + 1)?.saturating_sub(1);
+        Ok(ByteRange(start..end))
     }
 }
 

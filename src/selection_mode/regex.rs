@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, selection::Selection};
+use crate::buffer::Buffer;
 
 use super::{ByteRange, SelectionMode};
 
@@ -12,7 +12,7 @@ impl Regex {
         let regex = if escape {
             regex::Regex::new(&regex::escape(regex))?
         } else {
-            regex::Regex::new(&regex)?
+            regex::Regex::new(regex)?
         };
         Ok(Self {
             regex,

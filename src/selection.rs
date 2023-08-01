@@ -1,18 +1,14 @@
 use selection_mode::SelectionMode as SelectionModeTrait;
 use std::ops::{Add, Range, Sub};
 
-use regex::Regex;
 use ropey::Rope;
-use tree_sitter::Node;
-use tree_sitter_traversal::Order;
 
 use crate::{
     buffer::Buffer,
-    components::editor::{node_to_selection, CursorDirection, Direction},
+    components::editor::{CursorDirection, Direction},
     context::{Context, Search, SearchKind},
     position::Position,
-    selection_mode,
-    utils::find_previous,
+    selection_mode::{self, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -171,7 +167,7 @@ impl SelectionSet {
             buffer,
             last_selection,
             &mode,
-            &Direction::Forward,
+            &Direction::Right,
             cursor_direction,
         )?;
 
@@ -244,6 +240,42 @@ impl SelectionMode {
             SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
         }
     }
+
+    pub fn to_selection_mode_trait_object(
+        &self,
+        buffer: &Buffer,
+        current_selection: &Selection,
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+        Ok(match self {
+            SelectionMode::Word => Box::new(selection_mode::Regex::new(
+                buffer,
+                r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
+                false,
+            )?),
+            SelectionMode::Line => Box::new(selection_mode::Line),
+            SelectionMode::Character => {
+                Box::new(selection_mode::Regex::new(buffer, r"(?s).", false)?)
+            }
+            SelectionMode::Custom => {
+                Box::new(selection_mode::Custom::new(current_selection.clone()))
+            }
+            SelectionMode::Match { search } => match search.kind {
+                SearchKind::Literal => {
+                    Box::new(selection_mode::Regex::new(buffer, &search.search, true)?)
+                }
+                SearchKind::Regex => {
+                    Box::new(selection_mode::Regex::new(buffer, &search.search, false)?)
+                }
+                SearchKind::AstGrep => {
+                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
+                }
+            },
+            SelectionMode::Token => Box::new(selection_mode::Token),
+            SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
+            SelectionMode::Node | SelectionMode::SiblingNode => Box::new(selection_mode::Node),
+            SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
+        })
+    }
 }
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
@@ -296,7 +328,7 @@ impl Selection {
         cursor_direction: &CursorDirection,
     ) -> anyhow::Result<Selection> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
-        let cursor_char_index = {
+        let _cursor_char_index = {
             let index = current_selection.to_char_index(cursor_direction);
             match cursor_direction {
                 CursorDirection::Start => index,
@@ -304,278 +336,23 @@ impl Selection {
                 CursorDirection::End => index - 1,
             }
         };
-        let initial_range = current_selection.initial_range.clone();
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        let copied_text = current_selection.copied_text.clone();
+        let selection_mode = mode.to_selection_mode_trait_object(buffer, current_selection)?;
 
-        let Range {
-            start: current_selection_start,
-            end: _,
-        } = current_selection.extended_range();
-
-        // TODO: complete the todo!() cases
-        let selection_mode: Box<dyn selection_mode::SelectionMode> = match mode {
-            SelectionMode::Word => Box::new(selection_mode::Regex::new(
-                &buffer,
-                r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
-                false,
-            )?),
-            SelectionMode::Line => Box::new(selection_mode::Line),
-            SelectionMode::Character => {
-                Box::new(selection_mode::Regex::new(&buffer, r"(?s).", false)?)
-            }
-            SelectionMode::Custom => {
-                Box::new(selection_mode::Custom::new(current_selection.clone()))
-            }
-            SelectionMode::Match { search } => match search.kind {
-                SearchKind::Literal => {
-                    Box::new(selection_mode::Regex::new(&buffer, &search.search, true)?)
-                }
-                SearchKind::Regex => {
-                    Box::new(selection_mode::Regex::new(&buffer, &search.search, false)?)
-                }
-                SearchKind::AstGrep => {
-                    Box::new(selection_mode::AstGrep::new(&buffer, &search.search)?)
-                }
-            },
-            SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
-            SelectionMode::Node | SelectionMode::SiblingNode => Box::new(selection_mode::Node),
-            SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
+        let params = SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
         };
-
-        return Ok(match direction {
-            Direction::Forward => {
-                selection_mode.right(buffer, current_selection, cursor_direction)?
-            }
-            Direction::Backward => {
-                selection_mode.left(buffer, current_selection, cursor_direction)?
-            }
-            Direction::Up => selection_mode.up(buffer, current_selection, cursor_direction)?,
-            Direction::Down => selection_mode.down(buffer, current_selection, cursor_direction)?,
-            Direction::Current => {
-                selection_mode.current(buffer, current_selection, cursor_direction)?
-            }
+        Ok(match direction {
+            Direction::Right => selection_mode.right(params)?,
+            Direction::RightMost => selection_mode.right_most(params)?,
+            Direction::Left => selection_mode.left(params)?,
+            Direction::LeftMost => selection_mode.left_most(params)?,
+            Direction::Up => selection_mode.up(params)?,
+            Direction::Down => selection_mode.down(params)?,
+            Direction::Current => selection_mode.current(params)?,
         }
-        .unwrap_or_else(|| current_selection.clone()));
-
-        match mode {
-            SelectionMode::LargestNode => Ok(match direction {
-                Direction::Current => Some(buffer.get_current_node(current_selection)?),
-                Direction::Forward => buffer
-                    .traverse(Order::Pre)
-                    .find(|node| node.start_byte() > current_selection_start.0 && node.is_named()),
-                Direction::Backward => {
-                    find_previous(
-                        buffer.traverse(Order::Pre),
-                        |node, last_match| match last_match {
-                            Some(last_match) => {
-                                node.is_named()
-                                // This predicate is so that if there's multiple node with the same
-                                // start byte, we will only take the node with the largest range
-                                && last_match.start_byte() < node.start_byte()
-                            }
-                            None => true,
-                        },
-                        |node| node.start_byte() >= current_selection_start.0 && node.is_named(),
-                    )
-                }
-                Direction::Up => todo!(),
-                Direction::Down => todo!(),
-            }
-            .map(|node| node_to_selection(node, buffer, copied_text, initial_range))
-            .unwrap_or_else(|| Ok(current_selection.clone()))?),
-
-            SelectionMode::Line => {
-                let current_line = buffer
-                    .char_to_line(cursor_char_index)
-                    .unwrap_or_else(|_| buffer.len_lines().saturating_sub(1));
-                let current_line = match direction {
-                    Direction::Forward => {
-                        if current_line == buffer.len_lines() - 1 {
-                            return Ok(current_selection.clone());
-                        }
-                        current_line + 1
-                    }
-                    Direction::Backward => {
-                        if current_line == 0 {
-                            return Ok(current_selection.clone());
-                        }
-                        current_line - 1
-                    }
-                    Direction::Current => current_line,
-                    Direction::Up => todo!(),
-                    Direction::Down => todo!(),
-                };
-                let line_start = buffer.line_to_char(current_line)?;
-                let current_line = buffer.get_line(line_start)?;
-
-                let line_end = line_start + current_line.len_chars();
-
-                let range = line_start..line_end;
-
-                Ok(Selection {
-                    range,
-                    copied_text,
-                    initial_range,
-                })
-            }
-            SelectionMode::Word => Ok(get_selection_via_regex(
-                buffer,
-                cursor_byte,
-                r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
-                direction,
-                current_selection,
-                copied_text,
-                false,
-            )?
-            .unwrap_or_else(|| current_selection.clone())),
-            SelectionMode::Character => Ok(get_selection_via_regex(
-                buffer,
-                cursor_byte,
-                r"(?s).",
-                direction,
-                current_selection,
-                copied_text,
-                false,
-            )?
-            .unwrap_or_else(|| current_selection.clone())),
-            SelectionMode::Match { search } => Ok(match search.kind {
-                SearchKind::Literal => {
-                    let mode = selection_mode::Regex::new(&buffer, &search.search.clone(), true)?;
-                    match direction {
-                        Direction::Forward | Direction::Current => {
-                            mode.right(buffer, current_selection, cursor_direction)?
-                        }
-                        Direction::Backward => {
-                            mode.left(buffer, current_selection, cursor_direction)?
-                        }
-                        Direction::Up => todo!(),
-                        Direction::Down => todo!(),
-                    }
-                }
-                SearchKind::Regex => get_selection_via_regex(
-                    buffer,
-                    cursor_byte,
-                    &search.search,
-                    direction,
-                    current_selection,
-                    copied_text,
-                    false,
-                )?,
-                SearchKind::AstGrep => get_selection_via_ast_grep(
-                    buffer,
-                    cursor_byte,
-                    &search.search,
-                    direction,
-                    current_selection,
-                    copied_text.clone(),
-                )?,
-            }
-            .unwrap_or_else(|| current_selection.clone())),
-            SelectionMode::Node => {
-                let current_node = buffer.get_current_node(current_selection)?;
-
-                fn get_node(node: Node, direction: Direction) -> Option<Node> {
-                    match direction {
-                        Direction::Current => Some(node),
-                        Direction::Backward => node.parent(),
-                        Direction::Forward => node.named_child(0),
-                        Direction::Up => todo!(),
-                        Direction::Down => todo!(),
-                    }
-                }
-
-                let node = {
-                    if direction == &Direction::Current {
-                        current_node
-                    } else {
-                        let mut node = get_node(current_node, *direction);
-
-                        // This loop is to ensure we select the nearest parent that has a larger range than
-                        // the current node
-                        //
-                        // This is necessary because sometimes the parent node can have the same range as
-                        // the current node
-                        while let Some(some_node) = node {
-                            if some_node.range() != current_node.range() {
-                                break;
-                            }
-                            node = get_node(some_node, *direction);
-                        }
-                        node.unwrap_or(current_node)
-                    }
-                };
-                node_to_selection(node, buffer, copied_text, initial_range)
-            }
-
-            SelectionMode::SiblingNode => {
-                let current_node = buffer.get_current_node(current_selection)?;
-                let next_node = match direction {
-                    Direction::Current => Some(current_node),
-                    Direction::Forward => buffer
-                        .get_current_node(current_selection)?
-                        .next_named_sibling(),
-                    Direction::Backward => buffer
-                        .get_current_node(current_selection)?
-                        .prev_named_sibling(),
-                    Direction::Up => todo!(),
-                    Direction::Down => todo!(),
-                }
-                .unwrap_or(current_node);
-                node_to_selection(next_node, buffer, copied_text, initial_range)
-            }
-            SelectionMode::Token => {
-                use crate::selection_mode::SelectionMode;
-                let mode = crate::selection_mode::token::Token;
-
-                let selection =
-                    match direction {
-                        // Direction::Forward => buffer.get_next_token(current_selection.range.end, false),
-                        Direction::Forward => {
-                            mode.right(buffer, current_selection, cursor_direction)?
-                        }
-                        Direction::Backward => {
-                            mode.left(buffer, current_selection, cursor_direction)?
-                        }
-                        Direction::Current => buffer
-                            .get_next_token(cursor_char_index, false)
-                            .and_then(|node| {
-                                node_to_selection(
-                                    node,
-                                    buffer,
-                                    copied_text.clone(),
-                                    initial_range.clone(),
-                                )
-                                .ok()
-                            }),
-                        Direction::Up => todo!(),
-                        Direction::Down => todo!(),
-                    };
-                selection.map(Ok).unwrap_or_else(move || {
-                    buffer.get_current_node(current_selection).and_then(|node| {
-                        node_to_selection(node, buffer, copied_text, initial_range)
-                    })
-                })
-                // node_to_selection(selection, buffer, copied_text, initial_range)
-            }
-            SelectionMode::Custom => Ok(Selection {
-                range: cursor_char_index..cursor_char_index,
-                copied_text,
-                initial_range: current_selection.initial_range.clone(),
-            }),
-            SelectionMode::Diagnostic => Ok(
-                if let Some(range) = buffer.get_diagnostic(&current_selection.range, direction) {
-                    Selection {
-                        range,
-                        copied_text,
-                        initial_range: current_selection.initial_range.clone(),
-                    }
-                } else {
-                    current_selection.clone()
-                },
-            ),
-        }
+        .unwrap_or_else(|| current_selection.clone()))
     }
 
     pub fn toggle_highlight_mode(&mut self) {
@@ -603,82 +380,6 @@ impl Selection {
 
 // TODO: this works, but the result is not satisfactory,
 // we will leave this function here as a reference
-fn get_selection_via_ast_grep(
-    buffer: &Buffer,
-    cursor_byte: usize,
-    pattern: &String,
-    direction: &Direction,
-    current_selection: &Selection,
-    copied_text: Option<Rope>,
-) -> anyhow::Result<Option<Selection>> {
-    let lang = ast_grep_core::language::TSLanguage::from(buffer.treesitter_language());
-    let pattern = ast_grep_core::matcher::Pattern::new(pattern, lang.clone());
-    let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
-    let mut matches_iter = grep.root().find_all(pattern);
-    // let mut matches_iter = grep.root().find_all(ast_grep_core::matcher::MatchAll);
-    let matches = match direction {
-        Direction::Current => matches_iter.find(|matched| matched.range().contains(&cursor_byte)),
-        Direction::Forward => matches_iter.find(|matched| matched.range().start > cursor_byte),
-        Direction::Backward => find_previous(
-            &mut matches_iter,
-            |_, _| true,
-            |match_| match_.range().start >= cursor_byte,
-        ),
-        Direction::Up => todo!(),
-        Direction::Down => todo!(),
-    };
-
-    let Some(matches) = matches else {return Ok(None)};
-    Ok(Some(Selection {
-        range: buffer.byte_to_char(matches.range().start)?
-            ..buffer.byte_to_char(matches.range().end)?,
-        copied_text,
-        initial_range: current_selection.initial_range.clone(),
-    }))
-}
-
-fn get_selection_via_regex(
-    buffer: &Buffer,
-    cursor_byte: usize,
-    regex: &str,
-    direction: &Direction,
-    current_selection: &Selection,
-    copied_text: Option<Rope>,
-    escape: bool,
-) -> anyhow::Result<Option<Selection>> {
-    let escaped = if escape {
-        regex::escape(regex)
-    } else {
-        regex.to_string()
-    };
-    let regex = Regex::new(&escaped);
-    let regex = match regex {
-        Err(_) => return Ok(Some(current_selection.clone())),
-        Ok(regex) => regex,
-    };
-    let string = buffer.rope().to_string();
-    let matches = match direction {
-        Direction::Current => regex.find_at(&string, cursor_byte),
-        // TODO: should we rotate? i.e. if we are at the end, we should go to the beginning
-        Direction::Forward => regex.find_at(&string, current_selection.extended_range().end.0),
-        Direction::Backward => find_previous(
-            &mut regex.find_iter(&string),
-            |_, _| true,
-            |match_| match_.start() >= current_selection.extended_range().start.0,
-        ),
-        Direction::Up => todo!(),
-        Direction::Down => todo!(),
-    };
-
-    match matches {
-        None => Ok(None),
-        Some(matches) => Ok(Some(Selection {
-            range: buffer.byte_to_char(matches.start())?..buffer.byte_to_char(matches.end())?,
-            copied_text,
-            initial_range: current_selection.initial_range.clone(),
-        })),
-    }
-}
 
 impl Add<usize> for Selection {
     type Output = Selection;
