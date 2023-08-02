@@ -16,7 +16,7 @@ impl SelectionMode for LargestNode {
             .group_by(|node| node.byte_range().start)
             .into_iter()
             .map(|(_, group)| {
-                ByteRange(
+                ByteRange::new(
                     group
                         .into_iter()
                         .max_by_key(|node| node.byte_range().end)

@@ -93,6 +93,7 @@ impl SelectionSet {
                 range: self.primary.range.clone(),
                 initial_range: None,
                 copied_text: Some(copied_text),
+                info: None,
             }
         } else {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
@@ -129,6 +130,7 @@ impl SelectionSet {
                                 ..CharIndex(second_last_child.end_byte()),
                             copied_text: selection.copied_text.clone(),
                             initial_range: selection.initial_range.clone(),
+                            info: selection.info.clone(),
                         };
                     }
                 }
@@ -213,6 +215,9 @@ pub enum SelectionMode {
 
     // LSP
     Diagnostic,
+
+    // Git
+    GitHunk,
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -238,6 +243,7 @@ impl SelectionMode {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
             }
             SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
+            SelectionMode::GitHunk => "GIT HUNK".to_string(),
         }
     }
 
@@ -274,6 +280,7 @@ impl SelectionMode {
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
             SelectionMode::Node | SelectionMode::SiblingNode => Box::new(selection_mode::Node),
             SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
+            SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
         })
     }
 }
@@ -287,6 +294,9 @@ pub struct Selection {
     /// Some = the selection is being extended
     /// None = the selection is not being extended
     pub initial_range: Option<Range<CharIndex>>,
+
+    /// For example, used for Diagnostic and Git Hunk
+    pub info: Option<String>,
 }
 impl Selection {
     pub fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
@@ -317,6 +327,7 @@ impl Selection {
             range: CharIndex(0)..CharIndex(0),
             copied_text: None,
             initial_range: None,
+            info: None,
         }
     }
 
@@ -369,11 +380,11 @@ impl Selection {
 
     fn clamp(&self, max_char_index: CharIndex) -> Self {
         let range = self.range.start.min(max_char_index)..self.range.end.min(max_char_index);
-        log::info!("Clamped range: {:?}", range);
         Selection {
             range,
             copied_text: self.copied_text.clone(),
             initial_range: self.initial_range.clone(),
+            info: self.info.clone(),
         }
     }
 }
@@ -389,6 +400,7 @@ impl Add<usize> for Selection {
             range: self.range.start + rhs..self.range.end + rhs,
             copied_text: self.copied_text,
             initial_range: self.initial_range,
+            info: self.info,
         }
     }
 }
@@ -401,6 +413,7 @@ impl Sub<usize> for Selection {
             range: self.range.start - rhs..self.range.end - rhs,
             copied_text: self.copied_text,
             initial_range: self.initial_range,
+            info: self.info,
         }
     }
 }

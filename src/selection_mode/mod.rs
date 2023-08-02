@@ -1,6 +1,7 @@
 pub mod ast_grep;
 pub mod custom;
 pub mod diagnostic;
+pub mod git_hunk;
 pub mod largest_node;
 pub mod line;
 pub mod node;
@@ -11,6 +12,7 @@ pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
+pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use largest_node::LargestNode;
 pub use line::Line;
@@ -26,36 +28,57 @@ use crate::{
     selection::{CharIndex, Selection},
 };
 
-#[derive(PartialEq, Eq)]
-pub struct ByteRange(pub Range<usize>);
+#[derive(PartialEq, Eq, Clone)]
+pub struct ByteRange {
+    range: Range<usize>,
+    info: Option<String>,
+}
 impl ByteRange {
+    pub fn new(range: Range<usize>) -> Self {
+        Self { range, info: None }
+    }
+
+    pub fn with_info(range: Range<usize>, info: String) -> Self {
+        Self {
+            range,
+            info: Some(info),
+        }
+    }
     fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<Range<CharIndex>> {
-        Ok(buffer.byte_to_char(self.0.start)?..buffer.byte_to_char(self.0.end)?)
+        Ok(buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?)
     }
 
     fn to_byte(&self, cursor_direction: &CursorDirection) -> usize {
         match cursor_direction {
-            CursorDirection::Start => self.0.start,
-            CursorDirection::End => self.0.end,
+            CursorDirection::Start => self.range.start,
+            CursorDirection::End => self.range.end,
         }
+    }
+
+    fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
+        Ok(Selection {
+            range: self.to_char_index_range(buffer)?,
+            info: self.info,
+            ..selection.clone()
+        })
     }
 }
 
 impl PartialOrd for ByteRange {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0
+        self.range
             .start
-            .partial_cmp(&other.0.start)
-            .or_else(|| self.0.end.partial_cmp(&other.0.end))
+            .partial_cmp(&other.range.start)
+            .or_else(|| self.range.end.partial_cmp(&other.range.end))
     }
 }
 
 impl Ord for ByteRange {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0
+        self.range
             .start
-            .cmp(&other.0.start)
-            .then(self.0.end.cmp(&other.0.end))
+            .cmp(&other.range.start)
+            .then(self.range.end.cmp(&other.range.end))
     }
 }
 
@@ -87,10 +110,9 @@ pub trait SelectionMode {
             .filter_map(|(character, range)| {
                 Some(Jump {
                     character,
-                    selection: Selection {
-                        range: range.to_char_index_range(params.buffer).ok()?,
-                        ..params.current_selection.clone()
-                    },
+                    selection: range
+                        .to_selection(params.buffer, params.current_selection)
+                        .ok()?,
                 })
             })
             .collect_vec())
@@ -114,10 +136,9 @@ pub trait SelectionMode {
 
     fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self.right_iter(&params)?.next().and_then(|range| {
-            Some(Selection {
-                range: range.to_char_index_range(params.buffer).ok()?,
-                ..params.current_selection.clone()
-            })
+            range
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
         }))
     }
 
@@ -133,12 +154,12 @@ pub trait SelectionMode {
             buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
         Ok(self
             .right_iter(&params)?
-            .filter(|range| range.0.start <= current_line_range.0.end)
+            .filter(|range| range.range.start <= current_line_range.range.end)
             .last()
-            .map(|range| Selection {
-                range: buffer.byte_to_char(range.0.start).unwrap()
-                    ..buffer.byte_to_char(range.0.end).unwrap(),
-                ..current_selection.clone()
+            .and_then(|range| {
+                range
+                    .to_selection(params.buffer, params.current_selection)
+                    .ok()
             }))
     }
 
@@ -154,16 +175,15 @@ pub trait SelectionMode {
         let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
         Ok(Box::new(
             iter.sorted_by(|a, b| b.cmp(a))
-                .filter(move |range| range.0.start < cursor_byte),
+                .filter(move |range| range.range.start < cursor_byte),
         ))
     }
 
     fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self.left_iter(&params)?.next().and_then(|range| {
-            Some(Selection {
-                range: range.to_char_index_range(params.buffer).ok()?,
-                ..params.current_selection.clone()
-            })
+            range
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
         }))
     }
 
@@ -179,12 +199,12 @@ pub trait SelectionMode {
             buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
         Ok(self
             .left_iter(&params)?
-            .filter(|range| current_line_range.0.start <= range.0.start)
+            .filter(|range| current_line_range.range.start <= range.range.start)
             .last()
-            .map(|range| Selection {
-                range: buffer.byte_to_char(range.0.start).unwrap()
-                    ..buffer.byte_to_char(range.0.end).unwrap(),
-                ..current_selection.clone()
+            .and_then(|range| {
+                range
+                    .to_selection(params.buffer, params.current_selection)
+                    .ok()
             }))
     }
 
@@ -238,18 +258,18 @@ pub trait SelectionMode {
         let found = self
             .iter(buffer)?
             .filter_map(|range| {
-                let start = buffer.byte_to_char(range.0.start).ok()?;
-                let end = buffer.byte_to_char(range.0.end).ok()?;
+                let start = buffer.byte_to_char(range.range.start).ok()?;
+                let end = buffer.byte_to_char(range.range.end).ok()?;
 
                 let selection_position = buffer.char_to_position(start).ok()?;
 
                 if filter_fn(selection_position) {
-                    Some((start..end, selection_position))
+                    Some((start..end, range.info, selection_position))
                 } else {
                     None
                 }
             })
-            .sorted_by_key(|(_, position)| {
+            .sorted_by_key(|(_, _, position)| {
                 let column_diff = position.column as i64 - cursor_position.column as i64;
                 let line_diff = position.line as i64 - cursor_position.line as i64;
 
@@ -257,8 +277,9 @@ pub trait SelectionMode {
             })
             .next();
 
-        Ok(found.map(|(range, _)| Selection {
+        Ok(found.map(|(range, info, _)| Selection {
             range,
+            info,
             ..current_selection.clone()
         }))
     }
@@ -271,40 +292,21 @@ pub trait SelectionMode {
             cursor_direction,
         }: SelectionModeParams,
     ) -> anyhow::Result<Option<Selection>> {
-        let iter = self.iter(buffer)?;
-
         let cursor_char_index = current_selection.to_char_index(cursor_direction);
-
-        for range in iter {
-            let start = buffer.byte_to_char(range.0.start)?;
-            let end = buffer.byte_to_char(range.0.end)?;
-
-            if start == cursor_char_index {
-                return Ok(Some(Selection {
-                    range: start..end,
-                    ..current_selection.clone()
-                }));
-            }
-
-            if start > cursor_char_index {
-                break;
-            }
+        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+        if let Some(exact) = self
+            .iter(buffer)?
+            .find(|range| range.range.start == cursor_byte)
+        {
+            return exact.to_selection(buffer, current_selection).map(Some);
         }
 
-        let iter = self.iter(buffer)?;
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        let found = iter
-            .filter(|range| range.0.contains(&cursor_byte))
-            .sorted_by_key(|range| range.0.end - range.0.start)
+        let found = self
+            .iter(buffer)?
+            .filter(|range| range.range.contains(&cursor_byte))
+            .sorted_by_key(|range| range.range.end - range.range.start)
             .next();
 
-        if let Some(found) = found {
-            return Ok(Some(Selection {
-                range: buffer.byte_to_char(found.0.start)?..buffer.byte_to_char(found.0.end)?,
-                ..current_selection.clone()
-            }));
-        }
-
-        Ok(None)
+        Ok(found.and_then(|range| range.to_selection(buffer, current_selection).ok()))
     }
 }

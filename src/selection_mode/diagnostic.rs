@@ -9,9 +9,10 @@ impl SelectionMode for Diagnostic {
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(buffer.diagnostics().iter().filter_map(
             |diagnostic| {
-                Some(super::ByteRange(
+                Some(super::ByteRange::with_info(
                     buffer.position_to_byte(diagnostic.range.start).ok()?
                         ..buffer.position_to_byte(diagnostic.range.end).ok()?,
+                    diagnostic.message.clone(),
                 ))
             },
         )))

@@ -25,7 +25,7 @@ impl SelectionMode for AstGrep {
             self.grep
                 .root()
                 .find_all(self.pattern.clone())
-                .map(|node| ByteRange(node.range())),
+                .map(|node| ByteRange::new(node.range())),
         ))
     }
 }

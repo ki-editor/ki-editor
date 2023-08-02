@@ -468,11 +468,7 @@ impl Editor {
     pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
-                primary: Selection {
-                    range: CharIndex(0)..CharIndex(0),
-                    copied_text: None,
-                    initial_range: None,
-                },
+                primary: Selection::default(),
                 secondary: vec![],
                 mode: SelectionMode::Custom,
             },
@@ -498,11 +494,7 @@ impl Editor {
             .unwrap_or_else(|| "<Untitled>".to_string());
         Self {
             selection_set: SelectionSet {
-                primary: Selection {
-                    range: CharIndex(0)..CharIndex(0),
-                    copied_text: None,
-                    initial_range: None,
-                },
+                primary: Selection::default(),
                 secondary: vec![],
                 mode: SelectionMode::Custom,
             },
@@ -561,6 +553,7 @@ impl Editor {
                 range: start..start + self.buffer.borrow().get_line(start)?.len_chars(),
                 copied_text: None,
                 initial_range: None,
+                info: None,
             },
             secondary: vec![],
             mode: SelectionMode::Line,
@@ -648,6 +641,7 @@ impl Editor {
                 range,
                 copied_text: self.selection_set.primary.copied_text.clone(),
                 initial_range: None,
+                info: None,
             },
             secondary: vec![],
             mode,
@@ -820,6 +814,7 @@ impl Editor {
                         range: old_range.start..old_range.start,
                         copied_text: Some(old),
                         initial_range: None,
+                        info: None,
                     }),
                 ])
             }));
@@ -853,6 +848,7 @@ impl Editor {
                         },
                         copied_text: Some(copied_text),
                         initial_range: None,
+                        info: None,
                     }),
                 ])])
             } else {
@@ -887,6 +883,7 @@ impl Editor {
                         range: selection.range.start..selection.range.start + replacement_text_len,
                         copied_text: Some(replaced_text),
                         initial_range: None,
+                        info: None,
                     }),
                 ])])
             } else {
@@ -1142,6 +1139,7 @@ impl Editor {
                         range: CharIndex(0)..CharIndex(self.buffer.borrow().len_chars()),
                         copied_text: self.selection_set.primary.copied_text.clone(),
                         initial_range: None,
+                        info: None,
                     },
                     secondary: vec![],
                     mode: SelectionMode::Custom,
@@ -1224,6 +1222,7 @@ impl Editor {
                         range: selection.range.start..selection.range.start,
                         copied_text: selection.copied_text.clone(),
                         initial_range: None,
+                        info: None,
                     }),
                 ])
             }));
@@ -1245,6 +1244,7 @@ impl Editor {
                         range: selection.range.start + s.len()..selection.range.start + s.len(),
                         copied_text: selection.copied_text.clone(),
                         initial_range: None,
+                        info: None,
                     }),
                 ])
             }));
@@ -1332,22 +1332,20 @@ impl Editor {
             let mode = self.selection_set.mode.clone();
             self.select(mode.clone(), direction)?;
 
-            match mode {
-                SelectionMode::Diagnostic => {
-                    if let Some(diagnostic) = self
-                        .buffer
-                        .borrow()
-                        .find_diagnostic(&self.selection_set.primary.range)
-                    {
-                        Ok(vec![Dispatch::ShowInfo {
-                            content: vec![diagnostic.message()],
-                        }])
-                    } else {
-                        Ok(vec![])
-                    }
-                }
-                _ => Ok(vec![]),
+            let infos = self
+                .selection_set
+                .map(|selection| selection.info.clone())
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+
+            log::info!("infos: {:?}", infos);
+
+            if infos.is_empty() {
+                return Ok(vec![]);
             }
+
+            Ok(vec![Dispatch::ShowInfo { content: infos }])
         }
     }
 
@@ -1387,7 +1385,7 @@ impl Editor {
                     self.g_mode_keymap_legend_config(),
                 )])
             }
-            key!("h") => self.set_selection_mode(SelectionMode::Node)?,
+            key!("h") => self.set_selection_mode(SelectionMode::GitHunk)?,
             key!("h") => self.toggle_highlight_mode(),
             key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             // H
@@ -1506,6 +1504,7 @@ impl Editor {
                 range: start..start,
                 copied_text: self.selection_set.primary.copied_text.clone(),
                 initial_range: self.selection_set.primary.initial_range.clone(),
+                info: self.selection_set.primary.info.clone(),
             },
             ..self.selection_set.clone()
         });
@@ -1666,6 +1665,7 @@ impl Editor {
 
                             // TODO: fix this, the initial_range should be updated as well
                             initial_range: current_selection.initial_range.clone(),
+                            info: current_selection.info.clone(),
                         }),
                     ]),
                 ])
@@ -1755,8 +1755,7 @@ impl Editor {
                     }),
                     Action::Select(Selection {
                         range: start..start,
-                        copied_text: selection.copied_text.clone(),
-                        initial_range: selection.initial_range.clone(),
+                        ..selection.clone()
                     }),
                 ])
             }));
@@ -1812,8 +1811,7 @@ impl Editor {
                         }),
                         Action::Select(Selection {
                             range: range.start..(range.start + new_len_chars),
-                            copied_text: current_selection.copied_text.clone(),
-                            initial_range: current_selection.initial_range.clone(),
+                            ..current_selection.clone()
                         }),
                     ])])
                 };
@@ -1844,8 +1842,7 @@ impl Editor {
                             }),
                             Action::Select(Selection {
                                 range: selection.range.start..selection.range.start,
-                                copied_text: selection.copied_text.clone(),
-                                initial_range: selection.initial_range.clone(),
+                                ..selection.clone()
                             }),
                         ])])
                     }
@@ -1896,8 +1893,7 @@ impl Editor {
                         }),
                         Action::Select(Selection {
                             range: range.start..(range.start + new_len_chars),
-                            copied_text: current_selection.copied_text.clone(),
-                            initial_range: current_selection.initial_range.clone(),
+                            ..current_selection.clone()
                         }),
                     ])])
                 };
@@ -1957,11 +1953,7 @@ impl Editor {
 
     pub fn reset_selection(&mut self) {
         self.selection_set = SelectionSet {
-            primary: Selection {
-                range: CharIndex(0)..CharIndex(0),
-                copied_text: None,
-                initial_range: None,
-            },
+            primary: Selection::default(),
             secondary: vec![],
             mode: SelectionMode::Line,
         };
@@ -2000,8 +1992,7 @@ impl Editor {
                                     + leading_whitespaces.len();
                                 start..start
                             },
-                            copied_text: selection.copied_text.clone(),
-                            initial_range: selection.initial_range.clone(),
+                            ..selection.clone()
                         }),
                     ]))
                 })
@@ -2044,8 +2035,7 @@ impl Editor {
                             let end = range.start + next_text_len;
                             end..end
                         },
-                        copied_text: None,
-                        initial_range: None,
+                        ..Default::default()
                     });
 
                     Some(if index == 0 {
@@ -2110,8 +2100,7 @@ impl Editor {
                     }),
                     Action::Select(Selection {
                         range: selection.range.start..selection.range.end + 2,
-                        copied_text: selection.copied_text.clone(),
-                        initial_range: selection.initial_range.clone(),
+                        ..selection.clone()
                     }),
                 ])
             }));
@@ -2153,13 +2142,11 @@ enum Enclosure {
 pub fn node_to_selection(
     node: Node,
     buffer: &Buffer,
-    copied_text: Option<Rope>,
-    initial_range: Option<Range<CharIndex>>,
+    current_selection: &Selection,
 ) -> anyhow::Result<Selection> {
     Ok(Selection {
         range: buffer.byte_to_char(node.start_byte())?..buffer.byte_to_char(node.end_byte())?,
-        copied_text,
-        initial_range,
+        ..current_selection.clone()
     })
 }
 

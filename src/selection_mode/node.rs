@@ -9,7 +9,7 @@ impl SelectionMode for Node {
         &'a self,
         _buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        Ok(Box::new(std::iter::once(super::ByteRange(0..0))))
+        Ok(Box::new(std::iter::empty()))
     }
 
     /// For `Node`, `left` means parent node
@@ -47,12 +47,7 @@ impl SelectionMode for Node {
         let current_node = buffer.get_current_node(current_selection)?;
 
         if let Some(node) = current_node.prev_named_sibling() {
-            Ok(Some(node_to_selection(
-                node,
-                buffer,
-                current_selection.copied_text.clone(),
-                current_selection.initial_range.clone(),
-            )?))
+            Ok(Some(node_to_selection(node, buffer, &current_selection)?))
         } else {
             Ok(None)
         }
@@ -69,12 +64,7 @@ impl SelectionMode for Node {
         let current_node = buffer.get_current_node(current_selection)?;
 
         if let Some(node) = current_node.next_named_sibling() {
-            Ok(Some(node_to_selection(
-                node,
-                buffer,
-                current_selection.copied_text.clone(),
-                current_selection.initial_range.clone(),
-            )?))
+            Ok(Some(node_to_selection(node, buffer, &current_selection)?))
         } else {
             Ok(None)
         }
@@ -105,12 +95,7 @@ impl Node {
             }
             node.unwrap_or(current_node)
         };
-        Ok(Some(node_to_selection(
-            node,
-            buffer,
-            current_selection.copied_text.clone(),
-            current_selection.initial_range.clone(),
-        )?))
+        Ok(Some(node_to_selection(node, buffer, &current_selection)?))
     }
 }
 

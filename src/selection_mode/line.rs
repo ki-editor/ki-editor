@@ -11,7 +11,7 @@ impl SelectionMode for Line {
             |line_index| {
                 let start = buffer.line_to_byte(line_index).ok()?;
                 let end = buffer.line_to_byte(line_index + 1).ok()?.saturating_sub(1);
-                Some(super::ByteRange(start..end))
+                Some(super::ByteRange::new(start..end))
             },
         )))
     }

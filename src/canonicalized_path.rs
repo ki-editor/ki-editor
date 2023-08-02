@@ -9,6 +9,16 @@ impl AsRef<Path> for CanonicalizedPath {
     }
 }
 
+impl TryFrom<&Path> for CanonicalizedPath {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Path) -> Result<Self, Self::Error> {
+        Ok(Self(value.canonicalize().map_err(|error| {
+            anyhow::anyhow!("Cannot canonicalize path: {:?}. Error: {:?}", value, error)
+        })?))
+    }
+}
+
 impl TryFrom<PathBuf> for CanonicalizedPath {
     type Error = anyhow::Error;
 

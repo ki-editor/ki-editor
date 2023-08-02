@@ -520,7 +520,7 @@ impl Buffer {
         let current_line = self.char_to_line(char_index)?;
         let start = self.line_to_byte(current_line)?;
         let end = self.line_to_byte(current_line + 1)?.saturating_sub(1);
-        Ok(ByteRange(start..end))
+        Ok(ByteRange::new(start..end))
     }
 }
 

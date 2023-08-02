@@ -15,7 +15,7 @@ impl SelectionMode for Token {
                 tree_sitter_traversal::Order::Post,
             )
             .filter(|node| node.child_count() == 0)
-            .map(|node| ByteRange(node.byte_range())),
+            .map(|node| ByteRange::new(node.byte_range())),
         ))
     }
 }

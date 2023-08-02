@@ -28,7 +28,7 @@ impl SelectionMode for Regex {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);
         Ok(Box::new(matches.filter_map(move |matches| {
-            Some(ByteRange(matches.start()..matches.end()))
+            Some(ByteRange::new(matches.start()..matches.end()))
         })))
     }
 }
