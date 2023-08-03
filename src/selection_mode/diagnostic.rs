@@ -1,3 +1,5 @@
+use crate::selection::Selection;
+
 use super::SelectionMode;
 
 pub struct Diagnostic;
@@ -5,6 +7,7 @@ pub struct Diagnostic;
 impl SelectionMode for Diagnostic {
     fn iter<'a>(
         &'a self,
+        current_selection: &'a Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(buffer.diagnostics().iter().filter_map(

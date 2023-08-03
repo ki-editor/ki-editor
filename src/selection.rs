@@ -208,7 +208,7 @@ pub enum SelectionMode {
     // Syntax-tree
     Token,
     LargestNode,
-    Node,
+    SyntaxTree,
 
     #[deprecated(note = "Use `Node` instead, to be removed soon")]
     SiblingNode,
@@ -226,7 +226,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, LargestNode | Node | SiblingNode)
+        matches!(self, LargestNode | SyntaxTree | SiblingNode)
     }
 
     pub fn display(&self) -> String {
@@ -237,7 +237,7 @@ impl SelectionMode {
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::LargestNode => "LARGEST NODE".to_string(),
-            SelectionMode::Node => "NODE".to_string(),
+            SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::SiblingNode => "SIBLING".to_string(),
             SelectionMode::Match { search } => {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
@@ -278,7 +278,9 @@ impl SelectionMode {
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
-            SelectionMode::Node | SelectionMode::SiblingNode => Box::new(selection_mode::Node),
+            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
+                Box::new(selection_mode::SyntaxTree)
+            }
             SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
         })
@@ -354,6 +356,8 @@ impl Selection {
             current_selection,
             cursor_direction,
         };
+
+        log::info!("direction: {:?}", direction);
         Ok(match direction {
             Direction::Right => selection_mode.right(params)?,
             Direction::RightMost => selection_mode.right_most(params)?,

@@ -24,6 +24,7 @@ impl Regex {
 impl SelectionMode for Regex {
     fn iter<'a>(
         &'a self,
+        current_selection: &'a crate::selection::Selection,
         _: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);

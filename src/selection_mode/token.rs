@@ -7,6 +7,7 @@ use super::ByteRange;
 impl SelectionMode for Token {
     fn iter<'a>(
         &self,
+        current_selection: &'a crate::selection::Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         Ok(Box::new(

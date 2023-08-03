@@ -526,7 +526,7 @@ impl Editor {
     }
 
     fn select_parent(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.select(SelectionMode::Node, direction)
+        self.select(SelectionMode::SyntaxTree, direction)
     }
 
     fn select_kids(&mut self) -> anyhow::Result<()> {
@@ -1276,7 +1276,7 @@ impl Editor {
 
     fn select_left(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match &self.selection_set.mode {
-            SelectionMode::Node | SelectionMode::SiblingNode => {
+            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
                 self.select_parent(Direction::Right)
             }
             mode => self.select(mode.clone(), Direction::Left),
@@ -1285,14 +1285,16 @@ impl Editor {
 
     fn select_right(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match &self.selection_set.mode {
-            SelectionMode::Node | SelectionMode::SiblingNode => self.select_parent(Direction::Left),
+            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
+                self.select_parent(Direction::Left)
+            }
             mode => self.select(mode.clone(), Direction::Right),
         }
     }
 
     fn select_up(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match self.selection_set.mode {
-            SelectionMode::Node | SelectionMode::SiblingNode => {
+            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
                 self.select_sibling(Direction::Left)
             }
             SelectionMode::Line => self.select_line(Direction::Left),
@@ -1302,7 +1304,7 @@ impl Editor {
 
     fn select_down(&mut self, _context: &mut Context) -> anyhow::Result<()> {
         match self.selection_set.mode {
-            SelectionMode::Node | SelectionMode::SiblingNode => {
+            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
                 self.select_sibling(Direction::Right)
             }
             SelectionMode::Line => self.select_line(Direction::Right),
@@ -1339,8 +1341,6 @@ impl Editor {
                 .flatten()
                 .collect::<Vec<_>>();
 
-            log::info!("infos: {:?}", infos);
-
             if infos.is_empty() {
                 return Ok(vec![]);
             }
@@ -1370,6 +1370,9 @@ impl Editor {
             key!("shift+A") => self.add_selection()?,
             key!("b") => self.select_backward(),
             key!("c") => self.set_selection_mode(SelectionMode::Character)?,
+            key!("d") => return self.select_direction(context, Direction::Down),
+
+            // TODO: rebind
             key!("d") => return Ok(self.delete(Direction::Right)),
             key!("shift+D") => return Ok(self.delete(Direction::Left)),
 
@@ -1389,13 +1392,10 @@ impl Editor {
             key!("h") => self.toggle_highlight_mode(),
             key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             // H
-            key!("i") => return self.select_direction(context, Direction::Up),
-
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
             key!("j") => return self.select_direction(context, Direction::Left),
-            key!("k") => return self.select_direction(context, Direction::Down),
-            key!("l") => return self.select_direction(context, Direction::Right),
+            key!("k") => self.select_kids()?,
             key!("l") => self.set_selection_mode(SelectionMode::Line)?,
             key!("m") => self.set_selection_mode(SelectionMode::Match {
                 search: context.last_search().clone().unwrap_or(Search {
@@ -1403,21 +1403,25 @@ impl Editor {
                     search: "".to_string(),
                 }),
             })?,
-            key!("n") => self.set_selection_mode(SelectionMode::Node)?,
-            key!("shift+N") => self.select_final(Direction::Right)?,
-            key!("shift+N") => self.select_named_node(Direction::Left)?,
+            key!("n") => return self.select_direction(context, Direction::Right),
+            key!("shift+N") => return self.select_direction(context, Direction::RightMost),
+
+            // TODO: rebind
             key!("o") => self.set_selection_mode(SelectionMode::LargestNode)?,
             // O
             key!("p") => {
                 return self.select_direction(context, Direction::Left);
             }
-            key!("shift+P") => self.select_final(Direction::Left)?,
+            key!("shift+P") => return self.select_direction(context, Direction::LeftMost),
             key!("q") => {
                 context.mode = Some(GlobalMode::QuickfixListItem);
             }
+            // r for rotate? more general than swapping/exchange, which does not warp back to first
+            // selection
             key!("r") => return Ok(self.replace()),
-            key!("s") => self.set_selection_mode(SelectionMode::SiblingNode)?,
+            key!("s") => self.set_selection_mode(SelectionMode::SyntaxTree)?,
             key!("t") => self.set_selection_mode(SelectionMode::Token)?,
+            key!("u") => return self.select_direction(context, Direction::Up),
             key!("u") => return Ok(self.upend(Direction::Right)),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
@@ -1427,7 +1431,6 @@ impl Editor {
             key!("w") => self.set_selection_mode(SelectionMode::Word)?,
             key!("x") => return Ok(self.exchange(Direction::Right)),
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
-            key!("y") => self.set_selection_mode(SelectionMode::Line)?,
             // Zap = jump
             key!("z") => self.jump(Direction::Right)?,
             key!("shift+Z") => self.jump(Direction::Left)?,
@@ -1899,7 +1902,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::Node,
+                &SelectionMode::SyntaxTree,
                 &direction,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,

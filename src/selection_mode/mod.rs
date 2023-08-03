@@ -4,7 +4,7 @@ pub mod diagnostic;
 pub mod git_hunk;
 pub mod largest_node;
 pub mod line;
-pub mod node;
+pub mod syntax_tree;
 pub mod regex;
 pub mod token;
 
@@ -16,7 +16,7 @@ pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use largest_node::LargestNode;
 pub use line::Line;
-pub use node::Node;
+pub use syntax_tree::SyntaxTree;
 pub use token::Token;
 
 use std::ops::Range;
@@ -91,6 +91,7 @@ pub struct SelectionModeParams<'a> {
 pub trait SelectionMode {
     fn iter<'a>(
         &'a self,
+        current_selection: &'a Selection,
         buffer: &'a Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
 
@@ -126,7 +127,7 @@ pub trait SelectionMode {
             cursor_direction,
         }: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let iter = self.iter(buffer)?;
+        let iter = self.iter(current_selection, buffer)?;
         let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
         let cursor_direction = (*cursor_direction).clone();
         Ok(Box::new(iter.sorted().filter(move |range| {
@@ -171,7 +172,7 @@ pub trait SelectionMode {
             cursor_direction,
         }: &SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let iter = self.iter(buffer)?;
+        let iter = self.iter(current_selection, buffer)?;
         let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
         Ok(Box::new(
             iter.sorted_by(|a, b| b.cmp(a))
@@ -256,7 +257,7 @@ pub trait SelectionMode {
         };
 
         let found = self
-            .iter(buffer)?
+            .iter(current_selection, buffer)?
             .filter_map(|range| {
                 let start = buffer.byte_to_char(range.range.start).ok()?;
                 let end = buffer.byte_to_char(range.range.end).ok()?;
@@ -295,14 +296,14 @@ pub trait SelectionMode {
         let cursor_char_index = current_selection.to_char_index(cursor_direction);
         let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
         if let Some(exact) = self
-            .iter(buffer)?
+            .iter(current_selection, buffer)?
             .find(|range| range.range.start == cursor_byte)
         {
             return exact.to_selection(buffer, current_selection).map(Some);
         }
 
         let found = self
-            .iter(buffer)?
+            .iter(current_selection, buffer)?
             .filter(|range| range.range.contains(&cursor_byte))
             .sorted_by_key(|range| range.range.end - range.range.start)
             .next();
