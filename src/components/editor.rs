@@ -1372,10 +1372,6 @@ impl Editor {
             key!("c") => self.set_selection_mode(SelectionMode::Character)?,
             key!("d") => return self.select_direction(context, Direction::Down),
 
-            // TODO: rebind
-            key!("d") => return Ok(self.delete(Direction::Right)),
-            key!("shift+D") => return Ok(self.delete(Direction::Left)),
-
             key!("e") => self.set_selection_mode(SelectionMode::Diagnostic)?,
             // f
             key!("ctrl+f") => {
@@ -1395,6 +1391,10 @@ impl Editor {
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
             key!("j") => return self.select_direction(context, Direction::Left),
+
+            key!("k") => return Ok(self.kill(Direction::Right)),
+            key!("shift+K") => return Ok(self.kill(Direction::Left)),
+            // TODO: rebind
             key!("k") => self.select_kids()?,
             key!("l") => self.set_selection_mode(SelectionMode::Line)?,
             key!("m") => self.set_selection_mode(SelectionMode::Match {
@@ -1488,7 +1488,7 @@ impl Editor {
 
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         self.mode = Mode::Normal;
-        self.select(SelectionMode::Custom, Direction::Current)
+        Ok(())
     }
 
     pub fn jumps(&self) -> Vec<&Jump> {
@@ -1766,7 +1766,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn delete(&mut self, direction: Direction) -> Vec<Dispatch> {
+    fn kill(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let mode = if self.selection_set.mode.is_node() {
             // If the selection is a node, the mode should be SiblingNode
@@ -3078,10 +3078,10 @@ fn f() {
         editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
         assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
         editor.select_match(
@@ -3094,7 +3094,7 @@ fn f() {
         editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.delete(Direction::Left);
+        editor.kill(Direction::Left);
         assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
         Ok(())
     }
@@ -3115,7 +3115,7 @@ let y = S(b);
         editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f() {\n"]);
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -3126,7 +3126,7 @@ let y = S(b);
             .trim()
         );
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -3137,17 +3137,17 @@ let y = S(b);
 
         editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);\n"]);
-        editor.delete(Direction::Left);
+        editor.kill(Direction::Left);
         assert_eq!(
             editor.text(),
             "
 }"
         );
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
         assert_eq!(editor.text(), "}");
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
         assert_eq!(editor.text(), "");
         Ok(())
     }
@@ -3163,12 +3163,12 @@ let y = S(b);
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
         editor.select_sibling(Direction::Current)?;
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
         editor.select_sibling(Direction::Right)?;
-        editor.delete(Direction::Left);
+        editor.kill(Direction::Left);
 
         assert_eq!(editor.text(), "fn f(y: b){}");
         Ok(())
@@ -3182,11 +3182,11 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
 
         assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
 
-        editor.delete(Direction::Right);
+        editor.kill(Direction::Right);
 
         assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
 
@@ -3194,7 +3194,7 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.delete(Direction::Left);
+        editor.kill(Direction::Left);
 
         assert_eq!(editor.text(), "(: a, y: b, z: c){}");
         Ok(())
