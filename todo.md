@@ -118,3 +118,5 @@
 - [] case transformation group: UPPERCASE, Capital Case, lowercase, camelCase, PascalCase, snake_case, kebab-case
 
   for node movement: h = parent, l = kid, j/k = next/prev sibling
+
+- [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.

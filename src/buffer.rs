@@ -134,6 +134,9 @@ impl Buffer {
 
     pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language, text);
+
+        // TODO: recompute hunks
+
         self.recompute_highlighted_spans().unwrap_or_else(|error| {
             log::info!("Error recomputing higlighted spans = {:#?}", error)
         });

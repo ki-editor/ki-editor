@@ -159,16 +159,11 @@ impl SelectionSet {
         buffer: &Buffer,
         cursor_direction: &CursorDirection,
     ) -> anyhow::Result<()> {
-        let mode = if self.mode.is_node() {
-            SelectionMode::SiblingNode
-        } else {
-            self.mode.clone()
-        };
         let last_selection = &self.primary;
         let next_selection = Selection::get_selection_(
             buffer,
             last_selection,
-            &mode,
+            &self.mode,
             &Direction::Right,
             cursor_direction,
         )?;
@@ -201,17 +196,12 @@ pub enum SelectionMode {
     Line,
     Character,
     Custom,
-    Match {
-        search: Search,
-    },
+    Match { search: Search },
 
     // Syntax-tree
     Token,
     LargestNode,
     SyntaxTree,
-
-    #[deprecated(note = "Use `Node` instead, to be removed soon")]
-    SiblingNode,
 
     // LSP
     Diagnostic,
@@ -226,7 +216,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, LargestNode | SyntaxTree | SiblingNode)
+        matches!(self, LargestNode | SyntaxTree)
     }
 
     pub fn display(&self) -> String {
@@ -238,7 +228,6 @@ impl SelectionMode {
             SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::LargestNode => "LARGEST NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
-            SelectionMode::SiblingNode => "SIBLING".to_string(),
             SelectionMode::Match { search } => {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
             }
@@ -278,9 +267,7 @@ impl SelectionMode {
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
-            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
-                Box::new(selection_mode::SyntaxTree)
-            }
+            SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
         })

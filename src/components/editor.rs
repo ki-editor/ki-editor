@@ -538,10 +538,6 @@ impl Editor {
         Ok(())
     }
 
-    fn select_sibling(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.select(SelectionMode::SiblingNode, direction)
-    }
-
     pub fn select_line(&mut self, direction: Direction) -> anyhow::Result<()> {
         self.select(SelectionMode::Line, direction)
     }
@@ -708,11 +704,7 @@ impl Editor {
 
     /// TODO: this should also show diagnostics
     fn select_final(&mut self, direction: Direction) -> anyhow::Result<()> {
-        let selection_mode = if self.selection_set.mode.is_node() {
-            SelectionMode::SiblingNode
-        } else {
-            self.selection_set.mode.clone()
-        };
+        let selection_mode = self.selection_set.mode.clone();
         fn get_final_selection(
             buffer: &Buffer,
             selection: &Selection,
@@ -1274,44 +1266,6 @@ impl Editor {
         })
     }
 
-    fn select_left(&mut self, _context: &mut Context) -> anyhow::Result<()> {
-        match &self.selection_set.mode {
-            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
-                self.select_parent(Direction::Right)
-            }
-            mode => self.select(mode.clone(), Direction::Left),
-        }
-    }
-
-    fn select_right(&mut self, _context: &mut Context) -> anyhow::Result<()> {
-        match &self.selection_set.mode {
-            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
-                self.select_parent(Direction::Left)
-            }
-            mode => self.select(mode.clone(), Direction::Right),
-        }
-    }
-
-    fn select_up(&mut self, _context: &mut Context) -> anyhow::Result<()> {
-        match self.selection_set.mode {
-            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
-                self.select_sibling(Direction::Left)
-            }
-            SelectionMode::Line => self.select_line(Direction::Left),
-            _ => Ok(()),
-        }
-    }
-
-    fn select_down(&mut self, _context: &mut Context) -> anyhow::Result<()> {
-        match self.selection_set.mode {
-            SelectionMode::SyntaxTree | SelectionMode::SiblingNode => {
-                self.select_sibling(Direction::Right)
-            }
-            SelectionMode::Line => self.select_line(Direction::Right),
-            _ => Ok(()),
-        }
-    }
-
     fn set_selection_mode(&mut self, selection_mode: SelectionMode) -> anyhow::Result<()> {
         if self.selection_set.mode == selection_mode {
             self.select(selection_mode, Direction::Current)
@@ -1694,12 +1648,8 @@ impl Editor {
     }
 
     fn exchange(&mut self, direction: Direction) -> Vec<Dispatch> {
-        let selection_mode = if self.selection_set.mode.is_node() {
-            SelectionMode::SiblingNode
-        } else {
-            self.selection_set.mode.clone()
-        };
-        self.replace_faultlessly(&selection_mode, direction)
+        let mode = self.selection_set.mode.clone();
+        self.replace_faultlessly(&mode, direction)
     }
 
     fn add_selection(&mut self) -> anyhow::Result<()> {
@@ -1768,13 +1718,7 @@ impl Editor {
 
     fn kill(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
-        let mode = if self.selection_set.mode.is_node() {
-            // If the selection is a node, the mode should be SiblingNode
-            // because other node-based movement does not make sense for delete
-            SelectionMode::SiblingNode
-        } else {
-            self.selection_set.mode.clone()
-        };
+        let mode = self.selection_set.mode.clone();
 
         let edit_transactions = self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
