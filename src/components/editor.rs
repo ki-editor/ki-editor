@@ -683,19 +683,12 @@ impl Editor {
         direction: Direction,
     ) -> anyhow::Result<()> {
         //  There are a few selection modes where Current make sense.
-        let direction = match selection_mode {
-            SelectionMode::Line
-            | SelectionMode::Character
-            | SelectionMode::Token
-            | SelectionMode::Diagnostic
-                if self.selection_set.mode != selection_mode =>
-            {
-                // TODO: Current only applies to a few selection mode
-                //       we need to rethink how to solve this discrepancies
-                Direction::Current
-            }
-            _ => direction,
+        let direction = if self.selection_set.mode != selection_mode {
+            Direction::Current
+        } else {
+            direction
         };
+
         let selection = self.get_selection_set(&selection_mode, direction)?;
 
         self.update_selection_set(selection);
@@ -1270,23 +1263,23 @@ impl Editor {
         &mut self,
         context: &mut Context,
         selection_mode: SelectionMode,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Dispatch>> {
         context.mode = None;
-        self.select(selection_mode, Direction::Current)
+        self.select_direction_mode(context, Direction::Current, selection_mode)
     }
 
-    fn select_direction(
+    fn select_direction_mode(
         &mut self,
         context: &mut Context,
         direction: Direction,
+        selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
         if let Some(global_mode) = &context.mode {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(direction)]),
             }
         } else {
-            let mode = self.selection_set.mode.clone();
-            self.select(mode.clone(), direction)?;
+            self.select(selection_mode, direction)?;
 
             let infos = self
                 .selection_set
@@ -1301,6 +1294,14 @@ impl Editor {
 
             Ok(vec![Dispatch::ShowInfo { content: infos }])
         }
+    }
+
+    fn select_direction(
+        &mut self,
+        context: &mut Context,
+        direction: Direction,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        self.select_direction_mode(context, direction, self.selection_set.mode.clone())
     }
 
     fn handle_normal_mode(
@@ -1323,10 +1324,10 @@ impl Editor {
             key!("a") => self.add_selection()?,
             key!("shift+A") => self.add_selection()?,
             key!("b") => self.select_backward(),
-            key!("c") => self.set_selection_mode(context, SelectionMode::Character)?,
+            key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             key!("d") => return self.select_direction(context, Direction::Down),
 
-            key!("e") => self.set_selection_mode(context, SelectionMode::Diagnostic)?,
+            key!("e") => return self.set_selection_mode(context, SelectionMode::Diagnostic),
             // f
             key!("ctrl+f") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
@@ -1338,7 +1339,7 @@ impl Editor {
                     self.g_mode_keymap_legend_config(),
                 )])
             }
-            key!("h") => self.set_selection_mode(context, SelectionMode::GitHunk)?,
+            key!("h") => return self.set_selection_mode(context, SelectionMode::GitHunk),
             key!("h") => self.toggle_highlight_mode(),
             key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             // H
@@ -1351,21 +1352,23 @@ impl Editor {
             key!("shift+K") => return Ok(self.kill(Direction::Left)),
             // TODO: rebind
             key!("k") => self.select_kids()?,
-            key!("l") => self.set_selection_mode(context, SelectionMode::Line)?,
-            key!("m") => self.set_selection_mode(
-                context,
-                SelectionMode::Match {
-                    search: context.last_search().clone().unwrap_or(Search {
-                        kind: SearchKind::Literal,
-                        search: "".to_string(),
-                    }),
-                },
-            )?,
+            key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
+            key!("m") => {
+                return self.set_selection_mode(
+                    context,
+                    SelectionMode::Match {
+                        search: context.last_search().clone().unwrap_or(Search {
+                            kind: SearchKind::Literal,
+                            search: "".to_string(),
+                        }),
+                    },
+                )
+            }
             key!("n") => return self.select_direction(context, Direction::Right),
             key!("shift+N") => return self.select_direction(context, Direction::RightMost),
 
             // TODO: rebind
-            key!("o") => self.set_selection_mode(context, SelectionMode::LargestNode)?,
+            key!("o") => return self.set_selection_mode(context, SelectionMode::LargestNode),
             // O
             key!("p") => {
                 return self.select_direction(context, Direction::Left);
@@ -1378,15 +1381,15 @@ impl Editor {
             // selection
             key!("r") => return Ok(self.raise()),
             key!("r") => return Ok(self.replace()),
-            key!("s") => self.set_selection_mode(context, SelectionMode::SyntaxTree)?,
-            key!("t") => self.set_selection_mode(context, SelectionMode::Token)?,
+            key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
+            key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             key!("u") => return self.select_direction(context, Direction::Up),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
-            key!("w") => self.set_selection_mode(context, SelectionMode::Word)?,
+            key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => return Ok(self.exchange(Direction::Right)),
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
             // y
