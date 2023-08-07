@@ -752,7 +752,7 @@ impl Editor {
                 .interleave('0'..='9')
                 .chain(",.!@##$%^&*()[]{}<>=+/_-;:~`'\"\\|".chars())
                 // 'n' and 'p' are reserved for subsequent jump.
-                .filter(|c| c != &'n' && c != &'p')
+                .filter(|c| c != &'j' && c != &'J')
                 .collect_vec();
             chars.shuffle(&mut thread_rng());
             chars
@@ -1162,7 +1162,7 @@ impl Editor {
                 key!("esc") => {
                     self.mode = Mode::Normal;
                 }
-                key!('z') => {
+                key!('j') => {
                     if let Some(jump) = jumps
                         .iter()
                         .max_by(|a, b| a.selection.range.start.cmp(&b.selection.range.start))
@@ -1170,7 +1170,7 @@ impl Editor {
                         self.jump_from_selection(Direction::Right, &jump.selection.clone())?;
                     }
                 }
-                key!("shift+Z") => {
+                key!("shift+J") => {
                     if let Some(jump) = jumps
                         .iter()
                         .min_by(|a, b| a.selection.range.end.cmp(&b.selection.range.end))
@@ -1267,12 +1267,13 @@ impl Editor {
     }
 
     fn set_selection_mode(&mut self, selection_mode: SelectionMode) -> anyhow::Result<()> {
-        if self.selection_set.mode == selection_mode {
-            self.select(selection_mode, Direction::Current)
-        } else {
-            self.selection_set.mode = selection_mode;
-            Ok(())
-        }
+        self.select(selection_mode, Direction::Current)
+        // if self.selection_set.mode == selection_mode {
+        //     self.select(selection_mode, Direction::Current)
+        // } else {
+        //     self.selection_set.mode = selection_mode;
+        //     Ok(())
+        // }
     }
 
     fn select_direction(
@@ -1344,7 +1345,8 @@ impl Editor {
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
-            key!("j") => return self.select_direction(context, Direction::Left),
+            key!("j") => self.jump(Direction::Right)?,
+            key!("shift+J") => self.jump(Direction::Left)?,
 
             key!("k") => return Ok(self.kill(Direction::Right)),
             key!("shift+K") => return Ok(self.kill(Direction::Left)),
@@ -1385,9 +1387,8 @@ impl Editor {
             key!("w") => self.set_selection_mode(SelectionMode::Word)?,
             key!("x") => return Ok(self.exchange(Direction::Right)),
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
-            // Zap = jump
-            key!("z") => self.jump(Direction::Right)?,
-            key!("shift+Z") => self.jump(Direction::Left)?,
+            // y
+            // z
             key!("0") => self.reset()?,
             key!("backspace") => {
                 self.change();
