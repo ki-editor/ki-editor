@@ -375,10 +375,12 @@ impl<T: Frontend> Screen<T> {
             Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
             Dispatch::DispatchEditor(dispatch_editor) => {
                 if let Some(component) = self.current_component() {
-                    component
+                    let dispatches = component
                         .borrow_mut()
                         .editor_mut()
                         .apply_dispatch(dispatch_editor)?;
+
+                    self.handle_dispatches(dispatches)?;
                 }
             }
         }

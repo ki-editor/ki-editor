@@ -62,6 +62,7 @@
 - [x] feat(search): don't use regex, regex is not needed 90% of the time
 - [x] feat(editor/word): word should move by camelCase / snake_case, so we can select a word within a variable name
 - [x] layout: implement Tall, instead of binary partition
+- [x] case transformation group: UPPERCASE, Capital Case, lowercase, camelCase, PascalCase, snake_case, kebab-case (https://docs.rs/convert_case/latest/convert_case/enum.Case.html)
 - [] feat(lsp): search symbols
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
@@ -115,7 +116,6 @@
 - [] keymap: shift keys are hard to press, bring back hjkl, but hjkl works on object now! For example, press q to go to quickfix-list mode
   press j/k to go to prev/next item, press h/l to go to prev/next quickfix list, question: how does this works for action like delete/swap?
   for motions, h/l = next object, j/k = first object on next/prev line
-- [] case transformation group: UPPERCASE, Capital Case, lowercase, camelCase, PascalCase, snake_case, kebab-case
 
   for node movement: h = parent, l = kid, j/k = next/prev sibling
 

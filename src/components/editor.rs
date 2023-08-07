@@ -13,6 +13,7 @@ use std::{
     rc::Rc,
 };
 
+use convert_case::{Case, Casing};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
@@ -1001,6 +1002,34 @@ impl Editor {
         }
     }
 
+    fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Transform",
+            owner_id: self.id(),
+            keymaps: [
+                ("a", "aLtErNaTiNg CaSe", Case::Toggle),
+                ("c", "camelCase", Case::Camel),
+                ("l", "lowercase", Case::Lower),
+                ("k", "kebab-case", Case::Kebab),
+                ("shift+K", "Upper-Kebab", Case::UpperKebab),
+                ("p", "PascalCase", Case::Pascal),
+                ("s", "snake_case", Case::Snake),
+                ("m", "MARCO_CASE", Case::UpperSnake),
+                ("t", "Title Case", Case::Title),
+                ("u", "UPPERCASE", Case::Upper),
+            ]
+            .into_iter()
+            .map(|(key, description, case)| {
+                Keymap::new(
+                    key,
+                    description,
+                    Dispatch::DispatchEditor(DispatchEditor::Transform(case)),
+                )
+            })
+            .collect_vec(),
+        }
+    }
+
     fn view_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "View",
@@ -1020,15 +1049,16 @@ impl Editor {
         }
     }
 
-    pub fn apply_dispatch(&mut self, dispatch: DispatchEditor) -> anyhow::Result<()> {
+    pub fn apply_dispatch(&mut self, dispatch: DispatchEditor) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
             DispatchEditor::ScrollUp => self.select_view(Direction::Left)?,
             DispatchEditor::ScrollDown => self.select_view(Direction::Right)?,
             DispatchEditor::AlignViewTop => self.align_cursor_to_top(),
             DispatchEditor::AlignViewCenter => self.align_cursor_to_center(),
             DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
+            DispatchEditor::Transform(case) => return Ok(self.transform_selection(case)),
         }
-        Ok(())
+        Ok([].to_vec())
     }
 
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
@@ -1383,6 +1413,12 @@ impl Editor {
             key!("r") => return Ok(self.replace()),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
+            key!("ctrl+t") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.transform_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
             key!("u") => return self.select_direction(context, Direction::Up),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
@@ -2083,6 +2119,34 @@ impl Editor {
 
         Ok(vec![Dispatch::SetSearch(search)])
     }
+
+    fn transform_selection(&mut self, case: Case) -> Vec<Dispatch> {
+        let edit_transaction =
+            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
+                let new: Rope = self
+                    .buffer()
+                    .slice(&selection.extended_range())
+                    .to_string()
+                    .to_case(case)
+                    .into();
+                let new_char_count = new.chars().count();
+                ActionGroup::new(
+                    [
+                        Action::Edit(Edit {
+                            start: selection.range.start,
+                            old: self.buffer().slice(&selection.extended_range()),
+                            new,
+                        }),
+                        Action::Select(Selection {
+                            range: selection.range.start..selection.range.start + new_char_count,
+                            ..selection.clone()
+                        }),
+                    ]
+                    .to_vec(),
+                )
+            }));
+        self.apply_edit_transaction(edit_transaction)
+    }
 }
 
 enum Enclosure {
@@ -2115,6 +2179,7 @@ pub enum DispatchEditor {
     AlignViewTop,
     AlignViewCenter,
     AlignViewBottom,
+    Transform(convert_case::Case),
 }
 
 #[cfg(test)]
