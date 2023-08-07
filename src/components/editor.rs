@@ -1374,11 +1374,11 @@ impl Editor {
             }
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
+            key!("r") => return Ok(self.raise()),
             key!("r") => return Ok(self.replace()),
             key!("s") => self.set_selection_mode(SelectionMode::SyntaxTree)?,
             key!("t") => self.set_selection_mode(SelectionMode::Token)?,
             key!("u") => return self.select_direction(context, Direction::Up),
-            key!("u") => return Ok(self.upend(Direction::Right)),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
@@ -1801,7 +1801,7 @@ impl Editor {
     }
 
     /// Replace the parent node of the current node with the current node
-    fn upend(&mut self, direction: Direction) -> Vec<Dispatch> {
+    fn raise(&mut self) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
@@ -1848,7 +1848,7 @@ impl Editor {
             self.get_valid_selection(
                 selection,
                 &SelectionMode::SyntaxTree,
-                &direction,
+                &Direction::Up,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
@@ -2600,10 +2600,10 @@ mod test_editor {
 
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
-        editor.upend(Direction::Right);
+        editor.raise();
         assert_eq!(editor.text(), "fn main() { let x = c(); }");
 
-        editor.upend(Direction::Right);
+        editor.raise();
         assert_eq!(editor.text(), "fn main() { c() }");
         Ok(())
     }
@@ -2710,7 +2710,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
-        editor.upend(Direction::Right);
+        editor.raise();
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
 
