@@ -120,3 +120,4 @@
   for node movement: h = parent, l = kid, j/k = next/prev sibling
 
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
+- [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection

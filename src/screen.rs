@@ -24,7 +24,7 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
     },
-    context::{Context, Search, SearchKind},
+    context::{Context, GlobalMode, Search, SearchKind},
     frontend::frontend::Frontend,
     grid::{Grid, Style},
     layout::Layout,
@@ -788,6 +788,7 @@ impl<T: Frontend> Screen<T> {
     }
 
     fn set_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
+        self.context.mode = Some(GlobalMode::QuickfixListItem);
         self.quickfix_lists.borrow_mut().push(quickfix_list);
         self.layout.show_quickfix_lists(self.quickfix_lists.clone());
         self.goto_quickfix_list_item(Direction::Right)
