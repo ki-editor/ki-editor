@@ -56,6 +56,7 @@ pub const VSCODE_LIGHT: Theme = Theme {
         line_number_separator: Style::new()
             .background_color(hex!("#ffffff"))
             .foreground_color(hex!("#d7d7d7")),
+        bookmark: Style::new().background_color(hex!("#ffcc00")),
     },
     diagnostic: DiagnosticStyles {
         error: Style::new().undercurl(Some(hex!("#ff0000"))),

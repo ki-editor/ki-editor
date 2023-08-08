@@ -7,6 +7,7 @@ pub mod line;
 pub mod syntax_tree;
 pub mod regex;
 pub mod token;
+pub mod bookmark;
 
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
@@ -18,6 +19,7 @@ pub use largest_node::LargestNode;
 pub use line::Line;
 pub use syntax_tree::SyntaxTree;
 pub use token::Token;
+pub use bookmark::Bookmark;
 
 use std::ops::Range;
 

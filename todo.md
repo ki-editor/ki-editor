@@ -121,3 +121,4 @@
 
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
 - [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
+- [] filter selections/quickfix-list: useful for multi-cursor

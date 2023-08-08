@@ -208,6 +208,9 @@ pub enum SelectionMode {
 
     // Git
     GitHunk,
+
+    // Bookmark
+    Bookmark,
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -233,6 +236,7 @@ impl SelectionMode {
             }
             SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
+            SelectionMode::Bookmark => "BOOKMARK".to_string(),
         }
     }
 
@@ -270,6 +274,7 @@ impl SelectionMode {
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
+            SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
         })
     }
 }

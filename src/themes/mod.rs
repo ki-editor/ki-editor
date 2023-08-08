@@ -38,6 +38,7 @@ pub struct UiStyles {
     pub secondary_selection_secondary_cursor: Style,
     pub line_number: Style,
     pub line_number_separator: Style,
+    pub bookmark: Style,
 }
 
 #[derive(Default, Clone)]

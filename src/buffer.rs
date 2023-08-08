@@ -29,6 +29,7 @@ pub struct Buffer {
     diagnostics: Vec<Diagnostic>,
     highlighted_spans: Vec<HighlighedSpan>,
     theme: Theme,
+    bookmarks: Vec<Range<CharIndex>>,
 }
 
 impl Buffer {
@@ -48,7 +49,12 @@ impl Buffer {
             diagnostics: Vec::new(),
             highlighted_spans: Vec::new(),
             theme: Theme::default(),
+            bookmarks: Vec::new(),
         }
+    }
+
+    pub fn save_bookmarks(&mut self, ranges: Vec<Range<CharIndex>>) {
+        self.bookmarks.extend(ranges)
     }
 
     pub fn path(&self) -> Option<CanonicalizedPath> {
@@ -524,6 +530,10 @@ impl Buffer {
         let start = self.line_to_byte(current_line)?;
         let end = self.line_to_byte(current_line + 1)?.saturating_sub(1);
         Ok(ByteRange::new(start..end))
+    }
+
+    pub fn bookmarks(&self) -> Vec<Range<CharIndex>> {
+        self.bookmarks.clone()
     }
 }
 

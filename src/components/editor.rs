@@ -1,7 +1,7 @@
 use crate::{
     canonicalized_path::CanonicalizedPath,
     context::{Context, GlobalMode, Search, SearchKind},
-    grid::CellUpdate,
+    grid::{CellUpdate, Style},
     screen::RequestParams,
     selection::RangeCharIndex,
     selection_mode,
@@ -138,20 +138,12 @@ impl Component for Editor {
             .take(height as usize)
             .collect::<Vec<(_, RopeSlice)>>();
 
-        let secondary_selections = &editor.selection_set.secondary;
+        let bookmarks = buffer
+            .bookmarks()
+            .into_iter()
+            .flat_map(|bookmark| range_to_cell_update(&buffer, bookmark, theme.ui.bookmark));
 
-        let diagnostics = diagnostics
-            .iter()
-            .sorted_by(|a, b| a.severity.cmp(&b.severity))
-            .rev()
-            .filter_map(|diagnostic| {
-                // We use `.ok()` to ignore diagnostics that are outside the buffer's range.
-                let start = buffer.position_to_char(diagnostic.range.start).ok()?;
-                let end = buffer.position_to_char(diagnostic.range.end).ok()?;
-                let end = if start == end { end + 1 } else { end };
-                let char_index_range = start..end;
-                Some((diagnostic, char_index_range))
-            });
+        let secondary_selections = &editor.selection_set.secondary;
 
         for (line_index, line) in lines {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
@@ -163,58 +155,69 @@ impl Component for Editor {
                 };
             }
         }
-        let primary_selection =
-            selection
-                .extended_range()
+
+        fn range_to_cell_update(
+            buffer: &Buffer,
+            range: Range<CharIndex>,
+            style: Style,
+        ) -> Vec<CellUpdate> {
+            range
                 .to_usize_range()
                 .filter_map(|char_index| {
-                    Some(
-                        CellUpdate::new(buffer.char_to_position(CharIndex(char_index)).ok()?)
-                            .style(theme.ui.primary_selection),
+                    let position = buffer.char_to_position(CharIndex(char_index)).ok()?;
+                    Some(CellUpdate::new(position).style(style))
+                })
+                .collect()
+        }
+
+        fn char_index_to_cell_update(
+            buffer: &Buffer,
+            char_index: CharIndex,
+            style: Style,
+        ) -> Option<CellUpdate> {
+            buffer
+                .char_to_position(char_index)
+                .ok()
+                .map(|position| CellUpdate::new(position).style(style))
+        }
+
+        let primary_selection = range_to_cell_update(
+            &buffer,
+            selection.extended_range(),
+            theme.ui.primary_selection,
+        );
+
+        let primary_selection_secondary_cursor = char_index_to_cell_update(
+            &buffer,
+            selection.to_char_index(&editor.cursor_direction.reverse()),
+            theme.ui.primary_selection_secondary_cursor,
+        );
+
+        let secondary_selection =
+            secondary_selections
+                .into_iter()
+                .flat_map(|secondary_selection| {
+                    range_to_cell_update(
+                        &buffer,
+                        secondary_selection.extended_range(),
+                        theme.ui.secondary_selection,
                     )
                 });
-        let primary_selection_secondary_cursor = buffer
-            .char_to_position(selection.to_char_index(&editor.cursor_direction.reverse()))
-            .ok()
-            .map(|position| {
-                CellUpdate::new(position).style(theme.ui.primary_selection_secondary_cursor)
-            });
-        let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
-            secondary_selection
-                .range
-                .to_usize_range()
-                .filter_map(|char_index| {
-                    let char_index = CharIndex(char_index);
-                    let position = buffer.char_to_position(char_index).ok()?;
 
-                    Some(CellUpdate::new(position).style(theme.ui.secondary_selection))
-                })
-        });
         let secondary_selection_cursors = secondary_selections
             .iter()
             .filter_map(|secondary_selection| {
                 Some(
-                    vec![
-                        Some(
-                            CellUpdate::new(
-                                buffer
-                                    .char_to_position(
-                                        secondary_selection
-                                            .to_char_index(&editor.cursor_direction.reverse()),
-                                    )
-                                    .ok()?,
-                            )
-                            .style(theme.ui.secondary_selection_secondary_cursor),
+                    [
+                        char_index_to_cell_update(
+                            &buffer,
+                            secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
+                            theme.ui.secondary_selection_secondary_cursor,
                         ),
-                        Some(
-                            CellUpdate::new(
-                                buffer
-                                    .char_to_position(
-                                        secondary_selection.to_char_index(&editor.cursor_direction),
-                                    )
-                                    .ok()?,
-                            )
-                            .style(theme.ui.secondary_selection_primary_cursor),
+                        char_index_to_cell_update(
+                            &buffer,
+                            secondary_selection.to_char_index(&editor.cursor_direction),
+                            theme.ui.secondary_selection_primary_cursor,
                         ),
                     ]
                     .into_iter()
@@ -237,11 +240,17 @@ impl Component for Editor {
                         )
                     })
             });
-        let diagnostics = diagnostics.into_iter().flat_map(|(diagnostic, range)| {
-            range.to_usize_range().filter_map(|char_index| {
-                let char_index = CharIndex(char_index);
-                let position = buffer.char_to_position(char_index).ok()?;
 
+        let diagnostics = diagnostics
+            .iter()
+            .sorted_by(|a, b| a.severity.cmp(&b.severity))
+            .rev()
+            .filter_map(|diagnostic| {
+                // We use `.ok()` to ignore diagnostics that are outside the buffer's range.
+                let start = buffer.position_to_char(diagnostic.range.start).ok()?;
+                let end = buffer.position_to_char(diagnostic.range.end).ok()?;
+                let end = if start == end { end + 1 } else { end };
+                let char_index_range = start..end;
                 let style = match diagnostic.severity {
                     Some(severity) => match severity {
                         DiagnosticSeverity::ERROR => theme.diagnostic.error,
@@ -252,9 +261,10 @@ impl Component for Editor {
                     },
                     None => theme.diagnostic.default,
                 };
-                Some(CellUpdate::new(position).style(style))
+                Some(range_to_cell_update(&buffer, char_index_range, style))
             })
-        });
+            .flatten();
+
         let jumps = editor
             .jumps()
             .into_iter()
@@ -282,6 +292,7 @@ impl Component for Editor {
             });
         let updates = vec![]
             .into_iter()
+            .chain(bookmarks)
             .chain(primary_selection)
             .chain(secondary_selection)
             .chain(diagnostics)
@@ -1334,12 +1345,20 @@ impl Editor {
         self.select_direction_mode(context, direction, self.selection_set.mode.clone())
     }
 
+    fn save_bookmarks(&mut self) {
+        let selections = self
+            .selection_set
+            .map(|selection| selection.extended_range());
+        self.buffer_mut().save_bookmarks(selections)
+    }
+
     fn handle_normal_mode(
         &mut self,
         context: &mut Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
+            key!(",") => self.select_backward(),
             key!("up") => return self.select_direction(context, Direction::Up),
             key!("down") => return self.select_direction(context, Direction::Down),
             key!("left") => return self.select_direction(context, Direction::Left),
@@ -1352,14 +1371,14 @@ impl Editor {
             }
             // Objects
             key!("a") => self.add_selection()?,
+            key!("ctrl+b") => self.save_bookmarks(),
+            key!("b") => return self.set_selection_mode(context, SelectionMode::Bookmark),
             key!("shift+A") => self.add_selection()?,
-            key!("b") => self.select_backward(),
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             key!("d") => return self.select_direction(context, Direction::Down),
 
             key!("e") => return self.set_selection_mode(context, SelectionMode::Diagnostic),
-            // f
-            key!("ctrl+f") => {
+            key!("f") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.find_mode_keymap_legend_config(),
                 )])
