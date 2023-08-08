@@ -1,3 +1,4 @@
+use lsp_types::DiagnosticSeverity;
 use selection_mode::SelectionMode as SelectionModeTrait;
 use std::ops::{Add, Range, Sub};
 
@@ -204,7 +205,7 @@ pub enum SelectionMode {
     SyntaxTree,
 
     // LSP
-    Diagnostic,
+    Diagnostic(DiagnosticSeverity),
 
     // Git
     GitHunk,
@@ -234,7 +235,9 @@ impl SelectionMode {
             SelectionMode::Match { search } => {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
             }
-            SelectionMode::Diagnostic => "DIAGNOSTIC".to_string(),
+            SelectionMode::Diagnostic(severity) => {
+                format!("DIAGNOSTIC:{}", format!("{:?}", severity).to_uppercase())
+            }
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
         }
@@ -272,7 +275,7 @@ impl SelectionMode {
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
-            SelectionMode::Diagnostic => Box::new(selection_mode::Diagnostic),
+            SelectionMode::Diagnostic(severity) => Box::new(selection_mode::Diagnostic(*severity)),
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
         })

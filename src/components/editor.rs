@@ -595,7 +595,10 @@ impl Editor {
     }
 
     fn select_diagnostic(&mut self, direction: Direction) -> anyhow::Result<Vec<Dispatch>> {
-        self.select(SelectionMode::Diagnostic, direction)?;
+        self.select(
+            SelectionMode::Diagnostic(DiagnosticSeverity::ERROR),
+            direction,
+        )?;
         if let Some(diagnostic) = self
             .buffer
             .borrow()
@@ -1060,7 +1063,11 @@ impl Editor {
         }
     }
 
-    pub fn apply_dispatch(&mut self, dispatch: DispatchEditor) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn apply_dispatch(
+        &mut self,
+        context: &mut Context,
+        dispatch: DispatchEditor,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
             DispatchEditor::ScrollUp => self.select_view(Direction::Left)?,
             DispatchEditor::ScrollDown => self.select_view(Direction::Right)?,
@@ -1068,8 +1075,35 @@ impl Editor {
             DispatchEditor::AlignViewCenter => self.align_cursor_to_center(),
             DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
             DispatchEditor::Transform(case) => return Ok(self.transform_selection(case)),
+            DispatchEditor::SetSelectionMode(selection_mode) => {
+                return self.set_selection_mode(context, selection_mode)
+            }
         }
         Ok([].to_vec())
+    }
+
+    fn diagnostic_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Diagnostic",
+            owner_id: self.id(),
+            keymaps: [
+                ("e", "Error", DiagnosticSeverity::ERROR),
+                ("h", "Hint", DiagnosticSeverity::HINT),
+                ("i", "Information", DiagnosticSeverity::INFORMATION),
+                ("w", "Warning", DiagnosticSeverity::WARNING),
+            ]
+            .into_iter()
+            .map(|(char, description, severity)| {
+                Keymap::new(
+                    char,
+                    description,
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Diagnostic(severity),
+                    )),
+                )
+            })
+            .collect_vec(),
+        }
     }
 
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
@@ -1377,7 +1411,12 @@ impl Editor {
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             key!("d") => return self.select_direction(context, Direction::Down),
 
-            key!("e") => return self.set_selection_mode(context, SelectionMode::Diagnostic),
+            key!("e") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.diagnostic_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
             key!("f") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.find_mode_keymap_legend_config(),
@@ -2199,6 +2238,7 @@ pub enum DispatchEditor {
     AlignViewCenter,
     AlignViewBottom,
     Transform(convert_case::Case),
+    SetSelectionMode(SelectionMode),
 }
 
 #[cfg(test)]

@@ -378,7 +378,7 @@ impl<T: Frontend> Screen<T> {
                     let dispatches = component
                         .borrow_mut()
                         .editor_mut()
-                        .apply_dispatch(dispatch_editor)?;
+                        .apply_dispatch(&mut self.context, dispatch_editor)?;
 
                     self.handle_dispatches(dispatches)?;
                 }
