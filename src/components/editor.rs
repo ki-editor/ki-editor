@@ -1421,6 +1421,7 @@ impl Editor {
                     self.find_mode_keymap_legend_config(),
                 )])
             }
+            key!("shift+F") => return Ok([Dispatch::OpenGlobalSearchPrompt].to_vec()),
             key!("g") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.g_mode_keymap_legend_config(),

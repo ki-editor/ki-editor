@@ -224,6 +224,7 @@ impl Ord for Location {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuickfixListType {
     LspDiagnostic,
+    Items(Vec<QuickfixListItem>),
 }
 
 #[cfg(test)]

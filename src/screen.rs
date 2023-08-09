@@ -28,6 +28,7 @@ use crate::{
     frontend::frontend::Frontend,
     grid::{Grid, Style},
     layout::Layout,
+    list,
     lsp::{
         completion::CompletionItem, diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse, manager::LspManager,
@@ -387,6 +388,7 @@ impl<T: Frontend> Screen<T> {
                 }
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
+            Dispatch::OpenGlobalSearchPrompt => self.open_global_search_prompt(),
         }
         Ok(())
     }
@@ -423,6 +425,48 @@ impl<T: Frontend> Screen<T> {
             items: vec![],
         });
 
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_global_search_prompt(&mut self) {
+        let current_component = self.current_component().clone();
+        let working_directory = self.working_directory.clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Global Search".to_string(),
+            history: self
+                .context
+                .previous_searches()
+                .iter()
+                .map(|search| search.search.clone())
+                .collect_vec(),
+            owner: current_component.clone(),
+            items: vec![],
+            on_text_change: Box::new(|_, _| Ok(vec![])),
+            on_enter: Box::new(move |text, _| {
+                let matches = list::grep::run(text, working_directory.clone().into())?;
+                Ok([Dispatch::SetQuickfixList(QuickfixListType::Items(
+                    matches
+                        .into_iter()
+                        .map(|m| -> anyhow::Result<QuickfixListItem> {
+                            let path = m.path.try_into()?;
+                            let buffer = Buffer::from_path(&path)?;
+                            Ok(QuickfixListItem::new(
+                                Location {
+                                    path,
+                                    range: buffer.line_to_position_range(
+                                        m.line_number.saturating_sub(1) as usize,
+                                    )?,
+                                },
+                                vec![],
+                            ))
+                        })
+                        .flatten()
+                        .collect_vec(),
+                ))]
+                .to_vec())
+            }),
+        });
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
@@ -840,6 +884,7 @@ impl<T: Frontend> Screen<T> {
 
                 self.set_quickfix_list(quickfix_list)
             }
+            QuickfixListType::Items(items) => self.set_quickfix_list(QuickfixList::new(items)),
         }
     }
 
@@ -939,6 +984,7 @@ pub enum Dispatch {
     DispatchEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),
+    OpenGlobalSearchPrompt,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

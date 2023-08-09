@@ -542,6 +542,18 @@ impl Buffer {
     pub fn bookmarks(&self) -> Vec<CharIndexRange> {
         self.bookmarks.clone()
     }
+
+    pub fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
+        let char_index = self.byte_to_char(byte_index)?;
+        self.char_to_position(char_index)
+    }
+
+    /// Line is 0-indexed
+    pub fn line_to_position_range(&self, line: usize) -> anyhow::Result<Range<Position>> {
+        let start = self.line_to_char(line)?;
+        let end = self.line_to_char(line + 1)?;
+        Ok(self.char_to_position(start)?..self.char_to_position(end - 1)?)
+    }
 }
 
 #[derive(Clone, Debug)]

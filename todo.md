@@ -64,6 +64,7 @@
 - [x] layout: implement Tall, instead of binary partition
 - [x] case transformation group: UPPERCASE, Capital Case, lowercase, camelCase, PascalCase, snake_case, kebab-case (https://docs.rs/convert_case/latest/convert_case/enum.Case.html)
 - [x] feat(lsp): search symbols
+- [x] feat(editor): global regex search
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -108,7 +109,8 @@
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] feat(editor): match current selection (\*) should open keymap legend
-- [] feat(editor): global search
+- [] feat(editor): global literal search
+- [] feat(editor): global ast-grep search
 - [] feat(editor): "go" for getting opened files, "gg" for getting git status files
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
 - [] feat(editor): go to specific line number
@@ -122,3 +124,4 @@
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
 - [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
 - [] filter selections/quickfix-list: useful for multi-cursor
+- [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted

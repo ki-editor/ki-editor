@@ -10,6 +10,7 @@ mod grid;
 mod integration_test;
 pub mod language;
 mod layout;
+pub mod list;
 mod lsp;
 mod position;
 pub mod process_command;
