@@ -1,5 +1,6 @@
 use crate::{
     canonicalized_path::CanonicalizedPath,
+    char_index_range::CharIndexRange,
     edit::{Edit, EditTransaction},
     language::{self, Language},
     lsp::diagnostic::Diagnostic,
@@ -29,7 +30,7 @@ pub struct Buffer {
     diagnostics: Vec<Diagnostic>,
     highlighted_spans: Vec<HighlighedSpan>,
     theme: Theme,
-    bookmarks: Vec<Range<CharIndex>>,
+    bookmarks: Vec<CharIndexRange>,
 }
 
 impl Buffer {
@@ -53,7 +54,7 @@ impl Buffer {
         }
     }
 
-    pub fn save_bookmarks(&mut self, ranges: Vec<Range<CharIndex>>) {
+    pub fn save_bookmarks(&mut self, ranges: Vec<CharIndexRange>) {
         self.bookmarks.extend(ranges)
     }
 
@@ -123,7 +124,7 @@ impl Buffer {
         (Rope::from_str(text), tree)
     }
 
-    pub fn given_range_is_node(&self, range: &Range<CharIndex>) -> bool {
+    pub fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
         let Some(start) = self.char_to_byte(range.start).ok() else {
             return false
         };
@@ -213,8 +214,8 @@ impl Buffer {
         self.rope.len_chars()
     }
 
-    pub fn slice(&self, range: &Range<CharIndex>) -> Rope {
-        self.rope.slice(range.to_usize_range()).into()
+    pub fn slice(&self, range: &CharIndexRange) -> Rope {
+        self.rope.slice(range.start.0..range.end.0).into()
     }
 
     pub fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
@@ -294,6 +295,12 @@ impl Buffer {
     }
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
+        // Update all the bookmarks
+        let bookmarks = std::mem::replace(&mut self.bookmarks, Vec::new());
+        self.bookmarks = bookmarks
+            .into_iter()
+            .map(|bookmark| bookmark.apply_edit(edit))
+            .collect();
         self.rope.remove(edit.start.0..edit.end().0);
         self.rope
             .insert(edit.start.0, edit.new.to_string().as_str());
@@ -365,7 +372,7 @@ impl Buffer {
         })
     }
 
-    pub fn has_syntax_error_at(&self, range: Range<CharIndex>) -> bool {
+    pub fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
         let rope = &self.rope;
         if let Some(node) = self.tree.root_node().descendant_for_byte_range(
             rope.try_char_to_byte(range.start.0).unwrap_or(0),
@@ -462,7 +469,7 @@ impl Buffer {
         }
     }
 
-    pub fn find_diagnostic(&self, range: &Range<CharIndex>) -> Option<&Diagnostic> {
+    pub fn find_diagnostic(&self, range: &CharIndexRange) -> Option<&Diagnostic> {
         self.diagnostics.iter().find_map(|diagnostic| {
             let start = diagnostic.range.start.to_char_index(self).ok()?;
             let end = diagnostic.range.end.to_char_index(self).ok()?;
@@ -532,7 +539,7 @@ impl Buffer {
         Ok(ByteRange::new(start..end))
     }
 
-    pub fn bookmarks(&self) -> Vec<Range<CharIndex>> {
+    pub fn bookmarks(&self) -> Vec<CharIndexRange> {
         self.bookmarks.clone()
     }
 }

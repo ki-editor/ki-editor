@@ -1,5 +1,6 @@
 use crate::{
     canonicalized_path::CanonicalizedPath,
+    char_index_range::CharIndexRange,
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
     screen::RequestParams,
@@ -158,13 +159,13 @@ impl Component for Editor {
 
         fn range_to_cell_update(
             buffer: &Buffer,
-            range: Range<CharIndex>,
+            range: CharIndexRange,
             style: Style,
         ) -> Vec<CellUpdate> {
             range
-                .to_usize_range()
+                .iter()
                 .filter_map(|char_index| {
-                    let position = buffer.char_to_position(CharIndex(char_index)).ok()?;
+                    let position = buffer.char_to_position(char_index).ok()?;
                     Some(CellUpdate::new(position).style(style))
                 })
                 .collect()
@@ -230,15 +231,12 @@ impl Component for Editor {
             .highlighted_spans()
             .iter()
             .flat_map(|highlighted_span| {
-                highlighted_span
-                    .range
-                    .to_usize_range()
-                    .filter_map(|char_index| {
-                        Some(
-                            CellUpdate::new(buffer.char_to_position(CharIndex(char_index)).ok()?)
-                                .style(highlighted_span.style),
-                        )
-                    })
+                highlighted_span.range.iter().filter_map(|char_index| {
+                    Some(
+                        CellUpdate::new(buffer.char_to_position(char_index).ok()?)
+                            .style(highlighted_span.style),
+                    )
+                })
             });
 
         let diagnostics = diagnostics
@@ -250,7 +248,7 @@ impl Component for Editor {
                 let start = buffer.position_to_char(diagnostic.range.start).ok()?;
                 let end = buffer.position_to_char(diagnostic.range.end).ok()?;
                 let end = if start == end { end + 1 } else { end };
-                let char_index_range = start..end;
+                let char_index_range = (start..end).into();
                 let style = match diagnostic.severity {
                     Some(severity) => match severity {
                         DiagnosticSeverity::ERROR => theme.diagnostic.error,
@@ -558,7 +556,7 @@ impl Editor {
         let start = self.buffer.borrow().line_to_char(line)?;
         let selection_set = SelectionSet {
             primary: Selection {
-                range: start..start + self.buffer.borrow().get_line(start)?.len_chars(),
+                range: (start..start + self.buffer.borrow().get_line(start)?.len_chars()).into(),
                 copied_text: None,
                 initial_range: None,
                 info: None,
@@ -639,8 +637,9 @@ impl Editor {
     }
 
     pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<()> {
-        let range = self.buffer().position_to_char(range.start)?
-            ..self.buffer().position_to_char(range.end)?;
+        let range = (self.buffer().position_to_char(range.start)?
+            ..self.buffer().position_to_char(range.end)?)
+            .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
             SelectionMode::LargestNode
@@ -811,7 +810,7 @@ impl Editor {
                         new: Rope::new(),
                     }),
                     Action::Select(Selection {
-                        range: old_range.start..old_range.start,
+                        range: (old_range.start..old_range.start).into(),
                         copied_text: Some(old),
                         initial_range: None,
                         info: None,
@@ -844,7 +843,7 @@ impl Editor {
                     Action::Select(Selection {
                         range: {
                             let start = start + copied_text.len_chars();
-                            start..start
+                            (start..start).into()
                         },
                         copied_text: Some(copied_text),
                         initial_range: None,
@@ -880,7 +879,9 @@ impl Editor {
                         new: replacement.clone(),
                     }),
                     Action::Select(Selection {
-                        range: selection.range.start..selection.range.start + replacement_text_len,
+                        range: (selection.range.start
+                            ..selection.range.start + replacement_text_len)
+                            .into(),
                         copied_text: Some(replaced_text),
                         initial_range: None,
                         info: None,
@@ -1193,7 +1194,7 @@ impl Editor {
             key!("ctrl+a") => {
                 let selection_set = SelectionSet {
                     primary: Selection {
-                        range: CharIndex(0)..CharIndex(self.buffer.borrow().len_chars()),
+                        range: (CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into(),
                         copied_text: self.selection_set.primary.copied_text.clone(),
                         initial_range: None,
                         info: None,
@@ -1276,7 +1277,7 @@ impl Editor {
                         new: Rope::new(),
                     }),
                     Action::Select(Selection {
-                        range: selection.range.start..selection.range.start,
+                        range: (selection.range.start..selection.range.start).into(),
                         copied_text: selection.copied_text.clone(),
                         initial_range: None,
                         info: None,
@@ -1298,7 +1299,8 @@ impl Editor {
                         new: Rope::from_str(s),
                     }),
                     Action::Select(Selection {
-                        range: selection.range.start + s.len()..selection.range.start + s.len(),
+                        range: (selection.range.start + s.len()..selection.range.start + s.len())
+                            .into(),
                         copied_text: selection.copied_text.clone(),
                         initial_range: None,
                         info: None,
@@ -1530,7 +1532,7 @@ impl Editor {
                 CursorDirection::Start => selection.range.start,
                 CursorDirection::End => selection.range.end,
             };
-            selection.range = char_index..char_index
+            selection.range = (char_index..char_index).into()
         });
         self.selection_set.mode = SelectionMode::Custom;
         self.mode = Mode::Insert;
@@ -1555,7 +1557,7 @@ impl Editor {
         self.update_selection_set(SelectionSet {
             mode: self.selection_set.mode.clone(),
             primary: Selection {
-                range: start..start,
+                range: (start..start).into(),
                 copied_text: self.selection_set.primary.copied_text.clone(),
                 initial_range: self.selection_set.primary.initial_range.clone(),
                 info: self.selection_set.primary.info.clone(),
@@ -1712,9 +1714,10 @@ impl Editor {
                             new: text_at_current_selection.clone(),
                         }),
                         Action::Select(Selection {
-                            range: next_selection.range.start
+                            range: (next_selection.range.start
                                 ..(next_selection.range.start
-                                    + text_at_current_selection.len_chars()),
+                                    + text_at_current_selection.len_chars()))
+                                .into(),
                             copied_text: current_selection.copied_text.clone(),
 
                             // TODO: fix this, the initial_range should be updated as well
@@ -1800,11 +1803,14 @@ impl Editor {
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
                         start,
-                        old: self.buffer.borrow().slice(&(start..selection.range.start)),
+                        old: self
+                            .buffer
+                            .borrow()
+                            .slice(&(start..selection.range.start).into()),
                         new: Rope::from(""),
                     }),
                     Action::Select(Selection {
-                        range: start..start,
+                        range: (start..start).into(),
                         ..selection.clone()
                     }),
                 ])
@@ -1832,7 +1838,7 @@ impl Editor {
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
                         Edit {
                             start: range.start,
-                            old: buffer.slice(&range),
+                            old: buffer.slice(&range.into()),
                             new,
                         },
                     )])])
@@ -1850,11 +1856,11 @@ impl Editor {
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
                         Action::Edit(Edit {
                             start: range.start,
-                            old: buffer.slice(&range),
+                            old: buffer.slice(&range.clone().into()),
                             new,
                         }),
                         Action::Select(Selection {
-                            range: range.start..(range.start + new_len_chars),
+                            range: (range.start..(range.start + new_len_chars)).into(),
                             ..current_selection.clone()
                         }),
                     ])])
@@ -1885,7 +1891,7 @@ impl Editor {
                                 new: Rope::from(""),
                             }),
                             Action::Select(Selection {
-                                range: selection.range.start..selection.range.start,
+                                range: (selection.range.start..selection.range.start).into(),
                                 ..selection.clone()
                             }),
                         ])])
@@ -1914,7 +1920,7 @@ impl Editor {
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![Action::Edit(
                         Edit {
                             start: range.start,
-                            old: buffer.slice(&range),
+                            old: buffer.slice(&range.into()),
                             new,
                         },
                     )])])
@@ -1932,11 +1938,11 @@ impl Editor {
                     EditTransaction::from_action_groups(vec![ActionGroup::new(vec![
                         Action::Edit(Edit {
                             start: range.start,
-                            old: buffer.slice(&range),
+                            old: buffer.slice(&range.clone().into()),
                             new,
                         }),
                         Action::Select(Selection {
-                            range: range.start..(range.start + new_len_chars),
+                            range: (range.start..(range.start + new_len_chars)).into(),
                             ..current_selection.clone()
                         }),
                     ])])
@@ -1986,7 +1992,7 @@ impl Editor {
                 };
                 let start = position.to_char_index(&self.buffer())?;
                 Ok(Selection {
-                    range: start..start,
+                    range: (start..start).into(),
                     ..selection.clone()
                 })
             },
@@ -2034,7 +2040,7 @@ impl Editor {
                                 let start = line_start
                                     + current_line.len_chars()
                                     + leading_whitespaces.len();
-                                start..start
+                                (start..start).into()
                             },
                             ..selection.clone()
                         }),
@@ -2070,14 +2076,14 @@ impl Editor {
 
                     let action_edit = Action::Edit(Edit {
                         start: range.start,
-                        old: self.buffer().slice(&range),
+                        old: self.buffer().slice(&range.clone().into()),
                         new: edit.new_text.into(),
                     });
 
                     let action_select = Action::Select(Selection {
                         range: {
                             let end = range.start + next_text_len;
-                            end..end
+                            (end..end).into()
                         },
                         ..Default::default()
                     });
@@ -2143,7 +2149,7 @@ impl Editor {
                         old,
                     }),
                     Action::Select(Selection {
-                        range: selection.range.start..selection.range.end + 2,
+                        range: (selection.range.start..selection.range.end + 2).into(),
                         ..selection.clone()
                     }),
                 ])
@@ -2193,7 +2199,8 @@ impl Editor {
                             new,
                         }),
                         Action::Select(Selection {
-                            range: selection.range.start..selection.range.start + new_char_count,
+                            range: (selection.range.start..selection.range.start + new_char_count)
+                                .into(),
                             ..selection.clone()
                         }),
                     ]
@@ -2217,7 +2224,8 @@ pub fn node_to_selection(
     current_selection: &Selection,
 ) -> anyhow::Result<Selection> {
     Ok(Selection {
-        range: buffer.byte_to_char(node.start_byte())?..buffer.byte_to_char(node.end_byte())?,
+        range: (buffer.byte_to_char(node.start_byte())?..buffer.byte_to_char(node.end_byte())?)
+            .into(),
         ..current_selection.clone()
     })
 }

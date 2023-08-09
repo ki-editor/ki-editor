@@ -6,6 +6,7 @@ use ropey::Rope;
 
 use crate::{
     buffer::Buffer,
+    char_index_range::CharIndexRange,
     components::editor::{CursorDirection, Direction},
     context::{Context, Search, SearchKind},
     position::Position,
@@ -63,14 +64,14 @@ impl SelectionSet {
     pub fn move_left(&mut self, cursor_direction: &CursorDirection) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
-            selection.range = cursor_char_index - 1..cursor_char_index - 1
+            selection.range = (cursor_char_index - 1..cursor_char_index - 1).into()
         });
     }
 
     pub fn move_right(&mut self, cursor_direction: &CursorDirection) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
-            selection.range = cursor_char_index + 1..cursor_char_index + 1
+            selection.range = (cursor_char_index + 1..cursor_char_index + 1).into()
         });
     }
 
@@ -127,8 +128,9 @@ impl SelectionSet {
                         (second_child, second_last_child)
                     {
                         return Selection {
-                            range: CharIndex(second_child.start_byte())
-                                ..CharIndex(second_last_child.end_byte()),
+                            range: (CharIndex(second_child.start_byte())
+                                ..CharIndex(second_last_child.end_byte()))
+                                .into(),
                             copied_text: selection.copied_text.clone(),
                             initial_range: selection.initial_range.clone(),
                             info: selection.info.clone(),
@@ -284,13 +286,13 @@ impl SelectionMode {
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
 pub struct Selection {
-    pub range: Range<CharIndex>,
+    pub range: CharIndexRange,
     pub copied_text: Option<Rope>,
 
     /// Used for extended selection.
     /// Some = the selection is being extended
     /// None = the selection is not being extended
-    pub initial_range: Option<Range<CharIndex>>,
+    pub initial_range: Option<CharIndexRange>,
 
     /// For example, used for Diagnostic and Git Hunk
     pub info: Option<String>,
@@ -303,25 +305,26 @@ impl Selection {
         }
     }
 
-    pub fn extended_range(&self) -> Range<CharIndex> {
+    pub fn extended_range(&self) -> CharIndexRange {
         match &self.initial_range {
             None => self.range.clone(),
             Some(extended_selection_anchor) => {
-                self.range.start.min(extended_selection_anchor.start)
-                    ..self.range.end.max(extended_selection_anchor.end)
+                (self.range.start.min(extended_selection_anchor.start)
+                    ..self.range.end.max(extended_selection_anchor.end))
+                    .into()
             }
         }
     }
 
     pub fn is_start_or_end(&self, other: &CharIndex) -> bool {
-        let Range { start, end } = self.extended_range();
+        let CharIndexRange { start, end } = self.extended_range();
         &start == other || (end > start && &(end - 1) == other)
     }
 
     #[cfg(test)]
     pub fn default() -> Selection {
         Selection {
-            range: CharIndex(0)..CharIndex(0),
+            range: (CharIndex(0)..CharIndex(0)).into(),
             copied_text: None,
             initial_range: None,
             info: None,
@@ -378,7 +381,8 @@ impl Selection {
     }
 
     fn clamp(&self, max_char_index: CharIndex) -> Self {
-        let range = self.range.start.min(max_char_index)..self.range.end.min(max_char_index);
+        let range =
+            (self.range.start.min(max_char_index)..self.range.end.min(max_char_index)).into();
         Selection {
             range,
             copied_text: self.copied_text.clone(),
@@ -396,7 +400,7 @@ impl Add<usize> for Selection {
 
     fn add(self, rhs: usize) -> Self::Output {
         Self {
-            range: self.range.start + rhs..self.range.end + rhs,
+            range: (self.range.start + rhs..self.range.end + rhs).into(),
             copied_text: self.copied_text,
             initial_range: self.initial_range,
             info: self.info,
@@ -409,7 +413,7 @@ impl Sub<usize> for Selection {
 
     fn sub(self, rhs: usize) -> Self::Output {
         Self {
-            range: self.range.start - rhs..self.range.end - rhs,
+            range: (self.range.start - rhs..self.range.end - rhs).into(),
             copied_text: self.copied_text,
             initial_range: self.initial_range,
             info: self.info,
@@ -466,7 +470,7 @@ pub trait RangeCharIndex {
     fn to_usize_range(&self) -> Range<usize>;
 }
 
-impl RangeCharIndex for Range<CharIndex> {
+impl RangeCharIndex for CharIndexRange {
     fn to_usize_range(&self) -> Range<usize> {
         self.start.0..self.end.0
     }

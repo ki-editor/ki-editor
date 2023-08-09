@@ -2,11 +2,14 @@ use std::ops::Range;
 
 use tree_sitter_highlight::{HighlightEvent, Highlighter};
 
-use crate::{grid::Style, language::Language, selection::CharIndex, themes::Theme};
+use crate::{
+    char_index_range::CharIndexRange, grid::Style, language::Language, selection::CharIndex,
+    themes::Theme,
+};
 
 #[derive(Clone)]
 pub struct HighlighedSpan {
-    pub range: Range<CharIndex>,
+    pub range: CharIndexRange,
     pub style: Style,
 }
 
@@ -57,7 +60,7 @@ pub fn highlight(
                 if let Some(highlight) = highlight {
                     if let Some(color) = theme.syntax.get_color(highlight.0) {
                         highlighted_spans.push(HighlighedSpan {
-                            range: CharIndex(start)..CharIndex(end),
+                            range: (CharIndex(start)..CharIndex(end)).into(),
                             style: color,
                         });
                     }

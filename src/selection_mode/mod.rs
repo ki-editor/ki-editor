@@ -27,7 +27,7 @@ use crate::{
     buffer::Buffer,
     components::editor::{CursorDirection, Direction, Jump},
     position::Position,
-    selection::{CharIndex, Selection},
+    selection::{CharIndex, Selection}, char_index_range::CharIndexRange,
 };
 
 #[derive(PartialEq, Eq, Clone)]
@@ -46,8 +46,8 @@ impl ByteRange {
             info: Some(info),
         }
     }
-    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<Range<CharIndex>> {
-        Ok(buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?)
+    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+        Ok((buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?).into())
     }
 
     fn to_byte(&self, cursor_direction: &CursorDirection) -> usize {
@@ -267,7 +267,7 @@ pub trait SelectionMode {
                 let selection_position = buffer.char_to_position(start).ok()?;
 
                 if filter_fn(selection_position) {
-                    Some((start..end, range.info, selection_position))
+                    Some(((start..end).into(), range.info, selection_position))
                 } else {
                     None
                 }
@@ -281,7 +281,7 @@ pub trait SelectionMode {
             .next();
 
         Ok(found.map(|(range, info, _)| Selection {
-            range,
+            range: range,
             info,
             ..current_selection.clone()
         }))

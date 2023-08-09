@@ -1,5 +1,6 @@
 mod buffer;
 mod canonicalized_path;
+pub mod char_index_range;
 mod clipboard;
 mod components;
 mod context;

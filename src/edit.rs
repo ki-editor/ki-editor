@@ -3,7 +3,10 @@ use std::ops::Range;
 use itertools::Itertools;
 use ropey::Rope;
 
-use crate::selection::{CharIndex, Selection};
+use crate::{
+    char_index_range::CharIndexRange,
+    selection::{CharIndex, Selection},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edit {
@@ -29,21 +32,22 @@ impl Edit {
         CharIndex(self.start.0 + self.old.len_chars())
     }
 
-    fn range(&self) -> Range<CharIndex> {
-        self.start..self.end()
+    fn range(&self) -> CharIndexRange {
+        (self.start..self.end()).into()
+    }
+
+    pub fn offset(&self) -> isize {
+        self.new.len_chars() as isize - self.old.len_chars() as isize
     }
 }
 
-trait ApplyOffset {
+pub trait ApplyOffset {
     fn apply_offset(self, offset: isize) -> Self;
 }
 
-impl ApplyOffset for Range<CharIndex> {
+impl ApplyOffset for CharIndexRange {
     fn apply_offset(self, offset: isize) -> Self {
-        Range {
-            start: self.start.apply_offset(offset),
-            end: self.end.apply_offset(offset),
-        }
+        (self.start.apply_offset(offset)..self.end.apply_offset(offset)).into()
     }
 }
 
@@ -66,12 +70,12 @@ impl Action {
     #[cfg(test)]
     fn select(range: Range<usize>) -> Self {
         Action::Select(Selection {
-            range: CharIndex(range.start)..CharIndex(range.end),
+            range: (CharIndex(range.start)..CharIndex(range.end)).into(),
             ..Selection::default()
         })
     }
 
-    fn range(&self) -> Range<CharIndex> {
+    fn range(&self) -> CharIndexRange {
         match self {
             Action::Select(selection) => selection.range.clone(),
             Action::Edit(edit) => edit.range(),
@@ -81,8 +85,9 @@ impl Action {
     fn apply_offset(self, offset: isize) -> Self {
         match self {
             Action::Select(selection) => Action::Select(Selection {
-                range: selection.range.start.apply_offset(offset)
-                    ..selection.range.end.apply_offset(offset),
+                range: (selection.range.start.apply_offset(offset)
+                    ..selection.range.end.apply_offset(offset))
+                    .into(),
                 ..selection
             }),
             Action::Edit(edit) => Action::Edit(edit.apply_offset(offset)),
@@ -138,7 +143,7 @@ impl EditTransaction {
         }
     }
 
-    // Normalized action groups will become one action group, as they no longer need to offset each other
+    /// Normalized action groups will become one action group, as they no longer need to offset each other
     fn normalize_action_groups(action_groups: Vec<ActionGroup>) -> ActionGroup {
         // Sort the action groups by the start char index
         let action_groups = {
@@ -198,8 +203,8 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub fn range(&self) -> Range<CharIndex> {
-        self.min_char_index()..self.max_char_index()
+    pub fn range(&self) -> CharIndexRange {
+        (self.min_char_index()..self.max_char_index()).into()
     }
 }
 
@@ -214,14 +219,14 @@ impl ActionGroup {
         Self { actions }
     }
     fn overlaps(&self, other: &ActionGroup) -> bool {
-        is_overlapping(&self.range(), &other.range())
+        is_overlapping(&self.range().into(), &other.range().into())
     }
 
     fn get_net_offset(&self) -> isize {
         self.actions
             .iter()
             .map(|action| match action {
-                Action::Edit(edit) => edit.new.len_chars() as isize - edit.old.len_chars() as isize,
+                Action::Edit(edit) => edit.offset(),
                 _ => 0,
             })
             .sum()
@@ -237,7 +242,7 @@ impl ActionGroup {
         }
     }
 
-    fn range(&self) -> Range<CharIndex> {
+    fn range(&self) -> CharIndexRange {
         let min = self
             .actions
             .iter()
@@ -250,11 +255,11 @@ impl ActionGroup {
             .map(|action| action.range().end)
             .max()
             .unwrap_or(CharIndex(0));
-        min..max
+        (min..max).into()
     }
 
     fn subset_of(&self, other: &ActionGroup) -> bool {
-        is_subset(&self.range(), &other.range())
+        is_subset(&self.range().into(), &other.range().into())
     }
 }
 
