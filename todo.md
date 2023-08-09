@@ -63,7 +63,7 @@
 - [x] feat(editor/word): word should move by camelCase / snake_case, so we can select a word within a variable name
 - [x] layout: implement Tall, instead of binary partition
 - [x] case transformation group: UPPERCASE, Capital Case, lowercase, camelCase, PascalCase, snake_case, kebab-case (https://docs.rs/convert_case/latest/convert_case/enum.Case.html)
-- [] feat(lsp): search symbols
+- [x] feat(lsp): search symbols
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node

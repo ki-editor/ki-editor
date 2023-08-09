@@ -1110,53 +1110,50 @@ impl Editor {
         KeymapLegendConfig {
             title: "Get",
             owner_id: self.id(),
-            keymaps: vec![]
-                .into_iter()
-                .chain(
-                    self.get_request_params()
-                        .map(|params| {
-                            [
-                                Keymap::new(
-                                    "d",
-                                    "Definition(s)",
-                                    Dispatch::RequestDefinitions(params.clone()),
-                                ),
-                                Keymap::new(
-                                    "shift+D",
-                                    "Declaration(s)",
-                                    Dispatch::RequestDeclarations(params.clone()),
-                                ),
-                                Keymap::new(
-                                    "e",
-                                    "Errors",
-                                    Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
-                                ),
-                                Keymap::new(
-                                    "f",
-                                    "Files (not git-ignored)",
-                                    Dispatch::OpenFilePicker,
-                                ),
-                                Keymap::new(
-                                    "i",
-                                    "Implementation(s)",
-                                    Dispatch::RequestImplementations(params.clone()),
-                                ),
-                                Keymap::new(
-                                    "r",
-                                    "References",
-                                    Dispatch::RequestReferences(params.clone()),
-                                ),
-                                Keymap::new(
-                                    "t",
-                                    "Type Definition(s)",
-                                    Dispatch::RequestTypeDefinitions(params),
-                                ),
-                            ]
-                            .to_vec()
-                        })
-                        .unwrap_or_default(),
-                )
-                .collect(),
+            keymaps: self
+                .get_request_params()
+                .map(|params| {
+                    [
+                        Keymap::new(
+                            "d",
+                            "Definition(s)",
+                            Dispatch::RequestDefinitions(params.clone()),
+                        ),
+                        Keymap::new(
+                            "shift+D",
+                            "Declaration(s)",
+                            Dispatch::RequestDeclarations(params.clone()),
+                        ),
+                        Keymap::new(
+                            "e",
+                            "Errors",
+                            Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
+                        ),
+                        Keymap::new("f", "Files (not git-ignored)", Dispatch::OpenFilePicker),
+                        Keymap::new(
+                            "i",
+                            "Implementation(s)",
+                            Dispatch::RequestImplementations(params.clone()),
+                        ),
+                        Keymap::new(
+                            "r",
+                            "References",
+                            Dispatch::RequestReferences(params.clone()),
+                        ),
+                        Keymap::new(
+                            "s",
+                            "Symbols",
+                            Dispatch::RequestDocumentSymbols(params.clone()),
+                        ),
+                        Keymap::new(
+                            "t",
+                            "Type Definition(s)",
+                            Dispatch::RequestTypeDefinitions(params),
+                        ),
+                    ]
+                    .to_vec()
+                })
+                .unwrap_or_default(),
         }
     }
 

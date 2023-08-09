@@ -117,6 +117,14 @@ impl LspManager {
         )
     }
 
+    pub fn request_document_symbols(&self, params: RequestParams) -> anyhow::Result<()> {
+        self.invoke_channels(
+            &params.path,
+            "Failed to request document symbols",
+            |channel| channel.request_document_symbols(params.clone()),
+        )
+    }
+
     pub fn document_did_change(
         &self,
         path: CanonicalizedPath,

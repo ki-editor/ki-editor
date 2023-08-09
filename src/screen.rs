@@ -31,7 +31,7 @@ use crate::{
     lsp::{
         completion::CompletionItem, diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse, manager::LspManager,
-        process::LspNotification, workspace_edit::WorkspaceEdit,
+        process::LspNotification, symbols::Symbols, workspace_edit::WorkspaceEdit,
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
@@ -353,6 +353,9 @@ impl<T: Frontend> Screen<T> {
             Dispatch::RequestSignatureHelp(params) => {
                 self.lsp_manager.request_signature_help(params)?;
             }
+            Dispatch::RequestDocumentSymbols(params) => {
+                self.lsp_manager.request_document_symbols(params)?;
+            }
             Dispatch::DocumentDidChange { path, content } => {
                 self.lsp_manager.document_did_change(path, content)?;
             }
@@ -383,6 +386,7 @@ impl<T: Frontend> Screen<T> {
                     self.handle_dispatches(dispatches)?;
                 }
             }
+            Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
         }
         Ok(())
     }
@@ -475,6 +479,53 @@ impl<T: Frontend> Screen<T> {
 
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_symbol_picker(
+        &mut self,
+        component_id: ComponentId,
+        symbols: Symbols,
+    ) -> anyhow::Result<()> {
+        let current_component = self.current_component();
+        if !current_component
+            .as_ref()
+            .is_some_and(|component| component.borrow().id() == component_id)
+        {
+            return Ok(());
+        }
+        let prompt =
+            Prompt::new(PromptConfig {
+                title: "Symbols".to_string(),
+                history: vec![],
+                owner: current_component,
+                on_text_change: Box::new(|_, _| Ok(vec![])),
+                items: symbols
+                    .symbols
+                    .iter()
+                    .map(|symbol| CompletionItem {
+                        label: format!("{} ({:?})", symbol.name, symbol.kind),
+                        documentation: None,
+                        sort_text: None,
+                        edit: None,
+                    })
+                    .collect_vec(),
+                on_enter: Box::new(move |current_item, _| {
+                    // TODO: make Prompt generic over the item type,
+                    // so that we don't have to do this,
+                    // i.e. we can just return the symbol directly,
+                    // instead of having to find it again.
+                    if let Some(symbol) = symbols.symbols.iter().find(|symbol| {
+                        current_item == &format!("{} ({:?})", symbol.name, symbol.kind)
+                    }) {
+                        Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
+                    } else {
+                        Ok(vec![])
+                    }
+                }),
+            });
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        Ok(())
     }
 
     fn open_file_picker(&mut self) -> anyhow::Result<()> {
@@ -710,6 +761,9 @@ impl<T: Frontend> Screen<T> {
                 editor.borrow_mut().show_signature_help(signature_help);
                 Ok(())
             }
+            LspNotification::Symbols(component_id, symbols) => {
+                self.open_symbol_picker(component_id, symbols)
+            }
         }
     }
 
@@ -883,6 +937,8 @@ pub enum Dispatch {
     /// Used for testing
     Custom(&'static str),
     DispatchEditor(DispatchEditor),
+    RequestDocumentSymbols(RequestParams),
+    GotoLocation(Location),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

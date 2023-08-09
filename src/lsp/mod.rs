@@ -8,4 +8,5 @@ pub mod hover;
 pub mod manager;
 pub mod process;
 pub mod signature_help;
+pub mod symbols;
 pub mod workspace_edit;

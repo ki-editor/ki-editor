@@ -22,6 +22,7 @@ use super::completion::{Completion, CompletionItem};
 use super::goto_definition_response::GotoDefinitionResponse;
 use super::hover::Hover;
 use super::signature_help::SignatureHelp;
+use super::symbols::Symbols;
 use super::workspace_edit::WorkspaceEdit;
 use crate::quickfix_list::Location;
 
@@ -73,6 +74,7 @@ pub enum LspNotification {
     WorkspaceEdit(WorkspaceEdit),
     CodeAction(ComponentId, Vec<CodeAction>),
     SignatureHelp(ComponentId, Option<SignatureHelp>),
+    Symbols(ComponentId, Symbols),
 }
 
 #[derive(Debug)]
@@ -112,6 +114,7 @@ enum FromEditor {
     RequestDeclaration(RequestParams),
     RequestImplementation(RequestParams),
     RequestTypeDefinition(RequestParams),
+    RequestDocumentSymbols(RequestParams),
 }
 
 pub struct LspServerProcessChannel {
@@ -197,6 +200,12 @@ impl LspServerProcessChannel {
     pub fn request_code_action(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestCodeAction(params),
+        ))
+    }
+
+    pub fn request_document_symbols(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::RequestDocumentSymbols(params),
         ))
     }
 
@@ -481,6 +490,9 @@ impl LspServerProcess {
                         self.text_document_prepare_rename(params)
                     }
                     FromEditor::RequestCodeAction(params) => self.text_document_code_action(params),
+                    FromEditor::RequestDocumentSymbols(params) => {
+                        self.text_document_document_symbol(params)
+                    }
 
                     FromEditor::TextDocumentDidOpen {
                         file_path,
@@ -741,6 +753,21 @@ impl LspServerProcess {
                                 ),
                             ))
                             .unwrap();
+                    }
+                    "textDocument/documentSymbol" => {
+                        let payload: <lsp_request!("textDocument/documentSymbol") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        log::info!("Symbols response: {:?}", payload);
+
+                        if let Some(payload) = payload {
+                            self.screen_message_sender
+                                .send(ScreenMessage::LspNotification(LspNotification::Symbols(
+                                    component_id,
+                                    payload.try_into()?,
+                                )))
+                                .unwrap();
+                        }
                     }
                     _ => {
                         log::info!("Unknown method: {:#?}", method);
@@ -1116,6 +1143,20 @@ impl LspServerProcess {
                     position: params.position.into(),
                     text_document: path_buf_to_text_document_identifier(params.path)?,
                 },
+                work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    fn text_document_document_symbol(
+        &mut self,
+        params: RequestParams,
+    ) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("textDocument/documentSymbol")>(
+            params.component_id,
+            DocumentSymbolParams {
+                partial_result_params: Default::default(),
+                text_document: path_buf_to_text_document_identifier(params.path)?,
                 work_done_progress_params: Default::default(),
             },
         )
