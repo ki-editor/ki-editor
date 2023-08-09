@@ -220,7 +220,7 @@ mod test_dropdown {
         assert_eq!(dropdown.editor.get_selected_texts(), vec!["[1] a\n"]);
         assert_eq!(
             dropdown.editor.selection_set.primary.range,
-            CharIndex(0)..CharIndex(6)
+            (CharIndex(0)..CharIndex(6)).into()
         );
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "b");

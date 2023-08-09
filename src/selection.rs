@@ -86,26 +86,28 @@ impl SelectionSet {
         result
     }
 
-    pub fn copy(&mut self, buffer: &Buffer, context: &mut Context) {
+    pub fn copy(&mut self, buffer: &Buffer, context: &mut Context) -> anyhow::Result<()> {
         if self.secondary.is_empty() {
             // Copy the primary selected text to clipboard
-            let copied_text = buffer.slice(&self.primary.extended_range());
+            let copied_text = buffer.slice(&self.primary.extended_range())?;
             context.set_clipboard_content(copied_text.to_string());
             self.primary = Selection {
                 range: self.primary.range.clone(),
                 initial_range: None,
                 copied_text: Some(copied_text),
                 info: None,
-            }
+            };
         } else {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
-            self.apply_mut(|selection| {
-                selection.copied_text = Some(buffer.slice(&selection.extended_range()))
+            self.apply_mut(|selection| -> anyhow::Result<()> {
+                selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
                     .or_else(|| context.get_clipboard_content().map(Rope::from));
                 selection.initial_range = None;
+                Ok(())
             });
-        }
+        };
+        Ok(())
     }
 
     pub fn select_kids(

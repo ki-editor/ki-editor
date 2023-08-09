@@ -622,7 +622,6 @@ mod test_suggestive_editor {
 
         // Go to the previous line
         editor.handle_events(keys!("esc shift+L shift+L"))?;
-        let x: String = 123;
 
         // Expect the current line is empty
         assert_eq!(editor.editor().current_line()?, "");

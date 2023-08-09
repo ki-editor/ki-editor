@@ -214,8 +214,15 @@ impl Buffer {
         self.rope.len_chars()
     }
 
-    pub fn slice(&self, range: &CharIndexRange) -> Rope {
-        self.rope.slice(range.start.0..range.end.0).into()
+    pub fn slice(&self, range: &CharIndexRange) -> anyhow::Result<Rope> {
+        let slice = self.rope.get_slice(range.start.0..range.end.0);
+        match slice {
+            Some(slice) => Ok(slice.into()),
+            None => Err(anyhow::anyhow!(
+                "Unable to obtain slice for range: {:#?}",
+                range
+            )),
+        }
     }
 
     pub fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
@@ -301,9 +308,9 @@ impl Buffer {
             .into_iter()
             .map(|bookmark| bookmark.apply_edit(edit))
             .collect();
-        self.rope.remove(edit.start.0..edit.end().0);
+        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
-            .insert(edit.start.0, edit.new.to_string().as_str());
+            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
         Ok(())
     }
 

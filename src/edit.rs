@@ -10,34 +10,27 @@ use crate::{
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Edit {
-    pub start: CharIndex,
-    pub old: Rope,
+    pub range: CharIndexRange,
     pub new: Rope,
 }
 impl Edit {
     fn apply_offset(self, offset: isize) -> Edit {
-        let start = if offset.is_positive() {
-            CharIndex(self.start.0.saturating_add(offset.unsigned_abs()))
-        } else {
-            CharIndex(self.start.0.saturating_sub(offset.unsigned_abs()))
-        };
         Edit {
-            start,
-            old: self.old,
+            range: self.range.apply_offset(offset),
             new: self.new,
         }
     }
 
     pub fn end(&self) -> CharIndex {
-        CharIndex(self.start.0 + self.old.len_chars())
+        self.range.end
     }
 
     fn range(&self) -> CharIndexRange {
-        (self.start..self.end()).into()
+        self.range
     }
 
     pub fn offset(&self) -> isize {
-        self.new.len_chars() as isize - self.old.len_chars() as isize
+        self.new.len_chars() as isize - self.range.len() as isize
     }
 }
 
@@ -61,8 +54,7 @@ impl Action {
     #[cfg(test)]
     fn edit(start: usize, old: &str, new: &str) -> Self {
         Action::Edit(Edit {
-            start: CharIndex(start),
-            old: Rope::from_str(old),
+            range: (CharIndex(start)..CharIndex(start + old.len())).into(),
             new: Rope::from_str(new),
         })
     }
@@ -105,8 +97,8 @@ impl EditTransaction {
     #[cfg(test)]
     fn apply_to(&self, mut rope: Rope) -> (Vec<String>, Rope) {
         for edit in &self.edits() {
-            rope.remove(edit.start.0..edit.end().0);
-            rope.insert(edit.start.0, edit.new.to_string().as_str());
+            rope.remove(edit.range.start.0..edit.end().0);
+            rope.insert(edit.range.start.0, edit.new.to_string().as_str());
         }
         let selections = self
             .selections()

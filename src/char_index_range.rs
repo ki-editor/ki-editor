@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::{edit::ApplyOffset, selection::CharIndex};
 
-#[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
+#[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
     pub start: CharIndex,
     pub end: CharIndex,
@@ -16,7 +16,7 @@ impl From<CharIndexRange> for Range<CharIndex> {
 
 impl CharIndexRange {
     pub fn apply_edit(self, edit: &crate::edit::Edit) -> CharIndexRange {
-        if edit.start >= self.end {
+        if edit.range.start >= self.end {
             self
         } else {
             self.apply_offset(edit.offset())
@@ -28,6 +28,10 @@ impl CharIndexRange {
             range: self.clone(),
             current: self.start,
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.end.0.saturating_sub(self.start.0)
     }
 }
 
