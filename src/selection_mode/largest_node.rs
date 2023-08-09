@@ -8,7 +8,7 @@ pub struct LargestNode;
 impl SelectionMode for LargestNode {
     fn iter<'a>(
         &self,
-        current_selection: &'a Selection,
+        _current_selection: &'a Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         Ok(Box::new(

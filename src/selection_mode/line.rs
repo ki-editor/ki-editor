@@ -5,7 +5,7 @@ pub struct Line;
 impl SelectionMode for Line {
     fn iter<'a>(
         &'a self,
-        current_selection: &'a crate::selection::Selection,
+        _current_selection: &'a crate::selection::Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new((0..buffer.rope().len_lines()).filter_map(

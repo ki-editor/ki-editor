@@ -4,7 +4,6 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
     screen::RequestParams,
-    selection::RangeCharIndex,
     selection_mode,
     themes::Theme,
 };
@@ -194,16 +193,13 @@ impl Component for Editor {
             theme.ui.primary_selection_secondary_cursor,
         );
 
-        let secondary_selection =
-            secondary_selections
-                .into_iter()
-                .flat_map(|secondary_selection| {
-                    range_to_cell_update(
-                        &buffer,
-                        secondary_selection.extended_range(),
-                        theme.ui.secondary_selection,
-                    )
-                });
+        let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
+            range_to_cell_update(
+                &buffer,
+                secondary_selection.extended_range(),
+                theme.ui.secondary_selection,
+            )
+        });
 
         let secondary_selection_cursors = secondary_selections
             .iter()

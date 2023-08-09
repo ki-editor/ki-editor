@@ -5,7 +5,7 @@ pub struct Bookmark;
 impl SelectionMode for Bookmark {
     fn iter<'a>(
         &'a self,
-        current_selection: &'a crate::selection::Selection,
+        _current_selection: &'a crate::selection::Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(buffer.bookmarks().into_iter().filter_map(

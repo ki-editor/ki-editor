@@ -27,7 +27,7 @@ impl GitHunk {
         let hunks = patch.hunks();
 
         let ranges = hunks
-            .into_iter()
+            .iter()
             .filter_map(|hunk| {
                 let line_range = hunk.new_range().range();
                 let start = buffer
@@ -37,7 +37,7 @@ impl GitHunk {
                 Some(ByteRange::with_info(
                     start..end,
                     hunk.lines()
-                        .into_iter()
+                        .iter()
                         .map(|line| match line {
                             diffy::Line::Context(context) => format!("  {}", context),
                             diffy::Line::Delete(deleted) => format!("- {}", deleted),

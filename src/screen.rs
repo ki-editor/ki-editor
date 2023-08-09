@@ -444,24 +444,11 @@ impl<T: Frontend> Screen<T> {
             items: vec![],
             on_text_change: Box::new(|_, _| Ok(vec![])),
             on_enter: Box::new(move |text, _| {
-                let matches = list::grep::run(text, working_directory.clone().into())?;
+                let locations = list::grep::run(text, working_directory.clone().into())?;
                 Ok([Dispatch::SetQuickfixList(QuickfixListType::Items(
-                    matches
+                    locations
                         .into_iter()
-                        .map(|m| -> anyhow::Result<QuickfixListItem> {
-                            let path = m.path.try_into()?;
-                            let buffer = Buffer::from_path(&path)?;
-                            Ok(QuickfixListItem::new(
-                                Location {
-                                    path,
-                                    range: buffer.line_to_position_range(
-                                        m.line_number.saturating_sub(1) as usize,
-                                    )?,
-                                },
-                                vec![],
-                            ))
-                        })
-                        .flatten()
+                        .map(|location| QuickfixListItem::new(location, vec![]))
                         .collect_vec(),
                 ))]
                 .to_vec())

@@ -5,7 +5,7 @@ use crate::{
     language::{self, Language},
     lsp::diagnostic::Diagnostic,
     position::Position,
-    selection::{CharIndex, RangeCharIndex, Selection, SelectionSet},
+    selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
     syntax_highlight::HighlighedSpan,
     themes::Theme,
@@ -296,7 +296,7 @@ impl Buffer {
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
         // Update all the bookmarks
-        let bookmarks = std::mem::replace(&mut self.bookmarks, Vec::new());
+        let bookmarks = std::mem::take(&mut self.bookmarks);
         self.bookmarks = bookmarks
             .into_iter()
             .map(|bookmark| bookmark.apply_edit(edit))

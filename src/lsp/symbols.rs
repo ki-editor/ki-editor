@@ -18,7 +18,7 @@ impl TryFrom<DocumentSymbolResponse> for Symbols {
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(Self { symbols })
             }
-            DocumentSymbolResponse::Nested(nested) => {
+            DocumentSymbolResponse::Nested(_nested) => {
                 todo!()
             }
         }

@@ -8,9 +8,9 @@ pub struct CharIndexRange {
     pub end: CharIndex,
 }
 
-impl Into<Range<CharIndex>> for CharIndexRange {
-    fn into(self) -> Range<CharIndex> {
-        self.start..self.end
+impl From<CharIndexRange> for Range<CharIndex> {
+    fn from(val: CharIndexRange) -> Self {
+        val.start..val.end
     }
 }
 

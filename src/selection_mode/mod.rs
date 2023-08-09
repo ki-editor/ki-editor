@@ -1,16 +1,17 @@
 pub mod ast_grep;
+pub mod bookmark;
 pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
 pub mod largest_node;
 pub mod line;
-pub mod syntax_tree;
 pub mod regex;
+pub mod syntax_tree;
 pub mod token;
-pub mod bookmark;
 
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
+pub use bookmark::Bookmark;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
@@ -19,15 +20,15 @@ pub use largest_node::LargestNode;
 pub use line::Line;
 pub use syntax_tree::SyntaxTree;
 pub use token::Token;
-pub use bookmark::Bookmark;
 
 use std::ops::Range;
 
 use crate::{
     buffer::Buffer,
+    char_index_range::CharIndexRange,
     components::editor::{CursorDirection, Direction, Jump},
     position::Position,
-    selection::{CharIndex, Selection}, char_index_range::CharIndexRange,
+    selection::Selection,
 };
 
 #[derive(PartialEq, Eq, Clone)]
@@ -281,7 +282,7 @@ pub trait SelectionMode {
             .next();
 
         Ok(found.map(|(range, info, _)| Selection {
-            range: range,
+            range,
             info,
             ..current_selection.clone()
         }))

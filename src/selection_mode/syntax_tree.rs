@@ -1,6 +1,6 @@
 use crate::components::editor::{node_to_selection, CursorDirection};
 
-use super::{ByteRange, SelectionMode, SelectionModeParams};
+use super::{ByteRange, SelectionMode};
 
 pub struct SyntaxTree;
 
@@ -27,7 +27,7 @@ impl SelectionMode for SyntaxTree {
         &self,
         buffer: &crate::buffer::Buffer,
         current_selection: &crate::selection::Selection,
-        cursor_direction: &CursorDirection,
+        _cursor_direction: &CursorDirection,
         go_up: bool,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let current_node = buffer.get_current_node(current_selection)?;
@@ -47,7 +47,7 @@ impl SelectionMode for SyntaxTree {
             }
             node.unwrap_or(current_node)
         };
-        Ok(Some(node_to_selection(node, buffer, &current_selection)?))
+        Ok(Some(node_to_selection(node, buffer, current_selection)?))
     }
 }
 

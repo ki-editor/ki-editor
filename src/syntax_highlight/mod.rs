@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use tree_sitter_highlight::{HighlightEvent, Highlighter};
 
 use crate::{
