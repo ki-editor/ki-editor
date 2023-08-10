@@ -7,7 +7,7 @@ use crate::{
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
-    syntax_highlight::HighlighedSpan,
+    syntax_highlight::{self, HighlighedSpan},
     themes::Theme,
     utils::find_previous,
 };
@@ -422,13 +422,13 @@ impl Buffer {
     }
 
     fn recompute_highlighted_spans(&mut self) -> anyhow::Result<()> {
-        // if let Some(language) = &self.language {
-        //     self.highlighted_spans = syntax_highlight::highlight(
-        //         language.clone(),
-        //         &crate::themes::VSCODE_LIGHT,
-        //         &self.rope.to_string(),
-        //     )?;
-        // }
+        if let Some(language) = &self.language {
+            self.highlighted_spans = syntax_highlight::highlight(
+                language.clone(),
+                &crate::themes::VSCODE_LIGHT,
+                &self.rope.to_string(),
+            )?;
+        }
         Ok(())
     }
 

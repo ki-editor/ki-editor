@@ -227,12 +227,16 @@ impl Component for Editor {
             .highlighted_spans()
             .iter()
             .flat_map(|highlighted_span| {
-                highlighted_span.range.iter().filter_map(|char_index| {
-                    Some(
-                        CellUpdate::new(buffer.char_to_position(char_index).ok()?)
-                            .style(highlighted_span.style),
-                    )
-                })
+                highlighted_span
+                    .byte_range
+                    .clone()
+                    .into_iter()
+                    .filter_map(|byte| {
+                        Some(
+                            CellUpdate::new(buffer.byte_to_position(byte).ok()?)
+                                .style(highlighted_span.style),
+                        )
+                    })
             });
 
         let diagnostics = diagnostics
