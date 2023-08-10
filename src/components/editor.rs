@@ -223,21 +223,20 @@ impl Component for Editor {
                 )
             })
             .flatten();
-        let syntax_highlight = buffer
-            .highlighted_spans()
-            .iter()
-            .flat_map(|highlighted_span| {
-                highlighted_span
-                    .byte_range
-                    .clone()
-                    .into_iter()
-                    .filter_map(|byte| {
-                        Some(
-                            CellUpdate::new(buffer.byte_to_position(byte).ok()?)
-                                .style(highlighted_span.style),
-                        )
-                    })
-            });
+
+        let highlighted_spans = buffer.highlighted_spans();
+        let syntax_highlight = highlighted_spans.iter().flat_map(|highlighted_span| {
+            highlighted_span
+                .byte_range
+                .clone()
+                .into_iter()
+                .filter_map(|byte| {
+                    Some(
+                        CellUpdate::new(buffer.byte_to_position(byte).ok()?)
+                            .style(highlighted_span.style),
+                    )
+                })
+        });
 
         let diagnostics = diagnostics
             .iter()

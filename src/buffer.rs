@@ -14,7 +14,10 @@ use crate::{
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
-use std::ops::Range;
+use std::{
+    ops::Range,
+    sync::{Arc, Mutex, RwLock},
+};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -28,7 +31,7 @@ pub struct Buffer {
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
     diagnostics: Vec<Diagnostic>,
-    highlighted_spans: Vec<HighlighedSpan>,
+    highlighted_spans: Arc<RwLock<Vec<HighlighedSpan>>>,
     theme: Theme,
     bookmarks: Vec<CharIndexRange>,
 }
@@ -48,7 +51,7 @@ impl Buffer {
             redo_patches: Vec::new(),
             path: None,
             diagnostics: Vec::new(),
-            highlighted_spans: Vec::new(),
+            highlighted_spans: Arc::new(RwLock::new(Vec::new())),
             theme: Theme::default(),
             bookmarks: Vec::new(),
         }
@@ -423,11 +426,18 @@ impl Buffer {
 
     fn recompute_highlighted_spans(&mut self) -> anyhow::Result<()> {
         if let Some(language) = &self.language {
-            self.highlighted_spans = syntax_highlight::highlight(
-                language.clone(),
-                &crate::themes::VSCODE_LIGHT,
-                &self.rope.to_string(),
-            )?;
+            let mutex = self.highlighted_spans.clone();
+            let string = self.rope.to_string();
+            let language = language.clone();
+
+            // Run the syntax highlighting in a separate thread,
+            // because it can be slow for large files
+            std::thread::spawn(move || -> anyhow::Result<()> {
+                let mut data = mutex.write().unwrap();
+                *data =
+                    syntax_highlight::highlight(language, &crate::themes::VSCODE_LIGHT, &string)?;
+                Ok(())
+            });
         }
         Ok(())
     }
@@ -494,8 +504,10 @@ impl Buffer {
         self.diagnostics = diagnostics;
     }
 
-    pub fn highlighted_spans(&self) -> &Vec<HighlighedSpan> {
-        &self.highlighted_spans
+    pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
+        let data = self.highlighted_spans.try_read();
+        data.map(|data| (*data).clone())
+            .unwrap_or_else(|_| Vec::new())
     }
 
     pub fn language(&self) -> Option<Box<dyn Language>> {
