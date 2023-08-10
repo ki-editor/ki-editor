@@ -2291,12 +2291,13 @@ mod test_editor {
     #[test]
     fn select_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_character(Direction::Right)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.select_character(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["n"]);
 
-        editor.select_character(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
         Ok(())
     }
@@ -2305,57 +2306,59 @@ mod test_editor {
     fn select_line() -> anyhow::Result<()> {
         // Multiline source code
         let mut editor = Editor::from_text(language(), "\nfn main() {\n\n\nlet x = 1;\n}\n");
-        editor.select_line(Direction::Right)?;
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Right)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
-        editor.select_line(Direction::Right)?;
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Right)?;
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Right)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;\n"]);
-        editor.select_line(Direction::Right)?;
-        assert_eq!(editor.get_selected_texts(), vec!["}\n"]);
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Line)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_direction(&mut context, Direction::Right)?;
+        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
+        editor.select_direction(&mut context, Direction::Right)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_direction(&mut context, Direction::Right)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_direction(&mut context, Direction::Right)?;
+        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
+        editor.select_direction(&mut context, Direction::Right)?;
+        assert_eq!(editor.get_selected_texts(), vec!["}"]);
 
-        editor.select_line(Direction::Left)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;\n"]);
-        editor.select_line(Direction::Left)?;
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Left)?;
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
-        editor.select_line(Direction::Left)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {\n"]);
-        editor.select_line(Direction::Left)?;
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
+        editor.select_direction(&mut context, Direction::Left)?;
+        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
+        editor.select_direction(&mut context, Direction::Left)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_direction(&mut context, Direction::Left)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        editor.select_direction(&mut context, Direction::Left)?;
+        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
+        editor.select_direction(&mut context, Direction::Left)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
         Ok(())
     }
 
     #[test]
     fn select_word() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "camelCase, snake_case, ALLCAPS: 123");
-        editor.select_word(Direction::Right)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        editor.select_word(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.select_word(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.select_word(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.select_word(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.select_word(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["123"]);
 
-        editor.select_word(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.select_word(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.select_word(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.select_word(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.select_word(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
         Ok(())
     }
@@ -2363,21 +2366,23 @@ mod test_editor {
     #[test]
     fn select_match_ast_grep() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let search = Some(Search {
+        let mut context = Context::default();
+        let search = Search {
             search: "f($EXPR)".to_string(),
             kind: SearchKind::AstGrep,
-        });
+        };
 
-        editor.select_match(Direction::Right, &search)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Match { search })?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        editor.select_match(Direction::Right, &search)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_match(Direction::Right, &search)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f( z )"]);
 
-        editor.select_match(Direction::Left, &search)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_match(Direction::Left, &search)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
         Ok(())
     }
@@ -2385,16 +2390,18 @@ mod test_editor {
     #[test]
     fn select_match_string() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let search = Some(Search {
+        let mut context = Context::default();
+        let search = Search {
             search: "f(".to_string(),
             kind: SearchKind::Literal,
-        });
+        };
 
-        editor.select_match(Direction::Right, &search)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Match { search })?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
-        editor.select_match(Direction::Right, &search)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
-        editor.select_match(Direction::Right, &search)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
 
         editor.insert("hello");
@@ -2408,16 +2415,18 @@ mod test_editor {
     #[test]
     fn select_match_regex() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let search = Some(Search {
+        let mut context = Context::default();
+        let search = Search {
             search: r"f\([a-z]\)".to_string(),
             kind: SearchKind::Regex,
-        });
+        };
 
-        editor.select_match(Direction::Right, &search)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Match { search })?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        editor.select_match(Direction::Right, &search)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_match(Direction::Right, &search)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
 
         Ok(())
@@ -2426,34 +2435,36 @@ mod test_editor {
     #[test]
     fn select_token() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_token(Direction::Right)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.select_token(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_token(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["("]);
-        editor.select_token(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
-        editor.select_token(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
-        editor.select_token(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_token(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["("]);
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.select_token(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
         Ok(())
     }
@@ -2461,24 +2472,29 @@ mod test_editor {
     #[test]
     fn select_parent() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
+        let mut context = Context::default();
         // Move token to 1
-        for _ in 0..9 {
-            editor.select_token(Direction::Right)?;
-        }
+        let search = Search {
+            search: "1".to_string(),
+            kind: SearchKind::Literal,
+        };
+        editor.set_selection_mode(&mut context, SelectionMode::Match { search })?;
+        editor.select_direction(&mut context, Direction::Right)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["1"]);
 
-        editor.select_syntax_tree(Direction::Right)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
+        editor.select_direction(&mut context, Direction::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        editor.select_syntax_tree(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_syntax_tree(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Up)?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn main() { let x = 1; }"]
         );
 
-        editor.select_syntax_tree(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Down)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
@@ -2486,10 +2502,14 @@ mod test_editor {
     #[test]
     fn select_syntax_tree() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut context = Context::default();
+        let search = Search {
+            search: "x: usize".to_string(),
+            kind: SearchKind::Literal,
+        };
         // Move token to "x: usize"
-        for _ in 0..3 {
-            editor.select_named_node(Direction::Right)?;
-        }
+        editor.set_selection_mode(&mut context, SelectionMode::Match { search })?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
         editor.select_syntax_tree(Direction::Right)?;
@@ -3175,6 +3195,7 @@ fn f() {
     #[test]
     fn delete_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        let mut context = Context::default();
 
         editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
@@ -3185,14 +3206,17 @@ fn f() {
         editor.kill(Direction::Right);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
-        editor.select_match(
-            Direction::Right,
-            &Some(Search {
-                search: "x".to_string(),
-                kind: SearchKind::Literal,
-            }),
+        editor.set_selection_mode(
+            &mut context,
+            SelectionMode::Match {
+                search: Search {
+                    search: "x".to_string(),
+                    kind: SearchKind::Literal,
+                },
+            },
         )?;
-        editor.select_character(Direction::Current)?;
+        editor.select_direction(&mut context, Direction::Right)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
         editor.kill(Direction::Left);
