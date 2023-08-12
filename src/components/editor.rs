@@ -1466,7 +1466,6 @@ impl Editor {
             key!("right") => return self.select_direction(context, Direction::Right),
             key!("shift+right") => return self.select_direction(context, Direction::RightMost),
             key!("esc") => {
-                self.enter_normal_mode()?;
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
             }
             // Objects
@@ -1602,13 +1601,21 @@ impl Editor {
             };
             selection.range = (char_index..char_index).into()
         });
-        self.selection_set.mode = SelectionMode::Custom;
         self.mode = Mode::Insert;
         self.cursor_direction = CursorDirection::Start;
     }
 
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         self.mode = Mode::Normal;
+
+        self.selection_set = SelectionSet {
+            primary: Selection {
+                range: self.selection_set.primary.range - 1,
+                ..self.selection_set.primary.clone()
+            },
+            ..self.selection_set.clone()
+        };
+
         Ok(())
     }
 

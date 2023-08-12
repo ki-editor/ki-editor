@@ -8,6 +8,17 @@ pub struct CharIndexRange {
     pub end: CharIndex,
 }
 
+impl std::ops::Sub<usize> for CharIndexRange {
+    type Output = Self;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        Self {
+            start: self.start - rhs,
+            end: self.end - rhs,
+        }
+    }
+}
+
 impl From<CharIndexRange> for Range<CharIndex> {
     fn from(val: CharIndexRange) -> Self {
         val.start..val.end
