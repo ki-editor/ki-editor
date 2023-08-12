@@ -5,6 +5,7 @@ use crate::{
     grid::{CellUpdate, Style},
     screen::RequestParams,
     selection_mode,
+    soft_wrap::{self, WrappedLines},
     themes::Theme,
 };
 use std::{
@@ -100,6 +101,14 @@ impl Component for Editor {
         let line_number_separator_width = 1;
         let width = width.saturating_sub(max_line_number_len + line_number_separator_width);
         let scroll_offset = editor.scroll_offset();
+        let wrapped_lines = soft_wrap::soft_wrap(
+            &rope
+                .lines()
+                .skip(scroll_offset as usize)
+                .take(height as usize)
+                .join(""),
+            width as usize,
+        );
 
         let line_numbers_grid = (0..height.min(len_lines.saturating_sub(scroll_offset))).fold(
             Grid::new(Dimension {
@@ -113,7 +122,19 @@ impl Component for Editor {
                     line_number.to_string(),
                     width = max_line_number_len as usize
                 );
-                grid.set_line(index as usize, &line_number_str, theme.ui.line_number)
+
+                if let Ok(position) = wrapped_lines.calibrate(Position {
+                    line: (line_number
+                        .saturating_sub(scroll_offset as u16)
+                        .saturating_sub(1)) as usize,
+                    column: 0,
+                }) {
+                    let line_index = position.line;
+                    if line_index < height as usize {
+                        return grid.set_line(line_index, &line_number_str, theme.ui.line_number);
+                    }
+                }
+                grid
             },
         );
 
@@ -131,12 +152,13 @@ impl Component for Editor {
         // If the buffer selection is updated less recently than the window's scroll offset,
         // use the window's scroll offset.
 
-        let lines = rope
+        let lines = wrapped_lines
             .lines()
-            .enumerate()
-            .skip(scroll_offset.into())
+            .into_iter()
+            .flat_map(|line| line.lines())
             .take(height as usize)
-            .collect::<Vec<(_, RopeSlice)>>();
+            .enumerate()
+            .collect::<Vec<(_, String)>>();
 
         let bookmarks = buffer
             .bookmarks()
@@ -147,7 +169,7 @@ impl Component for Editor {
 
         for (line_index, line) in lines {
             for (column_index, c) in line.chars().take(width as usize).enumerate() {
-                grid.rows[line_index - scroll_offset as usize][column_index] = Cell {
+                grid.rows[line_index][column_index] = Cell {
                     symbol: c.to_string(),
                     background_color: theme.ui.text.background_color.unwrap_or(hex!("#ffffff")),
                     foreground_color: theme.ui.text.foreground_color.unwrap_or(hex!("#000000")),
@@ -297,7 +319,13 @@ impl Component for Editor {
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
-            .filter_map(|update| update.subtract_vertical_offset(scroll_offset.into()))
+            .filter_map(|update| {
+                let update = update.subtract_vertical_offset(scroll_offset.into())?;
+                Some(CellUpdate {
+                    position: wrapped_lines.calibrate(update.position).ok()?,
+                    ..update
+                })
+            })
             .collect::<Vec<_>>();
 
         let left_width =
@@ -306,10 +334,34 @@ impl Component for Editor {
         let cursor_position = self
             .get_cursor_position()
             .ok()
-            .map(|position| position.move_right(left_width));
+            .map(|position| position.move_up(scroll_offset as usize));
 
         GetGridResult {
-            cursor_position,
+            cursor_position: {
+                let cursor_position = cursor_position
+                    .and_then(|position| {
+                        // Need to move the cursor left by one to account for
+                        // the insert mode cursor position at the last column of the current line
+                        // which exceeds the columns of the current line by one in
+                        // insert mode
+                        let column_non_zero = position.column > 0;
+                        let position = if column_non_zero {
+                            position.move_left(1)
+                        } else {
+                            position
+                        };
+                        let position = wrapped_lines.calibrate(position).ok()?;
+                        Some(if column_non_zero {
+                            // Move the cursor right by one to account for the
+                            // move left by one above
+                            position.move_right(1)
+                        } else {
+                            position
+                        })
+                    })
+                    .map(|position| position.move_right(left_width as u16));
+                cursor_position
+            },
             grid: line_numbers_grid
                 .merge_horizontal(line_numbers_separator_grid)
                 .merge_horizontal(grid.apply_cell_updates(updates)),
@@ -922,7 +974,7 @@ impl Editor {
         self.get_document_did_change_dispatch()
     }
 
-    pub fn get_document_did_change_dispatch(&self) -> Vec<Dispatch> {
+    pub fn get_document_did_change_dispatch(&mut self) -> Vec<Dispatch> {
         if let Some(path) = self.buffer().path() {
             vec![Dispatch::DocumentDidChange {
                 path,
@@ -1192,14 +1244,14 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<HandleEventResult> {
         match event {
-            // key!("left") => {
-            //     self.selection_set.move_left(&self.cursor_direction);
-            //     Ok(HandleEventResult::Handled(vec![]))
-            // }
-            // key!("right") => {
-            //     self.selection_set.move_right(&self.cursor_direction);
-            //     Ok(HandleEventResult::Handled(vec![]))
-            // }
+            key!("left") => {
+                self.selection_set.move_left(&self.cursor_direction);
+                Ok(HandleEventResult::Handled(vec![]))
+            }
+            key!("right") => {
+                self.selection_set.move_right(&self.cursor_direction);
+                Ok(HandleEventResult::Handled(vec![]))
+            }
             key!("ctrl+a") => {
                 let selection_set = SelectionSet {
                     primary: Selection {

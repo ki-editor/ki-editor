@@ -19,6 +19,7 @@ mod rectangle;
 mod screen;
 mod selection;
 pub mod selection_mode;
+pub mod soft_wrap;
 pub mod syntax_highlight;
 mod terminal;
 pub mod themes;

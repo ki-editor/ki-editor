@@ -65,6 +65,7 @@
 - [x] case transformation group: UPPERCASE, Capital Case, lowercase, camelCase, PascalCase, snake_case, kebab-case (https://docs.rs/convert_case/latest/convert_case/enum.Case.html)
 - [x] feat(lsp): search symbols
 - [x] feat(editor): global regex search
+- [x] soft wrap
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -101,7 +102,6 @@
 - [] editor(lift): move an expression upwards, can be implemented by swapping
   the "section before the current node until its parent" with "current node"
 - [] add integration test for every LSP Actions
-- [] word wrapping
 - [] refactor: handle_event should not mutate the component, but should return dispatch instead, like Elm.
   - This is to standardize the event handling architecture, and also allow keymap to be defined declaractively
 - [] feat(lsp/completion): snippet support
@@ -109,8 +109,6 @@
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] feat(editor): match current selection (\*) should open keymap legend
-- [] feat(editor): global literal search
-- [] feat(editor): global ast-grep search
 - [] feat(editor): "go" for getting opened files, "gg" for getting git status files
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
 - [] feat(editor): go to specific line number
@@ -125,3 +123,6 @@
 - [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
 - [] filter selections/quickfix-list: useful for multi-cursor
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
+- [] feat(editor): global literal search
+- [] feat(editor): global ast-grep search
+- [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary

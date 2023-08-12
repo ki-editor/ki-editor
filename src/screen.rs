@@ -220,18 +220,12 @@ impl<T: Frontend> Screen<T> {
                     .unwrap_or(false)
                 {
                     if let Some(cursor_position) = cursor_position {
-                        let scroll_offset = component.scroll_offset();
-
                         // If cursor position is not in view
-                        if cursor_position.line < scroll_offset as usize
-                            || cursor_position.line
-                                >= (scroll_offset + rectangle.dimension().height) as usize
-                        {
+                        if cursor_position.line >= (rectangle.dimension().height) as usize {
                             None
                         } else {
                             Some(Position::new(
-                                (cursor_position.line + rectangle.origin.line)
-                                    .saturating_sub(scroll_offset as usize),
+                                cursor_position.line + rectangle.origin.line,
                                 cursor_position.column + rectangle.origin.column,
                             ))
                         }

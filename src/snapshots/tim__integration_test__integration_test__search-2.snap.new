@@ -4,26 +4,26 @@ assertion_line: 176
 expression: test_runner.content()
 ---
 <Untitled> [INSERT]                                                             
-1│_hellopub struct Foo {                                                        
-2│    a: (),                                                                    
-3│    b: (),                                                                    
-4│}                                                                             
-5│                                                                              
-6│pub fn foo() -> Foo {                                                         
-7│    Foo { a: (), b: () }                                                      
-8│}                                                                             
-9│                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
- │                                                                              
+ 1│n                                                                            
+ 2│i_hellopn                                                                    
+ 3│i_helloub struct Foo {                                                       
+ 4│    a: (),                                                                   
+ 5│    b: (),                                                                   
+ 6│}                                                                            
+ 7│                                                                             
+ 8│pub fn foo() -> Foo {                                                        
+ 9│    Foo { a: (), b: () }                                                     
+10│}                                                                            
+11│                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             
+  │                                                                             

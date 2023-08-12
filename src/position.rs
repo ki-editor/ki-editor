@@ -23,10 +23,24 @@ impl Position {
         }
     }
 
-    pub fn move_right(&self, left_width: u16) -> Position {
+    pub fn move_right(&self, by: u16) -> Position {
         Position {
             line: self.line,
-            column: self.column + left_width as usize,
+            column: self.column + by as usize,
+        }
+    }
+
+    pub fn move_up(&self, by: usize) -> Position {
+        Position {
+            line: self.line.saturating_sub(by),
+            column: self.column,
+        }
+    }
+
+    pub fn move_left(&self, by: i32) -> Position {
+        Position {
+            line: self.line,
+            column: self.column.saturating_sub(by as usize),
         }
     }
 }
