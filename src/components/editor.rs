@@ -2121,7 +2121,10 @@ impl Editor {
             return Ok(vec![])
         };
         self.clamp()?;
-        Ok(vec![Dispatch::DocumentDidSave { path }])
+        Ok(vec![Dispatch::DocumentDidSave { path }]
+            .into_iter()
+            .chain(self.get_document_did_change_dispatch())
+            .collect())
     }
 
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
