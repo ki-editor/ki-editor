@@ -296,7 +296,7 @@ impl Layout {
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
-    pub fn show_info(&mut self, contents: Vec<String>) -> anyhow::Result<()> {
+    pub fn show_info(&mut self, title: &str, contents: Vec<String>) -> anyhow::Result<()> {
         let info = contents.join("\n===========\n");
         match &self.info_panel {
             None => {
@@ -304,9 +304,13 @@ impl Layout {
                     tree_sitter_md::language(),
                     &info,
                 )));
+                info_panel.borrow_mut().set_title(title.to_string());
                 self.info_panel = Some(info_panel);
             }
-            Some(info_panel) => info_panel.borrow_mut().set_content(&info),
+            Some(info_panel) => {
+                info_panel.borrow_mut().set_title(title.to_string());
+                info_panel.borrow_mut().set_content(&info);
+            }
         }
         Ok(())
     }

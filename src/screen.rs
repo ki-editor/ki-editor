@@ -124,7 +124,7 @@ impl<T: Frontend> Screen<T> {
                 }
             }
             .unwrap_or_else(|e| {
-                self.show_info(vec![e.to_string()]);
+                self.show_info("ERROR", vec![e.to_string()]);
                 false
             });
 
@@ -175,7 +175,7 @@ impl<T: Frontend> Screen<T> {
                         .borrow_mut()
                         .handle_event(&mut self.context, event);
                     self.handle_dispatches_result(dispatches)
-                        .unwrap_or_else(|e| self.show_info(vec![e.to_string()]));
+                        .unwrap_or_else(|e| self.show_info("ERROR", vec![e.to_string()]));
                 });
             }
         }
@@ -192,6 +192,8 @@ impl<T: Frontend> Screen<T> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
 
+        const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
+
         // Generate layout
         let grid = Grid::new(self.layout.terminal_dimension());
 
@@ -202,7 +204,9 @@ impl<T: Frontend> Screen<T> {
             .map(|component| {
                 let component = component.borrow();
 
-                let rectangle = component.rectangle();
+                let rectangle = component
+                    .rectangle()
+                    .clamp_top(GLOBAL_TITLE_BAR_HEIGHT as usize);
 
                 let path = component.editor().buffer().path();
                 let diagnostics = path
@@ -246,9 +250,7 @@ impl<T: Frontend> Screen<T> {
                         let title_grid = Grid::new(title_rectangle.dimension()).set_line(
                             0,
                             &title,
-                            Style::new()
-                                .foreground_color(hex!("#ffffff"))
-                                .background_color(hex!("#D3D3D3")),
+                            self.context.theme.ui.window_title,
                         );
                         (
                             grid.update(&component_grid, &rectangle)
@@ -266,8 +268,27 @@ impl<T: Frontend> Screen<T> {
             .borders()
             .into_iter()
             .fold(grid, Grid::set_border);
+        // Set the global title
+        let grid = {
+            let mode = self
+                .context
+                .mode
+                .as_ref()
+                .map(|mode| mode.display())
+                .or_else(|| {
+                    self.current_component()
+                        .map(|component| component.borrow().editor().display_mode())
+                });
 
-        // TODO: Render the title bar (cwd + global mode)
+            let mode = if let Some(mode) = mode {
+                format!("[{}]", mode)
+            } else {
+                String::new()
+            };
+
+            let title = format!("{} {}", self.working_directory.display(), mode);
+            grid.set_line(0, &title, self.context.theme.ui.global_title)
+        };
 
         self.render_grid(grid, cursor_point)?;
 
@@ -357,7 +378,7 @@ impl<T: Frontend> Screen<T> {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowInfo { content } => self.show_info(content),
+            Dispatch::ShowInfo { title, content } => self.show_info(&title, content),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
@@ -701,7 +722,10 @@ impl<T: Frontend> Screen<T> {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
-                            self.show_info(vec!["No definitions found".to_string()]);
+                            self.show_info(
+                                "Goto definition info",
+                                vec!["No definitions found".to_string()],
+                            );
                         } else {
                             self.set_quickfix_list(QuickfixList::new(
                                 locations.into_iter().map(QuickfixListItem::from).collect(),
@@ -770,7 +794,7 @@ impl<T: Frontend> Screen<T> {
                 Ok(())
             }
             LspNotification::Error(error) => {
-                self.show_info(vec![error]);
+                self.show_info("LSP error", vec![error]);
                 Ok(())
             }
             LspNotification::WorkspaceEdit(workspace_edit) => {
@@ -828,10 +852,12 @@ impl<T: Frontend> Screen<T> {
         Ok(())
     }
 
-    fn show_info(&mut self, contents: Vec<String>) {
-        self.layout.show_info(contents).unwrap_or_else(|err| {
-            log::error!("Error showing info: {:?}", err);
-        });
+    fn show_info(&mut self, title: &str, contents: Vec<String>) {
+        self.layout
+            .show_info(title, contents)
+            .unwrap_or_else(|err| {
+                log::error!("Error showing info: {:?}", err);
+            });
     }
 
     fn go_to_location(&mut self, location: &Location) -> Result<(), anyhow::Error> {
@@ -929,6 +955,7 @@ pub enum Dispatch {
         path: CanonicalizedPath,
     },
     ShowInfo {
+        title: String,
         content: Vec<String>,
     },
     RequestCompletion(RequestParams),

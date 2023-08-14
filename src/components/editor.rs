@@ -72,18 +72,7 @@ impl Component for Editor {
     }
 
     fn title(&self) -> String {
-        let selection_mode = self.selection_set.mode.display();
-        match &self.mode {
-            Mode::Normal => {
-                format!("{} [NORMAL:{}]", &self.title, selection_mode)
-            }
-            Mode::Insert => {
-                format!("{} [INSERT]", &self.title)
-            }
-            Mode::Jump { .. } => {
-                format!("{} [JUMP]", &self.title)
-            }
-        }
+        self.title.clone()
     }
 
     fn set_title(&mut self, title: String) {
@@ -654,6 +643,7 @@ impl Editor {
             .find_diagnostic(&self.selection_set.primary.range)
         {
             Ok(vec![Dispatch::ShowInfo {
+                title: "Diagnostic".to_string(),
                 content: vec![diagnostic.message()],
             }])
         } else {
@@ -1433,7 +1423,10 @@ impl Editor {
                 return Ok(vec![]);
             }
 
-            Ok(vec![Dispatch::ShowInfo { content: infos }])
+            Ok(vec![Dispatch::ShowInfo {
+                title: "INFO".to_string(),
+                content: infos,
+            }])
         }
     }
 
@@ -2293,6 +2286,16 @@ impl Editor {
         );
         self.apply_edit_transaction(edit_transaction)
     }
+
+    pub fn display_mode(&self) -> String {
+        match &self.mode {
+            Mode::Normal => {
+                format!("NORMAL:{}", self.selection_set.mode.display())
+            }
+            Mode::Insert => "INSERT".to_string(),
+            Mode::Jump { .. } => "JUMP".to_string(),
+        }
+    }
 }
 
 enum Enclosure {
@@ -2691,7 +2694,7 @@ mod test_editor {
             let content = dispatches
                 .into_iter()
                 .find_map(|dispatch| match dispatch {
-                    Dispatch::ShowInfo { content } => Some(content),
+                    Dispatch::ShowInfo { content, .. } => Some(content),
                     _ => None,
                 })
                 .unwrap();

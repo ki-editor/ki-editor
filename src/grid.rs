@@ -213,8 +213,11 @@ impl Grid {
         let mut grid = self;
         for (row_index, rows) in other.rows.iter().enumerate() {
             for (column_index, cell) in rows.iter().enumerate() {
-                grid.rows[row_index + rectangle.origin.line]
-                    [column_index + rectangle.origin.column] = cell.clone();
+                let row = row_index + rectangle.origin.line;
+                let column = column_index + rectangle.origin.column;
+                if row < grid.rows.len() && column < grid.rows[row].len() {
+                    grid.rows[row][column] = cell.clone();
+                }
             }
         }
         grid
@@ -265,6 +268,8 @@ impl Grid {
 
     pub fn set_line(self, row: usize, title: &str, style: Style) -> Grid {
         let mut grid = self;
+        // Pad end with spaces
+        let title = format!("{:<width$}", title, width = grid.dimension().width as usize);
         for (column_index, character) in title
             .chars()
             .take(grid.dimension().width as usize)

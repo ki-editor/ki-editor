@@ -11,6 +11,13 @@ pub struct Context {
 pub enum GlobalMode {
     QuickfixListItem,
 }
+impl GlobalMode {
+    pub fn display(&self) -> String {
+        match self {
+            GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
+        }
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Search {

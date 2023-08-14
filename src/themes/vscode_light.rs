@@ -26,6 +26,12 @@ pub const VSCODE_LIGHT: Theme = Theme {
         comment: Some(Style::new().foreground_color(hex!("#6a9955"))),
     },
     ui: UiStyles {
+        global_title: Style::new()
+            .foreground_color(hex!("#ffffff"))
+            .background_color(hex!("#000000")),
+        window_title: Style::new()
+            .foreground_color(hex!("#ffffff"))
+            .background_color(hex!("#808080")),
         jump_mark_odd: Style::new()
             .background_color(hex!("#B5485D"))
             .foreground_color(hex!("#ffffff")),

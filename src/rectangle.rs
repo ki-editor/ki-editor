@@ -337,6 +337,17 @@ impl Rectangle {
             .cloned()
             .collect()
     }
+
+    pub fn clamp_top(&self, by: usize) -> Rectangle {
+        Rectangle {
+            origin: Position {
+                line: self.origin.line.saturating_add(by),
+                ..self.origin
+            },
+            height: self.height.saturating_sub(by as u16),
+            width: self.width,
+        }
+    }
 }
 
 #[cfg(test)]

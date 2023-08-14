@@ -299,6 +299,7 @@ pub struct Selection {
     /// For example, used for Diagnostic and Git Hunk
     pub info: Option<String>,
 }
+
 impl Selection {
     pub fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
         match cursor_direction {

@@ -28,6 +28,8 @@ pub struct DiagnosticStyles {
 
 #[derive(Default, Clone)]
 pub struct UiStyles {
+    pub global_title: Style,
+    pub window_title: Style,
     pub jump_mark_odd: Style,
     pub jump_mark_even: Style,
     pub text: Style,
