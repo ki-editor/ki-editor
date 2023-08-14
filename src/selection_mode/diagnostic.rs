@@ -4,7 +4,7 @@ use crate::selection::Selection;
 
 use super::SelectionMode;
 
-pub struct Diagnostic(pub DiagnosticSeverity);
+pub struct Diagnostic(pub Option<DiagnosticSeverity>);
 
 impl SelectionMode for Diagnostic {
     fn iter<'a>(
@@ -16,7 +16,7 @@ impl SelectionMode for Diagnostic {
             buffer
                 .diagnostics()
                 .iter()
-                .filter(|diagnostic| diagnostic.severity == Some(self.0))
+                .filter(|diagnostic| self.0.is_none() || diagnostic.severity == self.0)
                 .filter_map(|diagnostic| {
                     Some(super::ByteRange::with_info(
                         buffer.position_to_byte(diagnostic.range.start).ok()?

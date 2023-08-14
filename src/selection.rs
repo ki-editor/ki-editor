@@ -209,7 +209,7 @@ pub enum SelectionMode {
     SyntaxTree,
 
     // LSP
-    Diagnostic(DiagnosticSeverity),
+    Diagnostic(Option<DiagnosticSeverity>),
 
     // Git
     GitHunk,
@@ -240,7 +240,11 @@ impl SelectionMode {
                 format!("MATCH({:?})={:?}", search.kind, search.search)
             }
             SelectionMode::Diagnostic(severity) => {
-                format!("DIAGNOSTIC:{}", format!("{:?}", severity).to_uppercase())
+                let severity = severity
+                    .map(|severity| format!("{:?}", severity))
+                    .unwrap_or("ANY".to_string())
+                    .to_uppercase();
+                format!("DIAGNOSTIC:{}", severity)
             }
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),

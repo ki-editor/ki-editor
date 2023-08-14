@@ -634,7 +634,7 @@ impl Editor {
 
     fn select_diagnostic(&mut self, direction: Direction) -> anyhow::Result<Vec<Dispatch>> {
         self.select(
-            SelectionMode::Diagnostic(DiagnosticSeverity::ERROR),
+            SelectionMode::Diagnostic(Some(DiagnosticSeverity::ERROR)),
             direction,
         )?;
         if let Some(diagnostic) = self
@@ -1139,10 +1139,11 @@ impl Editor {
             title: "Diagnostic",
             owner_id: self.id(),
             keymaps: [
-                ("e", "Error", DiagnosticSeverity::ERROR),
-                ("h", "Hint", DiagnosticSeverity::HINT),
-                ("i", "Information", DiagnosticSeverity::INFORMATION),
-                ("w", "Warning", DiagnosticSeverity::WARNING),
+                ("a", "Any", None),
+                ("e", "Error", Some(DiagnosticSeverity::ERROR)),
+                ("h", "Hint", Some(DiagnosticSeverity::HINT)),
+                ("i", "Information", Some(DiagnosticSeverity::INFORMATION)),
+                ("w", "Warning", Some(DiagnosticSeverity::WARNING)),
             ]
             .into_iter()
             .map(|(char, description, severity)| {
