@@ -102,14 +102,18 @@ pub trait SelectionMode {
         &self,
         params: SelectionModeParams,
         chars: Vec<char>,
-        direction: &Direction,
+        line_number_range: Range<usize>,
     ) -> anyhow::Result<Vec<Jump>> {
-        let iter = match direction {
-            Direction::Left => self.left_iter(&params)?,
-            _ => self.right_iter(&params)?,
-        };
+        let byte_range = params.buffer.line_to_byte(line_number_range.start)?
+            ..params.buffer.line_to_byte(line_number_range.end)?;
+        let iter = self
+            .iter(params.current_selection, params.buffer)?
+            .filter(|range| {
+                byte_range.start <= range.range.start && range.range.end <= byte_range.end
+            });
         Ok(chars
             .into_iter()
+            .cycle()
             .zip(iter)
             .filter_map(|(character, range)| {
                 Some(Jump {

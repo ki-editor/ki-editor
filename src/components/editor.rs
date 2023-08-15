@@ -787,30 +787,23 @@ impl Editor {
         self.update_selection_set(selection_set);
         Ok(())
     }
+    fn jump_characters() -> Vec<char> {
+        ('a'..='z').collect_vec()
+    }
 
     fn jump_from_selection(
         &mut self,
         direction: Direction,
         selection: &Selection,
     ) -> anyhow::Result<()> {
-        use rand::{seq::SliceRandom, thread_rng};
-        let chars = {
-            let mut chars = ('a'..='z')
-                .interleave('A'..='Z')
-                .interleave('0'..='9')
-                .chain(",.!@##$%^&*()[]{}<>=+/_-;:~`'\"\\|".chars())
-                // 'n' and 'p' are reserved for subsequent jump.
-                .filter(|c| c != &'j' && c != &'J')
-                .collect_vec();
-            chars.shuffle(&mut thread_rng());
-            chars
-        };
+        let chars = Self::jump_characters();
 
         let object = self
             .selection_set
             .mode
             .to_selection_mode_trait_object(&self.buffer(), selection)?;
 
+        let line_range = self.line_range();
         let jumps = object.jumps(
             selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
@@ -818,7 +811,7 @@ impl Editor {
                 cursor_direction: &self.cursor_direction,
             },
             chars,
-            &direction,
+            line_range,
         )?;
         self.mode = Mode::Jump { jumps };
 
@@ -1338,35 +1331,37 @@ impl Editor {
                 key!("esc") => {
                     self.mode = Mode::Normal;
                 }
-                key!('j') => {
-                    if let Some(jump) = jumps
-                        .iter()
-                        .max_by(|a, b| a.selection.range.start.cmp(&b.selection.range.start))
-                    {
-                        self.jump_from_selection(Direction::Right, &jump.selection.clone())?;
-                    }
-                }
-                key!("shift+J") => {
-                    if let Some(jump) = jumps
-                        .iter()
-                        .min_by(|a, b| a.selection.range.end.cmp(&b.selection.range.end))
-                    {
-                        self.jump_from_selection(Direction::Left, &jump.selection.clone())?;
-                    }
-                }
                 key => {
                     let KeyCode::Char(c) = key.code else {return Ok(())};
-                    let matching_jump = jumps.iter().find(|jump| c == jump.character);
-                    if let Some(jump) = matching_jump {
-                        self.update_selection_set(SelectionSet {
-                            primary: Selection {
-                                copied_text: self.selection_set.primary.copied_text.clone(),
-                                ..jump.selection.clone()
-                            },
-                            secondary: vec![],
-                            mode: self.selection_set.mode.clone(),
-                        });
-                        self.mode = Mode::Normal;
+                    let matching_jumps = jumps
+                        .iter()
+                        .filter(|jump| c == jump.character)
+                        .collect_vec();
+                    match matching_jumps.split_first() {
+                        None => {}
+                        Some((jump, [])) => {
+                            self.update_selection_set(SelectionSet {
+                                primary: Selection {
+                                    copied_text: self.selection_set.primary.copied_text.clone(),
+                                    ..jump.selection.clone()
+                                },
+                                secondary: vec![],
+                                mode: self.selection_set.mode.clone(),
+                            });
+                            self.mode = Mode::Normal;
+                        }
+                        Some(_) => {
+                            self.mode = Mode::Jump {
+                                jumps: matching_jumps
+                                    .into_iter()
+                                    .zip(Self::jump_characters().into_iter().cycle())
+                                    .map(|(jump, character)| Jump {
+                                        character,
+                                        ..jump.clone()
+                                    })
+                                    .collect_vec(),
+                            }
+                        }
                     }
                 }
             },
@@ -2360,6 +2355,11 @@ impl Editor {
             .buffer()
             .slice(&self.selection_set.primary.extended_range())?
             .into())
+    }
+
+    fn line_range(&self) -> Range<usize> {
+        let start = self.scroll_offset;
+        start as usize..(start as usize + self.rectangle.height as usize)
     }
 }
 
