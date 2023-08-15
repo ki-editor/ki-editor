@@ -13,9 +13,14 @@ pub struct Match {
     pub line_number: u64,
 }
 
-pub fn run(pattern: &str, path: PathBuf) -> anyhow::Result<Vec<Location>> {
-    let matcher = RegexMatcher::new_line_matcher(pattern)?;
-    let regex = Regex::new(pattern)?;
+pub fn run(pattern: &str, path: PathBuf, escape: bool) -> anyhow::Result<Vec<Location>> {
+    let pattern = if escape {
+        regex::escape(pattern)
+    } else {
+        pattern.to_string()
+    };
+    let matcher = RegexMatcher::new_line_matcher(&pattern)?;
+    let regex = Regex::new(&pattern)?;
     let searcher = SearcherBuilder::new().build();
 
     let (sender, receiver) = crossbeam::channel::unbounded();

@@ -403,7 +403,10 @@ impl<T: Frontend> Screen<T> {
                 }
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
-            Dispatch::OpenGlobalSearchPrompt => self.open_global_search_prompt(),
+            Dispatch::OpenGlobalSearchPrompt(search_kind) => {
+                self.open_global_search_prompt(search_kind)
+            }
+            Dispatch::GlobalSearch(search) => self.global_search(search)?,
         }
         Ok(())
     }
@@ -444,7 +447,7 @@ impl<T: Frontend> Screen<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_global_search_prompt(&mut self) {
+    fn open_global_search_prompt(&mut self, search_kind: SearchKind) {
         let current_component = self.current_component().clone();
         let working_directory = self.working_directory.clone();
         let prompt = Prompt::new(PromptConfig {
@@ -459,13 +462,10 @@ impl<T: Frontend> Screen<T> {
             items: vec![],
             on_text_change: Box::new(|_, _| Ok(vec![])),
             on_enter: Box::new(move |text, _| {
-                let locations = list::grep::run(text, working_directory.clone().into())?;
-                Ok([Dispatch::SetQuickfixList(QuickfixListType::Items(
-                    locations
-                        .into_iter()
-                        .map(|location| QuickfixListItem::new(location, vec![]))
-                        .collect_vec(),
-                ))]
+                Ok([Dispatch::GlobalSearch(Search {
+                    kind: search_kind,
+                    search: text.to_string(),
+                })]
                 .to_vec())
             }),
         });
@@ -922,6 +922,27 @@ impl<T: Frontend> Screen<T> {
     fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
         self.layout.show_keymap_legend(keymap_legend_config)
     }
+
+    fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
+        let working_directory = self.working_directory.clone();
+        let locations = match search.kind {
+            SearchKind::Regex => {
+                list::grep::run(&search.search, working_directory.clone().into(), false)
+            }
+            SearchKind::Literal => {
+                list::grep::run(&search.search, working_directory.clone().into(), true)
+            }
+            SearchKind::AstGrep => {
+                todo!()
+            }
+        }?;
+        self.set_quickfix_list(QuickfixList::new(
+            locations
+                .into_iter()
+                .map(|location| QuickfixListItem::new(location, vec![]))
+                .collect_vec(),
+        ))
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -992,7 +1013,8 @@ pub enum Dispatch {
     DispatchEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),
-    OpenGlobalSearchPrompt,
+    OpenGlobalSearchPrompt(SearchKind),
+    GlobalSearch(Search),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

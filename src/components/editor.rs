@@ -1023,15 +1023,61 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
-    fn find_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
+    fn find_mode_keymap_legend_config(&self) -> anyhow::Result<KeymapLegendConfig> {
+        Ok(KeymapLegendConfig {
             title: "Find by",
             owner_id: self.id(),
-            keymaps: vec![
+            keymaps: [
                 Keymap::new(
                     "a",
                     "AST Grep",
                     Dispatch::OpenSearchPrompt(SearchKind::AstGrep),
+                ),
+                Keymap::new(
+                    "c",
+                    "Current selection",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Match {
+                            search: Search {
+                                kind: SearchKind::Literal,
+                                search: self.current_selection()?,
+                            },
+                        },
+                    )),
+                ),
+                Keymap::new(
+                    "g",
+                    "Global",
+                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                        title: "Find Global",
+                        owner_id: self.id(),
+                        keymaps: [
+                            Keymap::new(
+                                "a",
+                                "AST Grep",
+                                Dispatch::OpenGlobalSearchPrompt(SearchKind::AstGrep),
+                            ),
+                            Keymap::new(
+                                "c",
+                                "Current selection",
+                                Dispatch::GlobalSearch(Search {
+                                    kind: SearchKind::Literal,
+                                    search: self.current_selection()?,
+                                }),
+                            ),
+                            Keymap::new(
+                                "l",
+                                "Literal",
+                                Dispatch::OpenGlobalSearchPrompt(SearchKind::Literal),
+                            ),
+                            Keymap::new(
+                                "r",
+                                "Regex",
+                                Dispatch::OpenGlobalSearchPrompt(SearchKind::Regex),
+                            ),
+                        ]
+                        .to_vec(),
+                    }),
                 ),
                 Keymap::new(
                     "l",
@@ -1039,9 +1085,11 @@ impl Editor {
                     Dispatch::OpenSearchPrompt(SearchKind::Literal),
                 ),
                 Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
-            ],
-        }
+            ]
+            .to_vec(),
+        })
     }
+
     fn space_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space",
@@ -1477,11 +1525,11 @@ impl Editor {
                 .to_vec())
             }
             key!("f") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.find_mode_keymap_legend_config(),
-                )])
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.find_mode_keymap_legend_config()?,
+                )]
+                .to_vec())
             }
-            key!("shift+F") => return Ok([Dispatch::OpenGlobalSearchPrompt].to_vec()),
             key!("g") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.g_mode_keymap_legend_config(),
@@ -1489,7 +1537,6 @@ impl Editor {
             }
             key!("h") => return self.set_selection_mode(context, SelectionMode::GitHunk),
             key!("h") => self.toggle_highlight_mode(),
-            key!('*') => return Ok(vec![Dispatch::ShowKeymapLegend(todo!())]),
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
@@ -2296,6 +2343,13 @@ impl Editor {
             Mode::Insert => "INSERT".to_string(),
             Mode::Jump { .. } => "JUMP".to_string(),
         }
+    }
+
+    fn current_selection(&self) -> anyhow::Result<String> {
+        Ok(self
+            .buffer()
+            .slice(&self.selection_set.primary.extended_range())?
+            .into())
     }
 }
 
