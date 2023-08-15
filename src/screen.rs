@@ -449,9 +449,8 @@ impl<T: Frontend> Screen<T> {
 
     fn open_global_search_prompt(&mut self, search_kind: SearchKind) {
         let current_component = self.current_component().clone();
-        let working_directory = self.working_directory.clone();
-        let prompt = Prompt::new(PromptConfig {
-            title: "Global Search".to_string(),
+        Prompt::new(PromptConfig {
+            title: format!("Global search ({})", search_kind.display()),
             history: self
                 .context
                 .previous_searches()
@@ -933,7 +932,7 @@ impl<T: Frontend> Screen<T> {
                 list::grep::run(&search.search, working_directory.clone().into(), true)
             }
             SearchKind::AstGrep => {
-                todo!()
+                list::ast_grep::run(&search.search, working_directory.clone().into())
             }
         }?;
         self.set_quickfix_list(QuickfixList::new(

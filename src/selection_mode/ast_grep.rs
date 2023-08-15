@@ -1,4 +1,4 @@
-use ast_grep_core::{language::TSLanguage, StrDoc};
+use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
 use super::{ByteRange, SelectionMode};
 
@@ -14,6 +14,9 @@ impl AstGrep {
         let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
         Ok(Self { pattern, grep })
     }
+    pub fn find_all(&self) -> impl Iterator<Item = NodeMatch<StrDoc<TSLanguage>>> {
+        self.grep.root().find_all(self.pattern.clone())
+    }
 }
 
 impl SelectionMode for AstGrep {
@@ -23,10 +26,7 @@ impl SelectionMode for AstGrep {
         _buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(
-            self.grep
-                .root()
-                .find_all(self.pattern.clone())
-                .map(|node| ByteRange::new(node.range())),
+            self.find_all().map(|node| ByteRange::new(node.range())),
         ))
     }
 }
