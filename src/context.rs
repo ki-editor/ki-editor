@@ -30,6 +30,7 @@ pub enum SearchKind {
     Literal,
     Regex,
     AstGrep,
+    IgnoreCase,
 }
 
 impl SearchKind {
@@ -38,6 +39,7 @@ impl SearchKind {
             SearchKind::Literal => "Literal",
             SearchKind::Regex => "Regex",
             SearchKind::AstGrep => "AST Grep",
+            SearchKind::IgnoreCase => "Ignore Case",
         }
     }
 }

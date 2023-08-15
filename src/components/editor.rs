@@ -1039,7 +1039,7 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::Match {
                             search: Search {
-                                kind: SearchKind::Literal,
+                                kind: SearchKind::IgnoreCase,
                                 search: self.current_selection()?,
                             },
                         },
@@ -1061,9 +1061,14 @@ impl Editor {
                                 "c",
                                 "Current selection",
                                 Dispatch::GlobalSearch(Search {
-                                    kind: SearchKind::Literal,
+                                    kind: SearchKind::IgnoreCase,
                                     search: self.current_selection()?,
                                 }),
+                            ),
+                            Keymap::new(
+                                "i",
+                                "Ignore case",
+                                Dispatch::OpenGlobalSearchPrompt(SearchKind::IgnoreCase),
                             ),
                             Keymap::new(
                                 "l",
@@ -1078,6 +1083,11 @@ impl Editor {
                         ]
                         .to_vec(),
                     }),
+                ),
+                Keymap::new(
+                    "i",
+                    "Ignore case",
+                    Dispatch::OpenSearchPrompt(SearchKind::IgnoreCase),
                 ),
                 Keymap::new(
                     "l",

@@ -5,7 +5,10 @@ use regex::Regex;
 
 use std::path::PathBuf;
 
-use crate::{buffer::Buffer, canonicalized_path::CanonicalizedPath, quickfix_list::Location};
+use crate::{
+    buffer::Buffer, canonicalized_path::CanonicalizedPath, quickfix_list::Location,
+    selection_mode::regex::get_regex,
+};
 
 #[derive(Debug)]
 pub struct Match {
@@ -13,12 +16,15 @@ pub struct Match {
     pub line_number: u64,
 }
 
-pub fn run(pattern: &str, path: PathBuf, escape: bool) -> anyhow::Result<Vec<Location>> {
-    let pattern = if escape {
-        regex::escape(pattern)
-    } else {
-        pattern.to_string()
-    };
+pub fn run(
+    pattern: &str,
+    path: PathBuf,
+    escape: bool,
+    ignore_case: bool,
+) -> anyhow::Result<Vec<Location>> {
+    let pattern = get_regex(pattern, escape, ignore_case)?
+        .as_str()
+        .to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
     let searcher = SearcherBuilder::new().build();

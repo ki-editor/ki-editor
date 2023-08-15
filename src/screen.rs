@@ -925,14 +925,23 @@ impl<T: Frontend> Screen<T> {
     fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
         let locations = match search.kind {
-            SearchKind::Regex => {
-                list::grep::run(&search.search, working_directory.clone().into(), false)
-            }
-            SearchKind::Literal => {
-                list::grep::run(&search.search, working_directory.clone().into(), true)
-            }
+            SearchKind::Regex => list::grep::run(
+                &search.search,
+                working_directory.clone().into(),
+                false,
+                false,
+            ),
+            SearchKind::Literal => list::grep::run(
+                &search.search,
+                working_directory.clone().into(),
+                true,
+                false,
+            ),
             SearchKind::AstGrep => {
                 list::ast_grep::run(&search.search, working_directory.clone().into())
+            }
+            SearchKind::IgnoreCase => {
+                list::grep::run(&search.search, working_directory.clone().into(), true, true)
             }
         }?;
         self.set_quickfix_list(QuickfixList::new(

@@ -6,14 +6,28 @@ pub struct Regex {
     regex: regex::Regex,
     content: String,
 }
+pub fn get_regex(pattern: &str, escape: bool, ignore_case: bool) -> anyhow::Result<regex::Regex> {
+    let pattern = if escape {
+        regex::escape(pattern)
+    } else {
+        pattern.to_string()
+    };
+    let pattern = if ignore_case {
+        format!("(?i){}", pattern)
+    } else {
+        pattern
+    };
+    Ok(regex::Regex::new(&pattern)?)
+}
 
 impl Regex {
-    pub fn new(buffer: &Buffer, regex: &str, escape: bool) -> anyhow::Result<Self> {
-        let regex = if escape {
-            regex::Regex::new(&regex::escape(regex))?
-        } else {
-            regex::Regex::new(regex)?
-        };
+    pub fn new(
+        buffer: &Buffer,
+        pattern: &str,
+        escape: bool,
+        ignore_case: bool,
+    ) -> anyhow::Result<Self> {
+        let regex = get_regex(pattern, escape, ignore_case)?;
         Ok(Self {
             regex,
             content: buffer.rope().to_string(),

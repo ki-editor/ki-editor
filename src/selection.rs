@@ -261,24 +261,37 @@ impl SelectionMode {
                 buffer,
                 r"[a-z]+|[A-Z]+[a-z]*|[0-9]+",
                 false,
+                true,
             )?),
             SelectionMode::Line => Box::new(selection_mode::Line),
             SelectionMode::Character => {
-                Box::new(selection_mode::Regex::new(buffer, r"(?s).", false)?)
+                Box::new(selection_mode::Regex::new(buffer, r"(?s).", false, true)?)
             }
             SelectionMode::Custom => {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
             SelectionMode::Match { search } => match search.kind {
-                SearchKind::Literal => {
-                    Box::new(selection_mode::Regex::new(buffer, &search.search, true)?)
-                }
-                SearchKind::Regex => {
-                    Box::new(selection_mode::Regex::new(buffer, &search.search, false)?)
-                }
+                SearchKind::Literal => Box::new(selection_mode::Regex::new(
+                    buffer,
+                    &search.search,
+                    true,
+                    false,
+                )?),
+                SearchKind::Regex => Box::new(selection_mode::Regex::new(
+                    buffer,
+                    &search.search,
+                    false,
+                    false,
+                )?),
                 SearchKind::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
+                SearchKind::IgnoreCase => Box::new(selection_mode::Regex::new(
+                    buffer,
+                    &search.search,
+                    true,
+                    true,
+                )?),
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::LargestNode => Box::new(selection_mode::LargestNode),
