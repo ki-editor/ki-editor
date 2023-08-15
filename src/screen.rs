@@ -449,7 +449,7 @@ impl<T: Frontend> Screen<T> {
 
     fn open_global_search_prompt(&mut self, search_kind: SearchKind) {
         let current_component = self.current_component().clone();
-        Prompt::new(PromptConfig {
+        let prompt = Prompt::new(PromptConfig {
             title: format!("Global search ({})", search_kind.display()),
             history: self
                 .context
