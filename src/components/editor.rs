@@ -489,7 +489,7 @@ pub struct Editor {
     id: ComponentId,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CursorDirection {
     Start,
     End,
@@ -1178,6 +1178,9 @@ impl Editor {
             DispatchEditor::SetSelectionMode(selection_mode) => {
                 return self.set_selection_mode(context, selection_mode)
             }
+            DispatchEditor::EnterInsertMode(cursor_direction) => {
+                self.enter_insert_mode(cursor_direction)
+            }
         }
         Ok([].to_vec())
     }
@@ -1204,6 +1207,28 @@ impl Editor {
                 )
             })
             .collect_vec(),
+        }
+    }
+
+    fn insert_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Insert",
+            owner_id: self.id(),
+            keymaps: [
+                Keymap::new(
+                    "n",
+                    "End of selection",
+                    Dispatch::DispatchEditor(DispatchEditor::EnterInsertMode(CursorDirection::End)),
+                ),
+                Keymap::new(
+                    "p",
+                    "Opening of selection",
+                    Dispatch::DispatchEditor(DispatchEditor::EnterInsertMode(
+                        CursorDirection::Start,
+                    )),
+                ),
+            ]
+            .to_vec(),
         }
     }
 
@@ -1544,8 +1569,12 @@ impl Editor {
             key!("h") => return self.set_selection_mode(context, SelectionMode::GitHunk),
             key!("h") => self.toggle_highlight_mode(),
             // H
-            key!("i") => self.enter_insert_mode(CursorDirection::End),
-            key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
+            key!("i") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.insert_mode_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
             key!("j") => self.jump()?,
 
             key!("k") => self.mode = Mode::Kill,
@@ -2438,6 +2467,7 @@ pub enum DispatchEditor {
     AlignViewBottom,
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
+    EnterInsertMode(CursorDirection),
 }
 
 #[cfg(test)]
