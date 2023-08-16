@@ -1,6 +1,7 @@
 use crate::{
     canonicalized_path::CanonicalizedPath,
     char_index_range::CharIndexRange,
+    components::suggestive_editor::Decoration,
     edit::{Edit, EditTransaction},
     language::{self, Language},
     lsp::diagnostic::Diagnostic,
@@ -34,6 +35,7 @@ pub struct Buffer {
     highlighted_spans: Arc<RwLock<Vec<HighlighedSpan>>>,
     theme: Theme,
     bookmarks: Vec<CharIndexRange>,
+    decorations: Vec<Decoration>,
 }
 
 impl Buffer {
@@ -54,7 +56,14 @@ impl Buffer {
             highlighted_spans: Arc::new(RwLock::new(Vec::new())),
             theme: Theme::default(),
             bookmarks: Vec::new(),
+            decorations: Vec::new(),
         }
+    }
+    pub fn decorations(&self) -> &Vec<Decoration> {
+        &self.decorations
+    }
+    pub fn add_decorations(&mut self, decorations: Vec<Decoration>) {
+        self.decorations.extend(decorations);
     }
 
     pub fn save_bookmarks(&mut self, ranges: Vec<CharIndexRange>) {

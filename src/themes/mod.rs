@@ -11,6 +11,19 @@ pub struct Theme {
     pub diagnostic: DiagnosticStyles,
 }
 
+#[derive(Clone)]
+pub enum StyleKey {
+    UiPrimarySelection,
+}
+
+impl StyleKey {
+    pub fn get_style(&self, theme: &Theme) -> Style {
+        match self {
+            StyleKey::UiPrimarySelection => theme.ui.primary_selection,
+        }
+    }
+}
+
 impl Default for Theme {
     fn default() -> Self {
         VSCODE_LIGHT

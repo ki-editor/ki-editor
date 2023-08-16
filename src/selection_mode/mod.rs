@@ -31,7 +31,7 @@ use crate::{
     selection::Selection,
 };
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ByteRange {
     range: Range<usize>,
     info: Option<String>,

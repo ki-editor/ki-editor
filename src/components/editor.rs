@@ -300,6 +300,18 @@ impl Component for Editor {
                         .symbol(jump.character.to_string()),
                 )
             });
+        let extra_decorations = buffer
+            .decorations()
+            .into_iter()
+            .flat_map(|decoration| {
+                Some(range_to_cell_update(
+                    &buffer,
+                    decoration.byte_range.to_char_index_range(&buffer).ok()?,
+                    decoration.style_key.get_style(theme),
+                ))
+            })
+            .flatten()
+            .collect_vec();
         let updates = vec![]
             .into_iter()
             .chain(bookmarks)
@@ -310,6 +322,7 @@ impl Component for Editor {
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
+            .chain(extra_decorations)
             .filter_map(|update| {
                 let update = update.subtract_vertical_offset(scroll_offset.into())?;
                 Some(CellUpdate {
@@ -2470,6 +2483,10 @@ impl Editor {
             }
             _ => Ok(Vec::new()),
         }
+    }
+
+    pub fn add_decorations(&mut self, decorations: Vec<super::suggestive_editor::Decoration>) {
+        self.buffer.borrow_mut().add_decorations(decorations)
     }
 }
 

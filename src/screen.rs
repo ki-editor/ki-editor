@@ -22,7 +22,7 @@ use crate::{
         editor::{Direction, DispatchEditor},
         keymap_legend::KeymapLegendConfig,
         prompt::{Prompt, PromptConfig},
-        suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
+        suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
     },
     context::{Context, GlobalMode, Search, SearchKind},
     frontend::frontend::Frontend,
@@ -713,7 +713,14 @@ impl<T: Frontend> Screen<T> {
             LspNotification::Hover(component_id, hover) => {
                 self.get_suggestive_editor(component_id)?
                     .borrow_mut()
-                    .show_info("Hover info", hover.contents.join("\n\n"));
+                    .show_infos(
+                        "Hover info",
+                        [Info {
+                            content: hover.contents.join("\n\n"),
+                            decorations: Vec::new(),
+                        }]
+                        .to_vec(),
+                    );
                 Ok(())
             }
             LspNotification::Definition(_component_id, response) => {
