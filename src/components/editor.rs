@@ -47,6 +47,7 @@ pub enum Mode {
     Jump { jumps: Vec<Jump> },
     Kill,
     AddCursor,
+    FindOneChar,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -1085,6 +1086,11 @@ impl Editor {
                     Dispatch::OpenSearchPrompt(SearchKind::Literal),
                 ),
                 Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
+                Keymap::new(
+                    "o",
+                    "One character",
+                    Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
+                ),
             ]
             .to_vec(),
         })
@@ -1181,6 +1187,7 @@ impl Editor {
             DispatchEditor::EnterInsertMode(cursor_direction) => {
                 self.enter_insert_mode(cursor_direction)
             }
+            DispatchEditor::FindOneChar => self.enter_single_character_mode(),
         }
         Ok([].to_vec())
     }
@@ -1301,6 +1308,7 @@ impl Editor {
                     self.handle_add_cursor_mode(key_event)?;
                     Ok(Vec::new())
                 }
+                Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
             },
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
         }
@@ -2371,6 +2379,7 @@ impl Editor {
             Mode::Jump { .. } => "JUMP".to_string(),
             Mode::Kill => "KILL".to_string(),
             Mode::AddCursor => "ADD CURSOR".to_string(),
+            Mode::FindOneChar => "FIND ONE CHAR".to_string(),
         }
     }
 
@@ -2432,6 +2441,36 @@ impl Editor {
         self.selection_set.only();
         self.enter_normal_mode()
     }
+
+    fn enter_single_character_mode(&mut self) {
+        self.mode = Mode::FindOneChar;
+    }
+
+    fn handle_find_one_char_mode(
+        &mut self,
+        context: &mut Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        match key_event.code {
+            KeyCode::Char(c) => {
+                self.enter_normal_mode()?;
+                self.set_selection_mode(
+                    context,
+                    SelectionMode::Match {
+                        search: Search {
+                            search: c.to_string(),
+                            kind: SearchKind::Literal,
+                        },
+                    },
+                )
+            }
+            KeyCode::Esc => {
+                self.enter_normal_mode()?;
+                Ok(Vec::new())
+            }
+            _ => Ok(Vec::new()),
+        }
+    }
 }
 
 enum Enclosure {
@@ -2468,6 +2507,7 @@ pub enum DispatchEditor {
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
     EnterInsertMode(CursorDirection),
+    FindOneChar,
 }
 
 #[cfg(test)]
