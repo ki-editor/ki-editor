@@ -46,6 +46,7 @@ pub enum Mode {
     Insert,
     Jump { jumps: Vec<Jump> },
     Kill,
+    AddCursor,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -663,7 +664,7 @@ impl Editor {
 
     fn reset(&mut self) -> anyhow::Result<()> {
         self.select(self.selection_set.mode.clone(), Direction::Current)?;
-        self.selection_set.reset();
+        self.selection_set.only();
         Ok(())
     }
 
@@ -1271,6 +1272,10 @@ impl Editor {
                     Ok(vec![])
                 }
                 Mode::Kill => self.handle_kill_mode(key_event),
+                Mode::AddCursor => {
+                    self.handle_add_cursor_mode(key_event)?;
+                    Ok(Vec::new())
+                }
             },
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
         }
@@ -1512,10 +1517,10 @@ impl Editor {
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
             }
             // Objects
-            key!("a") => self.add_selection()?,
+            key!("a") => self.mode = Mode::AddCursor,
             key!("ctrl+b") => self.save_bookmarks(),
             key!("b") => return self.set_selection_mode(context, SelectionMode::Bookmark),
-            key!("shift+A") => self.add_selection()?,
+
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             key!("d") => return self.select_direction(context, Direction::Down),
 
@@ -1594,7 +1599,6 @@ impl Editor {
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
             // y
             // z
-            key!("0") => self.reset()?,
             key!("backspace") => {
                 self.change();
             }
@@ -1647,14 +1651,6 @@ impl Editor {
 
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         self.mode = Mode::Normal;
-
-        self.selection_set = SelectionSet {
-            primary: Selection {
-                range: self.selection_set.primary.range - 1,
-                ..self.selection_set.primary.clone()
-            },
-            ..self.selection_set.clone()
-        };
 
         Ok(())
     }
@@ -1863,9 +1859,12 @@ impl Editor {
         self.replace_faultlessly(&mode, direction)
     }
 
-    fn add_selection(&mut self) -> anyhow::Result<()> {
-        self.selection_set
-            .add_selection(&self.buffer.borrow(), &self.cursor_direction)?;
+    fn add_selection(&mut self, direction: &Direction) -> anyhow::Result<()> {
+        self.selection_set.add_selection(
+            &self.buffer.borrow(),
+            direction,
+            &self.cursor_direction,
+        )?;
         self.recalculate_scroll_offset();
         Ok(())
     }
@@ -2342,6 +2341,7 @@ impl Editor {
             Mode::Insert => "INSERT".to_string(),
             Mode::Jump { .. } => "JUMP".to_string(),
             Mode::Kill => "KILL".to_string(),
+            Mode::AddCursor => "ADD CURSOR".to_string(),
         }
     }
 
@@ -2372,6 +2372,36 @@ impl Editor {
             key!("p") => Ok(self.kill(Direction::Left)),
             _ => Ok(Vec::new()),
         }
+    }
+
+    fn handle_add_cursor_mode(&mut self, key_event: KeyEvent) -> Result<(), anyhow::Error> {
+        match key_event {
+            key!("esc") => self.enter_normal_mode(),
+            key!("a") => self.add_cursor_to_all_selections(),
+            // todo: delete primary cursor does not work as expected, we need another editr cursor mode
+            key!("d") => self.delete_primary_cursor(),
+            key!("n") => self.add_selection(&Direction::Right),
+            key!("o") => self.only_current_cursor(),
+            key!("p") => self.add_selection(&Direction::Left),
+            _ => Ok(()),
+        }
+    }
+
+    fn delete_primary_cursor(&mut self) -> Result<(), anyhow::Error> {
+        self.selection_set.delete_primary_cursor();
+        Ok(())
+    }
+
+    fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
+        self.selection_set.add_all(&self.buffer.borrow())?;
+        self.recalculate_scroll_offset();
+        self.enter_normal_mode()?;
+        Ok(())
+    }
+
+    fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
+        self.selection_set.only();
+        self.enter_normal_mode()
     }
 }
 

@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 use selection_mode::SelectionMode as SelectionModeTrait;
 use std::ops::{Add, Range, Sub};
@@ -41,7 +42,7 @@ impl SelectionSet {
             .collect()
     }
 
-    pub fn reset(&mut self) {
+    pub fn only(&mut self) {
         self.secondary.clear();
         self.primary.initial_range = None;
     }
@@ -162,24 +163,55 @@ impl SelectionSet {
     pub fn add_selection(
         &mut self,
         buffer: &Buffer,
+        direction: &Direction,
         cursor_direction: &CursorDirection,
     ) -> anyhow::Result<()> {
         let last_selection = &self.primary;
+
         let next_selection = Selection::get_selection_(
             buffer,
             last_selection,
             &self.mode,
-            &Direction::Right,
+            direction,
             cursor_direction,
         )?;
 
-        if next_selection.range == last_selection.range {
-            return Ok(());
-        }
-
+        let matching_index =
+            self.secondary.iter().enumerate().find(|(_, selection)| {
+                selection.extended_range() == next_selection.extended_range()
+            });
         let previous_primary = std::mem::replace(&mut self.primary, next_selection);
 
+        if let Some((matching_index, _)) = matching_index {
+            log::info!("Remove = {}", matching_index);
+            self.secondary.remove(matching_index);
+        }
+
+        log::info!("Push");
         self.secondary.push(previous_primary);
+
+        Ok(())
+    }
+
+    pub fn add_all(&mut self, buffer: &Buffer) -> anyhow::Result<()> {
+        let object = self
+            .mode
+            .to_selection_mode_trait_object(buffer, &self.primary)?;
+        let primary = self.primary.clone();
+        match object
+            .iter(&primary, buffer)?
+            .filter_map(|range| -> Option<Selection> {
+                range.to_selection(buffer, &self.primary).ok()
+            })
+            .collect_vec()
+            .split_first()
+        {
+            Some((head, tail)) => {
+                self.primary = head.to_owned();
+                self.secondary = tail.to_vec();
+            }
+            None => {}
+        };
         Ok(())
     }
 
@@ -191,6 +223,22 @@ impl SelectionSet {
         self.apply(self.mode.clone(), |selection| {
             Ok(selection.clamp(max_char_index))
         })
+    }
+
+    pub fn delete_primary_cursor(&mut self) {
+        let nearest = self
+            .secondary
+            .iter()
+            .enumerate()
+            .sorted_by_key(|(_, selection)| {
+                ((self.primary.extended_range().start.0 as isize)
+                    - (selection.extended_range().start.0 as isize))
+                    .abs()
+            })
+            .next();
+        if let Some((index, _)) = nearest {
+            self.primary = self.secondary.remove(index);
+        }
     }
 }
 

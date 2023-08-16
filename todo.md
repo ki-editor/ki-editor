@@ -123,6 +123,20 @@
 - [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
 - [] filter selections/quickfix-list: useful for multi-cursor
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
-- [] feat(editor): global literal search
-- [] feat(editor): global ast-grep search
+- [x] feat(editor): global literal search
+- [x] feat(editor): global ast-grep search
 - [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary
+- [x] feat(editor): add cursor mode, n = add next, p = add previous
+- [] feat(edtior): add editor cursor mode, ae, where n/p = go to next/previous cursor, d = delete current cursor
+- [] feat(editor): remove shift+i by replacing it with ip, in
+- [] feat(editor): remove down/up movement, make u = select_parent, d = diagnostics
+- [] feat(editor): scroll mode, press vs to enter scroll mode
+- [] feat(g): 'go' for opened editors
+- [] feat(g): 'gh' for global git hunks
+- [] feat(key): change ctrl+t to space-t
+- [] feat(space-f): for file mode, r = rename, k = kill (delete), a = add, s = save
+- [] feat: command mode (for exiting editor, save all file etc)
+- [] feat: change k to d, because d is easier to reach in Dvorak, and d (delete) is a more straightforward mnemonics than k (kill)
+- [] feat(doc): add motto about having no shift keys for key bindings
+- [] feat(f): hide built-in regex like word and character under f, then we can add more like numbers, dates, etc
+- [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode

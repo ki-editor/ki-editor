@@ -47,7 +47,7 @@ impl ByteRange {
             info: Some(info),
         }
     }
-    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+    pub fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
         Ok((buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?).into())
     }
 
@@ -58,7 +58,7 @@ impl ByteRange {
         }
     }
 
-    fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
+    pub fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
         Ok(Selection {
             range: self.to_char_index_range(buffer)?,
             info: self.info,
@@ -162,7 +162,6 @@ pub trait SelectionMode {
             buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
         Ok(self
             .right_iter(&params)?
-            .filter(|range| range.range.start <= current_line_range.range.end)
             .last()
             .and_then(|range| {
                 range
@@ -207,7 +206,6 @@ pub trait SelectionMode {
             buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
         Ok(self
             .left_iter(&params)?
-            .filter(|range| current_line_range.range.start <= range.range.start)
             .last()
             .and_then(|range| {
                 range
