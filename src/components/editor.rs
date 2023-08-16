@@ -4,8 +4,7 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
     screen::RequestParams,
-    selection_mode,
-    soft_wrap::{self, WrappedLines},
+    selection_mode, soft_wrap,
     themes::Theme,
 };
 use std::{
@@ -20,7 +19,7 @@ use event::KeyEvent;
 use itertools::{Either, Itertools};
 use lsp_types::DiagnosticSeverity;
 use my_proc_macros::{hex, key};
-use ropey::{Rope, RopeSlice};
+use ropey::Rope;
 use tree_sitter::Node;
 
 use crate::{
@@ -46,6 +45,7 @@ pub enum Mode {
     Normal,
     Insert,
     Jump { jumps: Vec<Jump> },
+    Kill,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -791,11 +791,7 @@ impl Editor {
         ('a'..='z').collect_vec()
     }
 
-    fn jump_from_selection(
-        &mut self,
-        direction: Direction,
-        selection: &Selection,
-    ) -> anyhow::Result<()> {
+    fn jump_from_selection(&mut self, selection: &Selection) -> anyhow::Result<()> {
         let chars = Self::jump_characters();
 
         let object = self
@@ -818,8 +814,8 @@ impl Editor {
         Ok(())
     }
 
-    fn jump(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.jump_from_selection(direction, &self.selection_set.primary.clone())
+    fn jump(&mut self) -> anyhow::Result<()> {
+        self.jump_from_selection(&self.selection_set.primary.clone())
     }
 
     fn cut(&mut self, context: &mut Context) -> anyhow::Result<Vec<Dispatch>> {
@@ -1274,9 +1270,9 @@ impl Editor {
                     self.handle_jump_mode(key_event)?;
                     Ok(vec![])
                 }
+                Mode::Kill => self.handle_kill_mode(key_event),
             },
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
-            _ => Ok(vec![]),
         }
     }
 
@@ -1545,11 +1541,9 @@ impl Editor {
             // H
             key!("i") => self.enter_insert_mode(CursorDirection::End),
             key!("shift+I") => self.enter_insert_mode(CursorDirection::Start),
-            key!("j") => self.jump(Direction::Right)?,
-            key!("shift+J") => self.jump(Direction::Left)?,
+            key!("j") => self.jump()?,
 
-            key!("k") => return Ok(self.kill(Direction::Right)),
-            key!("shift+K") => return Ok(self.kill(Direction::Left)),
+            key!("k") => self.mode = Mode::Kill,
             // TODO: rebind
             key!("k") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
@@ -2347,6 +2341,7 @@ impl Editor {
             }
             Mode::Insert => "INSERT".to_string(),
             Mode::Jump { .. } => "JUMP".to_string(),
+            Mode::Kill => "KILL".to_string(),
         }
     }
 
@@ -2360,6 +2355,23 @@ impl Editor {
     fn line_range(&self) -> Range<usize> {
         let start = self.scroll_offset;
         start as usize..(start as usize + self.rectangle.height as usize)
+    }
+
+    fn handle_kill_mode(&mut self, key_event: KeyEvent) -> Result<Vec<Dispatch>, anyhow::Error> {
+        match key_event {
+            key!("esc") => {
+                self.enter_normal_mode()?;
+                Ok(Vec::new())
+            }
+            key!("k") => {
+                let dispatches = self.kill(Direction::Current);
+                self.enter_normal_mode()?;
+                Ok(dispatches)
+            }
+            key!("n") => Ok(self.kill(Direction::Right)),
+            key!("p") => Ok(self.kill(Direction::Left)),
+            _ => Ok(Vec::new()),
+        }
     }
 }
 
