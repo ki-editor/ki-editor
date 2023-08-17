@@ -570,7 +570,7 @@ impl<T: Frontend> Screen<T> {
 
         let working_directory = self.working_directory.clone();
         let prompt = Prompt::new(PromptConfig {
-            title: "Open File".to_string(),
+            title: format!("Open file: {}", kind.display()),
             history: vec![],
             owner: current_component,
             on_enter: Box::new(move |current_item, _| {
@@ -978,6 +978,15 @@ pub enum FilePickerKind {
     NonGitIgnored,
     GitStatus,
     Opened,
+}
+impl FilePickerKind {
+    pub fn display(&self) -> String {
+        match self {
+            FilePickerKind::NonGitIgnored => "Not Git Ignored".to_string(),
+            FilePickerKind::GitStatus => "Git Status".to_string(),
+            FilePickerKind::Opened => "Opened".to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

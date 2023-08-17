@@ -132,8 +132,7 @@ impl<T: DropdownItem> Dropdown<T> {
 
     fn show_info(&mut self, info: Option<String>) {
         match info {
-            None => self.info_panel = None,
-            Some(info) => {
+            Some(info) if !info.is_empty() => {
                 let info_panel = match self.info_panel.take() {
                     Some(info_panel) => info_panel,
                     None => Rc::new(RefCell::new(Editor::from_text(
@@ -145,6 +144,7 @@ impl<T: DropdownItem> Dropdown<T> {
                 info_panel.borrow_mut().set_content(&info);
                 self.info_panel = Some(info_panel);
             }
+            _ => self.info_panel = None,
         }
     }
 

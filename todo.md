@@ -146,3 +146,4 @@
   under layer
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
+- [] feat(keymap): zn/zf = last selection / first selection 

@@ -1302,24 +1302,6 @@ impl Editor {
                             Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
                         ),
                         Keymap::new(
-                            "f",
-                            "Files",
-                            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                                title: "Get files",
-                                owner_id: self.id(),
-                                keymaps: [
-                                    ("n", "Not git ignored", FilePickerKind::NonGitIgnored),
-                                    ("o", "Opened", FilePickerKind::Opened),
-                                    ("s", "Git status", FilePickerKind::GitStatus),
-                                ]
-                                .into_iter()
-                                .map(|(key, description, kind)| {
-                                    Keymap::new(key, description, Dispatch::OpenFilePicker(kind))
-                                })
-                                .collect_vec(),
-                            }),
-                        ),
-                        Keymap::new(
                             "i",
                             "Implementation(s)",
                             Dispatch::RequestImplementations(params.clone()),
@@ -1340,7 +1322,19 @@ impl Editor {
                             Dispatch::RequestTypeDefinitions(params),
                         ),
                     ]
-                    .to_vec()
+                    .into_iter()
+                    .chain(
+                        [
+                            ("g", "Git status", FilePickerKind::GitStatus),
+                            ("n", "Not git ignored", FilePickerKind::NonGitIgnored),
+                            ("o", "Opened", FilePickerKind::Opened),
+                        ]
+                        .into_iter()
+                        .map(|(key, description, kind)| {
+                            Keymap::new(key, description, Dispatch::OpenFilePicker(kind))
+                        }),
+                    )
+                    .collect_vec()
                 })
                 .unwrap_or_default(),
         }
