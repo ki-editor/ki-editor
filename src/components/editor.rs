@@ -1152,6 +1152,13 @@ impl Editor {
                                     "Code Actions",
                                     Dispatch::RequestCodeAction(params),
                                 ),
+                                Keymap::new(
+                                    "t",
+                                    "Transform",
+                                    Dispatch::ShowKeymapLegend(
+                                        self.transform_keymap_legend_config(),
+                                    ),
+                                ),
                             ]
                             .to_vec()
                         })
@@ -1669,12 +1676,7 @@ impl Editor {
             key!("r") => return Ok(self.replace()),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
-            key!("ctrl+t") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.transform_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
+
             key!("u") => return self.select_direction(context, Direction::Up),
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
