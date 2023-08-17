@@ -1098,12 +1098,38 @@ impl Editor {
                     "Literal",
                     Dispatch::OpenSearchPrompt(SearchKind::Literal),
                 ),
-                Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
+                Keymap::new(
+                    "n",
+                    "Number",
+                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                        title: "Find number",
+                        owner_id: self.id(),
+                        keymaps: [
+                            ("f", "Float", r"[-+]?\d*\.\d+|\d+"),
+                            ("i", "Integer", r"-?\d+"),
+                            ("n", "Natural", r"\d+"),
+                            ("s", "Scientific", r"[-+]?\d*\.?\d+[eE][-+]?\d+"),
+                        ]
+                        .into_iter()
+                        .map(|(key, description, regex)| {
+                            let search = Search {
+                                search: regex.to_string(),
+                                kind: SearchKind::Regex,
+                            };
+                            let dispatch = Dispatch::DispatchEditor(
+                                DispatchEditor::SetSelectionMode(SelectionMode::Match { search }),
+                            );
+                            Keymap::new(key, description, dispatch)
+                        })
+                        .collect_vec(),
+                    }),
+                ),
                 Keymap::new(
                     "o",
                     "One character",
                     Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
                 ),
+                Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
             ]
             .to_vec(),
         })
