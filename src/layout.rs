@@ -333,6 +333,13 @@ impl Layout {
                 .map(|editor| editor.borrow().id())
         }
     }
+
+    pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
+        self.background_suggestive_editors
+            .iter()
+            .filter_map(|editor| editor.borrow().editor().buffer().path().map(|path| path))
+            .collect()
+    }
 }
 
 #[cfg(test)]

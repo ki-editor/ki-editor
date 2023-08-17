@@ -100,7 +100,7 @@ impl<T: Frontend> Screen<T> {
         if let Some(entry_path) = entry_path {
             self.open_file(&entry_path, true)?;
         } else {
-            self.open_file_picker()?;
+            self.open_file_picker(FilePickerKind::NonGitIgnored)?;
         }
 
         self.render()?;
@@ -335,8 +335,8 @@ impl<T: Frontend> Screen<T> {
                 self.open_file(&path, true)?;
             }
 
-            Dispatch::OpenFilePicker => {
-                self.open_file_picker()?;
+            Dispatch::OpenFilePicker(kind) => {
+                self.open_file_picker(kind)?;
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
@@ -573,7 +573,7 @@ impl<T: Frontend> Screen<T> {
         Ok(())
     }
 
-    fn open_file_picker(&mut self) -> anyhow::Result<()> {
+    fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
         let current_component = self.current_component().clone();
 
         let working_directory = self.working_directory.clone();
@@ -587,74 +587,28 @@ impl<T: Frontend> Screen<T> {
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             items: {
-                use git2::{Repository, StatusOptions};
-
-                let git_status_files = {
-                    let repo = Repository::open(&self.working_directory)?;
-                    let mut opts = StatusOptions::new();
-                    opts.include_untracked(true);
-                    opts.include_ignored(false);
-                    let statuses = repo.statuses(Some(&mut opts))?;
-                    statuses
-                        .iter()
-                        .filter(|entry| !entry.status().is_ignored())
-                        .filter_map(|entry| entry.path().map(|path| path.to_owned()))
-                        .filter_map(|path| {
-                            Some(CompletionItem {
-                                label: CanonicalizedPath::try_from(&path)
-                                    .ok()?
-                                    .display_relative()
-                                    .ok()?,
-                                documentation: None,
-                                sort_text: None,
-                                edit: None,
-                            })
-                        })
-                        .collect::<Vec<_>>()
-                };
-
-                let git_files = {
-                    let repo = git2::Repository::open(&self.working_directory)?;
-
-                    // Get the current branch name
-                    let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {
-                        Err(anyhow!(
-                            "Couldn't find HEAD for repository {}",
-                            repo.path().display(),
-                        ))
-                    })?;
-
-                    // Get the generic object of the current branch
-                    let object = repo.find_object(head, None)?;
-
-                    // Get the tree object of the current branch
-                    let tree = object.peel_to_tree()?;
-
-                    let mut result = vec![];
-                    // Iterate over the tree entries and print their names
-                    tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
-                        let entry_name = entry.name().unwrap_or_default();
-                        let name = Path::new(root).join(entry_name);
-                        let name = name.to_string_lossy();
-                        result.push(name.to_string());
-                        git2::TreeWalkResult::Ok
-                    })?;
-
-                    result
+                match kind {
+                    FilePickerKind::NonGitIgnored => {
+                        list::non_gitignore_files::non_git_ignored_files(&self.working_directory)?
+                    }
+                    FilePickerKind::GitStatus => {
+                        list::git_status_files::git_status_files(&self.working_directory)?
+                    }
+                    FilePickerKind::Opened => self
+                        .layout
+                        .get_opened_files()
                         .into_iter()
-                        .map(|word| CompletionItem {
-                            label: word,
-                            documentation: None,
-                            sort_text: None,
-                            edit: None,
-                        })
-                        .collect_vec()
-                };
-                git_files
-                    .into_iter()
-                    .chain(git_status_files)
-                    .unique_by(|item| item.label.clone())
-                    .collect_vec()
+                        .filter_map(|path| path.display_relative_to(&self.working_directory).ok())
+                        .collect_vec(),
+                }
+                .into_iter()
+                .map(|item| CompletionItem {
+                    label: item,
+                    documentation: None,
+                    sort_text: None,
+                    edit: None,
+                })
+                .collect_vec()
             },
         });
         self.layout
@@ -985,7 +939,7 @@ pub enum Dispatch {
         change_focused_to: Option<ComponentId>,
     },
     SetSearch(Search),
-    OpenFilePicker,
+    OpenFilePicker(FilePickerKind),
     OpenSearchPrompt(SearchKind),
     OpenFile {
         path: CanonicalizedPath,
@@ -1030,6 +984,13 @@ pub enum Dispatch {
     GotoLocation(Location),
     OpenGlobalSearchPrompt(SearchKind),
     GlobalSearch(Search),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FilePickerKind {
+    NonGitIgnored,
+    GitStatus,
+    Opened,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

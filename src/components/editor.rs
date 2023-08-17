@@ -3,7 +3,7 @@ use crate::{
     char_index_range::CharIndexRange,
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
-    screen::RequestParams,
+    screen::{FilePickerKind, RequestParams},
     selection_mode, soft_wrap,
     themes::Theme,
 };
@@ -1301,7 +1301,24 @@ impl Editor {
                             "Errors",
                             Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
                         ),
-                        Keymap::new("f", "Files (not git-ignored)", Dispatch::OpenFilePicker),
+                        Keymap::new(
+                            "f",
+                            "Files",
+                            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                                title: "Get files",
+                                owner_id: self.id(),
+                                keymaps: [
+                                    ("n", "Not git ignored", FilePickerKind::NonGitIgnored),
+                                    ("o", "Opened", FilePickerKind::Opened),
+                                    ("s", "Git status", FilePickerKind::GitStatus),
+                                ]
+                                .into_iter()
+                                .map(|(key, description, kind)| {
+                                    Keymap::new(key, description, Dispatch::OpenFilePicker(kind))
+                                })
+                                .collect_vec(),
+                            }),
+                        ),
                         Keymap::new(
                             "i",
                             "Implementation(s)",

@@ -66,6 +66,15 @@
 - [x] feat(lsp): search symbols
 - [x] feat(editor): global regex search
 - [x] soft wrap
+- [x] feat(editor): global literal search
+- [x] feat(editor): global ast-grep search
+- [x] feat(editor): add cursor mode, n = add next, p = add previous
+- [x] feat(edtior): add editor cursor mode, ae, where n/p = go to next/previous cursor, d = delete current cursor
+- [x] feat(editor): remove shift+i by replacing it with ip, in
+- [x] feat(g): 'gfo' for opened editors
+- [x] feat(g): 'gfs' for git status files
+- [x] feat(f): hide built-in regex like word and character under f, then we can add more like numbers, dates, etc
+- [x] incorporate AST grep (https://github.com/ast-grep/ast-grep)
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -74,7 +83,6 @@
 - [] f for moving to the next node which has the same field name as the current node
 - [] mechanism for adding selection to all matching selection within current selection (ctrl+a)
 - [] . for selecting the whole file
-- [] incorporate AST grep (https://github.com/ast-grep/ast-grep), the result is not very satisfying
 - [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
@@ -123,17 +131,10 @@
 - [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
 - [] filter selections/quickfix-list: useful for multi-cursor
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
-- [x] feat(editor): global literal search
-- [x] feat(editor): global ast-grep search
+- [] feat(g): 'gh' for global git hunks
 - [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary
-- [x] feat(editor): add cursor mode, n = add next, p = add previous
-- [x] feat(edtior): add editor cursor mode, ae, where n/p = go to next/previous cursor, d = delete current cursor
-- [x] feat(editor): remove shift+i by replacing it with ip, in
 - [] feat(editor): remove down/up movement, make u = select_parent, d = diagnostics
 - [] feat(editor): scroll mode, press vs to enter scroll mode
-- [] feat(g): 'go' for opened editors
-- [] feat(g): 'gh' for global git hunks
-- [] feat(g): 'gg' for git status files
 - [] feat(key): change ctrl+t to space-t
 - [] feat(space-f): for file mode, r = rename, k = kill (delete), a = add, s = save
 - [] feat: command mode (for exiting editor, save all file etc)
@@ -142,5 +143,5 @@
   spammable key like n/p will not hide under layers, but action like "Change
   selection mode to Git Hunk" which is not supposed to be spam should hide
   under layer
-- [x] feat(f): hide built-in regex like word and character under f, then we can add more like numbers, dates, etc
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
+- [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
