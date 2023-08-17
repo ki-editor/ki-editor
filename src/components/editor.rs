@@ -1743,6 +1743,27 @@ impl Editor {
     }
 
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
+        if self.mode == Mode::Insert {
+            self.selection_set =
+                self.selection_set
+                    .apply(self.selection_set.mode.clone(), |selection| {
+                        let range = {
+                            if let Ok(position) =
+                                self.buffer().char_to_position(selection.range.start)
+                            {
+                                let start =
+                                    selection.range.start - if position.column > 0 { 1 } else { 0 };
+                                (start..start).into()
+                            } else {
+                                selection.range
+                            }
+                        };
+                        Ok(Selection {
+                            range,
+                            ..selection.clone()
+                        })
+                    })?;
+        }
         self.mode = Mode::Normal;
 
         Ok(())
