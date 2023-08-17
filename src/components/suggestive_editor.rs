@@ -55,7 +55,15 @@ impl DropdownItem for CompletionItem {
         self.label()
     }
     fn info(&self) -> Option<String> {
-        self.documentation().map(|d| d.content)
+        let detail = self.detail.clone();
+        let documentation = self.documentation().map(|d| d.content);
+        Some(
+            [].into_iter()
+                .chain(detail)
+                .chain(documentation)
+                .collect::<Vec<String>>()
+                .join("\n----------\n"),
+        )
     }
 }
 
@@ -530,6 +538,8 @@ mod test_suggestive_editor {
                 })),
                 documentation: None,
                 sort_text: None,
+                kind: None,
+                detail: None,
             }],
         });
 

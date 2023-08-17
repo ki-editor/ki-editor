@@ -511,12 +511,7 @@ impl<T: Frontend> Screen<T> {
                         .buffer()
                         .words()
                         .into_iter()
-                        .map(|word| CompletionItem {
-                            label: word,
-                            documentation: None,
-                            sort_text: None,
-                            edit: None,
-                        })
+                        .map(|word| CompletionItem::from_label(word))
                         .collect_vec()
                 })
                 .unwrap_or_default(),
@@ -547,11 +542,8 @@ impl<T: Frontend> Screen<T> {
                 items: symbols
                     .symbols
                     .iter()
-                    .map(|symbol| CompletionItem {
-                        label: format!("{} ({:?})", symbol.name, symbol.kind),
-                        documentation: None,
-                        sort_text: None,
-                        edit: None,
+                    .map(|symbol| {
+                        CompletionItem::from_label(format!("{} ({:?})", symbol.name, symbol.kind))
                     })
                     .collect_vec(),
                 on_enter: Box::new(move |current_item, _| {
@@ -602,12 +594,7 @@ impl<T: Frontend> Screen<T> {
                         .collect_vec(),
                 }
                 .into_iter()
-                .map(|item| CompletionItem {
-                    label: item,
-                    documentation: None,
-                    sort_text: None,
-                    edit: None,
-                })
+                .map(|item| CompletionItem::from_label(item))
                 .collect_vec()
             },
         });

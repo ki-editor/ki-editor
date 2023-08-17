@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use lsp_types::CompletionItemKind;
+
 use crate::position::Position;
 
 use super::documentation::Documentation;
@@ -13,6 +15,8 @@ pub struct Completion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompletionItem {
     pub label: String,
+    pub kind: Option<CompletionItemKind>,
+    pub detail: Option<String>,
     pub documentation: Option<Documentation>,
     pub sort_text: Option<String>,
     pub edit: Option<CompletionItemEdit>,
@@ -64,10 +68,11 @@ impl Ord for CompletionItem {
 }
 
 impl CompletionItem {
-    #[cfg(test)]
     pub fn from_label(label: String) -> Self {
         Self {
             label,
+            kind: None,
+            detail: None,
             documentation: None,
             sort_text: None,
             edit: None,
@@ -86,6 +91,8 @@ impl From<lsp_types::CompletionItem> for CompletionItem {
     fn from(item: lsp_types::CompletionItem) -> Self {
         Self {
             label: item.label,
+            kind: item.kind,
+            detail: item.detail,
             documentation: item.documentation.map(|doc| doc.into()),
             sort_text: item.sort_text,
             edit: item.text_edit.and_then(|edit| match edit {

@@ -75,6 +75,7 @@
 - [x] feat(g): 'gfs' for git status files
 - [x] feat(f): hide built-in regex like word and character under f, then we can add more like numbers, dates, etc
 - [x] incorporate AST grep (https://github.com/ast-grep/ast-grep)
+- [x] feat(signature-help): not showing type
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node

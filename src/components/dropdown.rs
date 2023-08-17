@@ -121,8 +121,7 @@ impl<T: DropdownItem> Dropdown<T> {
             &self
                 .filtered_items
                 .iter()
-                .enumerate()
-                .map(|(index, item)| format!("[{}] {}", index + 1, item.label()))
+                .map(|item| item.label())
                 .collect::<Vec<String>>()
                 .join("\n"),
         );
@@ -215,9 +214,9 @@ mod test_dropdown {
         assert_eq!(dropdown.current_item().unwrap().label(), "a");
         assert_eq!(
             dropdown.editor.buffer().rope().to_string(),
-            "[1] a\n[2] b\n[3] c".to_string()
+            "a\nb\nc".to_string()
         );
-        assert_eq!(dropdown.editor.get_selected_texts(), vec!["[1] a\n"]);
+        assert_eq!(dropdown.editor.get_selected_texts(), vec!["a\n"]);
         assert_eq!(
             dropdown.editor.selection_set.primary.range,
             (CharIndex(0)..CharIndex(6)).into()
@@ -256,10 +255,10 @@ mod test_dropdown {
 
         // The current item should be `dolor` because dropdown will sort the items
         assert_eq!(dropdown.current_item().unwrap().label(), "dolor");
-        assert_eq!(dropdown.editor.current_line().unwrap(), "[1] dolor");
+        assert_eq!(dropdown.editor.current_line().unwrap(), "dolor");
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
-        assert_eq!(dropdown.editor.current_line().unwrap(), "[2] ipsum");
+        assert_eq!(dropdown.editor.current_line().unwrap(), "ipsum");
         Ok(())
     }
 
