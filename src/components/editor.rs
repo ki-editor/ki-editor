@@ -1141,6 +1141,11 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
                 ),
                 Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
+                Keymap::new(
+                    "w",
+                    "Word",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(SelectionMode::Word)),
+                ),
             ]
             .to_vec(),
         })
@@ -1677,7 +1682,6 @@ impl Editor {
             }
 
             key!("h") => self.toggle_highlight_mode(),
-            // H
             key!("i") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.insert_mode_keymap_legend_config(),
@@ -1685,8 +1689,6 @@ impl Editor {
                 .to_vec())
             }
             key!("j") => self.jump()?,
-
-            // TODO: rebind
             key!("k") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => {
@@ -1701,8 +1703,6 @@ impl Editor {
                 )
             }
             key!("n") => return self.select_direction(context, Direction::Right),
-
-            // TODO: rebind
             key!("o") => return self.set_selection_mode(context, SelectionMode::LargestNode),
             key!("p") => {
                 return self.select_direction(context, Direction::Left);
@@ -1717,16 +1717,15 @@ impl Editor {
             key!("shift+R") => return Ok(self.replace()),
             key!("s") => return self.set_selection_mode(context, SelectionMode::Sibling),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
-
             // u
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
-            key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => return Ok(self.exchange(Direction::Right)),
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
+            // w
             key!("y") => return self.set_selection_mode(context, SelectionMode::SyntaxHierarchy),
             key!("z") => {
                 return Ok([Dispatch::ShowKeymapLegend(self.z_mode_keymap_legend())].to_vec())

@@ -154,5 +154,4 @@
 - [] fix(legend): pressing esc causes the cursor to fly to nowhere, then has to press ctrl+w to bring it back
 - [] feat(cursor): change cursor in insert mode
 - [] feat(find): sentence, paragraph
-- [] feat(regex): show description for built-in regex
 - [] fix(cursor): misplacement when wrapped sometimes
