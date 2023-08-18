@@ -86,6 +86,7 @@
 - [x] feat(editor): go to specific line number
 - [x] feat(editor): scroll mode, press vp, vl to enter scroll page/line mode
 - [x] refactor(selection): privatized range, rename extended_range method as range
+- [x] feat(keymap): zn/zp = last selection / first selection
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -147,7 +148,6 @@
   under layer
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
-- [] feat(keymap): zn/zp = last selection / first selection
 - [] feat(keymap): if u = parent, then zu the outermost node that starts with this cursor
 - [] fix(legend): pressing esc causes the cursor to fly to nowhere, then has to press ctrl+w to bring it back
 - [] feat(cursor): change cursor in insert mode

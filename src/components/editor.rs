@@ -1251,6 +1251,12 @@ impl Editor {
             DispatchEditor::EnterScrollPageMode => self.mode = Mode::ScrollPage,
             DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
             DispatchEditor::GoToLineNumber(line_number) => self.go_to_line_number(line_number)?,
+            DispatchEditor::GoToFinalSelection => {
+                return self.select_direction(context, Direction::RightMost)
+            }
+            DispatchEditor::GoToFirstSelection => {
+                return self.select_direction(context, Direction::LeftMost)
+            }
         }
         Ok([].to_vec())
     }
@@ -1689,7 +1695,6 @@ impl Editor {
                 )
             }
             key!("n") => return self.select_direction(context, Direction::Right),
-            key!("shift+N") => return self.select_direction(context, Direction::RightMost),
 
             // TODO: rebind
             key!("o") => return self.set_selection_mode(context, SelectionMode::LargestNode),
@@ -1697,14 +1702,14 @@ impl Editor {
             key!("p") => {
                 return self.select_direction(context, Direction::Left);
             }
-            key!("shift+P") => return self.select_direction(context, Direction::LeftMost),
+
             key!("q") => {
                 context.mode = Some(GlobalMode::QuickfixListItem);
             }
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
             key!("r") => return Ok(self.raise()),
-            key!("r") => return Ok(self.replace()),
+            key!("shift+R") => return Ok(self.replace()),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
 
@@ -1718,7 +1723,9 @@ impl Editor {
             key!("x") => return Ok(self.exchange(Direction::Right)),
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
             // y
-            // z
+            key!("z") => {
+                return Ok([Dispatch::ShowKeymapLegend(self.z_mode_keymap_legend())].to_vec())
+            }
             key!("backspace") => {
                 self.change();
             }
@@ -2664,6 +2671,26 @@ impl Editor {
         self.recalculate_scroll_offset();
         Ok(())
     }
+
+    fn z_mode_keymap_legend(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Z (Extremes)",
+            owner_id: self.id(),
+            keymaps: [
+                Keymap::new(
+                    "n",
+                    "Final selection",
+                    Dispatch::DispatchEditor(DispatchEditor::GoToFinalSelection),
+                ),
+                Keymap::new(
+                    "p",
+                    "First selection",
+                    Dispatch::DispatchEditor(DispatchEditor::GoToFirstSelection),
+                ),
+            ]
+            .to_vec(),
+        }
+    }
 }
 
 enum Enclosure {
@@ -2701,6 +2728,8 @@ pub enum DispatchEditor {
     EnterScrollLineMode,
     /// 0-based line number
     GoToLineNumber(usize),
+    GoToFinalSelection,
+    GoToFirstSelection,
 }
 
 #[cfg(test)]
