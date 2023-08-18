@@ -4,6 +4,8 @@ mod rust;
 mod typescript;
 mod typescript_react;
 
+use serde_json::Value;
+
 pub use crate::process_command::ProcessCommand;
 use crate::{canonicalized_path::CanonicalizedPath, lsp::formatter::Formatter};
 
@@ -52,6 +54,9 @@ pub trait Language: dyn_clone::DynClone + std::fmt::Debug + Send + Sync {
     fn formatter(&self) -> Option<Formatter> {
         self.formatter_command()
             .map(|(command, _)| Formatter::from(command))
+    }
+    fn initialization_options(&self) -> Option<Value> {
+        None
     }
 }
 
