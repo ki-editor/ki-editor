@@ -1119,9 +1119,12 @@ impl Editor {
                         title: "Find number",
                         owner_id: self.id(),
                         keymaps: [
+                            ("b", "Binary", r"\b[01]+\b"),
                             ("f", "Float", r"[-+]?\d*\.\d+|\d+"),
+                            ("h", "Hexadecimal", r"[0-9a-fA-F]+"),
                             ("i", "Integer", r"-?\d+"),
                             ("n", "Natural", r"\d+"),
+                            ("o", "Octal", r"\b[0-7]+\b"),
                             ("s", "Scientific", r"[-+]?\d*\.?\d+[eE][-+]?\d+"),
                         ]
                         .into_iter()
