@@ -1052,6 +1052,18 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
+                    "e",
+                    "Empty line",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Match {
+                            search: Search {
+                                kind: SearchKind::Regex,
+                                search: r"(?m)^\s*$".to_string(),
+                            },
+                        },
+                    )),
+                ),
+                Keymap::new(
                     "g",
                     "Global",
                     Dispatch::ShowKeymapLegend(KeymapLegendConfig {
