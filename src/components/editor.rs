@@ -196,8 +196,11 @@ impl Component for Editor {
                 .map(|position| CellUpdate::new(position).style(style))
         }
 
-        let primary_selection =
-            range_to_cell_update(&buffer, selection.range(), theme.ui.primary_selection);
+        let primary_selection = range_to_cell_update(
+            &buffer,
+            selection.extended_range(),
+            theme.ui.primary_selection,
+        );
 
         let primary_selection_secondary_cursor = char_index_to_cell_update(
             &buffer,
@@ -208,7 +211,7 @@ impl Component for Editor {
         let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
             range_to_cell_update(
                 &buffer,
-                secondary_selection.range(),
+                secondary_selection.extended_range(),
                 theme.ui.secondary_selection,
             )
         });
@@ -648,7 +651,7 @@ impl Editor {
         if let Some(diagnostic) = self
             .buffer
             .borrow()
-            .find_diagnostic(&self.selection_set.primary.range())
+            .find_diagnostic(&self.selection_set.primary.extended_range())
         {
             Ok(vec![Dispatch::ShowInfo {
                 title: "Diagnostic".to_string(),
@@ -830,14 +833,14 @@ impl Editor {
             context.set_clipboard_content(
                 self.buffer
                     .borrow()
-                    .slice(&self.selection_set.primary.range())?
+                    .slice(&self.selection_set.primary.extended_range())?
                     .into(),
             )
         }
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let old_range = selection.range();
+                    let old_range = selection.extended_range();
                     let old = self.buffer.borrow().slice(&old_range)?;
                     Ok(ActionGroup::new(
                         [
@@ -871,7 +874,7 @@ impl Editor {
     {
         let edit_transactions = self.selection_set.map(|selection| {
             if let Some(copied_text) = f(selection) {
-                let range = selection.range();
+                let range = selection.extended_range();
                 let start = range.start;
                 EditTransaction::from_action_groups(
                     [ActionGroup::new(
@@ -914,7 +917,7 @@ impl Editor {
                 .map(|selection| -> anyhow::Result<_> {
                     if let Some(replacement) = &selection.copied_text() {
                         let replacement_text_len = replacement.len_chars();
-                        let range = selection.range();
+                        let range = selection.extended_range();
                         let replaced_text = self.buffer.borrow().slice(&range)?;
                         Ok(EditTransaction::from_action_groups(
                             [ActionGroup::new(
@@ -1497,16 +1500,19 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let copied_text: Rope = self.buffer.borrow().slice(&selection.range())?;
+                    let copied_text: Rope =
+                        self.buffer.borrow().slice(&selection.extended_range())?;
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
-                                range: selection.range(),
+                                range: selection.extended_range(),
                                 new: Rope::new(),
                             }),
                             Action::Select(
                                 Selection::new(
-                                    (selection.range().start..selection.range().start).into(),
+                                    (selection.extended_range().start
+                                        ..selection.extended_range().start)
+                                        .into(),
                                 )
                                 .set_copied_text(selection.copied_text()),
                             ),
@@ -1526,7 +1532,7 @@ impl Editor {
     fn insert(&mut self, s: &str) -> Vec<Dispatch> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let range = selection.range();
+                let range = selection.extended_range();
                 ActionGroup::new(
                     [
                         Action::Edit(Edit {
@@ -1619,7 +1625,9 @@ impl Editor {
     }
 
     fn save_bookmarks(&mut self) {
-        let selections = self.selection_set.map(|selection| selection.range());
+        let selections = self
+            .selection_set
+            .map(|selection| selection.extended_range());
         self.buffer_mut().save_bookmarks(selections)
     }
 
@@ -1768,7 +1776,7 @@ impl Editor {
         self.selection_set =
             self.selection_set
                 .apply(self.selection_set.mode.clone(), |selection| {
-                    let range = selection.range();
+                    let range = selection.extended_range();
                     let char_index = match direction {
                         CursorDirection::Start => range.start,
                         CursorDirection::End => range.end,
@@ -1787,14 +1795,15 @@ impl Editor {
                 self.selection_set
                     .apply(self.selection_set.mode.clone(), |selection| {
                         let range = {
-                            if let Ok(position) =
-                                self.buffer().char_to_position(selection.range().start)
+                            if let Ok(position) = self
+                                .buffer()
+                                .char_to_position(selection.extended_range().start)
                             {
-                                let start = selection.range().start
+                                let start = selection.extended_range().start
                                     - if position.column > 0 { 1 } else { 0 };
                                 (start..start).into()
                             } else {
-                                selection.range()
+                                selection.extended_range()
                             }
                         };
                         Ok(selection.clone().set_range(range))
@@ -1887,7 +1896,7 @@ impl Editor {
                 new_buffer
             };
 
-            let text_at_next_selection: Rope = buffer.slice(&next_selection.range())?;
+            let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
 
             // Why don't we just use `tree.root_node().has_error()` instead?
             // Because I assume we want to be able to exchange even if some part of the tree
@@ -1930,7 +1939,7 @@ impl Editor {
         let get_trial_edit_transaction = |current_selection: &Selection,
                                           next_selection: &Selection|
          -> anyhow::Result<_> {
-            let current_selection_range = current_selection.range();
+            let current_selection_range = current_selection.extended_range();
             let text_at_current_selection = buffer.slice(&current_selection_range)?;
 
             Ok(EditTransaction::from_action_groups(
@@ -1938,13 +1947,13 @@ impl Editor {
                     ActionGroup::new(
                         [Action::Edit(Edit {
                             range: current_selection_range,
-                            new: buffer.slice(&next_selection.range())?,
+                            new: buffer.slice(&next_selection.extended_range())?,
                         })]
                         .to_vec(),
                     ),
                     ActionGroup::new(
                         [Action::Edit(Edit {
-                            range: next_selection.range(),
+                            range: next_selection.extended_range(),
                             // We need to add whitespace on both end of the replacement
                             //
                             // Otherwise we might get the following replacement in Rust:
@@ -1964,43 +1973,44 @@ impl Editor {
             ))
         };
 
-        let get_actual_edit_transaction =
-            |current_selection: &Selection, next_selection: &Selection| -> anyhow::Result<_> {
-                let current_selection_range = current_selection.range();
-                let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
-                let text_at_next_selection: Rope = buffer.slice(&next_selection.range())?;
+        let get_actual_edit_transaction = |current_selection: &Selection,
+                                           next_selection: &Selection|
+         -> anyhow::Result<_> {
+            let current_selection_range = current_selection.extended_range();
+            let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
+            let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
 
-                Ok(EditTransaction::from_action_groups(
-                    [
-                        ActionGroup::new(
-                            [Action::Edit(Edit {
-                                range: current_selection_range,
-                                new: text_at_next_selection.clone(),
-                            })]
-                            .to_vec(),
-                        ),
-                        ActionGroup::new(
-                            [
-                                Action::Edit(Edit {
-                                    range: next_selection.range(),
-                                    // This time without whitespace padding
-                                    new: text_at_current_selection.clone(),
-                                }),
-                                Action::Select(
-                                    current_selection.clone().set_range(
-                                        (next_selection.range().start
-                                            ..(next_selection.range().start
-                                                + text_at_current_selection.len_chars()))
-                                            .into(),
-                                    ),
+            Ok(EditTransaction::from_action_groups(
+                [
+                    ActionGroup::new(
+                        [Action::Edit(Edit {
+                            range: current_selection_range,
+                            new: text_at_next_selection.clone(),
+                        })]
+                        .to_vec(),
+                    ),
+                    ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: next_selection.extended_range(),
+                                // This time without whitespace padding
+                                new: text_at_current_selection.clone(),
+                            }),
+                            Action::Select(
+                                current_selection.clone().set_range(
+                                    (next_selection.extended_range().start
+                                        ..(next_selection.extended_range().start
+                                            + text_at_current_selection.len_chars()))
+                                        .into(),
                                 ),
-                            ]
-                            .to_vec(),
-                        ),
-                    ]
-                    .to_vec(),
-                ))
-            };
+                            ),
+                        ]
+                        .to_vec(),
+                    ),
+                ]
+                .to_vec(),
+            ))
+        };
 
         let edit_transactions = self.selection_set.map(|selection| {
             self.get_valid_selection(
@@ -2043,8 +2053,8 @@ impl Editor {
             .selection_set
             .map(|selection| -> anyhow::Result<_> {
                 Ok((
-                    selection.range(),
-                    buffer.slice(&selection.range())?.to_string(),
+                    selection.extended_range(),
+                    buffer.slice(&selection.extended_range())?.to_string(),
                 ))
             })
             .into_iter()
@@ -2081,11 +2091,11 @@ impl Editor {
     fn backspace(&mut self) -> Vec<Dispatch> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let start = CharIndex(selection.range().start.0.saturating_sub(1));
+                let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
                 ActionGroup::new(
                     [
                         Action::Edit(Edit {
-                            range: (start..selection.range().start).into(),
+                            range: (start..selection.extended_range().start).into(),
                             new: Rope::from(""),
                         }),
                         Action::Select(selection.clone().set_range((start..start).into())),
@@ -2102,39 +2112,39 @@ impl Editor {
         let mode = self.selection_set.mode.clone();
 
         let edit_transactions = self.selection_set.map(|selection| -> anyhow::Result<_> {
-            let get_trial_edit_transaction = |current_selection: &Selection,
-                                              other_selection: &Selection|
-             -> anyhow::Result<_> {
-                let range = current_selection
-                    .range()
-                    .start
-                    .min(other_selection.range().start)
-                    ..current_selection
-                        .range()
-                        .end
-                        .max(other_selection.range().end);
+            let get_trial_edit_transaction =
+                |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
+                    let range = current_selection
+                        .extended_range()
+                        .start
+                        .min(other_selection.extended_range().start)
+                        ..current_selection
+                            .extended_range()
+                            .end
+                            .max(other_selection.extended_range().end);
 
-                // Add whitespace padding
-                let new: Rope = format!(" {} ", buffer.slice(&current_selection.range())?).into();
+                    // Add whitespace padding
+                    let new: Rope =
+                        format!(" {} ", buffer.slice(&current_selection.extended_range())?).into();
 
-                Ok(EditTransaction::from_action_groups(vec![ActionGroup::new(
-                    vec![Action::Edit(Edit {
-                        range: range.into(),
-                        new,
-                    })],
-                )]))
-            };
+                    Ok(EditTransaction::from_action_groups(vec![ActionGroup::new(
+                        vec![Action::Edit(Edit {
+                            range: range.into(),
+                            new,
+                        })],
+                    )]))
+                };
             let get_actual_edit_transaction =
                 |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
                     let range = current_selection
-                        .range()
+                        .extended_range()
                         .start
-                        .min(other_selection.range().start)
+                        .min(other_selection.extended_range().start)
                         ..current_selection
-                            .range()
+                            .extended_range()
                             .end
-                            .max(other_selection.range().end);
-                    let new: Rope = buffer.slice(&other_selection.range())?;
+                            .max(other_selection.extended_range().end);
+                    let new: Rope = buffer.slice(&other_selection.extended_range())?;
 
                     let new_len_chars = new.len_chars();
                     Ok(EditTransaction::from_action_groups(
@@ -2175,12 +2185,16 @@ impl Editor {
                         [ActionGroup::new(
                             [
                                 Action::Edit(Edit {
-                                    range: selection.range(),
+                                    range: selection.extended_range(),
                                     new: Rope::from(""),
                                 }),
-                                Action::Select(selection.clone().set_range(
-                                    (selection.range().start..selection.range().start).into(),
-                                )),
+                                Action::Select(
+                                    selection.clone().set_range(
+                                        (selection.extended_range().start
+                                            ..selection.extended_range().start)
+                                            .into(),
+                                    ),
+                                ),
                             ]
                             .to_vec(),
                         )]
@@ -2196,39 +2210,39 @@ impl Editor {
     fn raise(&mut self) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
-            let get_trial_edit_transaction = |current_selection: &Selection,
-                                              other_selection: &Selection|
-             -> anyhow::Result<_> {
-                let range = current_selection
-                    .range()
-                    .start
-                    .min(other_selection.range().start)
-                    ..current_selection
-                        .range()
-                        .end
-                        .max(other_selection.range().end);
+            let get_trial_edit_transaction =
+                |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
+                    let range = current_selection
+                        .extended_range()
+                        .start
+                        .min(other_selection.extended_range().start)
+                        ..current_selection
+                            .extended_range()
+                            .end
+                            .max(other_selection.extended_range().end);
 
-                // Add whitespace padding
-                let new: Rope = format!(" {} ", buffer.slice(&current_selection.range())?).into();
+                    // Add whitespace padding
+                    let new: Rope =
+                        format!(" {} ", buffer.slice(&current_selection.extended_range())?).into();
 
-                Ok(EditTransaction::from_action_groups(vec![ActionGroup::new(
-                    vec![Action::Edit(Edit {
-                        range: range.into(),
-                        new,
-                    })],
-                )]))
-            };
+                    Ok(EditTransaction::from_action_groups(vec![ActionGroup::new(
+                        vec![Action::Edit(Edit {
+                            range: range.into(),
+                            new,
+                        })],
+                    )]))
+                };
             let get_actual_edit_transaction =
                 |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
                     let range = current_selection
-                        .range()
+                        .extended_range()
                         .start
-                        .min(other_selection.range().start)
+                        .min(other_selection.extended_range().start)
                         ..current_selection
-                            .range()
+                            .extended_range()
                             .end
-                            .max(other_selection.range().end);
-                    let new: Rope = buffer.slice(&current_selection.range())?;
+                            .max(other_selection.extended_range().end);
+                    let new: Rope = buffer.slice(&current_selection.extended_range())?;
 
                     let new_len_chars = new.len_chars();
                     Ok(EditTransaction::from_action_groups(
@@ -2280,7 +2294,10 @@ impl Editor {
         self.update_selection_set(self.selection_set.apply(
             self.selection_set.mode.clone(),
             |selection| {
-                let position = selection.range().start.to_position(self.buffer().rope());
+                let position = selection
+                    .extended_range()
+                    .start
+                    .to_position(self.buffer().rope());
                 let position = Position {
                     line: if direction == Direction::Right {
                         position.line.saturating_add(scroll_height as usize)
@@ -2423,11 +2440,11 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let old = self.buffer().slice(&selection.range())?;
+                    let old = self.buffer().slice(&selection.extended_range())?;
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
-                                range: selection.range(),
+                                range: selection.extended_range(),
                                 new: format!(
                                     "{}{}{}",
                                     match enclosure {
@@ -2446,9 +2463,13 @@ impl Editor {
                                 )
                                 .into(),
                             }),
-                            Action::Select(selection.clone().set_range(
-                                (selection.range().start..selection.range().end + 2).into(),
-                            )),
+                            Action::Select(
+                                selection.clone().set_range(
+                                    (selection.extended_range().start
+                                        ..selection.extended_range().end + 2)
+                                        .into(),
+                                ),
+                            ),
                         ]
                         .to_vec(),
                     ))
@@ -2462,7 +2483,9 @@ impl Editor {
     }
 
     fn match_current_selection(&mut self, kind: SearchKind) -> anyhow::Result<Vec<Dispatch>> {
-        let content = self.buffer().slice(&self.selection_set.primary.range())?;
+        let content = self
+            .buffer()
+            .slice(&self.selection_set.primary.extended_range())?;
 
         if content.len_chars() == 0 {
             return Ok(vec![]);
@@ -2488,12 +2511,12 @@ impl Editor {
                 .map(|selection| -> anyhow::Result<_> {
                     let new: Rope = self
                         .buffer()
-                        .slice(&selection.range())?
+                        .slice(&selection.extended_range())?
                         .to_string()
                         .to_case(case)
                         .into();
                     let new_char_count = new.chars().count();
-                    let range = selection.range();
+                    let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit { range: range, new }),
@@ -2531,7 +2554,7 @@ impl Editor {
     fn current_selection(&self) -> anyhow::Result<String> {
         Ok(self
             .buffer()
-            .slice(&self.selection_set.primary.range())?
+            .slice(&self.selection_set.primary.extended_range())?
             .into())
     }
 

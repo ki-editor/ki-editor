@@ -90,7 +90,7 @@ impl SelectionSet {
     pub fn copy(&mut self, buffer: &Buffer, context: &mut Context) -> anyhow::Result<()> {
         if self.secondary.is_empty() {
             // Copy the primary selected text to clipboard
-            let copied_text = buffer.slice(&self.primary.range())?;
+            let copied_text = buffer.slice(&self.primary.extended_range())?;
             context.set_clipboard_content(copied_text.to_string());
             self.primary = Selection {
                 range: self.primary.range.clone(),
@@ -102,7 +102,7 @@ impl SelectionSet {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
             self.apply_mut(|selection| -> anyhow::Result<()> {
-                selection.copied_text = Some(buffer.slice(&selection.range())?)
+                selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
                     .or_else(|| context.get_clipboard_content().map(Rope::from));
                 selection.initial_range = None;
                 Ok(())
@@ -176,11 +176,10 @@ impl SelectionSet {
             cursor_direction,
         )?;
 
-        let matching_index = self
-            .secondary
-            .iter()
-            .enumerate()
-            .find(|(_, selection)| selection.range() == next_selection.range());
+        let matching_index =
+            self.secondary.iter().enumerate().find(|(_, selection)| {
+                selection.extended_range() == next_selection.extended_range()
+            });
         let previous_primary = std::mem::replace(&mut self.primary, next_selection);
 
         if let Some((matching_index, _)) = matching_index {
@@ -235,7 +234,8 @@ impl SelectionSet {
             .iter()
             .enumerate()
             .sorted_by_key(|(_, selection)| {
-                ((self.primary.range().start.0 as isize) - (selection.range().start.0 as isize))
+                ((self.primary.extended_range().start.0 as isize)
+                    - (selection.extended_range().start.0 as isize))
                     .abs()
             })
             .next();
@@ -406,7 +406,7 @@ impl Selection {
         Selection { info, ..self }
     }
 
-    pub fn range(&self) -> CharIndexRange {
+    pub fn extended_range(&self) -> CharIndexRange {
         match &self.initial_range {
             None => self.range.clone(),
             Some(extended_selection_anchor) => {
@@ -418,7 +418,7 @@ impl Selection {
     }
 
     pub fn is_start_or_end(&self, other: &CharIndex) -> bool {
-        let CharIndexRange { start, end } = self.range();
+        let CharIndexRange { start, end } = self.extended_range();
         &start == other || (end > start && &(end - 1) == other)
     }
 
@@ -506,6 +506,11 @@ impl Selection {
 
     pub fn set_range(self, range: CharIndexRange) -> Selection {
         Selection { range, ..self }
+    }
+
+    /// WARNING: You should always use `extended_range` unless you know what you are doing
+    pub fn range(&self) -> CharIndexRange {
+        self.range
     }
 }
 

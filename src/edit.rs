@@ -68,7 +68,7 @@ impl Action {
 
     fn range(&self) -> CharIndexRange {
         match self {
-            Action::Select(selection) => selection.range().clone(),
+            Action::Select(selection) => selection.extended_range().clone(),
             Action::Edit(edit) => edit.range(),
         }
     }
@@ -76,7 +76,7 @@ impl Action {
     fn apply_offset(self, offset: isize) -> Self {
         match self {
             Action::Select(selection) => {
-                let range = selection.range();
+                let range = selection.extended_range();
                 Action::Select(selection.set_range(
                     (range.start.apply_offset(offset)..range.end.apply_offset(offset)).into(),
                 ))
@@ -103,7 +103,7 @@ impl EditTransaction {
             .selections()
             .into_iter()
             .map(|selection| {
-                let range = selection.range();
+                let range = selection.extended_range();
                 rope.slice(range.start.0..range.end.0).to_string()
             })
             .collect_vec();

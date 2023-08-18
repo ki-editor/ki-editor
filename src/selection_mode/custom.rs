@@ -18,7 +18,7 @@ impl SelectionMode for Custom {
         _current_selection: &'a Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let range = self.current_selection.range();
+        let range = self.current_selection.extended_range();
         Ok(Box::new(std::iter::once(super::ByteRange::new(
             buffer.char_to_byte(range.start)?..buffer.char_to_byte(range.end)?,
         ))))
