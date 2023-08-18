@@ -61,27 +61,26 @@ impl Action {
 
     #[cfg(test)]
     fn select(range: Range<usize>) -> Self {
-        Action::Select(Selection {
-            range: (CharIndex(range.start)..CharIndex(range.end)).into(),
-            ..Selection::default()
-        })
+        Action::Select(Selection::new(
+            (CharIndex(range.start)..CharIndex(range.end)).into(),
+        ))
     }
 
     fn range(&self) -> CharIndexRange {
         match self {
-            Action::Select(selection) => selection.range.clone(),
+            Action::Select(selection) => selection.range().clone(),
             Action::Edit(edit) => edit.range(),
         }
     }
 
     fn apply_offset(self, offset: isize) -> Self {
         match self {
-            Action::Select(selection) => Action::Select(Selection {
-                range: (selection.range.start.apply_offset(offset)
-                    ..selection.range.end.apply_offset(offset))
-                    .into(),
-                ..selection
-            }),
+            Action::Select(selection) => {
+                let range = selection.range();
+                Action::Select(selection.set_range(
+                    (range.start.apply_offset(offset)..range.end.apply_offset(offset)).into(),
+                ))
+            }
             Action::Edit(edit) => Action::Edit(edit.apply_offset(offset)),
         }
     }
@@ -104,8 +103,8 @@ impl EditTransaction {
             .selections()
             .into_iter()
             .map(|selection| {
-                rope.slice(selection.range.start.0..selection.range.end.0)
-                    .to_string()
+                let range = selection.range();
+                rope.slice(range.start.0..range.end.0).to_string()
             })
             .collect_vec();
         (selections, rope)

@@ -90,7 +90,7 @@ impl SelectionSet {
     pub fn copy(&mut self, buffer: &Buffer, context: &mut Context) -> anyhow::Result<()> {
         if self.secondary.is_empty() {
             // Copy the primary selected text to clipboard
-            let copied_text = buffer.slice(&self.primary.extended_range())?;
+            let copied_text = buffer.slice(&self.primary.range())?;
             context.set_clipboard_content(copied_text.to_string());
             self.primary = Selection {
                 range: self.primary.range.clone(),
@@ -102,7 +102,7 @@ impl SelectionSet {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
             self.apply_mut(|selection| -> anyhow::Result<()> {
-                selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
+                selection.copied_text = Some(buffer.slice(&selection.range())?)
                     .or_else(|| context.get_clipboard_content().map(Rope::from));
                 selection.initial_range = None;
                 Ok(())
@@ -176,10 +176,11 @@ impl SelectionSet {
             cursor_direction,
         )?;
 
-        let matching_index =
-            self.secondary.iter().enumerate().find(|(_, selection)| {
-                selection.extended_range() == next_selection.extended_range()
-            });
+        let matching_index = self
+            .secondary
+            .iter()
+            .enumerate()
+            .find(|(_, selection)| selection.range() == next_selection.range());
         let previous_primary = std::mem::replace(&mut self.primary, next_selection);
 
         if let Some((matching_index, _)) = matching_index {
@@ -234,8 +235,7 @@ impl SelectionSet {
             .iter()
             .enumerate()
             .sorted_by_key(|(_, selection)| {
-                ((self.primary.extended_range().start.0 as isize)
-                    - (selection.extended_range().start.0 as isize))
+                ((self.primary.range().start.0 as isize) - (selection.range().start.0 as isize))
                     .abs()
             })
             .next();
@@ -356,16 +356,16 @@ impl SelectionMode {
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
 pub struct Selection {
-    pub range: CharIndexRange,
-    pub copied_text: Option<Rope>,
+    range: CharIndexRange,
+    copied_text: Option<Rope>,
 
     /// Used for extended selection.
     /// Some = the selection is being extended
     /// None = the selection is not being extended
-    pub initial_range: Option<CharIndexRange>,
+    initial_range: Option<CharIndexRange>,
 
     /// For example, used for Diagnostic and Git Hunk
-    pub info: Option<String>,
+    info: Option<String>,
 }
 
 impl Selection {
@@ -376,7 +376,32 @@ impl Selection {
         }
     }
 
-    pub fn extended_range(&self) -> CharIndexRange {
+    pub fn new(range: CharIndexRange) -> Self {
+        Selection {
+            range,
+            ..Selection::default()
+        }
+    }
+
+    pub fn set_copied_text(self, copied_text: Option<Rope>) -> Self {
+        Selection {
+            copied_text,
+            ..self
+        }
+    }
+
+    pub fn set_initial_range(self, initial_range: Option<CharIndexRange>) -> Self {
+        Selection {
+            initial_range,
+            ..self
+        }
+    }
+
+    pub fn set_info(self, info: Option<String>) -> Self {
+        Selection { info, ..self }
+    }
+
+    pub fn range(&self) -> CharIndexRange {
         match &self.initial_range {
             None => self.range.clone(),
             Some(extended_selection_anchor) => {
@@ -388,7 +413,7 @@ impl Selection {
     }
 
     pub fn is_start_or_end(&self, other: &CharIndex) -> bool {
-        let CharIndexRange { start, end } = self.extended_range();
+        let CharIndexRange { start, end } = self.range();
         &start == other || (end > start && &(end - 1) == other)
     }
 
@@ -464,6 +489,18 @@ impl Selection {
             initial_range: self.initial_range.clone(),
             info: self.info.clone(),
         }
+    }
+
+    pub fn copied_text(&self) -> Option<Rope> {
+        self.copied_text.clone()
+    }
+
+    pub fn info(&self) -> Option<String> {
+        self.info.clone()
+    }
+
+    pub fn set_range(self, range: CharIndexRange) -> Selection {
+        Selection { range, ..self }
     }
 }
 

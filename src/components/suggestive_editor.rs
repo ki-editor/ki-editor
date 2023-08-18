@@ -324,7 +324,7 @@ impl SuggestiveEditor {
         self.trigger_characters = completion.trigger_characters;
     }
 
-    pub fn enter_insert_mode(&mut self) {
+    pub fn enter_insert_mode(&mut self) -> Result<(), anyhow::Error> {
         self.editor
             .enter_insert_mode(super::editor::CursorDirection::Start)
     }

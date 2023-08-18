@@ -59,11 +59,7 @@ impl ByteRange {
     }
 
     pub fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
-        Ok(Selection {
-            range: self.to_char_index_range(buffer)?,
-            info: self.info,
-            ..selection.clone()
-        })
+        Ok(selection.clone().set_range(self.to_char_index_range(buffer)?).set_info(self.info))
     }
 }
 
@@ -160,14 +156,11 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Option<Selection>> {
         let current_line_range =
             buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
-        Ok(self
-            .right_iter(&params)?
-            .last()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
+        Ok(self.right_iter(&params)?.last().and_then(|range| {
+            range
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
     }
 
     fn left_iter<'a>(
@@ -204,14 +197,11 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Option<Selection>> {
         let current_line_range =
             buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
-        Ok(self
-            .left_iter(&params)?
-            .last()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
+        Ok(self.left_iter(&params)?.last().and_then(|range| {
+            range
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
     }
 
     /// By default this means the next selection after the current selection which is on the next
@@ -283,11 +273,7 @@ pub trait SelectionMode {
             })
             .next();
 
-        Ok(found.map(|(range, info, _)| Selection {
-            range,
-            info,
-            ..current_selection.clone()
-        }))
+        Ok(found.map(|(range, info, _)| current_selection.clone().set_range(range).set_info(info)))
     }
 
     fn current(

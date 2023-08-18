@@ -245,12 +245,13 @@ impl Buffer {
     }
 
     pub fn get_current_node<'a>(&'a self, selection: &Selection) -> anyhow::Result<Node<'a>> {
+        let range = selection.range();
         let node = self
             .tree
             .root_node()
             .descendant_for_byte_range(
-                self.char_to_byte(selection.range.start)?,
-                self.char_to_byte(selection.range.end)?,
+                self.char_to_byte(range.start)?,
+                self.char_to_byte(range.end)?,
             )
             .unwrap_or_else(|| self.tree.root_node());
 
