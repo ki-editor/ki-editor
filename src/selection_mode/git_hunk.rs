@@ -34,6 +34,37 @@ impl GitHunk {
                     .line_to_byte(line_range.start.saturating_sub(1))
                     .ok()?;
                 let end = buffer.line_to_byte(line_range.end.saturating_sub(1)).ok()?;
+                let lines = hunk.lines();
+                let inserted = lines
+                    .iter()
+                    .filter_map(|line| match line {
+                        diffy::Line::Insert(inserted) => Some(inserted.to_string()),
+                        _ => None,
+                    })
+                    .collect_vec()
+                    .join("\n");
+                let deleted = lines
+                    .iter()
+                    .filter_map(|line| match line {
+                        diffy::Line::Delete(deleted) => Some(deleted.to_string()),
+                        _ => None,
+                    })
+                    .collect_vec()
+                    .join("\n");
+                let diff = diff::chars(&deleted, &inserted)
+                    .into_iter()
+                    .filter_map(|result| match result {
+                        diff::Result::Left(left) => Some(left),
+                        _ => None,
+                    })
+                    .collect::<String>();
+
+                // TODO: style the diff
+                // - red for deleted line
+                // - green for inserted line
+                // - light red for deleted char within line
+                // - light green for inserted char within line
+
                 Some(ByteRange::with_info(
                     start..end,
                     hunk.lines()

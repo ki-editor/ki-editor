@@ -45,7 +45,7 @@ pub enum Mode {
     Normal,
     Insert,
     Jump { jumps: Vec<Jump> },
-    Kill,
+    Delete,
     AddCursor,
     FindOneChar,
     ScrollPage,
@@ -590,7 +590,7 @@ impl Editor {
     }
 
     fn select_syntax_tree(&mut self, direction: Direction) -> anyhow::Result<()> {
-        self.select(SelectionMode::SyntaxTree, direction)
+        self.select(SelectionMode::Sibling, direction)
     }
 
     fn select_kids(&mut self) -> anyhow::Result<()> {
@@ -1394,7 +1394,7 @@ impl Editor {
                     self.handle_jump_mode(key_event)?;
                     Ok(vec![])
                 }
-                Mode::Kill => self.handle_kill_mode(key_event),
+                Mode::Delete => self.handle_delete_mode(context, key_event),
                 Mode::AddCursor => {
                     self.handle_add_cursor_mode(key_event)?;
                     Ok(Vec::new())
@@ -1657,8 +1657,7 @@ impl Editor {
             key!("b") => return self.set_selection_mode(context, SelectionMode::Bookmark),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
-            key!("d") => return self.select_direction(context, Direction::Down),
-
+            key!("d") => self.mode = Mode::Delete,
             key!("e") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.diagnostic_keymap_legend_config(),
@@ -1687,7 +1686,6 @@ impl Editor {
             }
             key!("j") => self.jump()?,
 
-            key!("k") => self.mode = Mode::Kill,
             // TODO: rebind
             key!("k") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
@@ -1706,7 +1704,6 @@ impl Editor {
 
             // TODO: rebind
             key!("o") => return self.set_selection_mode(context, SelectionMode::LargestNode),
-            // O
             key!("p") => {
                 return self.select_direction(context, Direction::Left);
             }
@@ -1718,10 +1715,10 @@ impl Editor {
             // selection
             key!("r") => return Ok(self.raise()),
             key!("shift+R") => return Ok(self.replace()),
-            key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
+            key!("s") => return self.set_selection_mode(context, SelectionMode::Sibling),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
 
-            key!("u") => return self.select_direction(context, Direction::Up),
+            // u
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
@@ -1730,7 +1727,7 @@ impl Editor {
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => return Ok(self.exchange(Direction::Right)),
             key!("shift+X") => return Ok(self.exchange(Direction::Left)),
-            // y
+            key!("y") => return self.set_selection_mode(context, SelectionMode::SyntaxHierarchy),
             key!("z") => {
                 return Ok([Dispatch::ShowKeymapLegend(self.z_mode_keymap_legend())].to_vec())
             }
@@ -2107,7 +2104,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn kill(&mut self, direction: Direction) -> Vec<Dispatch> {
+    fn delete(&mut self, direction: Direction) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let mode = self.selection_set.mode.clone();
 
@@ -2263,7 +2260,7 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::SyntaxTree,
+                &SelectionMode::Sibling,
                 &Direction::Up,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
@@ -2519,7 +2516,7 @@ impl Editor {
                     let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit { range: range, new }),
+                            Action::Edit(Edit { range, new }),
                             Action::Select(
                                 selection
                                     .clone()
@@ -2543,7 +2540,7 @@ impl Editor {
             }
             Mode::Insert => "INSERT".to_string(),
             Mode::Jump { .. } => "JUMP".to_string(),
-            Mode::Kill => "KILL".to_string(),
+            Mode::Delete => "DELETE".to_string(),
             Mode::AddCursor => "ADD CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
             Mode::ScrollPage => "SCROLL PAGE".to_string(),
@@ -2563,20 +2560,24 @@ impl Editor {
         start as usize..(start as usize + self.rectangle.height as usize)
     }
 
-    fn handle_kill_mode(&mut self, key_event: KeyEvent) -> Result<Vec<Dispatch>, anyhow::Error> {
+    fn handle_delete_mode(
+        &mut self,
+        context: &mut Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
             key!("esc") => {
                 self.enter_normal_mode()?;
                 Ok(Vec::new())
             }
-            key!("k") => {
-                let dispatches = self.kill(Direction::Current);
+            key!("d") => {
+                let dispatches = self.delete(Direction::Current);
                 self.enter_normal_mode()?;
                 Ok(dispatches)
             }
-            key!("n") => Ok(self.kill(Direction::Right)),
-            key!("p") => Ok(self.kill(Direction::Left)),
-            _ => Ok(Vec::new()),
+            key!("n") => Ok(self.delete(Direction::Right)),
+            key!("p") => Ok(self.delete(Direction::Left)),
+            other => self.handle_normal_mode(context, other),
         }
     }
 
@@ -2970,7 +2971,7 @@ mod test_editor {
 
         assert_eq!(editor.get_selected_texts(), vec!["1"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.select_direction(&mut context, Direction::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
         editor.select_direction(&mut context, Direction::Up)?;
@@ -3687,10 +3688,10 @@ fn f() {
         editor.select_character(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
         editor.set_selection_mode(
@@ -3706,7 +3707,7 @@ fn f() {
         editor.set_selection_mode(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.kill(Direction::Left);
+        editor.delete(Direction::Left);
         assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
         Ok(())
     }
@@ -3727,7 +3728,7 @@ let y = S(b);
         editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -3738,7 +3739,7 @@ let y = S(b);
             .trim()
         );
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
         assert_eq!(
             editor.text(),
             "
@@ -3749,17 +3750,17 @@ let y = S(b);
 
         editor.select_line(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
-        editor.kill(Direction::Left);
+        editor.delete(Direction::Left);
         assert_eq!(
             editor.text(),
             "
 }"
         );
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), "}");
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
         assert_eq!(editor.text(), "");
         Ok(())
     }
@@ -3775,12 +3776,12 @@ let y = S(b);
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
         editor.select_syntax_tree(Direction::Current)?;
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
         editor.select_syntax_tree(Direction::Right)?;
-        editor.kill(Direction::Left);
+        editor.delete(Direction::Left);
 
         assert_eq!(editor.text(), "fn f(y: b){}");
         Ok(())
@@ -3794,11 +3795,11 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
 
         assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
 
-        editor.kill(Direction::Right);
+        editor.delete(Direction::Right);
 
         assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
 
@@ -3806,7 +3807,7 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.kill(Direction::Left);
+        editor.delete(Direction::Left);
 
         assert_eq!(editor.text(), "(: a, y: b, z: c){}");
         Ok(())

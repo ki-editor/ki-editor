@@ -54,6 +54,7 @@ rand = "0.8.5"
 convert_case = "0.6.0"
 ignore = "0.4.20"
 crossbeam = "0.8.2"
+diff = "0.1.13"
 
 [dev-dependencies]
 tempfile = "3.6.0"

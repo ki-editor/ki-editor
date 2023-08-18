@@ -87,6 +87,15 @@
 - [x] feat(editor): scroll mode, press vp, vl to enter scroll page/line mode
 - [x] refactor(selection): privatized range, rename extended_range method as range
 - [x] feat(keymap): zn/zp = last selection / first selection
+- [x] feat: change k to d, because d is easier to reach in Dvorak, and d (delete) is a more straightforward mnemonics than k (kill)
+- [x] keymap: shift keys are hard to press, bring back hjkl, but hjkl works on object now! For example, press q to go to quickfix-list mode
+      press j/k to go to prev/next item, press h/l to go to prev/next quickfix list, question: how does this works for action like delete/swap?
+      for motions, h/l = next object, j/k = first object on next/prev line
+      this is tried before, but it seems like up/down is only applicable to SyntaxTree mode
+- [x] feat(editor): match current selection (\*) should open keymap legend
+
+  for node movement: h = parent, l = kid, j/k = next/prev sibling
+
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -123,25 +132,18 @@
 - [] treesitter injections, support nested languages like Rust in Markdown
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] feat: small g for going to locations of this file, G for locations to anywhere
-- [] feat(editor): match current selection (\*) should open keymap legend
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
-- [] keymap: shift keys are hard to press, bring back hjkl, but hjkl works on object now! For example, press q to go to quickfix-list mode
-  press j/k to go to prev/next item, press h/l to go to prev/next quickfix list, question: how does this works for action like delete/swap?
-  for motions, h/l = next object, j/k = first object on next/prev line
-
-  for node movement: h = parent, l = kid, j/k = next/prev sibling
 
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
 - [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
 - [] filter selections/quickfix-list: useful for multi-cursor
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
-- [] feat(g): 'gh' for global git hunks
+- [] feat(g): 'ggh' for global git hunks
 - [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary
 - [] feat(editor): remove down/up movement, make u = select_parent, d = diagnostics
 - [] feat(space-f): for file mode, r = rename, k = kill (delete), a = add, s = save
 - [] feat: command mode (for exiting editor, save all file etc)
-- [] feat: change k to d, because d is easier to reach in Dvorak, and d (delete) is a more straightforward mnemonics than k (kill)
 - [] feat(doc): add motto about having no shift keys for key bindings;
   spammable key like n/p will not hide under layers, but action like "Change
   selection mode to Git Hunk" which is not supposed to be spam should hide

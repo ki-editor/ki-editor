@@ -6,8 +6,9 @@ pub mod git_hunk;
 pub mod largest_node;
 pub mod line;
 pub mod regex;
-pub mod syntax_tree;
+pub mod sibling;
 pub mod token;
+pub mod syntax_hierarchy;
 
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
@@ -18,7 +19,8 @@ pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use largest_node::LargestNode;
 pub use line::Line;
-pub use syntax_tree::SyntaxTree;
+pub use sibling::Sibling;
+pub use syntax_hierarchy::SyntaxHierarchy;
 pub use token::Token;
 
 use std::ops::Range;

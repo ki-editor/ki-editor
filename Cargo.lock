@@ -1602,6 +1602,7 @@ dependencies = [
  "convert_case",
  "crossbeam",
  "crossterm",
+ "diff",
  "diffy",
  "dyn-clone",
  "event",
