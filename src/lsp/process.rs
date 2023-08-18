@@ -336,13 +336,11 @@ impl LspServerProcess {
             ComponentId::default(),
             InitializeParams {
                 process_id: None,
-                root_uri: Some(
-                    Url::parse(&format!(
-                        "file://{}",
-                        self.current_working_directory.display()
-                    ))
-                    .unwrap(),
-                ),
+                root_uri: Some(Url::parse(&format!(
+                    "file://{}",
+                    self.current_working_directory.display()
+                ))?),
+                initialization_options: self.language.initialization_options(),
 
                 capabilities: ClientCapabilities {
                     workspace: Some(WorkspaceClientCapabilities {

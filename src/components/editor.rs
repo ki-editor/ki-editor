@@ -48,6 +48,8 @@ pub enum Mode {
     Kill,
     AddCursor,
     FindOneChar,
+    ScrollPage,
+    ScrollLine,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -1202,9 +1204,17 @@ impl Editor {
             keymaps: [
                 ("b", "Align view bottom", DispatchEditor::AlignViewBottom),
                 ("c", "Align view center", DispatchEditor::AlignViewCenter),
-                ("d", "Scroll down", DispatchEditor::ScrollDown),
+                (
+                    "l",
+                    "Enter scroll line mode",
+                    DispatchEditor::EnterScrollLineMode,
+                ),
+                (
+                    "p",
+                    "Enter scroll page mode",
+                    DispatchEditor::EnterScrollPageMode,
+                ),
                 ("t", "Align view top", DispatchEditor::AlignViewTop),
-                ("u", "Scroll up", DispatchEditor::ScrollUp),
             ]
             .into_iter()
             .map(|(key, description, dispatch)| {
@@ -1221,8 +1231,6 @@ impl Editor {
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
-            DispatchEditor::ScrollUp => self.select_view(Direction::Left)?,
-            DispatchEditor::ScrollDown => self.select_view(Direction::Right)?,
             DispatchEditor::AlignViewTop => self.align_cursor_to_top(),
             DispatchEditor::AlignViewCenter => self.align_cursor_to_center(),
             DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
@@ -1234,6 +1242,8 @@ impl Editor {
                 self.enter_insert_mode(cursor_direction)
             }
             DispatchEditor::FindOneChar => self.enter_single_character_mode(),
+            DispatchEditor::EnterScrollPageMode => self.mode = Mode::ScrollPage,
+            DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
         }
         Ok([].to_vec())
     }
@@ -1366,6 +1376,8 @@ impl Editor {
                     Ok(Vec::new())
                 }
                 Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
+                Mode::ScrollPage => self.handle_scroll_page_mode(context, key_event),
+                Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
             },
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
         }
@@ -1595,6 +1607,9 @@ impl Editor {
         context: &mut Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
+        if self.mode != Mode::Normal {
+            self.mode = Mode::Normal
+        };
         match event {
             key!(",") => self.select_backward(),
             key!("up") => return self.select_direction(context, Direction::Up),
@@ -2196,8 +2211,7 @@ impl Editor {
     fn update_buffer(&mut self, s: &str) {
         self.buffer.borrow_mut().update(s)
     }
-    fn select_view(&mut self, direction: Direction) -> anyhow::Result<()> {
-        let scroll_height = self.dimension().height / 2;
+    fn scroll(&mut self, direction: Direction, scroll_height: isize) -> anyhow::Result<()> {
         self.update_selection_set(self.selection_set.apply(
             self.selection_set.mode.clone(),
             |selection| {
@@ -2453,6 +2467,8 @@ impl Editor {
             Mode::Kill => "KILL".to_string(),
             Mode::AddCursor => "ADD CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
+            Mode::ScrollPage => "SCROLL PAGE".to_string(),
+            Mode::ScrollLine => "SCROLL LINE".to_string(),
         }
     }
 
@@ -2548,6 +2564,43 @@ impl Editor {
     pub fn add_decorations(&mut self, decorations: Vec<super::suggestive_editor::Decoration>) {
         self.buffer.borrow_mut().add_decorations(decorations)
     }
+
+    fn handle_scroll_line_mode(
+        &mut self,
+        context: &mut Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        match key_event {
+            key!("esc") => self.enter_normal_mode(),
+            key!("n") => self.scroll(Direction::Right, 1),
+            key!("p") => self.scroll(Direction::Left, 1),
+            other => return self.handle_normal_mode(context, other),
+        }?;
+        Ok(Vec::new())
+    }
+
+    fn handle_scroll_page_mode(
+        &mut self,
+        context: &mut Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        let height = (self.dimension().height / 2) as isize;
+        match key_event {
+            key!("esc") => {
+                self.enter_normal_mode()?;
+                Ok(Vec::new())
+            }
+            key!("n") => {
+                self.scroll(Direction::Right, height)?;
+                Ok(Vec::new())
+            }
+            key!("p") => {
+                self.scroll(Direction::Left, height)?;
+                Ok(Vec::new())
+            }
+            other => self.handle_normal_mode(context, other),
+        }
+    }
 }
 
 enum Enclosure {
@@ -2576,8 +2629,6 @@ pub enum HandleEventResult {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DispatchEditor {
-    ScrollUp,
-    ScrollDown,
     AlignViewTop,
     AlignViewCenter,
     AlignViewBottom,
@@ -2585,6 +2636,8 @@ pub enum DispatchEditor {
     SetSelectionMode(SelectionMode),
     EnterInsertMode(CursorDirection),
     FindOneChar,
+    EnterScrollPageMode,
+    EnterScrollLineMode,
 }
 
 #[cfg(test)]

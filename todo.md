@@ -76,13 +76,19 @@
 - [x] feat(f): hide built-in regex like word and character under f, then we can add more like numbers, dates, etc
 - [x] incorporate AST grep (https://github.com/ast-grep/ast-grep)
 - [x] feat(signature-help): not showing type
+- [x] feat(key): change ctrl+t to space-t
+- [x] feat(editor): "go" for getting opened files, "gg" for getting git status files
+- [x] feat(editor): vb = align bottom, vc = align center, vt = align top
+- [x] mechanism for adding selection to all matching selection within current selection (a-a)
+- [x] copy should work between different editors
+- [x] Enter not working as expected in insert mode
+- [x] dropdown: handle up/down/enter event
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
 - [] e for enclose the current node with one of the brackets
 - [] f for moving to the next node which has the same field name as the current node
-- [] mechanism for adding selection to all matching selection within current selection (ctrl+a)
 - [] . for selecting the whole file
 - [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
 - [] jump should work for multiple selection?
@@ -90,16 +96,12 @@
 - [] file tree
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
-- [] feat(editor): z = align bottom, z again align center, Z = align top, Z again align top
 - [] feat: workspaces (similar to tab in Vim)
 - [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
-- [] copy should work between different editors
-- [] Enter not working as expected in insert mode
-- [] pressing 'b' remove the copied text
+- [] bug: pressing 'b' remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
 - [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 - [] location list (local to each editor), local diagnostics should use this
-- [] dropdown: handle up/down/enter event
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
 - [] feat(editor/slurp or barf):
@@ -118,7 +120,6 @@
 - [] feat(lsp/code-action): command string execution (code action without edit)
 - [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] feat(editor): match current selection (\*) should open keymap legend
-- [] feat(editor): "go" for getting opened files, "gg" for getting git status files
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
 - [] feat(editor): go to specific line number
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
@@ -135,8 +136,7 @@
 - [] feat(g): 'gh' for global git hunks
 - [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary
 - [] feat(editor): remove down/up movement, make u = select_parent, d = diagnostics
-- [] feat(editor): scroll mode, press vs to enter scroll mode
-- [] feat(key): change ctrl+t to space-t
+- [x] feat(editor): scroll mode, press vp, vl to enter scroll page/line mode
 - [] feat(space-f): for file mode, r = rename, k = kill (delete), a = add, s = save
 - [] feat: command mode (for exiting editor, save all file etc)
 - [] feat: change k to d, because d is easier to reach in Dvorak, and d (delete) is a more straightforward mnemonics than k (kill)
@@ -146,4 +146,4 @@
   under layer
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
-- [] feat(keymap): zn/zf = last selection / first selection 
+- [] feat(keymap): zn/zf = last selection / first selection
