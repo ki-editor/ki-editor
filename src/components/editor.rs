@@ -1244,6 +1244,7 @@ impl Editor {
             DispatchEditor::FindOneChar => self.enter_single_character_mode(),
             DispatchEditor::EnterScrollPageMode => self.mode = Mode::ScrollPage,
             DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
+            DispatchEditor::GoToLineNumber(line_number) => self.go_to_line_number(line_number)?,
         }
         Ok([].to_vec())
     }
@@ -1323,6 +1324,7 @@ impl Editor {
                             "Implementation(s)",
                             Dispatch::RequestImplementations(params.clone()),
                         ),
+                        Keymap::new("l", "Line number", Dispatch::GoToLineNumber),
                         Keymap::new(
                             "r",
                             "References",
@@ -2601,6 +2603,23 @@ impl Editor {
             other => self.handle_normal_mode(context, other),
         }
     }
+
+    /// 0-based line number
+    fn go_to_line_number(&mut self, line_number: usize) -> anyhow::Result<()> {
+        let range = (self.buffer().line_to_char(line_number)?
+            ..self.buffer().line_to_char(line_number)?)
+            .into();
+        self.selection_set = SelectionSet {
+            primary: Selection {
+                range,
+                ..self.selection_set.primary.clone()
+            },
+            secondary: Vec::new(),
+            mode: self.selection_set.mode.clone(),
+        };
+        self.recalculate_scroll_offset();
+        Ok(())
+    }
 }
 
 enum Enclosure {
@@ -2638,6 +2657,8 @@ pub enum DispatchEditor {
     FindOneChar,
     EnterScrollPageMode,
     EnterScrollLineMode,
+    /// 0-based line number
+    GoToLineNumber(usize),
 }
 
 #[cfg(test)]

@@ -83,6 +83,8 @@
 - [x] copy should work between different editors
 - [x] Enter not working as expected in insert mode
 - [x] dropdown: handle up/down/enter event
+- [x] feat(editor): go to specific line number
+- [x] feat(editor): scroll mode, press vp, vl to enter scroll page/line mode
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -121,7 +123,6 @@
 - [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] feat(editor): match current selection (\*) should open keymap legend
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
-- [] feat(editor): go to specific line number
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
 - [] keymap: shift keys are hard to press, bring back hjkl, but hjkl works on object now! For example, press q to go to quickfix-list mode
   press j/k to go to prev/next item, press h/l to go to prev/next quickfix list, question: how does this works for action like delete/swap?
@@ -136,7 +137,6 @@
 - [] feat(g): 'gh' for global git hunks
 - [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary
 - [] feat(editor): remove down/up movement, make u = select_parent, d = diagnostics
-- [x] feat(editor): scroll mode, press vp, vl to enter scroll page/line mode
 - [] feat(space-f): for file mode, r = rename, k = kill (delete), a = add, s = save
 - [] feat: command mode (for exiting editor, save all file etc)
 - [] feat: change k to d, because d is easier to reach in Dvorak, and d (delete) is a more straightforward mnemonics than k (kill)

@@ -407,6 +407,7 @@ impl<T: Frontend> Screen<T> {
                 self.open_global_search_prompt(search_kind)
             }
             Dispatch::GlobalSearch(search) => self.global_search(search)?,
+            Dispatch::GoToLineNumber => self.open_go_to_line_number_prompt(),
         }
         Ok(())
     }
@@ -425,6 +426,26 @@ impl<T: Frontend> Screen<T> {
 
     fn resize(&mut self, dimension: Dimension) {
         self.layout.set_terminal_dimension(dimension);
+    }
+
+    fn open_go_to_line_number_prompt(&mut self) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Go to line number".to_string(),
+            history: vec![],
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                let line_number = text.parse::<usize>()?.saturating_sub(1);
+                Ok([Dispatch::DispatchEditor(DispatchEditor::GoToLineNumber(
+                    line_number,
+                ))]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: vec![],
+        });
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
     fn open_rename_prompt(&mut self, params: RequestParams) {
@@ -971,6 +992,7 @@ pub enum Dispatch {
     GotoLocation(Location),
     OpenGlobalSearchPrompt(SearchKind),
     GlobalSearch(Search),
+    GoToLineNumber,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
