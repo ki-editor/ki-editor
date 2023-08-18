@@ -1335,6 +1335,13 @@ impl Editor {
                             Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
                         ),
                         Keymap::new(
+                            "h",
+                            "Git hunk",
+                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                SelectionMode::GitHunk,
+                            )),
+                        ),
+                        Keymap::new(
                             "i",
                             "Implementation(s)",
                             Dispatch::RequestImplementations(params.clone()),
@@ -1498,11 +1505,13 @@ impl Editor {
                     let copied_text: Rope = self.buffer.borrow().slice(&selection.range)?;
                     Ok(ActionGroup::new(vec![
                         Action::Edit(Edit {
-                            range: selection.range,
+                            range: selection.extended_range(),
                             new: Rope::new(),
                         }),
                         Action::Select(Selection {
-                            range: (selection.range.start..selection.range.start).into(),
+                            range: (selection.extended_range().start
+                                ..selection.extended_range().start)
+                                .into(),
                             copied_text: selection.copied_text.clone(),
                             initial_range: None,
                             info: None,
@@ -1628,6 +1637,7 @@ impl Editor {
             self.mode = Mode::Normal
         };
         match event {
+            key!("esc") => self.selection_set.escape_highlight_mode(),
             key!(",") => self.select_backward(),
             key!("up") => return self.select_direction(context, Direction::Up),
             key!("down") => return self.select_direction(context, Direction::Down),
@@ -1663,7 +1673,7 @@ impl Editor {
                     self.g_mode_keymap_legend_config(),
                 )])
             }
-            key!("h") => return self.set_selection_mode(context, SelectionMode::GitHunk),
+
             key!("h") => self.toggle_highlight_mode(),
             // H
             key!("i") => {
@@ -1772,6 +1782,7 @@ impl Editor {
 
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         if self.mode == Mode::Insert {
+            // This is necessary for cursor to not overflow after exiting insert mode
             self.selection_set =
                 self.selection_set
                     .apply(self.selection_set.mode.clone(), |selection| {
@@ -1792,6 +1803,7 @@ impl Editor {
                         })
                     })?;
         }
+
         self.mode = Mode::Normal;
 
         Ok(())
@@ -2056,10 +2068,10 @@ impl Editor {
     fn backspace(&mut self) -> Vec<Dispatch> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let start = CharIndex(selection.range.start.0.saturating_sub(1));
+                let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
                 ActionGroup::new(vec![
                     Action::Edit(Edit {
-                        range: (start..selection.range.start).into(),
+                        range: (start..selection.extended_range().start).into(),
                         new: Rope::from(""),
                     }),
                     Action::Select(Selection {

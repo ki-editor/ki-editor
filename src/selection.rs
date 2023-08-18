@@ -214,6 +214,9 @@ impl SelectionSet {
         };
         Ok(())
     }
+    pub fn escape_highlight_mode(&mut self) {
+        self.apply_mut(|selection| selection.escape_highlight_mode());
+    }
 
     pub fn toggle_highlight_mode(&mut self) {
         self.apply_mut(|selection| selection.toggle_highlight_mode());
@@ -434,6 +437,10 @@ impl Selection {
             Direction::Current => selection_mode.current(params)?,
         }
         .unwrap_or_else(|| current_selection.clone()))
+    }
+    pub fn escape_highlight_mode(&mut self) {
+        log::info!("escape highlight mode");
+        self.initial_range = None
     }
 
     pub fn toggle_highlight_mode(&mut self) {
