@@ -147,6 +147,10 @@
   under layer
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
-- [] feat(keymap): zn/zf = last selection / first selection
+- [] feat(keymap): zn/zp = last selection / first selection
+- [] feat(keymap): if u = parent, then zu the outermost node that starts with this cursor
 - [] fix(legend): pressing esc causes the cursor to fly to nowhere, then has to press ctrl+w to bring it back
 - [] feat(cursor): change cursor in insert mode
+- [] feat(find): sentence, paragraph
+- [] feat(regex): show description for built-in regex
+- [] fix(cursor): misplacement when wrapped sometimes

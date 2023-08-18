@@ -248,6 +248,7 @@ impl SelectionSet {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum SelectionMode {
     // Regex
+    EmptyLine,
     Word,
     Line,
     Character,
@@ -281,6 +282,7 @@ impl SelectionMode {
     pub fn display(&self) -> String {
         match self {
             SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
@@ -288,7 +290,7 @@ impl SelectionMode {
             SelectionMode::LargestNode => "LARGEST NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Match { search } => {
-                format!("MATCH({:?})={:?}", search.kind, search.search)
+                format!("MATCH {:?} {:?}", search.kind, search.search)
             }
             SelectionMode::Diagnostic(severity) => {
                 let severity = severity
@@ -350,6 +352,9 @@ impl SelectionMode {
             SelectionMode::Diagnostic(severity) => Box::new(selection_mode::Diagnostic(*severity)),
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
+            SelectionMode::EmptyLine => {
+                Box::new(selection_mode::Regex::regex(buffer, r"(?m)^\s*$")?)
+            }
         })
     }
 }

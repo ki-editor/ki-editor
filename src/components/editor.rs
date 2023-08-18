@@ -1051,12 +1051,7 @@ impl Editor {
                     "e",
                     "Empty line",
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        SelectionMode::Match {
-                            search: Search {
-                                kind: SearchKind::Regex,
-                                search: r"(?m)^\s*$".to_string(),
-                            },
-                        },
+                        SelectionMode::EmptyLine,
                     )),
                 ),
                 Keymap::new(

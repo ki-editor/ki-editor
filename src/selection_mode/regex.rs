@@ -33,6 +33,14 @@ impl Regex {
             content: buffer.rope().to_string(),
         })
     }
+
+    pub fn regex(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
+        let regex = get_regex(pattern, false, false)?;
+        Ok(Self {
+            regex,
+            content: buffer.rope().to_string(),
+        })
+    }
 }
 
 impl SelectionMode for Regex {
