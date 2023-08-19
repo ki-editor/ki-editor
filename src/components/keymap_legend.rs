@@ -107,6 +107,9 @@ impl Component for KeymapLegend {
         context: &mut crate::context::Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+        let close_current_window = Dispatch::CloseCurrentWindow {
+            change_focused_to: Some(self.config.owner_id),
+        };
         if self.editor.mode == Mode::Insert {
             match &event {
                 key!("esc") => {
@@ -120,17 +123,17 @@ impl Component for KeymapLegend {
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
-                        Ok(vec![Dispatch::CloseCurrentWindow {
-                            change_focused_to: Some(self.config.owner_id),
-                        }]
-                        .into_iter()
-                        .chain(vec![keymap.dispatch.clone()])
-                        .collect())
+                        Ok([close_current_window]
+                            .into_iter()
+                            .chain(vec![keymap.dispatch.clone()])
+                            .collect())
                     } else {
                         Ok(vec![])
                     }
                 }
             }
+        } else if self.editor.mode == Mode::Normal && event == key!("esc") {
+            Ok([close_current_window].to_vec())
         } else {
             self.editor.handle_key_event(context, event)
         }
