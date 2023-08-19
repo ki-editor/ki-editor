@@ -32,3 +32,38 @@ impl SelectionMode for LargestNode {
         ))
     }
 }
+
+#[cfg(test)]
+mod test_largest_node {
+    use crate::buffer::Buffer;
+
+    use super::*;
+
+    #[test]
+    fn case_1() {
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "fn main(x: usize) { let x = 1; }",
+        );
+        LargestNode.assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[
+                (0..32, "fn main(x: usize) { let x = 1; }"),
+                (3..7, "main"),
+                (7..17, "(x: usize)"),
+                (8..16, "x: usize"),
+                (9..10, ":"),
+                (11..16, "usize"),
+                (16..17, ")"),
+                (18..32, "{ let x = 1; }"),
+                (20..30, "let x = 1;"),
+                (24..25, "x"),
+                (26..27, "="),
+                (28..29, "1"),
+                (29..30, ";"),
+                (31..32, "}"),
+            ],
+        );
+    }
+}

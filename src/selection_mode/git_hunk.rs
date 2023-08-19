@@ -1,4 +1,3 @@
-// TODO: use patch instead to get the diff
 use std::path::Path;
 
 use itertools::Itertools;

@@ -790,7 +790,6 @@ impl LspServerProcess {
                 // Parse the reply as Notification
                 match method.as_str() {
                     "textDocument/publishDiagnostics" => {
-                        log::info!("Incoming Notification: {}", method);
                         let params: <lsp_notification!("textDocument/publishDiagnostics") as Notification>::Params =
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
 
@@ -800,7 +799,7 @@ impl LspServerProcess {
                             ))
                             .unwrap();
                     }
-                    _ => log::info!("Incoming Notification: {}", method),
+                    _ => log::info!("unhandled Incoming Notification: {}", method),
                 }
             }
         }

@@ -30,3 +30,25 @@ impl SelectionMode for AstGrep {
         ))
     }
 }
+
+#[cfg(test)]
+mod test_ast_grep {
+    use crate::{buffer::Buffer, selection::Selection};
+
+    use super::*;
+
+    #[test]
+    fn case_1() {
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "fn main(x: usize) { let x = f(f(x)); }",
+        );
+        AstGrep::new(&buffer, "f($Y)")
+            .unwrap()
+            .assert_all_selections(
+                &buffer,
+                Selection::default(),
+                &[(28..35, "f(f(x))"), (30..34, "f(x)")],
+            );
+    }
+}

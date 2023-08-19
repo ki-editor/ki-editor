@@ -7,8 +7,8 @@ pub mod largest_node;
 pub mod line;
 pub mod regex;
 pub mod sibling;
-pub mod token;
 pub mod syntax_hierarchy;
+pub mod token;
 
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
@@ -61,7 +61,10 @@ impl ByteRange {
     }
 
     pub fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
-        Ok(selection.clone().set_range(self.to_char_index_range(buffer)?).set_info(self.info))
+        Ok(selection
+            .clone()
+            .set_range(self.to_char_index_range(buffer)?)
+            .set_info(self.info))
     }
 }
 
@@ -302,5 +305,35 @@ pub trait SelectionMode {
             .next();
 
         Ok(found.and_then(|range| range.to_selection(buffer, current_selection).ok()))
+    }
+
+    #[cfg(test)]
+    fn assert_all_selections(
+        &self,
+        buffer: &Buffer,
+        current_selection: Selection,
+        selections: &[(Range<usize>, &'static str)]
+    )  {
+
+        let expected = selections
+            .into_iter()
+            .map(|(range, info)| {
+                (range.to_owned(), info.to_string())
+            })
+            .collect_vec();
+
+        let actual = 
+        self.iter(&current_selection, &buffer)
+            .unwrap()
+            .map(|range| -> anyhow::Result<_> {
+                Ok((
+                    range.range.start..range.range.end,
+                    buffer.slice(&range.to_char_index_range(&buffer)?)?.to_string(),
+                ))
+            })
+            .flatten()
+            .collect_vec();
+
+        assert_eq!(expected, actual);
     }
 }
