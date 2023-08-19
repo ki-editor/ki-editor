@@ -1,12 +1,9 @@
-use anyhow::anyhow;
-
 use event::event::Event;
 use itertools::Itertools;
 use my_proc_macros::{hex, key};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    path::Path,
     rc::Rc,
     sync::{
         mpsc::{Receiver, Sender},
@@ -26,7 +23,7 @@ use crate::{
     },
     context::{Context, GlobalMode, Search, SearchKind},
     frontend::frontend::Frontend,
-    grid::{Grid, Style},
+    grid::Grid,
     layout::Layout,
     list,
     lsp::{
@@ -154,8 +151,8 @@ impl<T: Frontend> Screen<T> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
-            Event::Key(key!("enter")) if self.context.mode.is_some() => {
-                self.context.mode = None;
+            Event::Key(key!("enter")) if self.context.mode().is_some() => {
+                self.context.set_mode(None);
             }
             Event::Key(key!("ctrl+q")) => {
                 if self.quit() {
@@ -270,15 +267,10 @@ impl<T: Frontend> Screen<T> {
             .fold(grid, Grid::set_border);
         // Set the global title
         let grid = {
-            let mode = self
-                .context
-                .mode
-                .as_ref()
-                .map(|mode| mode.display())
-                .or_else(|| {
-                    self.current_component()
-                        .map(|component| component.borrow().editor().display_mode())
-                });
+            let mode = self.context.mode().map(|mode| mode.display()).or_else(|| {
+                self.current_component()
+                    .map(|component| component.borrow().editor().display_mode())
+            });
 
             let mode = if let Some(mode) = mode {
                 format!("[{}]", mode)
@@ -725,7 +717,6 @@ impl<T: Frontend> Screen<T> {
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
-                log::info!("Received diagnostics");
                 let diagnostics = params
                     .diagnostics
                     .into_iter()
@@ -864,7 +855,7 @@ impl<T: Frontend> Screen<T> {
     }
 
     fn set_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
-        self.context.mode = Some(GlobalMode::QuickfixListItem);
+        self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         self.quickfix_lists.borrow_mut().push(quickfix_list);
         self.layout.show_quickfix_lists(self.quickfix_lists.clone());
         self.goto_quickfix_list_item(Direction::Right)

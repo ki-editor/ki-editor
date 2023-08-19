@@ -1586,7 +1586,7 @@ impl Editor {
         context: &mut Context,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        context.mode = None;
+        context.set_mode(None);
         self.select_direction_mode(context, Direction::Current, selection_mode)
     }
 
@@ -1596,9 +1596,12 @@ impl Editor {
         direction: Direction,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(global_mode) = &context.mode {
+        if let Some(global_mode) = &context.mode() {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(direction)]),
+                GlobalMode::BufferNavigationHistory => {
+                    Ok([Dispatch::GotoOpenedEditor(direction)].to_vec())
+                }
             }
         } else {
             self.select(selection_mode, direction)?;
@@ -1659,7 +1662,7 @@ impl Editor {
             // Objects
             key!("a") => self.mode = Mode::AddCursor,
             key!("ctrl+b") => self.save_bookmarks(),
-            key!("b") => return self.set_selection_mode(context, SelectionMode::Bookmark),
+            key!("b") => context.set_mode(Some(GlobalMode::BufferNavigationHistory)),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             key!("d") => self.mode = Mode::Delete,
@@ -1708,9 +1711,7 @@ impl Editor {
                 return self.select_direction(context, Direction::Left);
             }
 
-            key!("q") => {
-                context.mode = Some(GlobalMode::QuickfixListItem);
-            }
+            key!("q") => context.set_mode(Some(GlobalMode::QuickfixListItem)),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
             key!("r") => return Ok(self.raise()),

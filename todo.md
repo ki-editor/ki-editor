@@ -93,6 +93,7 @@
       for motions, h/l = next object, j/k = first object on next/prev line
       this is tried before, but it seems like up/down is only applicable to SyntaxTree mode
 - [x] feat(editor): match current selection (\*) should open keymap legend
+- [x] feat: bn/bp browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 
   for node movement: h = parent, l = kid, j/k = next/prev sibling
 
@@ -113,7 +114,6 @@
 - [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
 - [] bug: pressing 'b' remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
-- [] browswer-like for file navigation (use the undo crate https://crates.io/crates/undo)
 - [] location list (local to each editor), local diagnostics should use this
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
@@ -155,3 +155,6 @@
 - [] feat(cursor): change cursor in insert mode
 - [] feat(find): sentence, paragraph
 - [] fix(cursor): misplacement when wrapped sometimes
+- [] refactor(buffer): hide rope
+- [] fix(buffer): len_lines need to minus 1 because rope.len_lines always is 1 more, even empty string is one line
+- [] fix failing test cases

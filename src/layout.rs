@@ -150,8 +150,10 @@ impl Layout {
         set_backward_history: bool,
     ) {
         self.focused_component_id = editor.as_ref().map(|editor| editor.borrow().id());
-        if let Some(editor) = &editor {
+
+        if let Some(editor) = self.main_panel.take() {
             if set_backward_history {
+                self.main_panel_history_forward.clear();
                 self.main_panel_history_backward.push(editor.clone());
             } else {
                 self.main_panel_history_forward.push(editor.clone());
