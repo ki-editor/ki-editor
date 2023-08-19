@@ -2717,6 +2717,22 @@ impl Editor {
             .to_vec(),
         }
     }
+
+    fn match_literal(
+        &mut self,
+        context: &mut Context,
+        search: &str,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        self.set_selection_mode(
+            context,
+            SelectionMode::Match {
+                search: Search {
+                    kind: SearchKind::Literal,
+                    search: search.to_string(),
+                },
+            },
+        )
+    }
 }
 
 enum Enclosure {
@@ -2973,24 +2989,24 @@ mod test_editor {
 
         assert_eq!(editor.get_selected_texts(), vec!["1"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
-        editor.select_direction(&mut context, Direction::Up)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxHierarchy)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        editor.select_direction(&mut context, Direction::Up)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_direction(&mut context, Direction::Up)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn main() { let x = 1; }"]
         );
 
-        editor.select_direction(&mut context, Direction::Down)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
 
     #[test]
-    fn select_syntax_tree() -> anyhow::Result<()> {
+    fn select_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         let mut context = Context::default();
         let search = Search {
@@ -3002,6 +3018,7 @@ mod test_editor {
         editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.select_syntax_tree(Direction::Right)?;
         editor.select_syntax_tree(Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["y: Vec<A>"]);
@@ -3017,37 +3034,39 @@ mod test_editor {
 
     #[test]
     /// Should select the most ancestral node if the node's child and its parents has the same range.
-    fn select_syntax_tree_2() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = X {a,b,c:d} }");
+    fn select_sibling_2() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() { let x = X {z,b,c:d} }");
+        let mut context = Context::new();
 
-        // Select `a`
-        for _ in 0..11 {
-            editor.select_token(Direction::Right)?;
-        }
+        // Select `z`
+        editor.match_literal(&mut context, "z")?;
+        editor.select_direction(&mut context, Direction::Right)?;
 
-        assert_eq!(editor.get_selected_texts(), vec!["a"]);
+        assert_eq!(editor.get_selected_texts(), vec!["z"]);
 
-        editor.select_syntax_tree(Direction::Right)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["b"]);
 
-        editor.select_syntax_tree(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["c:d"]);
 
-        editor.select_syntax_tree(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["b"]);
 
-        editor.select_syntax_tree(Direction::Left)?;
-        assert_eq!(editor.get_selected_texts(), vec!["a"]);
+        editor.select_direction(&mut context, Direction::Left)?;
+        assert_eq!(editor.get_selected_texts(), vec!["z"]);
         Ok(())
     }
 
     #[test]
     fn select_kids() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        // Move token to "x"
-        for _ in 0..4 {
-            editor.select_token(Direction::Right)?;
-        }
+        let mut context = Context::new();
+
+        editor.match_literal(&mut context, "x")?;
+        editor.select_direction(&mut context, Direction::Right)?;
+
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
         editor.select_kids()?;
@@ -3056,31 +3075,37 @@ mod test_editor {
     }
 
     #[test]
-    fn select_named_node() -> anyhow::Result<()> {
+    fn select_largest_node() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize) { let x = 1; }");
+        let mut context = Context::new();
+        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
 
-        editor.select_named_node(Direction::Right)?;
+        assert_eq!(
+            editor.get_selected_texts(),
+            vec!["fn main(x: usize) { let x = 1; }"]
+        );
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_named_node(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
-        editor.select_named_node(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_named_node(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-        editor.select_named_node(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_named_node(Direction::Right)?;
+        editor.select_direction(&mut context, Direction::Right)?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
 
-        editor.select_named_node(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_named_node(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-        editor.select_named_node(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_named_node(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
-        editor.select_named_node(Direction::Left)?;
+        editor.select_direction(&mut context, Direction::Left)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
