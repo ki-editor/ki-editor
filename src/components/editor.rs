@@ -2556,7 +2556,9 @@ impl Editor {
 
     fn line_range(&self) -> Range<usize> {
         let start = self.scroll_offset;
-        start as usize..(start as usize + self.rectangle.height as usize)
+        let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
+
+        start as usize..end
     }
 
     fn handle_delete_mode(
