@@ -73,7 +73,12 @@ impl PartialOrd for ByteRange {
         self.range
             .start
             .partial_cmp(&other.range.start)
-            .or_else(|| self.range.end.partial_cmp(&other.range.end))
+            .or_else(|| {
+                self.range
+                    .end
+                    .partial_cmp(&other.range.end)
+                    .and_then(|ordering| Some(ordering.reverse()))
+            })
     }
 }
 
@@ -98,6 +103,20 @@ pub trait SelectionMode {
         current_selection: &'a Selection,
         buffer: &'a Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
+
+    fn apply_direction(
+        &self,
+        params: SelectionModeParams,
+        direction: Direction,
+    ) -> anyhow::Result<Option<Selection>> {
+        match direction {
+            Direction::Right => self.right(params),
+            Direction::Left => self.left(params),
+            Direction::RightMost => self.right_most(params),
+            Direction::Current => self.current(params),
+            Direction::LeftMost => self.left_most(params),
+        }
+    }
 
     fn jumps(
         &self,
@@ -127,184 +146,74 @@ pub trait SelectionMode {
             .collect_vec())
     }
 
-    fn right_iter<'a>(
-        &'a self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: &SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let iter = self.iter(current_selection, buffer)?;
-        let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
-        let cursor_direction = (*cursor_direction).clone();
-        Ok(Box::new(iter.sorted().filter(move |range| {
-            range.to_byte(&cursor_direction) > cursor_byte
-        })))
-    }
-
     fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self.right_iter(&params)?.next().and_then(|range| {
-            range
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+        self.get_by_offset_to_current_selection(params, 1)
     }
 
-    fn right_most(
+    fn right_most(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(self
+            .iter(params.current_selection, params.buffer)?
+            .sorted()
+            .last()
+            .and_then(|range| {
+                range
+                    .to_selection(params.buffer, params.current_selection)
+                    .ok()
+            }))
+    }
+
+    fn get_by_offset_to_current_selection(
         &self,
-        params @ SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: SelectionModeParams,
+        params: SelectionModeParams,
+        offset: isize,
     ) -> anyhow::Result<Option<Selection>> {
-        let current_line_range =
-            buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
-        Ok(self.right_iter(&params)?.last().and_then(|range| {
-            range
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
-    }
+        let iter = self.iter(params.current_selection, params.buffer)?.sorted();
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
 
-    fn left_iter<'a>(
-        &'a self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: &SelectionModeParams<'a>,
-    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let iter = self.iter(current_selection, buffer)?;
-        let cursor_byte = buffer.char_to_byte(current_selection.to_char_index(cursor_direction))?;
-        Ok(Box::new(
-            iter.sorted_by(|a, b| b.cmp(a))
-                .filter(move |range| range.range.start < cursor_byte),
-        ))
+        // Find the range from the iterator that is most similar to the range of current selection
+        let byte_range = buffer.char_to_byte(current_selection.extended_range().start)?
+            ..buffer.char_to_byte(current_selection.extended_range().end)?;
+
+        let nearest = iter
+            .enumerate()
+            .map(|(i, range)| {
+                (
+                    i,
+                    (
+                        range.range.start.abs_diff(byte_range.start),
+                        range.range.end.abs_diff(byte_range.end),
+                    ),
+                )
+            })
+            .min_by_key(|(_, diff)| *diff)
+            .map(|(i, _)| i);
+
+        let mut iter = self.iter(params.current_selection, params.buffer)?.sorted();
+        Ok(nearest.and_then(|i| {
+            iter.nth(((i as isize) + offset) as usize)
+                .and_then(|range| range.to_selection(buffer, current_selection).ok())
+        }))
     }
 
     fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self.left_iter(&params)?.next().and_then(|range| {
-            range
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+        return self.get_by_offset_to_current_selection(params, -1);
     }
 
-    fn left_most(
-        &self,
-        params @ SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: SelectionModeParams,
-    ) -> anyhow::Result<Option<Selection>> {
-        let current_line_range =
-            buffer.current_line_byte_range(current_selection.to_char_index(cursor_direction))?;
-        Ok(self.left_iter(&params)?.last().and_then(|range| {
-            range
-                .to_selection(params.buffer, params.current_selection)
-                .ok()
-        }))
+    fn left_most(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(self
+            .iter(&params.current_selection, params.buffer)?
+            .sorted()
+            .next()
+            .and_then(|range| {
+                range
+                    .to_selection(params.buffer, params.current_selection)
+                    .ok()
+            }))
     }
 
-    /// By default this means the next selection after the current selection which is on the next
-    /// line and of the same column
-    fn down(
-        &self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: SelectionModeParams,
-    ) -> anyhow::Result<Option<Selection>> {
-        self.move_vertically(buffer, current_selection, cursor_direction, false)
-    }
-
-    /// Default implementation:
-    ///
-    /// Get the selection that is at least one line above the current selection,
-    /// and the column is the nearest to that of the current selection, regardless of left or
-    /// right.
-    fn up(
-        &self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: SelectionModeParams,
-    ) -> anyhow::Result<Option<Selection>> {
-        self.move_vertically(buffer, current_selection, cursor_direction, true)
-    }
-
-    fn move_vertically(
-        &self,
-        buffer: &Buffer,
-        current_selection: &Selection,
-        cursor_direction: &CursorDirection,
-        go_up: bool,
-    ) -> anyhow::Result<Option<Selection>> {
-        let cursor_position =
-            buffer.char_to_position(current_selection.to_char_index(cursor_direction))?;
-
-        let filter_fn = move |selection_position: Position| {
-            if go_up {
-                selection_position.line < cursor_position.line
-            } else {
-                selection_position.line > cursor_position.line
-            }
-        };
-
-        let found = self
-            .iter(current_selection, buffer)?
-            .filter_map(|range| {
-                let start = buffer.byte_to_char(range.range.start).ok()?;
-                let end = buffer.byte_to_char(range.range.end).ok()?;
-
-                let selection_position = buffer.char_to_position(start).ok()?;
-
-                if filter_fn(selection_position) {
-                    Some(((start..end).into(), range.info, selection_position))
-                } else {
-                    None
-                }
-            })
-            .sorted_by_key(|(_, _, position)| {
-                let column_diff = position.column as i64 - cursor_position.column as i64;
-                let line_diff = position.line as i64 - cursor_position.line as i64;
-
-                (line_diff.abs(), column_diff.abs())
-            })
-            .next();
-
-        Ok(found.map(|(range, info, _)| current_selection.clone().set_range(range).set_info(info)))
-    }
-
-    fn current(
-        &self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        }: SelectionModeParams,
-    ) -> anyhow::Result<Option<Selection>> {
-        let cursor_char_index = current_selection.to_char_index(cursor_direction);
-        let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
-        if let Some(exact) = self
-            .iter(current_selection, buffer)?
-            .find(|range| range.range.start == cursor_byte)
-        {
-            return exact.to_selection(buffer, current_selection).map(Some);
-        }
-
-        let found = self
-            .iter(current_selection, buffer)?
-            .filter(|range| range.range.contains(&cursor_byte))
-            .sorted_by_key(|range| range.range.end - range.range.start)
-            .next();
-
-        Ok(found.and_then(|range| range.to_selection(buffer, current_selection).ok()))
+    fn current(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        return self.get_by_offset_to_current_selection(params, 0);
     }
 
     #[cfg(test)]
@@ -312,28 +221,117 @@ pub trait SelectionMode {
         &self,
         buffer: &Buffer,
         current_selection: Selection,
-        selections: &[(Range<usize>, &'static str)]
-    )  {
-
+        selections: &[(Range<usize>, &'static str)],
+    ) {
         let expected = selections
             .into_iter()
-            .map(|(range, info)| {
-                (range.to_owned(), info.to_string())
-            })
+            .map(|(range, info)| (range.to_owned(), info.to_string()))
             .collect_vec();
 
-        let actual = 
-        self.iter(&current_selection, &buffer)
+        let actual = self
+            .iter(&current_selection, &buffer)
             .unwrap()
             .map(|range| -> anyhow::Result<_> {
                 Ok((
                     range.range.start..range.range.end,
-                    buffer.slice(&range.to_char_index_range(&buffer)?)?.to_string(),
+                    buffer
+                        .slice(&range.to_char_index_range(&buffer)?)?
+                        .to_string(),
                 ))
             })
             .flatten()
             .collect_vec();
 
+        pretty_assertions::assert_eq!(expected, actual);
+    }
+}
+
+#[cfg(test)]
+mod test_selection_mode {
+    use std::ops::Range;
+
+    use crate::{
+        buffer::Buffer,
+        char_index_range::CharIndexRange,
+        components::editor::Direction,
+        selection::{CharIndex, Selection},
+    };
+
+    use super::{ByteRange, SelectionMode, SelectionModeParams};
+    use pretty_assertions::assert_eq;
+
+    struct Dummy;
+    impl SelectionMode for Dummy {
+        fn iter<'a>(
+            &'a self,
+            _: &'a crate::selection::Selection,
+            _: &'a crate::buffer::Buffer,
+        ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+            Ok(Box::new(
+                [(0..6), (1..6), (2..5), (3..5), (3..4)]
+                    .into_iter()
+                    .map(ByteRange::new),
+            ))
+        }
+    }
+
+    fn test(
+        direction: Direction,
+        current_selection_byte_range: Range<usize>,
+        expected_selection_byte_range: Range<usize>,
+    ) {
+        let params = SelectionModeParams {
+            buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
+            current_selection: &Selection::default().set_range(CharIndexRange {
+                start: CharIndex(current_selection_byte_range.start),
+                end: CharIndex(current_selection_byte_range.end),
+            }),
+            cursor_direction: &crate::components::editor::CursorDirection::Start,
+        };
+        let actual = Dummy
+            .apply_direction(params, direction)
+            .unwrap()
+            .unwrap()
+            .range();
+        let expected: CharIndexRange = (CharIndex(expected_selection_byte_range.start)
+            ..CharIndex(expected_selection_byte_range.end))
+            .into();
+
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn left() {
+        test(Direction::Left, 1..6, 0..6);
+        test(Direction::Left, 2..5, 1..6);
+
+        // Ranges is expected to be sorted by start ascendingly, and end descendingly
+        test(Direction::Left, 3..4, 3..5);
+        test(Direction::Left, 3..5, 2..5);
+    }
+
+    #[test]
+    fn right() {
+        test(Direction::Right, 0..6, 1..6);
+        test(Direction::Right, 1..6, 2..5);
+        test(Direction::Right, 2..5, 3..5);
+        test(Direction::Right, 3..5, 3..4);
+    }
+
+    #[test]
+    fn left_most() {
+        test(Direction::LeftMost, 0..1, 0..6);
+    }
+
+    #[test]
+    fn right_most() {
+        test(Direction::RightMost, 0..0, 3..4);
+    }
+
+    #[test]
+    fn current() {
+        test(Direction::Current, 0..1, 0..6);
+        test(Direction::Current, 1..2, 1..6);
+        test(Direction::Current, 3..3, 3..4);
     }
 }

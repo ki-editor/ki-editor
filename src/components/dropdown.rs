@@ -153,8 +153,6 @@ impl<T: DropdownItem> Dropdown<T> {
             Direction::Right => self.next_item(),
             Direction::Current => self.current_item(),
             Direction::Left => self.previous_item(),
-            Direction::Up => todo!(),
-            Direction::Down => todo!(),
             Direction::RightMost => todo!(),
             Direction::LeftMost => todo!(),
         }

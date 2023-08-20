@@ -523,8 +523,6 @@ pub enum Direction {
     Left,
     RightMost,
     Current,
-    Up,
-    Down,
     LeftMost,
 }
 
@@ -1649,8 +1647,6 @@ impl Editor {
         };
         match event {
             key!(",") => self.select_backward(),
-            key!("up") => return self.select_direction(context, Direction::Up),
-            key!("down") => return self.select_direction(context, Direction::Down),
             key!("left") => return self.select_direction(context, Direction::Left),
             key!("shift+left") => return self.select_direction(context, Direction::LeftMost),
             key!("right") => return self.select_direction(context, Direction::Right),
@@ -2260,8 +2256,8 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::Sibling,
-                &Direction::Up,
+                &SelectionMode::SyntaxHierarchy,
+                &Direction::Left,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )

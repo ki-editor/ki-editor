@@ -460,16 +460,9 @@ impl Selection {
         };
 
         log::info!("direction: {:?}", direction);
-        Ok(match direction {
-            Direction::Right => selection_mode.right(params)?,
-            Direction::RightMost => selection_mode.right_most(params)?,
-            Direction::Left => selection_mode.left(params)?,
-            Direction::LeftMost => selection_mode.left_most(params)?,
-            Direction::Up => selection_mode.up(params)?,
-            Direction::Down => selection_mode.down(params)?,
-            Direction::Current => selection_mode.current(params)?,
-        }
-        .unwrap_or_else(|| current_selection.clone()))
+        Ok(selection_mode
+            .apply_direction(params, *direction)?
+            .unwrap_or_else(|| current_selection.clone()))
     }
     pub fn escape_highlight_mode(&mut self) {
         log::info!("escape highlight mode");

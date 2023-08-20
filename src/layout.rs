@@ -166,8 +166,6 @@ impl Layout {
         let editor = match direction {
             Direction::Right | Direction::Current => self.main_panel_history_forward.pop(),
             Direction::Left => self.main_panel_history_backward.pop(),
-            Direction::Up => todo!(),
-            Direction::Down => todo!(),
             Direction::RightMost => todo!(),
             Direction::LeftMost => todo!(),
         }
@@ -175,8 +173,6 @@ impl Layout {
         let set_backward_history = match direction {
             Direction::Right | Direction::Current => true,
             Direction::Left => false,
-            Direction::Up => todo!(),
-            Direction::Down => todo!(),
             Direction::RightMost => todo!(),
             Direction::LeftMost => todo!(),
         };
