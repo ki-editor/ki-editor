@@ -583,6 +583,10 @@ impl Buffer {
         let end = self.line_to_char(line + 1)?;
         Ok(self.char_to_position(start)?..self.char_to_position(end - 1)?)
     }
+
+    pub fn byte_to_line(&self, byte: usize) -> anyhow::Result<usize> {
+        Ok(self.rope.try_byte_to_line(byte)?)
+    }
 }
 
 #[derive(Clone, Debug)]

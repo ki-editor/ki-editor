@@ -53,13 +53,6 @@ impl ByteRange {
         Ok((buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?).into())
     }
 
-    fn to_byte(&self, cursor_direction: &CursorDirection) -> usize {
-        match cursor_direction {
-            CursorDirection::Start => self.range.start,
-            CursorDirection::End => self.range.end,
-        }
-    }
-
     pub fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
         Ok(selection
             .clone()
@@ -189,17 +182,22 @@ pub trait SelectionMode {
 
         // Find the range from the iterator that is most similar to the range of current selection
         let current_selection_range = current_selection.range();
+        let current_selection_line = current_selection_range.start.to_line(params.buffer)?;
+
         let byte_range = buffer.char_to_byte(current_selection_range.start)?
             ..buffer.char_to_byte(current_selection_range.end)?;
 
         let nearest = iter
             .enumerate()
             .map(|(i, range)| {
+                let line = buffer.byte_to_line(range.range.start).unwrap_or(0);
                 (
                     i,
+                    // Prioritize selection that is one the same line
                     (
+                        line.abs_diff(current_selection_line),
                         range.range.start.abs_diff(byte_range.start),
-                        range.range.end.abs_diff(byte_range.end),
+                        (range.range.end.abs_diff(byte_range.end)),
                     ),
                 )
             })
@@ -272,6 +270,7 @@ mod test_selection_mode {
         char_index_range::CharIndexRange,
         components::editor::{CursorDirection, Movement},
         selection::{CharIndex, Selection},
+        selection_mode::Line,
     };
 
     use super::{ByteRange, SelectionMode, SelectionModeParams};
@@ -383,6 +382,27 @@ mod test_selection_mode {
             .unwrap()
             .range();
         let expected: CharIndexRange = (CharIndex(3)..CharIndex(5)).into();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    /// Should prioritize selection on the same line even though the selection on the next line might be closer to the cursor
+    fn prioritize_same_line() {
+        let params = SelectionModeParams {
+            buffer: &Buffer::new(tree_sitter_md::language(), "hello\nworld"),
+            current_selection: &Selection::default().set_range(CharIndexRange {
+                start: CharIndex(4),
+                end: CharIndex(5),
+            }),
+            cursor_direction: &CursorDirection::Start,
+        };
+        let actual = Line
+            .apply_direction(params, Movement::Current)
+            .unwrap()
+            .unwrap()
+            .range();
+        let expected: CharIndexRange = (CharIndex(0)..CharIndex(6)).into();
 
         assert_eq!(expected, actual);
     }

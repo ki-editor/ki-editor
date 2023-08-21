@@ -694,7 +694,7 @@ impl Editor {
 
     fn cursor_row(&self) -> u16 {
         self.get_cursor_char_index()
-            .to_position(self.buffer.borrow().rope())
+            .to_position(&self.buffer.borrow())
             .line as u16
     }
 
@@ -2269,10 +2269,7 @@ impl Editor {
         self.update_selection_set(self.selection_set.apply(
             self.selection_set.mode.clone(),
             |selection| {
-                let position = selection
-                    .extended_range()
-                    .start
-                    .to_position(self.buffer().rope());
+                let position = selection.extended_range().start.to_position(&self.buffer());
                 let position = Position {
                     line: if movement == Movement::Next {
                         position.line.saturating_add(scroll_height as usize)
@@ -2298,7 +2295,7 @@ impl Editor {
     }
 
     pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Vec<Dispatch>> {
-        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Previous)?;
+        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current)?;
         self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
         Ok(self.get_document_did_change_dispatch())

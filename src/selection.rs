@@ -559,20 +559,20 @@ impl Sub<usize> for CharIndex {
 pub struct CharIndex(pub usize);
 
 impl CharIndex {
-    pub fn to_position(self, rope: &Rope) -> Position {
-        let line = self.to_line(rope);
+    pub fn to_position(self, buffer: &Buffer) -> Position {
+        let line = self.to_line(buffer).unwrap_or(0);
         Position {
             line,
-            column: rope
+            column: buffer
+                .rope()
                 .try_line_to_char(line)
                 .map(|char_index| self.0.saturating_sub(char_index))
                 .unwrap_or(0),
         }
     }
 
-    pub fn to_line(self, rope: &Rope) -> usize {
-        rope.try_char_to_line(self.0)
-            .unwrap_or_else(|_| rope.len_lines())
+    pub fn to_line(self, buffer: &Buffer) -> anyhow::Result<usize> {
+        Ok(buffer.rope().try_char_to_line(self.0)?)
     }
 
     pub fn apply_offset(&self, change: isize) -> CharIndex {
