@@ -21,3 +21,26 @@ impl SelectionMode for Sibling {
         }
     }
 }
+
+#[cfg(test)]
+mod test_sibling {
+    use crate::{
+        buffer::Buffer,
+        selection::{CharIndex, Selection},
+    };
+
+    use super::*;
+
+    #[test]
+    fn case_1() {
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "fn main() { let x = X {z,b,c:d} }",
+        );
+        Sibling.assert_all_selections(
+            &buffer,
+            Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
+            &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
+        );
+    }
+}

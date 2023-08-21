@@ -55,3 +55,42 @@ impl SelectionMode for Regex {
         })))
     }
 }
+
+#[cfg(test)]
+mod test_regex {
+    use crate::{buffer::Buffer, selection::Selection};
+
+    use super::*;
+
+    #[test]
+    fn escaped() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
+        crate::selection_mode::Regex::new(&buffer, "m.in", true, false)
+            .unwrap()
+            .assert_all_selections(&buffer, Selection::default().into(), &[(20..24, "m.in")]);
+    }
+
+    #[test]
+    fn unescaped() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
+        crate::selection_mode::Regex::new(&buffer, "m.in", false, false)
+            .unwrap()
+            .assert_all_selections(
+                &buffer,
+                Selection::default().into(),
+                &[(3..7, "main"), (20..24, "m.in")],
+            );
+    }
+
+    #[test]
+    fn ignore_case() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "fn Main() { let x = m.in; }");
+        crate::selection_mode::Regex::new(&buffer, "m.in", false, true)
+            .unwrap()
+            .assert_all_selections(
+                &buffer,
+                Selection::default().into(),
+                &[(3..7, "Main"), (20..24, "m.in")],
+            );
+    }
+}

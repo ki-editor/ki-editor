@@ -20,3 +20,27 @@ impl SelectionMode for Token {
         ))
     }
 }
+
+#[cfg(test)]
+mod test_token {
+    use crate::{buffer::Buffer, selection::Selection};
+
+    use super::*;
+
+    #[test]
+    fn case_1() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() {}");
+        Token.assert_all_selections(
+            &buffer,
+            Selection::default().into(),
+            &[
+                (0..2, "fn"),
+                (3..7, "main"),
+                (7..8, "("),
+                (8..9, ")"),
+                (10..11, "{"),
+                (11..12, "}"),
+            ],
+        );
+    }
+}
