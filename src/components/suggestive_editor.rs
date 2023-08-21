@@ -367,7 +367,10 @@ mod test_suggestive_editor {
     use crate::{
         buffer::Buffer,
         canonicalized_path::CanonicalizedPath,
-        components::{component::Component, editor::Mode},
+        components::{
+            component::Component,
+            editor::{CursorDirection, Mode},
+        },
         lsp::completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
         position::Position,
         screen::Dispatch,
@@ -400,7 +403,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -462,7 +468,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -494,7 +503,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -518,11 +530,13 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    fn completion_with_edit() {
+    fn completion_with_edit() -> anyhow::Result<()> {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)?;
 
         // Enter a word 'sponge'
         editor.handle_events(keys!("s p o n g e")).unwrap();
@@ -555,6 +569,7 @@ mod test_suggestive_editor {
 
         // Expect the content of the buffer to be 'Spongebobend'
         assert_eq!(editor.editor().text(), "Spongebobend");
+        Ok(())
     }
 
     #[test]
@@ -562,7 +577,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -591,7 +609,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentLine);
 
         // Enter insert mode
-        editor.handle_events(keys!("i"))?;
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -643,7 +664,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().current_line()?, "hello");
 
         // Go to the previous line
-        editor.handle_events(keys!("esc shift+L shift+L"))?;
+        editor.handle_events(keys!("esc l p p p"))?;
 
         // Expect the current line is empty
         assert_eq!(editor.editor().current_line()?, "");
@@ -671,7 +692,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -713,7 +737,10 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Pretend that the LSP server returned a completion
         editor.set_completion(dummy_completion());
@@ -748,7 +775,10 @@ mod test_suggestive_editor {
         editor.editor_mut().buffer_mut().set_path(path);
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)
+            .unwrap();
 
         // Type something
         let dispatches = editor.handle_events(keys!("p")).unwrap();
