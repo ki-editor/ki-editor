@@ -8,14 +8,28 @@ impl SelectionMode for Line {
         _current_selection: &'a crate::selection::Selection,
         buffer: &'a crate::buffer::Buffer,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        // Need to sub 1, because apparently it will always return one more line
-        let len_lines = buffer.rope().len_lines().saturating_sub(1);
+        let len_lines = buffer.len_lines();
 
         Ok(Box::new((0..len_lines).filter_map(move |line_index| {
-            let start = buffer.line_to_byte(line_index).ok()?;
-            let end = buffer.line_to_byte(line_index + 1).ok()?.saturating_sub(1);
+            let start = buffer.line_to_char(line_index).ok()?;
+            let line = buffer.get_line(start).ok()?;
+            let start = buffer.char_to_byte(start).ok()?;
+            let end = start + line.len_chars();
 
             Some(super::ByteRange::new(start..end))
         })))
+    }
+}
+
+#[cfg(test)]
+mod test_line {
+    use crate::{buffer::Buffer, selection::Selection};
+
+    use super::*;
+
+    #[test]
+    fn case_1() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a\n\nb\nc\n");
+        Line.assert_all_selections(&buffer, Selection::default(), &[]);
     }
 }

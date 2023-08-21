@@ -1,5 +1,5 @@
 use crate::components::component::Component;
-use crate::components::editor::Direction;
+use crate::components::editor::Movement;
 use crate::context::Context;
 use crate::screen::Dispatch;
 
@@ -148,13 +148,14 @@ impl<T: DropdownItem> Dropdown<T> {
         }
     }
 
-    pub fn get_item(&mut self, direction: Direction) -> Option<T> {
-        match direction {
-            Direction::Right => self.next_item(),
-            Direction::Current => self.current_item(),
-            Direction::Left => self.previous_item(),
-            Direction::RightMost => todo!(),
-            Direction::LeftMost => todo!(),
+    pub fn get_item(&mut self, movement: Movement) -> Option<T> {
+        match movement {
+            Movement::Next => self.next_item(),
+            Movement::Current => self.current_item(),
+            Movement::Previous => self.previous_item(),
+            Movement::Last => todo!(),
+            Movement::First => todo!(),
+            Movement::Index(_) => todo!(),
         }
     }
 

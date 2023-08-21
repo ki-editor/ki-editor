@@ -28,7 +28,7 @@ use std::ops::Range;
 use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
-    components::editor::{CursorDirection, Direction, Jump},
+    components::editor::{CursorDirection, Jump, Movement},
     position::Position,
     selection::Selection,
 };
@@ -107,14 +107,15 @@ pub trait SelectionMode {
     fn apply_direction(
         &self,
         params: SelectionModeParams,
-        direction: Direction,
+        movement: Movement,
     ) -> anyhow::Result<Option<Selection>> {
-        match direction {
-            Direction::Right => self.right(params),
-            Direction::Left => self.left(params),
-            Direction::RightMost => self.right_most(params),
-            Direction::Current => self.current(params),
-            Direction::LeftMost => self.left_most(params),
+        match movement {
+            Movement::Next => self.next(params),
+            Movement::Previous => self.previous(params),
+            Movement::Last => self.last(params),
+            Movement::Current => self.current(params),
+            Movement::First => self.first(params),
+            Movement::Index(index) => self.to_index(params, index),
         }
     }
 
@@ -146,11 +147,11 @@ pub trait SelectionMode {
             .collect_vec())
     }
 
-    fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.get_by_offset_to_current_selection(params, 1)
     }
 
-    fn right_most(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
             .iter(params.current_selection, params.buffer)?
             .sorted()
@@ -160,6 +161,20 @@ pub trait SelectionMode {
                     .to_selection(params.buffer, params.current_selection)
                     .ok()
             }))
+    }
+    fn to_index(
+        &self,
+        params: SelectionModeParams,
+        index: usize,
+    ) -> anyhow::Result<Option<Selection>> {
+        let mut iter = self.iter(params.current_selection, params.buffer)?.sorted();
+        if let Some(byte_range) = iter.nth(index) {
+            Ok(Some(
+                byte_range.to_selection(params.buffer, params.current_selection)?,
+            ))
+        } else {
+            Err(anyhow::anyhow!("Invalid index"))
+        }
     }
 
     fn get_by_offset_to_current_selection(
@@ -196,11 +211,11 @@ pub trait SelectionMode {
         }))
     }
 
-    fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         return self.get_by_offset_to_current_selection(params, -1);
     }
 
-    fn left_most(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
             .iter(&params.current_selection, params.buffer)?
             .sorted()
@@ -253,7 +268,7 @@ mod test_selection_mode {
     use crate::{
         buffer::Buffer,
         char_index_range::CharIndexRange,
-        components::editor::Direction,
+        components::editor::Movement,
         selection::{CharIndex, Selection},
     };
 
@@ -276,7 +291,7 @@ mod test_selection_mode {
     }
 
     fn test(
-        direction: Direction,
+        movement: Movement,
         current_selection_byte_range: Range<usize>,
         expected_selection_byte_range: Range<usize>,
     ) {
@@ -289,7 +304,7 @@ mod test_selection_mode {
             cursor_direction: &crate::components::editor::CursorDirection::Start,
         };
         let actual = Dummy
-            .apply_direction(params, direction)
+            .apply_direction(params, movement)
             .unwrap()
             .unwrap()
             .range();
@@ -301,37 +316,44 @@ mod test_selection_mode {
     }
 
     #[test]
-    fn left() {
-        test(Direction::Left, 1..6, 0..6);
-        test(Direction::Left, 2..5, 1..6);
+    fn previous() {
+        test(Movement::Previous, 1..6, 0..6);
+        test(Movement::Previous, 2..5, 1..6);
 
         // Ranges is expected to be sorted by start ascendingly, and end descendingly
-        test(Direction::Left, 3..4, 3..5);
-        test(Direction::Left, 3..5, 2..5);
+        test(Movement::Previous, 3..4, 3..5);
+        test(Movement::Previous, 3..5, 2..5);
     }
 
     #[test]
-    fn right() {
-        test(Direction::Right, 0..6, 1..6);
-        test(Direction::Right, 1..6, 2..5);
-        test(Direction::Right, 2..5, 3..5);
-        test(Direction::Right, 3..5, 3..4);
+    fn next() {
+        test(Movement::Next, 0..6, 1..6);
+        test(Movement::Next, 1..6, 2..5);
+        test(Movement::Next, 2..5, 3..5);
+        test(Movement::Next, 3..5, 3..4);
     }
 
     #[test]
-    fn left_most() {
-        test(Direction::LeftMost, 0..1, 0..6);
+    fn first() {
+        test(Movement::First, 0..1, 0..6);
     }
 
     #[test]
-    fn right_most() {
-        test(Direction::RightMost, 0..0, 3..4);
+    fn last() {
+        test(Movement::Last, 0..0, 3..4);
     }
 
     #[test]
     fn current() {
-        test(Direction::Current, 0..1, 0..6);
-        test(Direction::Current, 1..2, 1..6);
-        test(Direction::Current, 3..3, 3..4);
+        test(Movement::Current, 0..1, 0..6);
+        test(Movement::Current, 1..2, 1..6);
+        test(Movement::Current, 3..3, 3..4);
+    }
+
+    #[test]
+    fn to_index() {
+        let current = 0..0;
+        test(Movement::Index(0), current.clone(), 0..6);
+        test(Movement::Index(1), current, 1..6)
     }
 }

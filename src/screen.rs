@@ -16,7 +16,7 @@ use crate::{
     canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId, GetGridResult},
-        editor::{Direction, DispatchEditor},
+        editor::{DispatchEditor, Movement},
         keymap_legend::KeymapLegendConfig,
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
@@ -399,7 +399,7 @@ impl<T: Frontend> Screen<T> {
                 self.open_global_search_prompt(search_kind)
             }
             Dispatch::GlobalSearch(search) => self.global_search(search)?,
-            Dispatch::GoToLineNumber => self.open_go_to_line_number_prompt(),
+            Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt(),
         }
         Ok(())
     }
@@ -420,16 +420,16 @@ impl<T: Frontend> Screen<T> {
         self.layout.set_terminal_dimension(dimension);
     }
 
-    fn open_go_to_line_number_prompt(&mut self) {
+    fn open_move_to_index_prompt(&mut self) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
-            title: "Go to line number".to_string(),
+            title: "Move to index".to_string(),
             history: vec![],
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
-                let line_number = text.parse::<usize>()?.saturating_sub(1);
-                Ok([Dispatch::DispatchEditor(DispatchEditor::GoToLineNumber(
-                    line_number,
+                let index = text.parse::<usize>()?.saturating_sub(1);
+                Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
+                    Movement::Index(index),
                 ))]
                 .to_vec())
             }),
@@ -505,7 +505,7 @@ impl<T: Frontend> Screen<T> {
                     owner
                         .borrow_mut()
                         .editor_mut()
-                        .select_match(Direction::Right, &Some(search.clone()))?;
+                        .select_match(Movement::Next, &Some(search.clone()))?;
                 }
                 Ok(vec![Dispatch::SetSearch(search)])
             }),
@@ -803,8 +803,8 @@ impl<T: Frontend> Screen<T> {
         }
     }
 
-    fn goto_quickfix_list_item(&mut self, direction: Direction) -> anyhow::Result<()> {
-        let item = self.quickfix_lists.borrow_mut().get_item(direction);
+    fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
+        let item = self.quickfix_lists.borrow_mut().get_item(movement);
         if let Some(item) = item {
             self.go_to_location(item.location())?;
         }
@@ -858,7 +858,7 @@ impl<T: Frontend> Screen<T> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         self.quickfix_lists.borrow_mut().push(quickfix_list);
         self.layout.show_quickfix_lists(self.quickfix_lists.clone());
-        self.goto_quickfix_list_item(Direction::Right)
+        self.goto_quickfix_list_item(Movement::Next)
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
@@ -969,8 +969,8 @@ pub enum Dispatch {
         path: CanonicalizedPath,
     },
     SetQuickfixList(QuickfixListType),
-    GotoQuickfixListItem(Direction),
-    GotoOpenedEditor(Direction),
+    GotoQuickfixListItem(Movement),
+    GotoOpenedEditor(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
     CloseAllExceptMainPanel,
@@ -983,7 +983,7 @@ pub enum Dispatch {
     GotoLocation(Location),
     OpenGlobalSearchPrompt(SearchKind),
     GlobalSearch(Search),
-    GoToLineNumber,
+    OpenMoveToIndexPrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

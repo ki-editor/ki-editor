@@ -98,6 +98,9 @@
   for node movement: h = parent, l = kid, j/k = next/prev sibling
 
 - [x] fix(legend): pressing esc causes the cursor to fly to nowhere, then has to press ctrl+w to bring it back
+- [x] feat(editor): remove down/up movement
+- [x] feat(movement): mi for go to specific 1-based index
+- [x] feat(keymap): remap m to ff, remap z to m, so that m stands for Movement, mf = first, ml = last, mm = middle
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -112,10 +115,8 @@
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat: workspaces (similar to tab in Vim)
-- [] highlight mode should work like this: if change to line mode, then both end of the selection should select line, same for char, same for word
-- [] bug: pressing 'b' remove the copied text
+- [] bug: going back to previous selection remove the copied text
 - [] Suggestive editor, pressing Enter when there's no filtered item should not get the item
-- [] location list (local to each editor), local diagnostics should use this
 - [] apply actions to all quickfix list items
 - [] multi-autocomplete with insert
 - [] feat(editor/slurp or barf):
@@ -132,7 +133,6 @@
 - [] feat(lsp/completion): snippet support
 - [] treesitter injections, support nested languages like Rust in Markdown
 - [] feat(lsp/code-action): command string execution (code action without edit)
-- [] feat: small g for going to locations of this file, G for locations to anywhere
 - [] feat(buffer): use tree-sitter incremental parsing to improve performance
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
 
@@ -141,9 +141,7 @@
 - [] filter selections/quickfix-list: useful for multi-cursor
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
 - [] feat(g): 'ggh' for global git hunks
-- [] feat(movement): y = vertical-same-column movement, skip lines without the current column, this might mark d/u unnecessary
-- [] feat(editor): remove down/up movement, make u = select_parent, d = diagnostics
-- [] feat(space-f): for file mode, r = rename, k = kill (delete), a = add, s = save
+- [] feat(space-f): for file mode, r = rename, d = delete, a = add, s = save
 - [] feat: command mode (for exiting editor, save all file etc)
 - [] feat(doc): add motto about having no shift keys for key bindings;
   spammable key like n/p will not hide under layers, but action like "Change
@@ -152,9 +150,12 @@
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
 - [] feat(keymap): if u = parent, then zu the outermost node that starts with this cursor
-- [] feat(cursor): change cursor in insert mode
+- [] feat(cursor): change cursor style in insert mode
 - [] feat(find): sentence, paragraph
 - [] fix(cursor): misplacement when wrapped sometimes
 - [] refactor(buffer): hide rope
 - [] fix(buffer): len_lines need to minus 1 because rope.len_lines always is 1 more, even empty string is one line
 - [] fix failing test cases
+- [] feat(swap): x, then movement, movement = n p zn zp
+- [] fix(signature-help): cannot be closed by pressing esc key
+- [] fix(syntax-highlighting): flashing during editing

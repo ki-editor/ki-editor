@@ -7,7 +7,7 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
-        editor::Direction,
+        editor::Movement,
     },
     position::Position,
 };
@@ -72,8 +72,8 @@ impl QuickfixLists {
         self.lists.push(quickfix_list);
     }
 
-    pub fn get_item(&mut self, direction: Direction) -> Option<QuickfixListItem> {
-        self.dropdown.get_item(direction)
+    pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+        self.dropdown.get_item(movement)
     }
 }
 

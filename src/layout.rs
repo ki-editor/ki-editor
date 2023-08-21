@@ -6,7 +6,7 @@ use crate::{
     canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId},
-        editor::{Direction, Editor},
+        editor::{Editor, Movement},
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
         suggestive_editor::SuggestiveEditor,
@@ -162,19 +162,21 @@ impl Layout {
         self.main_panel = editor;
     }
 
-    pub fn goto_opened_editor(&mut self, direction: Direction) {
-        let editor = match direction {
-            Direction::Right | Direction::Current => self.main_panel_history_forward.pop(),
-            Direction::Left => self.main_panel_history_backward.pop(),
-            Direction::RightMost => todo!(),
-            Direction::LeftMost => todo!(),
+    pub fn goto_opened_editor(&mut self, movement: Movement) {
+        let editor = match movement {
+            Movement::Next | Movement::Current => self.main_panel_history_forward.pop(),
+            Movement::Previous => self.main_panel_history_backward.pop(),
+            Movement::Last => todo!(),
+            Movement::First => todo!(),
+            Movement::Index(_) => todo!(),
         }
         .or_else(|| self.main_panel.take());
-        let set_backward_history = match direction {
-            Direction::Right | Direction::Current => true,
-            Direction::Left => false,
-            Direction::RightMost => todo!(),
-            Direction::LeftMost => todo!(),
+        let set_backward_history = match movement {
+            Movement::Next | Movement::Current => true,
+            Movement::Previous => false,
+            Movement::Last => todo!(),
+            Movement::First => todo!(),
+            Movement::Index(_) => todo!(),
         };
         self.set_main_panel(editor, set_backward_history);
     }

@@ -8,7 +8,7 @@ use ropey::Rope;
 use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
-    components::editor::{CursorDirection, Direction},
+    components::editor::{CursorDirection, Movement},
     context::{Context, Search, SearchKind},
     position::Position,
     selection_mode::{self, SelectionModeParams},
@@ -152,7 +152,7 @@ impl SelectionSet {
         &self,
         buffer: &Buffer,
         mode: &SelectionMode,
-        direction: &Direction,
+        direction: &Movement,
         cursor_direction: &CursorDirection,
     ) -> anyhow::Result<SelectionSet> {
         self.apply(mode.clone(), |selection| {
@@ -163,7 +163,7 @@ impl SelectionSet {
     pub fn add_selection(
         &mut self,
         buffer: &Buffer,
-        direction: &Direction,
+        direction: &Movement,
         cursor_direction: &CursorDirection,
     ) -> anyhow::Result<()> {
         let last_selection = &self.primary;
@@ -291,7 +291,7 @@ impl SelectionMode {
             SelectionMode::LargestNode => "LARGEST NODE".to_string(),
             SelectionMode::Sibling => "SYNTAX TREE".to_string(),
             SelectionMode::Match { search } => {
-                format!("MATCH {:?} {:?}", search.kind, search.search)
+                format!("FIND {:?} {:?}", search.kind, search.search)
             }
             SelectionMode::Diagnostic(severity) => {
                 let severity = severity
@@ -439,7 +439,7 @@ impl Selection {
         buffer: &Buffer,
         current_selection: &Selection,
         mode: &SelectionMode,
-        direction: &Direction,
+        direction: &Movement,
         cursor_direction: &CursorDirection,
     ) -> anyhow::Result<Selection> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
