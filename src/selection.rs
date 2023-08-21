@@ -288,7 +288,7 @@ impl SelectionMode {
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::LargestNode => "LARGEST NODE".to_string(),
+            SelectionMode::LargestNode => "MAXIMUM NODE".to_string(),
             SelectionMode::Sibling => "SIBLING".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)

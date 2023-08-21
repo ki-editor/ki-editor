@@ -7,7 +7,7 @@ pub struct LargestNode;
 
 impl SelectionMode for LargestNode {
     fn name(&self) -> &'static str {
-        "LARGEST NODE"
+        "MAXIMUM NODE"
     }
     fn iter<'a>(
         &self,

@@ -1690,9 +1690,8 @@ impl Editor {
             key!("k") => self.mode = Mode::Kill,
             key!("k") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
-
-            key!("o") => return self.set_selection_mode(context, SelectionMode::LargestNode),
-
+            key!("m") => return self.set_selection_mode(context, SelectionMode::LargestNode),
+            // o
             key!("q") => context.set_mode(Some(GlobalMode::QuickfixListItem)),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
@@ -1710,7 +1709,6 @@ impl Editor {
             key!("shift+X") => return Ok(self.exchange(Movement::Previous)),
             // w
             key!("y") => return self.set_selection_mode(context, SelectionMode::SyntaxHierarchy),
-            // z
             key!("backspace") => {
                 return self.change();
             }
