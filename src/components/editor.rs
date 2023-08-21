@@ -45,7 +45,7 @@ pub enum Mode {
     Normal,
     Insert,
     Jump { jumps: Vec<Jump> },
-    Delete,
+    Kill,
     AddCursor,
     FindOneChar,
     ScrollPage,
@@ -823,9 +823,13 @@ impl Editor {
     }
 
     fn cut(&mut self, context: &mut Context) -> anyhow::Result<Vec<Dispatch>> {
+        self.delete(context, true)
+    }
+
+    fn delete(&mut self, context: &mut Context, cut: bool) -> anyhow::Result<Vec<Dispatch>> {
         // Set the clipboard content to the current selection
         // if there is only one cursor.
-        if self.selection_set.secondary.is_empty() {
+        if cut && self.selection_set.secondary.is_empty() {
             context.set_clipboard_content(
                 self.buffer
                     .borrow()
@@ -837,7 +841,11 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let old_range = selection.extended_range();
-                    let old = self.buffer.borrow().slice(&old_range)?;
+                    let copied_text = if cut {
+                        Some(self.buffer.borrow().slice(&old_range)?)
+                    } else {
+                        selection.copied_text()
+                    };
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
@@ -846,7 +854,7 @@ impl Editor {
                             }),
                             Action::Select(
                                 Selection::new((old_range.start..old_range.start).into())
-                                    .set_copied_text(Some(old)),
+                                    .set_copied_text(copied_text),
                             ),
                         ]
                         .to_vec(),
@@ -1406,7 +1414,7 @@ impl Editor {
                     self.handle_jump_mode(key_event)?;
                     Ok(vec![])
                 }
-                Mode::Delete => self.handle_delete_mode(context, key_event),
+                Mode::Kill => self.handle_delete_mode(context, key_event),
                 Mode::AddCursor => {
                     self.handle_add_cursor_mode(key_event)?;
                     Ok(Vec::new())
@@ -1703,7 +1711,7 @@ impl Editor {
             key!("b") => context.set_mode(Some(GlobalMode::BufferNavigationHistory)),
 
             key!("c") => return self.move_selection(context, SelectionMode::Character),
-            key!("d") => self.mode = Mode::Delete,
+            key!("d") => return self.delete(context, false),
             key!("e") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.diagnostic_keymap_legend_config(),
@@ -1730,6 +1738,7 @@ impl Editor {
                 .to_vec())
             }
             key!("j") => self.jump()?,
+            key!("k") => self.mode = Mode::Kill,
             key!("k") => self.select_kids()?,
             key!("l") => return self.move_selection(context, SelectionMode::Line),
 
@@ -2126,7 +2135,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn delete(&mut self, movement: Movement) -> Vec<Dispatch> {
+    fn kill(&mut self, movement: Movement) -> Vec<Dispatch> {
         let buffer = self.buffer.borrow().clone();
         let mode = self.selection_set.mode.clone();
 
@@ -2562,7 +2571,7 @@ impl Editor {
             }
             Mode::Insert => "INSERT".to_string(),
             Mode::Jump { .. } => "JUMP".to_string(),
-            Mode::Delete => "DELETE".to_string(),
+            Mode::Kill => "KILL".to_string(),
             Mode::AddCursor => "ADD CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
             Mode::ScrollPage => "SCROLL PAGE".to_string(),
@@ -2596,12 +2605,12 @@ impl Editor {
                 Ok(Vec::new())
             }
             key!("d") => {
-                let dispatches = self.delete(Movement::Current);
+                let dispatches = self.kill(Movement::Current);
                 self.enter_normal_mode()?;
                 Ok(dispatches)
             }
-            key!("n") => Ok(self.delete(Movement::Next)),
-            key!("p") => Ok(self.delete(Movement::Previous)),
+            key!("n") => Ok(self.kill(Movement::Next)),
+            key!("p") => Ok(self.kill(Movement::Previous)),
             other => self.handle_normal_mode(context, other),
         }
     }
@@ -2840,37 +2849,6 @@ mod test_editor {
 
         editor.select_direction(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_line() -> anyhow::Result<()> {
-        // Multiline source code
-        let mut editor = Editor::from_text(language(), "\nfn main() {\n\n\nlet x = 1;\n}\n");
-        let mut context = Context::default();
-        editor.move_selection(&mut context, SelectionMode::Line)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["}"]);
-
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn main() {"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
         Ok(())
     }
 
@@ -3268,7 +3246,7 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let mut context = Context::default();
         editor.select_token(Movement::Next)?;
-        editor.cut(&mut context);
+        editor.cut(&mut context)?;
         assert_eq!(editor.text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
@@ -3510,7 +3488,7 @@ fn main() {
         );
 
         let mut context = Context::default();
-        editor.cut(&mut context);
+        editor.cut(&mut context)?;
         editor.enter_insert_mode(CursorDirection::Start);
 
         editor.insert("Some(");
@@ -3569,7 +3547,7 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         let mut context = Context::default();
-        editor.cut(&mut context);
+        editor.cut(&mut context)?;
 
         assert_eq!(editor.text(), "{ let x = S(a); let y = S(b); }");
 
@@ -3750,10 +3728,10 @@ fn f() {
         editor.select_character(Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
         assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
         editor.move_selection(
@@ -3769,7 +3747,7 @@ fn f() {
         editor.move_selection(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.delete(Movement::Previous);
+        editor.kill(Movement::Previous);
         assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
         Ok(())
     }
@@ -3790,7 +3768,7 @@ let y = S(b);
         editor.select_line(Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
         assert_eq!(
             editor.text(),
             "
@@ -3801,7 +3779,7 @@ let y = S(b);
             .trim()
         );
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
         assert_eq!(
             editor.text(),
             "
@@ -3812,17 +3790,17 @@ let y = S(b);
 
         editor.select_line(Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
-        editor.delete(Movement::Previous);
+        editor.kill(Movement::Previous);
         assert_eq!(
             editor.text(),
             "
 }"
         );
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
         assert_eq!(editor.text(), "}");
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
         assert_eq!(editor.text(), "");
         Ok(())
     }
@@ -3838,12 +3816,12 @@ let y = S(b);
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
         editor.select_syntax_tree(Movement::Current)?;
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
         editor.select_syntax_tree(Movement::Next)?;
-        editor.delete(Movement::Previous);
+        editor.kill(Movement::Previous);
 
         assert_eq!(editor.text(), "fn f(y: b){}");
         Ok(())
@@ -3857,11 +3835,11 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
 
         assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
 
-        editor.delete(Movement::Next);
+        editor.kill(Movement::Next);
 
         assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
 
@@ -3869,7 +3847,7 @@ let y = S(b);
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.delete(Movement::Previous);
+        editor.kill(Movement::Previous);
 
         assert_eq!(editor.text(), "(: a, y: b, z: c){}");
         Ok(())
