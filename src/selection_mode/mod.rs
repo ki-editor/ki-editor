@@ -187,8 +187,9 @@ pub trait SelectionMode {
         let current_selection = params.current_selection;
 
         // Find the range from the iterator that is most similar to the range of current selection
-        let byte_range = buffer.char_to_byte(current_selection.extended_range().start)?
-            ..buffer.char_to_byte(current_selection.extended_range().end)?;
+        let current_selection_range = current_selection.range();
+        let byte_range = buffer.char_to_byte(current_selection_range.start)?
+            ..buffer.char_to_byte(current_selection_range.end)?;
 
         let nearest = iter
             .enumerate()
@@ -268,7 +269,7 @@ mod test_selection_mode {
     use crate::{
         buffer::Buffer,
         char_index_range::CharIndexRange,
-        components::editor::Movement,
+        components::editor::{CursorDirection, Movement},
         selection::{CharIndex, Selection},
     };
 
@@ -301,7 +302,7 @@ mod test_selection_mode {
                 start: CharIndex(current_selection_byte_range.start),
                 end: CharIndex(current_selection_byte_range.end),
             }),
-            cursor_direction: &crate::components::editor::CursorDirection::Start,
+            cursor_direction: &CursorDirection::Start,
         };
         let actual = Dummy
             .apply_direction(params, movement)
@@ -355,5 +356,30 @@ mod test_selection_mode {
         let current = 0..0;
         test(Movement::Index(0), current.clone(), 0..6);
         test(Movement::Index(1), current, 1..6)
+    }
+
+    #[test]
+    fn should_not_use_extended_range() {
+        let params = SelectionModeParams {
+            buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
+            current_selection: &Selection::default()
+                .set_range(CharIndexRange {
+                    start: CharIndex(2),
+                    end: CharIndex(5),
+                })
+                .set_initial_range(Some(CharIndexRange {
+                    start: CharIndex(0),
+                    end: CharIndex(6),
+                })),
+            cursor_direction: &CursorDirection::Start,
+        };
+        let actual = Dummy
+            .apply_direction(params, Movement::Next)
+            .unwrap()
+            .unwrap()
+            .range();
+        let expected: CharIndexRange = (CharIndex(3)..CharIndex(5)).into();
+
+        assert_eq!(expected, actual);
     }
 }
