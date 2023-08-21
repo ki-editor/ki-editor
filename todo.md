@@ -101,6 +101,7 @@
 - [x] feat(editor): remove down/up movement
 - [x] feat(movement): mi for go to specific 1-based index
 - [x] feat(keymap): remap m to ff, remap z to m, so that m stands for Movement, mf = first, ml = last, mm = middle
+- [x] feat(swap): x, then movement, movement = n p mf ml
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -156,6 +157,5 @@
 - [] refactor(buffer): hide rope
 - [] fix(buffer): len_lines need to minus 1 because rope.len_lines always is 1 more, even empty string is one line
 - [] fix failing test cases
-- [] feat(swap): x, then movement, movement = n p zn zp
 - [] fix(signature-help): cannot be closed by pressing esc key
 - [] fix(syntax-highlighting): flashing during editing
