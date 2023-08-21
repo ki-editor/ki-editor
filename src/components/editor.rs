@@ -1614,7 +1614,7 @@ impl Editor {
 
     fn handle_movement(&mut self, key_event: &KeyEvent) -> Option<Vec<Dispatch>> {
         match key_event {
-            key!("m") => {
+            key!("z") => {
                 Some([Dispatch::ShowKeymapLegend(self.move_mode_keymap_legend())].to_vec())
             }
             key!("n") => Some(
@@ -2690,13 +2690,13 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Current)),
                 ),
                 Keymap::new(
-                    "f",
+                    "p",
                     "First selection",
                     Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
                 ),
                 Keymap::new("i", "To Index (1-based)", Dispatch::OpenMoveToIndexPrompt),
                 Keymap::new(
-                    "l",
+                    "n",
                     "Last selection",
                     Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Last)),
                 ),
@@ -3074,7 +3074,6 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let mut context = Context::default();
         editor.set_selection_mode(&mut context, SelectionMode::Character)?;
-        editor.move_selection(&mut context, Movement::Next)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
         editor.exchange(Movement::Next);
