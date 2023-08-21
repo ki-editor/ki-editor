@@ -253,7 +253,7 @@ pub enum SelectionMode {
     Line,
     Character,
     Custom,
-    Match { search: Search },
+    Find { search: Search },
 
     // Syntax-tree
     Token,
@@ -277,7 +277,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, LargestNode | Sibling)
+        matches!(self, LargestNode | Sibling | SyntaxHierarchy)
     }
 
     pub fn display(&self) -> String {
@@ -289,8 +289,8 @@ impl SelectionMode {
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::LargestNode => "LARGEST NODE".to_string(),
-            SelectionMode::Sibling => "SYNTAX TREE".to_string(),
-            SelectionMode::Match { search } => {
+            SelectionMode::Sibling => "SIBLING".to_string(),
+            SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
             }
             SelectionMode::Diagnostic(severity) => {
@@ -325,7 +325,7 @@ impl SelectionMode {
             SelectionMode::Custom => {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
-            SelectionMode::Match { search } => match search.kind {
+            SelectionMode::Find { search } => match search.kind {
                 SearchKind::Literal => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,

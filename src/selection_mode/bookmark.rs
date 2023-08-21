@@ -3,6 +3,9 @@ use super::SelectionMode;
 pub struct Bookmark;
 
 impl SelectionMode for Bookmark {
+    fn name(&self) -> &'static str {
+        "BOOKMARK"
+    }
     fn iter<'a>(
         &'a self,
         _current_selection: &'a crate::selection::Selection,

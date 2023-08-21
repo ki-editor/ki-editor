@@ -6,6 +6,9 @@ use itertools::Itertools;
 pub struct LargestNode;
 
 impl SelectionMode for LargestNode {
+    fn name(&self) -> &'static str {
+        "LARGEST NODE"
+    }
     fn iter<'a>(
         &self,
         _current_selection: &'a Selection,

@@ -98,6 +98,7 @@ pub struct SelectionModeParams<'a> {
 }
 
 pub trait SelectionMode {
+    fn name(&self) -> &'static str;
     fn iter<'a>(
         &'a self,
         current_selection: &'a Selection,
@@ -278,6 +279,9 @@ mod test_selection_mode {
 
     struct Dummy;
     impl SelectionMode for Dummy {
+        fn name(&self) -> &'static str {
+            "dummy"
+        }
         fn iter<'a>(
             &'a self,
             _: &'a crate::selection::Selection,

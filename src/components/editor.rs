@@ -590,10 +590,6 @@ impl Editor {
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
 
-    fn select_syntax_tree(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.select(SelectionMode::Sibling, movement)
-    }
-
     fn select_kids(&mut self) -> anyhow::Result<()> {
         let buffer = self.buffer.borrow().clone();
         self.update_selection_set(
@@ -627,21 +623,13 @@ impl Editor {
     ) -> anyhow::Result<()> {
         if let Some(search) = search {
             self.select(
-                SelectionMode::Match {
+                SelectionMode::Find {
                     search: search.clone(),
                 },
                 movement,
             )?;
         }
         Ok(())
-    }
-
-    fn select_named_node(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.select(SelectionMode::LargestNode, movement)
-    }
-
-    fn select_character(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.select(SelectionMode::Character, movement)
     }
 
     fn select_diagnostic(&mut self, movement: Movement) -> anyhow::Result<Vec<Dispatch>> {
@@ -673,14 +661,8 @@ impl Editor {
         }
     }
 
-    fn reset(&mut self) -> anyhow::Result<()> {
-        self.select(self.selection_set.mode.clone(), Movement::Current)?;
-        self.selection_set.only();
-        Ok(())
-    }
-
-    fn select_token(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.select(SelectionMode::Token, movement)
+    fn reset(&mut self) {
+        self.selection_set.escape_highlight_mode();
     }
 
     fn update_selection_set(&mut self, selection_set: SelectionSet) {
@@ -759,38 +741,6 @@ impl Editor {
         Ok(())
     }
 
-    /// TODO: this should also show diagnostics
-    fn select_final(&mut self, movement: Movement) -> anyhow::Result<()> {
-        let selection_mode = self.selection_set.mode.clone();
-        fn get_final_selection(
-            buffer: &Buffer,
-            selection: &Selection,
-            mode: &SelectionMode,
-            direction: &Movement,
-        ) -> anyhow::Result<Selection> {
-            let next_selection = Selection::get_selection_(
-                buffer,
-                selection,
-                mode,
-                direction,
-                &CursorDirection::Start,
-            )?;
-            if next_selection == *selection {
-                Ok(selection.clone())
-            } else {
-                get_final_selection(buffer, &next_selection, mode, direction)
-            }
-        }
-
-        let selection_set = self
-            .selection_set
-            .apply(selection_mode.clone(), |selection| {
-                get_final_selection(&self.buffer.borrow(), selection, &selection_mode, &movement)
-            })?;
-
-        self.update_selection_set(selection_set);
-        Ok(())
-    }
     fn jump_characters() -> Vec<char> {
         ('a'..='z').collect_vec()
     }
@@ -868,8 +818,8 @@ impl Editor {
         Ok(self.apply_edit_transaction(edit_transaction))
     }
 
-    fn copy(&mut self, context: &mut Context) {
-        self.selection_set.copy(&self.buffer.borrow(), context);
+    fn copy(&mut self, context: &mut Context) -> anyhow::Result<()> {
+        self.selection_set.copy(&self.buffer.borrow(), context)
     }
 
     fn replace_current_selection_with<F>(&mut self, f: F) -> Vec<Dispatch>
@@ -927,7 +877,7 @@ impl Editor {
                             [ActionGroup::new(
                                 [
                                     Action::Edit(Edit {
-                                        range: range,
+                                        range,
                                         new: replacement.clone(),
                                     }),
                                     Action::Select(
@@ -1049,7 +999,7 @@ impl Editor {
                     "c",
                     "Current selection",
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        SelectionMode::Match {
+                        SelectionMode::Find {
                             search: Search {
                                 kind: SearchKind::IgnoreCase,
                                 search: self.current_selection()?,
@@ -1068,7 +1018,7 @@ impl Editor {
                     "f",
                     "Enter Find Mode",
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        SelectionMode::Match {
+                        SelectionMode::Find {
                             search: context.last_search().clone().unwrap_or(Search {
                                 kind: SearchKind::Literal,
                                 search: "".to_string(),
@@ -1147,7 +1097,7 @@ impl Editor {
                                 kind: SearchKind::Regex,
                             };
                             let dispatch = Dispatch::DispatchEditor(
-                                DispatchEditor::SetSelectionMode(SelectionMode::Match { search }),
+                                DispatchEditor::SetSelectionMode(SelectionMode::Find { search }),
                             );
                             Keymap::new(key, description, dispatch)
                         })
@@ -1269,7 +1219,7 @@ impl Editor {
             DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
             DispatchEditor::Transform(case) => return Ok(self.transform_selection(case)),
             DispatchEditor::SetSelectionMode(selection_mode) => {
-                return self.move_selection(context, selection_mode)
+                return self.set_selection_mode(context, selection_mode)
             }
             DispatchEditor::EnterInsertMode(cursor_direction) => {
                 self.enter_insert_mode(cursor_direction)?;
@@ -1279,7 +1229,7 @@ impl Editor {
             DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
 
             DispatchEditor::MoveSelection(direction) => {
-                return self.select_direction(context, direction)
+                return self.move_selection(context, direction)
             }
         }
         Ok([].to_vec())
@@ -1455,7 +1405,7 @@ impl Editor {
                 Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+c") => {
-                self.copy(context);
+                self.copy(context)?;
                 Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+s") => {
@@ -1517,12 +1467,10 @@ impl Editor {
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    fn change(&mut self) {
+    fn change(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let copied_text: Rope =
-                        self.buffer.borrow().slice(&selection.extended_range())?;
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
@@ -1546,8 +1494,9 @@ impl Editor {
                 .collect(),
         );
 
-        self.apply_edit_transaction(edit_transaction);
-        self.enter_insert_mode(CursorDirection::Start);
+        let dispatches = self.apply_edit_transaction(edit_transaction);
+        self.enter_insert_mode(CursorDirection::Start)?;
+        Ok(dispatches)
     }
 
     fn insert(&mut self, s: &str) -> Vec<Dispatch> {
@@ -1597,7 +1546,7 @@ impl Editor {
         })
     }
 
-    fn move_selection(
+    fn set_selection_mode(
         &mut self,
         context: &mut Context,
         selection_mode: SelectionMode,
@@ -1640,7 +1589,7 @@ impl Editor {
         }
     }
 
-    fn select_direction(
+    fn move_selection(
         &mut self,
         context: &mut Context,
         movement: Movement,
@@ -1697,12 +1646,12 @@ impl Editor {
         }
         match event {
             key!(",") => self.select_backward(),
-            key!("left") => return self.select_direction(context, Movement::Previous),
-            key!("shift+left") => return self.select_direction(context, Movement::First),
-            key!("right") => return self.select_direction(context, Movement::Next),
-            key!("shift+right") => return self.select_direction(context, Movement::Last),
+            key!("left") => return self.move_selection(context, Movement::Previous),
+            key!("shift+left") => return self.move_selection(context, Movement::First),
+            key!("right") => return self.move_selection(context, Movement::Next),
+            key!("shift+right") => return self.move_selection(context, Movement::Last),
             key!("esc") => {
-                self.selection_set.escape_highlight_mode();
+                self.reset();
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
             }
             // Objects
@@ -1710,7 +1659,7 @@ impl Editor {
             key!("ctrl+b") => self.save_bookmarks(),
             key!("b") => context.set_mode(Some(GlobalMode::BufferNavigationHistory)),
 
-            key!("c") => return self.move_selection(context, SelectionMode::Character),
+            key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             key!("d") => return self.delete(context, false),
             key!("e") => {
                 return Ok([Dispatch::ShowKeymapLegend(
@@ -1740,17 +1689,17 @@ impl Editor {
             key!("j") => self.jump()?,
             key!("k") => self.mode = Mode::Kill,
             key!("k") => self.select_kids()?,
-            key!("l") => return self.move_selection(context, SelectionMode::Line),
+            key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
 
-            key!("o") => return self.move_selection(context, SelectionMode::LargestNode),
+            key!("o") => return self.set_selection_mode(context, SelectionMode::LargestNode),
 
             key!("q") => context.set_mode(Some(GlobalMode::QuickfixListItem)),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
             key!("r") => return Ok(self.raise()),
             key!("shift+R") => return Ok(self.replace()),
-            key!("s") => return self.move_selection(context, SelectionMode::Sibling),
-            key!("t") => return self.move_selection(context, SelectionMode::Token),
+            key!("s") => return self.set_selection_mode(context, SelectionMode::Sibling),
+            key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
@@ -1760,10 +1709,10 @@ impl Editor {
             key!("x") => self.mode = Mode::Exchange,
             key!("shift+X") => return Ok(self.exchange(Movement::Previous)),
             // w
-            key!("y") => return self.move_selection(context, SelectionMode::SyntaxHierarchy),
+            key!("y") => return self.set_selection_mode(context, SelectionMode::SyntaxHierarchy),
             // z
             key!("backspace") => {
-                self.change();
+                return self.change();
             }
             key!("enter") => return self.open_new_line(),
             key!("%") => self.change_cursor_direction(),
@@ -2524,7 +2473,7 @@ impl Editor {
             kind,
         };
         self.select(
-            SelectionMode::Match {
+            SelectionMode::Find {
                 search: search.clone(),
             },
             Movement::Current,
@@ -2657,9 +2606,9 @@ impl Editor {
         match key_event.code {
             KeyCode::Char(c) => {
                 self.enter_normal_mode()?;
-                self.move_selection(
+                self.set_selection_mode(
                     context,
-                    SelectionMode::Match {
+                    SelectionMode::Find {
                         search: Search {
                             search: c.to_string(),
                             kind: SearchKind::Literal,
@@ -2736,6 +2685,11 @@ impl Editor {
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(
+                    "c",
+                    "Current selection",
+                    Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Current)),
+                ),
+                Keymap::new(
                     "f",
                     "First selection",
                     Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
@@ -2756,9 +2710,9 @@ impl Editor {
         context: &mut Context,
         search: &str,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        self.move_selection(
+        self.set_selection_mode(
             context,
-            SelectionMode::Match {
+            SelectionMode::Find {
                 search: Search {
                     kind: SearchKind::Literal,
                     search: search.to_string(),
@@ -2842,12 +2796,12 @@ mod test_editor {
     fn select_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let mut context = Context::default();
-        editor.move_selection(&mut context, SelectionMode::Character)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["n"]);
 
-        editor.select_direction(&mut context, Movement::Previous)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
         Ok(())
     }
@@ -2856,219 +2810,29 @@ mod test_editor {
     fn select_word() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "camelCase, snake_case, ALLCAPS: 123");
         let mut context = Context::default();
-        editor.move_selection(&mut context, SelectionMode::Word)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["123"]);
 
-        editor.select_direction(&mut context, Movement::Previous)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_match_ast_grep() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let mut context = Context::default();
-        let search = Search {
-            search: "f($EXPR)".to_string(),
-            kind: SearchKind::AstGrep,
-        };
-
-        editor.move_selection(&mut context, SelectionMode::Match { search })?;
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f( z )"]);
-
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_match_string() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let mut context = Context::default();
-        let search = Search {
-            search: "f(".to_string(),
-            kind: SearchKind::Literal,
-        };
-
-        editor.move_selection(&mut context, SelectionMode::Match { search })?;
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f("]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f("]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f("]);
-
-        editor.insert("hello");
-        assert_eq!(
-            editor.text(),
-            "fn main() { let x = f(y); f(x); fhello( z ) }"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn select_match_regex() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = f(y); f(x); f( z ) }");
-        let mut context = Context::default();
-        let search = Search {
-            search: r"f\([a-z]\)".to_string(),
-            kind: SearchKind::Regex,
-        };
-
-        editor.move_selection(&mut context, SelectionMode::Match { search })?;
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(y)"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f(x)"]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn select_token() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
-        editor.move_selection(&mut context, SelectionMode::Token)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["("]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec![")"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["{"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
-
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["{"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec![")"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["("]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_parent() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
-        // Move token to 1
-        let search = Search {
-            search: "1".to_string(),
-            kind: SearchKind::Literal,
-        };
-        editor.move_selection(&mut context, SelectionMode::Match { search })?;
-        editor.select_direction(&mut context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["1"]);
-
-        editor.move_selection(&mut context, SelectionMode::SyntaxHierarchy)?;
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["fn main() { let x = 1; }"]
-        );
-
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let mut context = Context::default();
-        let search = Search {
-            search: "x: usize".to_string(),
-            kind: SearchKind::Literal,
-        };
-        // Move token to "x: usize"
-        editor.move_selection(&mut context, SelectionMode::Match { search })?;
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-
-        editor.move_selection(&mut context, SelectionMode::Sibling)?;
-        editor.select_syntax_tree(Movement::Next)?;
-        editor.select_syntax_tree(Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["y: Vec<A>"]);
-        editor.select_syntax_tree(Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["y: Vec<A>"]);
-
-        editor.select_syntax_tree(Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_syntax_tree(Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        Ok(())
-    }
-
-    #[test]
-    /// Should select the most ancestral node if the node's child and its parents has the same range.
-    fn select_sibling_2() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = X {z,b,c:d} }");
-        let mut context = Context::new();
-
-        // Select `z`
-        editor.match_literal(&mut context, "z")?;
-        editor.select_direction(&mut context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["z"]);
-
-        editor.move_selection(&mut context, SelectionMode::Sibling)?;
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["b"]);
-
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["c:d"]);
-
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["b"]);
-
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["z"]);
         Ok(())
     }
 
@@ -3078,48 +2842,12 @@ mod test_editor {
         let mut context = Context::new();
 
         editor.match_literal(&mut context, "x")?;
-        editor.select_direction(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
         editor.select_kids()?;
         assert_eq!(editor.get_selected_texts(), vec!["x: usize, y: Vec<A>"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_largest_node() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize) { let x = 1; }");
-        let mut context = Context::new();
-        editor.move_selection(&mut context, SelectionMode::LargestNode)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["fn main(x: usize) { let x = 1; }"]
-        );
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_direction(&mut context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["{ let x = 1; }"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["(x: usize)"]);
-        editor.select_direction(&mut context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
 
@@ -3199,26 +2927,13 @@ mod test_editor {
     }
 
     #[test]
-    fn select_named_node_from_line_mode() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize) { \n let x = 1; }");
-        // Select the second line
-        editor.select_line(Movement::Next)?;
-        editor.select_line(Movement::Next)?;
-
-        // Select next name node
-        editor.select_named_node(Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["let x = 1;"]);
-        Ok(())
-    }
-
-    #[test]
     fn copy_replace() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_token(Movement::Next)?;
         let mut context = Context::default();
-        editor.copy(&mut context);
-        editor.select_token(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        let mut context = Context::default();
+        editor.copy(&mut context)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         editor.replace();
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
@@ -3231,10 +2946,11 @@ mod test_editor {
     #[test]
     fn copy_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_token(Movement::Next)?;
         let mut context = Context::default();
+
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         editor.copy(&mut context);
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         editor.paste(&mut context);
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
@@ -3245,12 +2961,14 @@ mod test_editor {
     fn cut_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let mut context = Context::default();
-        editor.select_token(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         editor.cut(&mut context)?;
         assert_eq!(editor.text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Current)?;
+        assert_eq!(editor.get_selected_texts(), vec!["main"]);
+
         editor.paste(&mut context);
 
         assert_eq!(editor.text(), " fn() { let x = 1; }");
@@ -3261,13 +2979,16 @@ mod test_editor {
     #[test]
     fn exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
         // Move token to "x: usize"
         for _ in 0..3 {
-            editor.select_named_node(Movement::Next)?;
+            editor.move_selection(&mut context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
@@ -3279,14 +3000,15 @@ mod test_editor {
     #[test]
     fn exchange_sibling_2() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "use a;\nuse b;\nuse c;");
+        let mut context = Context::default();
 
         // Select first statement
-        editor.select_character(Movement::Next)?;
-        editor.select_character(Movement::Next)?;
-
-        editor.select_syntax_tree(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxHierarchy)?;
+        editor.move_selection(&mut context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
         editor.exchange(Movement::Next);
@@ -3295,13 +3017,11 @@ mod test_editor {
     }
 
     #[test]
-    fn upend() -> anyhow::Result<()> {
+    fn raise() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
+        let mut context = Context::default();
         // Move selection to "c()"
-        for _ in 0..9 {
-            editor.select_named_node(Movement::Next)?;
-        }
-
+        editor.match_literal(&mut context, "c()")?;
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
         editor.raise();
@@ -3352,8 +3072,9 @@ fn main() {
     #[test]
     fn exchange_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        editor.select_character(Movement::Next)?;
-
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
         editor.exchange(Movement::Next);
@@ -3370,16 +3091,17 @@ fn main() {
     #[test]
     fn multi_insert() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "struct A(usize, char)");
-        // Select 'usize'
-        for _ in 0..3 {
-            editor.select_named_node(Movement::Next)?;
-        }
+        let mut context = Context::default();
 
+        // Select 'usize'
+        editor.match_literal(&mut context, "usize")?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.add_selection(&Movement::Next)?;
+
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
-        editor.enter_insert_mode(CursorDirection::Start);
+        editor.enter_insert_mode(CursorDirection::Start)?;
         editor.insert("pub ");
 
         assert_eq!(editor.text(), "struct A(pub usize, pub char)");
@@ -3392,15 +3114,15 @@ fn main() {
     }
 
     #[test]
-    fn multi_upend() -> anyhow::Result<()> {
+    fn multi_raise() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        // Select 'let x = S(a)'
-        for _ in 0..4 {
-            editor.select_named_node(Movement::Next)?;
-        }
+        let mut context = Context::default();
 
+        // Select 'let x = S(a);'
+        editor.match_literal(&mut context, "let x = S(a);")?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.add_selection(&Movement::Next)?;
 
         assert_eq!(
@@ -3408,8 +3130,9 @@ fn main() {
             vec!["let x = S(a);", "let y = S(b);"]
         );
 
-        for _ in 0..4 {
-            editor.select_named_node(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        for _ in 0..5 {
+            editor.move_selection(&mut context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
@@ -3433,25 +3156,27 @@ fn main() {
     #[test]
     fn multi_exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        // Select 'fn f(x:a,y:b){}'
-        editor.select_token(Movement::Next)?;
-        editor.select_syntax_tree(Movement::Next)?;
+        let mut context = Context::default();
 
+        // Select 'fn f(x:a,y:b){}'
+        editor.match_literal(&mut context, "fn f(x:a,y:b){}")?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.add_selection(&Movement::Next)?;
-
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
         );
 
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        for _ in 0..3 {
+            editor.move_selection(&mut context, Movement::Next)?;
+        }
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
@@ -3467,20 +3192,22 @@ fn main() {
             language(),
             "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }",
         );
+        let mut context = Context::default();
 
         // Select 'let x = S(a)'
-        for _ in 0..4 {
-            editor.select_named_node(Movement::Next)?;
-        }
-
+        editor.match_literal(&mut context, "let x = S(spongebob_squarepants);")?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["let x = S(spongebob_squarepants);"]
         );
 
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.add_selection(&Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
+
+        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
@@ -3489,7 +3216,7 @@ fn main() {
 
         let mut context = Context::default();
         editor.cut(&mut context)?;
-        editor.enter_insert_mode(CursorDirection::Start);
+        editor.enter_insert_mode(CursorDirection::Start)?;
 
         editor.insert("Some(");
         editor.paste(&mut context);
@@ -3505,44 +3232,42 @@ fn main() {
     #[test]
     fn toggle_highlight_mode() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
+        let mut context = Context::default();
 
-        editor.select_token(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f("]);
 
         // Toggle the second time should inverse the initial_range
         editor.toggle_highlight_mode();
 
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
 
         editor.reset();
 
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-
-        editor.select_token(Movement::Next)?;
-
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        // After reset, expect highlight mode is turned off
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["("]);
+
         Ok(())
     }
 
     #[test]
     fn highlight_mode_cut() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Movement::Next)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
@@ -3560,18 +3285,19 @@ fn main() {
     #[test]
     fn highlight_mode_copy() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Movement::Next)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         let mut context = Context::default();
-        editor.copy(&mut context);
+        editor.copy(&mut context)?;
 
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
 
@@ -3584,18 +3310,20 @@ fn main() {
     #[test]
     fn highlight_mode_replace() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Movement::Next)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         let mut context = Context::default();
-        editor.copy(&mut context);
+        editor.copy(&mut context)?;
 
-        editor.select_named_node(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
@@ -3611,77 +3339,24 @@ fn main() {
     #[test]
     fn highlight_mode_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_token(Movement::Next)?;
+        let mut context = Context::default();
 
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
         let mut context = Context::default();
         editor.copy(&mut context);
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
         editor.toggle_highlight_mode();
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         editor.paste(&mut context);
 
         assert_eq!(editor.text(), "fn{ let x = S(a); let y = S(b); }");
-        Ok(())
-    }
-
-    #[test]
-    #[ignore]
-    fn highlight_mode_exchange_word() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        editor.select_word(Movement::Next)?;
-        editor.toggle_highlight_mode();
-        editor.select_word(Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f"]);
-
-        editor.exchange(Movement::Next);
-
-        assert_eq!(editor.text(), "let(){ fn f x = S(a); let y = S(b); }");
-        assert_eq!(editor.get_selected_texts(), vec!["fn f"]);
-
-        editor.exchange(Movement::Next);
-
-        assert_eq!(editor.text(), "let(){ x fn f = S(a); let y = S(b); }");
-        Ok(())
-    }
-
-    #[test]
-    #[ignore]
-    fn highlight_mode_exchange_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){} fn g(){} fn h(){} fn i(){}");
-
-        // select `fn f(){}`
-        editor.select_token(Movement::Next)?;
-        editor.select_syntax_tree(Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f(){}"]);
-
-        editor.toggle_highlight_mode();
-        editor.select_syntax_tree(Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f(){} fn g(){}"]);
-
-        editor.exchange(Movement::Next);
-
-        assert_eq!(editor.text(), "fn h(){} fn f(){} fn g(){} fn i(){}");
-
-        editor.select_syntax_tree(Movement::Next)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["fn f(){} fn g(){} fn i(){}"]
-        );
-
-        editor.exchange(Movement::Next);
-
-        assert_eq!(editor.text(), "fn h(){} fn i(){} fn f(){} fn g(){}");
         Ok(())
     }
 
@@ -3702,7 +3377,7 @@ fn f() {
 
         assert_eq!(editor.get_selected_texts(), vec!["    let x = S(a);\n"]);
 
-        editor.open_new_line();
+        editor.open_new_line()?;
 
         assert_eq!(editor.mode, Mode::Insert);
 
@@ -3721,11 +3396,11 @@ fn f() {
     }
 
     #[test]
-    fn delete_character() -> anyhow::Result<()> {
+    fn kill_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let mut context = Context::default();
 
-        editor.select_character(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
         editor.kill(Movement::Next);
@@ -3734,17 +3409,17 @@ fn f() {
         editor.kill(Movement::Next);
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
-        editor.move_selection(
+        editor.set_selection_mode(
             &mut context,
-            SelectionMode::Match {
+            SelectionMode::Find {
                 search: Search {
                     search: "x".to_string(),
                     kind: SearchKind::Literal,
                 },
             },
         )?;
-        editor.select_direction(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, SelectionMode::Character)?;
+        editor.move_selection(&mut context, Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
         editor.kill(Movement::Previous);
@@ -3753,7 +3428,7 @@ fn f() {
     }
 
     #[test]
-    fn delete_line() -> anyhow::Result<()> {
+    fn kill_line() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(
             language(),
             "
@@ -3764,8 +3439,8 @@ let y = S(b);
 }"
             .trim(),
         );
-
-        editor.select_line(Movement::Next)?;
+        let mut context = Context::default();
+        editor.set_selection_mode(&mut context, SelectionMode::Line)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
 
         editor.kill(Movement::Next);
@@ -3806,21 +3481,20 @@ let y = S(b);
     }
 
     #[test]
-    fn delete_sibling() -> anyhow::Result<()> {
+    fn kill_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
-        // Select 'x: a'
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
+        let mut context = Context::default();
 
+        // Select 'x: a'
+        editor.match_literal(&mut context, "x: a")?;
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
-        editor.select_syntax_tree(Movement::Current)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
         editor.kill(Movement::Next);
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
-        editor.select_syntax_tree(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
         editor.kill(Movement::Previous);
 
         assert_eq!(editor.text(), "fn f(y: b){}");
@@ -3828,10 +3502,11 @@ let y = S(b);
     }
 
     #[test]
-    fn delete_token() -> anyhow::Result<()> {
+    fn kill_token() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
+        let mut context = Context::default();
         // Select 'fn'
-        editor.select_token(Movement::Next)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
@@ -3843,7 +3518,7 @@ let y = S(b);
 
         assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
 
-        editor.select_token(Movement::Next)?;
+        editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
@@ -3875,7 +3550,7 @@ let y = S(b);
         let mut editor = Editor::from_text(language(), "");
 
         // Enter insert mode
-        editor.handle_events(keys!("i")).unwrap();
+        editor.handle_events(keys!("i n")).unwrap();
 
         // Type in 'hello'
         editor.handle_events(keys!("h e l l o")).unwrap();
@@ -3919,12 +3594,13 @@ let y = S(b);
     #[test]
     fn insert_mode_start() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() {}");
+        let mut context = Context::default();
 
         // Select the first word
-        editor.select_word(Movement::Current)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
 
         // Enter insert mode
-        editor.enter_insert_mode(CursorDirection::Start);
+        editor.enter_insert_mode(CursorDirection::Start)?;
 
         // Type something
         editor.insert("hello");
@@ -3937,12 +3613,13 @@ let y = S(b);
     #[test]
     fn insert_mode_end() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() {}");
+        let mut context = Context::default();
 
         // Select the first word
-        editor.select_word(Movement::Current)?;
+        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
 
         // Enter insert mode
-        editor.enter_insert_mode(CursorDirection::End);
+        editor.enter_insert_mode(CursorDirection::End)?;
 
         // Type something
         editor.insert("hello");
@@ -3955,12 +3632,10 @@ let y = S(b);
     #[test]
     fn enclose_left_bracket() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
+        let mut context = Context::default();
 
         // Select 'x.y()'
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
+        editor.match_literal(&mut context, "x.y()")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -3974,12 +3649,10 @@ let y = S(b);
     #[test]
     fn enclose_right_bracket() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
+        let mut context = Context::default();
 
         // Select 'x.y()'
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
-        editor.select_named_node(Movement::Next)?;
+        editor.match_literal(&mut context, "x.y()")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -3991,33 +3664,12 @@ let y = S(b);
     }
 
     #[test]
-    fn select_final() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y() }");
-
-        editor.select_line(Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn\n"]);
-
-        editor.select_final(Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["{ x.y() }"]);
-
-        editor.select_final(Movement::Previous)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn\n"]);
-        Ok(())
-    }
-
-    #[test]
     fn match_current_selection() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
+        let mut context = Context::default();
 
         // Select x.y()
-
-        for _ in 0..4 {
-            editor.select_named_node(Movement::Next)?;
-        }
-        editor.select_syntax_tree(Movement::Previous)?;
+        editor.match_literal(&mut context, "x.y()")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -4028,7 +3680,7 @@ let y = S(b);
             kind: SearchKind::Literal,
         };
         assert_eq!(dispatches, vec![Dispatch::SetSearch(search.clone())]);
-        assert_eq!(editor.selection_set.mode, SelectionMode::Match { search });
+        assert_eq!(editor.selection_set.mode, SelectionMode::Find { search });
         Ok(())
     }
 }

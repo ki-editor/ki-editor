@@ -3,6 +3,9 @@ use super::SelectionMode;
 pub struct Line;
 
 impl SelectionMode for Line {
+    fn name(&self) -> &'static str {
+        "LINE"
+    }
     fn iter<'a>(
         &'a self,
         _current_selection: &'a crate::selection::Selection,

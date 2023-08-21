@@ -3,6 +3,9 @@ use super::{ByteRange, SelectionMode};
 pub struct Sibling;
 
 impl SelectionMode for Sibling {
+    fn name(&self) -> &'static str {
+        "SIBLING"
+    }
     fn iter<'a>(
         &'a self,
         current_selection: &'a crate::selection::Selection,

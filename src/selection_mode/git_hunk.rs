@@ -83,6 +83,9 @@ impl GitHunk {
 }
 
 impl SelectionMode for GitHunk {
+    fn name(&self) -> &'static str {
+        "GIT HUNK"
+    }
     fn iter<'a>(
         &'a self,
         _: &'a Selection,

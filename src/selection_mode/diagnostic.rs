@@ -7,6 +7,9 @@ use super::SelectionMode;
 pub struct Diagnostic(pub Option<DiagnosticSeverity>);
 
 impl SelectionMode for Diagnostic {
+    fn name(&self) -> &'static str {
+        "DIAGNOSTIC"
+    }
     fn iter<'a>(
         &'a self,
         _current_selection: &'a Selection,

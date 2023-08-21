@@ -44,6 +44,9 @@ impl Regex {
 }
 
 impl SelectionMode for Regex {
+    fn name(&self) -> &'static str {
+        "REGEX"
+    }
     fn iter<'a>(
         &'a self,
         _current_selection: &'a crate::selection::Selection,

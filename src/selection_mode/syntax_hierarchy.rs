@@ -3,6 +3,9 @@ use super::{ByteRange, SelectionMode};
 pub struct SyntaxHierarchy;
 
 impl SelectionMode for SyntaxHierarchy {
+    fn name(&self) -> &'static str {
+        "SYNTAX HIERARCHY"
+    }
     fn iter<'a>(
         &'a self,
         current_selection: &'a crate::selection::Selection,
