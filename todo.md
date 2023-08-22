@@ -112,7 +112,6 @@
 - [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
-- [] file tree
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
 - [] feat: workspaces (similar to tab in Vim)
@@ -155,7 +154,8 @@
 - [] feat(find): sentence, paragraph
 - [] fix(cursor): misplacement when wrapped sometimes
 - [] refactor(buffer): hide rope
-- [] fix(buffer): len_lines need to minus 1 because rope.len_lines always is 1 more, even empty string is one line
 - [] fix failing test cases
 - [] fix(signature-help): cannot be closed by pressing esc key
 - [] fix(syntax-highlighting): flashing during editing
+- [] file tree
+- [] fix: paste from clipboard does not work properly if contains newline

@@ -257,7 +257,7 @@ pub trait SelectionMode {
             .flatten()
             .collect_vec();
 
-        pretty_assertions::assert_eq!(expected, actual);
+        assert_eq!(expected, actual);
     }
 }
 

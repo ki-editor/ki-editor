@@ -670,7 +670,10 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().current_line()?, "");
 
         // Type in 's'
-        editor.handle_events(keys!("shift+I s"))?;
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)?;
+        editor.handle_events(keys!("s"))?;
 
         // Expect the current line is 's'
         assert_eq!(editor.editor().current_line()?, "s");

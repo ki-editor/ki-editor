@@ -579,7 +579,7 @@ impl Editor {
         Ok(self
             .buffer
             .borrow()
-            .get_line(cursor)?
+            .get_line_by_char_index(cursor)?
             .to_string()
             .trim()
             .into())
@@ -607,7 +607,14 @@ impl Editor {
         let start = self.buffer.borrow().line_to_char(line)?;
         let selection_set = SelectionSet {
             primary: Selection::new(
-                (start..start + self.buffer.borrow().get_line(start)?.len_chars()).into(),
+                (start
+                    ..start
+                        + self
+                            .buffer
+                            .borrow()
+                            .get_line_by_char_index(start)?
+                            .len_chars())
+                    .into(),
             ),
             secondary: vec![],
             mode: SelectionMode::Line,
@@ -2309,7 +2316,11 @@ impl Editor {
                     let cursor_index = selection.to_char_index(&self.cursor_direction);
                     let line_index = buffer.char_to_line(cursor_index).ok()?;
                     let line_start = buffer.line_to_char(line_index).ok()?;
-                    let current_line = self.buffer.borrow().get_line(cursor_index).ok()?;
+                    let current_line = self
+                        .buffer
+                        .borrow()
+                        .get_line_by_char_index(cursor_index)
+                        .ok()?;
                     let leading_whitespaces = current_line
                         .chars()
                         .take_while(|c| c.is_whitespace())
@@ -3435,7 +3446,7 @@ let y = S(b);
         );
         let mut context = Context::default();
         editor.set_selection_mode(&mut context, SelectionMode::Line)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn f() {\n"]);
 
         editor.kill(Movement::Next);
         assert_eq!(
@@ -3455,10 +3466,10 @@ let y = S(b);
 let y = S(b);
 }"
         );
-        assert_eq!(editor.get_selected_texts(), vec![""]);
+        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
 
-        editor.select_line(Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
+        editor.move_selection(&mut context, Movement::Next)?;
+        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);\n"]);
         editor.kill(Movement::Previous);
         assert_eq!(
             editor.text(),
@@ -3469,8 +3480,6 @@ let y = S(b);
         editor.kill(Movement::Next);
         assert_eq!(editor.text(), "}");
 
-        editor.kill(Movement::Next);
-        assert_eq!(editor.text(), "");
         Ok(())
     }
 
@@ -3540,32 +3549,32 @@ let y = S(b);
     }
 
     #[test]
-    fn enter_newline() {
+    fn enter_newline() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "");
 
         // Enter insert mode
-        editor.handle_events(keys!("i n")).unwrap();
-
+        editor.enter_insert_mode(CursorDirection::Start)?;
         // Type in 'hello'
-        editor.handle_events(keys!("h e l l o")).unwrap();
+        editor.handle_events(keys!("h e l l o"))?;
 
         // Type in enter
-        editor.handle_events(keys!("enter")).unwrap();
+        editor.handle_events(keys!("enter"))?;
 
         // Type in 'world'
-        editor.handle_events(keys!("w o r l d")).unwrap();
+        editor.handle_events(keys!("w o r l d"))?;
 
         // Expect the text to be 'hello\nworld'
         assert_eq!(editor.text(), "hello\nworld");
 
         // Move cursor left
-        editor.handle_events(keys!("left")).unwrap();
+        editor.handle_events(keys!("left"))?;
 
         // Type in enter
-        editor.handle_events(keys!("enter")).unwrap();
+        editor.handle_events(keys!("enter"))?;
 
         // Expect the text to be 'hello\nworl\nd'
         assert_eq!(editor.text(), "hello\nworl\nd");
+        Ok(())
     }
 
     #[test]

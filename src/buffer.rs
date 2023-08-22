@@ -161,8 +161,18 @@ impl Buffer {
         });
     }
 
-    pub fn get_line(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
-        Ok(self.rope.line(self.char_to_line(char_index)?).into())
+    pub fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
+        Ok(self
+            .rope
+            .get_line(self.char_to_line(char_index)?)
+            .map(Ok)
+            .unwrap_or_else(|| {
+                Err(anyhow::anyhow!(
+                    "get_line: char_index {:?} is out of bound",
+                    char_index
+                ))
+            })?
+            .into())
     }
 
     pub fn get_word_before_char_index(&self, char_index: CharIndex) -> anyhow::Result<String> {
@@ -586,6 +596,10 @@ impl Buffer {
 
     pub fn byte_to_line(&self, byte: usize) -> anyhow::Result<usize> {
         Ok(self.rope.try_byte_to_line(byte)?)
+    }
+
+    pub fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
+        self.rope.get_line(line_index)
     }
 }
 
