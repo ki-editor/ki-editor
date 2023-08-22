@@ -508,6 +508,14 @@ impl Selection {
     pub fn range(&self) -> CharIndexRange {
         self.range
     }
+
+    pub fn anchors(&self) -> Vec<CharIndexRange> {
+        Vec::new()
+            .into_iter()
+            .chain([self.range.clone()])
+            .chain(self.initial_range.clone())
+            .collect_vec()
+    }
 }
 
 // TODO: this works, but the result is not satisfactory,

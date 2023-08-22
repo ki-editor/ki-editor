@@ -202,6 +202,9 @@ impl Component for Editor {
             selection.extended_range(),
             theme.ui.primary_selection,
         );
+        let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
+            range_to_cell_update(&buffer, range, theme.ui.primary_selection_anchor)
+        });
 
         let primary_selection_secondary_cursor = char_index_to_cell_update(
             &buffer,
@@ -215,6 +218,11 @@ impl Component for Editor {
                 secondary_selection.extended_range(),
                 theme.ui.secondary_selection,
             )
+        });
+        let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
+            selection.anchors().into_iter().flat_map(|range| {
+                range_to_cell_update(&buffer, range, theme.ui.secondary_selection_anchor)
+            })
         });
 
         let secondary_selection_cursors = secondary_selections
@@ -316,7 +324,9 @@ impl Component for Editor {
             .into_iter()
             .chain(bookmarks)
             .chain(primary_selection)
+            .chain(primary_selection_anchors)
             .chain(secondary_selection)
+            .chain(seconday_selection_anchors)
             .chain(diagnostics)
             .chain(syntax_highlight)
             .chain(jumps)
