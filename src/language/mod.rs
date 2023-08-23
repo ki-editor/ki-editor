@@ -1,9 +1,10 @@
 mod javascript;
 mod javascript_react;
-mod rust;
+pub mod rust;
 mod typescript;
 mod typescript_react;
 
+use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
 
 pub use crate::process_command::ProcessCommand;
@@ -32,7 +33,13 @@ pub trait Language: dyn_clone::DynClone + std::fmt::Debug + Send + Sync {
     /// Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
     fn id(&self) -> LanguageId;
 
-    fn tree_sitter_language(&self) -> Option<tree_sitter::Language>;
+    fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
+        None
+    }
+
+    fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
+        grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id).ok()
+    }
 
     /// Used for tree-sitter syntax highlighting.
     fn highlight_query(&self) -> Option<&'static str> {
@@ -62,7 +69,7 @@ pub trait Language: dyn_clone::DynClone + std::fmt::Debug + Send + Sync {
 
 dyn_clone::clone_trait_object!(Language);
 
-fn languages() -> Vec<Box<dyn Language>> {
+pub fn languages() -> Vec<Box<dyn Language>> {
     use self::*;
     vec![
         Box::new(rust::Rust),

@@ -1,6 +1,7 @@
 mod buffer;
 mod canonicalized_path;
 pub mod char_index_range;
+mod cli;
 mod clipboard;
 mod components;
 mod context;
@@ -35,12 +36,10 @@ use log::LevelFilter;
 use screen::Screen;
 
 fn main() {
-    run().unwrap_or_else(|error| {
-        log::error!("main run {:?}", error);
-    });
+    cli::cli();
 }
 
-fn run() -> anyhow::Result<()> {
+pub fn run() -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
     let args = std::env::args().collect::<Vec<_>>();
     // run_integrated_terminal(24, 80).unwrap();

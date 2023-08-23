@@ -16,8 +16,13 @@ impl Language for Rust {
         LanguageId::new("rust")
     }
 
-    fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
-        Some(tree_sitter_rust::language())
+    fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
+        Some(GrammarConfiguration::remote(
+            "rust",
+            "https://github.com/tree-sitter/tree-sitter-rust",
+            "afb6000a71fb9dff3f47f90d412ec080ae12bbb4",
+            None,
+        ))
     }
 
     fn highlight_query(&self) -> Option<&'static str> {
