@@ -46,7 +46,7 @@ pub enum Mode {
     Insert,
     Jump { jumps: Vec<Jump> },
     Kill,
-    AddCursor,
+    MultiCursor,
     FindOneChar,
     ScrollPage,
     ScrollLine,
@@ -694,7 +694,7 @@ impl Editor {
             .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::LargestNode
+            SelectionMode::OutermostNode
         } else {
             SelectionMode::Custom
         };
@@ -1382,8 +1382,8 @@ impl Editor {
                     Ok(vec![])
                 }
                 Mode::Kill => self.handle_delete_mode(context, key_event),
-                Mode::AddCursor => {
-                    self.handle_add_cursor_mode(key_event)?;
+                Mode::MultiCursor => {
+                    self.handle_multi_cursor_mode(key_event)?;
                     Ok(Vec::new())
                 }
                 Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
@@ -1672,7 +1672,7 @@ impl Editor {
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
             }
             // Objects
-            key!("a") => self.mode = Mode::AddCursor,
+            key!("a") => self.enter_insert_mode(CursorDirection::End)?,
             key!("ctrl+b") => self.save_bookmarks(),
             key!("b") => context.set_mode(Some(GlobalMode::BufferNavigationHistory)),
 
@@ -1697,18 +1697,14 @@ impl Editor {
             }
 
             key!("h") => self.toggle_highlight_mode(),
-            key!("i") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.insert_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
+            key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
+
             key!("j") => self.jump()?,
             key!("k") => self.mode = Mode::Kill,
             key!("k") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
-            key!("m") => return self.set_selection_mode(context, SelectionMode::LargestNode),
-            // o
+            key!("m") => self.mode = Mode::MultiCursor,
+            key!("o") => return self.set_selection_mode(context, SelectionMode::OutermostNode),
             key!("q") => context.set_mode(Some(GlobalMode::QuickfixListItem)),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
@@ -2028,7 +2024,7 @@ impl Editor {
         self.replace_faultlessly(&mode, movement)
     }
 
-    fn add_selection(&mut self, direction: &Movement) -> anyhow::Result<()> {
+    fn add_cursor(&mut self, direction: &Movement) -> anyhow::Result<()> {
         self.selection_set.add_selection(
             &self.buffer.borrow(),
             direction,
@@ -2537,7 +2533,7 @@ impl Editor {
             Mode::Insert => "INSERT".to_string(),
             Mode::Jump { .. } => "JUMP".to_string(),
             Mode::Kill => "KILL".to_string(),
-            Mode::AddCursor => "ADD CURSOR".to_string(),
+            Mode::MultiCursor => "MULTI CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
             Mode::ScrollPage => "SCROLL PAGE".to_string(),
             Mode::ScrollLine => "SCROLL LINE".to_string(),
@@ -2580,15 +2576,15 @@ impl Editor {
         }
     }
 
-    fn handle_add_cursor_mode(&mut self, key_event: KeyEvent) -> Result<(), anyhow::Error> {
+    fn handle_multi_cursor_mode(&mut self, key_event: KeyEvent) -> Result<(), anyhow::Error> {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
             key!("a") => self.add_cursor_to_all_selections(),
             // todo: delete primary cursor does not work as expected, we need another editr cursor mode
             key!("d") => self.delete_primary_cursor(),
-            key!("n") => self.add_selection(&Movement::Next),
+            key!("n") => self.add_cursor(&Movement::Next),
             key!("o") => self.only_current_cursor(),
-            key!("p") => self.add_selection(&Movement::Previous),
+            key!("p") => self.add_cursor(&Movement::Previous),
             _ => Ok(()),
         }
     }
@@ -2996,7 +2992,7 @@ mod test_editor {
     fn exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
         // Move token to "x: usize"
         for _ in 0..3 {
             editor.move_selection(&mut context, Movement::Next)?;
@@ -3113,7 +3109,7 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
 
         editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
-        editor.add_selection(&Movement::Next)?;
+        editor.add_cursor(&Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
         editor.enter_insert_mode(CursorDirection::Start)?;
@@ -3138,14 +3134,14 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
 
         editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
-        editor.add_selection(&Movement::Next)?;
+        editor.add_cursor(&Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
             vec!["let x = S(a);", "let y = S(b);"]
         );
 
-        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
         for _ in 0..5 {
             editor.move_selection(&mut context, Movement::Next)?;
         }
@@ -3178,13 +3174,13 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
         editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
-        editor.add_selection(&Movement::Next)?;
+        editor.add_cursor(&Movement::Next)?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
         );
 
-        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
         for _ in 0..3 {
             editor.move_selection(&mut context, Movement::Next)?;
         }
@@ -3217,9 +3213,9 @@ fn main() {
         );
 
         editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
-        editor.add_selection(&Movement::Next)?;
+        editor.add_cursor(&Movement::Next)?;
 
-        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
         editor.move_selection(&mut context, Movement::Next)?;
         editor.move_selection(&mut context, Movement::Next)?;
         editor.move_selection(&mut context, Movement::Next)?;
@@ -3337,7 +3333,7 @@ fn main() {
         let mut context = Context::default();
         editor.copy(&mut context)?;
 
-        editor.set_selection_mode(&mut context, SelectionMode::LargestNode)?;
+        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
         editor.move_selection(&mut context, Movement::Next)?;
 
         assert_eq!(
@@ -3594,7 +3590,7 @@ let y = S(b);
         // Select a range which highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 2))?;
 
-        assert_eq!(editor.selection_set.mode, SelectionMode::LargestNode);
+        assert_eq!(editor.selection_set.mode, SelectionMode::OutermostNode);
 
         // Select a range which does not highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 1))?;

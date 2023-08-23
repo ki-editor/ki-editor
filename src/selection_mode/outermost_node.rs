@@ -3,11 +3,11 @@ use crate::selection::Selection;
 use super::{ByteRange, SelectionMode};
 use itertools::Itertools;
 
-pub struct LargestNode;
+pub struct OutermostNode;
 
-impl SelectionMode for LargestNode {
+impl SelectionMode for OutermostNode {
     fn name(&self) -> &'static str {
-        "MAXIMUM NODE"
+        "OUTERMOST NODE"
     }
     fn iter<'a>(
         &self,
@@ -37,7 +37,7 @@ impl SelectionMode for LargestNode {
 }
 
 #[cfg(test)]
-mod test_largest_node {
+mod test_outermost_node {
     use crate::buffer::Buffer;
 
     use super::*;
@@ -48,7 +48,7 @@ mod test_largest_node {
             tree_sitter_rust::language(),
             "fn main(x: usize) { let x = 1; }",
         );
-        LargestNode.assert_all_selections(
+        OutermostNode.assert_all_selections(
             &buffer,
             Selection::default(),
             &[
