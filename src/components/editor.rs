@@ -1238,9 +1238,7 @@ impl Editor {
             DispatchEditor::SetSelectionMode(selection_mode) => {
                 return self.set_selection_mode(context, selection_mode)
             }
-            DispatchEditor::EnterInsertMode(cursor_direction) => {
-                self.enter_insert_mode(cursor_direction)?;
-            }
+
             DispatchEditor::FindOneChar => self.enter_single_character_mode(),
             DispatchEditor::EnterScrollPageMode => self.mode = Mode::ScrollPage,
             DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
@@ -1274,28 +1272,6 @@ impl Editor {
                 )
             })
             .collect_vec(),
-        }
-    }
-
-    fn insert_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Insert",
-            owner_id: self.id(),
-            keymaps: [
-                Keymap::new(
-                    "n",
-                    "End of selection",
-                    Dispatch::DispatchEditor(DispatchEditor::EnterInsertMode(CursorDirection::End)),
-                ),
-                Keymap::new(
-                    "p",
-                    "Opening of selection",
-                    Dispatch::DispatchEditor(DispatchEditor::EnterInsertMode(
-                        CursorDirection::Start,
-                    )),
-                ),
-            ]
-            .to_vec(),
         }
     }
 
@@ -2777,7 +2753,6 @@ pub enum DispatchEditor {
     AlignViewBottom,
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
-    EnterInsertMode(CursorDirection),
     FindOneChar,
     EnterScrollPageMode,
     EnterScrollLineMode,

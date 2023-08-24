@@ -164,4 +164,4 @@
 
 - [] should I use helix languages.toml or should I build the list myself again?
 - [] store the runtime grammars file not at helix editor config dir, use 'directories'
-- [] remove the BUILD_TARGET env value that is needed when building
+- [x] remove the BUILD_TARGET env value that is needed when building
