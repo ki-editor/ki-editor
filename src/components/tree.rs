@@ -15,8 +15,8 @@ impl Component for Tree {
 
     fn handle_key_event(
         &mut self,
-        context: &mut crate::context::Context,
-        event: event::KeyEvent,
+        _context: &mut crate::context::Context,
+        _event: event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
         todo!()
     }
@@ -25,5 +25,5 @@ impl Component for Tree {
         Vec::new()
     }
 
-    fn remove_child(&mut self, component_id: super::component::ComponentId) {}
+    fn remove_child(&mut self, _component_id: super::component::ComponentId) {}
 }

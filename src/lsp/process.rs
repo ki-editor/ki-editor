@@ -1,5 +1,5 @@
 use crate::canonicalized_path::CanonicalizedPath;
-use crate::language;
+use crate::language::{Language};
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
@@ -26,7 +26,6 @@ use super::symbols::Symbols;
 use super::workspace_edit::WorkspaceEdit;
 use crate::quickfix_list::Location;
 
-type Language = Box<dyn language::Language>;
 struct LspServerProcess {
     language: Language,
     stdin: process::ChildStdin,

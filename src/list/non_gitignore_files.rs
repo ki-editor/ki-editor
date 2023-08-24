@@ -8,7 +8,7 @@ pub fn non_git_ignored_files(directory: &CanonicalizedPath) -> anyhow::Result<Ve
     use git2::{Repository, StatusOptions};
 
     let git_status_files = {
-        let repo = Repository::open(&directory)?;
+        let repo = Repository::open(directory)?;
         let mut opts = StatusOptions::new();
         opts.include_untracked(true);
         opts.include_ignored(false);
@@ -18,18 +18,16 @@ pub fn non_git_ignored_files(directory: &CanonicalizedPath) -> anyhow::Result<Ve
             .filter(|entry| !entry.status().is_ignored())
             .filter_map(|entry| entry.path().map(|path| path.to_owned()))
             .filter_map(|path| {
-                Some(
-                    CanonicalizedPath::try_from(&path)
+                CanonicalizedPath::try_from(&path)
                         .ok()?
                         .display_relative()
-                        .ok()?,
-                )
+                        .ok()
             })
             .collect::<Vec<_>>()
     };
 
     let git_files = {
-        let repo = git2::Repository::open(&directory)?;
+        let repo = git2::Repository::open(directory)?;
 
         // Get the current branch name
         let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {

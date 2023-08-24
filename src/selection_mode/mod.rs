@@ -29,7 +29,6 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::editor::{CursorDirection, Jump, Movement},
-    position::Position,
     selection::Selection,
 };
 
@@ -69,8 +68,7 @@ impl PartialOrd for ByteRange {
             .or_else(|| {
                 self.range
                     .end
-                    .partial_cmp(&other.range.end)
-                    .and_then(|ordering| Some(ordering.reverse()))
+                    .partial_cmp(&other.range.end).map(|ordering| ordering.reverse())
             })
     }
 }
@@ -212,12 +210,12 @@ pub trait SelectionMode {
     }
 
     fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        return self.get_by_offset_to_current_selection(params, -1);
+        self.get_by_offset_to_current_selection(params, -1)
     }
 
     fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .iter(&params.current_selection, params.buffer)?
+            .iter(params.current_selection, params.buffer)?
             .sorted()
             .next()
             .and_then(|range| {
@@ -228,7 +226,7 @@ pub trait SelectionMode {
     }
 
     fn current(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        return self.get_by_offset_to_current_selection(params, 0);
+        self.get_by_offset_to_current_selection(params, 0)
     }
 
     #[cfg(test)]
@@ -239,22 +237,21 @@ pub trait SelectionMode {
         selections: &[(Range<usize>, &'static str)],
     ) {
         let expected = selections
-            .into_iter()
+            .iter()
             .map(|(range, info)| (range.to_owned(), info.to_string()))
             .collect_vec();
 
         let actual = self
-            .iter(&current_selection, &buffer)
+            .iter(&current_selection, buffer)
             .unwrap()
-            .map(|range| -> anyhow::Result<_> {
+            .flat_map(|range| -> anyhow::Result<_> {
                 Ok((
                     range.range.start..range.range.end,
                     buffer
-                        .slice(&range.to_char_index_range(&buffer)?)?
+                        .slice(&range.to_char_index_range(buffer)?)?
                         .to_string(),
                 ))
             })
-            .flatten()
             .collect_vec();
 
         assert_eq!(expected, actual);

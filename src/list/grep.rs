@@ -92,7 +92,7 @@ fn to_location(
     let start_byte = buffer.line_to_byte(line_number.saturating_sub(1))?;
     let locations = regex
         .find_iter(line)
-        .map(|match_| -> anyhow::Result<Location> {
+        .flat_map(|match_| -> anyhow::Result<Location> {
             let range = match_.range();
             let start = buffer.byte_to_position(range.start + start_byte)?;
             let end = buffer.byte_to_position(range.end + start_byte)?;
@@ -101,7 +101,6 @@ fn to_location(
                 path: path.clone(),
             })
         })
-        .flatten()
         .collect();
 
     Ok(locations)

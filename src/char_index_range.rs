@@ -36,7 +36,7 @@ impl CharIndexRange {
 
     pub fn iter(&self) -> CharIndexRangeIter {
         CharIndexRangeIter {
-            range: self.clone(),
+            range: *self,
             current: self.start,
         }
     }

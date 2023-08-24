@@ -68,7 +68,7 @@ impl Action {
 
     fn range(&self) -> CharIndexRange {
         match self {
-            Action::Select(selection) => selection.extended_range().clone(),
+            Action::Select(selection) => selection.extended_range(),
             Action::Edit(edit) => edit.range(),
         }
     }

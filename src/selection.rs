@@ -93,7 +93,7 @@ impl SelectionSet {
             let copied_text = buffer.slice(&self.primary.extended_range())?;
             context.set_clipboard_content(copied_text.to_string());
             self.primary = Selection {
-                range: self.primary.range.clone(),
+                range: self.primary.range,
                 initial_range: None,
                 copied_text: Some(copied_text),
                 info: None,
@@ -135,7 +135,7 @@ impl SelectionSet {
                                 ..CharIndex(second_last_child.end_byte()))
                                 .into(),
                             copied_text: selection.copied_text.clone(),
-                            initial_range: selection.initial_range.clone(),
+                            initial_range: selection.initial_range,
                             info: selection.info.clone(),
                         };
                     }
@@ -411,7 +411,7 @@ impl Selection {
 
     pub fn extended_range(&self) -> CharIndexRange {
         match &self.initial_range {
-            None => self.range.clone(),
+            None => self.range,
             Some(extended_selection_anchor) => {
                 (self.range.start.min(extended_selection_anchor.start)
                     ..self.range.end.max(extended_selection_anchor.end))
@@ -472,7 +472,7 @@ impl Selection {
     pub fn toggle_highlight_mode(&mut self) {
         match self.initial_range.take() {
             None => {
-                self.initial_range = Some(self.range.clone());
+                self.initial_range = Some(self.range);
             }
             // If highlight mode is enabled, inverse the selection
             Some(initial_range) => {
@@ -487,7 +487,7 @@ impl Selection {
         Selection {
             range,
             copied_text: self.copied_text.clone(),
-            initial_range: self.initial_range.clone(),
+            initial_range: self.initial_range,
             info: self.info.clone(),
         }
     }
@@ -512,8 +512,8 @@ impl Selection {
     pub fn anchors(&self) -> Vec<CharIndexRange> {
         Vec::new()
             .into_iter()
-            .chain([self.range.clone()])
-            .chain(self.initial_range.clone())
+            .chain([self.range])
+            .chain(self.initial_range)
             .collect_vec()
     }
 }

@@ -35,7 +35,7 @@ mod test_token {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() {}");
         Token.assert_all_selections(
             &buffer,
-            Selection::default().into(),
+            Selection::default(),
             &[
                 (0..2, "fn"),
                 (3..7, "main"),

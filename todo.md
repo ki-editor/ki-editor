@@ -159,9 +159,14 @@
 - [] fix(syntax-highlighting): flashing during editing
 - [] file tree
 - [] fix: paste from clipboard does not work properly if contains newline
+- [] la should open cursor at end of line, not beginning of next line
+- [] feat(title): show git branch if possible
+- [] fs watcher, watch for file changes
+- [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
 
 # Grammar loading
 
-- [] should I use helix languages.toml or should I build the list myself again?
+- [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
 - [] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building
+- [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse

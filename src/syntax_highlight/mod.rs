@@ -15,7 +15,7 @@ pub struct HighlighedSpan {
 pub struct Color(&'static str);
 
 pub fn highlight(
-    language: Box<dyn Language>,
+    language: Language,
     theme: &Theme,
     source_code: &str,
 ) -> anyhow::Result<Vec<HighlighedSpan>> {

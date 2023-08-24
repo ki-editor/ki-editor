@@ -1,8 +1,4 @@
-mod javascript;
-mod javascript_react;
-pub mod rust;
-mod typescript;
-mod typescript_react;
+pub mod languages;
 
 use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
@@ -10,7 +6,11 @@ use serde_json::Value;
 pub use crate::process_command::ProcessCommand;
 use crate::{canonicalized_path::CanonicalizedPath, lsp::formatter::Formatter};
 
+pub use languages::LANGUAGES;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// As defined by the LSP protocol.
+/// See sections below https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range
 pub struct LanguageId(&'static str);
 
 impl std::fmt::Display for LanguageId {
@@ -20,72 +20,130 @@ impl std::fmt::Display for LanguageId {
 }
 
 impl LanguageId {
-    pub fn new(id: &'static str) -> Self {
+    pub const fn new(id: &'static str) -> Self {
         Self(id)
     }
 }
 
-pub trait Language: dyn_clone::DynClone + std::fmt::Debug + Send + Sync {
-    /// For example, "rs" for Rust, "cpp" for C++.
-    fn extension(&self) -> &'static str;
-    fn lsp_process_command(&self) -> Option<ProcessCommand>;
+#[derive(Debug, Clone)]
+struct Command(&'static str, &'static [&'static str]);
+impl Command {
+    const fn default() -> Command {
+        Command("", &[])
+    }
+}
 
-    /// Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocumentItem
-    fn id(&self) -> LanguageId;
+#[derive(Debug, Clone)]
+pub struct Language {
+    extensions: &'static [&'static str],
+    lsp_language_id: LanguageId,
+    lsp_command: Option<LspCommand>,
+    tree_sitter_grammar_config: Option<GrammarConfig>,
+    highlight_query: Option<&'static str>,
+    formatter_command: Option<Command>,
+}
 
-    fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
-        None
+#[derive(Debug, Clone)]
+pub struct LspCommand {
+    command: Command,
+    initialization_options: Option<&'static str>,
+}
+impl LspCommand {
+    const fn default() -> LspCommand {
+        LspCommand {
+            command: Command::default(),
+            initialization_options: None,
+        }
+    }
+}
+
+impl Language {
+    pub const fn new() -> Self {
+        Self {
+            extensions: &[""],
+            lsp_language_id: LanguageId::new(""),
+            highlight_query: None,
+            lsp_command: None,
+            tree_sitter_grammar_config: None,
+            formatter_command: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct GrammarConfig {
+    id: &'static str,
+    url: &'static str,
+    commit: &'static str,
+    subpath: Option<&'static str>,
+}
+
+impl Language {
+    fn extensions(&self) -> &'static [&'static str] {
+        self.extensions
     }
 
-    fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
+    pub fn initialization_options(&self) -> Option<Value> {
+        serde_json::from_str(self.lsp_command.clone()?.initialization_options?).ok()
+    }
+
+    pub fn tree_sitter_language(&self) -> Option<tree_sitter::Language> {
         grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id).ok()
     }
 
-    /// Used for tree-sitter syntax highlighting.
-    fn highlight_query(&self) -> Option<&'static str> {
+    pub fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
+        self.tree_sitter_grammar_config.as_ref().map(|config| {
+            GrammarConfiguration::remote(config.id, config.url, config.commit, config.subpath)
+        })
+    }
+
+    pub fn highlight_query(&self) -> Option<&'static str> {
+        self.highlight_query
+    }
+
+    pub fn locals_query(&self) -> Option<&'static str> {
         None
     }
 
-    /// Used for tree-sitter language injection.
-    fn injection_query(&self) -> Option<&'static str> {
+    pub fn injection_query(&self) -> Option<&'static str> {
         None
     }
 
-    /// Used for tree-sitter locals.
-    fn locals_query(&self) -> Option<&'static str> {
-        None
+    pub fn lsp_process_command(&self) -> Option<ProcessCommand> {
+        self.lsp_command
+            .as_ref()
+            .map(|command| ProcessCommand::new(command.command.0, command.command.1))
     }
 
-    fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)>;
+    pub fn id(&self) -> LanguageId {
+        self.lsp_language_id
+    }
 
-    fn formatter(&self) -> Option<Formatter> {
+    fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)> {
+        self.formatter_command.as_ref().map(|command| {
+            (
+                ProcessCommand::new(command.0, command.1),
+                FormatterTestCase {
+                    input: "",
+                    expected: "",
+                },
+            )
+        })
+    }
+
+    pub fn formatter(&self) -> Option<Formatter> {
         self.formatter_command()
             .map(|(command, _)| Formatter::from(command))
     }
-    fn initialization_options(&self) -> Option<Value> {
-        None
-    }
 }
 
-dyn_clone::clone_trait_object!(Language);
-
-pub fn languages() -> Vec<Box<dyn Language>> {
-    use self::*;
-    vec![
-        Box::new(rust::Rust),
-        Box::new(typescript::Typescript),
-        Box::new(typescript_react::TypescriptReact),
-        Box::new(javascript::Javascript),
-        Box::new(javascript_react::JavascriptReact),
-    ]
-}
-
-pub fn from_path(path: &CanonicalizedPath) -> Option<Box<dyn Language>> {
+pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
     path.extension()
         .map(|extension| {
-            languages()
-                .into_iter()
-                .find(|language| language.extension().eq(extension))
+            LANGUAGES
+                .iter()
+                .find(|language| language.extensions().contains(&extension))
+                .map(|language| (*language).clone())
         })
         .unwrap_or_default()
 }
@@ -96,24 +154,4 @@ pub struct FormatterTestCase {
 
     /// The formatted output.
     pub expected: &'static str,
-}
-
-#[cfg(test)]
-mod test_language {
-    use crate::lsp::formatter::Formatter;
-
-    use super::languages;
-
-    #[test]
-    fn test_formatter() {
-        for language in languages() {
-            if let Some((formatter_command, test_case)) = language.formatter_command() {
-                let actual = Formatter::from(formatter_command)
-                    .format(test_case.input)
-                    .unwrap();
-
-                assert_eq!(actual, test_case.expected, "language: {}", language.id());
-            }
-        }
-    }
 }

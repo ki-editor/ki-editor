@@ -3,15 +3,12 @@ use regex::Regex;
 use crate::position::Position;
 
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct WrappedLines {
     lines: Vec<WrappedLine>,
 }
 
-impl Default for WrappedLines {
-    fn default() -> Self {
-        Self { lines: vec![] }
-    }
-}
+
 
 #[derive(Debug, PartialEq)]
 pub enum CalibrationError {

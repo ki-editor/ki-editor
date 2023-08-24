@@ -17,7 +17,7 @@ use regex::Regex;
 use ropey::Rope;
 use std::{
     ops::Range,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
@@ -27,7 +27,7 @@ pub struct Buffer {
     rope: Rope,
     tree: Tree,
     treesitter_language: tree_sitter::Language,
-    language: Option<Box<dyn Language>>,
+    language: Option<Language>,
     undo_patch: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
@@ -530,7 +530,7 @@ impl Buffer {
             .unwrap_or_else(|_| Vec::new())
     }
 
-    pub fn language(&self) -> Option<Box<dyn Language>> {
+    pub fn language(&self) -> Option<Language> {
         self.language.clone()
     }
 

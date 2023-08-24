@@ -50,7 +50,7 @@ impl GitHunk {
                     })
                     .collect_vec()
                     .join("\n");
-                let diff = diff::chars(&deleted, &inserted)
+                let _diff = diff::chars(&deleted, &inserted)
                     .into_iter()
                     .filter_map(|result| match result {
                         diff::Result::Left(left) => Some(left),

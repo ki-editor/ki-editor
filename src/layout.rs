@@ -337,7 +337,7 @@ impl Layout {
     pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
-            .filter_map(|editor| editor.borrow().editor().buffer().path().map(|path| path))
+            .filter_map(|editor| editor.borrow().editor().buffer().path())
             .collect()
     }
 }

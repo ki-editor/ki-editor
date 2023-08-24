@@ -173,11 +173,7 @@ impl LspManager {
             .unwrap_or_else(|| Ok(()))
     }
 
-    pub fn initialized(
-        &mut self,
-        language: Box<dyn Language>,
-        opened_documents: Vec<CanonicalizedPath>,
-    ) {
+    pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
         self.lsp_server_process_channels
             .get_mut(&language.id())
             .map(|channel| {

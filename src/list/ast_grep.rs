@@ -22,10 +22,10 @@ pub fn run(pattern: &str, path: PathBuf) -> anyhow::Result<Vec<Location>> {
 
                 let path = path.path().try_into()?;
                 let buffer = Buffer::from_path(&path)?;
-                let ast_grep = AstGrep::new(&buffer, &pattern)?;
+                let ast_grep = AstGrep::new(&buffer, pattern)?;
                 Ok(ast_grep
                     .find_all()
-                    .map(move |node_match| -> anyhow::Result<_> {
+                    .flat_map(move |node_match| -> anyhow::Result<_> {
                         let range = node_match.range();
                         let range = buffer.byte_to_position(range.start)?
                             ..buffer.byte_to_position(range.end)?;
@@ -35,7 +35,6 @@ pub fn run(pattern: &str, path: PathBuf) -> anyhow::Result<Vec<Location>> {
                             range,
                         })
                     })
-                    .flatten()
                     .collect::<Vec<_>>())
             })() {
                 let _ = sender.send(result);

@@ -1,6 +1,6 @@
 use event::event::Event;
 use itertools::Itertools;
-use my_proc_macros::{hex, key};
+use my_proc_macros::{key};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -524,7 +524,7 @@ impl<T: Frontend> Screen<T> {
                         .buffer()
                         .words()
                         .into_iter()
-                        .map(|word| CompletionItem::from_label(word))
+                        .map(CompletionItem::from_label)
                         .collect_vec()
                 })
                 .unwrap_or_default(),
@@ -607,7 +607,7 @@ impl<T: Frontend> Screen<T> {
                         .collect_vec(),
                 }
                 .into_iter()
-                .map(|item| CompletionItem::from_label(item))
+                .map(CompletionItem::from_label)
                 .collect_vec()
             },
         });

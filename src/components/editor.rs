@@ -119,7 +119,7 @@ impl Component for Editor {
 
                 if let Ok(position) = wrapped_lines.calibrate(Position {
                     line: (line_number
-                        .saturating_sub(scroll_offset as u16)
+                        .saturating_sub(scroll_offset)
                         .saturating_sub(1)) as usize,
                     column: 0,
                 }) {
@@ -148,7 +148,7 @@ impl Component for Editor {
 
         let lines = wrapped_lines
             .lines()
-            .into_iter()
+            .iter()
             .flat_map(|line| line.lines())
             .take(height as usize)
             .enumerate()
@@ -253,7 +253,6 @@ impl Component for Editor {
             highlighted_span
                 .byte_range
                 .clone()
-                .into_iter()
                 .filter_map(|byte| {
                     Some(
                         CellUpdate::new(buffer.byte_to_position(byte).ok()?)
@@ -310,7 +309,7 @@ impl Component for Editor {
             });
         let extra_decorations = buffer
             .decorations()
-            .into_iter()
+            .iter()
             .flat_map(|decoration| {
                 Some(range_to_cell_update(
                     &buffer,
@@ -352,7 +351,8 @@ impl Component for Editor {
 
         GetGridResult {
             cursor_position: {
-                let cursor_position = cursor_position
+                
+                cursor_position
                     .and_then(|position| {
                         // Need to move the cursor left by one to account for
                         // the insert mode cursor position at the last column of the current line
@@ -373,8 +373,7 @@ impl Component for Editor {
                             position
                         })
                     })
-                    .map(|position| position.move_right(left_width as u16));
-                cursor_position
+                    .map(|position| position.move_right(left_width))
             },
             grid: line_numbers_grid
                 .merge_horizontal(line_numbers_separator_grid)

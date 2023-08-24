@@ -70,7 +70,7 @@ mod test_regex {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
         crate::selection_mode::Regex::new(&buffer, "m.in", true, false)
             .unwrap()
-            .assert_all_selections(&buffer, Selection::default().into(), &[(20..24, "m.in")]);
+            .assert_all_selections(&buffer, Selection::default(), &[(20..24, "m.in")]);
     }
 
     #[test]
@@ -80,7 +80,7 @@ mod test_regex {
             .unwrap()
             .assert_all_selections(
                 &buffer,
-                Selection::default().into(),
+                Selection::default(),
                 &[(3..7, "main"), (20..24, "m.in")],
             );
     }
@@ -92,7 +92,7 @@ mod test_regex {
             .unwrap()
             .assert_all_selections(
                 &buffer,
-                Selection::default().into(),
+                Selection::default(),
                 &[(3..7, "Main"), (20..24, "m.in")],
             );
     }

@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use grammar::grammar::GrammarConfiguration;
-use std::path::PathBuf;
+
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -40,8 +40,8 @@ fn build_grammars() {
 }
 
 fn grammar_configs() -> Vec<GrammarConfiguration> {
-    crate::language::languages()
-        .into_iter()
+    crate::language::LANGUAGES
+        .iter()
         .flat_map(|language| language.tree_sitter_grammar_config())
         .collect()
 }
