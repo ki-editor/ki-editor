@@ -44,7 +44,7 @@ impl LspManager {
         f: impl Fn(&LspServerProcessChannel) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
         language::from_path(path)
-            .and_then(|language| self.lsp_server_process_channels.get(&language.id()))
+            .and_then(|language| self.lsp_server_process_channels.get(&language.id()?))
             .map(f)
             .unwrap_or_else(|| Ok(()))
     }
@@ -146,36 +146,36 @@ impl LspManager {
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
     pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
-        let languages = language::from_path(&path);
+        let Some(language) = language::from_path(&path) else { return Ok(()) };
+        let Some(language_id) = language.id() else { return Ok(()) };
 
-        languages
-            .map(|language| {
-                if let Some(channel) = self.lsp_server_process_channels.get(&language.id()) {
-                    if channel.is_initialized() {
-                        channel.document_did_open(path.clone())
-                    } else {
-                        Ok(())
-                    }
-                } else {
-                    LspServerProcessChannel::new(
-                        language.clone(),
-                        self.sender.clone(),
-                        self.current_working_directory.clone(),
-                    )
-                    .map(|channel| {
-                        if let Some(channel) = channel {
-                            self.lsp_server_process_channels
-                                .insert(language.id(), channel);
-                        }
-                    })
+        if let Some(channel) = self.lsp_server_process_channels.get(&language_id) {
+            if channel.is_initialized() {
+                channel.document_did_open(path.clone())
+            } else {
+                Ok(())
+            }
+        } else {
+            LspServerProcessChannel::new(
+                language.clone(),
+                self.sender.clone(),
+                self.current_working_directory.clone(),
+            )
+            .map(|channel| {
+                if let Some(channel) = channel {
+                    self.lsp_server_process_channels
+                        .insert(language.id()?, channel);
                 }
-            })
-            .unwrap_or_else(|| Ok(()))
+                Some(())
+            })?;
+            Ok(())
+        }
     }
 
     pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
+        let Some(language_id) = language.id() else { return };
         self.lsp_server_process_channels
-            .get_mut(&language.id())
+            .get_mut(&language_id)
             .map(|channel| {
                 channel.initialized();
                 channel.documents_did_open(opened_documents)

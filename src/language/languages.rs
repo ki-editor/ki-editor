@@ -6,13 +6,14 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript(false),
     &rust(),
     &sql(),
+    &tree_sitter_query(),
     &typescript(false),
     &typescript(true),
 ];
 
 const fn graphql() -> Language {
     Language {
-        lsp_language_id: LanguageId::new("graphql"),
+        lsp_language_id: Some(LanguageId::new("graphql")),
         extensions: &["graphql", "gql"],
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "graphql",
@@ -27,7 +28,11 @@ const fn graphql() -> Language {
 
 const fn javascript(jsx: bool) -> Language {
     Language {
-        lsp_language_id: LanguageId::new(if jsx { "javascriptreact" } else { "javascript" }),
+        lsp_language_id: Some(LanguageId::new(if jsx {
+            "javascriptreact"
+        } else {
+            "javascript"
+        })),
         extensions: if jsx { &["jsx"] } else { &["js"] },
         lsp_command: Some(LspCommand {
             command: Command("typescript-language-server", &["--stdio"]),
@@ -46,7 +51,7 @@ const fn javascript(jsx: bool) -> Language {
 
 const fn rust() -> Language {
     Language {
-        lsp_language_id: LanguageId::new("rust"),
+        lsp_language_id: Some(LanguageId::new("rust")),
         extensions: &["rs"],
         lsp_command: Some(LspCommand {
             command: Command("rust-analyzer", &[]),
@@ -66,7 +71,7 @@ const fn rust() -> Language {
 
 const fn sql() -> Language {
     Language {
-        lsp_language_id: LanguageId::new("sql"),
+        lsp_language_id: Some(LanguageId::new("sql")),
         extensions: &["sql"],
         lsp_command: None,
         tree_sitter_grammar_config: Some(GrammarConfig {
@@ -79,10 +84,29 @@ const fn sql() -> Language {
         ..Language::new()
     }
 }
+const fn tree_sitter_query() -> Language {
+    Language {
+        extensions: &["scm"],
+        lsp_language_id: None,
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "tsq",
+            url: "https://github.com/tree-sitter/tree-sitter-tsq",
+            commit: "b665659d3238e6036e22ed0e24935e60efb39415",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
+    }
+}
 
 const fn typescript(tsx: bool) -> Language {
     Language {
-        lsp_language_id: LanguageId::new(if tsx { "typescriptreact" } else { "typescript" }),
+        lsp_language_id: Some(LanguageId::new(if tsx {
+            "typescriptreact"
+        } else {
+            "typescript"
+        })),
         extensions: if tsx { &["tsx"] } else { &["ts"] },
         lsp_command: Some(LspCommand {
             command: Command("typescript-language-server", &["--stdio"]),

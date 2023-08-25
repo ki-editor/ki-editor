@@ -60,72 +60,26 @@ pub struct UiStyles {
 
 #[derive(Default, Clone)]
 pub struct SyntaxStyles {
-    pub attribute: Option<Style>,
-    pub constant: Option<Style>,
-    pub function_builtin: Option<Style>,
     pub function: Option<Style>,
     pub keyword: Option<Style>,
-    pub operator: Option<Style>,
-    pub property: Option<Style>,
-    pub punctuation: Option<Style>,
-    pub punctuation_bracket: Option<Style>,
-    pub punctuation_delimiter: Option<Style>,
     pub string: Option<Style>,
-    pub string_special: Option<Style>,
-    pub tag: Option<Style>,
     pub type_: Option<Style>,
-    pub type_builtin: Option<Style>,
-    pub variable: Option<Style>,
-    pub variable_builtin: Option<Style>,
-    pub variable_parameter: Option<Style>,
     pub comment: Option<Style>,
+    pub default: Style,
 }
 
-pub const HIGHLIGHT_NAMES: [&str; 19] = [
-    "attribute",
-    "constant",
-    "function.builtin",
-    "function",
-    "keyword",
-    "operator",
-    "property",
-    "punctuation",
-    "punctuation.bracket",
-    "punctuation.delimiter",
-    "string",
-    "string.special",
-    "tag",
-    "type",
-    "type.builtin",
-    "variable",
-    "variable.builtin",
-    "variable.parameter",
-    "comment",
-];
+pub const HIGHLIGHT_NAMES: &'static [&'static str] =
+    &["comment", "keyword", "string", "type", "function"];
 
 impl SyntaxStyles {
     /// The `index` should tally with the `HIGHLIGHT_NAMES` array.
     pub fn get_color(&self, index: usize) -> Option<Style> {
         match index {
-            0 => self.attribute,
-            1 => self.constant,
-            2 => self.function_builtin,
-            3 => self.function,
-            4 => self.keyword,
-            5 => self.operator,
-            6 => self.property,
-            7 => self.punctuation,
-            8 => self.punctuation_bracket,
-            9 => self.punctuation_delimiter,
-            10 => self.string,
-            11 => self.string_special,
-            12 => self.tag,
-            13 => self.type_,
-            14 => self.type_builtin,
-            15 => self.variable,
-            16 => self.variable_builtin,
-            17 => self.variable_parameter,
-            18 => self.comment,
+            0 => self.comment,
+            1 => self.keyword,
+            2 => self.string,
+            3 => self.type_,
+            4 => self.function,
             _ => None,
         }
     }

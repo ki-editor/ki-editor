@@ -36,7 +36,7 @@ impl Command {
 #[derive(Debug, Clone)]
 pub struct Language {
     extensions: &'static [&'static str],
-    lsp_language_id: LanguageId,
+    lsp_language_id: Option<LanguageId>,
     lsp_command: Option<LspCommand>,
     tree_sitter_grammar_config: Option<GrammarConfig>,
     highlight_query: Option<&'static str>,
@@ -61,7 +61,7 @@ impl Language {
     pub const fn new() -> Self {
         Self {
             extensions: &[""],
-            lsp_language_id: LanguageId::new(""),
+            lsp_language_id: None,
             highlight_query: None,
             lsp_command: None,
             tree_sitter_grammar_config: None,
@@ -115,7 +115,7 @@ impl Language {
             .map(|command| ProcessCommand::new(command.command.0, command.command.1))
     }
 
-    pub fn id(&self) -> LanguageId {
+    pub fn id(&self) -> Option<LanguageId> {
         self.lsp_language_id
     }
 

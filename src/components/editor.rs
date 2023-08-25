@@ -118,9 +118,7 @@ impl Component for Editor {
                 );
 
                 if let Ok(position) = wrapped_lines.calibrate(Position {
-                    line: (line_number
-                        .saturating_sub(scroll_offset)
-                        .saturating_sub(1)) as usize,
+                    line: (line_number.saturating_sub(scroll_offset).saturating_sub(1)) as usize,
                     column: 0,
                 }) {
                     let line_index = position.line;
@@ -250,15 +248,12 @@ impl Component for Editor {
 
         let highlighted_spans = buffer.highlighted_spans();
         let syntax_highlight = highlighted_spans.iter().flat_map(|highlighted_span| {
-            highlighted_span
-                .byte_range
-                .clone()
-                .filter_map(|byte| {
-                    Some(
-                        CellUpdate::new(buffer.byte_to_position(byte).ok()?)
-                            .style(highlighted_span.style),
-                    )
-                })
+            highlighted_span.byte_range.clone().filter_map(|byte| {
+                Some(
+                    CellUpdate::new(buffer.byte_to_position(byte).ok()?)
+                        .style(highlighted_span.style),
+                )
+            })
         });
 
         let diagnostics = diagnostics
@@ -351,7 +346,6 @@ impl Component for Editor {
 
         GetGridResult {
             cursor_position: {
-                
                 cursor_position
                     .and_then(|position| {
                         // Need to move the cursor left by one to account for

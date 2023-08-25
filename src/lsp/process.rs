@@ -1,5 +1,5 @@
 use crate::canonicalized_path::CanonicalizedPath;
-use crate::language::{Language};
+use crate::language::Language;
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
@@ -238,10 +238,11 @@ impl LspServerProcessChannel {
 
     pub fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let content = path.read()?;
+        let Some(language_id) = self.language.id() else { return Ok(()) };
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidOpen {
                 file_path: path,
-                language_id: self.language.id().to_string(),
+                language_id: language_id.to_string(),
                 version: 1,
                 content,
             },

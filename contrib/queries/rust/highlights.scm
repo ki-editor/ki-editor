@@ -21,7 +21,7 @@
 
 (type_identifier) @type
 
-(primitive_type) @type.builtin
+(primitive_type) @type
 
 (field_identifier) @field
 
@@ -30,7 +30,7 @@
 (mod_item
   name: (identifier) @namespace)
 
-(self) @variable.builtin
+(self) @keyword
 
 (loop_label ["'" (identifier)] @label)
 
@@ -47,26 +47,26 @@
 ; Function calls
 
 (call_expression
-  function: (identifier) @function.call)
+  function: (identifier) @function)
 
 (call_expression
   function: (scoped_identifier
-              (identifier) @function.call .))
+              (identifier) @function .))
 
 (call_expression
   function: (field_expression
-    field: (field_identifier) @function.call))
+    field: (field_identifier) @function))
 
 (generic_function
-  function: (identifier) @function.call)
+  function: (identifier) @function)
 
 (generic_function
   function: (scoped_identifier
-    name: (identifier) @function.call))
+    name: (identifier) @function))
 
 (generic_function
   function: (field_expression
-    field: (field_identifier) @function.call))
+    field: (field_identifier) @function))
 
 ; Assume other uppercase names are enum constructors
 
@@ -158,8 +158,6 @@
        name: (identifier) @constant)))
  (#lua-match? @constant "^[A-Z]"))
 
-((identifier) @constant.builtin
- (#any-of? @constant.builtin "Some" "None" "Ok" "Err"))
 
 ; Macro definitions
 
@@ -231,9 +229,9 @@
 [
   "use"
   "mod"
-] @include
+] @keyword
 
-(use_as_clause "as" @include)
+(use_as_clause "as" @keyword)
 
 [
   "default"
@@ -253,19 +251,19 @@
 [
   "async"
   "await"
-] @keyword.coroutine
+] @keyword
 
 [
   "ref"
  (mutable_specifier)
-] @type.qualifier
+] @keyword
 
 [
   "const"
   "static"
   "dyn"
   "extern"
-] @storageclass
+] @keyword
 
 (lifetime ["'" (identifier)] @storageclass.lifetime)
 
@@ -274,11 +272,11 @@
 [
   "return"
   "yield"
-] @keyword.return
+] @keyword
 
-(type_cast_expression "as" @keyword.operator)
+(type_cast_expression "as" @keyword)
 
-(qualified_type "as" @keyword.operator)
+(qualified_type "as" @keyword)
 
 (use_list (self) @namespace)
 
@@ -292,7 +290,7 @@
   "if"
   "else"
   "match"
-] @conditional
+] @keyword
 
 [
   "break"
@@ -300,10 +298,10 @@
   "in"
   "loop"
   "while"
-] @repeat
+] @keyword
 
 "for" @keyword
-(for_expression "for" @repeat)
+(for_expression "for" @keyword)
 
 ; Operators
 
