@@ -6,8 +6,7 @@ use std::sync::RwLock;
 
 static CWD: RwLock<Option<PathBuf>> = RwLock::new(None);
 
-static RUNTIME_DIRS: once_cell::sync::Lazy<Vec<PathBuf>> =
-    once_cell::sync::Lazy::new(prioritize_runtime_dirs);
+static RUNTIME_DIR: once_cell::sync::Lazy<PathBuf> = once_cell::sync::Lazy::new(get_runtime_dir);
 
 static CONFIG_FILE: once_cell::sync::OnceCell<PathBuf> = once_cell::sync::OnceCell::new();
 
@@ -50,53 +49,15 @@ pub fn initialize_log_file(specified_file: Option<PathBuf>) {
     LOG_FILE.set(log_file).ok();
 }
 
-/// A list of runtime directories from highest to lowest priority
-///
-/// The priority is:
-///
-/// 1. sibling directory to `CARGO_MANIFEST_DIR` (if environment variable is set)
-/// 2. subdirectory of user config directory (always included)
-/// 3. `HELIX_RUNTIME` (if environment variable is set)
-/// 4. subdirectory of path to helix executable (always included)
-///
-/// Postcondition: returns at least two paths (they might not exist).
-fn prioritize_runtime_dirs() -> Vec<PathBuf> {
-    const RT_DIR: &str = "runtime";
-    // Adding higher priority first
-    let mut rt_dirs = Vec::new();
-    if let Ok(dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        // this is the directory of the crate being run by cargo, we need the workspace path so we take the parent
-        let path = PathBuf::from(dir).parent().unwrap().join(RT_DIR);
-        log::debug!("runtime dir: {}", path.to_string_lossy());
-        rt_dirs.push(path);
-    }
-
-    let conf_rt_dir = config_dir().join(RT_DIR);
-    rt_dirs.push(conf_rt_dir);
-
-    if let Ok(dir) = std::env::var("HELIX_RUNTIME") {
-        rt_dirs.push(dir.into());
-    }
-
-    // fallback to location of the executable being run
-    // canonicalize the path in case the executable is symlinked
-    let exe_rt_dir = std::env::current_exe()
-        .ok()
-        .and_then(|path| std::fs::canonicalize(path).ok())
-        .and_then(|path| path.parent().map(|path| path.to_path_buf().join(RT_DIR)))
-        .unwrap();
-    rt_dirs.push(exe_rt_dir);
-
-    rt_dirs
+fn get_runtime_dir() -> PathBuf {
+    use directories::ProjectDirs;
+    let project_dirs = ProjectDirs::from("tim", "tim", "tim").unwrap();
+    std::fs::create_dir_all(project_dirs.config_dir()).unwrap();
+    project_dirs.config_dir().into()
 }
 
-/// Runtime directories ordered from highest to lowest priority
-///
-/// All directories should be checked when looking for files.
-///
-/// Postcondition: returns at least one path (it might not exist).
-pub fn runtime_dirs() -> &'static [PathBuf] {
-    &RUNTIME_DIRS
+pub fn runtime_dir() -> &'static PathBuf {
+    &RUNTIME_DIR
 }
 
 /// Find file with path relative to runtime directory
@@ -104,15 +65,8 @@ pub fn runtime_dirs() -> &'static [PathBuf] {
 /// `rel_path` should be the relative path from within the `runtime/` directory.
 /// The valid runtime directories are searched in priority order and the first
 /// file found to exist is returned, otherwise None.
-fn find_runtime_file(rel_path: &Path) -> Option<PathBuf> {
-    RUNTIME_DIRS.iter().find_map(|rt_dir| {
-        let path = rt_dir.join(rel_path);
-        if path.exists() {
-            Some(path)
-        } else {
-            None
-        }
-    })
+fn find_runtime_file(rel_path: &Path) -> PathBuf {
+    RUNTIME_DIR.join(rel_path)
 }
 
 /// Find file with path relative to runtime directory
@@ -122,12 +76,7 @@ fn find_runtime_file(rel_path: &Path) -> Option<PathBuf> {
 /// file found to exist is returned, otherwise the path to the final attempt
 /// that failed.
 pub fn runtime_file(rel_path: &Path) -> PathBuf {
-    find_runtime_file(rel_path).unwrap_or_else(|| {
-        RUNTIME_DIRS
-            .last()
-            .map(|dir| dir.join(rel_path))
-            .unwrap_or_default()
-    })
+    find_runtime_file(rel_path)
 }
 
 pub fn config_dir() -> PathBuf {

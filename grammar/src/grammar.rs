@@ -245,12 +245,12 @@ fn fetch_grammar(grammar: GrammarConfiguration) -> Result<FetchStatus> {
         remote, revision, ..
     } = grammar.source
     {
-        let grammar_dir = crate::runtime_dirs()
-            .first()
-            .expect("No runtime directories provided") // guaranteed by post-condition
+        let grammar_dir = crate::runtime_dir()
             .join("grammars")
             .join("sources")
             .join(&grammar.grammar_id);
+
+        println!("Fetching grammar to = {}", grammar_dir.display());
 
         fs::create_dir_all(&grammar_dir).context(format!(
             "Could not create grammar directory {:?}",
@@ -340,9 +340,7 @@ fn build_grammar(grammar: GrammarConfiguration, target: Option<&str>) -> Result<
     let grammar_dir = if let GrammarSource::Local { path } = &grammar.source {
         PathBuf::from(&path)
     } else {
-        crate::runtime_dirs()
-            .first()
-            .expect("No runtime directories provided") // guaranteed by post-condition
+        crate::runtime_dir()
             .join("grammars")
             .join("sources")
             .join(&grammar.grammar_id)
@@ -398,10 +396,7 @@ fn build_tree_sitter_library(
             None
         }
     };
-    let parser_lib_path = crate::runtime_dirs()
-        .first()
-        .expect("No runtime directories provided") // guaranteed by post-condition
-        .join("grammars");
+    let parser_lib_path = crate::runtime_dir().join("grammars");
     let mut library_path = parser_lib_path.join(&grammar.grammar_id);
     library_path.set_extension(DYLIB_EXTENSION);
 

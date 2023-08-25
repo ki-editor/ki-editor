@@ -167,6 +167,6 @@
 # Grammar loading
 
 - [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
-- [] store the runtime grammars file not at helix editor config dir, use 'directories'
+- [x] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building
 - [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse
