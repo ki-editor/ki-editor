@@ -113,7 +113,7 @@ const fn typescript(tsx: bool) -> Language {
             ..LspCommand::default()
         }),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: "typescript",
+            id: if tsx { "tsx" } else { "typescript" },
             url: "https://github.com/tree-sitter/tree-sitter-typescript",
             commit: "b1bf4825d9eaa0f3bdeb1e52f099533328acfbdf",
             subpath: Some(if tsx { "tsx" } else { "typescript" }),
