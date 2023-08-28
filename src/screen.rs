@@ -1,6 +1,6 @@
 use event::event::Event;
 use itertools::Itertools;
-use my_proc_macros::{key};
+use my_proc_macros::key;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -278,13 +278,32 @@ impl<T: Frontend> Screen<T> {
                 String::new()
             };
 
-            let title = format!("{} {}", self.working_directory.display(), mode);
+            let title = if let Some(current_branch) = self.current_branch() {
+                format!(
+                    "{} ({}) {}",
+                    self.working_directory.display(),
+                    current_branch,
+                    mode
+                )
+            } else {
+                format!("{} {}", self.working_directory.display(), mode)
+            };
             grid.set_line(0, &title, self.context.theme.ui.global_title)
         };
 
         self.render_grid(grid, cursor_point)?;
 
         Ok(())
+    }
+
+    fn current_branch(&self) -> Option<String> {
+        // Open the repository
+        let repo = git2::Repository::open(self.working_directory.display()).ok()?;
+
+        // Get the current branch
+        let head = repo.head().ok()?;
+        let branch = head.shorthand()?;
+        Some(branch.to_string())
     }
 
     fn render_grid(

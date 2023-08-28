@@ -160,7 +160,7 @@
 - [] file tree
 - [] fix: paste from clipboard does not work properly if contains newline
 - [] la should open cursor at end of line, not beginning of next line
-- [] feat(title): show git branch if possible
+- [x] feat(title): show git branch if possible
 - [] fs watcher, watch for file changes
 - [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
 
