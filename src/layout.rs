@@ -340,6 +340,14 @@ impl Layout {
             .filter_map(|editor| editor.borrow().editor().buffer().path())
             .collect()
     }
+
+    pub fn save_all(&self) -> Result<(), anyhow::Error> {
+        self.background_suggestive_editors
+            .iter()
+            .map(|editor| editor.borrow_mut().editor_mut().save())
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

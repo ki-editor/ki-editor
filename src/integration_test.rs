@@ -13,11 +13,13 @@ mod integration_test {
     use my_proc_macros::keys;
 
     use crate::{
-        canonicalized_path::CanonicalizedPath, frontend::mock::MockFrontend, screen::Screen,
+        canonicalized_path::CanonicalizedPath,
+        frontend::mock::MockFrontend,
+        screen::{Screen, ScreenMessage},
     };
 
     struct TestRunner {
-        key_event_sender: Sender<Event>,
+        key_event_sender: Sender<ScreenMessage>,
         temp_dir: CanonicalizedPath,
         frontend: Arc<Mutex<MockFrontend>>,
     }
@@ -30,7 +32,6 @@ mod integration_test {
 
     impl TestRunner {
         fn new() -> anyhow::Result<Self> {
-            let (key_event_sender, receiver) = channel();
             let frontend = Arc::new(Mutex::new(MockFrontend::new()));
 
             const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
@@ -57,9 +58,11 @@ mod integration_test {
             Self::git_init(path.clone())?;
 
             let cloned_frontend = frontend.clone();
+            let (sender, receiver) = channel();
+            let key_event_sender = sender.clone();
             std::thread::spawn(move || -> anyhow::Result<()> {
-                let mut screen = Screen::new(cloned_frontend, path.clone())?;
-                screen.run(Some(path.join("src/main.rs")?), receiver)?;
+                let screen = Screen::from_channel(cloned_frontend, path.clone(), sender, receiver)?;
+                screen.run(Some(path.join("src/main.rs")?))?;
                 Ok(())
             });
             Ok(Self {
@@ -91,7 +94,7 @@ mod integration_test {
 
         fn send_key(&self, key: KeyEvent) -> anyhow::Result<()> {
             self.key_event_sender
-                .send(Event::Key(key))
+                .send(ScreenMessage::Event(Event::Key(key)))
                 .map_err(|error| anyhow::anyhow!("{:?}", error))
         }
 

@@ -68,7 +68,8 @@ impl PartialOrd for ByteRange {
             .or_else(|| {
                 self.range
                     .end
-                    .partial_cmp(&other.range.end).map(|ordering| ordering.reverse())
+                    .partial_cmp(&other.range.end)
+                    .map(|ordering| ordering.reverse())
             })
     }
 }

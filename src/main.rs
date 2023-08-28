@@ -3,6 +3,7 @@ mod canonicalized_path;
 pub mod char_index_range;
 mod cli;
 mod clipboard;
+pub mod command;
 mod components;
 mod context;
 mod edit;
@@ -35,6 +36,8 @@ use log::LevelFilter;
 
 use screen::Screen;
 
+use crate::screen::ScreenMessage;
+
 fn main() {
     cli::cli();
 }
@@ -53,26 +56,23 @@ pub fn run() -> anyhow::Result<()> {
                 None
             })
     });
-    let mut screen = Screen::new(
+    let screen = Screen::new(
         Arc::new(Mutex::new(Crossterm::new())),
         CanonicalizedPath::try_from(".")?,
     )?;
 
-    let (sender, receiver) = std::sync::mpsc::channel();
+    let sender = screen.sender();
+
     let join_handle = std::thread::spawn(move || loop {
-        crossterm::event::read()
+        if let Err(_) = crossterm::event::read()
             .map_err(|error| anyhow::anyhow!("{:?}", error))
-            .and_then(|event| {
-                sender
-                    .send(event.into())
-                    .map_err(|error| anyhow::anyhow!("{:?}", error))
-            })
-            .unwrap_or_else(|error| {
-                log::info!("Error running crossterm::event::read: {:?}", error);
-            });
+            .and_then(|event| Ok(sender.send(ScreenMessage::Event(event.into()))?))
+        {
+            break;
+        }
     });
     screen
-        .run(path, receiver)
+        .run(path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
 
     join_handle.join().unwrap();

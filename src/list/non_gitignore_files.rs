@@ -19,9 +19,9 @@ pub fn non_git_ignored_files(directory: &CanonicalizedPath) -> anyhow::Result<Ve
             .filter_map(|entry| entry.path().map(|path| path.to_owned()))
             .filter_map(|path| {
                 CanonicalizedPath::try_from(&path)
-                        .ok()?
-                        .display_relative()
-                        .ok()
+                    .ok()?
+                    .display_relative()
+                    .ok()
             })
             .collect::<Vec<_>>()
     };

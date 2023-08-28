@@ -2,13 +2,10 @@ use regex::Regex;
 
 use crate::position::Position;
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct WrappedLines {
     lines: Vec<WrappedLine>,
 }
-
-
 
 #[derive(Debug, PartialEq)]
 pub enum CalibrationError {

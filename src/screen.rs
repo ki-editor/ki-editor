@@ -66,6 +66,15 @@ impl<T: Frontend> Screen<T> {
         working_directory: CanonicalizedPath,
     ) -> anyhow::Result<Screen<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
+        Self::from_channel(frontend, working_directory, sender, receiver)
+    }
+
+    pub fn from_channel(
+        frontend: Arc<Mutex<T>>,
+        working_directory: CanonicalizedPath,
+        sender: Sender<ScreenMessage>,
+        receiver: Receiver<ScreenMessage>,
+    ) -> anyhow::Result<Screen<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let screen = Screen {
             context: Context::new(),
@@ -82,11 +91,7 @@ impl<T: Frontend> Screen<T> {
         Ok(screen)
     }
 
-    pub fn run(
-        &mut self,
-        entry_path: Option<CanonicalizedPath>,
-        event_receiver: Receiver<Event>,
-    ) -> Result<(), anyhow::Error> {
+    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
         {
             let mut frontend = self.frontend.lock().unwrap();
             frontend.enter_alternate_screen()?;
@@ -102,23 +107,13 @@ impl<T: Frontend> Screen<T> {
 
         self.render()?;
 
-        let sender = self.sender.clone();
-        std::thread::spawn(move || loop {
-            if let Ok(event) = event_receiver.recv() {
-                sender
-                    .send(ScreenMessage::Event(event))
-                    .unwrap_or_else(|e| {
-                        log::error!("Failed to send event to screen: {}", e.to_string());
-                    })
-            }
-        });
-
         while let Ok(message) = self.receiver.recv() {
             let should_quit = match message {
                 ScreenMessage::Event(event) => self.handle_event(event),
                 ScreenMessage::LspNotification(notification) => {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
+                ScreenMessage::QuitAll => Ok(true),
             }
             .unwrap_or_else(|e| {
                 self.show_info("ERROR", vec![e.to_string()]);
@@ -135,6 +130,7 @@ impl<T: Frontend> Screen<T> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
+        // self.lsp_manager.shutdown();
 
         // TODO: this line is a hack
         std::process::exit(0);
@@ -419,6 +415,10 @@ impl<T: Frontend> Screen<T> {
             }
             Dispatch::GlobalSearch(search) => self.global_search(search)?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt(),
+            Dispatch::RunCommand(command) => self.run_command(command)?,
+            Dispatch::QuitAll => self.quit_all()?,
+            Dispatch::OpenCommandPrompt => self.open_command_prompt(),
+            Dispatch::SaveQuitAll => self.save_quit_all()?,
         }
         Ok(())
     }
@@ -595,6 +595,27 @@ impl<T: Frontend> Screen<T> {
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
         Ok(())
+    }
+
+    fn open_command_prompt(&mut self) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Command".to_string(),
+            history: vec![],
+            owner: current_component,
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::RunCommand(text.to_string())]
+                    .into_iter()
+                    .collect())
+            }),
+            on_text_change: Box::new(|_, _| Ok(vec![])),
+            items: crate::command::commands()
+                .iter()
+                .flat_map(|command| command.to_completion_items())
+                .collect(),
+        });
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
@@ -930,6 +951,31 @@ impl<T: Frontend> Screen<T> {
                 .collect_vec(),
         ))
     }
+
+    pub fn quit_all(&self) -> Result<(), anyhow::Error> {
+        Ok(self.sender.send(ScreenMessage::QuitAll)?)
+    }
+
+    pub fn sender(&self) -> Sender<ScreenMessage> {
+        self.sender.clone()
+    }
+
+    fn run_command(&mut self, command: String) -> anyhow::Result<()> {
+        let dispatch = crate::command::find(&command)
+            .map(|cmd| cmd.dispatch())
+            .ok_or_else(|| anyhow::anyhow!("Unknown command: {}", command))?;
+        self.handle_dispatch(dispatch)
+    }
+
+    fn save_quit_all(&mut self) -> anyhow::Result<()> {
+        self.save_all()?;
+        self.quit_all()?;
+        Ok(())
+    }
+
+    fn save_all(&self) -> anyhow::Result<()> {
+        self.layout.save_all()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1003,6 +1049,10 @@ pub enum Dispatch {
     OpenGlobalSearchPrompt(SearchKind),
     GlobalSearch(Search),
     OpenMoveToIndexPrompt,
+    RunCommand(String),
+    QuitAll,
+    OpenCommandPrompt,
+    SaveQuitAll,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1032,4 +1082,5 @@ pub struct RequestParams {
 pub enum ScreenMessage {
     LspNotification(LspNotification),
     Event(Event),
+    QuitAll,
 }

@@ -165,10 +165,7 @@ pub fn fetch_grammars(mut grammars: Vec<GrammarConfiguration>) -> Result<()> {
     Ok(())
 }
 
-pub fn build_grammars(
-    target: Option<String>,
-    mut grammars: Vec<GrammarConfiguration>,
-) -> Result<()> {
+pub fn build_grammars(target: Option<String>, grammars: Vec<GrammarConfiguration>) -> Result<()> {
     ensure_git_is_available()?;
 
     println!("Building {} grammars", grammars.len());

@@ -1,5 +1,3 @@
-
-
 use crate::selection_mode::ByteRange;
 
 use super::documentation::Documentation;

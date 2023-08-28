@@ -17,11 +17,7 @@ pub struct LspManager {
 
 impl Drop for LspManager {
     fn drop(&mut self) {
-        for (_, channel) in self.lsp_server_process_channels.drain() {
-            channel
-                .shutdown()
-                .unwrap_or_else(|error| log::error!("{:?}", error));
-        }
+        self.shutdown()
     }
 }
 
@@ -180,5 +176,13 @@ impl LspManager {
                 channel.initialized();
                 channel.documents_did_open(opened_documents)
             });
+    }
+
+    pub fn shutdown(&mut self) {
+        for (_, channel) in self.lsp_server_process_channels.drain() {
+            channel
+                .shutdown()
+                .unwrap_or_else(|error| log::error!("{:?}", error));
+        }
     }
 }

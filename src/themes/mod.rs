@@ -68,7 +68,7 @@ pub struct SyntaxStyles {
     pub default: Style,
 }
 
-pub const HIGHLIGHT_NAMES: &'static [&'static str] =
+pub const HIGHLIGHT_NAMES: &[&str] =
     &["comment", "keyword", "string", "type", "function"];
 
 impl SyntaxStyles {

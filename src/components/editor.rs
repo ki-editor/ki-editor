@@ -20,7 +20,7 @@ use itertools::{Either, Itertools};
 use lsp_types::DiagnosticSeverity;
 use my_proc_macros::{hex, key};
 use ropey::Rope;
-use tree_sitter::Node;
+
 
 use crate::{
     buffer::Buffer,
@@ -918,6 +918,7 @@ impl Editor {
         self.buffer
             .borrow_mut()
             .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
+            // TODO: remove this unwrap
             .unwrap();
 
         if let Some((head, tail)) = edit_transaction.selections().split_first() {
@@ -1631,6 +1632,7 @@ impl Editor {
             self.mode = Mode::Normal
         }
         match event {
+            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!(",") => self.select_backward(),
             key!("left") => return self.move_selection(context, Movement::Previous),
             key!("shift+left") => return self.move_selection(context, Movement::First),
@@ -2722,16 +2724,6 @@ enum Enclosure {
     SquareBracket,
     CurlyBracket,
     AngleBracket,
-}
-
-pub fn node_to_selection(
-    node: Node,
-    buffer: &Buffer,
-    current_selection: &Selection,
-) -> anyhow::Result<Selection> {
-    Ok(current_selection.clone().set_range(
-        (buffer.byte_to_char(node.start_byte())?..buffer.byte_to_char(node.end_byte())?).into(),
-    ))
 }
 
 pub enum HandleEventResult {

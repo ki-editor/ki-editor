@@ -142,7 +142,7 @@
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
 - [] feat(g): 'ggh' for global git hunks
 - [] feat(space-f): for file mode, r = rename, d = delete, a = add, s = save
-- [] feat: command mode (for exiting editor, save all file etc)
+- [x] feat: command mode (for exiting editor, save all file etc)
 - [] feat(doc): add motto about having no shift keys for key bindings;
   spammable key like n/p will not hide under layers, but action like "Change
   selection mode to Git Hunk" which is not supposed to be spam should hide

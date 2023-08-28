@@ -85,6 +85,13 @@ impl CompletionItem {
     pub fn documentation(&self) -> Option<Documentation> {
         self.documentation.clone()
     }
+
+    pub fn set_documentation(self, description: Option<Documentation>) -> CompletionItem {
+        CompletionItem {
+            documentation: description,
+            ..self
+        }
+    }
 }
 
 impl From<lsp_types::CompletionItem> for CompletionItem {

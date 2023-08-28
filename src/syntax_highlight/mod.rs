@@ -35,7 +35,7 @@ pub fn highlight(
     )
     .unwrap();
 
-    config.configure(&crate::themes::HIGHLIGHT_NAMES);
+    config.configure(crate::themes::HIGHLIGHT_NAMES);
 
     let highlights = highlighter
         .highlight(&config, source_code.as_bytes(), None, |_| None)

@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use grammar::grammar::GrammarConfiguration;
 
-
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
