@@ -1,6 +1,5 @@
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
-use selection_mode::SelectionMode as SelectionModeTrait;
 use std::ops::{Add, Range, Sub};
 
 use ropey::Rope;
@@ -288,7 +287,7 @@ impl SelectionMode {
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::OutermostNode => "MAXIMUM NODE".to_string(),
+            SelectionMode::OutermostNode => "OUTERMOST NODE".to_string(),
             SelectionMode::Sibling => "SIBLING".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)

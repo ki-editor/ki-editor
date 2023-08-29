@@ -17,7 +17,7 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         editor::{DispatchEditor, Movement},
-        keymap_legend::KeymapLegendConfig,
+        keymap_legend::{Keymap, KeymapLegendConfig},
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
     },
@@ -84,8 +84,8 @@ impl<T: Frontend> Screen<T> {
             sender,
             diagnostics: HashMap::new(),
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
-            working_directory,
             layout: Layout::new(dimension),
+            working_directory,
             frontend,
         };
         Ok(screen)
@@ -419,6 +419,16 @@ impl<T: Frontend> Screen<T> {
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::OpenCommandPrompt => self.open_command_prompt(),
             Dispatch::SaveQuitAll => self.save_quit_all()?,
+            Dispatch::RevealInExplorer(path) => self
+                .layout
+                .reveal_path_in_explorer(&self.working_directory, &path)?,
+            Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
+            Dispatch::OpenRenameFilePrompt(_) => todo!(),
+            Dispatch::OpenAddPathPrompt(_) => todo!(),
+            Dispatch::DeleteFile(path) => self.delete_file(&path)?,
+            Dispatch::Null => {
+                // do nothing
+            }
         }
         Ok(())
     }
@@ -976,6 +986,31 @@ impl<T: Frontend> Screen<T> {
     fn save_all(&self) -> anyhow::Result<()> {
         self.layout.save_all()
     }
+
+    fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
+        self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+            title: prompt.title,
+            owner_id: prompt.owner_id,
+            keymaps: [
+                Keymap::new("y", "Yes", *prompt.yes),
+                Keymap::new("n", "No", Dispatch::Null),
+            ]
+            .to_vec(),
+        }))
+    }
+
+    fn delete_file(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+        std::fs::remove_file(path)?;
+        self.buffers.retain(|buffer| {
+            buffer
+                .borrow()
+                .path()
+                .as_ref()
+                .map_or(true, |buffer_path| buffer_path != path)
+        });
+        self.layout.remove_suggestive_editor(path);
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1053,6 +1088,19 @@ pub enum Dispatch {
     QuitAll,
     OpenCommandPrompt,
     SaveQuitAll,
+    RevealInExplorer(CanonicalizedPath),
+    OpenYesNoPrompt(YesNoPrompt),
+    OpenRenameFilePrompt(CanonicalizedPath),
+    OpenAddPathPrompt(CanonicalizedPath),
+    DeleteFile(CanonicalizedPath),
+    Null,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct YesNoPrompt {
+    pub title: String,
+    pub owner_id: ComponentId,
+    pub yes: Box<Dispatch>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -138,14 +138,14 @@ impl Language {
 }
 
 pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
-    path.extension()
-        .map(|extension| {
-            LANGUAGES
-                .iter()
-                .find(|language| language.extensions().contains(&extension))
-                .map(|language| (*language).clone())
-        })
-        .unwrap_or_default()
+    from_extension(path.extension()?)
+}
+
+pub fn from_extension(extension: &str) -> Option<Language> {
+    LANGUAGES
+        .iter()
+        .find(|language| language.extensions().contains(&extension))
+        .map(|language| (*language).clone())
 }
 
 pub struct FormatterTestCase {

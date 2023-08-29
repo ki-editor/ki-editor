@@ -1,6 +1,7 @@
 use super::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
+    &common_lisp(),
     &graphql(),
     &javascript(true),
     &javascript(false),
@@ -9,7 +10,24 @@ pub const LANGUAGES: &[&Language] = &[
     &tree_sitter_query(),
     &typescript(false),
     &typescript(true),
+    &yaml(),
 ];
+
+const fn common_lisp() -> Language {
+    Language {
+        lsp_language_id: None,
+        lsp_command: None,
+        extensions: &["lisp", "lsp", "l", "cl", "fasl", "sbcl", "el"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "commonlisp",
+            url: "https://github.com/theHamsta/tree-sitter-commonlisp",
+            commit: "5153dbbc70e4cc2324320c1bdae020d31079c7c0",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
+    }
+}
 
 const fn graphql() -> Language {
     Language {
@@ -84,6 +102,7 @@ const fn sql() -> Language {
         ..Language::new()
     }
 }
+
 const fn tree_sitter_query() -> Language {
     Language {
         extensions: &["scm"],
@@ -120,5 +139,21 @@ const fn typescript(tsx: bool) -> Language {
         }),
         formatter_command: Some(Command("prettierd", if tsx { &[".tsx"] } else { &[".ts"] })),
         ..Language::new()
+    }
+}
+
+const fn yaml() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("yaml")),
+        extensions: &["yaml", "yml"],
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "yaml",
+            url: "https://github.com/ikatyang/tree-sitter-yaml",
+            subpath: None,
+            commit: "0e36bed171768908f331ff7dff9d956bae016efb",
+        }),
+        formatter_command: None,
+        highlight_query: None,
     }
 }

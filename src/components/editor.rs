@@ -21,7 +21,6 @@ use lsp_types::DiagnosticSeverity;
 use my_proc_macros::{hex, key};
 use ropey::Rope;
 
-
 use crate::{
     buffer::Buffer,
     components::component::Component,
@@ -998,7 +997,7 @@ impl Editor {
         context: &mut Context,
     ) -> anyhow::Result<KeymapLegendConfig> {
         Ok(KeymapLegendConfig {
-            title: "Find by",
+            title: "Find by".to_string(),
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(
@@ -1041,7 +1040,7 @@ impl Editor {
                     "g",
                     "Global",
                     Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Find Global",
+                        title: "Find Global".to_string(),
                         owner_id: self.id(),
                         keymaps: [
                             Keymap::new(
@@ -1090,7 +1089,7 @@ impl Editor {
                     "n",
                     "Number",
                     Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Find number",
+                        title: "Find number".to_string(),
                         owner_id: self.id(),
                         keymaps: [
                             ("b", "Binary", r"\b[01]+\b"),
@@ -1133,7 +1132,7 @@ impl Editor {
 
     fn space_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Space",
+            title: "Space".to_string(),
             owner_id: self.id(),
             keymaps: vec![]
                 .into_iter()
@@ -1141,6 +1140,11 @@ impl Editor {
                     self.get_request_params()
                         .map(|params| {
                             [
+                                Keymap::new(
+                                    "e",
+                                    "Reveal in Explorer",
+                                    Dispatch::RevealInExplorer(params.path.clone()),
+                                ),
                                 Keymap::new("h", "Hover", Dispatch::RequestHover(params.clone())),
                                 Keymap::new("r", "Rename", Dispatch::PrepareRename(params.clone())),
                                 Keymap::new(
@@ -1166,7 +1170,7 @@ impl Editor {
 
     fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Transform",
+            title: "Transform".to_string(),
             owner_id: self.id(),
             keymaps: [
                 ("a", "aLtErNaTiNg CaSe", Case::Toggle),
@@ -1194,7 +1198,7 @@ impl Editor {
 
     fn view_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "View",
+            title: "View".to_string(),
             keymaps: [
                 ("b", "Align view bottom", DispatchEditor::AlignViewBottom),
                 ("c", "Align view center", DispatchEditor::AlignViewCenter),
@@ -1246,7 +1250,7 @@ impl Editor {
 
     fn diagnostic_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Diagnostic",
+            title: "Diagnostic".to_string(),
             owner_id: self.id(),
             keymaps: [
                 ("a", "Any", None),
@@ -1271,7 +1275,7 @@ impl Editor {
 
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Get",
+            title: "Get".to_string(),
             owner_id: self.id(),
             keymaps: self
                 .get_request_params()
@@ -2664,7 +2668,7 @@ impl Editor {
 
     fn move_mode_keymap_legend(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Move",
+            title: "Move".to_string(),
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(

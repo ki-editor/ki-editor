@@ -9,6 +9,14 @@ impl AsRef<Path> for CanonicalizedPath {
     }
 }
 
+impl TryFrom<String> for CanonicalizedPath {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Ok(Self(value.into()))
+    }
+}
+
 impl TryFrom<&Path> for CanonicalizedPath {
     type Error = anyhow::Error;
 
@@ -86,5 +94,12 @@ impl CanonicalizedPath {
 
     pub fn remove_dir_all(&self) -> anyhow::Result<()> {
         Ok(std::fs::remove_dir_all(&self.0)?)
+    }
+
+    pub fn components(&self) -> Vec<String> {
+        self.0
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<_>>()
     }
 }

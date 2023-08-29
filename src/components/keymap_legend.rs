@@ -16,7 +16,7 @@ pub struct KeymapLegend {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeymapLegendConfig {
-    pub title: &'static str,
+    pub title: String,
     pub keymaps: Vec<Keymap>,
     pub owner_id: ComponentId,
 }
@@ -87,7 +87,7 @@ impl KeymapLegend {
 
         let content = config.display();
         let mut editor = Editor::from_text(tree_sitter_md::language(), &content);
-        editor.set_title(config.title.into());
+        editor.set_title(config.title.clone());
         editor.enter_insert_mode(CursorDirection::End);
         KeymapLegend { editor, config }
     }
@@ -157,7 +157,7 @@ mod test_keymap_legend {
     fn should_intercept_key_event_defined_in_config() {
         let owner_id = ComponentId::new();
         let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
-            title: "Test",
+            title: "Test".to_string(),
             keymaps: vec![Keymap::new("s", "test", Dispatch::Custom("Spongebob"))],
             owner_id,
         });

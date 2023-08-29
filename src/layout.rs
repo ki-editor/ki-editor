@@ -7,6 +7,7 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         editor::{Editor, Movement},
+        file_explorer::FileExplorer,
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
         suggestive_editor::SuggestiveEditor,
@@ -29,6 +30,7 @@ pub struct Layout {
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
+    file_explorer: Option<Rc<RefCell<FileExplorer>>>,
 
     rectangles: Vec<Rectangle>,
     borders: Vec<Border>,
@@ -51,6 +53,7 @@ impl Layout {
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
+            file_explorer: None,
             rectangles,
             borders,
             terminal_dimension,
@@ -62,6 +65,11 @@ impl Layout {
             .into_iter()
             .chain(
                 self.main_panel
+                    .iter()
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.file_explorer
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
@@ -125,6 +133,8 @@ impl Layout {
 
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
+
+            self.file_explorer = self.file_explorer.take().filter(|c| c.borrow().id() != id);
 
             self.components().into_iter().for_each(|c| {
                 c.borrow_mut().remove_child(id);
@@ -347,6 +357,36 @@ impl Layout {
             .map(|editor| editor.borrow_mut().editor_mut().save())
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
+    }
+
+    pub fn reveal_path_in_explorer(
+        &mut self,
+        working_directory: &CanonicalizedPath,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<()> {
+        let file_explorer = self
+            .file_explorer
+            .take()
+            .map(|file_explorer| -> anyhow::Result<_> { Ok(file_explorer) })
+            .unwrap_or_else(|| {
+                let file_explorer = FileExplorer::new(working_directory)?;
+                let rc = Rc::new(RefCell::new(file_explorer));
+                Ok(rc)
+            })?;
+
+        file_explorer.borrow_mut().reveal(path)?;
+
+        self.focused_component_id = Some(file_explorer.borrow().id());
+        self.file_explorer = Some(file_explorer);
+
+        Ok(())
+    }
+
+    pub fn remove_suggestive_editor(&mut self, path: &CanonicalizedPath) {
+        self.background_suggestive_editors
+            .retain(|suggestive_editor| {
+                suggestive_editor.borrow().editor().buffer().path().as_ref() != Some(path)
+            })
     }
 }
 
