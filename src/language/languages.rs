@@ -5,6 +5,7 @@ pub const LANGUAGES: &[&Language] = &[
     &graphql(),
     &javascript(true),
     &javascript(false),
+    &json(),
     &rust(),
     &sql(),
     &tree_sitter_query(),
@@ -64,6 +65,22 @@ const fn javascript(jsx: bool) -> Language {
         }),
         formatter_command: Some(Command("prettierd", if jsx { &[".jsx"] } else { &[".js"] })),
         ..Language::new()
+    }
+}
+
+const fn json() -> Language {
+    Language {
+        extensions: &["json"],
+        lsp_language_id: None,
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "json",
+            url: "https://github.com/tree-sitter/tree-sitter-json",
+            commit: "ca3f8919800e3c1ad4508de3bfd7b0b860ce434f",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
     }
 }
 
