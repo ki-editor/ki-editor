@@ -18,7 +18,7 @@ impl FileExplorer {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
-            crate::language::from_extension("lisp")
+            crate::language::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language())
                 .unwrap_or(tree_sitter_md::language()),
             &text,
@@ -229,15 +229,15 @@ impl Tree {
                         };
 
                         let indicator = if *open { "📂" } else { "📁" };
-                        let head = format!("({}  {}", indicator, head);
+                        let head = format!("{}  {}", indicator, head);
                         if tail.is_empty() {
-                            format!("{})", head)
+                            format!("{} :", head)
                         } else {
-                            format!("{} (\n{}))", head, tail)
+                            format!("{} :\n{}", head, tail)
                         }
                     }
                 };
-                format!("{} {}", "    ".repeat(indent), content)
+                format!("{} - {}", "  ".repeat(indent), content)
             })
             .collect::<Vec<_>>()
             .join("\n")
