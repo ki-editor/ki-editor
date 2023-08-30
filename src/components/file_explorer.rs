@@ -260,9 +260,7 @@ impl Tree {
         let paths = (1..=components.len())
             .map(|i| components[..i].to_vec())
             .map(|components| -> Result<CanonicalizedPath, _> {
-                components
-                    .join(std::path::MAIN_SEPARATOR_STR)
-                    .try_into()
+                components.join(std::path::MAIN_SEPARATOR_STR).try_into()
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -402,6 +400,7 @@ impl Component for FileExplorer {
                                         "Move file",
                                         Dispatch::OpenMoveFilePrompt(node.path.clone()),
                                     ),
+                                    Keymap::new("r", "Refresh", Dispatch::RefreshFileExplorer),
                                 ]
                                 .to_vec()
                             })

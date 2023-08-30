@@ -430,6 +430,9 @@ impl<T: Frontend> Screen<T> {
             }
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
+            Dispatch::RefreshFileExplorer => {
+                self.layout.refresh_file_explorer(&self.working_directory)?
+            }
         }
         Ok(())
     }
@@ -1200,6 +1203,7 @@ pub enum Dispatch {
         to: PathBuf,
     },
     AddPath(String),
+    RefreshFileExplorer,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
