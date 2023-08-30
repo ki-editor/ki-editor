@@ -979,7 +979,7 @@ impl<T: Frontend> Screen<T> {
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
-                .apply_positional_edits(edit.edits);
+                .apply_positional_edits(edit.edits)?;
 
             self.handle_dispatches(dispatches)?;
 

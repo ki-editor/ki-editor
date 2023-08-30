@@ -96,13 +96,13 @@ impl Component for SuggestiveEditor {
                 key!("enter") => {
                     if let Some(completion) = self.dropdown.borrow_mut().current_item() {
                         let dispatches = match completion.edit {
-                            None => self.editor.replace_previous_word(&completion.label())?,
+                            None => self.editor.replace_previous_word(&completion.label()),
                             Some(edit) => match edit {
                                 CompletionItemEdit::PositionalEdit(edit) => {
                                     self.editor.apply_positional_edit(edit)
                                 }
                             },
-                        };
+                        }?;
                         self.dropdown_opened = false;
                         self.menu_opened = false;
                         self.info_panel = None;
