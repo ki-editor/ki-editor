@@ -80,7 +80,7 @@ const fn json() -> Language {
             subpath: None,
         }),
         highlight_query: None,
-        formatter_command: None,
+        formatter_command: Some(Command("prettierd", &[".json"])),
     }
 }
 
