@@ -830,8 +830,9 @@ impl<T: Frontend> Screen<T> {
                 );
                 Ok(())
             }
-            LspNotification::PrepareRenameResponse(component_id, _response) => {
+            LspNotification::PrepareRenameResponse(component_id, response) => {
                 let editor = self.get_suggestive_editor(component_id)?;
+                log::info!("response = {:#?}", response);
 
                 // Note: we cannot refactor the following code into the below code, otherwise we will get error,
                 // because RefCell is borrow_mut twice. The borrow has to be dropped.
@@ -841,17 +842,22 @@ impl<T: Frontend> Screen<T> {
                 //         self.open_rename_prompt(params);
                 //     }
                 //
-                let params = editor.borrow().editor().get_request_params();
-                let _range = match _response {
-                    lsp_types::PrepareRenameResponse::Range(range) => Some(range),
-                    lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
-                        range,
-                        placeholder: _,
-                    } => Some(range),
-                    lsp_types::PrepareRenameResponse::DefaultBehavior { default_behavior: _ } => None,
+                let (params, current_name) = {
+                    let editor = editor.borrow();
+                    let params = editor.editor().get_request_params();
+                    let buffer = editor.editor().buffer();
+                    let current_name = response
+                        .range
+                        .map(|range| {
+                            let range = buffer.position_to_char(range.start)?
+                                ..buffer.position_to_char(range.end)?;
+                            buffer.slice(&range.try_into()?)
+                        })
+                        .transpose()
+                        .unwrap_or_default()
+                        .map(|rope| rope.to_string());
+                    (params, current_name)
                 };
-                let current_name = None;
-                // TODO: show current name in prompt
                 if let Some(params) = params {
                     self.open_rename_prompt(params, current_name);
                 }

@@ -6,6 +6,7 @@ pub mod formatter;
 pub mod goto_definition_response;
 pub mod hover;
 pub mod manager;
+pub mod prepare_rename_response;
 pub mod process;
 pub mod signature_help;
 pub mod symbols;

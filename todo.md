@@ -105,6 +105,7 @@
 - [x] file explorer
 - [x] feat(title): show git branch if possible
 - [x] feat: command mode (for exiting editor, save all file etc)
+- [x] feat(lsp/rename): show current name in prompt
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -167,7 +168,7 @@
 - [] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
-- [] feat(lsp/rename): show current name in prompt
+- [] feat(title): show Language
 
 # Grammar loading
 

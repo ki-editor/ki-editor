@@ -21,6 +21,7 @@ use super::code_action::CodeAction;
 use super::completion::{Completion, CompletionItem};
 use super::goto_definition_response::GotoDefinitionResponse;
 use super::hover::Hover;
+use super::prepare_rename_response::PrepareRenameResponse;
 use super::signature_help::SignatureHelp;
 use super::symbols::Symbols;
 use super::workspace_edit::WorkspaceEdit;
@@ -695,7 +696,10 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.screen_message_sender
                                 .send(ScreenMessage::LspNotification(
-                                    LspNotification::PrepareRenameResponse(component_id, payload),
+                                    LspNotification::PrepareRenameResponse(
+                                        component_id,
+                                        payload.into(),
+                                    ),
                                 ))
                                 .unwrap();
                         }
