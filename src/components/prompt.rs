@@ -39,6 +39,7 @@ type OnTextChange = Box<
 >;
 
 pub struct PromptConfig {
+    pub initial_text: Option<String>,
     pub history: Vec<String>,
     pub owner: Option<Rc<RefCell<dyn Component>>>,
     pub on_enter: OnEnter,
@@ -60,6 +61,7 @@ impl Prompt {
             Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), text))),
             SuggestiveEditorFilter::CurrentLine,
         );
+        editor.set_content(&config.initial_text.unwrap_or_default());
         editor.enter_insert_mode();
         editor.set_title(config.title);
         editor.set_completion(Completion {
@@ -160,6 +162,7 @@ mod test_prompt {
         fn run_test(owner: Option<Rc<RefCell<dyn Component>>>) {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
+                initial_text: None,
                 owner,
                 on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha")])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),

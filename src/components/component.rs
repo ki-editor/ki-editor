@@ -85,7 +85,7 @@ pub trait Component: Any + AnyComponent {
         self.editor().rectangle()
     }
 
-    fn set_content(&mut self, str: &str) {
+    fn set_content(&mut self, str: &str) -> anyhow::Result<()> {
         self.editor_mut().set_content(str)
     }
 

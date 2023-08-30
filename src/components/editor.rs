@@ -71,8 +71,9 @@ impl Component for Editor {
         self
     }
 
-    fn set_content(&mut self, str: &str) {
-        self.update_buffer(str)
+    fn set_content(&mut self, str: &str) -> Result<(), anyhow::Error> {
+        self.update_buffer(str);
+        self.clamp()
     }
 
     fn title(&self) -> String {

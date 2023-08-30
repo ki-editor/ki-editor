@@ -21,25 +21,32 @@ impl FileExplorer {
             crate::language::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language())
                 .unwrap_or(tree_sitter_md::language()),
-            &text,
+            &format!("{}\n", text),
         );
         editor.set_title("File Explorer".to_string());
         Ok(Self { editor, tree })
     }
 
     pub fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
-        let tree = std::mem::replace(&mut self.tree, Tree::default());
+        let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
-        self.refresh_editor();
+        self.refresh_editor()?;
         if let Some(index) = self.tree.find_index(path) {
             self.editor_mut().select_line_at(index)?;
         }
         Ok(())
     }
 
-    fn refresh_editor(&mut self) {
+    pub fn refresh(&mut self, working_directory: &CanonicalizedPath) -> anyhow::Result<()> {
+        let tree = std::mem::take(&mut self.tree);
+        self.tree = tree.refresh(working_directory)?;
+        self.refresh_editor()?;
+        Ok(())
+    }
+
+    fn refresh_editor(&mut self) -> anyhow::Result<()> {
         let text = self.tree.render();
-        self.editor_mut().set_content(&text);
+        self.editor_mut().set_content(&text)
     }
 
     fn get_current_node(&self) -> anyhow::Result<Option<Node>> {
@@ -52,7 +59,7 @@ fn get_nodes(path: &CanonicalizedPath) -> anyhow::Result<Vec<Node>> {
     let directory = std::fs::read_dir(path)?;
     Ok(directory
         .flatten()
-        .map(|entry| -> anyhow::Result<Node> {
+        .flat_map(|entry| -> anyhow::Result<Node> {
             let path: CanonicalizedPath = entry.path().try_into()?;
             let kind = if entry.file_type()?.is_dir() {
                 NodeKind::Directory {
@@ -68,7 +75,6 @@ fn get_nodes(path: &CanonicalizedPath) -> anyhow::Result<Vec<Node>> {
                 kind,
             })
         })
-        .flatten()
         .sorted_by(|a, b| a.name.cmp(&b.name))
         .collect())
 }
@@ -89,8 +95,8 @@ enum ContinuationKind {
 }
 
 impl Tree {
-    fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
-        let nodes = get_nodes(path)?;
+    fn new(working_directory: &CanonicalizedPath) -> anyhow::Result<Self> {
+        let nodes = get_nodes(working_directory)?;
         Ok(Self { nodes })
     }
 
@@ -100,6 +106,7 @@ impl Tree {
     {
         Tree {
             nodes: self.nodes.into_iter().map(f).collect(),
+            ..self
         }
     }
 
@@ -254,7 +261,7 @@ impl Tree {
             .map(|i| components[..i].to_vec())
             .map(|components| -> Result<CanonicalizedPath, _> {
                 components
-                    .join(&std::path::MAIN_SEPARATOR.to_string())
+                    .join(std::path::MAIN_SEPARATOR_STR)
                     .try_into()
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -273,6 +280,31 @@ impl Tree {
             }
         })
     }
+
+    fn refresh(self, working_directory: &CanonicalizedPath) -> anyhow::Result<Self> {
+        let opened_paths = self.walk_visible(Vec::new(), |result, node| Continuation {
+            kind: ContinuationKind::Continue,
+            state: match &node.kind {
+                NodeKind::File => result,
+                NodeKind::Directory { open, .. } => {
+                    if *open {
+                        result
+                            .into_iter()
+                            .chain(Some(node.path.clone()))
+                            .collect_vec()
+                    } else {
+                        result
+                    }
+                }
+            },
+        });
+        let tree = Tree::new(working_directory)?;
+        log::info!("opened_paths = {:?}", opened_paths);
+        let tree = opened_paths
+            .into_iter()
+            .fold(tree, |tree, path| tree.toggle(&path, |_| true));
+        Ok(tree)
+    }
 }
 
 #[derive(Clone)]
@@ -282,16 +314,19 @@ struct Node {
     kind: NodeKind,
 }
 impl Node {
-    fn toggle(&self) -> Result<Vec<crate::screen::Dispatch>, anyhow::Error> {
-        // Err(anyhow::anyhow!("Not implemented"))
-        match &self.kind {
-            NodeKind::File => Ok([Dispatch::OpenFile {
-                path: self.path.clone(),
-            }]
-            .to_vec()),
-            NodeKind::Directory { open, children } => {
-                todo!()
-            }
+    fn refresh(self) -> Node {
+        match self.kind {
+            NodeKind::File => self,
+            NodeKind::Directory { open, children } => Self {
+                kind: NodeKind::Directory {
+                    open,
+                    children: match children {
+                        Some(_) => Tree::new(&self.path).ok(),
+                        None => None,
+                    },
+                },
+                ..self
+            },
         }
     }
 }
@@ -329,7 +364,7 @@ impl Component for FileExplorer {
                         }]
                         .to_vec()),
                         NodeKind::Directory { .. } => {
-                            let tree = std::mem::replace(&mut self.tree, Tree::default());
+                            let tree = std::mem::take(&mut self.tree);
                             self.tree = tree.toggle(&node.path, |open| !open);
                             self.refresh_editor();
                             Ok(Vec::new())
@@ -341,7 +376,7 @@ impl Component for FileExplorer {
             }
             key!("space") => {
                 let current_node = self.get_current_node()?;
-                return Ok([Dispatch::ShowKeymapLegend(
+                Ok([Dispatch::ShowKeymapLegend(
                     super::keymap_legend::KeymapLegendConfig {
                         owner_id: self.id(),
                         title: "File Explorer Actions".to_string(),
@@ -355,17 +390,17 @@ impl Component for FileExplorer {
                                     ),
                                     Keymap::new(
                                         "d",
-                                        "Delete file",
+                                        "Delete path",
                                         Dispatch::OpenYesNoPrompt(YesNoPrompt {
                                             owner_id: self.id(),
                                             title: format!("Delete \"{}\"?", node.path.display()),
-                                            yes: Box::new(Dispatch::DeleteFile(node.path.clone())),
+                                            yes: Box::new(Dispatch::DeletePath(node.path.clone())),
                                         }),
                                     ),
                                     Keymap::new(
-                                        "r",
-                                        "Rename file",
-                                        Dispatch::OpenRenameFilePrompt(node.path.clone()),
+                                        "m",
+                                        "Move file",
+                                        Dispatch::OpenMoveFilePrompt(node.path.clone()),
                                     ),
                                 ]
                                 .to_vec()
@@ -373,7 +408,7 @@ impl Component for FileExplorer {
                             .unwrap_or_default(),
                     },
                 )]
-                .to_vec());
+                .to_vec())
             }
             _ => self.editor.handle_key_event(context, event),
         }

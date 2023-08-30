@@ -102,6 +102,9 @@
 - [x] feat(movement): mi for go to specific 1-based index
 - [x] feat(keymap): remap m to ff, remap z to m, so that m stands for Movement, mf = first, ml = last, mm = middle
 - [x] feat(swap): x, then movement, movement = n p mf ml
+- [x] file explorer
+- [x] feat(title): show git branch if possible
+- [x] feat: command mode (for exiting editor, save all file etc)
 - [] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
@@ -142,7 +145,6 @@
 - [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
 - [] feat(g): 'ggh' for global git hunks
 - [] feat(space-f): for file mode, r = rename, d = delete, a = add, s = save
-- [x] feat: command mode (for exiting editor, save all file etc)
 - [] feat(doc): add motto about having no shift keys for key bindings;
   spammable key like n/p will not hide under layers, but action like "Change
   selection mode to Git Hunk" which is not supposed to be spam should hide
@@ -157,12 +159,15 @@
 - [] fix failing test cases
 - [] fix(signature-help): cannot be closed by pressing esc key
 - [] fix(syntax-highlighting): flashing during editing
-- [] file tree
+- [] file explorer (integrate with LSP)
 - [] fix: paste from clipboard does not work properly if contains newline
 - [] la should open cursor at end of line, not beginning of next line
-- [x] feat(title): show git branch if possible
 - [] fs watcher, watch for file changes
 - [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
+- [] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
+- [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
+- [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
+- [] feat(lsp/rename): show current name in prompt
 
 # Grammar loading
 

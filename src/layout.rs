@@ -30,7 +30,8 @@ pub struct Layout {
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
-    file_explorer: Option<Rc<RefCell<FileExplorer>>>,
+    file_explorer: Rc<RefCell<FileExplorer>>,
+    file_explorer_open: bool,
 
     rectangles: Vec<Rectangle>,
     borders: Vec<Border>,
@@ -41,9 +42,9 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn new(terminal_dimension: Dimension) -> Layout {
+    pub fn new(terminal_dimension: Dimension, path: &CanonicalizedPath) -> anyhow::Result<Layout> {
         let (rectangles, borders) = Rectangle::generate_tall(1, terminal_dimension);
-        Layout {
+        Ok(Layout {
             main_panel: None,
             main_panel_history_backward: vec![],
             main_panel_history_forward: vec![],
@@ -53,11 +54,12 @@ impl Layout {
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
-            file_explorer: None,
+            file_explorer: Rc::new(RefCell::new(FileExplorer::new(path)?)),
             rectangles,
             borders,
             terminal_dimension,
-        }
+            file_explorer_open: false,
+        })
     }
 
     pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
@@ -69,9 +71,13 @@ impl Layout {
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.file_explorer
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+                if self.file_explorer_open {
+                    Some(self.file_explorer.clone())
+                } else {
+                    None
+                }
+                .iter()
+                .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
                 self.keymap_legend
@@ -134,7 +140,9 @@ impl Layout {
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
 
-            self.file_explorer = self.file_explorer.take().filter(|c| c.borrow().id() != id);
+            if self.file_explorer.borrow().id() == id {
+                self.file_explorer_open = false
+            }
 
             self.components().into_iter().for_each(|c| {
                 c.borrow_mut().remove_child(id);
@@ -359,25 +367,11 @@ impl Layout {
         Ok(())
     }
 
-    pub fn reveal_path_in_explorer(
-        &mut self,
-        working_directory: &CanonicalizedPath,
-        path: &CanonicalizedPath,
-    ) -> anyhow::Result<()> {
-        let file_explorer = self
-            .file_explorer
-            .take()
-            .map(|file_explorer| -> anyhow::Result<_> { Ok(file_explorer) })
-            .unwrap_or_else(|| {
-                let file_explorer = FileExplorer::new(working_directory)?;
-                let rc = Rc::new(RefCell::new(file_explorer));
-                Ok(rc)
-            })?;
+    pub fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+        self.file_explorer.borrow_mut().reveal(path)?;
 
-        file_explorer.borrow_mut().reveal(path)?;
-
-        self.focused_component_id = Some(file_explorer.borrow().id());
-        self.file_explorer = Some(file_explorer);
+        self.focused_component_id = Some(self.file_explorer.borrow().id());
+        self.file_explorer_open = true;
 
         Ok(())
     }
@@ -388,14 +382,22 @@ impl Layout {
                 suggestive_editor.borrow().editor().buffer().path().as_ref() != Some(path)
             })
     }
+
+    pub fn refresh_file_explorer(
+        &self,
+        working_directory: &CanonicalizedPath,
+    ) -> anyhow::Result<()> {
+        self.file_explorer.borrow_mut().refresh(working_directory)
+    }
 }
 
 #[cfg(test)]
 mod test_layout {
     use super::*;
     #[test]
-    fn recalculate_layout_should_not_panic_when_there_are_no_components() {
-        let mut layout = Layout::new(Dimension::default());
+    fn recalculate_layout_should_not_panic_when_there_are_no_components() -> anyhow::Result<()> {
+        let mut layout = Layout::new(Dimension::default(), todo!())?;
         layout.recalculate_layout();
+        Ok(())
     }
 }

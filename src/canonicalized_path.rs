@@ -102,4 +102,12 @@ impl CanonicalizedPath {
             .map(|c| c.as_os_str().to_string_lossy().to_string())
             .collect::<Vec<_>>()
     }
+
+    pub fn parent(&self) -> anyhow::Result<Option<CanonicalizedPath>> {
+        self.0.parent().map(|path| path.try_into()).transpose()
+    }
+
+    pub fn is_dir(&self) -> bool {
+        self.0.is_dir()
+    }
 }

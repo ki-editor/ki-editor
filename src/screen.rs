@@ -4,6 +4,7 @@ use my_proc_macros::key;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    path::PathBuf,
     rc::Rc,
     sync::{
         mpsc::{Receiver, Sender},
@@ -84,7 +85,7 @@ impl<T: Frontend> Screen<T> {
             sender,
             diagnostics: HashMap::new(),
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
-            layout: Layout::new(dimension),
+            layout: Layout::new(dimension, &working_directory)?,
             working_directory,
             frontend,
         };
@@ -419,16 +420,16 @@ impl<T: Frontend> Screen<T> {
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::OpenCommandPrompt => self.open_command_prompt(),
             Dispatch::SaveQuitAll => self.save_quit_all()?,
-            Dispatch::RevealInExplorer(path) => self
-                .layout
-                .reveal_path_in_explorer(&self.working_directory, &path)?,
+            Dispatch::RevealInExplorer(path) => self.layout.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
-            Dispatch::OpenRenameFilePrompt(_) => todo!(),
-            Dispatch::OpenAddPathPrompt(_) => todo!(),
-            Dispatch::DeleteFile(path) => self.delete_file(&path)?,
+            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path),
+            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path),
+            Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
             }
+            Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
+            Dispatch::AddPath(path) => self.add_path(path)?,
         }
         Ok(())
     }
@@ -454,6 +455,7 @@ impl<T: Frontend> Screen<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Move to index".to_string(),
             history: vec![],
+            initial_text: None,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 let index = text.parse::<usize>()?.saturating_sub(1);
@@ -469,10 +471,11 @@ impl<T: Frontend> Screen<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_rename_prompt(&mut self, params: RequestParams) {
+    fn open_rename_prompt(&mut self, params: RequestParams, current_name: Option<String>) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Rename".to_string(),
+            initial_text: current_name,
             history: vec![],
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
@@ -493,6 +496,7 @@ impl<T: Frontend> Screen<T> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: format!("Global search ({})", search_kind.display()),
+            initial_text: None,
             history: self
                 .context
                 .previous_searches()
@@ -518,6 +522,7 @@ impl<T: Frontend> Screen<T> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: format!("Search ({})", kind.display()),
+            initial_text: None,
             history: self
                 .context
                 .previous_searches()
@@ -563,6 +568,44 @@ impl<T: Frontend> Screen<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
+    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Add path".to_string(),
+            history: Vec::new(),
+            initial_text: Some(path.display()),
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Move file".to_string(),
+            history: Vec::new(),
+            initial_text: Some(path.display()),
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::MoveFile {
+                    from: path.clone(),
+                    to: text.try_into()?,
+                }]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
     fn open_symbol_picker(
         &mut self,
         component_id: ComponentId,
@@ -579,6 +622,7 @@ impl<T: Frontend> Screen<T> {
             Prompt::new(PromptConfig {
                 title: "Symbols".to_string(),
                 history: vec![],
+                initial_text: None,
                 owner: current_component,
                 on_text_change: Box::new(|_, _| Ok(vec![])),
                 items: symbols
@@ -612,6 +656,7 @@ impl<T: Frontend> Screen<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Command".to_string(),
             history: vec![],
+            initial_text: None,
             owner: current_component,
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::RunCommand(text.to_string())]
@@ -635,6 +680,7 @@ impl<T: Frontend> Screen<T> {
         let prompt = Prompt::new(PromptConfig {
             title: format!("Open file: {}", kind.display()),
             history: vec![],
+            initial_text: None,
             owner: current_component,
             on_enter: Box::new(move |current_item, _| {
                 let path = working_directory.join(current_item)?;
@@ -796,8 +842,18 @@ impl<T: Frontend> Screen<T> {
                 //     }
                 //
                 let params = editor.borrow().editor().get_request_params();
+                let _range = match _response {
+                    lsp_types::PrepareRenameResponse::Range(range) => Some(range),
+                    lsp_types::PrepareRenameResponse::RangeWithPlaceholder {
+                        range,
+                        placeholder: _,
+                    } => Some(range),
+                    lsp_types::PrepareRenameResponse::DefaultBehavior { default_behavior: _ } => None,
+                };
+                let current_name = None;
+                // TODO: show current name in prompt
                 if let Some(params) = params {
-                    self.open_rename_prompt(params);
+                    self.open_rename_prompt(params, current_name);
                 }
 
                 Ok(())
@@ -999,8 +1055,12 @@ impl<T: Frontend> Screen<T> {
         }))
     }
 
-    fn delete_file(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
-        std::fs::remove_file(path)?;
+    fn delete_path(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+        if path.is_dir() {
+            std::fs::remove_dir_all(path)?;
+        } else {
+            std::fs::remove_file(path)?;
+        }
         self.buffers.retain(|buffer| {
             buffer
                 .borrow()
@@ -1009,6 +1069,41 @@ impl<T: Frontend> Screen<T> {
                 .map_or(true, |buffer_path| buffer_path != path)
         });
         self.layout.remove_suggestive_editor(path);
+        self.layout.refresh_file_explorer(&self.working_directory)?;
+        Ok(())
+    }
+
+    fn move_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+        use std::fs;
+        log::info!("move file from {} to {}", from.display(), to.display());
+        self.add_path_parent(&to)?;
+        fs::rename(from, to.clone())?;
+        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout.reveal_path_in_explorer(&to.try_into()?)?;
+        Ok(())
+    }
+    fn add_path_parent(&self, path: &PathBuf) -> anyhow::Result<()> {
+        if let Some(new_dir) = path.parent() {
+            log::info!("Creating new dir at {}", new_dir.display());
+            std::fs::create_dir_all(new_dir)?;
+        }
+        Ok(())
+    }
+
+    fn add_path(&mut self, path: String) -> anyhow::Result<()> {
+        if PathBuf::from(path.clone()).exists() {
+            return Err(anyhow::anyhow!("The path \"{}\" already exists", path));
+        };
+        if path.ends_with(&std::path::MAIN_SEPARATOR.to_string()) {
+            std::fs::create_dir_all(path.clone())?;
+        } else {
+            let path: PathBuf = path.clone().into();
+            self.add_path_parent(&path)?;
+            std::fs::File::create(&path)?;
+        }
+        self.layout.refresh_file_explorer(&self.working_directory)?;
+        self.layout.reveal_path_in_explorer(&path.try_into()?)?;
+
         Ok(())
     }
 }
@@ -1090,10 +1185,15 @@ pub enum Dispatch {
     SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),
     OpenYesNoPrompt(YesNoPrompt),
-    OpenRenameFilePrompt(CanonicalizedPath),
+    OpenMoveFilePrompt(CanonicalizedPath),
     OpenAddPathPrompt(CanonicalizedPath),
-    DeleteFile(CanonicalizedPath),
+    DeletePath(CanonicalizedPath),
     Null,
+    MoveFile {
+        from: CanonicalizedPath,
+        to: PathBuf,
+    },
+    AddPath(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
