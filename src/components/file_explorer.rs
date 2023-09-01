@@ -217,15 +217,12 @@ impl Tree {
         self.nodes
             .iter()
             .map(|node| {
-                let node_name = if is_valid_lisp_atom(&node.name) {
-                    node.name.clone()
-                } else {
-                    format!("\"{}\"", node.name)
-                };
                 let content = match &node.kind {
-                    NodeKind::File => node_name,
+                    NodeKind::File => format!("{}  {}", node.path.icon(), node.name),
                     NodeKind::Directory { open, children } => {
-                        let head = format!("{}{}", node_name, "/");
+                        let icon = if *open { "📂" } else { "📁" };
+                        let head = format!("{}  {}{}", icon, node.name, "/");
+
                         let tail = if *open {
                             children
                                 .as_ref()
@@ -234,9 +231,6 @@ impl Tree {
                         } else {
                             String::new()
                         };
-
-                        let indicator = if *open { "📂" } else { "📁" };
-                        let head = format!("{}  {}", indicator, head);
                         if tail.is_empty() {
                             format!("{} :", head)
                         } else {

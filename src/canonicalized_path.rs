@@ -60,6 +60,18 @@ impl TryFrom<&String> for CanonicalizedPath {
 }
 
 impl CanonicalizedPath {
+    pub fn icon(&self) -> &String {
+        let config = crate::themes::icons::get_icon_config();
+        self.0
+            .file_name()
+            .and_then(|filename| {
+                config
+                    .file_names
+                    .get(&filename.to_string_lossy().to_string())
+            })
+            .or_else(|| config.file_extensions.get(self.extension()?))
+            .unwrap_or(&config.file)
+    }
     pub fn read(&self) -> anyhow::Result<String> {
         Ok(std::fs::read_to_string(&self.0)?)
     }

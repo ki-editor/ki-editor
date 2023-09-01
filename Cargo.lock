@@ -1863,6 +1863,7 @@ dependencies = [
  "log",
  "lsp-types",
  "my_proc_macros",
+ "once_cell",
  "portable-pty",
  "pretty_assertions",
  "quickcheck",

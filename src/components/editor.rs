@@ -555,7 +555,10 @@ impl Editor {
         let title = buffer
             .borrow()
             .path()
-            .map(|path| path.display_relative().unwrap_or_else(|_| path.display()))
+            .map(|path| {
+                let string = path.display_relative().unwrap_or_else(|_| path.display());
+                format!(" {} {}", string, path.icon())
+            })
             .unwrap_or_else(|| "<Untitled>".to_string());
         Self {
             selection_set: SelectionSet {
