@@ -8,6 +8,7 @@ pub const LANGUAGES: &[&Language] = &[
     &json(),
     &rust(),
     &sql(),
+    &toml(),
     &tree_sitter_query(),
     &typescript(false),
     &typescript(true),
@@ -117,6 +118,22 @@ const fn sql() -> Language {
         }),
         formatter_command: Some(Command("sql-formatter", &[])),
         ..Language::new()
+    }
+}
+
+const fn toml() -> Language {
+    Language {
+        extensions: &["toml"],
+        lsp_language_id: None,
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "toml",
+            url: "https://github.com/ikatyang/tree-sitter-toml",
+            commit: "8bd2056818b21860e3d756b5a58c4f6e05fb744e",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
     }
 }
 
