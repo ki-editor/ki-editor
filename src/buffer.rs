@@ -1,9 +1,7 @@
 use crate::{
-    canonicalized_path::CanonicalizedPath,
     char_index_range::CharIndexRange,
     components::suggestive_editor::Decoration,
     edit::{Edit, EditTransaction},
-    language::{self, Language},
     lsp::diagnostic::Diagnostic,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
@@ -15,6 +13,10 @@ use crate::{
 use itertools::Itertools;
 use regex::Regex;
 use ropey::Rope;
+use shared::{
+    canonicalized_path::CanonicalizedPath,
+    language::{self, Language},
+};
 use std::{
     ops::Range,
     sync::{Arc, RwLock},
@@ -652,10 +654,9 @@ mod test_buffer {
 
         use crate::{
             buffer::Buffer,
-            canonicalized_path::CanonicalizedPath,
             selection::{CharIndex, SelectionSet},
         };
-
+        use shared::canonicalized_path::CanonicalizedPath;
         /// The TempDir is returned so that the directory is not deleted
         /// when the TempDir object is dropped
         fn run_test(f: impl Fn(CanonicalizedPath, Buffer)) {

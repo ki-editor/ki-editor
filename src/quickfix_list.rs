@@ -3,7 +3,6 @@ use std::{cell::RefCell, ops::Range, rc::Rc};
 use itertools::Itertools;
 
 use crate::{
-    canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId},
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
@@ -11,6 +10,7 @@ use crate::{
     },
     position::Position,
 };
+use shared::canonicalized_path::CanonicalizedPath;
 
 pub struct QuickfixLists {
     lists: Vec<QuickfixList>,

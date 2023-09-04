@@ -1,10 +1,8 @@
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::{
-    canonicalized_path::CanonicalizedPath,
-    screen::{Dispatch, YesNoPrompt},
-};
+use crate::screen::{Dispatch, YesNoPrompt};
+use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{component::Component, editor::Editor, keymap_legend::Keymap};
 
@@ -18,7 +16,7 @@ impl FileExplorer {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
-            crate::language::from_extension("yaml")
+            shared::language::from_extension("yaml")
                 .and_then(|language| language.tree_sitter_language())
                 .unwrap_or(tree_sitter_md::language()),
             &format!("{}\n", text),

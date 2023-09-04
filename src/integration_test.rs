@@ -9,14 +9,13 @@ mod integration_test {
         time::{Duration, UNIX_EPOCH},
     };
 
-    use event::{event::Event, KeyEvent};
-    use my_proc_macros::keys;
-
     use crate::{
-        canonicalized_path::CanonicalizedPath,
         frontend::mock::MockFrontend,
         screen::{Screen, ScreenMessage},
     };
+    use event::{event::Event, KeyEvent};
+    use my_proc_macros::keys;
+    use shared::canonicalized_path::CanonicalizedPath;
 
     struct TestRunner {
         key_event_sender: Sender<ScreenMessage>,

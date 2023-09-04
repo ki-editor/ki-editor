@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use grammar::grammar::GrammarConfiguration;
+
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -34,8 +34,8 @@ pub fn cli() -> anyhow::Result<()> {
         match command {
             Commands::Grammar { command } => {
                 match command {
-                    Grammar::Build => build_grammars(),
-                    Grammar::Fetch => fetch_grammars(),
+                    Grammar::Build => shared::grammar::build_grammars(),
+                    Grammar::Fetch => shared::grammar::fetch_grammars(),
                 };
                 Ok(())
             }
@@ -45,19 +45,4 @@ pub fn cli() -> anyhow::Result<()> {
     } else {
         crate::run(None)
     }
-}
-
-fn build_grammars() {
-    grammar::grammar::build_grammars(None, grammar_configs()).unwrap();
-}
-
-fn grammar_configs() -> Vec<GrammarConfiguration> {
-    crate::language::LANGUAGES
-        .iter()
-        .flat_map(|language| language.tree_sitter_grammar_config())
-        .collect()
-}
-
-fn fetch_grammars() {
-    grammar::grammar::fetch_grammars(grammar_configs()).unwrap();
 }

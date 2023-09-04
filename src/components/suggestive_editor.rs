@@ -362,11 +362,8 @@ impl SuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use std::{cell::RefCell, rc::Rc};
-
     use crate::{
         buffer::Buffer,
-        canonicalized_path::CanonicalizedPath,
         components::{
             component::Component,
             editor::{CursorDirection, Mode},
@@ -376,6 +373,8 @@ mod test_suggestive_editor {
         screen::Dispatch,
     };
     use my_proc_macros::keys;
+    use shared::canonicalized_path::CanonicalizedPath;
+    use std::{cell::RefCell, rc::Rc};
 
     use super::{SuggestiveEditor, SuggestiveEditorFilter};
     use pretty_assertions::assert_eq;

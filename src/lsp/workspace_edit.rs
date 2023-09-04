@@ -1,4 +1,4 @@
-use crate::canonicalized_path::CanonicalizedPath;
+use shared::canonicalized_path::CanonicalizedPath;
 
 use super::completion::PositionalEdit;
 

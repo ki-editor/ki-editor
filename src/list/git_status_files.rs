@@ -1,6 +1,6 @@
 use git2::Repository;
 
-use crate::canonicalized_path::CanonicalizedPath;
+use shared::canonicalized_path::CanonicalizedPath;
 
 pub fn git_status_files(path: &CanonicalizedPath) -> Result<Vec<String>, anyhow::Error> {
     let repo = Repository::open(path)?;

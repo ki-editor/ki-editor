@@ -61,7 +61,7 @@ impl TryFrom<&String> for CanonicalizedPath {
 
 impl CanonicalizedPath {
     pub fn icon(&self) -> &String {
-        let config = crate::themes::icons::get_icon_config();
+        let config = crate::icons::get_icon_config();
         self.0
             .file_name()
             .and_then(|filename| {

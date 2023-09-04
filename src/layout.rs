@@ -1,9 +1,4 @@
-use anyhow::anyhow;
-use itertools::Itertools;
-use std::{cell::RefCell, rc::Rc};
-
 use crate::{
-    canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId},
         editor::{Editor, Movement},
@@ -16,6 +11,10 @@ use crate::{
     rectangle::{Border, Rectangle},
     screen::Dimension,
 };
+use anyhow::anyhow;
+use itertools::Itertools;
+use shared::canonicalized_path::CanonicalizedPath;
+use std::{cell::RefCell, rc::Rc};
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.

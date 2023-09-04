@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use crate::{buffer::Buffer, selection::Selection};
 use itertools::Itertools;
-
-use crate::{buffer::Buffer, canonicalized_path::CanonicalizedPath, selection::Selection};
+use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{ByteRange, SelectionMode};
 

@@ -2,7 +2,8 @@ use std::ops::Range;
 
 use tree_sitter_highlight::{HighlightEvent, Highlighter};
 
-use crate::{grid::Style, language::Language, themes::Theme};
+use crate::{grid::Style, themes::Theme};
+use shared::language::Language;
 
 #[derive(Clone)]
 pub struct HighlighedSpan {

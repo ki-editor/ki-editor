@@ -1,13 +1,13 @@
-use crate::{
-    canonicalized_path::CanonicalizedPath,
-    language::{self, Language, LanguageId},
-    screen::RequestParams,
-};
+use crate::screen::RequestParams;
 use std::{collections::HashMap, sync::mpsc::Sender};
 
 use crate::screen::ScreenMessage;
 
 use super::process::LspServerProcessChannel;
+use shared::{
+    canonicalized_path::CanonicalizedPath,
+    language::{self, Language, LanguageId},
+};
 
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,

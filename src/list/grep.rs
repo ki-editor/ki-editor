@@ -3,12 +3,9 @@ use grep_searcher::{sinks, SearcherBuilder};
 use ignore::{WalkBuilder, WalkState};
 use regex::Regex;
 
+use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::regex::get_regex};
+use shared::canonicalized_path::CanonicalizedPath;
 use std::path::PathBuf;
-
-use crate::{
-    buffer::Buffer, canonicalized_path::CanonicalizedPath, quickfix_list::Location,
-    selection_mode::regex::get_regex,
-};
 
 #[derive(Debug)]
 pub struct Match {

@@ -1,6 +1,7 @@
 use event::event::Event;
 use itertools::Itertools;
 use my_proc_macros::key;
+use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -14,7 +15,6 @@ use std::{
 
 use crate::{
     buffer::Buffer,
-    canonicalized_path::CanonicalizedPath,
     components::{
         component::{Component, ComponentId, GetGridResult},
         editor::{DispatchEditor, Movement},

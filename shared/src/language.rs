@@ -1,12 +1,10 @@
-pub mod languages;
-
 use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
 
 pub use crate::process_command::ProcessCommand;
-use crate::{canonicalized_path::CanonicalizedPath, lsp::formatter::Formatter};
+use crate::{canonicalized_path::CanonicalizedPath, formatter::Formatter};
 
-pub use languages::LANGUAGES;
+pub use crate::languages::LANGUAGES;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 /// As defined by the LSP protocol.
@@ -26,30 +24,30 @@ impl LanguageId {
 }
 
 #[derive(Debug, Clone)]
-struct Command(&'static str, &'static [&'static str]);
+pub struct Command(pub &'static str, pub &'static [&'static str]);
 impl Command {
-    const fn default() -> Command {
+    pub const fn default() -> Command {
         Command("", &[])
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Language {
-    extensions: &'static [&'static str],
-    lsp_language_id: Option<LanguageId>,
-    lsp_command: Option<LspCommand>,
-    tree_sitter_grammar_config: Option<GrammarConfig>,
-    highlight_query: Option<&'static str>,
-    formatter_command: Option<Command>,
+    pub extensions: &'static [&'static str],
+    pub lsp_language_id: Option<LanguageId>,
+    pub lsp_command: Option<LspCommand>,
+    pub tree_sitter_grammar_config: Option<GrammarConfig>,
+    pub highlight_query: Option<&'static str>,
+    pub formatter_command: Option<Command>,
 }
 
 #[derive(Debug, Clone)]
 pub struct LspCommand {
-    command: Command,
-    initialization_options: Option<&'static str>,
+    pub command: Command,
+    pub initialization_options: Option<&'static str>,
 }
 impl LspCommand {
-    const fn default() -> LspCommand {
+    pub const fn default() -> LspCommand {
         LspCommand {
             command: Command::default(),
             initialization_options: None,
@@ -71,11 +69,11 @@ impl Language {
 }
 
 #[derive(Debug, Clone)]
-struct GrammarConfig {
-    id: &'static str,
-    url: &'static str,
-    commit: &'static str,
-    subpath: Option<&'static str>,
+pub struct GrammarConfig {
+    pub id: &'static str,
+    pub url: &'static str,
+    pub commit: &'static str,
+    pub subpath: Option<&'static str>,
 }
 
 impl Language {

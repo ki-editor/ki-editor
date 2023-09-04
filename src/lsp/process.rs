@@ -1,11 +1,11 @@
-use crate::canonicalized_path::CanonicalizedPath;
-use crate::language::Language;
 use crate::screen::RequestParams;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
 };
 use lsp_types::*;
+use shared::canonicalized_path::CanonicalizedPath;
+use shared::language::Language;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 

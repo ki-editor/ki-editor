@@ -2,7 +2,7 @@ use anyhow::anyhow;
 use itertools::Itertools;
 use std::path::Path;
 
-use crate::canonicalized_path::CanonicalizedPath;
+use shared::canonicalized_path::CanonicalizedPath;
 
 pub fn non_git_ignored_files(directory: &CanonicalizedPath) -> anyhow::Result<Vec<String>> {
     use git2::{Repository, StatusOptions};

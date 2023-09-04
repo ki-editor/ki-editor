@@ -1,4 +1,4 @@
-use super::{Command, GrammarConfig, Language, LanguageId, LspCommand};
+use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
     &common_lisp(),

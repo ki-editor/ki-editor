@@ -1,5 +1,4 @@
 use crate::{
-    canonicalized_path::CanonicalizedPath,
     char_index_range::CharIndexRange,
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
@@ -7,6 +6,7 @@ use crate::{
     selection_mode, soft_wrap,
     themes::Theme,
 };
+use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::Range,

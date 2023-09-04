@@ -1630,6 +1630,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "grammar",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "tree-sitter",
+]
+
+[[package]]
 name = "shared_library"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1873,6 +1885,7 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "shared",
  "simple-logging",
  "tempfile",
  "tree-sitter",

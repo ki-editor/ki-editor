@@ -1,5 +1,5 @@
 mod buffer;
-mod canonicalized_path;
+
 pub mod char_index_range;
 mod cli;
 mod clipboard;
@@ -10,12 +10,12 @@ mod edit;
 pub mod frontend;
 mod grid;
 mod integration_test;
-pub mod language;
+
 mod layout;
 pub mod list;
 mod lsp;
 mod position;
-pub mod process_command;
+
 mod quickfix_list;
 mod rectangle;
 mod screen;
@@ -29,10 +29,9 @@ mod utils;
 
 use std::sync::{Arc, Mutex};
 
-use canonicalized_path::CanonicalizedPath;
-
 use frontend::crossterm::Crossterm;
 use log::LevelFilter;
+use shared::canonicalized_path::CanonicalizedPath;
 
 use screen::Screen;
 
@@ -44,7 +43,7 @@ fn main() {
 
 pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
-    let args = std::env::args().collect::<Vec<_>>();
+    let _args = std::env::args().collect::<Vec<_>>();
     // run_integrated_terminal(24, 80).unwrap();
     // return;
 
