@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use grammar::grammar::GrammarConfiguration;
 
 #[derive(Parser)]
@@ -14,23 +14,36 @@ enum Commands {
         #[command(subcommand)]
         command: Grammar,
     },
+    Edit(EditArgs),
+    New,
 }
-
+#[derive(Args)]
+struct EditArgs {
+    path: String,
+}
 #[derive(Subcommand)]
 enum Grammar {
     Build,
     Fetch,
 }
 
-pub fn cli() {
+pub fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match &cli.command {
-        Some(Commands::Grammar { command }) => match command {
-            Grammar::Build => build_grammars(),
-            Grammar::Fetch => fetch_grammars(),
-        },
-        None => crate::run().unwrap(),
+    if let Some(command) = cli.command {
+        match command {
+            Commands::Grammar { command } => {
+                match command {
+                    Grammar::Build => build_grammars(),
+                    Grammar::Fetch => fetch_grammars(),
+                };
+                Ok(())
+            }
+            Commands::Edit(args) => crate::run(Some(args.path.try_into()?)),
+            Commands::New => todo!(),
+        }
+    } else {
+        crate::run(None)
     }
 }
 

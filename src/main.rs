@@ -39,23 +39,15 @@ use screen::Screen;
 use crate::screen::ScreenMessage;
 
 fn main() {
-    cli::cli();
+    cli::cli().unwrap();
 }
 
-pub fn run() -> anyhow::Result<()> {
+pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
     let args = std::env::args().collect::<Vec<_>>();
     // run_integrated_terminal(24, 80).unwrap();
     // return;
 
-    let path = args.get(1).and_then(|arg| {
-        CanonicalizedPath::try_from(arg)
-            .map(Some)
-            .unwrap_or_else(|err| {
-                println!("Invalid path: {}", err);
-                None
-            })
-    });
     let screen = Screen::new(
         Arc::new(Mutex::new(Crossterm::new())),
         CanonicalizedPath::try_from(".")?,

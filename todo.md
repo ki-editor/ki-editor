@@ -170,6 +170,8 @@
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(title): show Language
 - [] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
+- [] feat(multicursor): split
+- [] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 
 # Grammar loading
 
@@ -177,3 +179,4 @@
 - [x] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building
 - [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse
+
