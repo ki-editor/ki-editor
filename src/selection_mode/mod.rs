@@ -123,9 +123,7 @@ pub trait SelectionMode {
             ..params.buffer.line_to_byte(line_number_range.end)?;
         let iter = self
             .iter(params.current_selection, params.buffer)?
-            .filter(|range| {
-                byte_range.start <= range.range.start && range.range.end <= byte_range.end
-            });
+            .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start));
         Ok(chars
             .into_iter()
             .cycle()
