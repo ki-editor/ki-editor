@@ -187,6 +187,7 @@ impl Layout {
             Movement::Last => todo!(),
             Movement::First => todo!(),
             Movement::Index(_) => todo!(),
+            Movement::Jump(_) => todo!(),
         }
         .or_else(|| self.main_panel.take());
         let set_backward_history = match movement {
@@ -195,6 +196,7 @@ impl Layout {
             Movement::Last => todo!(),
             Movement::First => todo!(),
             Movement::Index(_) => todo!(),
+            Movement::Jump(_) => todo!(),
         };
         self.set_main_panel(editor, set_backward_history);
     }

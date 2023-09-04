@@ -109,6 +109,7 @@ pub trait SelectionMode {
             Movement::Current => self.current(params),
             Movement::First => self.first(params),
             Movement::Index(index) => self.to_index(params, index),
+            Movement::Jump(range) => Ok(Some(params.current_selection.clone().set_range(range))),
         }
     }
 

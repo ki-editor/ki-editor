@@ -169,6 +169,7 @@
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(title): show Language
+- [] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
 
 # Grammar loading
 

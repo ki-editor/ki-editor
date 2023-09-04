@@ -156,6 +156,7 @@ impl<T: DropdownItem> Dropdown<T> {
             Movement::Last => todo!(),
             Movement::First => todo!(),
             Movement::Index(_) => todo!(),
+            Movement::Jump(_) => todo!(),
         }
     }
 

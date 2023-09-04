@@ -43,7 +43,6 @@ use super::{
 pub enum Mode {
     Normal,
     Insert,
-    Jump { jumps: Vec<Jump> },
     Kill,
     MultiCursor,
     FindOneChar,
@@ -477,6 +476,7 @@ impl Clone for Editor {
         Editor {
             mode: self.mode.clone(),
             selection_set: self.selection_set.clone(),
+            jumps: None,
             cursor_direction: self.cursor_direction.clone(),
             selection_history: self.selection_history.clone(),
             scroll_offset: self.scroll_offset,
@@ -493,7 +493,9 @@ pub struct Editor {
 
     pub selection_set: SelectionSet,
 
+    pub jumps: Option<Vec<Jump>>,
     pub cursor_direction: CursorDirection,
+
     selection_history: Vec<SelectionSet>,
 
     /// Zero-based index.
@@ -530,6 +532,7 @@ pub enum Movement {
     First,
     /// 0-based
     Index(usize),
+    Jump(CharIndexRange),
 }
 
 impl Editor {
@@ -540,6 +543,7 @@ impl Editor {
                 secondary: vec![],
                 mode: SelectionMode::Custom,
             },
+            jumps: None,
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
@@ -566,6 +570,7 @@ impl Editor {
                 secondary: vec![],
                 mode: SelectionMode::Custom,
             },
+            jumps: None,
             mode: Mode::Normal,
             cursor_direction: CursorDirection::Start,
             selection_history: Vec::with_capacity(128),
@@ -773,7 +778,7 @@ impl Editor {
             chars,
             line_range,
         )?;
-        self.mode = Mode::Jump { jumps };
+        self.jumps = Some(jumps);
 
         Ok(())
     }
@@ -1350,23 +1355,25 @@ impl Editor {
         key_event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match self.handle_universal_key(context, key_event)? {
-            HandleEventResult::Ignored(key_event) => match &self.mode {
-                Mode::Normal => self.handle_normal_mode(context, key_event),
-                Mode::Insert => self.handle_insert_mode(key_event),
-                Mode::Jump { .. } => {
-                    self.handle_jump_mode(key_event)?;
-                    Ok(vec![])
+            HandleEventResult::Ignored(key_event) => {
+                if let Some(jumps) = self.jumps.take() {
+                    self.handle_jump_mode(key_event, jumps)
+                } else {
+                    match &self.mode {
+                        Mode::Normal => self.handle_normal_mode(context, key_event),
+                        Mode::Insert => self.handle_insert_mode(key_event),
+                        Mode::Kill => self.handle_delete_mode(context, key_event),
+                        Mode::MultiCursor => {
+                            self.handle_multi_cursor_mode(key_event)?;
+                            Ok(Vec::new())
+                        }
+                        Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
+                        Mode::ScrollPage => self.handle_scroll_page_mode(context, key_event),
+                        Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
+                        Mode::Exchange => self.handle_exchange_mode(context, key_event),
+                    }
                 }
-                Mode::Kill => self.handle_delete_mode(context, key_event),
-                Mode::MultiCursor => {
-                    self.handle_multi_cursor_mode(key_event)?;
-                    Ok(Vec::new())
-                }
-                Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
-                Mode::ScrollPage => self.handle_scroll_page_mode(context, key_event),
-                Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
-                Mode::Exchange => self.handle_exchange_mode(context, key_event),
-            },
+            }
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
         }
     }
@@ -1414,49 +1421,46 @@ impl Editor {
         }
     }
 
-    fn handle_jump_mode(&mut self, key_event: KeyEvent) -> anyhow::Result<()> {
-        match self.mode {
-            Mode::Jump { ref jumps, .. } => match key_event {
-                key!("esc") => {
-                    self.mode = Mode::Normal;
-                }
-                key => {
-                    let KeyCode::Char(c) = key.code else {return Ok(())};
-                    let matching_jumps = jumps
-                        .iter()
-                        .filter(|jump| c == jump.character)
-                        .collect_vec();
-                    match matching_jumps.split_first() {
-                        None => {}
-                        Some((jump, [])) => {
-                            self.update_selection_set(SelectionSet {
-                                primary: jump
-                                    .selection
-                                    .clone()
-                                    .set_copied_text(self.selection_set.primary.copied_text()),
-                                secondary: vec![],
-                                mode: self.selection_set.mode.clone(),
-                            });
-                            self.mode = Mode::Normal;
-                        }
-                        Some(_) => {
-                            self.mode = Mode::Jump {
-                                jumps: matching_jumps
-                                    .into_iter()
-                                    .zip(Self::jump_characters().into_iter().cycle())
-                                    .map(|(jump, character)| Jump {
-                                        character,
-                                        ..jump.clone()
-                                    })
-                                    .collect_vec(),
-                            }
-                        }
+    fn handle_jump_mode(
+        &mut self,
+        key_event: KeyEvent,
+        jumps: Vec<Jump>,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match key_event {
+            key!("esc") => {
+                self.jumps = None;
+                Ok(Vec::new())
+            }
+            key => {
+                let KeyCode::Char(c) = key.code else {return Ok(Vec::new())};
+                let matching_jumps = jumps
+                    .iter()
+                    .filter(|jump| c == jump.character)
+                    .collect_vec();
+                match matching_jumps.split_first() {
+                    None => Ok(Vec::new()),
+                    Some((jump, [])) => {
+                        Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
+                            Movement::Jump(jump.selection.extended_range()),
+                        ))]
+                        .to_vec())
+                    }
+                    Some(_) => {
+                        self.jumps = Some(
+                            matching_jumps
+                                .into_iter()
+                                .zip(Self::jump_characters().into_iter().cycle())
+                                .map(|(jump, character)| Jump {
+                                    character,
+                                    ..jump.clone()
+                                })
+                                .collect_vec(),
+                        );
+                        Ok(Vec::new())
                     }
                 }
-            },
-            _ => unreachable!(),
+            }
         }
-        Ok(())
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
@@ -1605,24 +1609,28 @@ impl Editor {
         self.buffer_mut().save_bookmarks(selections)
     }
 
-    fn handle_movement(&mut self, key_event: &KeyEvent) -> Option<Vec<Dispatch>> {
+    fn handle_movement(&mut self, key_event: &KeyEvent) -> anyhow::Result<Option<Vec<Dispatch>>> {
         match key_event {
-            key!("z") => {
-                Some([Dispatch::ShowKeymapLegend(self.move_mode_keymap_legend())].to_vec())
+            key!("j") => {
+                self.jump()?;
+                Ok(Some(Vec::new()))
             }
-            key!("n") => Some(
+            key!("n") => Ok(Some(
                 [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
                     Movement::Next,
                 ))]
                 .to_vec(),
-            ),
-            key!("p") => Some(
+            )),
+            key!("p") => Ok(Some(
                 [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
                     Movement::Previous,
                 ))]
                 .to_vec(),
-            ),
-            _ => None,
+            )),
+            key!("z") => Ok(Some(
+                [Dispatch::ShowKeymapLegend(self.move_mode_keymap_legend())].to_vec(),
+            )),
+            _ => Ok(None),
         }
     }
 
@@ -1631,7 +1639,7 @@ impl Editor {
         context: &mut Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(dispatches) = self.handle_movement(&event) {
+        if let Some(dispatches) = self.handle_movement(&event)? {
             return Ok(dispatches);
         }
         if self.mode != Mode::Normal {
@@ -1676,7 +1684,6 @@ impl Editor {
             key!("h") => self.toggle_highlight_mode(),
             key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
 
-            key!("j") => self.jump()?,
             key!("k") => self.mode = Mode::Kill,
             key!("k") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
@@ -1781,10 +1788,10 @@ impl Editor {
     }
 
     pub fn jumps(&self) -> Vec<&Jump> {
-        match self.mode {
-            Mode::Jump { ref jumps } => jumps.iter().collect(),
-            _ => vec![],
-        }
+        self.jumps
+            .as_ref()
+            .map(|jumps| jumps.iter().collect())
+            .unwrap_or_default()
     }
 
     // TODO: handle mouse click
@@ -2506,18 +2513,22 @@ impl Editor {
     }
 
     pub fn display_mode(&self) -> String {
-        match &self.mode {
+        let mode = match &self.mode {
             Mode::Normal => {
                 format!("NORMAL:{}", self.selection_set.mode.display())
             }
             Mode::Insert => "INSERT".to_string(),
-            Mode::Jump { .. } => "JUMP".to_string(),
             Mode::Kill => "KILL".to_string(),
             Mode::MultiCursor => "MULTI CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
             Mode::ScrollPage => "SCROLL PAGE".to_string(),
             Mode::ScrollLine => "SCROLL LINE".to_string(),
             Mode::Exchange => "EXCHANGE".to_string(),
+        };
+        if self.jumps.is_some() {
+            format!("{} (JUMPING)", mode)
+        } else {
+            mode
         }
     }
 
