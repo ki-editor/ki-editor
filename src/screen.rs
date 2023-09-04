@@ -103,7 +103,8 @@ impl<T: Frontend> Screen<T> {
         if let Some(entry_path) = entry_path {
             self.open_file(&entry_path, true)?;
         } else {
-            self.open_file_picker(FilePickerKind::NonGitIgnored)?;
+            self.open_file_picker(FilePickerKind::NonGitIgnored)
+                .unwrap_or_else(|_| self.layout.open_file_explorer());
         }
 
         self.render()?;

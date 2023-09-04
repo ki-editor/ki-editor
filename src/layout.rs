@@ -391,6 +391,10 @@ impl Layout {
     ) -> anyhow::Result<()> {
         self.file_explorer.borrow_mut().refresh(working_directory)
     }
+
+    pub fn open_file_explorer(&mut self) {
+        self.file_explorer_open = true
+    }
 }
 
 #[cfg(test)]
