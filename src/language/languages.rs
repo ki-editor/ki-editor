@@ -2,6 +2,7 @@ use super::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
     &common_lisp(),
+    &csv(),
     &graphql(),
     &javascript(true),
     &javascript(false),
@@ -28,6 +29,21 @@ const fn common_lisp() -> Language {
         }),
         highlight_query: None,
         formatter_command: None,
+    }
+}
+const fn csv() -> Language {
+    Language {
+        extensions: &["csv"],
+        lsp_language_id: None,
+        lsp_command: None,
+        highlight_query: None,
+        formatter_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "csv",
+            url: "https://github.com/arnau/tree-sitter-csv",
+            commit: "ae0728a5f00ad8f02357c20e61249af1a52e89b4",
+            subpath: None,
+        }),
     }
 }
 
