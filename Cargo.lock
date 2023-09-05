@@ -1635,6 +1635,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "grammar",
+ "lsp-types",
  "once_cell",
  "serde",
  "serde_json",

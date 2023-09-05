@@ -106,7 +106,7 @@
 - [x] feat(title): show git branch if possible
 - [x] feat: command mode (for exiting editor, save all file etc)
 - [x] feat(lsp/rename): show current name in prompt
-- [] LSP file modifications (add,rename,delete)
+- [x] LSP file modifications (add,rename,delete)
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -172,6 +172,12 @@
 - [x] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
 - [] feat(multicursor): split
 - [] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
+- [] fix: log if formatting failed
+- [] fix: cannot go to last line
+- [] fix: cannot enter new line in new file
+- [] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
+- [] feat(suggestive_editor): text completion
+- [] fix: cursor not wrapped properly
 
 # Grammar loading
 

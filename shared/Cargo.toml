@@ -11,4 +11,5 @@ tree-sitter.workspace = true
 anyhow.workspace = true
 once_cell.workspace = true
 serde.workspace = true
+lsp-types.workspace = true
 grammar = {path = "../grammar"}

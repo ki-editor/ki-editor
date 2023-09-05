@@ -978,6 +978,8 @@ impl<T: Frontend> Screen<T> {
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
+        // TODO: should we wrap this in a transaction so that if one of the edit/operation fails, the whole transaction fails?
+        // Such that it won't leave the workspace in an half-edited messed up state
         for edit in workspace_edit.edits {
             let component = self.open_file(&edit.path, false)?;
             let dispatches = component
@@ -990,6 +992,14 @@ impl<T: Frontend> Screen<T> {
             let dispatches = component.borrow_mut().editor_mut().save()?;
 
             self.handle_dispatches(dispatches)?;
+        }
+        use crate::lsp::workspace_edit::ResourceOperation;
+        for operation in workspace_edit.resource_operations {
+            match operation {
+                ResourceOperation::Create(path) => self.add_path(path)?,
+                ResourceOperation::Rename { old, new } => self.move_file(old, new)?,
+                ResourceOperation::Delete(path) => self.delete_path(&path)?,
+            }
         }
         Ok(())
     }
@@ -1087,9 +1097,11 @@ impl<T: Frontend> Screen<T> {
         use std::fs;
         log::info!("move file from {} to {}", from.display(), to.display());
         self.add_path_parent(&to)?;
-        fs::rename(from, to.clone())?;
+        fs::rename(from.clone(), to.clone())?;
         self.layout.refresh_file_explorer(&self.working_directory)?;
-        self.layout.reveal_path_in_explorer(&to.try_into()?)?;
+        let to = to.try_into()?;
+        self.layout.reveal_path_in_explorer(&to)?;
+        self.lsp_manager.document_did_rename(from, to)?;
         Ok(())
     }
     fn add_path_parent(&self, path: &PathBuf) -> anyhow::Result<()> {

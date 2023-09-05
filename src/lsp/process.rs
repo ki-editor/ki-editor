@@ -115,6 +115,10 @@ enum FromEditor {
     RequestImplementation(RequestParams),
     RequestTypeDefinition(RequestParams),
     RequestDocumentSymbols(RequestParams),
+    WorkspaceDidRenameFiles {
+        old: CanonicalizedPath,
+        new: CanonicalizedPath,
+    },
 }
 
 pub struct LspServerProcessChannel {
@@ -278,6 +282,16 @@ impl LspServerProcessChannel {
             },
         ))
     }
+
+    pub(crate) fn document_did_rename(
+        &self,
+        old: CanonicalizedPath,
+        new: CanonicalizedPath,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::WorkspaceDidRenameFiles { old, new },
+        ))
+    }
 }
 
 impl LspServerProcess {
@@ -347,7 +361,21 @@ impl LspServerProcess {
                     workspace: Some(WorkspaceClientCapabilities {
                         apply_edit: Some(true),
                         workspace_edit: Some(WorkspaceEditClientCapabilities {
+                            document_changes: Some(true),
+                            resource_operations: Some(
+                                [
+                                    ResourceOperationKind::Rename,
+                                    ResourceOperationKind::Create,
+                                    ResourceOperationKind::Delete,
+                                ]
+                                .into_iter()
+                                .collect(),
+                            ),
                             ..WorkspaceEditClientCapabilities::default()
+                        }),
+                        file_operations: Some(WorkspaceFileOperationsClientCapabilities {
+                            did_rename: Some(true),
+                            ..Default::default()
                         }),
                         ..WorkspaceClientCapabilities::default()
                     }),
@@ -510,6 +538,9 @@ impl LspServerProcess {
                     }
                     FromEditor::RequestSignatureHelp(params) => {
                         self.text_document_signature_help(params)
+                    }
+                    FromEditor::WorkspaceDidRenameFiles { old, new } => {
+                        self.workspace_did_rename_files(old, new)
                     }
                 },
             }
@@ -970,6 +1001,20 @@ impl LspServerProcess {
                 text: None,
             },
         )
+    }
+
+    fn workspace_did_rename_files(
+        &mut self,
+        old: CanonicalizedPath,
+        new: CanonicalizedPath,
+    ) -> Result<(), anyhow::Error> {
+        self.send_notification::<lsp_notification!("workspace/didRenameFiles")>(RenameFilesParams {
+            files: [FileRename {
+                old_uri: old.display(),
+                new_uri: new.display(),
+            }]
+            .to_vec(),
+        })
     }
 
     fn text_document_hover(

@@ -137,10 +137,20 @@ impl LspManager {
         })
     }
 
+    pub fn document_did_rename(
+        &mut self,
+        old: CanonicalizedPath,
+        new: CanonicalizedPath,
+    ) -> anyhow::Result<()> {
+        self.invoke_channels(&old, "Failed to notify document did rename", |channel| {
+            channel.document_did_rename(old.clone(), new.clone())
+        })
+    }
     /// Open file can do one of the following:
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
+
     pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let Some(language) = language::from_path(&path) else { return Ok(()) };
         let Some(language_id) = language.id() else { return Ok(()) };

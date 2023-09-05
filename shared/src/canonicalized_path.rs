@@ -9,6 +9,17 @@ impl AsRef<Path> for CanonicalizedPath {
     }
 }
 
+impl TryFrom<lsp_types::Url> for CanonicalizedPath {
+    type Error = anyhow::Error;
+
+    fn try_from(value: lsp_types::Url) -> Result<Self, Self::Error> {
+        value
+            .to_file_path()
+            .map_err(|err| anyhow::anyhow!("{:?}", err))?
+            .try_into()
+    }
+}
+
 impl TryFrom<String> for CanonicalizedPath {
     type Error = anyhow::Error;
 
