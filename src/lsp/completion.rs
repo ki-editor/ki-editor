@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use lsp_types::CompletionItemKind;
+use shared::icons::get_icon_config;
 
 use crate::position::Position;
 
@@ -78,8 +79,18 @@ impl CompletionItem {
             edit: None,
         }
     }
+
     pub fn label(&self) -> String {
-        self.label.clone()
+        if let Some(kind) = self.kind {
+            let icon = get_icon_config()
+                .completion
+                .get(&format!("{:?}", kind))
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("({:?})", kind));
+            format!("{}  {}", icon, self.label,)
+        } else {
+            self.label.clone()
+        }
     }
 
     pub fn documentation(&self) -> Option<Documentation> {
