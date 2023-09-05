@@ -1004,7 +1004,7 @@ impl Editor {
         context: &mut Context,
     ) -> anyhow::Result<KeymapLegendConfig> {
         Ok(KeymapLegendConfig {
-            title: "Find by".to_string(),
+            title: "Find (current file)".to_string(),
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(
@@ -1032,6 +1032,13 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
+                    "h",
+                    "Git hunk",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::GitHunk,
+                    )),
+                ),
+                Keymap::new(
                     "f",
                     "Enter Find Mode",
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
@@ -1042,45 +1049,6 @@ impl Editor {
                             }),
                         },
                     )),
-                ),
-                Keymap::new(
-                    "g",
-                    "Global",
-                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Find Global".to_string(),
-                        owner_id: self.id(),
-                        keymaps: [
-                            Keymap::new(
-                                "a",
-                                "AST Grep",
-                                Dispatch::OpenGlobalSearchPrompt(SearchKind::AstGrep),
-                            ),
-                            Keymap::new(
-                                "c",
-                                "Current selection",
-                                Dispatch::GlobalSearch(Search {
-                                    kind: SearchKind::IgnoreCase,
-                                    search: self.current_selection()?,
-                                }),
-                            ),
-                            Keymap::new(
-                                "i",
-                                "Ignore case",
-                                Dispatch::OpenGlobalSearchPrompt(SearchKind::IgnoreCase),
-                            ),
-                            Keymap::new(
-                                "l",
-                                "Literal",
-                                Dispatch::OpenGlobalSearchPrompt(SearchKind::Literal),
-                            ),
-                            Keymap::new(
-                                "r",
-                                "Regex",
-                                Dispatch::OpenGlobalSearchPrompt(SearchKind::Regex),
-                            ),
-                        ]
-                        .to_vec(),
-                    }),
                 ),
                 Keymap::new(
                     "i",
@@ -1133,7 +1101,15 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(SelectionMode::Word)),
                 ),
             ]
-            .to_vec(),
+            .into_iter()
+            .chain(self.get_request_params().map(|params| {
+                Keymap::new(
+                    "s",
+                    "Symbols",
+                    Dispatch::RequestDocumentSymbols(params.clone()),
+                )
+            }))
+            .collect_vec(),
         })
     }
 
@@ -1282,7 +1258,7 @@ impl Editor {
 
     fn g_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Get".to_string(),
+            title: "Get (global)".to_string(),
             owner_id: self.id(),
             keymaps: self
                 .get_request_params()
@@ -1304,13 +1280,6 @@ impl Editor {
                             Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic),
                         ),
                         Keymap::new(
-                            "h",
-                            "Git hunk",
-                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                SelectionMode::GitHunk,
-                            )),
-                        ),
-                        Keymap::new(
                             "i",
                             "Implementation(s)",
                             Dispatch::RequestImplementations(params.clone()),
@@ -1321,17 +1290,54 @@ impl Editor {
                             Dispatch::RequestReferences(params.clone()),
                         ),
                         Keymap::new(
-                            "s",
-                            "Symbols",
-                            Dispatch::RequestDocumentSymbols(params.clone()),
-                        ),
-                        Keymap::new(
                             "t",
                             "Type Definition(s)",
                             Dispatch::RequestTypeDefinitions(params),
                         ),
                     ]
                     .into_iter()
+                    .chain(Some(Keymap::new(
+                        "f",
+                        "Find",
+                        Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                            title: "Find Global".to_string(),
+                            owner_id: self.id(),
+                            keymaps: [
+                                Keymap::new(
+                                    "a",
+                                    "AST Grep",
+                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::AstGrep),
+                                ),
+                                Keymap::new(
+                                    "i",
+                                    "Ignore case",
+                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::IgnoreCase),
+                                ),
+                                Keymap::new(
+                                    "l",
+                                    "Literal",
+                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::Literal),
+                                ),
+                                Keymap::new(
+                                    "r",
+                                    "Regex",
+                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::Regex),
+                                ),
+                            ]
+                            .into_iter()
+                            .chain(self.current_selection().ok().map(|selection| {
+                                Keymap::new(
+                                    "c",
+                                    "Current selection",
+                                    Dispatch::GlobalSearch(Search {
+                                        kind: SearchKind::IgnoreCase,
+                                        search: selection,
+                                    }),
+                                )
+                            }))
+                            .collect_vec(),
+                        }),
+                    )))
                     .chain(
                         [
                             ("g", "Git status", FilePickerKind::GitStatus),
