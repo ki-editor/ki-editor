@@ -12,6 +12,7 @@ use ropey::Rope;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Grid {
     pub rows: Vec<Vec<Cell>>,
+    pub width: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -166,7 +167,10 @@ impl Grid {
             cells.resize_with(dimension.width.into(), Cell::default);
             cells
         });
-        Grid { rows: cells }
+        Grid {
+            rows: cells,
+            width: dimension.width.into(),
+        }
     }
 
     pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
@@ -262,7 +266,7 @@ impl Grid {
     pub fn dimension(&self) -> Dimension {
         Dimension {
             height: self.rows.len() as u16,
-            width: self.rows[0].len() as u16,
+            width: self.width as u16,
         }
     }
 
@@ -312,6 +316,21 @@ impl Grid {
             .map(|line| line.replace('\n', " "))
             .collect::<Vec<String>>()
             .join("\n")
+    }
+
+    pub fn merge_vertical(self, bottom: Grid) -> Grid {
+        let mut top = self;
+        top.rows.extend(bottom.rows);
+        top
+    }
+
+    pub fn clamp_bottom(self, height: u16) -> Grid {
+        let mut grid = self;
+        let dimension = grid.dimension();
+        if dimension.height > height {
+            grid.rows.truncate(height as usize);
+        }
+        grid
     }
 }
 

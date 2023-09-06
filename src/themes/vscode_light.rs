@@ -18,7 +18,10 @@ pub const VSCODE_LIGHT: Theme = Theme {
             .background_color(hex!("#000000")),
         window_title: Style::new()
             .foreground_color(hex!("#ffffff"))
-            .background_color(hex!("#808080")),
+            .background_color(hex!("#505050")),
+        breadcrumbs: Style::new()
+            .foreground_color(hex!("#ffffff"))
+            .background_color(hex!("#909090")),
         jump_mark_odd: Style::new()
             .background_color(hex!("#B5485D"))
             .foreground_color(hex!("#ffffff")),

@@ -40,6 +40,13 @@ pub struct Buffer {
     decorations: Vec<Decoration>,
 }
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Line {
+    /// 0-based
+    pub line: usize,
+    pub content: String,
+}
+
 impl Buffer {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
@@ -98,6 +105,52 @@ impl Buffer {
             .filter(|m| m.to_lowercase().contains(&substring.to_lowercase()))
             .unique()
             .collect()
+    }
+
+    pub fn get_parent_lines(&self, line: usize) -> anyhow::Result<Vec<Line>> {
+        let char_index = self.line_to_char(line)?;
+        let node = self.get_nearest_node_after_char(char_index);
+        fn get_parent_lines(
+            buffer: &Buffer,
+            node: Option<tree_sitter::Node>,
+            lines: Vec<Line>,
+        ) -> anyhow::Result<Vec<Line>> {
+            let Some(node) = node else {return Ok(lines)};
+            let start_position = buffer.byte_to_position(node.start_byte())?;
+
+            let Some(line) = buffer
+                    .get_line_by_line_index(start_position.line)
+                     else {return Ok(lines)};
+            let lines = lines
+                .into_iter()
+                .chain([Line {
+                    line: start_position.line,
+                    content: line.to_string(),
+                }])
+                .collect_vec();
+            get_parent_lines(buffer, node.parent(), lines)
+        }
+        let parent_lines = get_parent_lines(&self, node, Vec::new())?;
+        Ok(parent_lines
+            .into_iter()
+            // Remove lines that contains no alphabet
+            .filter(|line| line.content.chars().any(|c| c.is_alphanumeric()))
+            .map(|line| Line {
+                line: line.line,
+                content: line.content.trim_end().to_owned(),
+            })
+            .unique()
+            // Unique by their indentation, this assumes parent of different hieararchies has different indentations
+            .unique_by(|line| {
+                line.content
+                    .chars()
+                    .take_while(|c| c.is_whitespace())
+                    .count()
+            })
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .collect_vec())
     }
 
     fn get_rope_and_tree(language: tree_sitter::Language, text: &str) -> (Rope, Tree) {
@@ -616,9 +669,45 @@ pub struct Patch {
 
 #[cfg(test)]
 mod test_buffer {
+    use itertools::Itertools;
+
     use crate::{lsp::diagnostic::Diagnostic, position::Position};
 
     use super::Buffer;
+
+    #[test]
+    fn get_parent_lines() {
+        let buffer = Buffer::new(
+            shared::language::from_extension("yaml")
+                .unwrap()
+                .tree_sitter_language()
+                .unwrap(),
+            "
+- spongebob
+- who:
+  - lives
+  - in:
+    - a
+    - pineapple
+  - under
+",
+        );
+        let actual = buffer
+            .get_parent_lines(6)
+            .unwrap()
+            .into_iter()
+            .map(|line| line.content)
+            .collect_vec()
+            .join("\n");
+        let expected = "
+- who:
+  - in:
+    - pineapple
+"
+        .trim()
+        .to_string();
+        pretty_assertions::assert_eq!(actual, expected)
+    }
 
     #[test]
     fn find_words() {

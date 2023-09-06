@@ -1,4 +1,5 @@
 use crate::{
+    buffer::Line,
     char_index_range::CharIndexRange,
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
@@ -102,6 +103,13 @@ impl Component for Editor {
                 .join(""),
             width as usize,
         );
+        let format_line_number = |line_number: usize| {
+            format!(
+                "{: >width$}",
+                line_number.to_string(),
+                width = max_line_number_len as usize
+            )
+        };
 
         let line_numbers_grid = (0..height.min(len_lines.saturating_sub(scroll_offset))).fold(
             Grid::new(Dimension {
@@ -110,11 +118,7 @@ impl Component for Editor {
             }),
             |grid, index| {
                 let line_number = index + scroll_offset + 1;
-                let line_number_str = format!(
-                    "{: >width$}",
-                    line_number.to_string(),
-                    width = max_line_number_len as usize
-                );
+                let line_number_str = format_line_number(line_number as usize);
 
                 if let Ok(position) = wrapped_lines.calibrate(Position {
                     line: (line_number.saturating_sub(scroll_offset).saturating_sub(1)) as usize,
@@ -342,6 +346,23 @@ impl Component for Editor {
             .get_cursor_position()
             .ok()
             .map(|position| position.move_up(scroll_offset as usize));
+        let hidden_parent_lines_grid = {
+            let hidden_parent_lines = self.get_hidden_parent_lines().unwrap_or_default();
+            let height = hidden_parent_lines.len() as u16;
+            hidden_parent_lines.into_iter().enumerate().fold(
+                Grid::new(Dimension {
+                    width: editor.dimension().width,
+                    height,
+                }),
+                |grid, (index, line)| {
+                    grid.set_line(
+                        index,
+                        &format!("{}│{}", format_line_number(line.line + 1), line.content),
+                        theme.ui.breadcrumbs,
+                    )
+                },
+            )
+        };
 
         GetGridResult {
             cursor_position: {
@@ -368,9 +389,17 @@ impl Component for Editor {
                     })
                     .map(|position| position.move_right(left_width))
             },
-            grid: line_numbers_grid
-                .merge_horizontal(line_numbers_separator_grid)
-                .merge_horizontal(grid.apply_cell_updates(updates)),
+            grid: {
+                let bottom_height =
+                    height.saturating_sub(hidden_parent_lines_grid.dimension().height);
+
+                let bottom = line_numbers_grid
+                    .merge_horizontal(line_numbers_separator_grid)
+                    .merge_horizontal(grid.apply_cell_updates(updates))
+                    .clamp_bottom(bottom_height);
+
+                hidden_parent_lines_grid.merge_vertical(bottom)
+            },
         }
     }
 
@@ -536,6 +565,14 @@ pub enum Movement {
 }
 
 impl Editor {
+    pub fn get_hidden_parent_lines(&self) -> anyhow::Result<Vec<Line>> {
+        let position = self.get_cursor_position()?;
+        let parent_lines = self.buffer().get_parent_lines(position.line)?;
+        Ok(parent_lines
+            .into_iter()
+            .filter(|line| line.line < self.scroll_offset as usize)
+            .collect_vec())
+    }
     pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
