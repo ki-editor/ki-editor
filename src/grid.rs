@@ -21,6 +21,7 @@ pub struct Cell {
     pub foreground_color: Color,
     pub background_color: Color,
     pub undercurl: Option<Color>,
+    pub is_cursor: bool,
 }
 
 impl Cell {
@@ -33,6 +34,7 @@ impl Cell {
             foreground_color: hex!("#ffffff"),
             background_color: hex!("#ffffff"),
             undercurl: None,
+            is_cursor: false,
         }
     }
 
@@ -48,6 +50,7 @@ impl Cell {
                 .background_color
                 .unwrap_or(self.background_color),
             undercurl: update.style.undercurl.or(self.undercurl),
+            is_cursor: update.is_cursor || self.is_cursor,
         }
     }
 }
@@ -59,6 +62,7 @@ impl Default for Cell {
             foreground_color: hex!("#ffffff"),
             background_color: hex!("#ffffff"),
             undercurl: None,
+            is_cursor: false,
         }
     }
 }
@@ -67,6 +71,7 @@ pub struct CellUpdate {
     pub position: Position,
     pub symbol: Option<String>,
     pub style: Style,
+    pub is_cursor: bool,
 }
 
 impl CellUpdate {
@@ -75,6 +80,7 @@ impl CellUpdate {
             position,
             symbol: None,
             style: Style::default(),
+            is_cursor: false,
         }
     }
 
@@ -123,6 +129,10 @@ impl CellUpdate {
 
     pub fn style(self, style: Style) -> CellUpdate {
         CellUpdate { style, ..self }
+    }
+
+    pub fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
+        CellUpdate { is_cursor, ..self }
     }
 }
 
@@ -331,6 +341,18 @@ impl Grid {
             grid.rows.truncate(height as usize);
         }
         grid
+    }
+
+    pub fn get_cursor_position(&self) -> Option<Position> {
+        self.rows.iter().enumerate().find_map(|(line, row)| {
+            row.iter().enumerate().find_map(|(column, cell)| {
+                if cell.is_cursor {
+                    Some(Position { line, column })
+                } else {
+                    None
+                }
+            })
+        })
     }
 }
 

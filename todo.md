@@ -165,7 +165,6 @@
 - [] la should open cursor at end of line, not beginning of next line
 - [] fs watcher, watch for file changes
 - [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
-- [] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(title): show Language
@@ -173,11 +172,14 @@
 - [] feat(multicursor): split
 - [] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 - [] fix: log if formatting failed
+- [] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [] fix: cannot go to last line
 - [] fix: cannot enter new line in new file
 - [] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
 - [] feat(suggestive_editor): text completion
-- [] fix: cursor not wrapped properly
+- [x] fix: cursor not wrapped properly
+- [] feat(render): breadcrumb, show lines of ancestors of the current node that are out of bound
+- [] feat(syntax-highlight-queries): take from the repos, don't store it
 
 # Grammar loading
 

@@ -4,6 +4,7 @@ use crate::position::Position;
 
 #[derive(Debug, Clone, Default)]
 pub struct WrappedLines {
+    width: usize,
     lines: Vec<WrappedLine>,
 }
 
@@ -25,7 +26,7 @@ impl WrappedLines {
             .ok_or(CalibrationError::LineOutOfRange)?;
 
         let new_position = baseline
-            .get_position(position.column)
+            .get_position(position.column, self.width)
             .ok_or(CalibrationError::ColumnOutOfRange)?;
 
         let vertical_offset = {
@@ -59,17 +60,20 @@ impl WrappedLine {
             .collect()
     }
 
-    fn get_position(&self, column: usize) -> Option<Position> {
-        // If this line is only made up of a newline character
-        if self.primary.is_empty() && column == 0 {
-            Some(Position {
-                line: self.line_number,
-                column: 0,
-            })
-        } else if column < self.primary.len() {
+    fn get_position(&self, column: usize, width: usize) -> Option<Position> {
+        // If the column is within the primary line
+        // or if the line is not wrapped and the column is within the width
+        if column < self.primary.len() || self.wrapped.is_empty() && column < width {
             Some(Position {
                 line: self.line_number,
                 column,
+            })
+        }
+        // If the column is longer than this line but it's wrapped column is within the width
+        else if column >= self.len() && column - self.len() < width {
+            Some(Position {
+                line: self.line_number + self.wrapped.len(),
+                column: column - self.len() + self.last_line().len(),
             })
         } else {
             let mut column = column - self.primary.len();
@@ -85,9 +89,17 @@ impl WrappedLine {
             None
         }
     }
+
+    fn len(&self) -> usize {
+        self.primary.len() + self.wrapped.iter().map(|line| line.len()).sum::<usize>()
+    }
+
+    fn last_line(&self) -> String {
+        self.wrapped.last().unwrap_or(&self.primary).to_string()
+    }
 }
 
-pub fn soft_wrap(text: &str, line_length: usize) -> WrappedLines {
+pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     let re = Regex::new(r"\b").unwrap();
     let lines = text
         .lines()
@@ -95,7 +107,7 @@ pub fn soft_wrap(text: &str, line_length: usize) -> WrappedLines {
         .filter_map(|(line_number, line)| {
             let wrapped_lines: Vec<String> = re.split(line).fold(vec![], |mut lines, word| {
                 match lines.last_mut() {
-                    Some(last_line) if last_line.len() + word.len() <= line_length => {
+                    Some(last_line) if last_line.len() + word.len() <= width => {
                         last_line.push_str(word);
                     }
                     _ => lines.push(word.to_string()),
@@ -110,7 +122,7 @@ pub fn soft_wrap(text: &str, line_length: usize) -> WrappedLines {
             })
         })
         .collect();
-    WrappedLines { lines }
+    WrappedLines { lines, width }
 }
 
 #[cfg(test)]
@@ -177,6 +189,38 @@ mod test_soft_wrap {
             assert_eq!(
                 wrapped_lines.calibrate(Position::new(0, 0)),
                 Ok(Position::new(0, 0))
+            );
+        }
+
+        #[test]
+        /// This case is necesarry for the cursor to be able to move to the end of the line in
+        /// Insert mode
+        fn column_longer_than_line_but_within_width_without_wrap() {
+            let content = "hey";
+            let wrapped_lines = soft_wrap(content, 5);
+
+            assert_eq!(
+                // Position one column after "hey"
+                wrapped_lines.calibrate(Position::new(0, 3)),
+                Ok(Position::new(0, 3))
+            );
+        }
+
+        #[test]
+        fn column_longer_than_line_but_within_width_with_wrap() {
+            let content = "hey jude";
+            let wrapped_lines = soft_wrap(content, 5);
+
+            assert_eq!(
+                // Position one column before "jude"
+                wrapped_lines.calibrate(Position::new(0, 4)),
+                Ok(Position::new(1, 0))
+            );
+
+            assert_eq!(
+                // Position one column after "jude"
+                wrapped_lines.calibrate(Position::new(0, 8)),
+                Ok(Position::new(1, 4))
             );
         }
     }

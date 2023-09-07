@@ -169,6 +169,7 @@ impl Component for Editor {
                     background_color: theme.ui.text.background_color.unwrap_or(hex!("#ffffff")),
                     foreground_color: theme.ui.text.foreground_color.unwrap_or(hex!("#000000")),
                     undercurl: None,
+                    is_cursor: false,
                 };
             }
         }
@@ -206,6 +207,13 @@ impl Component for Editor {
         let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
             range_to_cell_update(&buffer, range, theme.ui.primary_selection_anchor)
         });
+
+        let primary_selection_primary_cursor = char_index_to_cell_update(
+            &buffer,
+            selection.to_char_index(&editor.cursor_direction),
+            Style::default(),
+        )
+        .map(|cell_update| cell_update.set_is_cursor(true));
 
         let primary_selection_secondary_cursor = char_index_to_cell_update(
             &buffer,
@@ -319,6 +327,7 @@ impl Component for Editor {
             .collect_vec();
         let updates = vec![]
             .into_iter()
+            .chain(primary_selection_primary_cursor)
             .chain(bookmarks)
             .chain(primary_selection)
             .chain(primary_selection_anchors)
@@ -364,42 +373,22 @@ impl Component for Editor {
             )
         };
 
+        let grid = {
+            let bottom_height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
+
+            let bottom = line_numbers_grid
+                .merge_horizontal(line_numbers_separator_grid)
+                .merge_horizontal(grid.apply_cell_updates(updates))
+                .clamp_bottom(bottom_height);
+
+            hidden_parent_lines_grid.merge_vertical(bottom)
+        };
+
+        let cursor_position = grid.get_cursor_position();
+
         GetGridResult {
-            cursor_position: {
-                cursor_position
-                    .and_then(|position| {
-                        // Need to move the cursor left by one to account for
-                        // the insert mode cursor position at the last column of the current line
-                        // which exceeds the columns of the current line by one in
-                        // insert mode
-                        let column_non_zero = position.column > 0;
-                        let position = if column_non_zero {
-                            position.move_left(1)
-                        } else {
-                            position
-                        };
-                        let position = wrapped_lines.calibrate(position).ok()?;
-                        Some(if column_non_zero {
-                            // Move the cursor right by one to account for the
-                            // move left by one above
-                            position.move_right(1)
-                        } else {
-                            position
-                        })
-                    })
-                    .map(|position| position.move_right(left_width))
-            },
-            grid: {
-                let bottom_height =
-                    height.saturating_sub(hidden_parent_lines_grid.dimension().height);
-
-                let bottom = line_numbers_grid
-                    .merge_horizontal(line_numbers_separator_grid)
-                    .merge_horizontal(grid.apply_cell_updates(updates))
-                    .clamp_bottom(bottom_height);
-
-                hidden_parent_lines_grid.merge_vertical(bottom)
-            },
+            cursor_position,
+            grid,
         }
     }
 
