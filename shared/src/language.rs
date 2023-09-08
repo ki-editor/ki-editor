@@ -23,7 +23,7 @@ impl LanguageId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Command(pub &'static str, pub &'static [&'static str]);
 impl Command {
     pub const fn default() -> Command {
@@ -31,7 +31,7 @@ impl Command {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Language {
     pub extensions: &'static [&'static str],
     pub lsp_language_id: Option<LanguageId>,
@@ -41,7 +41,7 @@ pub struct Language {
     pub formatter_command: Option<Command>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LspCommand {
     pub command: Command,
     pub initialization_options: Option<&'static str>,
@@ -68,7 +68,7 @@ impl Language {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrammarConfig {
     pub id: &'static str,
     pub url: &'static str,

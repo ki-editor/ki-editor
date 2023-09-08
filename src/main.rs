@@ -47,14 +47,20 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     // run_integrated_terminal(24, 80).unwrap();
     // return;
 
-    let screen = Screen::new(
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
+    let mut screen = Screen::from_channel(
         Arc::new(Mutex::new(Crossterm::new())),
         CanonicalizedPath::try_from(".")?,
+        sender,
+        receiver,
     )?;
+
+    screen.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = screen.sender();
 
-    let join_handle = std::thread::spawn(move || loop {
+    let crossterm_join_handle = std::thread::spawn(move || loop {
         if let Err(_) = crossterm::event::read()
             .map_err(|error| anyhow::anyhow!("{:?}", error))
             .and_then(|event| Ok(sender.send(ScreenMessage::Event(event.into()))?))
@@ -62,11 +68,12 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
             break;
         }
     });
+
     screen
         .run(path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
 
-    join_handle.join().unwrap();
+    crossterm_join_handle.join().unwrap();
 
     println!("Goodbye!");
 

@@ -6,7 +6,7 @@ use crate::{
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
-    syntax_highlight::{self, HighlighedSpan},
+    syntax_highlight::{HighlighedSpan, HighlighedSpans},
     themes::Theme,
     utils::find_previous,
 };
@@ -17,10 +17,7 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
-use std::{
-    ops::Range,
-    sync::{Arc, RwLock},
-};
+use std::ops::Range;
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -34,7 +31,7 @@ pub struct Buffer {
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
     diagnostics: Vec<Diagnostic>,
-    highlighted_spans: Arc<RwLock<Vec<HighlighedSpan>>>,
+    highlighted_spans: HighlighedSpans,
     theme: Theme,
     bookmarks: Vec<CharIndexRange>,
     decorations: Vec<Decoration>,
@@ -62,12 +59,16 @@ impl Buffer {
             redo_patches: Vec::new(),
             path: None,
             diagnostics: Vec::new(),
-            highlighted_spans: Arc::new(RwLock::new(Vec::new())),
+            highlighted_spans: HighlighedSpans::default(),
             theme: Theme::default(),
             bookmarks: Vec::new(),
             decorations: Vec::new(),
         }
     }
+    pub fn content(&self) -> String {
+        self.rope.to_string()
+    }
+
     pub fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
@@ -206,14 +207,12 @@ impl Buffer {
             .unwrap_or(false)
     }
 
+    pub fn update_highlighted_spans(&mut self, spans: HighlighedSpans) {
+        self.highlighted_spans = spans;
+    }
+
     pub fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language, text);
-
-        // TODO: recompute hunks
-
-        self.recompute_highlighted_spans().unwrap_or_else(|error| {
-            log::info!("Error recomputing higlighted spans = {:#?}", error)
-        });
     }
 
     pub fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -484,7 +483,6 @@ impl Buffer {
         buffer.path = Some(path.clone());
         buffer.language = language;
 
-        buffer.recompute_highlighted_spans()?;
         Ok(buffer)
     }
 
@@ -494,26 +492,7 @@ impl Buffer {
         if let Some(tree) = parser.parse(&self.rope.to_string(), None) {
             self.tree = tree
         }
-        self.recompute_highlighted_spans()?;
 
-        Ok(())
-    }
-
-    fn recompute_highlighted_spans(&mut self) -> anyhow::Result<()> {
-        if let Some(language) = &self.language {
-            let mutex = self.highlighted_spans.clone();
-            let string = self.rope.to_string();
-            let language = language.clone();
-
-            // Run the syntax highlighting in a separate thread,
-            // because it can be slow for large files
-            std::thread::spawn(move || -> anyhow::Result<()> {
-                let mut data = mutex.write().unwrap();
-                *data =
-                    syntax_highlight::highlight(language, &crate::themes::VSCODE_LIGHT, &string)?;
-                Ok(())
-            });
-        }
         Ok(())
     }
 
@@ -580,9 +559,7 @@ impl Buffer {
     }
 
     pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
-        let data = self.highlighted_spans.try_read();
-        data.map(|data| (*data).clone())
-            .unwrap_or_else(|_| Vec::new())
+        self.highlighted_spans.0.clone()
     }
 
     pub fn language(&self) -> Option<Language> {

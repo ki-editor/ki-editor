@@ -368,7 +368,7 @@ impl Grid {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct Style {
     pub foreground_color: Option<Color>,
     pub background_color: Option<Color>,

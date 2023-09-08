@@ -1,7 +1,7 @@
 use event::event::Event;
 use itertools::Itertools;
 use my_proc_macros::key;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -34,6 +34,8 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
+    syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
+    themes::VSCODE_LIGHT,
 };
 
 pub struct Screen<T: Frontend> {
@@ -59,6 +61,8 @@ pub struct Screen<T: Frontend> {
     layout: Layout,
 
     frontend: Arc<Mutex<T>>,
+
+    syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 }
 
 impl<T: Frontend> Screen<T> {
@@ -88,8 +92,13 @@ impl<T: Frontend> Screen<T> {
             layout: Layout::new(dimension, &working_directory)?,
             working_directory,
             frontend,
+            syntax_highlight_request_sender: None,
         };
         Ok(screen)
+    }
+
+    pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
+        self.syntax_highlight_request_sender = Some(sender);
     }
 
     pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
@@ -116,6 +125,12 @@ impl<T: Frontend> Screen<T> {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
                 ScreenMessage::QuitAll => Ok(true),
+                ScreenMessage::SyntaxHighlightResponse {
+                    component_id,
+                    highlighted_spans,
+                } => self
+                    .update_highlighted_spans(component_id, highlighted_spans)
+                    .map(|_| false),
             }
             .unwrap_or_else(|e| {
                 self.show_info("ERROR", vec![e.to_string()]);
@@ -377,8 +392,18 @@ impl<T: Frontend> Screen<T> {
             Dispatch::RequestDocumentSymbols(params) => {
                 self.lsp_manager.request_document_symbols(params)?;
             }
-            Dispatch::DocumentDidChange { path, content } => {
-                self.lsp_manager.document_did_change(path, content)?;
+            Dispatch::DocumentDidChange {
+                component_id,
+                path,
+                content,
+                language,
+            } => {
+                if let Some(language) = language {
+                    self.request_syntax_highlight(component_id, language, content.clone())?;
+                }
+                if let Some(path) = path {
+                    self.lsp_manager.document_did_change(path, content)?;
+                }
             }
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
@@ -724,18 +749,24 @@ impl<T: Frontend> Screen<T> {
         } else {
         }
 
-        let buffer = Rc::new(RefCell::new(Buffer::from_path(entry_path)?));
+        let buffer = Buffer::from_path(entry_path)?;
+        let language = buffer.language();
+        let content = buffer.content();
+        let buffer = Rc::new(RefCell::new(buffer));
         self.buffers.push(buffer.clone());
-        let component = Rc::new(RefCell::new(SuggestiveEditor::from_buffer(
-            buffer,
-            SuggestiveEditorFilter::CurrentWord,
-        )));
+        let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
+        let component_id = editor.id();
+        let component = Rc::new(RefCell::new(editor));
 
         if focus_editor {
             self.layout
                 .add_and_focus_suggestive_editor(component.clone());
         } else {
             self.layout.add_suggestive_editor(component.clone());
+        }
+
+        if let Some(language) = language {
+            self.request_syntax_highlight(component_id, language, content)?;
         }
 
         self.update_component_diagnotics(
@@ -745,9 +776,7 @@ impl<T: Frontend> Screen<T> {
                 .cloned()
                 .unwrap_or_default(),
         );
-
         self.lsp_manager.open_file(entry_path.clone())?;
-
         Ok(component)
     }
 
@@ -1124,6 +1153,32 @@ impl<T: Frontend> Screen<T> {
 
         Ok(())
     }
+
+    fn update_highlighted_spans(
+        &self,
+        component_id: ComponentId,
+        highlighted_spans: HighlighedSpans,
+    ) -> Result<(), anyhow::Error> {
+        self.layout
+            .update_highlighted_spans(component_id, highlighted_spans)
+    }
+
+    fn request_syntax_highlight(
+        &self,
+        component_id: ComponentId,
+        language: Language,
+        content: String,
+    ) -> anyhow::Result<()> {
+        if let Some(sender) = &self.syntax_highlight_request_sender {
+            sender.send(SyntaxHighlightRequest {
+                component_id,
+                language,
+                source_code: content,
+                theme: VSCODE_LIGHT,
+            })?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1175,8 +1230,10 @@ pub enum Dispatch {
         new_name: String,
     },
     DocumentDidChange {
-        path: CanonicalizedPath,
+        component_id: ComponentId,
+        path: Option<CanonicalizedPath>,
         content: String,
+        language: Option<Language>,
     },
     DocumentDidSave {
         path: CanonicalizedPath,
@@ -1250,4 +1307,8 @@ pub enum ScreenMessage {
     LspNotification(LspNotification),
     Event(Event),
     QuitAll,
+    SyntaxHighlightResponse {
+        component_id: ComponentId,
+        highlighted_spans: HighlighedSpans,
+    },
 }

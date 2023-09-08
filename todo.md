@@ -163,7 +163,7 @@
 - [] refactor(buffer): hide rope
 - [] fix failing test cases
 - [] fix(signature-help): cannot be closed by pressing esc key
-- [] fix(syntax-highlighting): flashing during editing
+- [x] fix(syntax-highlighting): flashing during editing
 - [] file explorer (integrate with LSP)
 - [] fix: paste from clipboard does not work properly if contains newline
 - [] la should open cursor at end of line, not beginning of next line

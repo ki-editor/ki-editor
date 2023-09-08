@@ -394,6 +394,26 @@ impl Layout {
     pub fn open_file_explorer(&mut self) {
         self.file_explorer_open = true
     }
+
+    pub fn update_highlighted_spans(
+        &self,
+        component_id: ComponentId,
+        highlighted_spans: crate::syntax_highlight::HighlighedSpans,
+    ) -> Result<(), anyhow::Error> {
+        let component = self
+            .background_suggestive_editors
+            .iter()
+            .find(|component| component.borrow().id() == component_id)
+            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?;
+
+        let mut component = component.borrow_mut();
+        component
+            .editor_mut()
+            .buffer_mut()
+            .update_highlighted_spans(highlighted_spans);
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

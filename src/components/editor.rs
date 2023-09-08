@@ -1011,14 +1011,12 @@ impl Editor {
     }
 
     pub fn get_document_did_change_dispatch(&mut self) -> Vec<Dispatch> {
-        if let Some(path) = self.buffer().path() {
-            vec![Dispatch::DocumentDidChange {
-                path,
-                content: self.buffer().rope().to_string(),
-            }]
-        } else {
-            vec![]
-        }
+        vec![Dispatch::DocumentDidChange {
+            component_id: self.id(),
+            path: self.buffer().path(),
+            content: self.buffer().rope().to_string(),
+            language: self.buffer().language(),
+        }]
     }
 
     fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
