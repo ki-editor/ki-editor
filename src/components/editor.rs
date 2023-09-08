@@ -1438,11 +1438,8 @@ impl Editor {
                     match &self.mode {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
                         Mode::Insert => self.handle_insert_mode(key_event),
-                        Mode::Kill => self.handle_delete_mode(context, key_event),
-                        Mode::MultiCursor => {
-                            self.handle_multi_cursor_mode(key_event)?;
-                            Ok(Vec::new())
-                        }
+                        Mode::Kill => self.handle_kill_mode(context, key_event),
+                        Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
                         Mode::ScrollPage => self.handle_scroll_page_mode(context, key_event),
                         Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
@@ -1674,6 +1671,8 @@ impl Editor {
                 self.selection_set.mode.clone(),
             ),
             Mode::Exchange => self.exchange(movement),
+            Mode::Kill => self.kill(movement),
+            Mode::MultiCursor => self.add_cursor(&movement).map(|_| Vec::new()),
             _ => Ok(Vec::new()),
         }
     }
@@ -2622,7 +2621,7 @@ impl Editor {
         start as usize..end
     }
 
-    fn handle_delete_mode(
+    fn handle_kill_mode(
         &mut self,
         context: &mut Context,
         key_event: KeyEvent,
@@ -2632,7 +2631,7 @@ impl Editor {
                 self.enter_normal_mode()?;
                 Ok(Vec::new())
             }
-            key!("d") => {
+            key!("k") => {
                 let dispatches = self.kill(Movement::Current)?;
                 self.enter_normal_mode()?;
                 Ok(dispatches)
@@ -2643,7 +2642,11 @@ impl Editor {
         }
     }
 
-    fn handle_multi_cursor_mode(&mut self, key_event: KeyEvent) -> Result<(), anyhow::Error> {
+    fn handle_multi_cursor_mode(
+        &mut self,
+        context: &mut Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
             key!("a") => self.add_cursor_to_all_selections(),
@@ -2652,8 +2655,9 @@ impl Editor {
             key!("n") => self.add_cursor(&Movement::Next),
             key!("o") => self.only_current_cursor(),
             key!("p") => self.add_cursor(&Movement::Previous),
-            _ => Ok(()),
-        }
+            other => return self.handle_normal_mode(context, other),
+        }?;
+        Ok(Vec::new())
     }
 
     fn delete_primary_cursor(&mut self) -> Result<(), anyhow::Error> {
