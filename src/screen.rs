@@ -16,7 +16,7 @@ use std::{
 use crate::{
     buffer::Buffer,
     components::{
-        component::{Component, ComponentId, GetGridResult},
+        component::{Component, ComponentId, Cursor, GetGridResult},
         editor::{DispatchEditor, Movement},
         keymap_legend::{Keymap, KeymapLegendConfig},
         prompt::{Prompt, PromptConfig},
@@ -193,7 +193,7 @@ impl<T: Frontend> Screen<T> {
         let grid = Grid::new(self.layout.terminal_dimension());
 
         // Render every window
-        let (grid, cursor_point) = self
+        let (grid, cursor) = self
             .components()
             .into_iter()
             .map(|component| {
@@ -209,24 +209,24 @@ impl<T: Frontend> Screen<T> {
                     .map(|diagnostics| diagnostics.as_slice())
                     .unwrap_or(&[]);
 
-                let GetGridResult {
-                    grid,
-                    cursor_position,
-                } = component.get_grid(&self.context.theme, diagnostics);
+                let GetGridResult { grid, cursor } =
+                    component.get_grid(&self.context.theme, diagnostics);
                 let focused_component_id = self.layout.focused_component_id();
                 let cursor_position = if focused_component_id
                     .map(|focused_component_id| component.id() == focused_component_id)
                     .unwrap_or(false)
                 {
-                    if let Some(cursor_position) = cursor_position {
+                    if let Some(cursor) = cursor {
+                        let cursor_position = cursor.position();
                         // If cursor position is not in view
                         if cursor_position.line >= (rectangle.dimension().height) as usize {
                             None
                         } else {
-                            Some(Position::new(
+                            let calibrated_position = Position::new(
                                 cursor_position.line + rectangle.origin.line,
                                 cursor_position.column + rectangle.origin.column,
-                            ))
+                            );
+                            Some(cursor.set_position(calibrated_position))
                         }
                     } else {
                         None
@@ -289,7 +289,7 @@ impl<T: Frontend> Screen<T> {
             grid.set_line(0, &title, self.context.theme.ui.global_title)
         };
 
-        self.render_grid(grid, cursor_point)?;
+        self.render_grid(grid, cursor)?;
 
         Ok(())
     }
@@ -304,15 +304,11 @@ impl<T: Frontend> Screen<T> {
         Some(branch.to_string())
     }
 
-    fn render_grid(
-        &mut self,
-        grid: Grid,
-        cursor_position: Option<Position>,
-    ) -> Result<(), anyhow::Error> {
+    fn render_grid(&mut self, grid: Grid, cursor: Option<Cursor>) -> Result<(), anyhow::Error> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.hide_cursor()?;
         frontend.render_grid(grid)?;
-        if let Some(position) = cursor_position {
+        if let Some(position) = cursor {
             frontend.show_cursor(&position)?;
         }
 

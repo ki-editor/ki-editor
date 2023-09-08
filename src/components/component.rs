@@ -13,7 +13,28 @@ use super::editor::Editor;
 //
 pub struct GetGridResult {
     pub grid: Grid,
-    pub cursor_position: Option<Position>,
+    pub cursor: Option<Cursor>,
+}
+
+pub struct Cursor {
+    position: Position,
+    style: crossterm::cursor::SetCursorStyle,
+}
+impl Cursor {
+    pub fn style(&self) -> &crossterm::cursor::SetCursorStyle {
+        &self.style
+    }
+    pub fn position(&self) -> &Position {
+        &self.position
+    }
+
+    pub fn new(position: Position, style: crossterm::cursor::SetCursorStyle) -> Cursor {
+        Cursor { position, style }
+    }
+
+    pub fn set_position(self, position: Position) -> Cursor {
+        Cursor { position, ..self }
+    }
 }
 
 pub trait Component: Any + AnyComponent {

@@ -1,6 +1,7 @@
 use crate::{
     buffer::Line,
     char_index_range::CharIndexRange,
+    components::component::Cursor,
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
     screen::{FilePickerKind, RequestParams},
@@ -215,11 +216,15 @@ impl Component for Editor {
         )
         .map(|cell_update| cell_update.set_is_cursor(true));
 
-        let primary_selection_secondary_cursor = char_index_to_cell_update(
-            &buffer,
-            selection.to_char_index(&editor.cursor_direction.reverse()),
-            theme.ui.primary_selection_secondary_cursor,
-        );
+        let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
+            None
+        } else {
+            char_index_to_cell_update(
+                &buffer,
+                selection.to_char_index(&editor.cursor_direction.reverse()),
+                theme.ui.primary_selection_secondary_cursor,
+            )
+        };
 
         let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
             range_to_cell_update(
@@ -348,13 +353,6 @@ impl Component for Editor {
             })
             .collect::<Vec<_>>();
 
-        let left_width =
-            line_numbers_grid.dimension().width + line_numbers_separator_grid.dimension().width;
-
-        let cursor_position = self
-            .get_cursor_position()
-            .ok()
-            .map(|position| position.move_up(scroll_offset as usize));
         let hidden_parent_lines_grid = {
             let hidden_parent_lines = self.get_hidden_parent_lines().unwrap_or_default();
             let height = hidden_parent_lines.len() as u16;
@@ -387,7 +385,16 @@ impl Component for Editor {
         let cursor_position = grid.get_cursor_position();
 
         GetGridResult {
-            cursor_position,
+            cursor: cursor_position.map(|position| {
+                Cursor::new(
+                    position,
+                    if self.mode == Mode::Insert {
+                        crossterm::cursor::SetCursorStyle::BlinkingBar
+                    } else {
+                        crossterm::cursor::SetCursorStyle::BlinkingBlock
+                    },
+                )
+            }),
             grid,
         }
     }

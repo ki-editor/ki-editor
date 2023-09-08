@@ -1,6 +1,6 @@
 #! #[cfg(test)]
 
-use crate::grid::Grid;
+use crate::{components::component::Cursor, grid::Grid};
 #[derive(Clone)]
 pub struct MockFrontend {
     grid: Option<Grid>,
@@ -38,7 +38,7 @@ impl super::frontend::Frontend for MockFrontend {
         Ok(())
     }
 
-    fn show_cursor(&mut self, _position: &crate::position::Position) -> anyhow::Result<()> {
+    fn show_cursor(&mut self, _: &Cursor) -> anyhow::Result<()> {
         Ok(())
     }
 

@@ -1,4 +1,4 @@
-use crate::grid::Grid;
+use crate::{components::component::Cursor, grid::Grid};
 
 use super::frontend::Frontend;
 
@@ -59,11 +59,14 @@ impl Frontend for Crossterm {
         Ok(())
     }
 
-    fn show_cursor(&mut self, position: &crate::position::Position) -> anyhow::Result<()> {
-        queue!(self.stdout, Show, SetCursorStyle::BlinkingBlock)?;
+    fn show_cursor(&mut self, cursor: &Cursor) -> anyhow::Result<()> {
+        queue!(self.stdout, Show, cursor.style())?;
         execute!(
             self.stdout,
-            MoveTo(position.column as u16, position.line as u16)
+            MoveTo(
+                cursor.position().column as u16,
+                cursor.position().line as u16
+            )
         )?;
         Ok(())
     }

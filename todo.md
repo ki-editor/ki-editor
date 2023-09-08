@@ -107,6 +107,10 @@
 - [x] feat: command mode (for exiting editor, save all file etc)
 - [x] feat(lsp/rename): show current name in prompt
 - [x] LSP file modifications (add,rename,delete)
+- [x] fix: cursor not wrapped properly
+- [x] feat(cursor): change cursor style in insert mode
+- [x] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
+- [x] feat(render): breadcrumb, show lines of ancestors of the current node that are out of bound
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -153,7 +157,6 @@
 - [] feat(keymap): put copy,paste,cut under space, undo/redo a new mode
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
 - [] feat(keymap): if u = parent, then zu the outermost node that starts with this cursor
-- [] feat(cursor): change cursor style in insert mode
 - [] feat(find): sentence, paragraph
 - [] fix(cursor): misplacement when wrapped sometimes
 - [] refactor(buffer): hide rope
@@ -168,7 +171,6 @@
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(title): show Language
-- [x] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
 - [] feat(multicursor): split
 - [] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 - [] fix: log if formatting failed
@@ -177,9 +179,11 @@
 - [] fix: cannot enter new line in new file
 - [] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
 - [] feat(suggestive_editor): text completion
-- [x] fix: cursor not wrapped properly
-- [] feat(render): breadcrumb, show lines of ancestors of the current node that are out of bound
 - [] feat(syntax-highlight-queries): take from the repos, don't store it
+- [] feat: highlight parent lines
+- [] feat(line): line-up/down go to parent/child lines! yes
+- [] fix(diagnostic): cannot move to next diagnostics sometimes
+- [] feat(editor/find): tree-sitter query
 
 # Grammar loading
 
