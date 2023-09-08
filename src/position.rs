@@ -43,6 +43,10 @@ impl Position {
             column: self.column.saturating_sub(by as usize),
         }
     }
+
+    pub fn set_line(self, line: usize) -> Position {
+        Position { line, ..self }
+    }
 }
 
 impl PartialOrd for Position {

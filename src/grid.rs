@@ -67,6 +67,7 @@ impl Default for Cell {
     }
 }
 
+#[derive(Clone)]
 pub struct CellUpdate {
     pub position: Position,
     pub symbol: Option<String>,
@@ -133,6 +134,17 @@ impl CellUpdate {
 
     pub fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
         CellUpdate { is_cursor, ..self }
+    }
+
+    pub fn set_position_line(self, line: usize) -> CellUpdate {
+        CellUpdate {
+            position: self.position.set_line(line),
+            ..self
+        }
+    }
+
+    pub fn set_position(self, position: Position) -> CellUpdate {
+        CellUpdate { position, ..self }
     }
 }
 

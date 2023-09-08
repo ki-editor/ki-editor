@@ -111,6 +111,7 @@
 - [x] feat(cursor): change cursor style in insert mode
 - [x] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
 - [x] feat(render): breadcrumb, show lines of ancestors of the current node that are out of bound
+- [x] feat: highlight parent lines
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -180,7 +181,6 @@
 - [] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
 - [] feat(suggestive_editor): text completion
 - [] feat(syntax-highlight-queries): take from the repos, don't store it
-- [] feat: highlight parent lines
 - [] feat(line): line-up/down go to parent/child lines! yes
 - [] fix(diagnostic): cannot move to next diagnostics sometimes
 - [] feat(editor/find): tree-sitter query

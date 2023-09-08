@@ -43,7 +43,7 @@ pub struct DiagnosticStyles {
 pub struct UiStyles {
     pub global_title: Style,
     pub window_title: Style,
-    pub breadcrumbs: Style,
+    pub parent_lines_background: Color,
     pub jump_mark_odd: Style,
     pub jump_mark_even: Style,
     pub text: Style,
