@@ -6,8 +6,7 @@ pub mod git_hunk;
 pub mod line;
 pub mod outermost_node;
 pub mod regex;
-pub mod sibling;
-pub mod syntax_hierarchy;
+pub mod syntax_tree;
 pub mod token;
 
 pub use self::regex::Regex;
@@ -19,8 +18,7 @@ pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use line::Line;
 pub use outermost_node::OutermostNode;
-pub use sibling::Sibling;
-pub use syntax_hierarchy::SyntaxHierarchy;
+pub use syntax_tree::SyntaxTree;
 pub use token::Token;
 
 use std::ops::Range;
@@ -110,7 +108,47 @@ pub trait SelectionMode {
             Movement::First => self.first(params),
             Movement::Index(index) => self.to_index(params, index),
             Movement::Jump(range) => Ok(Some(params.current_selection.clone().set_range(range))),
+            Movement::Up => self.up(params),
+            Movement::Down => self.down(params),
         }
+    }
+
+    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.select_vertical(params, std::cmp::Ordering::Less)
+    }
+
+    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.select_vertical(params, std::cmp::Ordering::Greater)
+    }
+
+    fn select_vertical(
+        &self,
+        params: SelectionModeParams,
+        ordering: std::cmp::Ordering,
+    ) -> anyhow::Result<Option<Selection>> {
+        let SelectionModeParams {
+            buffer,
+            current_selection,
+            ..
+        } = params;
+        let start = current_selection.range().start;
+        let current_position = buffer.char_to_position(start)?;
+        let current_line = buffer.char_to_line(start)?;
+        self.iter(params.current_selection, params.buffer)?
+            .filter_map(|range| {
+                let position = buffer.byte_to_position(range.range.start).ok()?;
+                Some((position, range))
+            })
+            .filter(|(position, _)| position.line.cmp(&current_line) == ordering)
+            .sorted_by_key(|(position, _)| {
+                (
+                    current_line.abs_diff(position.line),
+                    position.column.abs_diff(current_position.column),
+                )
+            })
+            .next()
+            .map(|(_, range)| range.to_selection(buffer, current_selection))
+            .transpose()
     }
 
     fn jumps(
@@ -191,11 +229,15 @@ pub trait SelectionMode {
                 let line = buffer.byte_to_line(range.range.start).unwrap_or(0);
                 (
                     i,
-                    // Prioritize selection that is one the same line
                     (
+                        // Prioritize selection of the same range
+                        if range.range == byte_range { 0 } else { 1 },
+                        // Then by selection that is one the same line
                         line.abs_diff(current_selection_line),
+                        // Then by their distance to the current selection
                         range.range.start.abs_diff(byte_range.start),
-                        (range.range.end.abs_diff(byte_range.end)),
+                        // Then by their length
+                        range.range.len(),
                     ),
                 )
             })
@@ -284,7 +326,7 @@ mod test_selection_mode {
             _: &'a crate::buffer::Buffer,
         ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
             Ok(Box::new(
-                [(0..6), (1..6), (2..5), (3..5), (3..4)]
+                [(0..6), (1..6), (2..5), (3..4), (3..5)]
                     .into_iter()
                     .map(ByteRange::new),
             ))
@@ -320,18 +362,16 @@ mod test_selection_mode {
     fn previous() {
         test(Movement::Previous, 1..6, 0..6);
         test(Movement::Previous, 2..5, 1..6);
-
-        // Ranges is expected to be sorted by start ascendingly, and end descendingly
-        test(Movement::Previous, 3..4, 3..5);
-        test(Movement::Previous, 3..5, 2..5);
+        test(Movement::Previous, 3..5, 3..4);
+        test(Movement::Previous, 3..4, 2..5);
     }
 
     #[test]
     fn next() {
         test(Movement::Next, 0..6, 1..6);
         test(Movement::Next, 1..6, 2..5);
-        test(Movement::Next, 2..5, 3..5);
-        test(Movement::Next, 3..5, 3..4);
+        test(Movement::Next, 2..5, 3..4);
+        test(Movement::Next, 3..4, 3..5);
     }
 
     #[test]
@@ -341,7 +381,7 @@ mod test_selection_mode {
 
     #[test]
     fn last() {
-        test(Movement::Last, 0..0, 3..4);
+        test(Movement::Last, 0..0, 3..5);
     }
 
     #[test]
@@ -378,7 +418,7 @@ mod test_selection_mode {
             .unwrap()
             .unwrap()
             .range();
-        let expected: CharIndexRange = (CharIndex(3)..CharIndex(5)).into();
+        let expected: CharIndexRange = (CharIndex(3)..CharIndex(4)).into();
 
         assert_eq!(expected, actual);
     }

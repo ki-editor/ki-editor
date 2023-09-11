@@ -153,10 +153,7 @@ impl<T: DropdownItem> Dropdown<T> {
             Movement::Next => self.next_item(),
             Movement::Current => self.current_item(),
             Movement::Previous => self.previous_item(),
-            Movement::Last => todo!(),
-            Movement::First => todo!(),
-            Movement::Index(_) => todo!(),
-            Movement::Jump(_) => todo!(),
+            _ => todo!(),
         }
     }
 

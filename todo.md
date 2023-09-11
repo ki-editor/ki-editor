@@ -183,6 +183,9 @@
 - [] feat(syntax-highlight-queries): take from the repos, don't store it
 - [] feat(line): line-up/down go to parent/child lines! yes
 - [] fix(diagnostic): cannot move to next diagnostics sometimes
+- [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
+- [] fix(editor): scrolling to end always gives error (annoying!)
+- [] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
 - [] feat(editor/find): tree-sitter query
 
 # Grammar loading

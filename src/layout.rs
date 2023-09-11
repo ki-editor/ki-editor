@@ -183,19 +183,13 @@ impl Layout {
         let editor = match movement {
             Movement::Next | Movement::Current => self.main_panel_history_forward.pop(),
             Movement::Previous => self.main_panel_history_backward.pop(),
-            Movement::Last => todo!(),
-            Movement::First => todo!(),
-            Movement::Index(_) => todo!(),
-            Movement::Jump(_) => todo!(),
+            _ => todo!(),
         }
         .or_else(|| self.main_panel.take());
         let set_backward_history = match movement {
             Movement::Next | Movement::Current => true,
             Movement::Previous => false,
-            Movement::Last => todo!(),
-            Movement::First => todo!(),
-            Movement::Index(_) => todo!(),
-            Movement::Jump(_) => todo!(),
+            _ => todo!(),
         };
         self.set_main_panel(editor, set_backward_history);
     }

@@ -591,6 +591,8 @@ pub enum Movement {
     Previous,
     Last,
     Current,
+    Up,
+    Down,
     First,
     /// 0-based
     Index(usize),
@@ -1683,23 +1685,23 @@ impl Editor {
     }
 
     fn handle_movement(&mut self, key_event: &KeyEvent) -> anyhow::Result<Option<Vec<Dispatch>>> {
+        let move_selection = |movement: Movement| {
+            Ok(Some(
+                [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
+                    movement,
+                ))]
+                .to_vec(),
+            ))
+        };
         match key_event {
+            key!("d") => move_selection(Movement::Down),
             key!("j") => {
                 self.jump()?;
                 Ok(Some(Vec::new()))
             }
-            key!("n") => Ok(Some(
-                [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    Movement::Next,
-                ))]
-                .to_vec(),
-            )),
-            key!("p") => Ok(Some(
-                [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    Movement::Previous,
-                ))]
-                .to_vec(),
-            )),
+            key!("n") => move_selection(Movement::Next),
+            key!("p") => move_selection(Movement::Previous),
+            key!("u") => move_selection(Movement::Up),
             key!("z") => Ok(Some(
                 [Dispatch::ShowKeymapLegend(self.move_mode_keymap_legend())].to_vec(),
             )),
@@ -1735,7 +1737,7 @@ impl Editor {
             key!("b") => context.set_mode(Some(GlobalMode::BufferNavigationHistory)),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
-            key!("d") => return self.delete(context, false),
+            // d = down
             key!("e") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.diagnostic_keymap_legend_config(),
@@ -1753,32 +1755,34 @@ impl Editor {
                     self.g_mode_keymap_legend_config(),
                 )])
             }
-
             key!("h") => self.toggle_highlight_mode(),
-            key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
 
+            key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
+            // j = jump
             key!("k") => self.mode = Mode::Kill,
-            key!("k") => self.select_kids()?,
+            key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
             key!("o") => return self.set_selection_mode(context, SelectionMode::OutermostNode),
+            // p = previous
             key!("q") => context.set_mode(Some(GlobalMode::QuickfixListItem)),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
             key!("r") => return self.raise(),
             key!("shift+R") => return self.replace(),
-            key!("s") => return self.set_selection_mode(context, SelectionMode::Sibling),
+            key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
-            // u
+            // u = up
             key!("v") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
+            // wipe
+            key!("w") => return self.delete(context, false),
             key!("x") => self.mode = Mode::Exchange,
             key!("shift+X") => return self.exchange(Movement::Previous),
-            // w
-            key!("y") => return self.set_selection_mode(context, SelectionMode::SyntaxHierarchy),
+            // y = unused
             key!("backspace") => {
                 return self.change();
             }
@@ -2308,8 +2312,8 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::SyntaxHierarchy,
-                &Movement::Previous,
+                &SelectionMode::SyntaxTree,
+                &Movement::Up,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
@@ -2648,8 +2652,8 @@ impl Editor {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
             key!("a") => self.add_cursor_to_all_selections(),
-            // todo: delete primary cursor does not work as expected, we need another editr cursor mode
-            key!("d") => self.delete_primary_cursor(),
+            // todo: kill primary cursor does not work as expected, we need another editr cursor mode
+            key!("k") => self.kill_primary_cursor(),
             key!("n") => self.add_cursor(&Movement::Next),
             key!("o") => self.only_current_cursor(),
             key!("p") => self.add_cursor(&Movement::Previous),
@@ -2658,7 +2662,7 @@ impl Editor {
         Ok(Vec::new())
     }
 
-    fn delete_primary_cursor(&mut self) -> Result<(), anyhow::Error> {
+    fn kill_primary_cursor(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set.delete_primary_cursor();
         Ok(())
     }
@@ -3058,7 +3062,7 @@ mod test_editor {
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
@@ -3074,11 +3078,11 @@ mod test_editor {
 
         // Select first statement
         editor.set_selection_mode(&mut context, SelectionMode::Token)?;
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxHierarchy)?;
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
+        editor.move_selection(&mut context, Movement::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
         editor.exchange(Movement::Next);
@@ -3166,7 +3170,7 @@ fn main() {
         editor.match_literal(&mut context, "usize")?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.add_cursor(&Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
@@ -3191,7 +3195,7 @@ fn main() {
         editor.match_literal(&mut context, "let x = S(a);")?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.add_cursor(&Movement::Next)?;
 
         assert_eq!(
@@ -3231,7 +3235,7 @@ fn main() {
         editor.match_literal(&mut context, "fn f(x:a,y:b){}")?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.add_cursor(&Movement::Next)?;
         assert_eq!(
             editor.get_selected_texts(),
@@ -3245,7 +3249,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.exchange(Movement::Next);
         assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
@@ -3270,7 +3274,7 @@ fn main() {
             vec!["let x = S(spongebob_squarepants);"]
         );
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.add_cursor(&Movement::Next)?;
 
         editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
@@ -3556,7 +3560,7 @@ let y = S(b);
         editor.match_literal(&mut context, "x: a")?;
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::Sibling)?;
+        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
         editor.kill(Movement::Next);
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");

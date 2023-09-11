@@ -18,7 +18,7 @@ impl Crossterm {
 }
 
 use crossterm::{
-    cursor::{Hide, MoveTo, SetCursorStyle, Show},
+    cursor::{Hide, MoveTo, Show},
     event::EnableMouseCapture,
     execute, queue,
     style::{

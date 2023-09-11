@@ -257,8 +257,7 @@ pub enum SelectionMode {
     // Syntax-tree
     Token,
     OutermostNode,
-    Sibling,
-    SyntaxHierarchy,
+    SyntaxTree,
 
     // LSP
     Diagnostic(Option<DiagnosticSeverity>),
@@ -276,7 +275,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, OutermostNode | Sibling | SyntaxHierarchy)
+        matches!(self, OutermostNode | SyntaxTree)
     }
 
     pub fn display(&self) -> String {
@@ -288,7 +287,7 @@ impl SelectionMode {
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::OutermostNode => "OUTERMOST NODE".to_string(),
-            SelectionMode::Sibling => "SIBLING".to_string(),
+            SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
             }
@@ -301,7 +300,6 @@ impl SelectionMode {
             }
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
-            SelectionMode::SyntaxHierarchy => "SYNTAX HIERARCHY".to_string(),
         }
     }
 
@@ -349,14 +347,13 @@ impl SelectionMode {
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::OutermostNode => Box::new(selection_mode::OutermostNode),
-            SelectionMode::Sibling => Box::new(selection_mode::Sibling),
+            SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic(severity) => Box::new(selection_mode::Diagnostic(*severity)),
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
             SelectionMode::EmptyLine => {
                 Box::new(selection_mode::Regex::regex(buffer, r"(?m)^\s*$")?)
             }
-            SelectionMode::SyntaxHierarchy => Box::new(selection_mode::SyntaxHierarchy),
         })
     }
 }

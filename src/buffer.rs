@@ -39,6 +39,7 @@ pub struct Buffer {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Line {
+    origin_position: Position,
     /// 0-based
     pub line: usize,
     pub content: String,
@@ -125,29 +126,27 @@ impl Buffer {
             let lines = lines
                 .into_iter()
                 .chain([Line {
+                    origin_position: start_position,
                     line: start_position.line,
                     content: line.to_string(),
                 }])
                 .collect_vec();
             get_parent_lines(buffer, node.parent(), lines)
         }
-        let parent_lines = get_parent_lines(&self, node, Vec::new())?;
+        let parent_lines = get_parent_lines(self, node, Vec::new())?;
         Ok(parent_lines
             .into_iter()
             // Remove lines that contains no alphabet
             .filter(|line| line.content.chars().any(|c| c.is_alphanumeric()))
             .map(|line| Line {
+                origin_position: line.origin_position,
                 line: line.line,
                 content: line.content.trim_end().to_owned(),
             })
             .unique()
             // Unique by their indentation, this assumes parent of different hieararchies has different indentations
-            .unique_by(|line| {
-                line.content
-                    .chars()
-                    .take_while(|c| c.is_whitespace())
-                    .count()
-            })
+            .unique_by(|line| line.origin_position.column)
+            .unique_by(|line| line.content.trim_end().to_string())
             .collect_vec()
             .into_iter()
             .rev()
@@ -603,10 +602,9 @@ impl Buffer {
         self.char_to_byte(start)
     }
 
-    pub fn current_line_byte_range(&self, char_index: CharIndex) -> anyhow::Result<ByteRange> {
-        let current_line = self.char_to_line(char_index)?;
-        let start = self.line_to_byte(current_line)?;
-        let end = self.line_to_byte(current_line + 1)?.saturating_sub(1);
+    pub fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
+        let start = self.line_to_byte(line)?;
+        let end = self.line_to_byte(line + 1)?.saturating_sub(1);
         Ok(ByteRange::new(start..end))
     }
 
@@ -653,7 +651,7 @@ mod test_buffer {
     use super::Buffer;
 
     #[test]
-    fn get_parent_lines() {
+    fn get_parent_lines_1() {
         let buffer = Buffer::new(
             shared::language::from_extension("yaml")
                 .unwrap()
@@ -681,6 +679,39 @@ mod test_buffer {
   - in:
     - pineapple
 "
+        .trim()
+        .to_string();
+        pretty_assertions::assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn get_parent_lines_2() {
+        let buffer = Buffer::new(
+            shared::language::from_extension("rs")
+                .unwrap()
+                .tree_sitter_language()
+                .unwrap(),
+            "
+fn f(
+  x: X
+) -> Result<
+  A,
+  B
+> { 
+  hello
+}",
+        );
+        let actual = buffer
+            .get_parent_lines(5)
+            .unwrap()
+            .into_iter()
+            .map(|line| line.content)
+            .collect_vec()
+            .join("\n");
+        let expected = "
+fn f(
+) -> Result<
+  B"
         .trim()
         .to_string();
         pretty_assertions::assert_eq!(actual, expected)

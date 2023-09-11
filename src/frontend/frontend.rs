@@ -1,4 +1,4 @@
-use crate::{components::component::Cursor, grid::Grid, position::Position, screen::Dimension};
+use crate::{components::component::Cursor, grid::Grid, screen::Dimension};
 
 pub trait Frontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<Dimension>;
