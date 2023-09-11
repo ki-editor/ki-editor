@@ -1850,7 +1850,7 @@ impl Editor {
                             {
                                 let start = selection.extended_range().start
                                     - if position.column > 0 { 1 } else { 0 };
-                                (start..start).into()
+                                (start..start + 1).into()
                             } else {
                                 selection.extended_range()
                             }
@@ -3752,6 +3752,19 @@ let y = S(b);
         };
         assert_eq!(dispatches, vec![Dispatch::SetSearch(search.clone())]);
         assert_eq!(editor.selection_set.mode, SelectionMode::Find { search });
+        Ok(())
+    }
+
+    #[test]
+    fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
+        let mut context = Context::default();
+        // Select x.y()
+        editor.match_literal(&mut context, "x.y()")?;
+
+        editor.enter_insert_mode(CursorDirection::End)?;
+        editor.enter_normal_mode()?;
+        assert_eq!(editor.get_selected_texts(), vec![")"]);
         Ok(())
     }
 }

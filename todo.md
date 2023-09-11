@@ -185,7 +185,7 @@
 - [] fix(diagnostic): cannot move to next diagnostics sometimes
 - [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [] fix(editor): scrolling to end always gives error (annoying!)
-- [] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
+- [x] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
 - [] feat(editor/find): tree-sitter query
 
 # Grammar loading
