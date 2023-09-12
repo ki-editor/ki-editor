@@ -109,7 +109,7 @@ const fn rust() -> Language {
             command: Command("rust-analyzer", &[]),
             ..LspCommand::default()
         }),
-        highlight_query: Some(include_str!("../../contrib/queries/rust/highlights.scm")),
+        highlight_query: None,
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "rust",
             url: "https://github.com/tree-sitter/tree-sitter-rust",

@@ -32,7 +32,7 @@ pub fn highlight(
 
     let mut config = HighlightConfiguration::new(
         tree_sitter_language,
-        language.highlight_query().unwrap_or_default(),
+        &language.highlight_query().unwrap_or_default(),
         language.injection_query().unwrap_or_default(),
         language.locals_query().unwrap_or_default(),
     )

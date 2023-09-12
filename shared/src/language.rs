@@ -95,8 +95,12 @@ impl Language {
         })
     }
 
-    pub fn highlight_query(&self) -> Option<&'static str> {
-        self.highlight_query
+    pub fn highlight_query(&self) -> Option<String> {
+        grammar::grammar::load_runtime_file(
+            &self.tree_sitter_grammar_config()?.grammar_id,
+            "highlights.scm",
+        )
+        .ok()
     }
 
     pub fn locals_query(&self) -> Option<&'static str> {

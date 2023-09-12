@@ -116,6 +116,7 @@
 - [x] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
 - [x] fix(diagnostic): cannot move to next diagnostics sometimes
 - [x] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
+- [x] feat(syntax-highlight-queries): take from the repos, don't store it
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -182,11 +183,12 @@
 - [] fix: cannot go to last line
 - [] fix: cannot enter new line in new file
 - [] feat(suggestive_editor): text completion
-- [] feat(syntax-highlight-queries): take from the repos, don't store it
 - [] feat(line): line-up/down go to parent/child lines! yes
 - [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
+- [] feat(layout): use wide layout as default, so that we can avoid wrapping unnecessarily
+- [] fix(suggestive_editor): autocomplete inserting emoji icons
 
 # Grammar loading
 
