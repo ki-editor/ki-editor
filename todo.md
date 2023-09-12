@@ -112,6 +112,10 @@
 - [x] feat(grammar): should be prebuilt during build stage, no need for user to run "grammar fetch/build" command
 - [x] feat(render): breadcrumb, show lines of ancestors of the current node that are out of bound
 - [x] feat: highlight parent lines
+- [x] fix(syntax-highlighting): flashing during editing
+- [x] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
+- [x] fix(diagnostic): cannot move to next diagnostics sometimes
+- [x] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -163,7 +167,6 @@
 - [] refactor(buffer): hide rope
 - [] fix failing test cases
 - [] fix(signature-help): cannot be closed by pressing esc key
-- [x] fix(syntax-highlighting): flashing during editing
 - [] file explorer (integrate with LSP)
 - [] fix: paste from clipboard does not work properly if contains newline
 - [] la should open cursor at end of line, not beginning of next line
@@ -178,14 +181,11 @@
 - [] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [] fix: cannot go to last line
 - [] fix: cannot enter new line in new file
-- [] fix: diagnostic not updated immediately, need to save a few times to get the latest diagnostics
 - [] feat(suggestive_editor): text completion
 - [] feat(syntax-highlight-queries): take from the repos, don't store it
 - [] feat(line): line-up/down go to parent/child lines! yes
-- [] fix(diagnostic): cannot move to next diagnostics sometimes
 - [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [] fix(editor): scrolling to end always gives error (annoying!)
-- [x] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
 - [] feat(editor/find): tree-sitter query
 
 # Grammar loading

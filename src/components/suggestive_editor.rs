@@ -83,7 +83,7 @@ impl Component for SuggestiveEditor {
 
     fn handle_key_event(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let dispatches = if self.editor.mode == Mode::Insert && self.dropdown_opened() {
@@ -101,7 +101,9 @@ impl Component for SuggestiveEditor {
                 key!("enter") => {
                     if let Some(completion) = self.dropdown.borrow_mut().current_item() {
                         let dispatches = match completion.edit {
-                            None => self.editor.replace_previous_word(&completion.label()),
+                            None => self
+                                .editor
+                                .replace_previous_word(&completion.label(), context),
                             Some(edit) => match edit {
                                 CompletionItemEdit::PositionalEdit(edit) => {
                                     self.editor.apply_positional_edit(edit)

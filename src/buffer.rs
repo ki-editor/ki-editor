@@ -2,7 +2,6 @@ use crate::{
     char_index_range::CharIndexRange,
     components::suggestive_editor::Decoration,
     edit::{Edit, EditTransaction},
-    lsp::diagnostic::Diagnostic,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
@@ -30,7 +29,6 @@ pub struct Buffer {
     undo_patch: Vec<Patch>,
     redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
-    diagnostics: Vec<Diagnostic>,
     highlighted_spans: HighlighedSpans,
     theme: Theme,
     bookmarks: Vec<CharIndexRange>,
@@ -59,7 +57,6 @@ impl Buffer {
             undo_patch: Vec::new(),
             redo_patches: Vec::new(),
             path: None,
-            diagnostics: Vec::new(),
             highlighted_spans: HighlighedSpans::default(),
             theme: Theme::default(),
             bookmarks: Vec::new(),
@@ -539,24 +536,6 @@ impl Buffer {
         }
     }
 
-    pub fn find_diagnostic(&self, range: &CharIndexRange) -> Option<&Diagnostic> {
-        self.diagnostics.iter().find_map(|diagnostic| {
-            let start = diagnostic.range.start.to_char_index(self).ok()?;
-            let end = diagnostic.range.end.to_char_index(self).ok()?;
-
-            if start == range.start && end == range.end {
-                Some(diagnostic)
-            } else {
-                None
-            }
-        })
-    }
-
-    pub fn set_diagnostics(&mut self, mut diagnostics: Vec<Diagnostic>) {
-        diagnostics.sort_by(|a, b| a.range.start.cmp(&b.range.start));
-        self.diagnostics = diagnostics;
-    }
-
     pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
         self.highlighted_spans.0.clone()
     }
@@ -591,10 +570,6 @@ impl Buffer {
 
     pub fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {
         Ok(self.rope.try_line_to_byte(line_index)?)
-    }
-
-    pub fn diagnostics(&self) -> &Vec<Diagnostic> {
-        &self.diagnostics
     }
 
     pub fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
@@ -646,7 +621,7 @@ pub struct Patch {
 mod test_buffer {
     use itertools::Itertools;
 
-    use crate::{lsp::diagnostic::Diagnostic, position::Position};
+    use crate::position::Position;
 
     use super::Buffer;
 
@@ -724,24 +699,6 @@ fn f(
 
         // Should return unique words
         assert_eq!(words, vec!["bar", "baz"]);
-    }
-
-    #[test]
-    fn set_diagnostics_should_sort() {
-        let mut buffer = Buffer::new(tree_sitter_md::language(), "");
-
-        let patrick = Diagnostic::new(
-            Position { line: 1, column: 2 }..Position { line: 1, column: 4 },
-            "patrick".to_string(),
-        );
-
-        let spongebob = Diagnostic::new(
-            Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
-            "spongebob".to_string(),
-        );
-        buffer.set_diagnostics(vec![patrick.clone(), spongebob.clone()]);
-
-        assert_eq!(buffer.diagnostics, vec![spongebob, patrick])
     }
 
     mod auto_format {

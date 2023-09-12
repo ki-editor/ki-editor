@@ -10,9 +10,9 @@ impl SelectionMode for Token {
     }
     fn iter<'a>(
         &self,
-        _current_selection: &'a crate::selection::Selection,
-        buffer: &'a crate::buffer::Buffer,
+        params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let buffer = params.buffer;
         Ok(Box::new(
             tree_sitter_traversal::traverse(
                 buffer.tree().walk(),

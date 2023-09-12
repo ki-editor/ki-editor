@@ -1,5 +1,3 @@
-use crate::selection::Selection;
-
 use super::{ByteRange, SelectionMode};
 use itertools::Itertools;
 
@@ -11,9 +9,9 @@ impl SelectionMode for OutermostNode {
     }
     fn iter<'a>(
         &self,
-        _current_selection: &'a Selection,
-        buffer: &'a crate::buffer::Buffer,
+        params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let buffer = params.buffer;
         Ok(Box::new(
             tree_sitter_traversal::traverse(
                 buffer.tree().walk(),
@@ -38,7 +36,7 @@ impl SelectionMode for OutermostNode {
 
 #[cfg(test)]
 mod test_outermost_node {
-    use crate::buffer::Buffer;
+    use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
 

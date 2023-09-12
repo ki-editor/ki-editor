@@ -32,9 +32,9 @@ impl TryFrom<lsp_types::ResourceOp> for ResourceOperation {
             lsp_types::ResourceOp::Rename(rename) => Ok(ResourceOperation::Rename {
                 old: rename.old_uri.try_into()?,
                 new: (rename
-                        .new_uri
-                        .to_file_path()
-                        .map_err(|error| anyhow::anyhow!("{:?}", error))?),
+                    .new_uri
+                    .to_file_path()
+                    .map_err(|error| anyhow::anyhow!("{:?}", error))?),
             }),
             lsp_types::ResourceOp::Delete(delete) => {
                 Ok(ResourceOperation::Delete(delete.uri.try_into()?))

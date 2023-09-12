@@ -173,7 +173,7 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
 
     fn handle_key_event(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         self.editor.handle_key_event(context, event)

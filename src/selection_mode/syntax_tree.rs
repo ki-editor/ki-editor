@@ -8,9 +8,10 @@ impl SelectionMode for SyntaxTree {
     }
     fn iter<'a>(
         &'a self,
-        current_selection: &'a crate::selection::Selection,
-        buffer: &'a crate::buffer::Buffer,
+        params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
         let node = buffer.get_current_node(current_selection)?;
 
         if let Some(parent) = node.parent() {
@@ -69,6 +70,7 @@ fn get_node(node: tree_sitter::Node, go_up: bool) -> Option<tree_sitter::Node> {
 mod test_sibling {
     use crate::{
         buffer::Buffer,
+        context::Context,
         selection::{CharIndex, Selection},
         selection_mode::SelectionModeParams,
     };
@@ -96,7 +98,9 @@ mod test_sibling {
         );
 
         let child_range = (CharIndex(23)..CharIndex(24)).into();
+        let context = Context::default();
         let selection = SyntaxTree.up(SelectionModeParams {
+            context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::CursorDirection::Start,
@@ -106,6 +110,7 @@ mod test_sibling {
         assert_eq!(parent_range, (CharIndex(22)..CharIndex(31)).into());
 
         let selection = SyntaxTree.down(SelectionModeParams {
+            context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(parent_range),
             cursor_direction: &crate::components::editor::CursorDirection::Start,

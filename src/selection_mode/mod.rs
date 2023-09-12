@@ -27,6 +27,7 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::editor::{CursorDirection, Jump, Movement},
+    context::Context,
     selection::Selection,
 };
 
@@ -81,18 +82,19 @@ impl Ord for ByteRange {
     }
 }
 
+#[derive(Clone)]
 pub struct SelectionModeParams<'a> {
     pub buffer: &'a Buffer,
     pub current_selection: &'a Selection,
     pub cursor_direction: &'a CursorDirection,
+    pub context: &'a Context,
 }
 
 pub trait SelectionMode {
     fn name(&self) -> &'static str;
     fn iter<'a>(
         &'a self,
-        current_selection: &'a Selection,
-        buffer: &'a Buffer,
+        params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
 
     fn apply_direction(
@@ -134,7 +136,7 @@ pub trait SelectionMode {
         let start = current_selection.range().start;
         let current_position = buffer.char_to_position(start)?;
         let current_line = buffer.char_to_line(start)?;
-        self.iter(params.current_selection, params.buffer)?
+        self.iter(params)?
             .filter_map(|range| {
                 let position = buffer.byte_to_position(range.range.start).ok()?;
                 Some((position, range))
@@ -160,7 +162,7 @@ pub trait SelectionMode {
         let byte_range = params.buffer.line_to_byte(line_number_range.start)?
             ..params.buffer.line_to_byte(line_number_range.end)?;
         let iter = self
-            .iter(params.current_selection, params.buffer)?
+            .iter(params.clone())?
             .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start));
         Ok(chars
             .into_iter()
@@ -183,7 +185,7 @@ pub trait SelectionMode {
 
     fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .iter(params.current_selection, params.buffer)?
+            .iter(params.clone())?
             .sorted()
             .last()
             .and_then(|range| {
@@ -197,11 +199,11 @@ pub trait SelectionMode {
         params: SelectionModeParams,
         index: usize,
     ) -> anyhow::Result<Option<Selection>> {
-        let mut iter = self.iter(params.current_selection, params.buffer)?.sorted();
+        let current_selection = params.current_selection;
+        let buffer = params.buffer;
+        let mut iter = self.iter(params)?.sorted();
         if let Some(byte_range) = iter.nth(index) {
-            Ok(Some(
-                byte_range.to_selection(params.buffer, params.current_selection)?,
-            ))
+            Ok(Some(byte_range.to_selection(buffer, current_selection)?))
         } else {
             Err(anyhow::anyhow!("Invalid index"))
         }
@@ -212,7 +214,7 @@ pub trait SelectionMode {
         params: SelectionModeParams,
         offset: isize,
     ) -> anyhow::Result<Option<Selection>> {
-        let iter = self.iter(params.current_selection, params.buffer)?.sorted();
+        let iter = self.iter(params.clone())?.sorted();
         let buffer = params.buffer;
         let current_selection = params.current_selection;
 
@@ -244,7 +246,7 @@ pub trait SelectionMode {
             .min_by_key(|(_, diff)| *diff)
             .map(|(i, _)| i);
 
-        let mut iter = self.iter(params.current_selection, params.buffer)?.sorted();
+        let mut iter = self.iter(params)?.sorted();
         Ok(nearest.and_then(|i| {
             iter.nth(((i as isize) + offset) as usize)
                 .and_then(|range| range.to_selection(buffer, current_selection).ok())
@@ -257,7 +259,7 @@ pub trait SelectionMode {
 
     fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .iter(params.current_selection, params.buffer)?
+            .iter(params.clone())?
             .sorted()
             .next()
             .and_then(|range| {
@@ -284,7 +286,12 @@ pub trait SelectionMode {
             .collect_vec();
 
         let actual = self
-            .iter(&current_selection, buffer)
+            .iter(SelectionModeParams {
+                buffer,
+                current_selection: &current_selection,
+                cursor_direction: &CursorDirection::Start,
+                context: &Context::default(),
+            })
             .unwrap()
             .flat_map(|range| -> anyhow::Result<_> {
                 Ok((
@@ -308,6 +315,7 @@ mod test_selection_mode {
         buffer::Buffer,
         char_index_range::CharIndexRange,
         components::editor::{CursorDirection, Movement},
+        context::Context,
         selection::{CharIndex, Selection},
         selection_mode::Line,
     };
@@ -322,8 +330,7 @@ mod test_selection_mode {
         }
         fn iter<'a>(
             &'a self,
-            _: &'a crate::selection::Selection,
-            _: &'a crate::buffer::Buffer,
+            _: super::SelectionModeParams<'a>,
         ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
             Ok(Box::new(
                 [(0..6), (1..6), (2..5), (3..4), (3..5)]
@@ -339,6 +346,7 @@ mod test_selection_mode {
         expected_selection_byte_range: Range<usize>,
     ) {
         let params = SelectionModeParams {
+            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default().set_range(CharIndexRange {
                 start: CharIndex(current_selection_byte_range.start),
@@ -401,6 +409,7 @@ mod test_selection_mode {
     #[test]
     fn should_not_use_extended_range() {
         let params = SelectionModeParams {
+            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default()
                 .set_range(CharIndexRange {
@@ -427,6 +436,7 @@ mod test_selection_mode {
     /// Should prioritize selection on the same line even though the selection on the next line might be closer to the cursor
     fn prioritize_same_line() {
         let params = SelectionModeParams {
+            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello\nworld"),
             current_selection: &Selection::default().set_range(CharIndexRange {
                 start: CharIndex(4),

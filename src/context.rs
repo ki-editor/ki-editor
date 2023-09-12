@@ -1,14 +1,20 @@
-use crate::{clipboard::Clipboard, themes::Theme};
+use std::collections::HashMap;
 
+use shared::canonicalized_path::CanonicalizedPath;
+
+use crate::{clipboard::Clipboard, lsp::diagnostic::Diagnostic, themes::Theme};
+
+#[derive(Clone)]
 pub struct Context {
     previous_searches: Vec<Search>,
     clipboard: Clipboard,
     clipboard_content: Option<String>,
     mode: Option<GlobalMode>,
-    pub theme: Theme,
+    diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
+    theme: Theme,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub enum GlobalMode {
     QuickfixListItem,
     BufferNavigationHistory,
@@ -54,6 +60,7 @@ impl Default for Context {
             clipboard: Clipboard::new(),
             clipboard_content: None,
             theme: Theme::default(),
+            diagnostics: Default::default(),
             mode: None,
         }
     }
@@ -67,6 +74,7 @@ impl Context {
             clipboard_content: None,
             theme: Theme::default(),
             mode: None,
+            diagnostics: Default::default(),
         }
     }
     pub fn last_search(&self) -> Option<Search> {
@@ -96,5 +104,32 @@ impl Context {
     }
     pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
         self.mode = mode
+    }
+
+    pub fn theme(&self) -> &Theme {
+        &self.theme
+    }
+
+    pub fn diagnostics(&self) -> Vec<(&CanonicalizedPath, &Diagnostic)> {
+        self.diagnostics
+            .iter()
+            .flat_map(|(path, diagnostics)| {
+                diagnostics.iter().map(move |diagnostic| (path, diagnostic))
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
+        self.diagnostics.insert(path, diagnostics);
+    }
+
+    pub fn get_diagnostics(&self, path: Option<CanonicalizedPath>) -> Vec<&Diagnostic> {
+        path.map(|path| {
+            self.diagnostics
+                .get(&path)
+                .map(|diagnostics| diagnostics.iter().collect::<Vec<_>>())
+                .unwrap_or_default()
+        })
+        .unwrap_or_default()
     }
 }

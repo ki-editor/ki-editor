@@ -87,7 +87,7 @@ impl Component for Prompt {
     }
     fn handle_key_event(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {

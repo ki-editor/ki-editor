@@ -342,7 +342,7 @@ impl Component for FileExplorer {
 
     fn handle_key_event(
         &mut self,
-        context: &mut crate::context::Context,
+        context: &crate::context::Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
         match event {

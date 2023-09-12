@@ -49,8 +49,7 @@ impl SelectionMode for Regex {
     }
     fn iter<'a>(
         &'a self,
-        _current_selection: &'a crate::selection::Selection,
-        _: &'a crate::buffer::Buffer,
+        _params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);
         Ok(Box::new(matches.filter_map(move |matches| {

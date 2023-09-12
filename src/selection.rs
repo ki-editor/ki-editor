@@ -10,6 +10,7 @@ use crate::{
     components::editor::{CursorDirection, Movement},
     context::{Context, Search, SearchKind},
     position::Position,
+    screen::Dispatch,
     selection_mode::{self, SelectionModeParams},
 };
 
@@ -86,17 +87,17 @@ impl SelectionSet {
         result
     }
 
-    pub fn copy(&mut self, buffer: &Buffer, context: &mut Context) -> anyhow::Result<()> {
+    pub fn copy(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         if self.secondary.is_empty() {
             // Copy the primary selected text to clipboard
             let copied_text = buffer.slice(&self.primary.extended_range())?;
-            context.set_clipboard_content(copied_text.to_string());
             self.primary = Selection {
                 range: self.primary.range,
                 initial_range: None,
-                copied_text: Some(copied_text),
+                copied_text: Some(copied_text.clone()),
                 info: None,
             };
+            Ok([Dispatch::SetClipboardContent(copied_text.to_string())].to_vec())
         } else {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
@@ -106,8 +107,8 @@ impl SelectionSet {
                 selection.initial_range = None;
                 Ok(())
             });
-        };
-        Ok(())
+            Ok(Vec::new())
+        }
     }
 
     pub fn select_kids(
@@ -153,9 +154,17 @@ impl SelectionSet {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &CursorDirection,
+        context: &Context,
     ) -> anyhow::Result<SelectionSet> {
         self.apply(mode.clone(), |selection| {
-            Selection::get_selection_(buffer, selection, mode, direction, cursor_direction)
+            Selection::get_selection_(
+                buffer,
+                selection,
+                mode,
+                direction,
+                cursor_direction,
+                context,
+            )
         })
     }
 
@@ -164,6 +173,7 @@ impl SelectionSet {
         buffer: &Buffer,
         direction: &Movement,
         cursor_direction: &CursorDirection,
+        context: &Context,
     ) -> anyhow::Result<()> {
         let last_selection = &self.primary;
 
@@ -173,6 +183,7 @@ impl SelectionSet {
             &self.mode,
             direction,
             cursor_direction,
+            context,
         )?;
 
         let matching_index =
@@ -192,13 +203,18 @@ impl SelectionSet {
         Ok(())
     }
 
-    pub fn add_all(&mut self, buffer: &Buffer) -> anyhow::Result<()> {
+    pub fn add_all(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<()> {
         let object = self
             .mode
-            .to_selection_mode_trait_object(buffer, &self.primary)?;
+            .to_selection_mode_trait_object(buffer, &self.primary, context)?;
         let primary = self.primary.clone();
         match object
-            .iter(&primary, buffer)?
+            .iter(SelectionModeParams {
+                buffer,
+                current_selection: &primary,
+                cursor_direction: &CursorDirection::Start,
+                context,
+            })?
             .filter_map(|range| -> Option<Selection> {
                 range.to_selection(buffer, &self.primary).ok()
             })
@@ -307,7 +323,14 @@ impl SelectionMode {
         &self,
         buffer: &Buffer,
         current_selection: &Selection,
+        context: &Context,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+        let params = SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction: &CursorDirection::Start,
+            context,
+        };
         Ok(match self {
             SelectionMode::Word => Box::new(selection_mode::Regex::new(
                 buffer,
@@ -348,7 +371,9 @@ impl SelectionMode {
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::OutermostNode => Box::new(selection_mode::OutermostNode),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
-            SelectionMode::Diagnostic(severity) => Box::new(selection_mode::Diagnostic(*severity)),
+            SelectionMode::Diagnostic(severity) => {
+                Box::new(selection_mode::Diagnostic::new(*severity, params))
+            }
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
             SelectionMode::EmptyLine => {
@@ -437,6 +462,7 @@ impl Selection {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &CursorDirection,
+        context: &Context,
     ) -> anyhow::Result<Selection> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
         let _cursor_char_index = {
@@ -447,9 +473,11 @@ impl Selection {
                 CursorDirection::End => index - 1,
             }
         };
-        let selection_mode = mode.to_selection_mode_trait_object(buffer, current_selection)?;
+        let selection_mode =
+            mode.to_selection_mode_trait_object(buffer, current_selection, context)?;
 
         let params = SelectionModeParams {
+            context,
             buffer,
             current_selection,
             cursor_direction,

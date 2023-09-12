@@ -4,7 +4,7 @@ use my_proc_macros::key;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -52,8 +52,6 @@ pub struct Screen<T: Frontend> {
 
     lsp_manager: LspManager,
 
-    diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
-
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
     working_directory: CanonicalizedPath,
@@ -87,7 +85,6 @@ impl<T: Frontend> Screen<T> {
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             sender,
-            diagnostics: HashMap::new(),
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
             layout: Layout::new(dimension, &working_directory)?,
             working_directory,
@@ -181,9 +178,7 @@ impl<T: Frontend> Screen<T> {
             }
             event => {
                 component.map(|component| {
-                    let dispatches = component
-                        .borrow_mut()
-                        .handle_event(&mut self.context, event);
+                    let dispatches = component.borrow_mut().handle_event(&self.context, event);
                     self.handle_dispatches_result(dispatches)
                         .unwrap_or_else(|e| self.show_info("ERROR", vec![e.to_string()]));
                 });
@@ -218,14 +213,7 @@ impl<T: Frontend> Screen<T> {
                     .rectangle()
                     .clamp_top(GLOBAL_TITLE_BAR_HEIGHT as usize);
 
-                let path = component.editor().buffer().path();
-                let diagnostics = path
-                    .and_then(|path| self.diagnostics.get(&path))
-                    .map(|diagnostics| diagnostics.as_slice())
-                    .unwrap_or(&[]);
-
-                let GetGridResult { grid, cursor } =
-                    component.get_grid(&self.context.theme, diagnostics);
+                let GetGridResult { grid, cursor } = component.get_grid(&self.context);
                 let focused_component_id = self.layout.focused_component_id();
                 let cursor_position = if focused_component_id
                     .map(|focused_component_id| component.id() == focused_component_id)
@@ -260,7 +248,7 @@ impl<T: Frontend> Screen<T> {
                         let title_grid = Grid::new(title_rectangle.dimension()).set_line(
                             0,
                             &title,
-                            self.context.theme.ui.window_title,
+                            self.context.theme().ui.window_title,
                         );
                         (
                             grid.update(&component_grid, &rectangle)
@@ -301,7 +289,7 @@ impl<T: Frontend> Screen<T> {
             } else {
                 format!("{} {}", self.working_directory.display(), mode)
             };
-            grid.set_line(0, &title, self.context.theme.ui.global_title)
+            grid.set_line(0, &title, self.context.theme().ui.global_title)
         };
 
         self.render_grid(grid, cursor)?;
@@ -455,6 +443,8 @@ impl<T: Frontend> Screen<T> {
             Dispatch::RefreshFileExplorer => {
                 self.layout.refresh_file_explorer(&self.working_directory)?
             }
+            Dispatch::SetClipboardContent(content) => self.context.set_clipboard_content(content),
+            Dispatch::SetGlobalMode(mode) => self.context.set_mode(mode),
         }
         Ok(())
     }
@@ -555,18 +545,19 @@ impl<T: Frontend> Screen<T> {
                 .map(|search| search.search)
                 .collect_vec(),
             owner: current_component.clone(),
-            on_enter: Box::new(move |text, owner| {
+            on_enter: Box::new(move |text, _| {
                 let search = Search {
                     kind,
                     search: text.to_string(),
                 };
-                if let Some(owner) = owner {
-                    owner
-                        .borrow_mut()
-                        .editor_mut()
-                        .select_match(Movement::Next, &Some(search.clone()))?;
-                }
-                Ok(vec![Dispatch::SetSearch(search)])
+
+                Ok([
+                    Dispatch::SetSearch(search.clone()),
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        crate::selection::SelectionMode::Find { search },
+                    )),
+                ]
+                .to_vec())
             }),
             on_text_change: Box::new(|_current_text, _owner| {
                 // owner
@@ -769,13 +760,6 @@ impl<T: Frontend> Screen<T> {
             self.request_syntax_highlight(component_id, language, content)?;
         }
 
-        self.update_component_diagnotics(
-            entry_path,
-            self.diagnostics
-                .get(entry_path)
-                .cloned()
-                .unwrap_or_default(),
-        );
         self.lsp_manager.open_file(entry_path.clone())?;
         Ok(component)
     }
@@ -917,31 +901,7 @@ impl<T: Frontend> Screen<T> {
     }
 
     fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
-        self.update_component_diagnotics(&path, diagnostics.clone());
-        self.diagnostics.insert(path, diagnostics);
-    }
-
-    fn update_component_diagnotics(&self, path: &CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
-        let component = self
-            .components()
-            .iter()
-            .find(|component| {
-                component
-                    .borrow()
-                    .editor()
-                    .buffer()
-                    .path()
-                    .map(|buffer_path| &buffer_path == path)
-                    .unwrap_or(false)
-            })
-            .cloned();
-
-        if let Some(component) = component {
-            component
-                .borrow_mut()
-                .editor_mut()
-                .set_diagnostics(diagnostics);
-        }
+        self.context.update_diagnostics(path, diagnostics);
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
@@ -973,18 +933,17 @@ impl<T: Frontend> Screen<T> {
         match r#type {
             QuickfixListType::LspDiagnostic => {
                 let quickfix_list = QuickfixList::new(
-                    self.diagnostics
-                        .iter()
-                        .flat_map(|(path, diagnostics)| {
-                            diagnostics.iter().map(|diagnostic| {
-                                QuickfixListItem::new(
-                                    Location {
-                                        path: path.clone(),
-                                        range: diagnostic.range.clone(),
-                                    },
-                                    vec![diagnostic.message()],
-                                )
-                            })
+                    self.context
+                        .diagnostics()
+                        .into_iter()
+                        .map(|(path, diagnostic)| {
+                            QuickfixListItem::new(
+                                Location {
+                                    path: (*path).clone(),
+                                    range: diagnostic.range.clone(),
+                                },
+                                vec![diagnostic.message()],
+                            )
                         })
                         .collect(),
                 );
@@ -1270,6 +1229,8 @@ pub enum Dispatch {
     },
     AddPath(String),
     RefreshFileExplorer,
+    SetClipboardContent(String),
+    SetGlobalMode(Option<GlobalMode>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

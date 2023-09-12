@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{buffer::Buffer, selection::Selection};
+use crate::buffer::Buffer;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -88,8 +88,7 @@ impl SelectionMode for GitHunk {
     }
     fn iter<'a>(
         &'a self,
-        _: &'a Selection,
-        _: &'a crate::buffer::Buffer,
+        _: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(self.ranges.clone().into_iter()))
     }

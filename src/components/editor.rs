@@ -6,7 +6,6 @@ use crate::{
     grid::{CellUpdate, Style},
     screen::{FilePickerKind, RequestParams},
     selection_mode, soft_wrap,
-    themes::Theme,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
@@ -28,7 +27,7 @@ use crate::{
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
     grid::{Cell, Grid},
-    lsp::{completion::PositionalEdit, diagnostic::Diagnostic},
+    lsp::completion::PositionalEdit,
     position::Position,
     quickfix_list::QuickfixListType,
     rectangle::Rectangle,
@@ -85,9 +84,11 @@ impl Component for Editor {
         self.title = title;
     }
 
-    fn get_grid(&self, theme: &Theme, diagnostics: &[Diagnostic]) -> GetGridResult {
+    fn get_grid(&self, context: &Context) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.dimension();
+        let theme = context.theme();
+        let diagnostics = context.get_diagnostics(self.path());
 
         let buffer = editor.buffer();
         let rope = buffer.rope();
@@ -466,7 +467,7 @@ impl Component for Editor {
 
     fn handle_key_event(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         self.handle_key_event(context, event)
@@ -498,10 +499,10 @@ impl Component for Editor {
 
     #[cfg(test)]
     fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
-        let mut context = Context::default();
+        let context = Context::default();
         Ok(events
             .iter()
-            .map(|event| self.handle_key_event(&mut context, event.clone()))
+            .map(|event| self.handle_key_event(&context, event.clone()))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
@@ -510,7 +511,7 @@ impl Component for Editor {
 
     fn handle_event(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: event::event::Event,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
@@ -679,8 +680,8 @@ impl Editor {
         Ok(())
     }
 
-    pub fn select_line(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.select(SelectionMode::Line, movement)
+    pub fn select_line(&mut self, movement: Movement, context: &Context) -> anyhow::Result<()> {
+        self.select(SelectionMode::Line, movement, context)
     }
 
     pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<()> {
@@ -707,6 +708,7 @@ impl Editor {
         &mut self,
         movement: Movement,
         search: &Option<Search>,
+        context: &Context,
     ) -> anyhow::Result<()> {
         if let Some(search) = search {
             self.select(
@@ -714,28 +716,10 @@ impl Editor {
                     search: search.clone(),
                 },
                 movement,
+                context,
             )?;
         }
         Ok(())
-    }
-
-    fn select_diagnostic(&mut self, movement: Movement) -> anyhow::Result<Vec<Dispatch>> {
-        self.select(
-            SelectionMode::Diagnostic(Some(DiagnosticSeverity::ERROR)),
-            movement,
-        )?;
-        if let Some(diagnostic) = self
-            .buffer
-            .borrow()
-            .find_diagnostic(&self.selection_set.primary.extended_range())
-        {
-            Ok(vec![Dispatch::ShowInfo {
-                title: "Diagnostic".to_string(),
-                content: vec![diagnostic.message()],
-            }])
-        } else {
-            Ok(vec![])
-        }
     }
 
     fn select_backward(&mut self) {
@@ -814,6 +798,7 @@ impl Editor {
         &mut self,
         selection_mode: SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<()> {
         //  There are a few selection modes where Current make sense.
         let direction = if self.selection_set.mode != selection_mode {
@@ -822,7 +807,7 @@ impl Editor {
             movement
         };
 
-        let selection = self.get_selection_set(&selection_mode, direction)?;
+        let selection = self.get_selection_set(&selection_mode, direction, context)?;
 
         self.update_selection_set(selection);
         Ok(())
@@ -832,17 +817,23 @@ impl Editor {
         ('a'..='z').collect_vec()
     }
 
-    fn jump_from_selection(&mut self, selection: &Selection) -> anyhow::Result<()> {
+    fn jump_from_selection(
+        &mut self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         let chars = Self::jump_characters();
 
-        let object = self
-            .selection_set
-            .mode
-            .to_selection_mode_trait_object(&self.buffer(), selection)?;
+        let object = self.selection_set.mode.to_selection_mode_trait_object(
+            &self.buffer(),
+            selection,
+            context,
+        )?;
 
         let line_range = self.line_range();
         let jumps = object.jumps(
             selection_mode::SelectionModeParams {
+                context,
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
@@ -855,25 +846,27 @@ impl Editor {
         Ok(())
     }
 
-    fn jump(&mut self) -> anyhow::Result<()> {
-        self.jump_from_selection(&self.selection_set.primary.clone())
+    fn jump(&mut self, context: &Context) -> anyhow::Result<()> {
+        self.jump_from_selection(&self.selection_set.primary.clone(), context)
     }
 
-    fn cut(&mut self, context: &mut Context) -> anyhow::Result<Vec<Dispatch>> {
-        self.delete(context, true)
+    fn cut(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+        self.delete(true)
     }
 
-    fn delete(&mut self, context: &mut Context, cut: bool) -> anyhow::Result<Vec<Dispatch>> {
+    fn delete(&mut self, cut: bool) -> anyhow::Result<Vec<Dispatch>> {
         // Set the clipboard content to the current selection
         // if there is only one cursor.
-        if cut && self.selection_set.secondary.is_empty() {
-            context.set_clipboard_content(
+        let dispatch = if cut && self.selection_set.secondary.is_empty() {
+            Some(Dispatch::SetClipboardContent(
                 self.buffer
                     .borrow()
                     .slice(&self.selection_set.primary.extended_range())?
                     .into(),
-            )
-        }
+            ))
+        } else {
+            None
+        };
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -903,9 +896,10 @@ impl Editor {
         );
 
         self.apply_edit_transaction(edit_transaction)
+            .map(|dispatches| dispatches.into_iter().chain(dispatch).collect())
     }
 
-    fn copy(&mut self, context: &mut Context) -> anyhow::Result<()> {
+    fn copy(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         self.selection_set.copy(&self.buffer.borrow(), context)
     }
 
@@ -944,7 +938,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn paste(&mut self, context: &mut Context) -> anyhow::Result<Vec<Dispatch>> {
+    fn paste(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         self.replace_current_selection_with(|selection| {
             selection
                 .copied_text()
@@ -1049,12 +1043,14 @@ impl Editor {
         &self,
         mode: &SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<SelectionSet> {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
             &movement,
             &self.cursor_direction,
+            context,
         )
     }
 
@@ -1071,7 +1067,7 @@ impl Editor {
 
     fn find_mode_keymap_legend_config(
         &self,
-        context: &mut Context,
+        context: &Context,
     ) -> anyhow::Result<KeymapLegendConfig> {
         Ok(KeymapLegendConfig {
             title: "Find (current file)".to_string(),
@@ -1278,7 +1274,7 @@ impl Editor {
 
     pub fn apply_dispatch(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
@@ -1427,7 +1423,7 @@ impl Editor {
 
     pub fn handle_key_event(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match self.handle_universal_key(context, key_event)? {
@@ -1453,7 +1449,7 @@ impl Editor {
 
     fn handle_universal_key(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<HandleEventResult> {
         match event {
@@ -1478,15 +1474,15 @@ impl Editor {
                 Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+c") => {
-                self.copy(context)?;
-                Ok(HandleEventResult::Handled(vec![]))
+                let dispatches = self.copy(context)?;
+                Ok(HandleEventResult::Handled(dispatches))
             }
             key!("ctrl+s") => {
                 let dispatches = self.save()?;
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
             }
-            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut(context)?)),
+            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
             key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context)?)),
             key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo()?)),
             key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo()?)),
@@ -1618,16 +1614,21 @@ impl Editor {
 
     fn set_selection_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        context.set_mode(None);
         self.move_selection_with_selection_mode(context, Movement::Current, selection_mode)
+            .map(|dispatches| {
+                Some(Dispatch::SetGlobalMode(None))
+                    .into_iter()
+                    .chain(dispatches.into_iter())
+                    .collect::<Vec<_>>()
+            })
     }
 
     fn move_selection_with_selection_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         movement: Movement,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
@@ -1639,7 +1640,7 @@ impl Editor {
                 }
             }
         } else {
-            self.select(selection_mode, movement)?;
+            self.select(selection_mode, movement, context)?;
 
             let infos = self
                 .selection_set
@@ -1661,7 +1662,7 @@ impl Editor {
 
     fn move_selection(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         movement: Movement,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match self.mode {
@@ -1670,9 +1671,9 @@ impl Editor {
                 movement,
                 self.selection_set.mode.clone(),
             ),
-            Mode::Exchange => self.exchange(movement),
-            Mode::Kill => self.kill(movement),
-            Mode::MultiCursor => self.add_cursor(&movement).map(|_| Vec::new()),
+            Mode::Exchange => self.exchange(movement, context),
+            Mode::Kill => self.kill(movement, context),
+            Mode::MultiCursor => self.add_cursor(&movement, context).map(|_| Vec::new()),
             _ => Ok(Vec::new()),
         }
     }
@@ -1684,7 +1685,11 @@ impl Editor {
         self.buffer_mut().save_bookmarks(selections)
     }
 
-    fn handle_movement(&mut self, key_event: &KeyEvent) -> anyhow::Result<Option<Vec<Dispatch>>> {
+    fn handle_movement(
+        &mut self,
+        key_event: &KeyEvent,
+        context: &Context,
+    ) -> anyhow::Result<Option<Vec<Dispatch>>> {
         let move_selection = |movement: Movement| {
             Ok(Some(
                 [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
@@ -1696,7 +1701,7 @@ impl Editor {
         match key_event {
             key!("d") => move_selection(Movement::Down),
             key!("j") => {
-                self.jump()?;
+                self.jump(context)?;
                 Ok(Some(Vec::new()))
             }
             key!("n") => move_selection(Movement::Next),
@@ -1711,10 +1716,10 @@ impl Editor {
 
     fn handle_normal_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(dispatches) = self.handle_movement(&event)? {
+        if let Some(dispatches) = self.handle_movement(&event, context)? {
             return Ok(dispatches);
         }
         if self.mode != Mode::Normal {
@@ -1734,7 +1739,12 @@ impl Editor {
             // Objects
             key!("a") => self.enter_insert_mode(CursorDirection::End)?,
             key!("ctrl+b") => self.save_bookmarks(),
-            key!("b") => context.set_mode(Some(GlobalMode::BufferNavigationHistory)),
+            key!("b") => {
+                return Ok([Dispatch::SetGlobalMode(Some(
+                    GlobalMode::BufferNavigationHistory,
+                ))]
+                .to_vec())
+            }
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
@@ -1765,10 +1775,12 @@ impl Editor {
             key!("m") => self.mode = Mode::MultiCursor,
             key!("o") => return self.set_selection_mode(context, SelectionMode::OutermostNode),
             // p = previous
-            key!("q") => context.set_mode(Some(GlobalMode::QuickfixListItem)),
+            key!("q") => {
+                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::QuickfixListItem))].to_vec())
+            }
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
-            key!("r") => return self.raise(),
+            key!("r") => return self.raise(context),
             key!("shift+R") => return self.replace(),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
@@ -1779,9 +1791,9 @@ impl Editor {
                 )]);
             }
             // wipe
-            key!("w") => return self.delete(context, false),
+            key!("w") => return self.delete(false),
             key!("x") => self.mode = Mode::Exchange,
-            key!("shift+X") => return self.exchange(Movement::Previous),
+            key!("shift+X") => return self.exchange(Movement::Previous, context),
             // y = unused
             key!("backspace") => {
                 return self.change();
@@ -1807,7 +1819,7 @@ impl Editor {
         Ok(vec![])
     }
 
-    fn path(&self) -> Option<CanonicalizedPath> {
+    pub fn path(&self) -> Option<CanonicalizedPath> {
         self.editor().buffer().path()
     }
 
@@ -1906,6 +1918,7 @@ impl Editor {
         current_selection: &Selection,
         selection_mode: &SelectionMode,
         direction: &Movement,
+        context: &Context,
         get_trial_edit_transaction: impl Fn(
             /* current */ &Selection,
             /* next */ &Selection,
@@ -1926,6 +1939,7 @@ impl Editor {
             selection_mode,
             direction,
             &self.cursor_direction,
+            context,
         )?;
 
         if next_selection.eq(&current_selection) {
@@ -1967,6 +1981,7 @@ impl Editor {
                 selection_mode,
                 direction,
                 &self.cursor_direction,
+                context,
             )?;
 
             if next_selection.eq(&new_selection) {
@@ -1983,6 +1998,7 @@ impl Editor {
         &mut self,
         selection_mode: &SelectionMode,
         movement: Movement,
+        context: &Context,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
         let get_trial_edit_transaction = |current_selection: &Selection,
@@ -2066,6 +2082,7 @@ impl Editor {
                 selection,
                 selection_mode,
                 &movement,
+                context,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
@@ -2080,16 +2097,17 @@ impl Editor {
         ))
     }
 
-    fn exchange(&mut self, movement: Movement) -> anyhow::Result<Vec<Dispatch>> {
+    fn exchange(&mut self, movement: Movement, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let mode = self.selection_set.mode.clone();
-        self.replace_faultlessly(&mode, movement)
+        self.replace_faultlessly(&mode, movement, context)
     }
 
-    fn add_cursor(&mut self, direction: &Movement) -> anyhow::Result<()> {
+    fn add_cursor(&mut self, direction: &Movement, context: &Context) -> anyhow::Result<()> {
         self.selection_set.add_selection(
             &self.buffer.borrow(),
             direction,
             &self.cursor_direction,
+            context,
         )?;
         self.recalculate_scroll_offset();
         Ok(())
@@ -2121,8 +2139,8 @@ impl Editor {
         buffer.rope().slice(0..buffer.len_chars()).to_string()
     }
 
-    fn select_word(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.select(SelectionMode::Word, movement)
+    fn select_word(&mut self, movement: Movement, context: &Context) -> anyhow::Result<()> {
+        self.select(SelectionMode::Word, movement, context)
     }
 
     pub fn dimension(&self) -> Dimension {
@@ -2156,7 +2174,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn kill(&mut self, movement: Movement) -> anyhow::Result<Vec<Dispatch>> {
+    fn kill(&mut self, movement: Movement, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
         let mode = self.selection_set.mode.clone();
 
@@ -2216,6 +2234,7 @@ impl Editor {
                 selection,
                 &mode,
                 &movement,
+                context,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
@@ -2256,7 +2275,7 @@ impl Editor {
     }
 
     /// Replace the parent node of the current node with the current node
-    fn raise(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    fn raise(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_trial_edit_transaction =
@@ -2314,6 +2333,7 @@ impl Editor {
                 selection,
                 &SelectionMode::SyntaxTree,
                 &Movement::Up,
+                context,
                 get_trial_edit_transaction,
                 get_actual_edit_transaction,
             )
@@ -2368,8 +2388,12 @@ impl Editor {
         };
     }
 
-    pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Vec<Dispatch>> {
-        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current)?;
+    pub fn replace_previous_word(
+        &mut self,
+        completion: &str,
+        context: &Context,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
         self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
         Ok(self.get_document_did_change_dispatch())
@@ -2423,10 +2447,6 @@ impl Editor {
 
     pub fn set_mode(&mut self, mode: Mode) {
         self.mode = mode;
-    }
-
-    pub fn set_diagnostics(&mut self, diagnostics: Vec<Diagnostic>) {
-        self.buffer.borrow_mut().set_diagnostics(diagnostics)
     }
 
     pub fn apply_positional_edits(
@@ -2535,7 +2555,11 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn match_current_selection(&mut self, kind: SearchKind) -> anyhow::Result<Vec<Dispatch>> {
+    fn match_current_selection(
+        &mut self,
+        kind: SearchKind,
+        context: &Context,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let content = self
             .buffer()
             .slice(&self.selection_set.primary.extended_range())?;
@@ -2553,6 +2577,7 @@ impl Editor {
                 search: search.clone(),
             },
             Movement::Current,
+            context,
         )?;
 
         Ok(vec![Dispatch::SetSearch(search)])
@@ -2625,7 +2650,7 @@ impl Editor {
 
     fn handle_kill_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
@@ -2634,29 +2659,29 @@ impl Editor {
                 Ok(Vec::new())
             }
             key!("k") => {
-                let dispatches = self.kill(Movement::Current)?;
+                let dispatches = self.kill(Movement::Current, context)?;
                 self.enter_normal_mode()?;
                 Ok(dispatches)
             }
-            key!("n") => self.kill(Movement::Next),
-            key!("p") => self.kill(Movement::Previous),
+            key!("n") => self.kill(Movement::Next, context),
+            key!("p") => self.kill(Movement::Previous, context),
             other => self.handle_normal_mode(context, other),
         }
     }
 
     fn handle_multi_cursor_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
-            key!("a") => self.add_cursor_to_all_selections(),
+            key!("a") => self.add_cursor_to_all_selections(context),
             // todo: kill primary cursor does not work as expected, we need another editr cursor mode
             key!("k") => self.kill_primary_cursor(),
-            key!("n") => self.add_cursor(&Movement::Next),
+            key!("n") => self.add_cursor(&Movement::Next, context),
             key!("o") => self.only_current_cursor(),
-            key!("p") => self.add_cursor(&Movement::Previous),
+            key!("p") => self.add_cursor(&Movement::Previous, context),
             other => return self.handle_normal_mode(context, other),
         }?;
         Ok(Vec::new())
@@ -2667,8 +2692,8 @@ impl Editor {
         Ok(())
     }
 
-    fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
-        self.selection_set.add_all(&self.buffer.borrow())?;
+    fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
+        self.selection_set.add_all(&self.buffer.borrow(), context)?;
         self.recalculate_scroll_offset();
         self.enter_normal_mode()?;
         Ok(())
@@ -2685,7 +2710,7 @@ impl Editor {
 
     fn handle_find_one_char_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event.code {
@@ -2715,7 +2740,7 @@ impl Editor {
 
     fn handle_scroll_line_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
@@ -2729,7 +2754,7 @@ impl Editor {
 
     fn handle_scroll_page_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         let height = (self.dimension().height / 2) as isize;
@@ -2790,11 +2815,7 @@ impl Editor {
         }
     }
 
-    fn match_literal(
-        &mut self,
-        context: &mut Context,
-        search: &str,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    fn match_literal(&mut self, context: &Context, search: &str) -> anyhow::Result<Vec<Dispatch>> {
         self.set_selection_mode(
             context,
             SelectionMode::Find {
@@ -2808,7 +2829,7 @@ impl Editor {
 
     fn handle_exchange_mode(
         &mut self,
-        context: &mut Context,
+        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
@@ -2855,7 +2876,6 @@ mod test_editor {
             editor::{CursorDirection, Mode},
         },
         context::{Context, Search, SearchKind},
-        lsp::diagnostic::Diagnostic,
         position::Position,
         screen::Dispatch,
         selection::SelectionMode,
@@ -2869,13 +2889,13 @@ mod test_editor {
     #[test]
     fn select_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["n"]);
 
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.move_selection(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
         Ok(())
     }
@@ -2883,29 +2903,29 @@ mod test_editor {
     #[test]
     fn select_word() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "camelCase, snake_case, ALLCAPS: 123");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["123"]);
 
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.move_selection(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.move_selection(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.move_selection(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.move_selection(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.move_selection(&mut context, Movement::Previous)?;
+        editor.move_selection(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["camel"]);
         Ok(())
     }
@@ -2913,10 +2933,10 @@ mod test_editor {
     #[test]
     fn select_kids() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let mut context = Context::new();
+        let context = Context::new();
 
-        editor.match_literal(&mut context, "x")?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.match_literal(&context, "x")?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
@@ -2926,92 +2946,17 @@ mod test_editor {
     }
 
     #[test]
-    fn select_diagnostic() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize) {\n  let x = 1; }");
-
-        // We should have diagnostics with the following combinations:
-        // 1. No intersection
-        // 2. Intersected
-        // 3. Subset
-
-        // 'spongebob' and 'patrick' are not intersected
-        // 'spongebob' and 'squidward' are intersected
-        editor.set_diagnostics(vec![
-            Diagnostic::new(
-                Position { line: 0, column: 0 }..Position { line: 0, column: 1 },
-                "spongebob".to_string(),
-            ),
-            Diagnostic::new(
-                Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
-                "sandy".to_string(),
-            ),
-            Diagnostic::new(
-                Position { line: 0, column: 1 }..Position { line: 0, column: 3 },
-                "patrick".to_string(),
-            ),
-            Diagnostic::new(
-                Position { line: 0, column: 2 }..Position { line: 0, column: 4 },
-                "squidward".to_string(),
-            ),
-        ]);
-
-        fn assert_dispatch_contains(dispatches: Vec<Dispatch>, info: &str) {
-            let content = dispatches
-                .into_iter()
-                .find_map(|dispatch| match dispatch {
-                    Dispatch::ShowInfo { content, .. } => Some(content),
-                    _ => None,
-                })
-                .unwrap();
-            assert!(content.join("\n").contains(info))
-        }
-
-        let dispatches = editor.select_diagnostic(Movement::Next)?;
-        assert_dispatch_contains(
-            dispatches,
-            "[UNKNOWN]\nspongebob\n\n[RELATED INFORMATION]\n",
-        );
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-
-        let dispatches = editor.select_diagnostic(Movement::Next)?;
-        assert_dispatch_contains(dispatches, "sandy");
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-
-        let dispatches = editor.select_diagnostic(Movement::Next)?;
-        assert_dispatch_contains(dispatches, "patrick");
-        assert_eq!(editor.get_selected_texts(), vec!["n "]);
-
-        let dispatches = editor.select_diagnostic(Movement::Next)?;
-        assert_dispatch_contains(dispatches, "squidward");
-        assert_eq!(editor.get_selected_texts(), vec![" m"]);
-
-        let dispatches = editor.select_diagnostic(Movement::Next)?;
-        assert_dispatch_contains(dispatches, "squidward");
-        assert_eq!(editor.get_selected_texts(), vec![" m"]);
-
-        let dispatches = editor.select_diagnostic(Movement::Previous)?;
-        assert_dispatch_contains(dispatches, "patrick");
-
-        let dispatches = editor.select_diagnostic(Movement::Previous)?;
-        assert_dispatch_contains(dispatches, "sandy");
-
-        let dispatches = editor.select_diagnostic(Movement::Previous)?;
-        assert_dispatch_contains(dispatches, "spongebob");
-        Ok(())
-    }
-
-    #[test]
     fn copy_replace() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
-        let mut context = Context::default();
-        editor.copy(&mut context)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.replace();
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        let context = Context::default();
+        editor.copy(&context)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.replace()?;
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.replace();
+        editor.replace()?;
         assert_eq!(editor.text(), "fn main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
@@ -3020,12 +2965,12 @@ mod test_editor {
     #[test]
     fn copy_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
+        let context = Context::default();
 
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
-        editor.copy(&mut context);
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.paste(&mut context);
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.copy(&context)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.paste(&context)?;
         assert_eq!(editor.text(), "fn fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
         Ok(())
@@ -3034,16 +2979,16 @@ mod test_editor {
     #[test]
     fn cut_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
-        editor.cut(&mut context)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.cut()?;
         assert_eq!(editor.text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
-        editor.move_selection(&mut context, Movement::Current)?;
+        editor.move_selection(&context, Movement::Current)?;
         assert_eq!(editor.get_selected_texts(), vec!["main"]);
 
-        editor.paste(&mut context);
+        editor.paste(&context)?;
 
         assert_eq!(editor.text(), " fn() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
@@ -3053,20 +2998,20 @@ mod test_editor {
     #[test]
     fn exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
         // Move token to "x: usize"
         for _ in 0..3 {
-            editor.move_selection(&mut context, Movement::Next)?;
+            editor.move_selection(&context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.exchange(Movement::Next);
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
-        editor.exchange(Movement::Previous);
+        editor.exchange(Movement::Previous, &context)?;
         assert_eq!(editor.text(), "fn main(x: usize, y: Vec<A>) {}");
         Ok(())
     }
@@ -3074,18 +3019,18 @@ mod test_editor {
     #[test]
     fn exchange_sibling_2() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "use a;\nuse b;\nuse c;");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select first statement
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.move_selection(&mut context, Movement::Up)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.move_selection(&context, Movement::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.exchange(Movement::Next);
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
-        editor.exchange(Movement::Next);
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
         Ok(())
     }
@@ -3093,15 +3038,15 @@ mod test_editor {
     #[test]
     fn raise() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
-        let mut context = Context::default();
+        let context = Context::default();
         // Move selection to "c()"
-        editor.match_literal(&mut context, "c()")?;
+        editor.match_literal(&context, "c()")?;
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
-        editor.raise();
+        editor.raise(&context)?;
         assert_eq!(editor.text(), "fn main() { let x = c(); }");
 
-        editor.raise();
+        editor.raise(&context)?;
         assert_eq!(editor.text(), "fn main() { c() }");
         Ok(())
     }
@@ -3118,10 +3063,11 @@ fn main() {
 }",
         );
 
-        editor.select_line(Movement::Next)?;
-        editor.select_line(Movement::Next)?;
+        let context = Context::default();
+        editor.select_line(Movement::Next, &context)?;
+        editor.select_line(Movement::Next, &context)?;
 
-        editor.exchange(Movement::Next);
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(
             editor.text(),
             "
@@ -3131,7 +3077,7 @@ fn main() {
 }"
         );
 
-        editor.exchange(Movement::Previous);
+        editor.exchange(Movement::Previous, &context)?;
         assert_eq!(
             editor.text(),
             "
@@ -3146,16 +3092,16 @@ fn main() {
     #[test]
     fn exchange_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
-        editor.exchange(Movement::Next);
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(Movement::Next);
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(editor.text(), "n fmain() { let x = 1; }");
 
-        editor.exchange(Movement::Previous);
+        editor.exchange(Movement::Previous, &context)?;
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(Movement::Previous);
+        editor.exchange(Movement::Previous, &context)?;
 
         assert_eq!(editor.text(), "fn main() { let x = 1; }");
         Ok(())
@@ -3164,22 +3110,22 @@ fn main() {
     #[test]
     fn multi_insert() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "struct A(usize, char)");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'usize'
-        editor.match_literal(&mut context, "usize")?;
+        editor.match_literal(&context, "usize")?;
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.add_cursor(&Movement::Next, &context)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
         editor.enter_insert_mode(CursorDirection::Start)?;
-        editor.insert("pub ");
+        editor.insert("pub ")?;
 
         assert_eq!(editor.text(), "struct A(pub usize, pub char)");
 
-        editor.backspace();
+        editor.backspace()?;
 
         assert_eq!(editor.text(), "struct A(pubusize, pubchar)");
         assert_eq!(editor.get_selected_texts(), vec!["", ""]);
@@ -3189,28 +3135,28 @@ fn main() {
     #[test]
     fn multi_raise() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'let x = S(a);'
-        editor.match_literal(&mut context, "let x = S(a);")?;
+        editor.match_literal(&context, "let x = S(a);")?;
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.add_cursor(&Movement::Next, &context)?;
 
         assert_eq!(
             editor.get_selected_texts(),
             vec!["let x = S(a);", "let y = S(b);"]
         );
 
-        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
+        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
         for _ in 0..5 {
-            editor.move_selection(&mut context, Movement::Next)?;
+            editor.move_selection(&context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
-        editor.raise();
+        editor.raise(&context)?;
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
 
@@ -3229,32 +3175,32 @@ fn main() {
     #[test]
     fn multi_exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'fn f(x:a,y:b){}'
-        editor.match_literal(&mut context, "fn f(x:a,y:b){}")?;
+        editor.match_literal(&context, "fn f(x:a,y:b){}")?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.add_cursor(&Movement::Next, &context)?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
         );
 
-        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
+        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
         for _ in 0..3 {
-            editor.move_selection(&mut context, Movement::Next)?;
+            editor.move_selection(&context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.exchange(Movement::Next);
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.exchange(Movement::Next, &context)?;
         assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
-        editor.exchange(Movement::Previous);
+        editor.exchange(Movement::Previous, &context)?;
         assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
         Ok(())
     }
@@ -3265,35 +3211,35 @@ fn main() {
             language(),
             "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }",
         );
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'let x = S(a)'
-        editor.match_literal(&mut context, "let x = S(spongebob_squarepants);")?;
+        editor.match_literal(&context, "let x = S(spongebob_squarepants);")?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["let x = S(spongebob_squarepants);"]
         );
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.add_cursor(&Movement::Next, &context)?;
 
-        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
             vec!["S(spongebob_squarepants)", "S(b)"]
         );
 
-        let mut context = Context::default();
-        editor.cut(&mut context)?;
+        let context = Context::default();
+        editor.cut()?;
         editor.enter_insert_mode(CursorDirection::Start)?;
 
-        editor.insert("Some(");
-        editor.paste(&mut context);
-        editor.insert(")");
+        editor.insert("Some(")?;
+        editor.paste(&context)?;
+        editor.insert(")")?;
 
         assert_eq!(
             editor.text(),
@@ -3305,19 +3251,19 @@ fn main() {
     #[test]
     fn toggle_highlight_mode() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
+        let context = Context::default();
 
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f("]);
 
         // Toggle the second time should inverse the initial_range
         editor.toggle_highlight_mode();
 
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
 
@@ -3325,7 +3271,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["("]);
 
@@ -3335,21 +3281,21 @@ fn main() {
     #[test]
     fn highlight_mode_cut() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        let mut context = Context::default();
-        editor.cut(&mut context)?;
+        let context = Context::default();
+        editor.cut()?;
 
         assert_eq!(editor.text(), "{ let x = S(a); let y = S(b); }");
 
-        editor.paste(&mut context);
+        editor.paste(&context)?;
 
         assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
         Ok(())
@@ -3358,23 +3304,23 @@ fn main() {
     #[test]
     fn highlight_mode_copy() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        let mut context = Context::default();
-        editor.copy(&mut context)?;
+        let context = Context::default();
+        editor.copy(&context)?;
 
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["{"]);
 
-        editor.paste(&mut context);
+        editor.paste(&context)?;
 
         assert_eq!(editor.text(), "fn f()fn f() let x = S(a); let y = S(b); }");
         Ok(())
@@ -3383,27 +3329,27 @@ fn main() {
     #[test]
     fn highlight_mode_replace() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        let mut context = Context::default();
-        editor.copy(&mut context)?;
+        let context = Context::default();
+        editor.copy(&context)?;
 
-        editor.set_selection_mode(&mut context, SelectionMode::OutermostNode)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
             vec!["{ let x = S(a); let y = S(b); }"]
         );
 
-        editor.replace();
+        editor.replace()?;
 
         assert_eq!(editor.text(), "fn f()fn f()");
         Ok(())
@@ -3412,22 +3358,22 @@ fn main() {
     #[test]
     fn highlight_mode_paste() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
+        let context = Context::default();
 
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
-        let mut context = Context::default();
-        editor.copy(&mut context);
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        let context = Context::default();
+        editor.copy(&context)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
         editor.toggle_highlight_mode();
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
-        editor.paste(&mut context);
+        editor.paste(&context)?;
 
         assert_eq!(editor.text(), "fn{ let x = S(a); let y = S(b); }");
         Ok(())
@@ -3454,7 +3400,7 @@ fn f() {
 
         assert_eq!(editor.mode, Mode::Insert);
 
-        editor.insert("let y = S(b);");
+        editor.insert("let y = S(b);")?;
 
         assert_eq!(
             editor.text(),
@@ -3471,19 +3417,19 @@ fn f() {
     #[test]
     fn kill_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
+        let context = Context::default();
 
-        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
         assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
         assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
 
         editor.set_selection_mode(
-            &mut context,
+            &context,
             SelectionMode::Find {
                 search: Search {
                     search: "x".to_string(),
@@ -3491,11 +3437,11 @@ fn f() {
                 },
             },
         )?;
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.set_selection_mode(&mut context, SelectionMode::Character)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.kill(Movement::Previous);
+        editor.kill(Movement::Previous, &context)?;
         assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
         Ok(())
     }
@@ -3512,11 +3458,11 @@ let y = S(b);
 }"
             .trim(),
         );
-        let mut context = Context::default();
-        editor.set_selection_mode(&mut context, SelectionMode::Line)?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Line)?;
         assert_eq!(editor.get_selected_texts(), vec!["fn f() {\n"]);
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
         assert_eq!(
             editor.text(),
             "
@@ -3527,7 +3473,7 @@ let y = S(b);
             .trim()
         );
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
         assert_eq!(
             editor.text(),
             "
@@ -3536,16 +3482,16 @@ let y = S(b);
         );
         assert_eq!(editor.get_selected_texts(), vec!["\n"]);
 
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);\n"]);
-        editor.kill(Movement::Previous);
+        editor.kill(Movement::Previous, &context)?;
         assert_eq!(
             editor.text(),
             "
 }"
         );
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
         assert_eq!(editor.text(), "}");
 
         Ok(())
@@ -3554,19 +3500,19 @@ let y = S(b);
     #[test]
     fn kill_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'x: a'
-        editor.match_literal(&mut context, "x: a")?;
+        editor.match_literal(&context, "x: a")?;
         assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
 
-        editor.set_selection_mode(&mut context, SelectionMode::SyntaxTree)?;
-        editor.kill(Movement::Next);
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.kill(Movement::Next, &context)?;
 
         assert_eq!(editor.text(), "fn f(y: b, z: c){}");
 
-        editor.move_selection(&mut context, Movement::Next)?;
-        editor.kill(Movement::Previous);
+        editor.move_selection(&context, Movement::Next)?;
+        editor.kill(Movement::Previous, &context)?;
 
         assert_eq!(editor.text(), "fn f(y: b){}");
         Ok(())
@@ -3575,32 +3521,32 @@ let y = S(b);
     #[test]
     fn kill_token() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
-        let mut context = Context::default();
+        let context = Context::default();
         // Select 'fn'
-        editor.set_selection_mode(&mut context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn"]);
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
 
         assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
 
-        editor.kill(Movement::Next);
+        editor.kill(Movement::Next, &context)?;
 
         assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
 
-        editor.move_selection(&mut context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
-        editor.kill(Movement::Previous);
+        editor.kill(Movement::Previous, &context)?;
 
         assert_eq!(editor.text(), "(: a, y: b, z: c){}");
         Ok(())
     }
 
     #[test]
-    fn paste_from_clipboard() {
+    fn paste_from_clipboard() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let mut context = Context::default();
 
@@ -3608,12 +3554,13 @@ let y = S(b);
 
         editor.reset();
 
-        editor.paste(&mut context);
+        editor.paste(&context)?;
 
         assert_eq!(
             editor.text(),
             "let z = S(c);fn f(){ let x = S(a); let y = S(b); }"
         );
+        Ok(())
     }
 
     #[test]
@@ -3665,16 +3612,16 @@ let y = S(b);
     #[test]
     fn insert_mode_start() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() {}");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select the first word
-        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
 
         // Enter insert mode
         editor.enter_insert_mode(CursorDirection::Start)?;
 
         // Type something
-        editor.insert("hello");
+        editor.insert("hello")?;
 
         // Expect the text to be 'hellofn main() {}'
         assert_eq!(editor.text(), "hellofn main() {}");
@@ -3684,16 +3631,16 @@ let y = S(b);
     #[test]
     fn insert_mode_end() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() {}");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select the first word
-        editor.set_selection_mode(&mut context, SelectionMode::Word)?;
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
 
         // Enter insert mode
         editor.enter_insert_mode(CursorDirection::End)?;
 
         // Type something
-        editor.insert("hello");
+        editor.insert("hello")?;
 
         // Expect the text to be 'fnhello main() {}'
         assert_eq!(editor.text(), "fnhello main() {}");
@@ -3703,10 +3650,10 @@ let y = S(b);
     #[test]
     fn enclose_left_bracket() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'x.y()'
-        editor.match_literal(&mut context, "x.y()")?;
+        editor.match_literal(&context, "x.y()")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -3720,10 +3667,10 @@ let y = S(b);
     #[test]
     fn enclose_right_bracket() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select 'x.y()'
-        editor.match_literal(&mut context, "x.y()")?;
+        editor.match_literal(&context, "x.y()")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
@@ -3737,14 +3684,14 @@ let y = S(b);
     #[test]
     fn match_current_selection() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
-        let mut context = Context::default();
+        let context = Context::default();
 
         // Select x.y()
-        editor.match_literal(&mut context, "x.y()")?;
+        editor.match_literal(&context, "x.y()")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
 
-        let dispatches = editor.match_current_selection(SearchKind::Literal)?;
+        let dispatches = editor.match_current_selection(SearchKind::Literal, &context)?;
 
         let search = Search {
             search: "x.y()".to_string(),
@@ -3758,9 +3705,9 @@ let y = S(b);
     #[test]
     fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
-        let mut context = Context::default();
+        let context = Context::default();
         // Select x.y()
-        editor.match_literal(&mut context, "x.y()")?;
+        editor.match_literal(&context, "x.y()")?;
 
         editor.enter_insert_mode(CursorDirection::End)?;
         editor.enter_normal_mode()?;

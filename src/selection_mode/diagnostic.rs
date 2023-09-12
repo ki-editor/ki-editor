@@ -1,10 +1,25 @@
 use lsp_types::DiagnosticSeverity;
 
-use crate::selection::Selection;
-
 use super::SelectionMode;
 
-pub struct Diagnostic(pub Option<DiagnosticSeverity>);
+pub struct Diagnostic {
+    severity: Option<DiagnosticSeverity>,
+    diagnostics: Vec<crate::lsp::diagnostic::Diagnostic>,
+}
+
+impl Diagnostic {
+    pub fn new(
+        severity: Option<DiagnosticSeverity>,
+        params: super::SelectionModeParams<'_>,
+    ) -> Self {
+        let buffer = params.buffer;
+        let diagnostics = params.context.get_diagnostics(buffer.path());
+        Self {
+            severity,
+            diagnostics: diagnostics.into_iter().cloned().collect(),
+        }
+    }
+}
 
 impl SelectionMode for Diagnostic {
     fn name(&self) -> &'static str {
@@ -12,14 +27,16 @@ impl SelectionMode for Diagnostic {
     }
     fn iter<'a>(
         &'a self,
-        _current_selection: &'a Selection,
-        buffer: &'a crate::buffer::Buffer,
+        params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let buffer = params.buffer;
+
         Ok(Box::new(
-            buffer
-                .diagnostics()
+            self.diagnostics
                 .iter()
-                .filter(|diagnostic| self.0.is_none() || diagnostic.severity == self.0)
+                .filter(|diagnostic| {
+                    self.severity.is_none() || diagnostic.severity == self.severity
+                })
                 .filter_map(|diagnostic| {
                     Some(super::ByteRange::with_info(
                         buffer.position_to_byte(diagnostic.range.start).ok()?

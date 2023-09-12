@@ -8,9 +8,9 @@ impl SelectionMode for Line {
     }
     fn iter<'a>(
         &'a self,
-        _current_selection: &'a crate::selection::Selection,
-        buffer: &'a crate::buffer::Buffer,
+        params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let buffer = params.buffer;
         let len_lines = buffer.len_lines().saturating_sub(1);
 
         Ok(Box::new((0..len_lines).filter_map(move |line_index| {
@@ -33,7 +33,8 @@ impl SelectionMode for Line {
         buffer
             .get_parent_lines(current_line)?
             .into_iter()
-            .filter(|line| line.line < current_line).next_back()
+            .filter(|line| line.line < current_line)
+            .next_back()
             .map(|line| {
                 buffer
                     .line_to_byte_range(line.line)?
@@ -45,7 +46,7 @@ impl SelectionMode for Line {
 
 #[cfg(test)]
 mod test_line {
-    use crate::{buffer::Buffer, selection::Selection};
+    use crate::{buffer::Buffer, context::Context, selection::Selection};
 
     use super::*;
 
@@ -86,6 +87,7 @@ fn f() {
             let start = buffer.line_to_char(selected_line).unwrap();
             let result = Line
                 .up(crate::selection_mode::SelectionModeParams {
+                    context: &Context::default(),
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &crate::components::editor::CursorDirection::End,

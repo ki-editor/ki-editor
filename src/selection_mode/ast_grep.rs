@@ -25,8 +25,7 @@ impl SelectionMode for AstGrep {
     }
     fn iter<'a>(
         &'a self,
-        _current_selection: &'a crate::selection::Selection,
-        _buffer: &'a crate::buffer::Buffer,
+        _params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(
             self.find_all().map(|node| ByteRange::new(node.range())),
