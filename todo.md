@@ -117,6 +117,10 @@
 - [x] fix(diagnostic): cannot move to next diagnostics sometimes
 - [x] fix(editor): enter normal mode should highlight one character, otherwise pressing 'a' afterwards feels unexpected
 - [x] feat(syntax-highlight-queries): take from the repos, don't store it
+- [x] fix(cursor): misplacement when wrapped sometimes
+- [x] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
+- [x] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
+- [x] fix: cannot enter new line in new file
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -164,8 +168,6 @@
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
 - [] feat(keymap): if u = parent, then zu the outermost node that starts with this cursor
 - [] feat(find): sentence, paragraph
-- [x] fix(cursor): misplacement when wrapped sometimes
-- [x] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [] refactor(buffer): hide rope
 - [] fix failing test cases
 - [] fix(signature-help): cannot be closed by pressing esc key
@@ -178,9 +180,7 @@
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(title): show Language
 - [] feat(multicursor): split
-- [] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 - [] fix: log if formatting failed
-- [] fix: cannot enter new line in new file
 - [] feat(suggestive_editor): text completion
 - [] feat(line): line-up/down go to parent/child lines! yes
 - [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
@@ -188,6 +188,7 @@
 - [] feat(editor/find): tree-sitter query
 - [] feat(layout): use wide layout as default, so that we can avoid wrapping unnecessarily
 - [] fix(suggestive_editor): autocomplete inserting emoji icons
+- [] feat(movement): leftmost and rightmost (for things like: last word of the line)
 
 # Grammar loading
 

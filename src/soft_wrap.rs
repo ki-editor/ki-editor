@@ -6,6 +6,7 @@ use crate::position::Position;
 pub struct WrappedLines {
     width: usize,
     lines: Vec<WrappedLine>,
+    ending_with_newline_character: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -18,6 +19,13 @@ impl WrappedLines {
     pub fn calibrate(&self, position: Position) -> Result<Position, CalibrationError> {
         if self.lines.is_empty() && position.line == 0 && position.column == 0 {
             return Ok(Position::new(0, 0));
+        }
+
+        if position.line == self.lines.len()
+            && position.column == 0
+            && self.ending_with_newline_character
+        {
+            return Ok(Position::new(position.line, 0));
         }
 
         let baseline = self
@@ -122,7 +130,11 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
             })
         })
         .collect();
-    WrappedLines { lines, width }
+    WrappedLines {
+        lines,
+        width,
+        ending_with_newline_character: text.ends_with('\n'),
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +144,16 @@ mod test_soft_wrap {
     mod calibrate {
         use crate::position::Position;
         use crate::soft_wrap::soft_wrap;
+
+        #[test]
+        fn ending_with_newline_char() {
+            let content = "hello\n";
+            let wrapped_lines = soft_wrap(content, 10);
+            assert_eq!(
+                wrapped_lines.calibrate(Position::new(1, 0)),
+                Ok(Position::new(1, 0))
+            );
+        }
 
         #[test]
         fn normal() {
