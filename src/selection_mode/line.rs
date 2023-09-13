@@ -11,12 +11,18 @@ impl SelectionMode for Line {
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
-        let len_lines = buffer.len_lines().saturating_sub(1);
+        let len_lines = buffer.len_lines();
 
         Ok(Box::new((0..len_lines).filter_map(move |line_index| {
             let line = buffer.get_line_by_line_index(line_index)?;
             let start = buffer.line_to_byte(line_index).ok()?;
             let end = start + line.len_bytes();
+
+            // This is a weird hack, because `rope.len_lines`
+            // returns an extra line which is empty if the rope ends with the newline character
+            if start == end {
+                return None;
+            }
 
             Some(super::ByteRange::new(start..end))
         })))
@@ -64,6 +70,12 @@ mod test_line {
                 (6..8, "c\n"),
             ],
         );
+    }
+
+    #[test]
+    fn single_line_without_trailing_newline_character() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a");
+        Line.assert_all_selections(&buffer, Selection::default(), &[(0..1, "a")]);
     }
 
     #[test]

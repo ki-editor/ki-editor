@@ -164,7 +164,8 @@
 - [] feat(multicursor): lag because selection set is unnecessarily recomputed for every cursor
 - [] feat(keymap): if u = parent, then zu the outermost node that starts with this cursor
 - [] feat(find): sentence, paragraph
-- [] fix(cursor): misplacement when wrapped sometimes
+- [x] fix(cursor): misplacement when wrapped sometimes
+- [x] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [] refactor(buffer): hide rope
 - [] fix failing test cases
 - [] fix(signature-help): cannot be closed by pressing esc key
@@ -179,8 +180,6 @@
 - [] feat(multicursor): split
 - [] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 - [] fix: log if formatting failed
-- [] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
-- [] fix: cannot go to last line
 - [] fix: cannot enter new line in new file
 - [] feat(suggestive_editor): text completion
 - [] feat(line): line-up/down go to parent/child lines! yes
