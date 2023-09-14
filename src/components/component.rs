@@ -105,6 +105,10 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().set_content(str)
     }
 
+    fn content(&self) -> String {
+        self.editor().buffer().content()
+    }
+
     fn title(&self) -> String {
         self.editor().title()
     }

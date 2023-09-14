@@ -11,6 +11,9 @@ use super::component::ComponentId;
 use super::editor::Editor;
 
 pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
+    fn emoji(&self) -> String {
+        String::new()
+    }
     fn label(&self) -> String;
     fn info(&self) -> Option<String>;
 }
@@ -121,16 +124,22 @@ impl<T: DropdownItem> Dropdown<T> {
             &self
                 .filtered_items
                 .iter()
-                .map(|item| item.label())
+                .map(|item| {
+                    if item.emoji().is_empty() {
+                        item.label()
+                    } else {
+                        format!("{} {}", item.emoji(), item.label())
+                    }
+                })
                 .collect::<Vec<String>>()
                 .join("\n"),
-        );
+        )?;
 
         self.editor.select_line_at(0)?;
         Ok(())
     }
 
-    fn show_info(&mut self, info: Option<String>) {
+    fn show_info(&mut self, info: Option<String>) -> anyhow::Result<()> {
         match info {
             Some(info) if !info.is_empty() => {
                 let info_panel = match self.info_panel.take() {
@@ -141,11 +150,12 @@ impl<T: DropdownItem> Dropdown<T> {
                     ))),
                 };
 
-                info_panel.borrow_mut().set_content(&info);
+                info_panel.borrow_mut().set_content(&info)?;
                 self.info_panel = Some(info_panel);
             }
             _ => self.info_panel = None,
         }
+        Ok(())
     }
 
     pub fn get_item(&mut self, movement: Movement) -> Option<T> {

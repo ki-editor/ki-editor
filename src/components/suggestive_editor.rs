@@ -13,6 +13,7 @@ use crate::{
 
 use itertools::Itertools;
 use my_proc_macros::key;
+use shared::icons::get_icon_config;
 use std::{cell::RefCell, rc::Rc};
 
 use super::component::ComponentId;
@@ -51,6 +52,17 @@ impl DropdownItem for CodeAction {
 }
 
 impl DropdownItem for CompletionItem {
+    fn emoji(&self) -> String {
+        self.kind
+            .map(|kind| {
+                get_icon_config()
+                    .completion
+                    .get(&format!("{:?}", kind))
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("({:?})", kind))
+            })
+            .unwrap_or_default()
+    }
     fn label(&self) -> String {
         self.label()
     }
@@ -379,6 +391,7 @@ mod test_suggestive_editor {
         position::Position,
         screen::Dispatch,
     };
+    use lsp_types::CompletionItemKind;
     use my_proc_macros::keys;
     use shared::canonicalized_path::CanonicalizedPath;
     use std::{cell::RefCell, rc::Rc};
@@ -533,6 +546,47 @@ mod test_suggestive_editor {
 
         // Expect the buffer to contain the selected item
         assert_eq!(editor.editor().text(), "Patrick");
+    }
+
+    #[test]
+    fn completion_with_emoji() -> anyhow::Result<()> {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        // Enter insert mode
+        editor
+            .editor_mut()
+            .enter_insert_mode(CursorDirection::Start)?;
+
+        // Enter s
+        editor.handle_events(keys!("s"))?;
+
+        // Pretend that the LSP server returned a completion
+        // That is without edit, but contains `kind`, which means it has emoji
+        editor.set_completion(Completion {
+            trigger_characters: vec![".".to_string()],
+            items: [CompletionItem {
+                label: "Spongebob".to_string(),
+                edit: None,
+                documentation: None,
+                sort_text: None,
+                kind: Some(CompletionItemKind::FUNCTION),
+                detail: None,
+            }]
+            .to_vec(),
+        });
+
+        // Expect the dropdown to contains emoji
+        let dropdown_content = editor.dropdown.borrow().content();
+        assert_eq!(dropdown_content, "ƒ Spongebob");
+
+        // Press enter
+        editor.handle_events(keys!("enter"))?;
+
+        // Expect the content of the buffer to be applied with the new edit,
+        // resulting in 'Spongebob', and does not contain emoji
+        assert_eq!(editor.editor().text(), "Spongebob");
+
+        Ok(())
     }
 
     #[test]

@@ -81,16 +81,7 @@ impl CompletionItem {
     }
 
     pub fn label(&self) -> String {
-        if let Some(kind) = self.kind {
-            let icon = get_icon_config()
-                .completion
-                .get(&format!("{:?}", kind))
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("({:?})", kind));
-            format!("{}  {}", icon, self.label,)
-        } else {
-            self.label.clone()
-        }
+        self.label.clone()
     }
 
     pub fn documentation(&self) -> Option<Documentation> {

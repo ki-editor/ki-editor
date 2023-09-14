@@ -121,6 +121,7 @@
 - [x] fix(selection_mode/line): cannot select last line of new file (try go to last line in file explorer)
 - [x] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 - [x] fix: cannot enter new line in new file
+- [x] fix(suggestive_editor): autocomplete inserting emoji icons
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -187,8 +188,9 @@
 - [] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
 - [] feat(layout): use wide layout as default, so that we can avoid wrapping unnecessarily
-- [] fix(suggestive_editor): autocomplete inserting emoji icons
 - [] feat(movement): leftmost and rightmost (for things like: last word of the line)
+- [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
+- [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)
 
 # Grammar loading
 
