@@ -850,11 +850,11 @@ impl Editor {
         self.jump_from_selection(&self.selection_set.primary.clone(), context)
     }
 
-    fn cut(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        self.delete(true)
+    fn cut(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+        self.delete(true, context)
     }
 
-    fn delete(&mut self, cut: bool) -> anyhow::Result<Vec<Dispatch>> {
+    fn delete(&mut self, cut: bool, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         // Set the clipboard content to the current selection
         // if there is only one cursor.
         let dispatch = if cut && self.selection_set.secondary.is_empty() {
@@ -867,24 +867,63 @@ impl Editor {
         } else {
             None
         };
-        let edit_transaction = EditTransaction::from_action_groups(
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let old_range = selection.extended_range();
+                    let current_range = selection.extended_range();
                     let copied_text = if cut {
-                        Some(self.buffer.borrow().slice(&old_range)?)
+                        Some(self.buffer.borrow().slice(&current_range)?)
                     } else {
                         selection.copied_text()
                     };
+                    // If the gap between the next selection and the current selection are only whitespaces, perform a "kill next" instead
+                    let next_selection = Selection::get_selection_(
+                        &buffer,
+                        selection,
+                        &self.selection_set.mode,
+                        &Movement::Next,
+                        &self.cursor_direction,
+                        context,
+                    )?;
+
+                    let next_range = next_selection.extended_range();
+
+                    let (delete_range, select_range) = {
+                        let default = (
+                            current_range,
+                            (current_range.start..current_range.start).into(),
+                        );
+                        if current_range.end > next_range.start {
+                            default
+                        } else {
+                            let inbetween_range: CharIndexRange =
+                                (current_range.end..next_range.start).into();
+
+                            let inbetween_text = buffer.slice(&inbetween_range)?.to_string();
+                            if !inbetween_text.trim().is_empty() {
+                                default
+                            } else {
+                                let delete_range: CharIndexRange = (current_range.start
+                                    ..next_selection.extended_range().start)
+                                    .into();
+                                (delete_range, {
+                                    next_selection
+                                        .extended_range()
+                                        .shift_left(delete_range.len())
+                                })
+                            }
+                        }
+                    };
+
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
-                                range: old_range,
+                                range: delete_range,
                                 new: Rope::new(),
                             }),
                             Action::Select(
-                                Selection::new((old_range.start..old_range.start).into())
-                                    .set_copied_text(copied_text),
+                                Selection::new(select_range).set_copied_text(copied_text),
                             ),
                         ]
                         .to_vec(),
@@ -892,8 +931,8 @@ impl Editor {
                 })
                 .into_iter()
                 .flatten()
-                .collect(),
-        );
+                .collect()
+        });
 
         self.apply_edit_transaction(edit_transaction)
             .map(|dispatches| dispatches.into_iter().chain(dispatch).collect())
@@ -1482,7 +1521,7 @@ impl Editor {
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
             }
-            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
+            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut(context)?)),
             key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context)?)),
             key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo()?)),
             key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo()?)),
@@ -1769,7 +1808,7 @@ impl Editor {
 
             key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
             // j = jump
-            key!("k") => self.mode = Mode::Kill,
+            key!("k") => return self.delete(false, context),
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
@@ -1790,8 +1829,7 @@ impl Editor {
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
-            // wipe
-            key!("w") => return self.delete(false),
+            // w = unused
             key!("x") => self.mode = Mode::Exchange,
             key!("shift+X") => return self.exchange(Movement::Previous, context),
             // y = unused
@@ -2981,7 +3019,7 @@ mod test_editor {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let context = Context::default();
         editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.cut()?;
+        editor.cut(&context)?;
         assert_eq!(editor.text(), " main() { let x = 1; }");
         assert_eq!(editor.get_selected_texts(), vec![""]);
 
@@ -3234,7 +3272,7 @@ fn main() {
         );
 
         let context = Context::default();
-        editor.cut()?;
+        editor.cut(&context)?;
         editor.enter_insert_mode(CursorDirection::Start)?;
 
         editor.insert("Some(")?;
@@ -3291,7 +3329,7 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
 
         let context = Context::default();
-        editor.cut()?;
+        editor.cut(&context)?;
 
         assert_eq!(editor.text(), "{ let x = S(a); let y = S(b); }");
 
@@ -3644,6 +3682,84 @@ let y = S(b);
 
         // Expect the text to be 'fnhello main() {}'
         assert_eq!(editor.text(), "fnhello main() {}");
+        Ok(())
+    }
+
+    #[test]
+    /// Kill means delete until the next selection
+    fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+        let context = Context::default();
+
+        // Select first token
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+
+        // Delete
+        editor.delete(false, &context)?;
+
+        // Expect the text to be 'main() {}'
+        assert_eq!(editor.text(), "main() {}");
+
+        // Expect the current selection is 'main'
+        assert_eq!(editor.get_selected_texts(), vec!["main"]);
+        Ok(())
+    }
+
+    #[test]
+    /// No gap between current and next selection
+    fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+        let context = Context::default();
+
+        // Select first character
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
+
+        // Delete
+        editor.delete(false, &context)?;
+
+        assert_eq!(editor.text(), "n main() {}");
+
+        // Expect the current selection is 'n'
+        assert_eq!(editor.get_selected_texts(), vec!["n"]);
+        Ok(())
+    }
+
+    #[test]
+    /// No next selection
+    fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+        let context = Context::default();
+
+        // Select last token
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.move_selection(&context, Movement::Last)?;
+
+        // Delete
+        editor.delete(false, &context)?;
+
+        assert_eq!(editor.text(), "fn main() {");
+
+        // Expect the current selection is empty
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        Ok(())
+    }
+
+    #[test]
+    fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn maima() {}");
+        let context = Context::default();
+
+        // Select first token
+        editor.match_literal(&context, "ma")?;
+
+        // Delete
+        editor.delete(true, &context)?;
+
+        // Expect the text to be 'fn ima() {}'
+        assert_eq!(editor.text(), "fn ima() {}");
+
+        // Expect the current selection is empty
+        assert_eq!(editor.get_selected_texts(), vec![""]);
         Ok(())
     }
 

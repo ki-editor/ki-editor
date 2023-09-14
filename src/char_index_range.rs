@@ -44,6 +44,13 @@ impl CharIndexRange {
     pub fn len(&self) -> usize {
         self.end.0.saturating_sub(self.start.0)
     }
+
+    pub fn shift_left(&self, len: usize) -> CharIndexRange {
+        CharIndexRange {
+            start: self.start - len,
+            end: self.end - len,
+        }
+    }
 }
 
 pub struct CharIndexRangeIter {
