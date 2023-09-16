@@ -250,9 +250,7 @@ impl Layout {
             .into_iter()
             .zip(self.rectangles.iter())
             .for_each(|(component, rectangle)| {
-                // Leave 1 row on top for rendering the title
-                let (_, rectangle) = rectangle.split_horizontally_at(1);
-                component.borrow_mut().set_rectangle(rectangle)
+                component.borrow_mut().set_rectangle(rectangle.clone())
             });
     }
 

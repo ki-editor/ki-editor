@@ -82,7 +82,7 @@ impl<T: Frontend> Screen<T> {
         receiver: Receiver<ScreenMessage>,
     ) -> anyhow::Result<Screen<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
-        let layout_kind = LayoutKind::Tall;
+        let layout_kind = LayoutKind::Wide;
         let screen = Screen {
             context: Context::new(),
             buffers: Vec::new(),
@@ -205,7 +205,11 @@ impl<T: Frontend> Screen<T> {
         const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 
         // Generate layout
-        let grid = Grid::new(self.layout.terminal_dimension());
+        let dimension = self.layout.terminal_dimension();
+        let grid = Grid::new(Dimension {
+            height: dimension.height.saturating_sub(GLOBAL_TITLE_BAR_HEIGHT),
+            width: dimension.width,
+        });
 
         // Render every window
         let (grid, cursor) = self
@@ -271,8 +275,9 @@ impl<T: Frontend> Screen<T> {
             .borders()
             .into_iter()
             .fold(grid, Grid::set_border);
+
         // Set the global title
-        let grid = {
+        let global_title_grid = {
             let mode = self.context.mode().map(|mode| mode.display()).or_else(|| {
                 self.current_component()
                     .map(|component| component.borrow().editor().display_mode())
@@ -294,10 +299,15 @@ impl<T: Frontend> Screen<T> {
             } else {
                 format!("{} {}", self.working_directory.display(), mode)
             };
-            grid.set_line(0, &title, self.context.theme().ui.global_title)
+
+            Grid::new(Dimension {
+                height: 1,
+                width: dimension.width,
+            })
+            .set_line(0, &title, self.context.theme().ui.global_title)
         };
 
-        self.render_grid(grid, cursor)?;
+        self.render_grid(grid.merge_vertical(global_title_grid), cursor)?;
 
         Ok(())
     }
