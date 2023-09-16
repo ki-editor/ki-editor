@@ -47,6 +47,13 @@ impl Position {
     pub fn set_line(self, line: usize) -> Position {
         Position { line, ..self }
     }
+
+    pub fn move_down(&self, line: usize) -> Position {
+        Position {
+            line: self.line + line,
+            column: self.column,
+        }
+    }
 }
 
 impl PartialOrd for Position {

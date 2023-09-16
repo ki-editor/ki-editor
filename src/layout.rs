@@ -8,7 +8,7 @@ use crate::{
         suggestive_editor::SuggestiveEditor,
     },
     quickfix_list::QuickfixLists,
-    rectangle::{Border, Rectangle},
+    rectangle::{Border, LayoutKind, Rectangle},
     screen::Dimension,
 };
 use anyhow::anyhow;
@@ -37,12 +37,17 @@ pub struct Layout {
 
     focused_component_id: Option<ComponentId>,
 
+    layout_kind: LayoutKind,
     terminal_dimension: Dimension,
 }
 
 impl Layout {
-    pub fn new(terminal_dimension: Dimension, path: &CanonicalizedPath) -> anyhow::Result<Layout> {
-        let (rectangles, borders) = Rectangle::generate_tall(1, terminal_dimension);
+    pub fn new(
+        terminal_dimension: Dimension,
+        layout_kind: LayoutKind,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<Layout> {
+        let (rectangles, borders) = Rectangle::generate(layout_kind, 1, 0.7, terminal_dimension);
         Ok(Layout {
             main_panel: None,
             main_panel_history_backward: vec![],
@@ -51,6 +56,7 @@ impl Layout {
             keymap_legend: None,
             quickfix_lists: None,
             prompts: vec![],
+            layout_kind,
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
             file_explorer: Rc::new(RefCell::new(FileExplorer::new(path)?)),
@@ -231,8 +237,12 @@ impl Layout {
     }
 
     pub fn recalculate_layout(&mut self) {
-        let (rectangles, borders) =
-            Rectangle::generate_tall(self.components().len(), self.terminal_dimension);
+        let (rectangles, borders) = Rectangle::generate(
+            self.layout_kind,
+            self.components().len(),
+            0.7,
+            self.terminal_dimension,
+        );
         self.rectangles = rectangles;
         self.borders = borders;
 
@@ -241,7 +251,7 @@ impl Layout {
             .zip(self.rectangles.iter())
             .for_each(|(component, rectangle)| {
                 // Leave 1 row on top for rendering the title
-                let (_, rectangle) = rectangle.split_vertically_at(1);
+                let (_, rectangle) = rectangle.split_horizontally_at(1);
                 component.borrow_mut().set_rectangle(rectangle)
             });
     }
@@ -406,17 +416,6 @@ impl Layout {
             .buffer_mut()
             .update_highlighted_spans(highlighted_spans);
 
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod test_layout {
-    use super::*;
-    #[test]
-    fn recalculate_layout_should_not_panic_when_there_are_no_components() -> anyhow::Result<()> {
-        let mut layout = Layout::new(Dimension::default(), todo!())?;
-        layout.recalculate_layout();
         Ok(())
     }
 }

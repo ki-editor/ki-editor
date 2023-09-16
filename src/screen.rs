@@ -34,6 +34,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
+    rectangle::LayoutKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
 };
@@ -53,6 +54,8 @@ pub struct Screen<T: Frontend> {
     lsp_manager: LspManager,
 
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
+
+    layout_kind: LayoutKind,
 
     working_directory: CanonicalizedPath,
 
@@ -79,6 +82,7 @@ impl<T: Frontend> Screen<T> {
         receiver: Receiver<ScreenMessage>,
     ) -> anyhow::Result<Screen<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
+        let layout_kind = LayoutKind::Tall;
         let screen = Screen {
             context: Context::new(),
             buffers: Vec::new(),
@@ -86,7 +90,8 @@ impl<T: Frontend> Screen<T> {
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             sender,
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
-            layout: Layout::new(dimension, &working_directory)?,
+            layout_kind,
+            layout: Layout::new(dimension, layout_kind, &working_directory)?,
             working_directory,
             frontend,
             syntax_highlight_request_sender: None,

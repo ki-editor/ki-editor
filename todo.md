@@ -182,8 +182,8 @@
 - [] feat(title): show Language
 - [] feat(multicursor): split
 - [] fix: log if formatting failed
-- [] feat(suggestive_editor): text completion
-- [] feat(line): line-up/down go to parent/child lines! yes
+- [] feat(suggestive_editor): text completion (based on words)
+- [x] feat(line): line-up/down go to parent/child lines! yes
 - [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query

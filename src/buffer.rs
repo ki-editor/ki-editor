@@ -621,7 +621,7 @@ pub struct Patch {
 mod test_buffer {
     use itertools::Itertools;
 
-    use crate::position::Position;
+    
 
     use super::Buffer;
 

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use lsp_types::CompletionItemKind;
-use shared::icons::get_icon_config;
+
 
 use crate::position::Position;
 

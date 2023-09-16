@@ -1,3 +1,4 @@
+use itertools::{Either, Itertools};
 use std::collections::HashSet;
 
 use crate::{position::Position, screen::Dimension};
@@ -52,6 +53,20 @@ impl Border {
             .cloned()
             .collect()
     }
+
+    fn new_vertical(start: Position) -> Border {
+        Border {
+            direction: BorderDirection::Vertical,
+            start,
+        }
+    }
+
+    fn new_horizontal(position: Position) -> Border {
+        Border {
+            direction: BorderDirection::Horizontal,
+            start: position,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -59,6 +74,60 @@ impl Border {
 pub enum BorderDirection {
     Horizontal,
     Vertical,
+}
+
+enum Element {
+    Rectangle(Rectangle),
+    Border(Border),
+}
+
+pub fn spread(length: usize, count: usize) -> Vec<usize> {
+    if count == 0 {
+        return vec![];
+    }
+    let element_size = length / count;
+    let remainder = length % count;
+    (0..count)
+        .map(|index| element_size + if index < remainder { 1 } else { 0 })
+        .collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Split {
+    kind: SplitKind,
+    /// 0-based, can be either a line or a column
+    origin: u16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum SplitKind {
+    Rectangle {
+        /// Can be either the length or the width
+        size: u16,
+    },
+    Border,
+}
+
+fn split(length: usize, count: usize) -> Vec<Split> {
+    let border_count = count - 1;
+    let rectangles = spread(length - border_count, count)
+        .into_iter()
+        .map(|size| SplitKind::Rectangle { size: size as u16 });
+
+    Itertools::intersperse(rectangles, SplitKind::Border)
+        .scan(0_u16, |origin, kind| {
+            let size = match kind {
+                SplitKind::Rectangle { size } => size,
+                SplitKind::Border => 1,
+            };
+            let split = Split {
+                kind,
+                origin: *origin,
+            };
+            *origin += size;
+            Some(split)
+        })
+        .collect()
 }
 
 impl Rectangle {
@@ -118,7 +187,120 @@ impl Rectangle {
         }
     }
 
-    pub fn generate_tall(count: usize, dimension: Dimension) -> (Vec<Rectangle>, Vec<Border>) {
+    fn generate_wide(
+        count: usize,
+        top_rectangle_height_percentage: f32,
+        dimension: Dimension,
+    ) -> (Vec<Rectangle>, Vec<Border>) {
+        let rectangle = Rectangle {
+            origin: Position::new(0, 0),
+            width: dimension.width,
+            height: dimension.height,
+        };
+
+        if count == 1 {
+            return (vec![rectangle], vec![]);
+        }
+
+        let split_at = (dimension.height as f32 * top_rectangle_height_percentage) as usize;
+
+        let (up, bottom) = rectangle.split_horizontally_at(split_at);
+        let (rectangles, borders): (Vec<Rectangle>, Vec<Border>) = bottom
+            .split_vertically(count - 1)
+            .into_iter()
+            .partition_map(|element| match element {
+                Element::Rectangle(rectangle) => Either::Left(rectangle),
+                Element::Border(border) => Either::Right(border),
+            });
+        let rectangles = vec![up].into_iter().chain(rectangles.into_iter()).collect();
+
+        (rectangles, borders)
+    }
+
+    fn split_vertically(&self, count: usize) -> Vec<Element> {
+        split(self.width as usize, count)
+            .into_iter()
+            .map(|split| {
+                let column = self.origin.column + split.origin as usize;
+                let position = Position {
+                    column,
+                    ..self.origin
+                };
+                match split.kind {
+                    SplitKind::Rectangle { size } => Element::Rectangle(Rectangle {
+                        origin: position,
+                        width: size,
+                        height: self.height,
+                    }),
+                    SplitKind::Border => Element::Border(Border::new_vertical(position)),
+                }
+            })
+            .collect()
+    }
+
+    fn split_horizontally(&self, count: usize) -> Vec<Element> {
+        split(self.height as usize, count)
+            .into_iter()
+            .map(|split| {
+                let line = self.origin.line + split.origin as usize;
+                let position = Position {
+                    line,
+                    ..self.origin
+                };
+                match split.kind {
+                    SplitKind::Rectangle { size } => Element::Rectangle(Rectangle {
+                        origin: position,
+                        width: self.width,
+                        height: size,
+                    }),
+                    SplitKind::Border => Element::Border(Border::new_horizontal(position)),
+                }
+            })
+            .collect()
+    }
+
+    fn generate_tall(
+        count: usize,
+        left_rectangle_width_percentage: f32,
+        dimension: Dimension,
+    ) -> (Vec<Rectangle>, Vec<Border>) {
+        let split_at = (dimension.width as f32 * left_rectangle_width_percentage) as usize;
+        let initial = Rectangle {
+            origin: Position::new(0, 0),
+            width: dimension.width,
+            height: dimension.height,
+        };
+
+        if count == 1 {
+            return (vec![initial], vec![]);
+        }
+
+        let (left, right) = initial.split_vertically_at(split_at);
+
+        let center_border = Border::new_vertical(Position {
+            column: split_at,
+            line: 0,
+        });
+        let right = right.clamp_left(1);
+
+        let (rectangles, borders): (Vec<Rectangle>, Vec<Border>) = right
+            .split_horizontally(count - 1)
+            .into_iter()
+            .partition_map(|element| match element {
+                Element::Rectangle(rectangle) => Either::Left(rectangle),
+                Element::Border(border) => Either::Right(border),
+            });
+
+        let rectangles = vec![left]
+            .into_iter()
+            .chain(rectangles.into_iter())
+            .collect();
+        let borders = vec![center_border]
+            .into_iter()
+            .chain(borders.into_iter())
+            .collect();
+        return (rectangles, borders);
+
         if count == 0 {
             return (vec![], vec![]);
         }
@@ -280,30 +462,38 @@ impl Rectangle {
         }
     }
 
-    /// Split the rectangle vertically at the given line.
-    pub fn split_vertically_at(&self, line: usize) -> (Rectangle, Rectangle) {
-        let rectangle1 = Rectangle {
+    /// Split the rectangle horizontally at the given line.
+    pub fn split_horizontally_at(&self, line: usize) -> (Rectangle, Rectangle) {
+        let up = Rectangle {
             origin: self.origin,
             width: self.width,
             height: line as u16,
         };
-        let rectangle2 = Rectangle {
-            origin: Position {
-                line: self.origin.line + line,
-                ..self.origin
-            },
+        let bottom = Rectangle {
+            origin: self.origin.move_down(line),
             width: self.width,
-            height: self.height - line as u16,
+            height: self.height.saturating_sub(line as u16),
         };
-        (rectangle1, rectangle2)
+        (up, bottom)
+    }
+
+    pub fn split_vertically_at(&self, column: usize) -> (Rectangle, Rectangle) {
+        let left = Rectangle {
+            origin: self.origin,
+            width: column as u16,
+            height: self.height,
+        };
+        let right = Rectangle {
+            origin: self.origin.move_right(column as u16),
+            width: self.width.saturating_sub(column as u16),
+            height: self.height,
+        };
+        (left, right)
     }
 
     pub fn move_up(&self, offset: usize) -> Rectangle {
         Rectangle {
-            origin: Position {
-                line: self.origin.line - offset,
-                ..self.origin
-            },
+            origin: self.origin.move_up(offset),
             ..*self
         }
     }
@@ -348,21 +538,141 @@ impl Rectangle {
             width: self.width,
         }
     }
+
+    fn move_right(&self, arg: i32) -> Rectangle {
+        Rectangle {
+            origin: Position {
+                column: self
+                    .origin
+                    .column
+                    .saturating_add(arg as usize)
+                    .min(self.width.saturating_sub(1) as usize),
+                ..self.origin
+            },
+            ..*self
+        }
+    }
+
+    fn clamp_left(&self, width: usize) -> Rectangle {
+        Rectangle {
+            origin: Position {
+                column: self.origin.column.saturating_add(width),
+                ..self.origin
+            },
+            width: self.width.saturating_sub(width as u16),
+            ..*self
+        }
+    }
+
+    pub fn generate(
+        kind: LayoutKind,
+        count: usize,
+        ratio: f32,
+        dimension: Dimension,
+    ) -> (Vec<Rectangle>, Vec<Border>) {
+        match kind {
+            LayoutKind::Tall => Rectangle::generate_tall(count, ratio, dimension),
+            LayoutKind::Wide => Rectangle::generate_wide(count, ratio, dimension),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutKind {
+    Tall,
+    Wide,
 }
 
 #[cfg(test)]
 mod test_rectangle {
 
     use crate::position::Position;
+    use crate::rectangle::split;
+    use crate::rectangle::spread;
     use crate::rectangle::Border;
+    use crate::rectangle::Split;
+    use crate::rectangle::SplitKind;
     use crate::screen::Dimension;
 
     use super::BorderDirection::*;
     use super::Rectangle;
 
+    #[test]
+    fn test_spread() {
+        assert_eq!(spread(10, 3), [4, 3, 3].to_vec());
+        assert_eq!(spread(10, 4), [3, 3, 2, 2].to_vec());
+        assert_eq!(spread(10, 5), [2, 2, 2, 2, 2].to_vec())
+    }
+
+    #[test]
+    fn test_split() {
+        assert_eq!(
+            split(10, 3),
+            [
+                Split {
+                    kind: SplitKind::Rectangle { size: 3 },
+                    origin: 0
+                },
+                Split {
+                    kind: SplitKind::Border,
+                    origin: 3
+                },
+                Split {
+                    kind: SplitKind::Rectangle { size: 3 },
+                    origin: 4
+                },
+                Split {
+                    kind: SplitKind::Border,
+                    origin: 7
+                },
+                Split {
+                    kind: SplitKind::Rectangle { size: 2 },
+                    origin: 8
+                }
+            ]
+            .to_vec()
+        );
+    }
+
+    #[test]
+    fn generate_wide() {
+        let (rectangles, _) = Rectangle::generate_wide(
+            3,
+            0.5,
+            Dimension {
+                width: 10,
+                height: 10,
+            },
+        );
+
+        assert_eq!(
+            rectangles,
+            [
+                Rectangle {
+                    origin: Position { line: 0, column: 0 },
+                    width: 10,
+                    height: 5
+                },
+                Rectangle {
+                    origin: Position { line: 5, column: 0 },
+                    width: 5,
+                    height: 5
+                },
+                Rectangle {
+                    origin: Position { line: 5, column: 6 },
+                    width: 4,
+                    height: 5
+                }
+            ]
+            .to_vec()
+        );
+    }
+
     mod generate_tall {
 
         use std::collections::HashSet;
+
+        use crate::rectangle::LayoutKind;
 
         use super::*;
 
@@ -387,12 +697,19 @@ mod test_rectangle {
             }
         }
 
+        impl Arbitrary for LayoutKind {
+            fn arbitrary(g: &mut Gen) -> Self {
+                *g.choose(&[LayoutKind::Tall, LayoutKind::Wide]).unwrap()
+            }
+        }
+
         #[quickcheck]
         fn qc_rectangles_and_borders_area_equals_dimension_area(
             count: Count,
+            layout_kind: LayoutKind,
             dimension: Dimension,
         ) -> bool {
-            let (rectangles, borders) = Rectangle::generate_tall(count.0, dimension);
+            let (rectangles, borders) = Rectangle::generate(layout_kind, count.0, 0.5, dimension);
             let rectangles_area: usize = rectangles.iter().map(|r| r.area()).sum();
             let borders_area: usize = borders.iter().map(|b| b.area(&dimension)).sum();
             let dimension_area = dimension.area();
@@ -403,9 +720,10 @@ mod test_rectangle {
         #[quickcheck]
         fn qc_all_dimension_positions_are_filled_perfectly(
             count: Count,
+            layout_kind: LayoutKind,
             dimension: Dimension,
         ) -> bool {
-            let (rectangles, borders) = Rectangle::generate_tall(count.0, dimension);
+            let (rectangles, borders) = Rectangle::generate(layout_kind, count.0, 0.5, dimension);
 
             let rectangle_and_border_positions = rectangles
                 .iter()
@@ -432,8 +750,12 @@ mod test_rectangle {
         }
 
         #[quickcheck]
-        fn qc_no_rectangles_and_borders_overlapped(count: Count, dimension: Dimension) -> bool {
-            let (rectangles, borders) = Rectangle::generate_tall(count.0, dimension);
+        fn qc_no_rectangles_and_borders_overlapped(
+            count: Count,
+            layout_kind: LayoutKind,
+            dimension: Dimension,
+        ) -> bool {
+            let (rectangles, borders) = Rectangle::generate(layout_kind, count.0, 0.5, dimension);
 
             let rectangles_intersections = rectangles
                 .iter()
@@ -484,13 +806,13 @@ mod test_rectangle {
     mod generate_binary_partition {
         use super::*;
         #[test]
-        fn split_vertically_at() {
+        fn split_horizontally_at() {
             let rectangle = Rectangle {
                 origin: Position { line: 0, column: 0 },
                 width: 100,
                 height: 100,
             };
-            let (rectangle1, rectangle2) = rectangle.split_vertically_at(50);
+            let (rectangle1, rectangle2) = rectangle.split_horizontally_at(50);
             assert_eq!(
                 rectangle1,
                 Rectangle {
