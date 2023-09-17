@@ -226,7 +226,7 @@ mod test_dropdown {
         assert_eq!(dropdown.editor.get_selected_texts(), vec!["a\n"]);
         assert_eq!(
             dropdown.editor.selection_set.primary.extended_range(),
-            (CharIndex(0)..CharIndex(6)).into()
+            (CharIndex(0)..CharIndex(2)).into()
         );
         dropdown.next_item();
         assert_eq!(dropdown.current_item().unwrap().label(), "b");

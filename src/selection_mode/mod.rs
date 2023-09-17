@@ -449,7 +449,7 @@ mod test_selection_mode {
             .unwrap()
             .unwrap()
             .range();
-        let expected: CharIndexRange = (CharIndex(0)..CharIndex(6)).into();
+        let expected: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
 
         assert_eq!(expected, actual);
     }

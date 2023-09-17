@@ -3498,7 +3498,7 @@ let y = S(b);
         );
         let context = Context::default();
         editor.set_selection_mode(&context, SelectionMode::Line)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn f() {\n"]);
+        assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
 
         editor.kill(Movement::Next, &context)?;
         assert_eq!(
@@ -3518,10 +3518,10 @@ let y = S(b);
 let y = S(b);
 }"
         );
-        assert_eq!(editor.get_selected_texts(), vec!["\n"]);
+        assert_eq!(editor.get_selected_texts(), vec![""]);
 
         editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);\n"]);
+        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
         editor.kill(Movement::Previous, &context)?;
         assert_eq!(
             editor.text(),

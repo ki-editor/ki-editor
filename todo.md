@@ -178,7 +178,6 @@
 - [] fs watcher, watch for file changes
 - [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
-- [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(title): show Language
 - [] feat(multicursor): split
 - [] fix: log if formatting failed
@@ -191,6 +190,7 @@
 - [] feat(movement): leftmost and rightmost (for things like: last word of the line)
 - [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
 - [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)
+- [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 
 # Grammar loading
 

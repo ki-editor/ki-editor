@@ -13,19 +13,31 @@ impl SelectionMode for Line {
         let buffer = params.buffer;
         let len_lines = buffer.len_lines();
 
-        Ok(Box::new((0..len_lines).filter_map(move |line_index| {
-            let line = buffer.get_line_by_line_index(line_index)?;
-            let start = buffer.line_to_byte(line_index).ok()?;
-            let end = start + line.len_bytes();
+        Ok(Box::new(
+            (0..len_lines)
+                .take(
+                    // This is a weird hack, because `rope.len_lines`
+                    // returns an extra line which is empty if the rope ends with the newline character
+                    if buffer.rope().to_string().ends_with('\n') {
+                        len_lines.saturating_sub(1)
+                    } else {
+                        len_lines
+                    },
+                )
+                .filter_map(move |line_index| {
+                    let line = buffer.get_line_by_line_index(line_index)?;
+                    let start = buffer.line_to_byte(line_index).ok()?;
+                    let len_bytes = line.len_bytes();
+                    let end = start
+                        + if line.to_string().ends_with('\n') {
+                            len_bytes.saturating_sub(1)
+                        } else {
+                            len_bytes
+                        };
 
-            // This is a weird hack, because `rope.len_lines`
-            // returns an extra line which is empty if the rope ends with the newline character
-            if start == end {
-                return None;
-            }
-
-            Some(super::ByteRange::new(start..end))
-        })))
+                    Some(super::ByteRange::new(start..end))
+                }),
+        ))
     }
     fn up(
         &self,
@@ -63,11 +75,11 @@ mod test_line {
             &buffer,
             Selection::default(),
             &[
-                (0..2, "a\n"),
-                (2..3, "\n"),
-                (3..4, "\n"),
-                (4..6, "b\n"),
-                (6..8, "c\n"),
+                (0..1, "a"),
+                (2..2, ""),
+                (3..3, ""),
+                (4..5, "b"),
+                (6..7, "c"),
             ],
         );
     }
