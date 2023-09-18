@@ -248,6 +248,16 @@ impl Buffer {
         Ok(self.rope.try_char_to_line(char_index.0)?)
     }
 
+    pub fn char_to_line_start(&self, char_index: CharIndex) -> anyhow::Result<CharIndex> {
+        let line = self.char_to_line(char_index)?;
+        self.line_to_char(line)
+    }
+
+    pub fn char_to_line_end(&self, char_index: CharIndex) -> anyhow::Result<CharIndex> {
+        let line = self.char_to_line(char_index)?;
+        self.line_to_char(line + 1).map(|char_index| char_index - 1)
+    }
+
     pub fn line_to_char(&self, line_index: usize) -> anyhow::Result<CharIndex> {
         Ok(CharIndex(self.rope.try_line_to_char(line_index)?))
     }
@@ -577,6 +587,12 @@ impl Buffer {
         self.char_to_byte(start)
     }
 
+    pub fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
+        let start = self.line_to_char(line)?;
+        let end = self.line_to_char(line + 1)? - 1;
+        Ok((start..end).into())
+    }
+
     pub fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
         let end = self.line_to_byte(line + 1)?.saturating_sub(1);
@@ -620,8 +636,6 @@ pub struct Patch {
 #[cfg(test)]
 mod test_buffer {
     use itertools::Itertools;
-
-    
 
     use super::Buffer;
 

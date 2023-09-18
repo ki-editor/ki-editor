@@ -313,7 +313,6 @@ impl Component for Editor {
                     .char_to_position(jump.selection.to_char_index(&self.cursor_direction))
                     .ok()?;
 
-                // Background color: Odd index red, even index blue
                 let style = if index % 2 == 0 {
                     theme.ui.jump_mark_even
                 } else {
@@ -1472,7 +1471,7 @@ impl Editor {
                 } else {
                     match &self.mode {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
-                        Mode::Insert => self.handle_insert_mode(key_event),
+                        Mode::Insert => self.handle_insert_mode(context, key_event),
                         Mode::Kill => self.handle_kill_mode(context, key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
@@ -1500,7 +1499,7 @@ impl Editor {
                 self.selection_set.move_right(&self.cursor_direction);
                 Ok(HandleEventResult::Handled(vec![]))
             }
-            key!("ctrl+a") => {
+            key!("*") => {
                 let selection_set = SelectionSet {
                     primary: Selection::new(
                         (CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into(),
@@ -1629,14 +1628,28 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Vec<Dispatch>> {
-        match event.code {
-            KeyCode::Esc => self.enter_normal_mode()?,
-            KeyCode::Backspace => return self.backspace(),
-            KeyCode::Enter => return self.insert("\n"),
-            KeyCode::Char(c) => return self.insert(&c.to_string()),
-            KeyCode::Tab => return self.insert("\t"),
-            _ => {}
+    fn handle_insert_mode(
+        &mut self,
+        context: &Context,
+        event: KeyEvent,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match event {
+            key!("esc") => self.enter_normal_mode()?,
+            key!("backspace") => return self.backspace(),
+            key!("enter") => return self.insert("\n"),
+            key!("tab") => return self.insert("\t"),
+            key!("ctrl+a") | key!("home") => self.home()?,
+            key!("ctrl+e") | key!("end") => self.end()?,
+            key!("ctrl+w") | key!("alt+backspace") => return self.delete_word_backward(context),
+            // key!("alt+left") => self.move_word_backward(),
+            // key!("alt+right") => self.move_word_forward(),
+            // key!("ctrl+u") => return self.delete_to_start_of_line(),
+            // key!("ctrl+k") => return self.delete_to_end_of_line(),
+            // key!("ctrl+w") => return self.delete_word_backward(),
+            event => match event.code {
+                KeyCode::Char(c) => return self.insert(&c.to_string()),
+                _ => {}
+            },
         };
         Ok(vec![])
     }
@@ -2209,6 +2222,48 @@ impl Editor {
                 )
             }));
 
+        self.apply_edit_transaction(edit_transaction)
+    }
+
+    fn delete_word_backward(&mut self, context: &Context) -> Result<Vec<Dispatch>, anyhow::Error> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let previous_word = Selection::get_selection_(
+                        &self.buffer(),
+                        &selection.clone().set_range(
+                            ({
+                                let start = selection.extended_range().start + 1;
+                                start..start
+                            })
+                            .into(),
+                        ),
+                        &SelectionMode::Find {
+                            search: Search {
+                                kind: SearchKind::Regex,
+                                search: r"((\w+\s*)|\W+)".to_string(),
+                            },
+                        },
+                        &Movement::Previous,
+                        &self.cursor_direction,
+                        context,
+                    )?;
+                    let start = previous_word.extended_range().start;
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: previous_word.extended_range(),
+                                new: Rope::from(""),
+                            }),
+                            Action::Select(selection.clone().set_range((start..start).into())),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect(),
+        );
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -2877,6 +2932,32 @@ impl Editor {
             }
             other => self.handle_normal_mode(context, other),
         }
+    }
+
+    fn home(&mut self) -> anyhow::Result<()> {
+        let selection_set =
+            self.selection_set
+                .apply(self.selection_set.mode.clone(), |selection| {
+                    let start = self
+                        .buffer()
+                        .char_to_line_start(selection.extended_range().start)?;
+                    Ok(selection.clone().set_range((start..start).into()))
+                })?;
+        self.update_selection_set(selection_set);
+        Ok(())
+    }
+
+    fn end(&mut self) -> anyhow::Result<()> {
+        let selection_set =
+            self.selection_set
+                .apply(self.selection_set.mode.clone(), |selection| {
+                    let end = self
+                        .buffer()
+                        .char_to_line_end(selection.extended_range().end)?;
+                    Ok(selection.clone().set_range((end..end).into()))
+                })?;
+        self.update_selection_set(selection_set);
+        Ok(())
     }
 }
 
@@ -3861,6 +3942,64 @@ let y = S(b);
         editor.enter_insert_mode(CursorDirection::End)?;
         editor.enter_normal_mode()?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn snake_case(camelCase: String) {}");
+        let context = Context::default();
+
+        // Go to the end of the file
+        editor.set_selection_mode(&context, SelectionMode::Line)?;
+        editor.enter_insert_mode(CursorDirection::End)?;
+
+        // Delete
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case(camelCase: String) ");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case(camelCase: String");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case(camelCase:");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case(camelCase");
+
+        // Expect the current selection is 'main'
+        assert_eq!(editor.get_selected_texts(), vec!["main"]);
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn snake_case(camelCase: String) {}");
+        let context = Context::default();
+
+        // Go to the middle of the file
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.move_selection(&context, Movement::Index(3))?;
+
+        assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
+
+        editor.enter_insert_mode(CursorDirection::End)?;
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case(: String) {}");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case:String) {}");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn :String) {}");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), ":String) {}");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), ":String) {}");
+
         Ok(())
     }
 }
