@@ -204,20 +204,31 @@ impl SelectionSet {
     }
 
     pub fn add_all(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<()> {
-        let object = self
-            .mode
-            .to_selection_mode_trait_object(buffer, &self.primary, context)?;
-        let primary = self.primary.clone();
-        match object
-            .iter(SelectionModeParams {
-                buffer,
-                current_selection: &primary,
-                cursor_direction: &CursorDirection::Start,
-                context,
-            })?
-            .filter_map(|range| -> Option<Selection> {
-                range.to_selection(buffer, &self.primary).ok()
+        match self
+            .map(|selection| {
+                let object = self
+                    .mode
+                    .to_selection_mode_trait_object(buffer, selection, context)
+                    .ok()?;
+                let iter = object
+                    .iter(SelectionModeParams {
+                        buffer,
+                        current_selection: selection,
+                        cursor_direction: &CursorDirection::Start,
+                        context,
+                    })
+                    .ok()?;
+                Some(
+                    iter.filter_map(|range| -> Option<Selection> {
+                        range.to_selection(buffer, &self.primary).ok()
+                    })
+                    .collect_vec(),
+                )
             })
+            .into_iter()
+            .flatten()
+            .flatten()
+            .unique_by(|selection| selection.extended_range())
             .collect_vec()
             .split_first()
         {

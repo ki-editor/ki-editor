@@ -3798,6 +3798,39 @@ let y = S(b);
     }
 
     #[test]
+    fn multicursor_add_all() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(
+            language(),
+            "mod m { fn a(j:J){} fn b(k:K,l:L){} fn c(m:M,n:N,o:O){} }",
+        );
+
+        let context = Context::default();
+        editor.match_literal(&context, "fn a")?;
+
+        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn a(j:J){}"]);
+
+        editor.add_cursor_to_all_selections(&context)?;
+
+        editor.move_selection(&context, Movement::Down)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Down)?;
+
+        assert_eq!(editor.get_selected_texts(), vec!["j:J", "k:K", "m:M"]);
+
+        editor.add_cursor_to_all_selections(&context)?;
+
+        assert_eq!(
+            editor.get_selected_texts(),
+            vec!["j:J", "k:K", "l:L", "m:M", "n:N", "o:O"]
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn match_current_selection() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
         let context = Context::default();
