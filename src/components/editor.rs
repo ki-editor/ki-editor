@@ -44,7 +44,6 @@ use super::{
 pub enum Mode {
     Normal,
     Insert,
-    Kill,
     MultiCursor,
     FindOneChar,
     ScrollPage,
@@ -700,24 +699,6 @@ impl Editor {
             mode: SelectionMode::Line,
         };
         self.update_selection_set(selection_set);
-        Ok(())
-    }
-
-    pub fn select_match(
-        &mut self,
-        movement: Movement,
-        search: &Option<Search>,
-        context: &Context,
-    ) -> anyhow::Result<()> {
-        if let Some(search) = search {
-            self.select(
-                SelectionMode::Find {
-                    search: search.clone(),
-                },
-                movement,
-                context,
-            )?;
-        }
         Ok(())
     }
 
@@ -1479,7 +1460,6 @@ impl Editor {
                     match &self.mode {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
                         Mode::Insert => self.handle_insert_mode(context, key_event),
-                        Mode::Kill => self.handle_kill_mode(context, key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
                         Mode::ScrollPage => self.handle_scroll_page_mode(context, key_event),
@@ -1635,12 +1615,11 @@ impl Editor {
             key!("tab") => return self.insert("\t"),
             key!("ctrl+a") | key!("home") => self.home()?,
             key!("ctrl+e") | key!("end") => self.end()?,
-            key!("ctrl+w") | key!("alt+backspace") => return self.delete_word_backward(context),
+            key!("alt+backspace") => return self.delete_word_backward(context),
             // key!("alt+left") => self.move_word_backward(),
             // key!("alt+right") => self.move_word_forward(),
             // key!("ctrl+u") => return self.delete_to_start_of_line(),
             // key!("ctrl+k") => return self.delete_to_end_of_line(),
-            // key!("ctrl+w") => return self.delete_word_backward(),
             event => match event.code {
                 KeyCode::Char(c) => return self.insert(&c.to_string()),
                 _ => {}
@@ -1719,7 +1698,6 @@ impl Editor {
                 self.selection_set.mode.clone(),
             ),
             Mode::Exchange => self.exchange(movement, context),
-            Mode::Kill => self.kill(movement, context),
             Mode::MultiCursor => self.add_cursor(&movement, context).map(|_| Vec::new()),
             _ => Ok(Vec::new()),
         }
@@ -1868,16 +1846,6 @@ impl Editor {
 
     pub fn path(&self) -> Option<CanonicalizedPath> {
         self.editor().buffer().path()
-    }
-
-    fn request_hover(&self) -> Vec<Dispatch> {
-        let Some(path) = self.path() else { return vec![] };
-        let Ok(position) = self.get_cursor_position() else { return vec![] };
-        vec![Dispatch::RequestHover(RequestParams {
-            component_id: self.id(),
-            path,
-            position,
-        })]
     }
 
     pub fn enter_insert_mode(&mut self, direction: CursorDirection) -> anyhow::Result<()> {
@@ -2227,34 +2195,42 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
-                .map(|selection| -> anyhow::Result<_> {
+                .map(|current_selection| -> anyhow::Result<_> {
+                    let current_selection_range = current_selection.extended_range();
                     let previous_word = Selection::get_selection_(
                         &self.buffer(),
-                        &selection.clone().set_range(
+                        &current_selection.clone().set_range(
                             ({
-                                let start = selection.extended_range().start + 1;
+                                let start = CharIndex(
+                                    current_selection_range
+                                        .start
+                                        .0
+                                        .min(self.buffer().rope().len_chars()),
+                                );
                                 start..start
                             })
                             .into(),
                         ),
-                        &SelectionMode::Find {
-                            search: Search {
-                                kind: SearchKind::Regex,
-                                search: r"((\w+\s*)|\W+)".to_string(),
-                            },
-                        },
+                        &SelectionMode::Word,
                         &Movement::Previous,
                         &self.cursor_direction,
                         context,
                     )?;
-                    let start = previous_word.extended_range().start;
+                    let previous_word_range = previous_word.extended_range();
+                    let start = previous_word_range.start;
+                    let end = previous_word_range
+                        .end
+                        .min(current_selection_range.start)
+                        .max(start);
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
-                                range: previous_word.extended_range(),
+                                range: (start..end).into(),
                                 new: Rope::from(""),
                             }),
-                            Action::Select(selection.clone().set_range((start..start).into())),
+                            Action::Select(
+                                current_selection.clone().set_range((start..start).into()),
+                            ),
                         ]
                         .to_vec(),
                     ))
@@ -2472,14 +2448,6 @@ impl Editor {
         Ok(())
     }
 
-    pub fn reset_selection(&mut self) {
-        self.selection_set = SelectionSet {
-            primary: Selection::default(),
-            secondary: vec![],
-            mode: SelectionMode::Line,
-        };
-    }
-
     pub fn replace_previous_word(
         &mut self,
         completion: &str,
@@ -2535,10 +2503,6 @@ impl Editor {
         let dispatches = self.apply_edit_transaction(edit_transaction)?;
         self.enter_insert_mode(CursorDirection::End)?;
         Ok(dispatches)
-    }
-
-    pub fn set_mode(&mut self, mode: Mode) {
-        self.mode = mode;
     }
 
     pub fn apply_positional_edits(
@@ -2647,34 +2611,6 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn match_current_selection(
-        &mut self,
-        kind: SearchKind,
-        context: &Context,
-    ) -> anyhow::Result<Vec<Dispatch>> {
-        let content = self
-            .buffer()
-            .slice(&self.selection_set.primary.extended_range())?;
-
-        if content.len_chars() == 0 {
-            return Ok(vec![]);
-        }
-
-        let search = Search {
-            search: content.to_string(),
-            kind,
-        };
-        self.select(
-            SelectionMode::Find {
-                search: search.clone(),
-            },
-            Movement::Current,
-            context,
-        )?;
-
-        Ok(vec![Dispatch::SetSearch(search)])
-    }
-
     fn transform_selection(&mut self, case: Case) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
@@ -2712,7 +2648,6 @@ impl Editor {
                 format!("NORMAL:{}", self.selection_set.mode.display())
             }
             Mode::Insert => "INSERT".to_string(),
-            Mode::Kill => "KILL".to_string(),
             Mode::MultiCursor => "MULTI CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
             Mode::ScrollPage => "SCROLL PAGE".to_string(),
@@ -2738,27 +2673,6 @@ impl Editor {
         let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
 
         start as usize..end
-    }
-
-    fn handle_kill_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.enter_normal_mode()?;
-                Ok(Vec::new())
-            }
-            key!("k") => {
-                let dispatches = self.kill(Movement::Current, context)?;
-                self.enter_normal_mode()?;
-                Ok(dispatches)
-            }
-            key!("n") => self.kill(Movement::Next, context),
-            key!("p") => self.kill(Movement::Previous, context),
-            other => self.handle_normal_mode(context, other),
-        }
     }
 
     fn handle_multi_cursor_mode(
@@ -2867,20 +2781,6 @@ impl Editor {
         }
     }
 
-    /// 0-based line number
-    fn go_to_line_number(&mut self, line_number: usize) -> anyhow::Result<()> {
-        let range = (self.buffer().line_to_char(line_number)?
-            ..self.buffer().line_to_char(line_number)?)
-            .into();
-        self.selection_set = SelectionSet {
-            primary: self.selection_set.primary.clone().set_range(range),
-            secondary: Vec::new(),
-            mode: self.selection_set.mode.clone(),
-        };
-        self.recalculate_scroll_offset();
-        Ok(())
-    }
-
     fn move_mode_keymap_legend(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Move".to_string(),
@@ -2907,6 +2807,7 @@ impl Editor {
         }
     }
 
+    #[cfg(test)]
     pub fn match_literal(
         &mut self,
         context: &Context,

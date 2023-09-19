@@ -893,27 +893,6 @@ let y = S(b);
     }
 
     #[test]
-    fn match_current_selection() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
-        let context = Context::default();
-
-        // Select x.y()
-        editor.match_literal(&context, "x.y()")?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
-
-        let dispatches = editor.match_current_selection(SearchKind::Literal, &context)?;
-
-        let search = Search {
-            search: "x.y()".to_string(),
-            kind: SearchKind::Literal,
-        };
-        assert_eq!(dispatches, vec![Dispatch::SetSearch(search.clone())]);
-        assert_eq!(editor.selection_set.mode, SelectionMode::Find { search });
-        Ok(())
-    }
-
-    #[test]
     fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
         let context = Context::default();
