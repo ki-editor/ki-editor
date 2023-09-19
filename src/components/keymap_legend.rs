@@ -34,6 +34,7 @@ impl KeymapLegendConfig {
         // Align the keys columns and the dispatch columns
         self.keymaps
             .iter()
+            .sorted_by_key(|keymap| keymap.key)
             .map(|keymap| {
                 format!(
                     "{:<width$} {}",
