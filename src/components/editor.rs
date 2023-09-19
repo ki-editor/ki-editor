@@ -1102,31 +1102,57 @@ impl Editor {
         self.selection_set.toggle_highlight_mode();
         self.recalculate_scroll_offset()
     }
+    fn search_kinds_keymap() -> Vec<(&'static str, &'static str, SearchKind)> {
+        [
+            ("a", "Ast Grep", SearchKind::AstGrep),
+            ("i", "Ignore case", SearchKind::IgnoreCase),
+            ("l", "Literal", SearchKind::Literal),
+            ("r", "Regex", SearchKind::Regex),
+        ]
+        .to_vec()
+    }
 
     fn find_mode_keymap_legend_config(
         &self,
         context: &Context,
     ) -> anyhow::Result<KeymapLegendConfig> {
+        let open_search_prompt_keymaps = Self::search_kinds_keymap()
+            .clone()
+            .into_iter()
+            .map(|(key, description, search_kind)| {
+                Keymap::new(key, description, Dispatch::OpenSearchPrompt(search_kind))
+            })
+            .collect_vec();
+        let find_current_selection_keymaps = KeymapLegendConfig {
+            title: "Find current selection by".to_string(),
+            keymaps: Self::search_kinds_keymap()
+                .into_iter()
+                .map(|(key, description, search_kind)| -> anyhow::Result<_> {
+                    Ok(Keymap::new(
+                        key,
+                        description,
+                        Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                            SelectionMode::Find {
+                                search: Search {
+                                    kind: search_kind,
+                                    search: self.current_selection()?,
+                                },
+                            },
+                        )),
+                    ))
+                })
+                .flatten()
+                .collect(),
+            owner_id: self.id,
+        };
         Ok(KeymapLegendConfig {
             title: "Find (current file)".to_string(),
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(
-                    "a",
-                    "AST Grep",
-                    Dispatch::OpenSearchPrompt(SearchKind::AstGrep),
-                ),
-                Keymap::new(
                     "c",
                     "Current selection",
-                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        SelectionMode::Find {
-                            search: Search {
-                                kind: SearchKind::IgnoreCase,
-                                search: self.current_selection()?,
-                            },
-                        },
-                    )),
+                    Dispatch::ShowKeymapLegend(find_current_selection_keymaps),
                 ),
                 Keymap::new(
                     "e",
@@ -1141,28 +1167,6 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::GitHunk,
                     )),
-                ),
-                Keymap::new(
-                    "f",
-                    "Enter Find Mode",
-                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        SelectionMode::Find {
-                            search: context.last_search().clone().unwrap_or(Search {
-                                kind: SearchKind::Literal,
-                                search: "".to_string(),
-                            }),
-                        },
-                    )),
-                ),
-                Keymap::new(
-                    "i",
-                    "Ignore case",
-                    Dispatch::OpenSearchPrompt(SearchKind::IgnoreCase),
-                ),
-                Keymap::new(
-                    "l",
-                    "Literal",
-                    Dispatch::OpenSearchPrompt(SearchKind::Literal),
                 ),
                 Keymap::new(
                     "n",
@@ -1198,14 +1202,18 @@ impl Editor {
                     "One character",
                     Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
                 ),
-                Keymap::new("r", "Regex", Dispatch::OpenSearchPrompt(SearchKind::Regex)),
-                Keymap::new(
-                    "w",
-                    "Word",
-                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(SelectionMode::Word)),
-                ),
             ]
             .into_iter()
+            .chain(open_search_prompt_keymaps)
+            .chain(context.last_search().map(|search| {
+                Keymap::new(
+                    "f",
+                    "Enter Find Mode (using previous search)",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Find { search },
+                    )),
+                )
+            }))
             .chain(self.get_request_params().map(|params| {
                 Keymap::new(
                     "s",
@@ -1406,40 +1414,39 @@ impl Editor {
                         Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                             title: "Find Global".to_string(),
                             owner_id: self.id(),
-                            keymaps: [
-                                Keymap::new(
-                                    "a",
-                                    "AST Grep",
-                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::AstGrep),
-                                ),
-                                Keymap::new(
-                                    "i",
-                                    "Ignore case",
-                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::IgnoreCase),
-                                ),
-                                Keymap::new(
-                                    "l",
-                                    "Literal",
-                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::Literal),
-                                ),
-                                Keymap::new(
-                                    "r",
-                                    "Regex",
-                                    Dispatch::OpenGlobalSearchPrompt(SearchKind::Regex),
-                                ),
-                            ]
-                            .into_iter()
-                            .chain(self.current_selection().ok().map(|selection| {
-                                Keymap::new(
-                                    "c",
-                                    "Current selection",
-                                    Dispatch::GlobalSearch(Search {
-                                        kind: SearchKind::IgnoreCase,
-                                        search: selection,
-                                    }),
-                                )
-                            }))
-                            .collect_vec(),
+                            keymaps: Self::search_kinds_keymap()
+                                .into_iter()
+                                .map(|(key, description, search_kind)| {
+                                    Keymap::new(
+                                        key,
+                                        description,
+                                        Dispatch::OpenGlobalSearchPrompt(search_kind),
+                                    )
+                                })
+                                .chain(self.current_selection().ok().map(|selection| {
+                                    Keymap::new(
+                                        "c",
+                                        "Current selection",
+                                        Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                                            title: "Find current selection (GLOBAL)".to_string(),
+                                            keymaps: Self::search_kinds_keymap()
+                                                .into_iter()
+                                                .map(|(key, description, search_kind)| {
+                                                    Keymap::new(
+                                                        key,
+                                                        description,
+                                                        Dispatch::GlobalSearch(Search {
+                                                            kind: search_kind,
+                                                            search: selection.clone(),
+                                                        }),
+                                                    )
+                                                })
+                                                .collect(),
+                                            owner_id: self.id,
+                                        }),
+                                    )
+                                }))
+                                .collect_vec(),
                         }),
                     )))
                     .chain(
@@ -1497,18 +1504,6 @@ impl Editor {
             }
             key!("right") => {
                 self.selection_set.move_right(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(vec![]))
-            }
-            key!("*") => {
-                let selection_set = SelectionSet {
-                    primary: Selection::new(
-                        (CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into(),
-                    )
-                    .set_copied_text(self.selection_set.primary.copied_text()),
-                    secondary: vec![],
-                    mode: SelectionMode::Custom,
-                };
-                self.update_selection_set(selection_set);
                 Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+c") => {
@@ -2193,10 +2188,6 @@ impl Editor {
     pub fn text(&self) -> String {
         let buffer = self.buffer.borrow().clone();
         buffer.rope().slice(0..buffer.len_chars()).to_string()
-    }
-
-    fn select_word(&mut self, movement: Movement, context: &Context) -> anyhow::Result<()> {
-        self.select(SelectionMode::Word, movement, context)
     }
 
     pub fn dimension(&self) -> Dimension {
@@ -2970,6 +2961,18 @@ impl Editor {
                 })?;
         self.update_selection_set(selection_set);
         Ok(())
+    }
+
+    fn select_whole_file(&mut self) {
+        let selection_set = SelectionSet {
+            primary: Selection::new(
+                (CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into(),
+            )
+            .set_copied_text(self.selection_set.primary.copied_text()),
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+        };
+        self.update_selection_set(selection_set);
     }
 }
 
