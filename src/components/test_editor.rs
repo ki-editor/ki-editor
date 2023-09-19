@@ -31,36 +31,6 @@ mod test_editor {
     }
 
     #[test]
-    fn select_word() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "camelCase, snake_case, ALLCAPS: 123");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["123"]);
-
-        editor.move_selection(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["ALLCAPS"]);
-        editor.move_selection(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["case"]);
-        editor.move_selection(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["snake"]);
-        editor.move_selection(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["Case"]);
-        editor.move_selection(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["camel"]);
-        Ok(())
-    }
-
-    #[test]
     fn select_kids() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         let context = Context::new();
@@ -763,8 +733,8 @@ let y = S(b);
         let mut editor = Editor::from_text(language(), "fn main() {}");
         let context = Context::default();
 
-        // Select the first word
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        // Select the first token
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         // Enter insert mode
         editor.enter_insert_mode(CursorDirection::End)?;
@@ -1000,16 +970,19 @@ let y = S(b);
         assert_eq!(editor.text(), "fn snake_case(: String) {}");
 
         editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case:String) {}");
+        assert_eq!(editor.text(), "fn snake_case: String) {}");
 
         editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn :String) {}");
+        assert_eq!(editor.text(), "fn snake_: String) {}");
 
         editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), ":String) {}");
+        assert_eq!(editor.text(), "fn : String) {}");
 
         editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), ":String) {}");
+        assert_eq!(editor.text(), ": String) {}");
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), ": String) {}");
 
         Ok(())
     }

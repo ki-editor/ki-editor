@@ -1778,6 +1778,7 @@ impl Editor {
             self.mode = Mode::Normal
         }
         match event {
+            key!("*") => self.select_whole_file(),
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!(",") => self.select_backward(),
             key!("left") => return self.move_selection(context, Movement::Previous),
@@ -1842,7 +1843,7 @@ impl Editor {
                     self.view_mode_keymap_legend_config(),
                 )]);
             }
-            // w = unused
+            key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.mode = Mode::Exchange,
             key!("shift+X") => return self.exchange(Movement::Previous, context),
             // y = unused

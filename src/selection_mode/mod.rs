@@ -6,6 +6,7 @@ pub mod git_hunk;
 pub mod line;
 pub mod outermost_node;
 pub mod regex;
+pub mod small_word;
 pub mod syntax_tree;
 pub mod token;
 
@@ -18,10 +19,10 @@ pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use line::Line;
 pub use outermost_node::OutermostNode;
+pub use small_word::SmallWord;
+use std::ops::Range;
 pub use syntax_tree::SyntaxTree;
 pub use token::Token;
-
-use std::ops::Range;
 
 use crate::{
     buffer::Buffer,
