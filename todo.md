@@ -191,6 +191,8 @@
 - [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
 - [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
+- [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
+- [] feat(layout): split vertically by half, then split horizontally by half (so that explorer can be on the right)
 
 # Grammar loading
 

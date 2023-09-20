@@ -225,6 +225,7 @@ pub trait SelectionMode {
 
         let byte_range = buffer.char_to_byte(current_selection_range.start)?
             ..buffer.char_to_byte(current_selection_range.end)?;
+        let info = current_selection.info();
 
         let nearest = iter
             .enumerate()
@@ -234,7 +235,9 @@ pub trait SelectionMode {
                     i,
                     (
                         // Prioritize selection of the same range
-                        if range.range == byte_range { 0 } else { 1 },
+                        (range.range == byte_range && range.info == info)
+                            .then(|| 0)
+                            .unwrap_or(1),
                         // Then by selection that is one the same line
                         line.abs_diff(current_selection_line),
                         // Then by their distance to the current selection
@@ -405,6 +408,48 @@ mod test_selection_mode {
         let current = 0..0;
         test(Movement::Index(0), current.clone(), 0..6);
         test(Movement::Index(1), current, 1..6)
+    }
+
+    #[test]
+    fn same_range_different_info() {
+        let params = SelectionModeParams {
+            context: &Context::default(),
+            buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
+            current_selection: &Selection::default()
+                .set_range((CharIndex(1)..CharIndex(2)).into())
+                .set_info(Some("Spongebob".to_string())),
+            cursor_direction: &CursorDirection::Start,
+        };
+        struct Dummy;
+        impl SelectionMode for Dummy {
+            fn name(&self) -> &'static str {
+                "dummy"
+            }
+            fn iter<'a>(
+                &'a self,
+                _: super::SelectionModeParams<'a>,
+            ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+                Ok(Box::new(
+                    [
+                        ByteRange::with_info(1..2, "Spongebob".to_string()),
+                        ByteRange::with_info(1..2, "Squarepants".to_string()),
+                    ]
+                    .into_iter(),
+                ))
+            }
+        }
+        let run_test = |movement: Movement, expected_info: &str| {
+            let actual = Dummy
+                .apply_direction(params.clone(), movement)
+                .unwrap()
+                .unwrap();
+            let expected_range: CharIndexRange = (CharIndex(1)..CharIndex(2)).into();
+            assert_eq!(expected_range, actual.range());
+            let expected_info = expected_info.to_string();
+            assert_eq!(expected_info, actual.info().unwrap());
+        };
+        run_test(Movement::Current, "Spongebob");
+        run_test(Movement::Next, "Squarepants");
     }
 
     #[test]
