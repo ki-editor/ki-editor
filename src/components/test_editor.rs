@@ -831,4 +831,22 @@ fn f() {
 
         Ok(())
     }
+
+    #[test]
+    fn home_end() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "hello\n");
+        let context = Context::default();
+
+        editor.enter_insert_mode(CursorDirection::Start)?;
+
+        editor.end(&context)?;
+        editor.insert(" world")?;
+        assert_eq!(editor.text(), "hello world\n");
+
+        editor.home(&context)?;
+        editor.insert("hey ")?;
+        assert_eq!(editor.text(), "hey hello world\n");
+
+        Ok(())
+    }
 }

@@ -1612,8 +1612,8 @@ impl Editor {
             key!("backspace") => return self.backspace(),
             key!("enter") => return self.insert("\n"),
             key!("tab") => return self.insert("\t"),
-            key!("ctrl+a") | key!("home") => self.home()?,
-            key!("ctrl+e") | key!("end") => self.end()?,
+            key!("ctrl+a") | key!("home") => self.home(context)?,
+            key!("ctrl+e") | key!("end") => self.end(context)?,
             key!("alt+backspace") => return self.delete_word_backward(context),
             // key!("alt+left") => self.move_word_backward(),
             // key!("alt+right") => self.move_word_forward(),
@@ -2743,30 +2743,14 @@ impl Editor {
         }
     }
 
-    fn home(&mut self) -> anyhow::Result<()> {
-        let selection_set =
-            self.selection_set
-                .apply(self.selection_set.mode.clone(), |selection| {
-                    let start = self
-                        .buffer()
-                        .char_to_line_start(selection.extended_range().start)?;
-                    Ok(selection.clone().set_range((start..start).into()))
-                })?;
-        self.update_selection_set(selection_set);
-        Ok(())
+    pub fn home(&mut self, context: &Context) -> anyhow::Result<()> {
+        self.select_line(Movement::Current, context)?;
+        self.enter_insert_mode(CursorDirection::Start)
     }
 
-    fn end(&mut self) -> anyhow::Result<()> {
-        let selection_set =
-            self.selection_set
-                .apply(self.selection_set.mode.clone(), |selection| {
-                    let end = self
-                        .buffer()
-                        .char_to_line_end(selection.extended_range().end)?;
-                    Ok(selection.clone().set_range((end..end).into()))
-                })?;
-        self.update_selection_set(selection_set);
-        Ok(())
+    pub fn end(&mut self, context: &Context) -> anyhow::Result<()> {
+        self.select_line(Movement::Current, context)?;
+        self.enter_insert_mode(CursorDirection::End)
     }
 
     fn select_whole_file(&mut self) {

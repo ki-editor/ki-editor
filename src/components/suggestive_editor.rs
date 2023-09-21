@@ -129,10 +129,7 @@ impl Component for SuggestiveEditor {
                     }
                     return Ok(vec![]);
                 }
-                key!("ctrl+e") => {
-                    self.close_all_subcomponents();
-                    return Ok(vec![]);
-                }
+                key!("ctrl+enter") => self.editor.open_new_line()?,
                 key!("esc") => {
                     self.close_all_subcomponents();
                     self.editor.enter_normal_mode()?;
