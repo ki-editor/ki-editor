@@ -191,11 +191,15 @@
 - [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
 - [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
-- [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
 - [] feat(layout): split vertically by half, then split horizontally by half (so that explorer can be on the right)
+- [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
+- [] feat(package): incorporate Mason, see https://www.reddit.com/r/neovim/comments/122ow0u/psa_changes_to_the_masonnvim_registry/, and https://mason-registry.dev/registry/list#search
+- [] minor(keybinding): change fr to fx, so that fr can be find local references
+- [] feat(util): history tree, useful for undo tree and navigation tree
+- [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
+- [] fix(editor): paste from terminal inserts one by one
 
 # Grammar loading
-
 - [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
 - [x] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building

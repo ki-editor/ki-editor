@@ -6,9 +6,8 @@ mod test_editor {
             component::Component,
             editor::{CursorDirection, Editor, Mode, Movement},
         },
-        context::{Context, Search, SearchKind},
+        context::Context,
         position::Position,
-        screen::Dispatch,
         selection::SelectionMode,
     };
 
@@ -515,137 +514,6 @@ fn f() {
     }
 
     #[test]
-    fn kill_character() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-
-        editor.kill(Movement::Next, &context)?;
-        assert_eq!(editor.text(), "n f(){ let x = S(a); let y = S(b); }");
-
-        editor.kill(Movement::Next, &context)?;
-        assert_eq!(editor.text(), " f(){ let x = S(a); let y = S(b); }");
-
-        editor.set_selection_mode(
-            &context,
-            SelectionMode::Find {
-                search: Search {
-                    search: "x".to_string(),
-                    kind: SearchKind::Literal,
-                },
-            },
-        )?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
-
-        editor.kill(Movement::Previous, &context)?;
-        assert_eq!(editor.text(), " f(){ let  = S(a); let y = S(b); }");
-        Ok(())
-    }
-
-    #[test]
-    fn kill_line() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "
-fn f() {
-let x = S(a);
-
-let y = S(b);
-}"
-            .trim(),
-        );
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Line)?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn f() {"]);
-
-        editor.kill(Movement::Next, &context)?;
-        assert_eq!(
-            editor.text(),
-            "
-let x = S(a);
-
-let y = S(b);
-}"
-            .trim()
-        );
-
-        editor.kill(Movement::Next, &context)?;
-        assert_eq!(
-            editor.text(),
-            "
-let y = S(b);
-}"
-        );
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-
-        editor.move_selection(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["let y = S(b);"]);
-        editor.kill(Movement::Previous, &context)?;
-        assert_eq!(
-            editor.text(),
-            "
-}"
-        );
-
-        editor.kill(Movement::Next, &context)?;
-        assert_eq!(editor.text(), "}");
-
-        Ok(())
-    }
-
-    #[test]
-    fn kill_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
-        let context = Context::default();
-
-        // Select 'x: a'
-        editor.match_literal(&context, "x: a")?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: a"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.kill(Movement::Next, &context)?;
-
-        assert_eq!(editor.text(), "fn f(y: b, z: c){}");
-
-        editor.move_selection(&context, Movement::Next)?;
-        editor.kill(Movement::Previous, &context)?;
-
-        assert_eq!(editor.text(), "fn f(y: b){}");
-        Ok(())
-    }
-
-    #[test]
-    fn kill_token() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(x: a, y: b, z: c){}");
-        let context = Context::default();
-        // Select 'fn'
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-
-        editor.kill(Movement::Next, &context)?;
-
-        assert_eq!(editor.text(), "f(x: a, y: b, z: c){}");
-
-        editor.kill(Movement::Next, &context)?;
-
-        assert_eq!(editor.text(), "(x: a, y: b, z: c){}");
-
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
-
-        editor.kill(Movement::Previous, &context)?;
-
-        assert_eq!(editor.text(), "(: a, y: b, z: c){}");
-        Ok(())
-    }
-
-    #[test]
     fn paste_from_clipboard() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let mut context = Context::default();
@@ -922,13 +790,8 @@ let y = S(b);
         assert_eq!(editor.text(), "fn snake_case(camelCase: String");
 
         editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase:");
+        assert_eq!(editor.text(), "fn snake_case(camelCase: ");
 
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase");
-
-        // Expect the current selection is 'main'
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
         Ok(())
     }
 
@@ -944,6 +807,9 @@ let y = S(b);
         assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
 
         editor.enter_insert_mode(CursorDirection::End)?;
+
+        editor.delete_word_backward(&context)?;
+        assert_eq!(editor.text(), "fn snake_case(camel: String) {}");
 
         editor.delete_word_backward(&context)?;
         assert_eq!(editor.text(), "fn snake_case(: String) {}");

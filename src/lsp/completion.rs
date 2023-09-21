@@ -2,7 +2,6 @@ use std::ops::Range;
 
 use lsp_types::CompletionItemKind;
 
-
 use crate::position::Position;
 
 use super::documentation::Documentation;

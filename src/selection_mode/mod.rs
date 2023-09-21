@@ -29,6 +29,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::editor::{CursorDirection, Jump, Movement},
     context::Context,
+    edit::is_overlapping,
     selection::Selection,
 };
 
@@ -234,10 +235,11 @@ pub trait SelectionMode {
                 (
                     i,
                     (
+                        // NOTE: we use ! (not) because false ranks lower than true
                         // Prioritize selection of the same range
-                        (range.range == byte_range && range.info == info)
-                            .then(|| 0)
-                            .unwrap_or(1),
+                        !(range.range == byte_range && range.info == info),
+                        // Then by if they overlaps
+                        !(is_overlapping(&range.range, &byte_range)),
                         // Then by selection that is one the same line
                         line.abs_diff(current_selection_line),
                         // Then by their distance to the current selection
@@ -399,6 +401,7 @@ mod test_selection_mode {
     #[test]
     fn current() {
         test(Movement::Current, 0..1, 0..6);
+        test(Movement::Current, 5..6, 1..6);
         test(Movement::Current, 1..2, 1..6);
         test(Movement::Current, 3..3, 3..4);
     }

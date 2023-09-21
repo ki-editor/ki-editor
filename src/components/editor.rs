@@ -1108,7 +1108,7 @@ impl Editor {
             title: "Find current selection by".to_string(),
             keymaps: Self::search_kinds_keymap()
                 .into_iter()
-                .map(|(key, description, search_kind)| -> anyhow::Result<_> {
+                .flat_map(|(key, description, search_kind)| -> anyhow::Result<_> {
                     Ok(Keymap::new(
                         key,
                         description,
@@ -1122,7 +1122,6 @@ impl Editor {
                         )),
                     ))
                 })
-                .flatten()
                 .collect(),
             owner_id: self.id,
         };
@@ -2193,152 +2192,58 @@ impl Editor {
         &mut self,
         context: &Context,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
-        let edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set
-                .map(|current_selection| -> anyhow::Result<_> {
-                    let current_selection_range = current_selection.extended_range();
-                    let previous_word = Selection::get_selection_(
-                        &self.buffer(),
-                        &current_selection.clone().set_range(
-                            ({
-                                let start = CharIndex(
-                                    current_selection_range
-                                        .start
-                                        .0
-                                        .min(self.buffer().rope().len_chars()),
-                                );
-                                start..start
-                            })
-                            .into(),
-                        ),
-                        &SelectionMode::Word,
-                        &Movement::Previous,
-                        &self.cursor_direction,
-                        context,
-                    )?;
-                    let previous_word_range = previous_word.extended_range();
-                    let start = previous_word_range.start;
-                    let end = previous_word_range
-                        .end
-                        .min(current_selection_range.start)
-                        .max(start);
-                    Ok(ActionGroup::new(
-                        [
-                            Action::Edit(Edit {
-                                range: (start..end).into(),
-                                new: Rope::from(""),
-                            }),
-                            Action::Select(
-                                current_selection.clone().set_range((start..start).into()),
-                            ),
-                        ]
-                        .to_vec(),
-                    ))
-                })
-                .into_iter()
-                .flatten()
-                .collect(),
-        );
-        self.apply_edit_transaction(edit_transaction)
-    }
+        let action_groups = self
+            .selection_set
+            .map(|current_selection| -> anyhow::Result<_> {
+                let current_range = current_selection.extended_range();
+                if current_range.start.0 == 0 && current_range.end.0 == 0 {
+                    // Do nothing if cursor is at the beginning of the file
+                    return Ok(ActionGroup::new(Vec::new()));
+                }
 
-    pub fn kill(&mut self, movement: Movement, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
-        let buffer = self.buffer.borrow().clone();
-        let mode = self.selection_set.mode.clone();
+                let len_chars = self.buffer().rope().len_chars();
+                let start = CharIndex(current_range.start.0.min(len_chars).saturating_sub(1));
 
-        let edit_transactions = self.selection_set.map(|selection| -> anyhow::Result<_> {
-            let get_trial_edit_transaction =
-                |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
-                    let range = current_selection
-                        .extended_range()
-                        .start
-                        .min(other_selection.extended_range().start)
-                        ..current_selection
-                            .extended_range()
-                            .end
-                            .max(other_selection.extended_range().end);
-
-                    // Add whitespace padding
-                    let new: Rope =
-                        format!(" {} ", buffer.slice(&current_selection.extended_range())?).into();
-
-                    Ok(EditTransaction::from_action_groups(vec![ActionGroup::new(
-                        vec![Action::Edit(Edit {
-                            range: range.into(),
-                            new,
-                        })],
-                    )]))
+                let previous_word = {
+                    let get_word = |movement: Movement| {
+                        Selection::get_selection_(
+                            &self.buffer(),
+                            &current_selection.clone().set_range((start..start).into()),
+                            &SelectionMode::Word,
+                            &movement,
+                            &self.cursor_direction,
+                            context,
+                        )
+                    };
+                    let current_word = get_word(Movement::Current)?;
+                    if current_word.extended_range().start <= start {
+                        current_word
+                    } else {
+                        get_word(Movement::Previous)?
+                    }
                 };
-            let get_actual_edit_transaction =
-                |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
-                    let range = current_selection
-                        .extended_range()
-                        .start
-                        .min(other_selection.extended_range().start)
-                        ..current_selection
-                            .extended_range()
-                            .end
-                            .max(other_selection.extended_range().end);
-                    let new: Rope = buffer.slice(&other_selection.extended_range())?;
 
-                    let new_len_chars = new.len_chars();
-                    Ok(EditTransaction::from_action_groups(
-                        [ActionGroup::new(
-                            [
-                                Action::Edit(Edit {
-                                    range: range.clone().into(),
-                                    new,
-                                }),
-                                Action::Select(current_selection.clone().set_range(
-                                    (range.start..(range.start + new_len_chars)).into(),
-                                )),
-                            ]
-                            .to_vec(),
-                        )]
-                        .to_vec(),
-                    ))
-                };
-            self.get_valid_selection(
-                selection,
-                &mode,
-                &movement,
-                context,
-                get_trial_edit_transaction,
-                get_actual_edit_transaction,
-            )
-        });
-        let edit_transaction = EditTransaction::merge(
-            edit_transactions
-                .into_iter()
-                .filter_map(|edit_transaction| edit_transaction.ok())
-                .map(|edit_transaction| match edit_transaction {
-                    Either::Right(edit_transaction) => edit_transaction,
-
-                    // If no `edit_transaction` is returned, it means that the selection
-                    // does not has a next item in the given direction. In this case,
-                    // we should just delete the selection and collapse the cursor.
-                    Either::Left(selection) => EditTransaction::from_action_groups(
-                        [ActionGroup::new(
-                            [
-                                Action::Edit(Edit {
-                                    range: selection.extended_range(),
-                                    new: Rope::from(""),
-                                }),
-                                Action::Select(
-                                    selection.clone().set_range(
-                                        (selection.extended_range().start
-                                            ..selection.extended_range().start)
-                                            .into(),
-                                    ),
-                                ),
-                            ]
-                            .to_vec(),
-                        )]
-                        .to_vec(),
-                    ),
-                })
-                .collect(),
-        );
+                let previous_word_range = previous_word.extended_range();
+                let end = previous_word_range
+                    .end
+                    .min(current_range.start)
+                    .max(start + 1);
+                let start = previous_word_range.start;
+                Ok(ActionGroup::new(
+                    [
+                        Action::Edit(Edit {
+                            range: (start..end).into(),
+                            new: Rope::from(""),
+                        }),
+                        Action::Select(current_selection.clone().set_range((start..start).into())),
+                    ]
+                    .to_vec(),
+                ))
+            })
+            .into_iter()
+            .flatten()
+            .collect();
+        let edit_transaction = EditTransaction::from_action_groups(action_groups);
         self.apply_edit_transaction(edit_transaction)
     }
 

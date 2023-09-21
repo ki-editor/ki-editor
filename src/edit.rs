@@ -389,7 +389,7 @@ mod test_is_subset {
     }
 }
 
-fn is_overlapping<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
+pub fn is_overlapping<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
     use std::cmp::{max, min};
     max(&a.start, &b.start) < min(&a.end, &b.end)
 }
