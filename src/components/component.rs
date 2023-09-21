@@ -68,8 +68,8 @@ pub trait Component: Any + AnyComponent {
         }
     }
 
-    fn handle_paste_event(&mut self, _content: String) -> anyhow::Result<Vec<Dispatch>> {
-        Ok(vec![])
+    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Vec<Dispatch>> {
+        self.editor_mut().handle_paste_event(content)
     }
 
     fn handle_mouse_event(

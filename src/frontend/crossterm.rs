@@ -19,7 +19,7 @@ impl Crossterm {
 
 use crossterm::{
     cursor::{Hide, MoveTo, Show},
-    event::EnableMouseCapture,
+    event::{DisableBracketedPaste, EnableBracketedPaste, EnableMouseCapture},
     execute, queue,
     style::{
         Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
@@ -36,6 +36,7 @@ impl Frontend for Crossterm {
     }
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnterAlternateScreen)?;
+        self.stdout.execute(EnableBracketedPaste)?;
         Ok(())
     }
 
@@ -46,6 +47,7 @@ impl Frontend for Crossterm {
 
     fn leave_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(LeaveAlternateScreen)?;
+        self.stdout.execute(DisableBracketedPaste)?;
         Ok(())
     }
 
