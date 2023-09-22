@@ -19,9 +19,13 @@ impl Clipboard {
     /// Set OS clipboard when available
     pub fn set_content(&mut self, content: String) {
         if let Ok(mut clipboard) = arboard::Clipboard::new() {
-            clipboard.set_text(content).ok();
-        } else {
-            self.history.push(content);
+            clipboard.set_text(content.clone()).ok();
         }
+        self.history.push(content);
+    }
+
+    pub fn clear(&mut self) {
+        let _ = arboard::Clipboard::new().map(|mut clipboard| clipboard.clear());
+        self.history.clear()
     }
 }

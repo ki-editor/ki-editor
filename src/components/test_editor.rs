@@ -45,56 +45,6 @@ mod test_editor {
     }
 
     #[test]
-    fn copy_replace() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        let context = Context::default();
-        editor.copy(&context)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.replace()?;
-        assert_eq!(editor.text(), "fn fn() { let x = 1; }");
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-        editor.replace()?;
-        assert_eq!(editor.text(), "fn main() { let x = 1; }");
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        Ok(())
-    }
-
-    #[test]
-    fn copy_paste() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let context = Context::default();
-
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.copy(&context)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.paste(&context)?;
-        assert_eq!(editor.text(), "fn fn() { let x = 1; }");
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        Ok(())
-    }
-
-    #[test]
-    fn cut_paste() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.cut(&context)?;
-        assert_eq!(editor.text(), " main() { let x = 1; }");
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-
-        editor.move_selection(&context, Movement::Current)?;
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-
-        editor.paste(&context)?;
-
-        assert_eq!(editor.text(), " fn() { let x = 1; }");
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        Ok(())
-    }
-
-    #[test]
     fn exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         let context = Context::default();
@@ -333,7 +283,7 @@ fn main() {
         );
 
         let context = Context::default();
-        editor.cut(&context)?;
+        editor.cut()?;
         editor.enter_insert_mode(CursorDirection::Start)?;
 
         editor.insert("Some(")?;
@@ -374,107 +324,6 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["("]);
 
-        Ok(())
-    }
-
-    #[test]
-    fn highlight_mode_cut() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
-
-        let context = Context::default();
-        editor.cut(&context)?;
-
-        assert_eq!(editor.text(), "{ let x = S(a); let y = S(b); }");
-
-        editor.paste(&context)?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
-        Ok(())
-    }
-
-    #[test]
-    fn highlight_mode_copy() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
-
-        let context = Context::default();
-        editor.copy(&context)?;
-
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["{"]);
-
-        editor.paste(&context)?;
-
-        assert_eq!(editor.text(), "fn f()fn f() let x = S(a); let y = S(b); }");
-        Ok(())
-    }
-
-    #[test]
-    fn highlight_mode_replace() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
-
-        let context = Context::default();
-        editor.copy(&context)?;
-
-        editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["{ let x = S(a); let y = S(b); }"]
-        );
-
-        editor.replace()?;
-
-        assert_eq!(editor.text(), "fn f()fn f()");
-        Ok(())
-    }
-
-    #[test]
-    fn highlight_mode_paste() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
-        let context = Context::default();
-        editor.copy(&context)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn"]);
-
-        editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f()"]);
-
-        editor.paste(&context)?;
-
-        assert_eq!(editor.text(), "fn{ let x = S(a); let y = S(b); }");
         Ok(())
     }
 
@@ -625,7 +474,7 @@ fn f() {
         editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         // Delete
-        editor.delete(false, &context)?;
+        editor.delete(&context)?;
 
         // Expect the text to be 'main() {}'
         assert_eq!(editor.text(), "main() {}");
@@ -645,7 +494,7 @@ fn f() {
         editor.set_selection_mode(&context, SelectionMode::Character)?;
 
         // Delete
-        editor.delete(false, &context)?;
+        editor.delete(&context)?;
 
         assert_eq!(editor.text(), "n main() {}");
 
@@ -665,7 +514,7 @@ fn f() {
         editor.move_selection(&context, Movement::Last)?;
 
         // Delete
-        editor.delete(false, &context)?;
+        editor.delete(&context)?;
 
         assert_eq!(editor.text(), "fn main() {");
 
@@ -683,7 +532,7 @@ fn f() {
         editor.match_literal(&context, "ma")?;
 
         // Delete
-        editor.delete(true, &context)?;
+        editor.delete(&context)?;
 
         // Expect the text to be 'fn ima() {}'
         assert_eq!(editor.text(), "fn ima() {}");

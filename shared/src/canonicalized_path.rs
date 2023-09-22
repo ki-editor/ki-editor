@@ -24,7 +24,7 @@ impl TryFrom<String> for CanonicalizedPath {
     type Error = anyhow::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        Ok(Self(value.into()))
+        PathBuf::from(value).try_into()
     }
 }
 
@@ -32,9 +32,7 @@ impl TryFrom<&Path> for CanonicalizedPath {
     type Error = anyhow::Error;
 
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
-        Ok(Self(value.canonicalize().map_err(|error| {
-            anyhow::anyhow!("Cannot canonicalize path: {:?}. Error: {:?}", value, error)
-        })?))
+        PathBuf::from(value).try_into()
     }
 }
 
@@ -58,7 +56,7 @@ impl TryFrom<&str> for CanonicalizedPath {
     type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(Self(PathBuf::from(value).canonicalize()?))
+        PathBuf::from(value).try_into()
     }
 }
 
@@ -66,7 +64,7 @@ impl TryFrom<&String> for CanonicalizedPath {
     type Error = anyhow::Error;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
-        Ok(Self(PathBuf::from(value).canonicalize()?))
+        PathBuf::from(value).try_into()
     }
 }
 

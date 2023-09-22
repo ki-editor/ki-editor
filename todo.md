@@ -184,7 +184,7 @@
 - [] feat(multicursor): split
 - [] fix: log if formatting failed
 - [] feat(suggestive_editor): text completion (based on words)
-- [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
+- [x] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
 - [] feat(layout): use wide layout as default, so that we can avoid wrapping unnecessarily
@@ -199,7 +199,9 @@
 - [] feat(util): history tree, useful for undo tree and navigation tree
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
 - [] fix: cannot transition from global mode to local mode properly
+
 # Grammar loading
+
 - [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
 - [x] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building

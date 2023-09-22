@@ -94,7 +94,7 @@ impl SelectionSet {
             self.primary = Selection {
                 range: self.primary.range,
                 initial_range: None,
-                // `copied_text` should be `None`, so that pasting can work properly
+                // `copied_text` should be `None`, so that pasting between different files can work properly
                 copied_text: None,
                 info: None,
             };
@@ -523,8 +523,10 @@ impl Selection {
         }
     }
 
-    pub fn copied_text(&self) -> Option<Rope> {
-        self.copied_text.clone()
+    pub fn copied_text(&self, context: &Context) -> Option<Rope> {
+        self.copied_text
+            .clone()
+            .or_else(|| context.get_clipboard_content().map(Rope::from))
     }
 
     pub fn info(&self) -> Option<String> {

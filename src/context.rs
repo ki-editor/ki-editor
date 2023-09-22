@@ -8,7 +8,6 @@ use crate::{clipboard::Clipboard, lsp::diagnostic::Diagnostic, themes::Theme};
 pub struct Context {
     previous_searches: Vec<Search>,
     clipboard: Clipboard,
-    clipboard_content: Option<String>,
     mode: Option<GlobalMode>,
     diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
     theme: Theme,
@@ -58,7 +57,6 @@ impl Default for Context {
         Self {
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
-            clipboard_content: None,
             theme: Theme::default(),
             diagnostics: Default::default(),
             mode: None,
@@ -71,7 +69,6 @@ impl Context {
         Self {
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
-            clipboard_content: None,
             theme: Theme::default(),
             mode: None,
             diagnostics: Default::default(),
@@ -90,17 +87,11 @@ impl Context {
     }
 
     pub fn get_clipboard_content(&self) -> Option<String> {
-        let result = self
-            .clipboard
-            .get_content()
-            .or_else(|| self.clipboard_content.clone());
-        log::info!("get_clipboard_content = {result:#?}");
-        result
+        self.clipboard.get_content()
     }
 
     pub fn set_clipboard_content(&mut self, content: String) {
         self.clipboard.set_content(content.clone());
-        self.clipboard_content = Some(content);
     }
     pub fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
@@ -134,5 +125,9 @@ impl Context {
                 .unwrap_or_default()
         })
         .unwrap_or_default()
+    }
+
+    pub fn clear_clipboard(&mut self) {
+        self.clipboard.clear()
     }
 }

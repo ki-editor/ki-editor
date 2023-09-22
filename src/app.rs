@@ -52,6 +52,7 @@ pub struct App<T: Frontend> {
     receiver: Receiver<AppMessage>,
 
     lsp_manager: LspManager,
+    enable_lsp: bool,
 
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
@@ -75,6 +76,10 @@ impl<T: Frontend> App<T> {
         Self::from_channel(frontend, working_directory, sender, receiver)
     }
 
+    pub fn disable_lsp(&mut self) {
+        self.enable_lsp = false
+    }
+
     pub fn from_channel(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
@@ -88,6 +93,7 @@ impl<T: Frontend> App<T> {
             buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
+            enable_lsp: true,
             sender,
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
             layout_kind,
@@ -426,14 +432,7 @@ impl<T: Frontend> App<T> {
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
             Dispatch::DispatchEditor(dispatch_editor) => {
-                if let Some(component) = self.current_component() {
-                    let dispatches = component
-                        .borrow_mut()
-                        .editor_mut()
-                        .apply_dispatch(&mut self.context, dispatch_editor)?;
-
-                    self.handle_dispatches(dispatches)?;
-                }
+                self.handle_dispatch_editor(dispatch_editor)?
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::OpenGlobalSearchPrompt(search_kind) => {
@@ -743,7 +742,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn open_file(
+    pub fn open_file(
         &mut self,
         entry_path: &CanonicalizedPath,
         focus_editor: bool,
@@ -775,7 +774,9 @@ impl<T: Frontend> App<T> {
             self.request_syntax_highlight(component_id, language, content)?;
         }
 
-        self.lsp_manager.open_file(entry_path.clone())?;
+        if self.enable_lsp {
+            self.lsp_manager.open_file(entry_path.clone())?;
+        }
         Ok(component)
     }
 
@@ -1150,6 +1151,45 @@ impl<T: Frontend> App<T> {
                 source_code: content,
                 theme: VSCODE_LIGHT,
             })?;
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn get_selected_texts(&mut self, path: &CanonicalizedPath) -> Vec<String> {
+        self.layout
+            .open_file(path)
+            .map(|matching_editor| matching_editor.borrow().editor().get_selected_texts())
+            .unwrap_or_default()
+    }
+
+    #[cfg(test)]
+    pub fn get_file_content(&mut self, path: &CanonicalizedPath) -> String {
+        self.layout
+            .open_file(path)
+            .map(|matching_editor| matching_editor.borrow().content())
+            .unwrap_or_default()
+    }
+
+    #[cfg(test)]
+    pub fn handle_dispatch_editors(
+        &mut self,
+        dispatch_editors: &[DispatchEditor],
+    ) -> anyhow::Result<()> {
+        for dispatch_editor in dispatch_editors {
+            self.handle_dispatch_editor(dispatch_editor.clone())?;
+        }
+        Ok(())
+    }
+
+    fn handle_dispatch_editor(&mut self, dispatch_editor: DispatchEditor) -> anyhow::Result<()> {
+        if let Some(component) = self.current_component() {
+            let dispatches = component
+                .borrow_mut()
+                .editor_mut()
+                .apply_dispatch(&mut self.context, dispatch_editor)?;
+
+            self.handle_dispatches(dispatches)?;
         }
         Ok(())
     }

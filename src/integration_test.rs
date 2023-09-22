@@ -1,9 +1,9 @@
 #[cfg(test)]
-mod integration_test {
+pub mod integration_test {
     use std::{
         path::PathBuf,
         sync::{
-            mpsc::{channel, Sender},
+            mpsc::{channel, Receiver, Sender},
             Arc, Mutex,
         },
         time::{Duration, UNIX_EPOCH},
@@ -17,7 +17,7 @@ mod integration_test {
     use my_proc_macros::keys;
     use shared::canonicalized_path::CanonicalizedPath;
 
-    struct TestRunner {
+    pub struct TestRunner {
         key_event_sender: Sender<AppMessage>,
         temp_dir: CanonicalizedPath,
         frontend: Arc<Mutex<MockFrontend>>,
@@ -30,9 +30,14 @@ mod integration_test {
     }
 
     impl TestRunner {
-        fn new() -> anyhow::Result<Self> {
-            let frontend = Arc::new(Mutex::new(MockFrontend::new()));
-
+        pub fn run(
+            callback: impl Fn(CanonicalizedPath) -> anyhow::Result<()>,
+        ) -> anyhow::Result<()> {
+            let (runner, _) = Self::new()?;
+            callback(runner.temp_dir.clone())?;
+            Ok(())
+        }
+        fn new() -> anyhow::Result<(Self, Receiver<AppMessage>)> {
             const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
 
             // Copy the mock repo to a temporary directory using the current date
@@ -50,25 +55,34 @@ mod integration_test {
             let options = fs_extra::dir::CopyOptions::new();
             fs_extra::dir::copy(MOCK_REPO_PATH, path.clone(), &options)?;
 
-            let temp_dir = CanonicalizedPath::try_from(path)?;
-            let path = temp_dir.join("rust1")?;
+            let temp_dir = CanonicalizedPath::try_from(path)?.join("rust1")?;
 
             // Initialize the repo as a Git repo, so that we can test Git related features
-            Self::git_init(path.clone())?;
-
-            let cloned_frontend = frontend.clone();
+            Self::git_init(temp_dir.clone())?;
             let (sender, receiver) = channel();
-            let key_event_sender = sender.clone();
+            let frontend = Arc::new(Mutex::new(MockFrontend::new()));
+            Ok((
+                Self {
+                    temp_dir,
+                    key_event_sender: sender,
+                    frontend,
+                },
+                receiver,
+            ))
+        }
+        fn run_app() -> anyhow::Result<Self> {
+            let (runner, receiver) = Self::new()?;
+
+            let cloned_frontend = runner.frontend.clone();
+            let temp_dir = runner.temp_dir.clone();
+            let sender = runner.key_event_sender.clone();
+
             std::thread::spawn(move || -> anyhow::Result<()> {
-                let app = App::from_channel(cloned_frontend, path.clone(), sender, receiver)?;
-                app.run(Some(path.join("src/main.rs")?))?;
+                let app = App::from_channel(cloned_frontend, temp_dir.clone(), sender, receiver)?;
+                app.run(Some(temp_dir.join("src/main.rs")?))?;
                 Ok(())
             });
-            Ok(Self {
-                key_event_sender,
-                temp_dir,
-                frontend,
-            })
+            Ok(runner)
         }
 
         fn dump_log_file(&self) -> anyhow::Result<()> {
@@ -116,7 +130,7 @@ mod integration_test {
 
     #[test]
     fn lsp_completion() -> anyhow::Result<()> {
-        let test_runner = TestRunner::new()?;
+        let test_runner = TestRunner::run_app()?;
         sleep(3);
         test_runner.send_keys(keys!("enter u s e space s t d : : o p t"))?;
 
@@ -132,11 +146,11 @@ mod integration_test {
 
     #[test]
     fn saving_should_not_crash() -> anyhow::Result<()> {
-        let test_runner = TestRunner::new()?;
+        let test_runner = TestRunner::run_app()?;
         sleep(1);
 
         // Go to the last line
-        test_runner.send_keys(keys!("l f"))?;
+        test_runner.send_keys(keys!("l z n"))?;
 
         // Insert blank spaces at the end
         test_runner.send_keys(keys!("i space space space"))?;
@@ -158,10 +172,10 @@ mod integration_test {
 
     #[test]
     fn search() -> anyhow::Result<()> {
-        let test_runner = TestRunner::new()?;
+        let test_runner = TestRunner::run_app()?;
 
         // Go to foo.rs
-        test_runner.send_keys(keys!("g f f o o enter"))?;
+        test_runner.send_keys(keys!("g n f o o enter"))?;
 
         insta::assert_snapshot!(test_runner.content());
 
@@ -177,19 +191,6 @@ mod integration_test {
         // Expect the main function to be named "main_hello" in the original file
         insta::assert_snapshot!(test_runner.content());
 
-        Ok(())
-    }
-    #[test]
-    fn copy_paste_from_different_file() -> anyhow::Result<()> {
-        let runner = TestRunner::new()?;
-        // Open foo.rs
-        runner.send_keys(keys!("f o o enter"))?;
-        // Copy something in this file
-        // Go to another file
-        // Copy something
-        // Go back to the file
-        // Paste
-        // Expect the pasted content is from the new file
         Ok(())
     }
 }

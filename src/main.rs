@@ -24,6 +24,7 @@ pub mod selection_mode;
 pub mod soft_wrap;
 pub mod syntax_highlight;
 mod terminal;
+mod test_app;
 pub mod themes;
 mod utils;
 

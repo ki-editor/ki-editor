@@ -733,8 +733,7 @@ impl Editor {
         } else {
             SelectionMode::Custom
         };
-        let primary =
-            Selection::new(range).set_copied_text(self.selection_set.primary.copied_text());
+        let primary = self.selection_set.primary.clone().set_range(range);
         let selection_set = SelectionSet {
             primary,
             secondary: vec![],
@@ -831,14 +830,33 @@ impl Editor {
         self.jump_from_selection(&self.selection_set.primary.clone(), context)
     }
 
-    pub fn cut(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
-        self.delete(true, context)
-    }
-
-    pub fn delete(&mut self, cut: bool, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn cut(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let current_range = selection.extended_range();
+                    let copied_text = Some(self.buffer.borrow().slice(&current_range)?);
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: current_range,
+                                new: Rope::new(),
+                            }),
+                            Action::Select(
+                                Selection::new((current_range.start..current_range.start).into())
+                                    .set_copied_text(copied_text),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect()
+        });
         // Set the clipboard content to the current selection
         // if there is only one cursor.
-        let dispatch = if cut && self.selection_set.secondary.is_empty() {
+        let dispatch = if self.selection_set.secondary.is_empty() {
             Some(Dispatch::SetClipboardContent(
                 self.buffer
                     .borrow()
@@ -848,16 +866,16 @@ impl Editor {
         } else {
             None
         };
+        self.apply_edit_transaction(edit_transaction)
+            .map(|dispatches| dispatches.into_iter().chain(dispatch).collect())
+    }
+
+    pub fn delete(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
-                    let copied_text = if cut {
-                        Some(self.buffer.borrow().slice(&current_range)?)
-                    } else {
-                        selection.copied_text()
-                    };
                     // If the gap between the next selection and the current selection are only whitespaces, perform a "kill next" instead
                     let next_selection = Selection::get_selection_(
                         &buffer,
@@ -903,9 +921,7 @@ impl Editor {
                                 range: delete_range,
                                 new: Rope::new(),
                             }),
-                            Action::Select(
-                                Selection::new(select_range).set_copied_text(copied_text),
-                            ),
+                            Action::Select(selection.clone().set_range(select_range)),
                         ]
                         .to_vec(),
                     ))
@@ -916,7 +932,6 @@ impl Editor {
         });
 
         self.apply_edit_transaction(edit_transaction)
-            .map(|dispatches| dispatches.into_iter().chain(dispatch).collect())
     }
 
     pub fn copy(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
@@ -959,18 +974,15 @@ impl Editor {
     }
 
     pub fn paste(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
-        self.replace_current_selection_with(|selection| {
-            selection
-                .copied_text()
-                .or_else(|| context.get_clipboard_content().map(Rope::from))
-        })
+        self.replace_current_selection_with(|selection| selection.copied_text(context))
     }
 
-    pub fn replace(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    if let Some(replacement) = &selection.copied_text() {
+                    if let Some(replacement) = &selection.copied_text(context) {
+                        println!("replacement={replacement:#?}");
                         let replacement_text_len = replacement.len_chars();
                         let range = selection.extended_range();
                         let replaced_text = self.buffer.borrow().slice(&range)?;
@@ -1320,6 +1332,13 @@ impl Editor {
             DispatchEditor::MoveSelection(direction) => {
                 return self.move_selection(context, direction)
             }
+            DispatchEditor::Copy => return self.copy(context),
+            DispatchEditor::Paste => return self.paste(context),
+            DispatchEditor::SelectWholeFile => self.select_whole_file(),
+            DispatchEditor::SetContent(content) => self.update_buffer(&content),
+            DispatchEditor::Replace => return self.replace(context),
+            DispatchEditor::Cut => return self.cut(),
+            DispatchEditor::ToggleHighlightMode => self.toggle_highlight_mode(),
         }
         Ok([].to_vec())
     }
@@ -1495,7 +1514,7 @@ impl Editor {
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
             }
-            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut(context)?)),
+            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
             key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context)?)),
             key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo()?)),
             key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo()?)),
@@ -1557,12 +1576,11 @@ impl Editor {
                                 new: Rope::new(),
                             }),
                             Action::Select(
-                                Selection::new(
+                                selection.clone().set_range(
                                     (selection.extended_range().start
                                         ..selection.extended_range().start)
                                         .into(),
-                                )
-                                .set_copied_text(selection.copied_text()),
+                                ),
                             ),
                         ]
                         .to_vec(),
@@ -1592,8 +1610,9 @@ impl Editor {
                             new: Rope::from_str(s),
                         }),
                         Action::Select(
-                            Selection::new((range.start + s.len()..range.start + s.len()).into())
-                                .set_copied_text(selection.copied_text()),
+                            selection
+                                .clone()
+                                .set_range((range.start + s.len()..range.start + s.len()).into()),
                         ),
                     ]
                     .to_vec(),
@@ -1795,7 +1814,7 @@ impl Editor {
 
             key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
             // j = jump
-            key!("k") => return self.delete(false, context),
+            key!("k") => return self.delete(context),
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
@@ -1807,7 +1826,7 @@ impl Editor {
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
             key!("r") => return self.raise(context),
-            key!("shift+R") => return self.replace(),
+            key!("shift+R") => return self.replace(context),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u = up
@@ -2756,10 +2775,11 @@ impl Editor {
 
     fn select_whole_file(&mut self) {
         let selection_set = SelectionSet {
-            primary: Selection::new(
-                (CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into(),
-            )
-            .set_copied_text(self.selection_set.primary.copied_text()),
+            primary: self
+                .selection_set
+                .primary
+                .clone()
+                .set_range((CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into()),
             secondary: vec![],
             mode: SelectionMode::Custom,
         };
@@ -2790,4 +2810,11 @@ pub enum DispatchEditor {
     EnterScrollPageMode,
     EnterScrollLineMode,
     MoveSelection(Movement),
+    Copy,
+    Cut,
+    Replace,
+    Paste,
+    SelectWholeFile,
+    SetContent(String),
+    ToggleHighlightMode,
 }
