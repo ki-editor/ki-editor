@@ -8,13 +8,13 @@ pub struct MockFrontend {
 
 const WIDTH: u16 = 80;
 const HEIGHT: u16 = 24;
-const DIMENSION: crate::screen::Dimension = crate::screen::Dimension {
+const DIMENSION: crate::app::Dimension = crate::app::Dimension {
     width: WIDTH,
     height: HEIGHT,
 };
 
 impl super::frontend::Frontend for MockFrontend {
-    fn get_terminal_dimension(&self) -> anyhow::Result<crate::screen::Dimension> {
+    fn get_terminal_dimension(&self) -> anyhow::Result<crate::app::Dimension> {
         Ok(DIMENSION)
     }
 

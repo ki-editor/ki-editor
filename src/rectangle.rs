@@ -1,7 +1,7 @@
 use itertools::{Either, Itertools};
 use std::collections::HashSet;
 
-use crate::{position::Position, screen::Dimension};
+use crate::{app::Dimension, position::Position};
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 // A struct to represent a rectangle with origin, width and height
@@ -586,13 +586,13 @@ pub enum LayoutKind {
 #[cfg(test)]
 mod test_rectangle {
 
+    use crate::app::Dimension;
     use crate::position::Position;
     use crate::rectangle::split;
     use crate::rectangle::spread;
     use crate::rectangle::Border;
     use crate::rectangle::Split;
     use crate::rectangle::SplitKind;
-    use crate::screen::Dimension;
 
     use super::BorderDirection::*;
     use super::Rectangle;

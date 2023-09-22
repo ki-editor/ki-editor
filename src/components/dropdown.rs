@@ -1,7 +1,7 @@
+use crate::app::Dispatch;
 use crate::components::component::Component;
 use crate::components::editor::Movement;
 use crate::context::Context;
-use crate::screen::Dispatch;
 
 use itertools::Itertools;
 use std::cell::RefCell;

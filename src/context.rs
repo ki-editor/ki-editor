@@ -90,9 +90,12 @@ impl Context {
     }
 
     pub fn get_clipboard_content(&self) -> Option<String> {
-        self.clipboard
+        let result = self
+            .clipboard
             .get_content()
-            .or_else(|| self.clipboard_content.clone())
+            .or_else(|| self.clipboard_content.clone());
+        log::info!("get_clipboard_content = {result:#?}");
+        result
     }
 
     pub fn set_clipboard_content(&mut self, content: String) {

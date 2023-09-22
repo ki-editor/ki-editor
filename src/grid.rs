@@ -1,7 +1,7 @@
 use crate::{
+    app::Dimension,
     position::Position,
     rectangle::{Border, BorderDirection, Rectangle},
-    screen::Dimension,
     themes::Color,
 };
 
@@ -412,9 +412,9 @@ mod test_grid {
     use pretty_assertions::assert_eq;
 
     use crate::{
+        app::Dimension,
         grid::{Cell, Grid, PositionedCell},
         position::Position,
-        screen::Dimension,
     };
 
     #[test]

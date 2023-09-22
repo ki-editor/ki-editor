@@ -1,7 +1,7 @@
-use crate::screen::RequestParams;
+use crate::app::RequestParams;
 use std::{collections::HashMap, sync::mpsc::Sender};
 
-use crate::screen::ScreenMessage;
+use crate::app::AppMessage;
 
 use super::process::LspServerProcessChannel;
 use shared::{
@@ -11,7 +11,7 @@ use shared::{
 
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
-    sender: Sender<ScreenMessage>,
+    sender: Sender<AppMessage>,
     current_working_directory: CanonicalizedPath,
 }
 
@@ -23,7 +23,7 @@ impl Drop for LspManager {
 
 impl LspManager {
     pub fn new(
-        clone: Sender<ScreenMessage>,
+        clone: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> LspManager {
         LspManager {

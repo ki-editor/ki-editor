@@ -1,4 +1,5 @@
 use crate::{
+    app::Dimension,
     components::{
         component::{Component, ComponentId},
         editor::{Editor, Movement},
@@ -9,7 +10,6 @@ use crate::{
     },
     quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
-    screen::Dimension,
 };
 use anyhow::anyhow;
 use itertools::Itertools;

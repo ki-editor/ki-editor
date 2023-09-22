@@ -30,9 +30,9 @@ use crossterm::{
 };
 
 impl Frontend for Crossterm {
-    fn get_terminal_dimension(&self) -> anyhow::Result<crate::screen::Dimension> {
+    fn get_terminal_dimension(&self) -> anyhow::Result<crate::app::Dimension> {
         let (width, height) = terminal::size()?;
-        Ok(crate::screen::Dimension { width, height })
+        Ok(crate::app::Dimension { width, height })
     }
     fn enter_alternate_screen(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnterAlternateScreen)?;

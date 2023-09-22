@@ -1,8 +1,8 @@
+use crate::app::Dispatch;
 use crate::context::Context;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::lsp::signature_help::SignatureHelp;
-use crate::screen::Dispatch;
 
 use crate::selection_mode::ByteRange;
 use crate::themes::StyleKey;
@@ -379,6 +379,7 @@ impl SuggestiveEditor {
 #[cfg(test)]
 mod test_suggestive_editor {
     use crate::{
+        app::Dispatch,
         buffer::Buffer,
         components::{
             component::Component,
@@ -386,7 +387,6 @@ mod test_suggestive_editor {
         },
         lsp::completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
         position::Position,
-        screen::Dispatch,
     };
     use lsp_types::CompletionItemKind;
     use my_proc_macros::keys;

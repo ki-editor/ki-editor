@@ -5,12 +5,12 @@ use std::ops::{Add, Range, Sub};
 use ropey::Rope;
 
 use crate::{
+    app::Dispatch,
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::editor::{CursorDirection, Movement},
     context::{Context, Search, SearchKind},
     position::Position,
-    screen::Dispatch,
     selection_mode::{self, SelectionModeParams},
 };
 
@@ -94,7 +94,8 @@ impl SelectionSet {
             self.primary = Selection {
                 range: self.primary.range,
                 initial_range: None,
-                copied_text: Some(copied_text.clone()),
+                // `copied_text` should be `None`, so that pasting can work properly
+                copied_text: None,
                 info: None,
             };
             Ok([Dispatch::SetClipboardContent(copied_text.to_string())].to_vec())

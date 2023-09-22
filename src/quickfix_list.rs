@@ -40,7 +40,7 @@ impl Component for QuickfixLists {
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+    ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
         self.dropdown.handle_key_event(context, event)
     }
 

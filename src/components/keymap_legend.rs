@@ -2,7 +2,7 @@ use event::{parse_key_event, KeyEvent};
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::screen::Dispatch;
+use crate::app::Dispatch;
 
 use super::{
     component::{Component, ComponentId},
@@ -107,7 +107,7 @@ impl Component for KeymapLegend {
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+    ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
         let close_current_window = Dispatch::CloseCurrentWindow {
             change_focused_to: Some(self.config.owner_id),
         };

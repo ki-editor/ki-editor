@@ -10,15 +10,15 @@ mod integration_test {
     };
 
     use crate::{
+        app::{App, AppMessage},
         frontend::mock::MockFrontend,
-        screen::{Screen, ScreenMessage},
     };
     use event::{event::Event, KeyEvent};
     use my_proc_macros::keys;
     use shared::canonicalized_path::CanonicalizedPath;
 
     struct TestRunner {
-        key_event_sender: Sender<ScreenMessage>,
+        key_event_sender: Sender<AppMessage>,
         temp_dir: CanonicalizedPath,
         frontend: Arc<Mutex<MockFrontend>>,
     }
@@ -60,8 +60,8 @@ mod integration_test {
             let (sender, receiver) = channel();
             let key_event_sender = sender.clone();
             std::thread::spawn(move || -> anyhow::Result<()> {
-                let screen = Screen::from_channel(cloned_frontend, path.clone(), sender, receiver)?;
-                screen.run(Some(path.join("src/main.rs")?))?;
+                let app = App::from_channel(cloned_frontend, path.clone(), sender, receiver)?;
+                app.run(Some(path.join("src/main.rs")?))?;
                 Ok(())
             });
             Ok(Self {
@@ -93,7 +93,7 @@ mod integration_test {
 
         fn send_key(&self, key: KeyEvent) -> anyhow::Result<()> {
             self.key_event_sender
-                .send(ScreenMessage::Event(Event::Key(key)))
+                .send(AppMessage::Event(Event::Key(key)))
                 .map_err(|error| anyhow::anyhow!("{:?}", error))
         }
 
@@ -177,6 +177,19 @@ mod integration_test {
         // Expect the main function to be named "main_hello" in the original file
         insta::assert_snapshot!(test_runner.content());
 
+        Ok(())
+    }
+    #[test]
+    fn copy_paste_from_different_file() -> anyhow::Result<()> {
+        let runner = TestRunner::new()?;
+        // Open foo.rs
+        runner.send_keys(keys!("f o o enter"))?;
+        // Copy something in this file
+        // Go to another file
+        // Copy something
+        // Go back to the file
+        // Paste
+        // Expect the pasted content is from the new file
         Ok(())
     }
 }

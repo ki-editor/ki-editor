@@ -1,6 +1,6 @@
 use crate::{
+    app::Dispatch,
     lsp::{completion::CompletionItem, documentation::Documentation},
-    screen::Dispatch,
 };
 
 pub struct Command {

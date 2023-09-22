@@ -39,17 +39,17 @@ use crate::{
     themes::VSCODE_LIGHT,
 };
 
-pub struct Screen<T: Frontend> {
+pub struct App<T: Frontend> {
     context: Context,
 
     buffers: Vec<Rc<RefCell<Buffer>>>,
 
-    sender: Sender<ScreenMessage>,
+    sender: Sender<AppMessage>,
 
     /// Used for receiving message from various sources:
     /// - Events from crossterm
     /// - Notifications from language server
-    receiver: Receiver<ScreenMessage>,
+    receiver: Receiver<AppMessage>,
 
     lsp_manager: LspManager,
 
@@ -66,11 +66,11 @@ pub struct Screen<T: Frontend> {
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 }
 
-impl<T: Frontend> Screen<T> {
+impl<T: Frontend> App<T> {
     pub fn new(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-    ) -> anyhow::Result<Screen<T>> {
+    ) -> anyhow::Result<App<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
         Self::from_channel(frontend, working_directory, sender, receiver)
     }
@@ -78,12 +78,12 @@ impl<T: Frontend> Screen<T> {
     pub fn from_channel(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        sender: Sender<ScreenMessage>,
-        receiver: Receiver<ScreenMessage>,
-    ) -> anyhow::Result<Screen<T>> {
+        sender: Sender<AppMessage>,
+        receiver: Receiver<AppMessage>,
+    ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let layout_kind = LayoutKind::Wide;
-        let screen = Screen {
+        let app = App {
             context: Context::new(),
             buffers: Vec::new(),
             receiver,
@@ -96,7 +96,7 @@ impl<T: Frontend> Screen<T> {
             frontend,
             syntax_highlight_request_sender: None,
         };
-        Ok(screen)
+        Ok(app)
     }
 
     pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
@@ -122,12 +122,12 @@ impl<T: Frontend> Screen<T> {
 
         while let Ok(message) = self.receiver.recv() {
             let should_quit = match message {
-                ScreenMessage::Event(event) => self.handle_event(event),
-                ScreenMessage::LspNotification(notification) => {
+                AppMessage::Event(event) => self.handle_event(event),
+                AppMessage::LspNotification(notification) => {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
-                ScreenMessage::QuitAll => Ok(true),
-                ScreenMessage::SyntaxHighlightResponse {
+                AppMessage::QuitAll => Ok(true),
+                AppMessage::SyntaxHighlightResponse {
                     component_id,
                     highlighted_spans,
                 } => self
@@ -161,7 +161,7 @@ impl<T: Frontend> Screen<T> {
         self.layout.components()
     }
 
-    /// Returns true if the screen should quit.
+    /// Returns true if the app should quit.
     fn handle_event(&mut self, event: Event) -> anyhow::Result<bool> {
         // Pass event to focused window
         let component = self.current_component();
@@ -1038,10 +1038,10 @@ impl<T: Frontend> Screen<T> {
     }
 
     pub fn quit_all(&self) -> Result<(), anyhow::Error> {
-        Ok(self.sender.send(ScreenMessage::QuitAll)?)
+        Ok(self.sender.send(AppMessage::QuitAll)?)
     }
 
-    pub fn sender(&self) -> Sender<ScreenMessage> {
+    pub fn sender(&self) -> Sender<AppMessage> {
         self.sender.clone()
     }
 
@@ -1279,7 +1279,7 @@ pub struct RequestParams {
 }
 
 #[derive(Debug)]
-pub enum ScreenMessage {
+pub enum AppMessage {
     LspNotification(LspNotification),
     Event(Event),
     QuitAll,

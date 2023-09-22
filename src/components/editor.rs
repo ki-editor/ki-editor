@@ -1,12 +1,13 @@
 use crate::{
+    app::{FilePickerKind, RequestParams},
     buffer::Line,
     char_index_range::CharIndexRange,
     components::component::Cursor,
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style},
-    screen::{FilePickerKind, RequestParams},
     selection_mode, soft_wrap,
 };
+
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -23,6 +24,7 @@ use my_proc_macros::{hex, key};
 use ropey::Rope;
 
 use crate::{
+    app::{Dimension, Dispatch},
     buffer::Buffer,
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
@@ -31,7 +33,6 @@ use crate::{
     position::Position,
     quickfix_list::QuickfixListType,
     rectangle::Rectangle,
-    screen::{Dimension, Dispatch},
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 

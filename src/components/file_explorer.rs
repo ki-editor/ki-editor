@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::screen::{Dispatch, YesNoPrompt};
+use crate::app::{Dispatch, YesNoPrompt};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{component::Component, editor::Editor, keymap_legend::Keymap};
@@ -344,7 +344,7 @@ impl Component for FileExplorer {
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+    ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
         match event {
             key!("enter") => {
                 if let Some(node) = self.get_current_node()? {

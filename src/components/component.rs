@@ -3,7 +3,7 @@ use std::{any::Any, cell::RefCell, rc::Rc};
 use event::event::Event;
 
 use crate::{
-    context::Context, grid::Grid, position::Position, rectangle::Rectangle, screen::Dispatch,
+    app::Dispatch, context::Context, grid::Grid, position::Position, rectangle::Rectangle,
 };
 
 use super::editor::Editor;
@@ -200,7 +200,7 @@ mod test_component {
                 &mut self,
                 _context: &crate::context::Context,
                 _event: event::KeyEvent,
-            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+            ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
                 todo!()
             }
         }
@@ -231,7 +231,7 @@ mod test_component {
                 &mut self,
                 _context: &crate::context::Context,
                 _event: event::KeyEvent,
-            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+            ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
                 todo!()
             }
         }
@@ -263,7 +263,7 @@ mod test_component {
                 &mut self,
                 _context: &crate::context::Context,
                 _event: event::KeyEvent,
-            ) -> anyhow::Result<Vec<crate::screen::Dispatch>> {
+            ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
                 todo!()
             }
         }

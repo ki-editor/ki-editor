@@ -122,6 +122,8 @@
 - [x] think(movement): revive u and d? Because I find myself needing u and d sometimes, e.g. token below, also this is better for syntax traversal, no need for two separated mode
 - [x] fix: cannot enter new line in new file
 - [x] fix(suggestive_editor): autocomplete inserting emoji icons
+- [x] feat(line): line-up/down go to parent/child lines! yes
+- [x] fix(editor): paste from terminal inserts one by one
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -182,7 +184,6 @@
 - [] feat(multicursor): split
 - [] fix: log if formatting failed
 - [] feat(suggestive_editor): text completion (based on words)
-- [x] feat(line): line-up/down go to parent/child lines! yes
 - [] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
@@ -197,8 +198,7 @@
 - [] minor(keybinding): change fr to fx, so that fr can be find local references
 - [] feat(util): history tree, useful for undo tree and navigation tree
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
-- [] fix(editor): paste from terminal inserts one by one
-
+- [] fix: cannot transition from global mode to local mode properly
 # Grammar loading
 - [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
 - [x] store the runtime grammars file not at helix editor config dir, use 'directories'

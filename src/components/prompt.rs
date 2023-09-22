@@ -4,10 +4,10 @@ use itertools::Itertools;
 use my_proc_macros::key;
 
 use crate::{
+    app::Dispatch,
     buffer::Buffer,
     context::Context,
     lsp::completion::{Completion, CompletionItem},
-    screen::Dispatch,
 };
 
 use super::{
@@ -151,8 +151,8 @@ mod test_prompt {
     use std::{cell::RefCell, rc::Rc};
 
     use crate::{
+        app::Dispatch,
         components::{component::Component, prompt::Prompt},
-        screen::Dispatch,
     };
 
     use super::*;
