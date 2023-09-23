@@ -1021,17 +1021,12 @@ impl Editor {
         &mut self,
         edit_transaction: EditTransaction,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        self.buffer
+        let new_selection_set = self
+            .buffer
             .borrow_mut()
             .apply_edit_transaction(&edit_transaction, self.selection_set.clone())?;
 
-        if let Some((head, tail)) = edit_transaction.selections().split_first() {
-            self.selection_set = SelectionSet {
-                primary: (*head).clone(),
-                secondary: tail.iter().map(|selection| (*selection).clone()).collect(),
-                mode: self.selection_set.mode.clone(),
-            }
-        }
+        self.selection_set = new_selection_set;
 
         self.recalculate_scroll_offset();
 
@@ -1048,7 +1043,7 @@ impl Editor {
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        let selection_set = self.buffer.borrow_mut().undo(self.selection_set.clone())?;
+        let selection_set = self.buffer.borrow_mut().undo()?;
         if let Some(selection_set) = selection_set {
             self.update_selection_set(selection_set);
         }
@@ -1056,7 +1051,7 @@ impl Editor {
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        let selection_set = self.buffer.borrow_mut().redo(self.selection_set.clone())?;
+        let selection_set = self.buffer.borrow_mut().redo()?;
         if let Some(selection_set) = selection_set {
             self.update_selection_set(selection_set);
         }

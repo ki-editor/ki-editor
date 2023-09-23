@@ -5,7 +5,7 @@ use ropey::Rope;
 
 use crate::{
     char_index_range::CharIndexRange,
-    selection::{CharIndex, Selection},
+    selection::{CharIndex, Selection, SelectionSet},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -196,6 +196,18 @@ impl EditTransaction {
 
     pub fn range(&self) -> CharIndexRange {
         (self.min_char_index()..self.max_char_index()).into()
+    }
+
+    pub fn selection_set(&self, mode: crate::selection::SelectionMode) -> Option<SelectionSet> {
+        if let Some((head, tail)) = self.selections().split_first() {
+            Some(SelectionSet {
+                primary: (*head).clone(),
+                secondary: tail.iter().map(|selection| (*selection).clone()).collect(),
+                mode,
+            })
+        } else {
+            None
+        }
     }
 }
 

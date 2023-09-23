@@ -2033,6 +2033,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-traversal",
  "tree-sitter-typescript",
+ "undo",
  "uuid",
  "vt100",
 ]
@@ -2167,6 +2168,15 @@ checksum = "079c695c32d39ad089101c66393aeaca30e967fba3486a91f573d2f0e12d290a"
 dependencies = [
  "cc",
  "tree-sitter",
+]
+
+[[package]]
+name = "undo"
+version = "0.50.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c820362dc7e07488dcc2f55315b92e9068bda96c25707def02a3b74128266e60"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

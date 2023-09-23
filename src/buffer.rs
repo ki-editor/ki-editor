@@ -1,7 +1,7 @@
 use crate::{
     char_index_range::CharIndexRange,
     components::suggestive_editor::Decoration,
-    edit::{Edit, EditTransaction},
+    edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
@@ -19,15 +19,15 @@ use shared::{
 use std::ops::Range;
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
+use undo::History;
 
 #[derive(Clone)]
 pub struct Buffer {
     rope: Rope,
     tree: Tree,
     treesitter_language: tree_sitter::Language,
+    history: History<Patch>,
     language: Option<Language>,
-    undo_patch: Vec<Patch>,
-    redo_patches: Vec<Patch>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
     theme: Theme,
@@ -54,13 +54,12 @@ impl Buffer {
                 parser.set_language(language).unwrap();
                 parser.parse(text, None).unwrap()
             },
-            undo_patch: Vec::new(),
-            redo_patches: Vec::new(),
             path: None,
             highlighted_spans: HighlighedSpans::default(),
             theme: Theme::default(),
             bookmarks: Vec::new(),
             decorations: Vec::new(),
+            history: undo::History::new(),
         }
     }
     pub fn content(&self) -> String {
@@ -364,12 +363,16 @@ impl Buffer {
         traverse(self.tree.walk(), order)
     }
 
+    /// Returns the new selection set
     pub fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<SelectionSet, anyhow::Error> {
         let before = self.rope.to_string();
+        let new_selection_set = edit_transaction
+            .selection_set(current_selection_set.mode.clone())
+            .unwrap_or_else(|| current_selection_set.clone());
         edit_transaction
             .edits()
             .into_iter()
@@ -378,10 +381,10 @@ impl Buffer {
                 Ok(()) => self.apply_edit(edit),
             })?;
 
-        self.add_undo_patch(current_selection_set, &before);
+        self.add_undo_patch(current_selection_set, new_selection_set.clone(), &before);
         self.reparse_tree()?;
 
-        Ok(())
+        Ok(new_selection_set)
     }
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
@@ -398,68 +401,37 @@ impl Buffer {
     }
 
     /// This method assumes `self.rope` is already updated
-    fn add_undo_patch(&mut self, current_selection_set: SelectionSet, before: &str) {
+    fn add_undo_patch(
+        &mut self,
+        old_selection_set: SelectionSet,
+        new_selection_set: SelectionSet,
+        before: &str,
+    ) {
         let after = &self.rope.to_string();
         if before == after {
             return;
         }
-
-        self.redo_patches.clear();
-        self.undo_patch.push(Patch {
-            selection_set: current_selection_set,
-            patch: diffy::create_patch(after, before).to_string(),
-        });
+        let patch = Patch {
+            old_selection_set,
+            old_to_new_patch: diffy::create_patch(before, after).to_string(),
+            new_to_old_patch: diffy::create_patch(after, before).to_string(),
+            new_selection_set,
+        };
+        self.history.edit(&mut before.to_owned(), patch).unwrap();
     }
 
-    pub fn undo(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        if let Some(patch) = self.undo_patch.pop() {
-            let redo_patch = self.revert_change(&patch, current_selection_set)?;
-            self.redo_patches.push(redo_patch);
-            Ok(Some(patch.selection_set))
-        } else {
-            log::info!("Nothing else to be undone");
-            Ok(None)
-        }
+    pub fn undo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
+        let mut content = self.rope.to_string();
+        let selection_set = self.history.undo(&mut content).transpose()?;
+        self.update(&content);
+        Ok(selection_set)
     }
 
-    pub fn redo(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        if let Some(patch) = self.redo_patches.pop() {
-            let undo_patch = self.revert_change(&patch, current_selection_set)?;
-            self.undo_patch.push(undo_patch);
-            Ok(Some(patch.selection_set))
-        } else {
-            log::info!("Nothing else to be redone");
-            Ok(None)
-        }
-    }
-
-    fn revert_change(
-        &mut self,
-        patch: &Patch,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Patch> {
-        let before = self.rope.to_string();
-        self.rope = diffy::apply(
-            &self.rope.to_string(),
-            &diffy::Patch::from_str(&patch.patch).unwrap(),
-        )
-        .unwrap()
-        .into();
-
-        let after = self.rope.to_string();
-
-        self.reparse_tree()?;
-
-        Ok(Patch {
-            selection_set: current_selection_set,
-            patch: diffy::create_patch(&after, &before).to_string(),
-        })
+    pub fn redo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
+        let mut content = self.rope.to_string();
+        let selection_set = self.history.redo(&mut content).transpose()?;
+        self.update(&content);
+        Ok(selection_set)
     }
 
     pub fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
@@ -529,8 +501,17 @@ impl Buffer {
         let before = self.rope.to_string();
 
         let content = if let Some(formatted_content) = self.get_formatted_content() {
-            self.update(&formatted_content);
-            self.add_undo_patch(current_selection_set, &before);
+            let edit_transaction = EditTransaction::from_action_groups(
+                [ActionGroup {
+                    actions: [Action::Edit(Edit {
+                        range: (CharIndex(0)..CharIndex(self.len_chars())).into(),
+                        new: Rope::from(formatted_content.clone()),
+                    })]
+                    .to_vec(),
+                }]
+                .to_vec(),
+            );
+            self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
             formatted_content
         } else {
             before
@@ -627,10 +608,19 @@ impl Buffer {
 #[derive(Clone, Debug)]
 pub struct Patch {
     /// Used for restoring previous selection after undo/redo
-    pub selection_set: SelectionSet,
+    pub old_selection_set: SelectionSet,
     /// Unified format patch
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
-    pub patch: String,
+    pub old_to_new_patch: String,
+    /// For undoing this patch, I have to store this because at the moment there's no convenient
+    /// method to inverse a patch file in Rust
+    pub new_to_old_patch: String,
+    pub new_selection_set: SelectionSet,
+}
+impl std::fmt::Display for Patch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
 }
 
 #[cfg(test)]
@@ -781,7 +771,7 @@ fn f(
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer.undo(SelectionSet::default()).unwrap();
+                buffer.undo().unwrap();
 
                 let content = buffer.rope.to_string();
 
@@ -826,5 +816,21 @@ fn f(
                 assert_eq!(buffer.rope.to_string(), code);
             })
         }
+    }
+}
+
+impl undo::Edit for Patch {
+    type Target = String;
+
+    type Output = anyhow::Result<SelectionSet>;
+
+    fn edit(&mut self, target: &mut Self::Target) -> Self::Output {
+        *target = diffy::apply(target, &diffy::Patch::from_str(&self.old_to_new_patch)?)?;
+        Ok(self.new_selection_set.clone())
+    }
+
+    fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
+        *target = diffy::apply(target, &diffy::Patch::from_str(&self.new_to_old_patch)?)?;
+        Ok(self.old_selection_set.clone())
     }
 }
