@@ -4,6 +4,7 @@ pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
 pub mod line;
+pub mod local_quickfix;
 pub mod outermost_node;
 pub mod regex;
 pub mod small_word;
@@ -18,6 +19,7 @@ pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use line::Line;
+pub use local_quickfix::LocalQuickfix;
 pub use outermost_node::OutermostNode;
 pub use small_word::SmallWord;
 use std::ops::Range;
@@ -222,7 +224,8 @@ pub trait SelectionMode {
 
         // Find the range from the iterator that is most similar to the range of current selection
         let current_selection_range = current_selection.range();
-        let current_selection_line = current_selection_range.start.to_line(params.buffer)?;
+        let cursor_position = current_selection_range.cursor_position(params.cursor_direction);
+        let current_selection_line = cursor_position.to_line(params.buffer)?;
 
         let byte_range = buffer.char_to_byte(current_selection_range.start)?
             ..buffer.char_to_byte(current_selection_range.end)?;
@@ -231,7 +234,11 @@ pub trait SelectionMode {
         let nearest = iter
             .enumerate()
             .map(|(i, range)| {
-                let line = buffer.byte_to_line(range.range.start).unwrap_or(0);
+                let cursor_position = match params.cursor_direction {
+                    CursorDirection::Start => range.range.start,
+                    CursorDirection::End => range.range.end,
+                };
+                let line = buffer.byte_to_line(cursor_position).unwrap_or(0);
                 (
                     i,
                     (
@@ -243,7 +250,7 @@ pub trait SelectionMode {
                         // Then by selection that is one the same line
                         line.abs_diff(current_selection_line),
                         // Then by their distance to the current selection
-                        range.range.start.abs_diff(byte_range.start),
+                        cursor_position.abs_diff(byte_range.start),
                         // Then by their length
                         range.range.len(),
                     ),

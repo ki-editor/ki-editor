@@ -1,8 +1,13 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use shared::canonicalized_path::CanonicalizedPath;
 
-use crate::{clipboard::Clipboard, lsp::diagnostic::Diagnostic, themes::Theme};
+use crate::{
+    clipboard::Clipboard,
+    lsp::diagnostic::Diagnostic,
+    quickfix_list::{QuickfixListItem, QuickfixLists},
+    themes::Theme,
+};
 
 #[derive(Clone)]
 pub struct Context {
@@ -11,6 +16,7 @@ pub struct Context {
     mode: Option<GlobalMode>,
     diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
     theme: Theme,
+    quickfix_lists: Rc<RefCell<QuickfixLists>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -38,7 +44,7 @@ pub enum SearchKind {
     Literal,
     Regex,
     AstGrep,
-    IgnoreCase,
+    BlindCase,
 }
 
 impl SearchKind {
@@ -47,7 +53,7 @@ impl SearchKind {
             SearchKind::Literal => "Literal",
             SearchKind::Regex => "Regex",
             SearchKind::AstGrep => "AST Grep",
-            SearchKind::IgnoreCase => "Ignore Case",
+            SearchKind::BlindCase => "Blind Case",
         }
     }
 }
@@ -60,20 +66,20 @@ impl Default for Context {
             theme: Theme::default(),
             diagnostics: Default::default(),
             mode: None,
+            quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
         }
     }
 }
 
 impl Context {
     pub fn new() -> Self {
-        Self {
-            previous_searches: Vec::new(),
-            clipboard: Clipboard::new(),
-            theme: Theme::default(),
-            mode: None,
-            diagnostics: Default::default(),
-        }
+        Self::default()
     }
+
+    pub fn quickfix_lists(&self) -> Rc<RefCell<QuickfixLists>> {
+        self.quickfix_lists.clone()
+    }
+
     pub fn last_search(&self) -> Option<Search> {
         self.previous_searches.last().cloned()
     }
@@ -129,5 +135,15 @@ impl Context {
 
     pub fn clear_clipboard(&mut self) {
         self.clipboard.clear()
+    }
+
+    pub fn get_quickfix_items(&self, path: &CanonicalizedPath) -> Option<Vec<QuickfixListItem>> {
+        self.quickfix_lists.borrow().current().map(|list| {
+            list.items()
+                .into_iter()
+                .filter(|item| &item.location().path == path)
+                .cloned()
+                .collect()
+        })
     }
 }

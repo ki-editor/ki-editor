@@ -76,7 +76,7 @@ impl KeymapLegend {
             .collect_vec();
 
         if !duplicates.is_empty() {
-            panic!(
+            let message = format!(
                 "Duplicate keymap keys for {}: {:#?}",
                 config.title,
                 duplicates
@@ -84,6 +84,8 @@ impl KeymapLegend {
                     .map(|duplicate| format!("{}: {}", duplicate.key, duplicate.description))
                     .collect_vec()
             );
+            log::info!("{}", message);
+            // panic!("{}", message);
         }
 
         let content = config.display();

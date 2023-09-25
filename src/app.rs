@@ -28,13 +28,18 @@ use crate::{
     layout::Layout,
     list,
     lsp::{
-        completion::CompletionItem, diagnostic::Diagnostic,
-        goto_definition_response::GotoDefinitionResponse, manager::LspManager,
-        process::LspNotification, symbols::Symbols, workspace_edit::WorkspaceEdit,
+        completion::CompletionItem,
+        diagnostic::Diagnostic,
+        goto_definition_response::GotoDefinitionResponse,
+        manager::LspManager,
+        process::{LspNotification, ResponseContext},
+        symbols::Symbols,
+        workspace_edit::WorkspaceEdit,
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
     rectangle::LayoutKind,
+    selection::SelectionMode,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
 };
@@ -53,8 +58,6 @@ pub struct App<T: Frontend> {
 
     lsp_manager: LspManager,
     enable_lsp: bool,
-
-    quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
     layout_kind: LayoutKind,
 
@@ -95,7 +98,6 @@ impl<T: Frontend> App<T> {
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp: true,
             sender,
-            quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
             layout_kind,
             layout: Layout::new(dimension, layout_kind, &working_directory)?,
             working_directory,
@@ -789,8 +791,8 @@ impl<T: Frontend> App<T> {
 
     fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::Hover(component_id, hover) => {
-                self.get_suggestive_editor(component_id)?
+            LspNotification::Hover(context, hover) => {
+                self.get_suggestive_editor(context.component_id)?
                     .borrow_mut()
                     .show_infos(
                         "Hover info",
@@ -802,7 +804,7 @@ impl<T: Frontend> App<T> {
                     );
                 Ok(())
             }
-            LspNotification::Definition(_component_id, response) => {
+            LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
@@ -812,20 +814,24 @@ impl<T: Frontend> App<T> {
                                 vec!["No definitions found".to_string()],
                             );
                         } else {
-                            self.set_quickfix_list(QuickfixList::new(
-                                locations.into_iter().map(QuickfixListItem::from).collect(),
-                            ))?
+                            self.set_quickfix_list(
+                                context,
+                                QuickfixList::new(
+                                    locations.into_iter().map(QuickfixListItem::from).collect(),
+                                ),
+                            )?
                         }
                     }
                 }
 
                 Ok(())
             }
-            LspNotification::References(_component_id, locations) => self.set_quickfix_list(
+            LspNotification::References(context, locations) => self.set_quickfix_list(
+                context,
                 QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
             ),
-            LspNotification::Completion(component_id, completion) => {
-                self.get_suggestive_editor(component_id)?
+            LspNotification::Completion(context, completion) => {
+                self.get_suggestive_editor(context.component_id)?
                     .borrow_mut()
                     .set_completion(completion);
                 Ok(())
@@ -859,8 +865,8 @@ impl<T: Frontend> App<T> {
                 );
                 Ok(())
             }
-            LspNotification::PrepareRenameResponse(component_id, response) => {
-                let editor = self.get_suggestive_editor(component_id)?;
+            LspNotification::PrepareRenameResponse(context, response) => {
+                let editor = self.get_suggestive_editor(context.component_id)?;
                 log::info!("response = {:#?}", response);
 
                 // Note: we cannot refactor the following code into the below code, otherwise we will get error,
@@ -900,18 +906,18 @@ impl<T: Frontend> App<T> {
             LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
             }
-            LspNotification::CodeAction(component_id, code_actions) => {
-                let editor = self.get_suggestive_editor(component_id)?;
+            LspNotification::CodeAction(context, code_actions) => {
+                let editor = self.get_suggestive_editor(context.component_id)?;
                 editor.borrow_mut().set_code_actions(code_actions);
                 Ok(())
             }
-            LspNotification::SignatureHelp(component_id, signature_help) => {
-                let editor = self.get_suggestive_editor(component_id)?;
+            LspNotification::SignatureHelp(context, signature_help) => {
+                let editor = self.get_suggestive_editor(context.component_id)?;
                 editor.borrow_mut().show_signature_help(signature_help);
                 Ok(())
             }
-            LspNotification::Symbols(component_id, symbols) => {
-                self.open_symbol_picker(component_id, symbols)
+            LspNotification::Symbols(context, symbols) => {
+                self.open_symbol_picker(context.component_id, symbols)
             }
         }
     }
@@ -921,7 +927,11 @@ impl<T: Frontend> App<T> {
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
-        let item = self.quickfix_lists.borrow_mut().get_item(movement);
+        let item = self
+            .context
+            .quickfix_lists()
+            .borrow_mut()
+            .get_item(movement);
         if let Some(item) = item {
             self.go_to_location(item.location())?;
         }
@@ -947,11 +957,12 @@ impl<T: Frontend> App<T> {
 
     fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
         match r#type {
-            QuickfixListType::LspDiagnostic => {
+            QuickfixListType::LspDiagnostic(severity) => {
                 let quickfix_list = QuickfixList::new(
                     self.context
                         .diagnostics()
                         .into_iter()
+                        .filter(|(_, diagnostic)| diagnostic.severity == severity)
                         .map(|(path, diagnostic)| {
                             QuickfixListItem::new(
                                 Location {
@@ -964,17 +975,42 @@ impl<T: Frontend> App<T> {
                         .collect(),
                 );
 
-                self.set_quickfix_list(quickfix_list)
+                self.set_quickfix_list(
+                    ResponseContext::default().set_description("Diagnostic"),
+                    quickfix_list,
+                )
             }
-            QuickfixListType::Items(items) => self.set_quickfix_list(QuickfixList::new(items)),
+            QuickfixListType::Items(items) => {
+                self.set_quickfix_list(ResponseContext::default(), QuickfixList::new(items))
+            }
         }
     }
 
-    fn set_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
+    fn set_quickfix_list(
+        &mut self,
+        context: ResponseContext,
+        quickfix_list: QuickfixList,
+    ) -> anyhow::Result<()> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        self.quickfix_lists.borrow_mut().push(quickfix_list);
-        self.layout.show_quickfix_lists(self.quickfix_lists.clone());
-        self.goto_quickfix_list_item(Movement::Next)
+        self.context
+            .quickfix_lists()
+            .borrow_mut()
+            .push(quickfix_list.set_title(context.description.clone()));
+        match context.request_kind {
+            None | Some(RequestKind::Global) => {
+                self.layout
+                    .show_quickfix_lists(self.context.quickfix_lists().clone());
+                self.goto_quickfix_list_item(Movement::Next)
+            }
+            Some(RequestKind::Local) => {
+                log::info!("hello");
+                self.handle_dispatch(Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                    SelectionMode::LocalQuickfix {
+                        title: context.description.unwrap_or_default(),
+                    },
+                )))
+            }
+        }
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
@@ -1026,16 +1062,19 @@ impl<T: Frontend> App<T> {
             SearchKind::AstGrep => {
                 list::ast_grep::run(&search.search, working_directory.clone().into())
             }
-            SearchKind::IgnoreCase => {
+            SearchKind::BlindCase => {
                 list::grep::run(&search.search, working_directory.clone().into(), true, true)
             }
         }?;
-        self.set_quickfix_list(QuickfixList::new(
-            locations
-                .into_iter()
-                .map(|location| QuickfixListItem::new(location, vec![]))
-                .collect_vec(),
-        ))
+        self.set_quickfix_list(
+            ResponseContext::default().set_description("Global search"),
+            QuickfixList::new(
+                locations
+                    .into_iter()
+                    .map(|location| QuickfixListItem::new(location, vec![]))
+                    .collect_vec(),
+            ),
+        )
     }
 
     pub fn quit_all(&self) -> Result<(), anyhow::Error> {
@@ -1313,9 +1352,36 @@ impl FilePickerKind {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestParams {
-    pub component_id: ComponentId,
     pub path: CanonicalizedPath,
     pub position: Position,
+    pub context: ResponseContext,
+}
+impl RequestParams {
+    pub fn set_kind(self, request_kind: Option<RequestKind>) -> Self {
+        Self {
+            context: ResponseContext {
+                request_kind,
+                ..self.context
+            },
+            ..self
+        }
+    }
+
+    pub fn set_description(self, description: &str) -> Self {
+        Self {
+            context: ResponseContext {
+                description: Some(description.to_string()),
+                ..self.context
+            },
+            ..self
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum RequestKind {
+    Local,
+    Global,
 }
 
 #[derive(Debug)]

@@ -293,6 +293,9 @@ pub enum SelectionMode {
     // Git
     GitHunk,
 
+    // Local quickfix
+    LocalQuickfix { title: String },
+
     // Bookmark
     Bookmark,
 }
@@ -328,6 +331,7 @@ impl SelectionMode {
             }
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
+            SelectionMode::LocalQuickfix { title } => title.to_string(),
         }
     }
 
@@ -368,7 +372,7 @@ impl SelectionMode {
                 SearchKind::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
-                SearchKind::IgnoreCase => Box::new(selection_mode::Regex::new(
+                SearchKind::BlindCase => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
                     true,
@@ -385,6 +389,9 @@ impl SelectionMode {
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
             SelectionMode::EmptyLine => {
                 Box::new(selection_mode::Regex::regex(buffer, r"(?m)^\s*$")?)
+            }
+            SelectionMode::LocalQuickfix { .. } => {
+                Box::new(selection_mode::LocalQuickfix::new(params))
             }
         })
     }

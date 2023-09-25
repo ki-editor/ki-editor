@@ -1,6 +1,7 @@
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use itertools::Itertools;
+use lsp_types::DiagnosticSeverity;
 
 use crate::{
     components::{
@@ -63,6 +64,10 @@ impl QuickfixLists {
         }
     }
 
+    pub fn current(&self) -> Option<&QuickfixList> {
+        self.lists.last()
+    }
+
     pub fn current_mut(&mut self) -> Option<&mut QuickfixList> {
         self.lists.last_mut()
     }
@@ -81,6 +86,7 @@ impl QuickfixLists {
 pub struct QuickfixList {
     current_index: usize,
     items: Vec<QuickfixListItem>,
+    title: Option<String>,
 }
 
 impl QuickfixList {
@@ -104,7 +110,16 @@ impl QuickfixList {
                     })
                     .collect_vec()
             },
+            title: None,
         }
+    }
+
+    pub fn items(&self) -> &Vec<QuickfixListItem> {
+        &self.items
+    }
+
+    pub fn set_title(self, title: Option<String>) -> QuickfixList {
+        Self { title, ..self }
     }
 }
 
@@ -142,6 +157,10 @@ impl QuickfixListItem {
 
     pub fn location(&self) -> &Location {
         &self.location
+    }
+
+    pub fn infos(&self) -> &Vec<String> {
+        &self.infos
     }
 }
 
@@ -223,7 +242,7 @@ impl Ord for Location {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuickfixListType {
-    LspDiagnostic,
+    LspDiagnostic(Option<DiagnosticSeverity>),
     Items(Vec<QuickfixListItem>),
 }
 

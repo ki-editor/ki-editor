@@ -1,4 +1,4 @@
-use crate::app::RequestParams;
+use crate::app::{RequestKind, RequestParams};
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
@@ -49,7 +49,27 @@ type RequestId = u64;
 #[derive(Debug)]
 struct PendingResponseRequest {
     method: String,
+    context: ResponseContext,
+}
 
+#[derive(Debug)]
+pub enum LspNotification {
+    Initialized(Language),
+    PublishDiagnostics(PublishDiagnosticsParams),
+    Completion(ResponseContext, Completion),
+    Hover(ResponseContext, Hover),
+    Definition(ResponseContext, GotoDefinitionResponse),
+    References(ResponseContext, Vec<Location>),
+    PrepareRenameResponse(ResponseContext, PrepareRenameResponse),
+    Error(String),
+    WorkspaceEdit(WorkspaceEdit),
+    CodeAction(ResponseContext, Vec<CodeAction>),
+    SignatureHelp(ResponseContext, Option<SignatureHelp>),
+    Symbols(ResponseContext, Symbols),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ResponseContext {
     /// This indicates that this request was sent by a component,
     /// and the response should be sent back to that component.
     ///
@@ -58,23 +78,17 @@ struct PendingResponseRequest {
     ///
     /// This field is purposefully not an `Option` so that we do not need to
     /// use `unwrap()` to obtain the `component_id`.
-    component_id: ComponentId,
+    pub component_id: ComponentId,
+    pub request_kind: Option<RequestKind>,
+    pub description: Option<String>,
 }
-
-#[derive(Debug)]
-pub enum LspNotification {
-    Initialized(Language),
-    PublishDiagnostics(PublishDiagnosticsParams),
-    Completion(ComponentId, Completion),
-    Hover(ComponentId, Hover),
-    Definition(ComponentId, GotoDefinitionResponse),
-    References(ComponentId, Vec<Location>),
-    PrepareRenameResponse(ComponentId, PrepareRenameResponse),
-    Error(String),
-    WorkspaceEdit(WorkspaceEdit),
-    CodeAction(ComponentId, Vec<CodeAction>),
-    SignatureHelp(ComponentId, Option<SignatureHelp>),
-    Symbols(ComponentId, Symbols),
+impl ResponseContext {
+    pub fn set_description(self, descrption: &str) -> Self {
+        Self {
+            description: Some(descrption.to_owned()),
+            ..self
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -348,7 +362,7 @@ impl LspServerProcess {
 
     fn initialize(&mut self) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("initialize")>(
-            ComponentId::default(),
+            ResponseContext::default(),
             InitializeParams {
                 process_id: None,
                 root_uri: Some(Url::parse(&format!(
@@ -594,8 +608,9 @@ impl LspServerProcess {
 
                 let PendingResponseRequest {
                     method,
-                    component_id,
+                    context: response_context,
                 } = pending_response_request;
+
                 match method.as_str() {
                     "initialize" => {
                         log::info!("Initialize response: {:?}", response);
@@ -623,7 +638,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Completion(
-                                    component_id,
+                                    response_context,
                                     Completion {
                                         trigger_characters: self.trigger_characters(),
                                         items: match payload {
@@ -645,7 +660,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Hover(
-                                    component_id,
+                                    response_context,
                                     payload.into(),
                                 )))
                                 .unwrap();
@@ -658,7 +673,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    component_id,
+                                    response_context,
                                     payload.try_into()?,
                                 )))
                                 .unwrap();
@@ -671,7 +686,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::References(
-                                    component_id,
+                                    response_context,
                                     payload
                                         .into_iter()
                                         .map(|r| r.try_into())
@@ -687,7 +702,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    component_id,
+                                    response_context,
                                     payload.try_into()?,
                                 )))
                                 .unwrap();
@@ -700,7 +715,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    component_id,
+                                    response_context,
                                     payload.try_into()?,
                                 )))
                                 .unwrap();
@@ -713,7 +728,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Definition(
-                                    component_id,
+                                    response_context,
                                     payload.try_into()?,
                                 )))
                                 .unwrap();
@@ -727,7 +742,7 @@ impl LspServerProcess {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(
                                     LspNotification::PrepareRenameResponse(
-                                        component_id,
+                                        response_context,
                                         payload.into(),
                                     ),
                                 ))
@@ -757,7 +772,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::CodeAction(
-                                    component_id,
+                                    response_context,
                                     payload
                                         .into_iter()
                                         .map(|r| match r {
@@ -779,7 +794,7 @@ impl LspServerProcess {
 
                         self.app_message_sender
                             .send(AppMessage::LspNotification(LspNotification::SignatureHelp(
-                                component_id,
+                                response_context,
                                 payload.map(|payload| payload.into()),
                             )))
                             .unwrap();
@@ -793,7 +808,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Symbols(
-                                    component_id,
+                                    response_context,
                                     payload.try_into()?,
                                 )))
                                 .unwrap();
@@ -842,13 +857,14 @@ impl LspServerProcess {
     pub fn text_document_completion(
         &mut self,
         RequestParams {
-            component_id,
+            context,
             path,
             position,
+            ..
         }: RequestParams,
     ) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("textDocument/completion")>(
-            component_id,
+            context,
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
                     position: position.into(),
@@ -878,7 +894,7 @@ impl LspServerProcess {
     }
 
     pub fn shutdown(&mut self) -> anyhow::Result<()> {
-        self.send_request::<lsp_request!("shutdown")>(ComponentId::default(), ())?;
+        self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), ())?;
         Ok(())
     }
 
@@ -906,7 +922,7 @@ impl LspServerProcess {
     /// Returns the request ID
     fn send_request<R: Request>(
         &mut self,
-        component_id: ComponentId,
+        context: ResponseContext,
         params: R::Params,
     ) -> anyhow::Result<()>
     where
@@ -940,7 +956,7 @@ impl LspServerProcess {
         self.pending_response_requests.insert(
             id,
             PendingResponseRequest {
-                component_id,
+                context,
                 method: R::METHOD.to_string(),
             },
         );
@@ -1017,13 +1033,14 @@ impl LspServerProcess {
     fn text_document_hover(
         &mut self,
         RequestParams {
-            component_id,
+            context,
             path,
             position,
+            ..
         }: RequestParams,
     ) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("textDocument/hover")>(
-            component_id,
+            context,
             HoverParams {
                 text_document_position_params: TextDocumentPositionParams {
                     position: position.into(),
@@ -1039,13 +1056,13 @@ impl LspServerProcess {
     fn text_document_definition(
         &mut self,
         RequestParams {
-            component_id,
             path,
             position,
+            context,
         }: RequestParams,
     ) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("textDocument/definition")>(
-            component_id,
+            context,
             GotoDefinitionParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1060,13 +1077,13 @@ impl LspServerProcess {
     fn text_document_references(
         &mut self,
         RequestParams {
-            component_id,
             path,
             position,
+            context,
         }: RequestParams,
     ) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("textDocument/references")>(
-            component_id,
+            context,
             ReferenceParams {
                 context: ReferenceContext {
                     include_declaration: true,
@@ -1083,7 +1100,7 @@ impl LspServerProcess {
 
     fn text_document_declaration(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/declaration")>(
-            params.component_id,
+            params.context,
             GotoDeclarationParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1097,7 +1114,7 @@ impl LspServerProcess {
 
     fn text_document_implementation(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/implementation")>(
-            params.component_id,
+            params.context,
             GotoImplementationParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1114,7 +1131,7 @@ impl LspServerProcess {
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/typeDefinition")>(
-            params.component_id,
+            params.context,
             GotoTypeDefinitionParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1128,7 +1145,7 @@ impl LspServerProcess {
 
     fn text_document_prepare_rename(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/prepareRename")>(
-            params.component_id,
+            params.context,
             TextDocumentPositionParams {
                 position: params.position.into(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
@@ -1142,7 +1159,7 @@ impl LspServerProcess {
         new_name: String,
     ) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/rename")>(
-            params.component_id,
+            params.context,
             RenameParams {
                 new_name,
                 text_document_position: TextDocumentPositionParams {
@@ -1156,7 +1173,7 @@ impl LspServerProcess {
 
     fn text_document_code_action(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/codeAction")>(
-            params.component_id,
+            params.context,
             CodeActionParams {
                 context: CodeActionContext {
                     trigger_kind: Some(CodeActionTriggerKind::INVOKED),
@@ -1179,7 +1196,7 @@ impl LspServerProcess {
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/signatureHelp")>(
-            params.component_id,
+            params.context,
             SignatureHelpParams {
                 context: None,
                 text_document_position_params: TextDocumentPositionParams {
@@ -1196,7 +1213,7 @@ impl LspServerProcess {
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/documentSymbol")>(
-            params.component_id,
+            params.context,
             DocumentSymbolParams {
                 partial_result_params: Default::default(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,

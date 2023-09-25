@@ -2,6 +2,7 @@ use lsp_types::DiagnosticSeverity;
 
 use super::SelectionMode;
 
+// TODO: change this to custom selections, so it can also hold references, definitions etc
 pub struct Diagnostic {
     severity: Option<DiagnosticSeverity>,
     diagnostics: Vec<crate::lsp::diagnostic::Diagnostic>,
