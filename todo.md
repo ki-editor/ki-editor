@@ -200,7 +200,7 @@
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
 - [] fix: cannot transition from global mode to local mode properly
 - [] feat(keymap): map every keybinding to a Dispatch (so that we can show help, and also easier to run test, this could also allow running commands on a set of selected editors)
-- [] feat(keymap): ctrl+d/u = scroll down/up ; ctrl+n/p = scroll line 
+- [] feat(keymap): ctrl+d/u = scroll down/up ; ctrl+n/p = scroll line ; ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
 - [] feat(keymap): change i -> a, a -> e, so that it matches ctrl+a and ctrl+e in insert mode?
 
 # Grammar loading

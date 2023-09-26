@@ -698,4 +698,20 @@ fn f() {
 
         Ok(())
     }
+
+    #[test]
+    fn highlight_change() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "hello world yo");
+        let context = Context::default();
+
+        editor.toggle_highlight_mode();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.move_selection(&context, Movement::Next)?;
+        assert_eq!(editor.get_selected_texts(), vec!["hello world"]);
+        editor.change()?;
+        editor.insert("wow")?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        assert_eq!(editor.text(), "wow yo");
+        Ok(())
+    }
 }

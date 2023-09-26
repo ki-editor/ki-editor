@@ -1607,22 +1607,22 @@ impl Editor {
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    fn change(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn change(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
+                    let range = selection.extended_range();
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
-                                range: selection.extended_range(),
+                                range,
                                 new: Rope::new(),
                             }),
                             Action::Select(
-                                selection.clone().set_range(
-                                    (selection.extended_range().start
-                                        ..selection.extended_range().start)
-                                        .into(),
-                                ),
+                                selection
+                                    .clone()
+                                    .set_range((range.start..range.start).into())
+                                    .set_initial_range(None),
                             ),
                         ]
                         .to_vec(),
