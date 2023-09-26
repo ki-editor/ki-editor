@@ -140,7 +140,7 @@ impl Context {
     pub fn get_quickfix_items(&self, path: &CanonicalizedPath) -> Option<Vec<QuickfixListItem>> {
         self.quickfix_lists.borrow().current().map(|list| {
             list.items()
-                .into_iter()
+                .iter()
                 .filter(|item| &item.location().path == path)
                 .cloned()
                 .collect()

@@ -8,7 +8,7 @@ use crate::{
     app::Dispatch,
     buffer::Buffer,
     char_index_range::CharIndexRange,
-    components::editor::{CursorDirection, Movement},
+    components::editor::{Direction, Movement},
     context::{Context, Search, SearchKind},
     position::Position,
     selection_mode::{self, SelectionModeParams},
@@ -62,14 +62,14 @@ impl SelectionSet {
         })
     }
 
-    pub fn move_left(&mut self, cursor_direction: &CursorDirection) {
+    pub fn move_left(&mut self, cursor_direction: &Direction) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
             selection.range = (cursor_char_index - 1..cursor_char_index - 1).into()
         });
     }
 
-    pub fn move_right(&mut self, cursor_direction: &CursorDirection) {
+    pub fn move_right(&mut self, cursor_direction: &Direction) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
             selection.range = (cursor_char_index + 1..cursor_char_index + 1).into()
@@ -115,12 +115,12 @@ impl SelectionSet {
     pub fn select_kids(
         &self,
         buffer: &Buffer,
-        cursor_direction: &CursorDirection,
+        cursor_direction: &Direction,
     ) -> anyhow::Result<SelectionSet> {
         fn select_kids(
             selection: &Selection,
             buffer: &Buffer,
-            cursor_direction: &CursorDirection,
+            cursor_direction: &Direction,
         ) -> Selection {
             let cursor_char_index = selection.to_char_index(cursor_direction);
             if let Some(node) = buffer.get_nearest_node_after_char(cursor_char_index) {
@@ -154,7 +154,7 @@ impl SelectionSet {
         buffer: &Buffer,
         mode: &SelectionMode,
         direction: &Movement,
-        cursor_direction: &CursorDirection,
+        cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<SelectionSet> {
         self.apply(mode.clone(), |selection| {
@@ -173,7 +173,7 @@ impl SelectionSet {
         &mut self,
         buffer: &Buffer,
         direction: &Movement,
-        cursor_direction: &CursorDirection,
+        cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<()> {
         let last_selection = &self.primary;
@@ -215,7 +215,7 @@ impl SelectionSet {
                     .iter(SelectionModeParams {
                         buffer,
                         current_selection: selection,
-                        cursor_direction: &CursorDirection::Start,
+                        cursor_direction: &Direction::Start,
                         context,
                     })
                     .ok()?;
@@ -344,7 +344,7 @@ impl SelectionMode {
         let params = SelectionModeParams {
             buffer,
             current_selection,
-            cursor_direction: &CursorDirection::Start,
+            cursor_direction: &Direction::Start,
             context,
         };
         Ok(match self {
@@ -412,10 +412,10 @@ pub struct Selection {
 }
 
 impl Selection {
-    pub fn to_char_index(&self, cursor_direction: &CursorDirection) -> CharIndex {
+    pub fn to_char_index(&self, cursor_direction: &Direction) -> CharIndex {
         match cursor_direction {
-            CursorDirection::Start => self.range.start,
-            CursorDirection::End => (self.range.end - 1).max(self.range.start),
+            Direction::Start => self.range.start,
+            Direction::End => (self.range.end - 1).max(self.range.start),
         }
     }
 
@@ -475,16 +475,16 @@ impl Selection {
         current_selection: &Selection,
         mode: &SelectionMode,
         direction: &Movement,
-        cursor_direction: &CursorDirection,
+        cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<Selection> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
         let _cursor_char_index = {
             let index = current_selection.to_char_index(cursor_direction);
             match cursor_direction {
-                CursorDirection::Start => index,
+                Direction::Start => index,
                 // Minus one so that selecting line backward works
-                CursorDirection::End => index - 1,
+                Direction::End => index - 1,
             }
         };
         let selection_mode =

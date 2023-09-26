@@ -48,7 +48,6 @@ pub enum Mode {
     Insert,
     MultiCursor,
     FindOneChar,
-    ScrollPage,
     ScrollLine,
     Exchange,
 }
@@ -557,7 +556,7 @@ pub struct Editor {
     pub selection_set: SelectionSet,
 
     pub jumps: Option<Vec<Jump>>,
-    pub cursor_direction: CursorDirection,
+    pub cursor_direction: Direction,
 
     selection_history: Vec<SelectionSet>,
 
@@ -572,16 +571,16 @@ pub struct Editor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CursorDirection {
+pub enum Direction {
     Start,
     End,
 }
 
-impl CursorDirection {
+impl Direction {
     pub fn reverse(&self) -> Self {
         match self {
-            CursorDirection::Start => CursorDirection::End,
-            CursorDirection::End => CursorDirection::Start,
+            Direction::Start => Direction::End,
+            Direction::End => Direction::Start,
         }
     }
 }
@@ -618,7 +617,7 @@ impl Editor {
             },
             jumps: None,
             mode: Mode::Normal,
-            cursor_direction: CursorDirection::Start,
+            cursor_direction: Direction::Start,
             selection_history: Vec::with_capacity(128),
             scroll_offset: 0,
             rectangle: Rectangle::default(),
@@ -645,7 +644,7 @@ impl Editor {
             },
             jumps: None,
             mode: Mode::Normal,
-            cursor_direction: CursorDirection::Start,
+            cursor_direction: Direction::Start,
             selection_history: Vec::with_capacity(128),
             scroll_offset: 0,
             rectangle: Rectangle::default(),
@@ -1061,8 +1060,8 @@ impl Editor {
 
     fn change_cursor_direction(&mut self) {
         self.cursor_direction = match self.cursor_direction {
-            CursorDirection::Start => CursorDirection::End,
-            CursorDirection::End => CursorDirection::Start,
+            Direction::Start => Direction::End,
+            Direction::End => Direction::Start,
         };
         self.recalculate_scroll_offset()
     }
@@ -1345,11 +1344,6 @@ impl Editor {
                     "Enter scroll line mode",
                     DispatchEditor::EnterScrollLineMode,
                 ),
-                (
-                    "p",
-                    "Enter scroll page mode",
-                    DispatchEditor::EnterScrollPageMode,
-                ),
                 ("t", "Align view top", DispatchEditor::AlignViewTop),
             ]
             .into_iter()
@@ -1376,7 +1370,6 @@ impl Editor {
             }
 
             DispatchEditor::FindOneChar => self.enter_single_character_mode(),
-            DispatchEditor::EnterScrollPageMode => self.mode = Mode::ScrollPage,
             DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
 
             DispatchEditor::MoveSelection(direction) => {
@@ -1523,7 +1516,6 @@ impl Editor {
                         Mode::Insert => self.handle_insert_mode(context, key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
-                        Mode::ScrollPage => self.handle_scroll_page_mode(context, key_event),
                         Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
                         Mode::Exchange => self.handle_exchange_mode(context, key_event),
                     }
@@ -1551,10 +1543,18 @@ impl Editor {
                 let dispatches = self.copy(context)?;
                 Ok(HandleEventResult::Handled(dispatches))
             }
+            key!("ctrl+d") => {
+                self.scroll_page_down()?;
+                Ok(HandleEventResult::Handled(vec![]))
+            }
             key!("ctrl+s") => {
                 let dispatches = self.save()?;
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
+            }
+            key!("ctrl+u") => {
+                self.scroll_page_up()?;
+                Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
             key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context)?)),
@@ -1634,7 +1634,7 @@ impl Editor {
         );
 
         let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        self.enter_insert_mode(CursorDirection::Start)?;
+        self.enter_insert_mode(Direction::Start)?;
         Ok(dispatches)
     }
 
@@ -1646,7 +1646,7 @@ impl Editor {
                     [
                         Action::Edit(Edit {
                             range: {
-                                let start = selection.to_char_index(&CursorDirection::End);
+                                let start = selection.to_char_index(&Direction::End);
                                 (start..start).into()
                             },
                             new: Rope::from_str(s),
@@ -1826,7 +1826,7 @@ impl Editor {
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
             }
             // Objects
-            key!("a") => self.enter_insert_mode(CursorDirection::End)?,
+            key!("a") => self.enter_insert_mode(Direction::End)?,
             key!("ctrl+b") => self.save_bookmarks(),
             key!("b") => {
                 return Ok([Dispatch::SetGlobalMode(Some(
@@ -1851,7 +1851,7 @@ impl Editor {
             }
             key!("h") => self.toggle_highlight_mode(),
 
-            key!("i") => self.enter_insert_mode(CursorDirection::Start)?,
+            key!("i") => self.enter_insert_mode(Direction::Start)?,
             // j = jump
             key!("k") => return self.delete(context),
             key!("shift+K") => self.select_kids()?,
@@ -1911,19 +1911,19 @@ impl Editor {
         self.editor().buffer().path()
     }
 
-    pub fn enter_insert_mode(&mut self, direction: CursorDirection) -> anyhow::Result<()> {
+    pub fn enter_insert_mode(&mut self, direction: Direction) -> anyhow::Result<()> {
         self.selection_set =
             self.selection_set
                 .apply(self.selection_set.mode.clone(), |selection| {
                     let range = selection.extended_range();
                     let char_index = match direction {
-                        CursorDirection::Start => range.start,
-                        CursorDirection::End => range.end,
+                        Direction::Start => range.start,
+                        Direction::End => range.end,
                     };
                     Ok(selection.clone().set_range((char_index..char_index).into()))
                 })?;
         self.mode = Mode::Insert;
-        self.cursor_direction = CursorDirection::Start;
+        self.cursor_direction = Direction::Start;
         Ok(())
     }
 
@@ -2396,19 +2396,18 @@ impl Editor {
     fn update_buffer(&mut self, s: &str) {
         self.buffer.borrow_mut().update(s)
     }
-    fn scroll(&mut self, movement: Movement, scroll_height: isize) -> anyhow::Result<()> {
+
+    fn scroll(&mut self, direction: Direction, scroll_height: usize) -> anyhow::Result<()> {
         self.update_selection_set(self.selection_set.apply(
             self.selection_set.mode.clone(),
             |selection| {
                 let position = selection.extended_range().start.to_position(&self.buffer());
-                let position = Position {
-                    line: if movement == Movement::Next {
-                        position.line.saturating_add(scroll_height as usize)
-                    } else {
-                        position.line.saturating_sub(scroll_height as usize)
-                    },
-                    ..position
+                let line = if direction == Direction::End {
+                    position.line.saturating_add(scroll_height)
+                } else {
+                    position.line.saturating_sub(scroll_height)
                 };
+                let position = Position { line, ..position };
                 let start = position.to_char_index(&self.buffer())?;
                 Ok(selection.clone().set_range((start..start).into()))
             },
@@ -2424,7 +2423,7 @@ impl Editor {
     ) -> anyhow::Result<Vec<Dispatch>> {
         let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
         self.update_selection_set(selection);
-        self.replace_current_selection_with(|_| Some(Rope::from_str(completion)));
+        self.replace_current_selection_with(|_| Some(Rope::from_str(completion)))?;
         Ok(self.get_document_did_change_dispatch())
     }
 
@@ -2470,7 +2469,7 @@ impl Editor {
         );
 
         let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        self.enter_insert_mode(CursorDirection::End)?;
+        self.enter_insert_mode(Direction::End)?;
         Ok(dispatches)
     }
 
@@ -2619,7 +2618,6 @@ impl Editor {
             Mode::Insert => "INSERT".to_string(),
             Mode::MultiCursor => "MULTI CURSOR".to_string(),
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
-            Mode::ScrollPage => "SCROLL PAGE".to_string(),
             Mode::ScrollLine => "SCROLL LINE".to_string(),
             Mode::Exchange => "EXCHANGE".to_string(),
         };
@@ -2720,34 +2718,15 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
-            key!("n") => self.scroll(Movement::Next, 1),
-            key!("p") => self.scroll(Movement::Previous, 1),
+            key!("n") => self.scroll(todo!(), 1),
+            key!("p") => self.scroll(todo!(), 1),
             other => return self.handle_normal_mode(context, other),
         }?;
         Ok(Vec::new())
     }
 
-    fn handle_scroll_page_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
-        let height = (self.dimension().height / 2) as isize;
-        match key_event {
-            key!("esc") => {
-                self.enter_normal_mode()?;
-                Ok(Vec::new())
-            }
-            key!("n") => {
-                self.scroll(Movement::Next, height)?;
-                Ok(Vec::new())
-            }
-            key!("p") => {
-                self.scroll(Movement::Previous, height)?;
-                Ok(Vec::new())
-            }
-            other => self.handle_normal_mode(context, other),
-        }
+    fn half_page_height(&self) -> usize {
+        (self.dimension().height / 2) as usize
     }
 
     fn move_mode_keymap_legend(&self) -> KeymapLegendConfig {
@@ -2809,12 +2788,12 @@ impl Editor {
 
     pub fn home(&mut self, context: &Context) -> anyhow::Result<()> {
         self.select_line(Movement::Current, context)?;
-        self.enter_insert_mode(CursorDirection::Start)
+        self.enter_insert_mode(Direction::Start)
     }
 
     pub fn end(&mut self, context: &Context) -> anyhow::Result<()> {
         self.select_line(Movement::Current, context)?;
-        self.enter_insert_mode(CursorDirection::End)
+        self.enter_insert_mode(Direction::End)
     }
 
     fn select_whole_file(&mut self) {
@@ -2854,6 +2833,14 @@ impl Editor {
             content: infos,
         }])
     }
+
+    pub fn scroll_page_down(&mut self) -> Result<(), anyhow::Error> {
+        self.scroll(Direction::End, self.half_page_height())
+    }
+
+    pub fn scroll_page_up(&mut self) -> Result<(), anyhow::Error> {
+        self.scroll(Direction::Start, self.half_page_height())
+    }
 }
 
 enum Enclosure {
@@ -2876,7 +2863,6 @@ pub enum DispatchEditor {
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
     FindOneChar,
-    EnterScrollPageMode,
     EnterScrollLineMode,
     MoveSelection(Movement),
     Copy,

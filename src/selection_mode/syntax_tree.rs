@@ -103,7 +103,7 @@ mod test_sibling {
             context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
-            cursor_direction: &crate::components::editor::CursorDirection::Start,
+            cursor_direction: &crate::components::editor::Direction::Start,
         });
 
         let parent_range = selection.unwrap().unwrap().range();
@@ -113,7 +113,7 @@ mod test_sibling {
             context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(parent_range),
-            cursor_direction: &crate::components::editor::CursorDirection::Start,
+            cursor_direction: &crate::components::editor::Direction::Start,
         });
 
         let child_range = selection.unwrap().unwrap().range();

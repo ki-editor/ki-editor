@@ -303,24 +303,6 @@ struct Node {
     path: CanonicalizedPath,
     kind: NodeKind,
 }
-impl Node {
-    fn refresh(self) -> Node {
-        match self.kind {
-            NodeKind::File => self,
-            NodeKind::Directory { open, children } => Self {
-                kind: NodeKind::Directory {
-                    open,
-                    children: match children {
-                        Some(_) => Tree::new(&self.path).ok(),
-                        None => None,
-                    },
-                },
-                ..self
-            },
-        }
-    }
-}
-
 #[derive(Clone)]
 enum NodeKind {
     File,
@@ -356,7 +338,7 @@ impl Component for FileExplorer {
                         NodeKind::Directory { .. } => {
                             let tree = std::mem::take(&mut self.tree);
                             self.tree = tree.toggle(&node.path, |open| !open);
-                            self.refresh_editor();
+                            self.refresh_editor()?;
                             Ok(Vec::new())
                         }
                     }
@@ -410,8 +392,4 @@ impl Component for FileExplorer {
     }
 
     fn remove_child(&mut self, _component_id: super::component::ComponentId) {}
-}
-
-fn is_valid_lisp_atom(s: &str) -> bool {
-    !s.is_empty() && !s.contains(char::is_whitespace) && !s.contains(&['(', ')'][..])
 }

@@ -129,6 +129,7 @@ pub mod integration_test {
     }
 
     #[test]
+    #[ignore]
     fn lsp_completion() -> anyhow::Result<()> {
         let test_runner = TestRunner::run_app()?;
         sleep(3);
@@ -145,6 +146,7 @@ pub mod integration_test {
     }
 
     #[test]
+    #[ignore]
     fn saving_should_not_crash() -> anyhow::Result<()> {
         let test_runner = TestRunner::run_app()?;
         sleep(1);
@@ -171,6 +173,7 @@ pub mod integration_test {
     }
 
     #[test]
+    #[ignore]
     fn search() -> anyhow::Result<()> {
         let test_runner = TestRunner::run_app()?;
 

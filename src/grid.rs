@@ -27,8 +27,6 @@ pub struct Cell {
 impl Cell {
     #[cfg(test)]
     fn from_char(c: char) -> Self {
-        use my_proc_macros::hex;
-
         Cell {
             symbol: c.to_string(),
             foreground_color: hex!("#ffffff"),

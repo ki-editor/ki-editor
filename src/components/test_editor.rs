@@ -4,7 +4,7 @@ mod test_editor {
     use crate::{
         components::{
             component::Component,
-            editor::{CursorDirection, Editor, Mode, Movement},
+            editor::{Direction, Editor, Mode, Movement},
         },
         context::Context,
         position::Position,
@@ -169,7 +169,7 @@ fn main() {
         editor.add_cursor(&Movement::Next, &context)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
-        editor.enter_insert_mode(CursorDirection::Start)?;
+        editor.enter_insert_mode(Direction::Start)?;
         editor.insert("pub ")?;
 
         assert_eq!(editor.text(), "struct A(pub usize, pub char)");
@@ -284,7 +284,7 @@ fn main() {
 
         let context = Context::default();
         editor.cut()?;
-        editor.enter_insert_mode(CursorDirection::Start)?;
+        editor.enter_insert_mode(Direction::Start)?;
 
         editor.insert("Some(")?;
         editor.paste(&context)?;
@@ -385,7 +385,7 @@ fn f() {
         let mut editor = Editor::from_text(language(), "");
 
         // Enter insert mode
-        editor.enter_insert_mode(CursorDirection::Start)?;
+        editor.enter_insert_mode(Direction::Start)?;
         // Type in 'hello'
         editor.handle_events(keys!("h e l l o"))?;
 
@@ -435,7 +435,7 @@ fn f() {
         editor.set_selection_mode(&context, SelectionMode::Word)?;
 
         // Enter insert mode
-        editor.enter_insert_mode(CursorDirection::Start)?;
+        editor.enter_insert_mode(Direction::Start)?;
 
         // Type something
         editor.insert("hello")?;
@@ -454,7 +454,7 @@ fn f() {
         editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         // Enter insert mode
-        editor.enter_insert_mode(CursorDirection::End)?;
+        editor.enter_insert_mode(Direction::End)?;
 
         // Type something
         editor.insert("hello")?;
@@ -616,7 +616,7 @@ fn f() {
         // Select x.y()
         editor.match_literal(&context, "x.y()")?;
 
-        editor.enter_insert_mode(CursorDirection::End)?;
+        editor.enter_insert_mode(Direction::End)?;
         editor.enter_normal_mode()?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
         Ok(())
@@ -629,7 +629,7 @@ fn f() {
 
         // Go to the end of the file
         editor.set_selection_mode(&context, SelectionMode::Line)?;
-        editor.enter_insert_mode(CursorDirection::End)?;
+        editor.enter_insert_mode(Direction::End)?;
 
         // Delete
         editor.delete_word_backward(&context)?;
@@ -655,7 +655,7 @@ fn f() {
 
         assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
 
-        editor.enter_insert_mode(CursorDirection::End)?;
+        editor.enter_insert_mode(Direction::End)?;
 
         editor.delete_word_backward(&context)?;
         assert_eq!(editor.text(), "fn snake_case(camel: String) {}");
@@ -686,7 +686,7 @@ fn f() {
         let mut editor = Editor::from_text(language(), "hello\n");
         let context = Context::default();
 
-        editor.enter_insert_mode(CursorDirection::Start)?;
+        editor.enter_insert_mode(Direction::Start)?;
 
         editor.end(&context)?;
         editor.insert(" world")?;
@@ -712,6 +712,33 @@ fn f() {
         editor.insert("wow")?;
         assert_eq!(editor.get_selected_texts(), vec![""]);
         assert_eq!(editor.text(), "wow yo");
+        Ok(())
+    }
+    #[test]
+    fn scroll_page() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "1\n2 hey\n3");
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 100,
+            height: 3,
+        });
+        let context = Context::default();
+        editor.scroll_page_down()?;
+        assert_eq!(editor.current_line()?, "2 hey");
+        editor.scroll_page_down()?;
+        editor.match_literal(&context, "hey")?;
+        assert_eq!(editor.get_selected_texts(), ["hey"]);
+        editor.scroll_page_down()?;
+        assert_eq!(editor.current_line()?, "3");
+        editor.scroll_page_down()?;
+        assert_eq!(editor.current_line()?, "3");
+
+        editor.scroll_page_up()?;
+        assert_eq!(editor.current_line()?, "2 hey");
+        editor.scroll_page_up()?;
+        assert_eq!(editor.current_line()?, "1");
+        editor.scroll_page_up()?;
+        assert_eq!(editor.current_line()?, "1");
         Ok(())
     }
 }

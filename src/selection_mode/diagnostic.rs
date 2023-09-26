@@ -40,8 +40,9 @@ impl SelectionMode for Diagnostic {
                 })
                 .filter_map(|diagnostic| {
                     Some(super::ByteRange::with_info(
-                        buffer.position_to_byte(diagnostic.range.start).ok()?
-                            ..buffer.position_to_byte(diagnostic.range.end).ok()?,
+                        buffer
+                            .position_range_to_byte_range(&diagnostic.range)
+                            .ok()?,
                         diagnostic.message.clone(),
                     ))
                 }),

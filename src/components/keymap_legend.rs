@@ -6,7 +6,7 @@ use crate::app::Dispatch;
 
 use super::{
     component::{Component, ComponentId},
-    editor::{CursorDirection, Editor, Mode},
+    editor::{Direction, Editor, Mode},
 };
 
 pub struct KeymapLegend {
@@ -91,7 +91,7 @@ impl KeymapLegend {
         let content = config.display();
         let mut editor = Editor::from_text(tree_sitter_md::language(), &content);
         editor.set_title(config.title.clone());
-        editor.enter_insert_mode(CursorDirection::End);
+        editor.enter_insert_mode(Direction::End);
         KeymapLegend { editor, config }
     }
 }

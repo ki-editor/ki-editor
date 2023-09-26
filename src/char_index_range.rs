@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::{components::editor::CursorDirection, edit::ApplyOffset, selection::CharIndex};
+use crate::{components::editor::Direction, edit::ApplyOffset, selection::CharIndex};
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
@@ -52,10 +52,10 @@ impl CharIndexRange {
         }
     }
 
-    pub fn cursor_position(&self, cursor_direction: &CursorDirection) -> CharIndex {
+    pub fn cursor_position(&self, cursor_direction: &Direction) -> CharIndex {
         match cursor_direction {
-            CursorDirection::Start => self.start,
-            CursorDirection::End => self.end,
+            Direction::Start => self.start,
+            Direction::End => self.end,
         }
     }
 }

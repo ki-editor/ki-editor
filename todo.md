@@ -185,7 +185,7 @@
 - [] fix: log if formatting failed
 - [] feat(suggestive_editor): text completion (based on words)
 - [x] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
-- [] fix(editor): scrolling to end always gives error (annoying!)
+- [x] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
 - [] feat(layout): use wide layout as default, so that we can avoid wrapping unnecessarily
 - [] feat(movement): leftmost and rightmost (for things like: last word of the line)

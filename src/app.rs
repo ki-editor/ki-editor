@@ -37,7 +37,7 @@ use crate::{
         workspace_edit::WorkspaceEdit,
     },
     position::Position,
-    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
+    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     rectangle::LayoutKind,
     selection::SelectionMode,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},

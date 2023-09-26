@@ -114,7 +114,7 @@ fn f() {
                     context: &Context::default(),
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
-                    cursor_direction: &crate::components::editor::CursorDirection::End,
+                    cursor_direction: &crate::components::editor::Direction::End,
                 })
                 .unwrap()
                 .unwrap();

@@ -278,9 +278,14 @@ impl Buffer {
     }
 
     pub fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
-        Ok(CharIndex(
-            self.rope.try_line_to_char(position.line)? + position.column,
-        ))
+        let line = position.line.clamp(0, self.len_lines());
+        let column = position.column.clamp(
+            0,
+            self.get_line_by_line_index(line)
+                .map(|slice| slice.len_chars())
+                .unwrap_or_default(),
+        );
+        Ok(CharIndex(self.rope.try_line_to_char(line)? + column))
     }
 
     pub fn byte_to_char(&self, byte_index: usize) -> anyhow::Result<CharIndex> {
@@ -602,6 +607,13 @@ impl Buffer {
 
     pub fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
         self.rope.get_line(line_index)
+    }
+
+    pub fn position_range_to_byte_range(
+        &self,
+        range: &Range<Position>,
+    ) -> anyhow::Result<Range<usize>> {
+        Ok(self.position_to_byte(range.start)?..self.position_to_byte(range.end)?)
     }
 }
 

@@ -330,7 +330,7 @@ impl Layout {
             }
             Some(info_panel) => {
                 info_panel.borrow_mut().set_title(title.to_string());
-                info_panel.borrow_mut().set_content(&info);
+                info_panel.borrow_mut().set_content(&info)?;
             }
         }
         Ok(())

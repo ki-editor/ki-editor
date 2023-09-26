@@ -29,7 +29,7 @@ pub use token::Token;
 use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
-    components::editor::{CursorDirection, Jump, Movement},
+    components::editor::{Direction, Jump, Movement},
     context::Context,
     edit::is_overlapping,
     selection::Selection,
@@ -90,7 +90,7 @@ impl Ord for ByteRange {
 pub struct SelectionModeParams<'a> {
     pub buffer: &'a Buffer,
     pub current_selection: &'a Selection,
-    pub cursor_direction: &'a CursorDirection,
+    pub cursor_direction: &'a Direction,
     pub context: &'a Context,
 }
 
@@ -235,8 +235,8 @@ pub trait SelectionMode {
             .enumerate()
             .map(|(i, range)| {
                 let cursor_position = match params.cursor_direction {
-                    CursorDirection::Start => range.range.start,
-                    CursorDirection::End => range.range.end,
+                    Direction::Start => range.range.start,
+                    Direction::End => range.range.end,
                 };
                 let line = buffer.byte_to_line(cursor_position).unwrap_or(0);
                 (
@@ -302,7 +302,7 @@ pub trait SelectionMode {
             .iter(SelectionModeParams {
                 buffer,
                 current_selection: &current_selection,
-                cursor_direction: &CursorDirection::Start,
+                cursor_direction: &Direction::Start,
                 context: &Context::default(),
             })
             .unwrap()
@@ -327,7 +327,7 @@ mod test_selection_mode {
     use crate::{
         buffer::Buffer,
         char_index_range::CharIndexRange,
-        components::editor::{CursorDirection, Movement},
+        components::editor::{Direction, Movement},
         context::Context,
         selection::{CharIndex, Selection},
         selection_mode::Line,
@@ -365,7 +365,7 @@ mod test_selection_mode {
                 start: CharIndex(current_selection_byte_range.start),
                 end: CharIndex(current_selection_byte_range.end),
             }),
-            cursor_direction: &CursorDirection::Start,
+            cursor_direction: &Direction::Start,
         };
         let actual = Dummy
             .apply_direction(params, movement)
@@ -428,7 +428,7 @@ mod test_selection_mode {
             current_selection: &Selection::default()
                 .set_range((CharIndex(1)..CharIndex(2)).into())
                 .set_info(Some("Spongebob".to_string())),
-            cursor_direction: &CursorDirection::Start,
+            cursor_direction: &Direction::Start,
         };
         struct Dummy;
         impl SelectionMode for Dummy {
@@ -476,7 +476,7 @@ mod test_selection_mode {
                     start: CharIndex(0),
                     end: CharIndex(6),
                 })),
-            cursor_direction: &CursorDirection::Start,
+            cursor_direction: &Direction::Start,
         };
         let actual = Dummy
             .apply_direction(params, Movement::Next)
@@ -498,7 +498,7 @@ mod test_selection_mode {
                 start: CharIndex(4),
                 end: CharIndex(5),
             }),
-            cursor_direction: &CursorDirection::Start,
+            cursor_direction: &Direction::Start,
         };
         let actual = Line
             .apply_direction(params, Movement::Current)

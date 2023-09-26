@@ -12,19 +12,18 @@ impl LocalQuickfix {
             .buffer
             .path()
             .and_then(|path| params.context.get_quickfix_items(&path))
-            .and_then(|items| {
-                Some(
-                    items
-                        .into_iter()
-                        .filter_map(|item| {
-                            Some(super::ByteRange::with_info(
-                                buffer.position_to_byte(item.location().range.start).ok()?
-                                    ..buffer.position_to_byte(item.location().range.end).ok()?,
-                                item.infos().join("\n\n"),
-                            ))
-                        })
-                        .collect(),
-                )
+            .map(|items| {
+                items
+                    .into_iter()
+                    .filter_map(|item| {
+                        Some(super::ByteRange::with_info(
+                            buffer
+                                .position_range_to_byte_range(&item.location().range)
+                                .ok()?,
+                            item.infos().join("\n\n"),
+                        ))
+                    })
+                    .collect()
             })
             .unwrap_or_default();
         Self { ranges }
