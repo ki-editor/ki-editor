@@ -11,7 +11,7 @@ mod test_editor {
         selection::SelectionMode,
     };
 
-    use my_proc_macros::keys;
+    use my_proc_macros::{key, keys};
     use pretty_assertions::assert_eq;
     use tree_sitter_rust::language;
 
@@ -739,6 +739,57 @@ fn f() {
         assert_eq!(editor.current_line()?, "1");
         editor.scroll_page_up()?;
         assert_eq!(editor.current_line()?, "1");
+        Ok(())
+    }
+
+    #[test]
+    fn jump() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "who lives on sea shore?\n yonky donkey");
+
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 100,
+            height: 1,
+        });
+
+        let context = Context::default();
+
+        // In jump mode, the first stage labels each selection using their starting character,
+        // On subsequent stages, the labels are random alphabets
+        assert!(editor.jumps().is_empty());
+
+        // Set the selection mode as word, and jump
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.jump(&context)?;
+
+        // Expect the jump to be the first character of each word
+        // Note 'y' and 'd' are excluded because they are out of view,
+        // since the viewbox has only height of 1
+        let expect_jump_characters = |editor: &mut Editor, expected_jump_characters: &[char]| {
+            let expected_jump_characters: Vec<char> = expected_jump_characters.to_vec();
+            let actual_jump_characters: Vec<_> = editor
+                .jumps()
+                .into_iter()
+                .map(|jump| jump.character)
+                .collect();
+            assert_eq!(actual_jump_characters, expected_jump_characters);
+        };
+        expect_jump_characters(&mut editor, &['w', 'l', 'o', 's', 's', '?']);
+
+        // Press 's'
+        editor.handle_key_event(&context, key!('s'))?;
+
+        // Expect the jumps to be 'a' and 'b'
+        expect_jump_characters(&mut editor, &['a', 'b']);
+
+        // Press 'a'
+        editor.handle_key_event(&context, key!('a'))?;
+
+        // Expect the jumps to be empty
+        expect_jump_characters(&mut editor, &[]);
+
+        // Expect the current selected content is 'sea'
+        assert_eq!(editor.get_selected_texts(), vec!["sea"]);
         Ok(())
     }
 }

@@ -173,11 +173,21 @@ pub trait SelectionMode {
             .cycle()
             .zip(iter)
             .filter_map(|(character, range)| {
+                let selection = range
+                    .to_selection(params.buffer, params.current_selection)
+                    .ok()?;
+                let character = params
+                    .buffer
+                    .slice(&selection.extended_range())
+                    .ok()?
+                    .chars()
+                    .into_iter()
+                    .next()
+                    .unwrap_or(character)
+                    .to_ascii_lowercase();
                 Some(Jump {
                     character,
-                    selection: range
-                        .to_selection(params.buffer, params.current_selection)
-                        .ok()?,
+                    selection,
                 })
             })
             .collect_vec())

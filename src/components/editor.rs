@@ -794,7 +794,11 @@ impl Editor {
     }
 
     fn jump_characters() -> Vec<char> {
-        ('a'..='z').collect_vec()
+        ('a'..='z')
+            .into_iter()
+            .chain('A'..='Z')
+            .chain('0'..'9')
+            .collect_vec()
     }
 
     fn jump_from_selection(
@@ -826,7 +830,7 @@ impl Editor {
         Ok(())
     }
 
-    fn jump(&mut self, context: &Context) -> anyhow::Result<()> {
+    pub fn jump(&mut self, context: &Context) -> anyhow::Result<()> {
         self.jump_from_selection(&self.selection_set.primary.clone(), context)
     }
 
@@ -982,7 +986,6 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     if let Some(replacement) = &selection.copied_text(context) {
-                        println!("replacement={replacement:#?}");
                         let replacement_text_len = replacement.len_chars();
                         let range = selection.extended_range();
                         let replaced_text = self.buffer.borrow().slice(&range)?;
@@ -1509,7 +1512,7 @@ impl Editor {
         match self.handle_universal_key(context, key_event)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
-                    self.handle_jump_mode(key_event, jumps)
+                    self.handle_jump_mode(context, key_event, jumps)
                 } else {
                     match &self.mode {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
@@ -1566,6 +1569,7 @@ impl Editor {
 
     fn handle_jump_mode(
         &mut self,
+        context: &Context,
         key_event: KeyEvent,
         jumps: Vec<Jump>,
     ) -> anyhow::Result<Vec<Dispatch>> {
@@ -1582,12 +1586,8 @@ impl Editor {
                     .collect_vec();
                 match matching_jumps.split_first() {
                     None => Ok(Vec::new()),
-                    Some((jump, [])) => {
-                        Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                            Movement::Jump(jump.selection.extended_range()),
-                        ))]
-                        .to_vec())
-                    }
+                    Some((jump, [])) => self
+                        .move_selection(context, Movement::Jump(jump.selection.extended_range())),
                     Some(_) => {
                         self.jumps = Some(
                             matching_jumps
