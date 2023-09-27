@@ -476,14 +476,14 @@ impl Component for Editor {
         &mut self,
         mouse_event: crossterm::event::MouseEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        const SCROLL_HEIGHT: isize = 1;
+        const SCROLL_HEIGHT: usize = 1;
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
-                self.apply_scroll(-SCROLL_HEIGHT);
+                self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
                 Ok(vec![])
             }
             MouseEventKind::ScrollDown => {
-                self.apply_scroll(SCROLL_HEIGHT);
+                self.apply_scroll(Direction::End, SCROLL_HEIGHT);
                 Ok(vec![])
             }
             MouseEventKind::Down(MouseButton::Left) => {
@@ -1954,6 +1954,14 @@ impl Editor {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub fn jump_chars(&self) -> Vec<char> {
+        self.jumps()
+            .into_iter()
+            .map(|jump| jump.character)
+            .collect_vec()
+    }
+
     pub fn jumps(&self) -> Vec<&Jump> {
         self.jumps
             .as_ref()
@@ -2225,12 +2233,14 @@ impl Editor {
         self.rectangle.dimension()
     }
 
-    fn apply_scroll(&mut self, scroll_height: isize) {
-        self.scroll_offset = if scroll_height.is_positive() {
-            self.scroll_offset.saturating_add(scroll_height as u16)
-        } else {
-            self.scroll_offset.saturating_sub(scroll_height as u16)
+    fn apply_scroll(&mut self, direction: Direction, scroll_height: usize) {
+        log::info!("before={}", self.scroll_offset);
+
+        self.scroll_offset = match direction {
+            Direction::Start => self.scroll_offset.saturating_sub(scroll_height as u16),
+            Direction::End => self.scroll_offset.saturating_add(scroll_height as u16),
         };
+        log::info!("after = {}", self.scroll_offset);
     }
 
     pub fn backspace(&mut self) -> anyhow::Result<Vec<Dispatch>> {
@@ -2398,21 +2408,8 @@ impl Editor {
     }
 
     fn scroll(&mut self, direction: Direction, scroll_height: usize) -> anyhow::Result<()> {
-        self.update_selection_set(self.selection_set.apply(
-            self.selection_set.mode.clone(),
-            |selection| {
-                let position = selection.extended_range().start.to_position(&self.buffer());
-                let line = if direction == Direction::End {
-                    position.line.saturating_add(scroll_height)
-                } else {
-                    position.line.saturating_sub(scroll_height)
-                };
-                let position = Position { line, ..position };
-                let start = position.to_char_index(&self.buffer())?;
-                Ok(selection.clone().set_range((start..start).into()))
-            },
-        )?);
-        self.align_cursor_to_center();
+        self.apply_scroll(direction, scroll_height);
+
         Ok(())
     }
 

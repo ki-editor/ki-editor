@@ -194,8 +194,8 @@
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(layout): split vertically by half, then split horizontally by half (so that explorer can be on the right)
 - [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
-- [] feat(package): incorporate Mason, see https://www.reddit.com/r/neovim/comments/122ow0u/psa_changes_to_the_masonnvim_registry/, and https://mason-registry.dev/registry/list#search
-- [] minor(keybinding): change fr to fx, so that fr can be find local references
+- [] feat(package): incorporate Mason, see https://www.reddit.com/r/neovim/comments/122ow0u/psa_changes_to_the_masonnvim_registry/, and https://mason-registry.dev/registry/list#search, and https://github.com/williamboman/mason-lspconfig.nvim#default-configuration, and https://github.com/williamboman/mason.nvim#how-to-use-installed-packages
+- [x] minor(keybinding): change fr to fx, so that fr can be find local references
 - [] feat(util): history tree, useful for undo tree and navigation tree
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
 - [x] fix: cannot transition from global mode to local mode properly
@@ -203,7 +203,11 @@
 - [] feat(keymap): ctrl+d/u = scroll down/up ; ctrl+n/p = scroll line ; ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
 - [] feat(keymap): change i -> a, a -> e, so that it matches ctrl+a and ctrl+e in insert mode?
 - [] feat(kill): kill should treat nameless node as whitespace (in syntax mode)
+- [] fix(kill): should collapse selection when killing extended range
 - [] feat(line): should not include leading whitespace (to synergize better with new jumping ux)
+- [] feat(dropdown): fuzzy search (https://docs.rs/fuzzy-matcher/0.3.7/fuzzy_matcher/trait.FuzzyMatcher.html#tymethod.fuzzy_indices)
+- [] feat(quickfix): u/d = prev/next file
+- [] feat(render): show highlight mode
 
 # Grammar loading
 

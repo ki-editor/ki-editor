@@ -744,7 +744,7 @@ fn f() {
 
     #[test]
     fn jump() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "who lives on sea shore?\n yonky donkey");
+        let mut editor = Editor::from_text(language(), "Who lives on sea shore?\n yonky donkey");
 
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
@@ -765,31 +765,65 @@ fn f() {
         // Expect the jump to be the first character of each word
         // Note 'y' and 'd' are excluded because they are out of view,
         // since the viewbox has only height of 1
-        let expect_jump_characters = |editor: &mut Editor, expected_jump_characters: &[char]| {
-            let expected_jump_characters: Vec<char> = expected_jump_characters.to_vec();
-            let actual_jump_characters: Vec<_> = editor
-                .jumps()
-                .into_iter()
-                .map(|jump| jump.character)
-                .collect();
-            assert_eq!(actual_jump_characters, expected_jump_characters);
-        };
-        expect_jump_characters(&mut editor, &['w', 'l', 'o', 's', 's', '?']);
+        assert_eq!(editor.jump_chars(), &['w', 'l', 'o', 's', 's', '?']);
 
         // Press 's'
         editor.handle_key_event(&context, key!('s'))?;
 
         // Expect the jumps to be 'a' and 'b'
-        expect_jump_characters(&mut editor, &['a', 'b']);
+        assert_eq!(editor.jump_chars(), &['a', 'b']);
 
         // Press 'a'
         editor.handle_key_event(&context, key!('a'))?;
 
         // Expect the jumps to be empty
-        expect_jump_characters(&mut editor, &[]);
+        assert!(editor.jump_chars().is_empty());
 
         // Expect the current selected content is 'sea'
         assert_eq!(editor.get_selected_texts(), vec!["sea"]);
+        Ok(())
+    }
+
+    #[test]
+    fn highlight_and_jump() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "who lives on sea shore?\n yonky donkey");
+
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 100,
+            height: 1,
+        });
+
+        let context = Context::default();
+        // Set the selection mode as word
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.toggle_highlight_mode();
+        editor.move_selection(&context, Movement::Next)?;
+        editor.jump(&context)?;
+        assert_eq!(editor.jump_chars(), &['w', 'l', 'o', 's', 's', '?']);
+        Ok(())
+    }
+
+    #[test]
+    fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "who who who who");
+
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 100,
+            height: 1,
+        });
+
+        let context = Context::default();
+
+        // Set the selection mode as word, and jump
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.jump(&context)?;
+
+        // Expect the jump to NOT be the first character of each word
+        // Since, the first character of each selection are the same, which is 'w'
+        assert_eq!(editor.jump_chars(), &['a', 'b', 'c', 'd']);
+
         Ok(())
     }
 }

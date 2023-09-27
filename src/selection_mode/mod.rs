@@ -168,29 +168,47 @@ pub trait SelectionMode {
         let iter = self
             .iter(params.clone())?
             .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start));
-        Ok(chars
-            .into_iter()
-            .cycle()
-            .zip(iter)
-            .filter_map(|(character, range)| {
+        let jumps = iter
+            .filter_map(|range| {
                 let selection = range
                     .to_selection(params.buffer, params.current_selection)
                     .ok()?;
                 let character = params
                     .buffer
-                    .slice(&selection.extended_range())
+                    .slice(&selection.range()) // Cannot use extend_range here, must use range only
                     .ok()?
                     .chars()
                     .into_iter()
-                    .next()
-                    .unwrap_or(character)
+                    .next()?
                     .to_ascii_lowercase();
                 Some(Jump {
                     character,
                     selection,
                 })
             })
-            .collect_vec())
+            .collect_vec();
+        let jumps = if jumps
+            .iter()
+            .group_by(|jump| jump.character)
+            .into_iter()
+            .count()
+            > 1
+        {
+            jumps
+        } else {
+            // All jumps has the same chars, assign their char using the given chars set
+            chars
+                .into_iter()
+                .cycle()
+                .zip(jumps)
+                .into_iter()
+                .map(|(char, jump)| Jump {
+                    character: char,
+                    selection: jump.selection,
+                })
+                .collect_vec()
+        };
+        Ok(jumps)
     }
 
     fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
