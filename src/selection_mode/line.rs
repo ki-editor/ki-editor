@@ -1,4 +1,4 @@
-use super::SelectionMode;
+use super::{ByteRange, SelectionMode};
 
 pub struct Line;
 
@@ -34,6 +34,7 @@ impl SelectionMode for Line {
                         } else {
                             len_bytes
                         };
+                    let start = trim_leading_spaces(start, &line.to_string());
 
                     Some(super::ByteRange::new(start..end))
                 }),
@@ -54,11 +55,29 @@ impl SelectionMode for Line {
             .filter(|line| line.line < current_line)
             .next_back()
             .map(|line| {
-                buffer
-                    .line_to_byte_range(line.line)?
-                    .to_selection(buffer, current_selection)
+                let byte_range = buffer.line_to_byte_range(line.line)?;
+                let start = trim_leading_spaces(byte_range.range.start, &line.content);
+                ByteRange {
+                    range: start..byte_range.range.end,
+                    ..byte_range
+                }
+                .to_selection(buffer, current_selection)
             })
             .transpose()
+    }
+}
+
+fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
+    if line == "\n" {
+        byte_start
+    } else {
+        let leading_whitespace_count = line
+            .to_string()
+            .chars()
+            .into_iter()
+            .take_while(|c| c.is_whitespace())
+            .count();
+        byte_start.saturating_add(leading_whitespace_count)
     }
 }
 
@@ -70,7 +89,7 @@ mod test_line {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a\n\n\nb\nc\n");
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a\n\n\nb\nc\n  hello");
         Line.assert_all_selections(
             &buffer,
             Selection::default(),
@@ -80,6 +99,8 @@ mod test_line {
                 (3..3, ""),
                 (4..5, "b"),
                 (6..7, "c"),
+                // Should not include leading whitespaces
+                (10..15, "hello"),
             ],
         );
     }
@@ -123,7 +144,7 @@ fn f() {
             assert_eq!(actual, expected);
         };
 
-        test(4, "    fn g() {");
+        test(4, "fn g() {");
 
         test(1, "fn f() {");
     }

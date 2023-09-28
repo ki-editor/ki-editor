@@ -200,15 +200,18 @@
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
 - [x] fix: cannot transition from global mode to local mode properly
 - [] feat(keymap): map every keybinding to a Dispatch (so that we can show help, and also easier to run test, this could also allow running commands on a set of selected editors)
-- [] feat(keymap): ctrl+d/u = scroll down/up ; ctrl+n/p = scroll line ; ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
+- [x] feat(keymap): ctrl+d/u = scroll down/up
+- [] ctrl+n/p = scroll line ;
+- [] ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
 - [] feat(keymap): change i -> a, a -> e, so that it matches ctrl+a and ctrl+e in insert mode?
 - [] feat(kill): kill should treat nameless node as whitespace (in syntax mode)
 - [x] fix(kill): should collapse selection when killing extended range
-- [] feat(line): should not include leading whitespace (to synergize better with new jumping ux)
+- [x] feat(line): should not include leading whitespace (to synergize better with new jumping ux)
 - [] feat(dropdown): fuzzy search (https://docs.rs/fuzzy-matcher/0.3.7/fuzzy_matcher/trait.FuzzyMatcher.html#tymethod.fuzzy_indices)
 - [] feat(quickfix): u/d = prev/next file
 - [] feat(render): show highlight mode
 - [] feat(v): change v = navigation history, b = bookmark mode
+- [] feat(layout): default should be inverted-tall, where the largest pane is one the right, and the smaller panes are on the left. Why? Firstly, it's easier to look at the smaller pane that are on the left. Secondly, the code will be centered due to the left panes, making it easier to read the code. That's probably why VS Coder likes to keep their sidebar opened all the time during code.
 
 # Grammar loading
 

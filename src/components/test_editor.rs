@@ -120,8 +120,8 @@ fn main() {
         assert_eq!(
             editor.text(),
             "
-    let x = 1;
-fn main() {
+let x = 1;
+    fn main() {
     let y = 2;
 }"
         );
