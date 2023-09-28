@@ -4,13 +4,14 @@ mod test_editor {
     use crate::{
         components::{
             component::Component,
-            editor::{Direction, Editor, Mode, Movement},
+            editor::{Direction, Editor, Mode, Movement, ViewAlignment},
         },
         context::Context,
         position::Position,
         selection::SelectionMode,
     };
 
+    use itertools::Itertools;
     use my_proc_macros::{key, keys};
     use pretty_assertions::assert_eq;
     use tree_sitter_rust::language;
@@ -839,6 +840,36 @@ fn f() {
         // Since, the first character of each selection are the same, which is 'w'
         assert_eq!(editor.jump_chars(), &['a', 'b', 'c', 'd']);
 
+        Ok(())
+    }
+
+    #[test]
+    fn switch_view_alignment() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), &"abcde".split("").collect_vec().join("\n"));
+        let context = Context::default();
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 100,
+            height: 3,
+        });
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.move_selection(&context, Movement::Next)?;
+        editor.move_selection(&context, Movement::Next)?;
+        assert_eq!(editor.get_selected_texts(), ["c"]);
+        assert_eq!(editor.scroll_offset(), 0);
+        assert_eq!(editor.current_view_alignment, None);
+
+        editor.switch_view_alignment();
+        assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Top));
+        assert_eq!(editor.scroll_offset(), 3);
+
+        editor.switch_view_alignment();
+        assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Center));
+        assert_eq!(editor.scroll_offset(), 1);
+
+        editor.switch_view_alignment();
+        assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Bottom));
+        assert_eq!(editor.scroll_offset(), 0);
         Ok(())
     }
 }

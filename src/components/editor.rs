@@ -546,6 +546,7 @@ impl Clone for Editor {
             buffer: self.buffer.clone(),
             title: self.title.clone(),
             id: self.id,
+            current_view_alignment: None,
         }
     }
 }
@@ -568,6 +569,7 @@ pub struct Editor {
     buffer: Rc<RefCell<Buffer>>,
     title: String,
     id: ComponentId,
+    pub current_view_alignment: Option<ViewAlignment>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -624,6 +626,7 @@ impl Editor {
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
             title: String::new(),
             id: ComponentId::new(),
+            current_view_alignment: None,
         }
     }
 
@@ -651,6 +654,7 @@ impl Editor {
             buffer,
             title,
             id: ComponentId::new(),
+            current_view_alignment: None,
         }
     }
 
@@ -752,16 +756,16 @@ impl Editor {
     fn recalculate_scroll_offset(&mut self) {
         // Update scroll_offset if primary selection is out of view.
         let cursor_row = self.cursor_row();
-        if cursor_row.saturating_sub(self.scroll_offset)
-            >= (self.rectangle.height.saturating_sub(2))
+        if cursor_row.saturating_sub(self.scroll_offset) > self.rectangle.height
             || cursor_row < self.scroll_offset
         {
             self.align_cursor_to_center();
         }
+        self.current_view_alignment = None;
     }
 
     fn align_cursor_to_bottom(&mut self) {
-        self.scroll_offset = self.cursor_row() - (self.rectangle.height - 2);
+        self.scroll_offset = self.cursor_row().saturating_sub(self.rectangle.height);
     }
 
     fn align_cursor_to_top(&mut self) {
@@ -771,7 +775,7 @@ impl Editor {
     fn align_cursor_to_center(&mut self) {
         self.scroll_offset = self
             .cursor_row()
-            .saturating_sub((self.rectangle.height.saturating_sub(2)) / 2);
+            .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
     }
 
     pub fn select(
@@ -1341,28 +1345,6 @@ impl Editor {
         }
     }
 
-    fn view_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "View".to_string(),
-            keymaps: [
-                ("b", "Align view bottom", DispatchEditor::AlignViewBottom),
-                ("c", "Align view center", DispatchEditor::AlignViewCenter),
-                (
-                    "l",
-                    "Enter scroll line mode",
-                    DispatchEditor::EnterScrollLineMode,
-                ),
-                ("t", "Align view top", DispatchEditor::AlignViewTop),
-            ]
-            .into_iter()
-            .map(|(key, description, dispatch)| {
-                Keymap::new(key, description, Dispatch::DispatchEditor(dispatch))
-            })
-            .collect_vec(),
-            owner_id: self.id(),
-        }
-    }
-
     pub fn apply_dispatch(
         &mut self,
         context: &Context,
@@ -1378,7 +1360,6 @@ impl Editor {
             }
 
             DispatchEditor::FindOneChar => self.enter_single_character_mode(),
-            DispatchEditor::EnterScrollLineMode => self.mode = Mode::ScrollLine,
 
             DispatchEditor::MoveSelection(direction) => {
                 return self.move_selection(context, direction)
@@ -1553,6 +1534,10 @@ impl Editor {
             }
             key!("ctrl+d") => {
                 self.scroll_page_down()?;
+                Ok(HandleEventResult::Handled(vec![]))
+            }
+            key!("ctrl+l") => {
+                self.switch_view_alignment();
                 Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+s") => {
@@ -1833,12 +1818,6 @@ impl Editor {
             // Objects
             key!("a") => self.enter_insert_mode(Direction::End)?,
             key!("ctrl+b") => self.save_bookmarks(),
-            key!("b") => {
-                return Ok([Dispatch::SetGlobalMode(Some(
-                    GlobalMode::BufferNavigationHistory,
-                ))]
-                .to_vec())
-            }
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
@@ -1875,9 +1854,10 @@ impl Editor {
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u = up
             key!("v") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.view_mode_keymap_legend_config(),
-                )]);
+                return Ok([Dispatch::SetGlobalMode(Some(
+                    GlobalMode::BufferNavigationHistory,
+                ))]
+                .to_vec())
             }
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => {
@@ -2854,6 +2834,28 @@ impl Editor {
     pub fn scroll_page_up(&mut self) -> Result<(), anyhow::Error> {
         self.scroll(Direction::Start, self.half_page_height())
     }
+
+    pub fn switch_view_alignment(&mut self) {
+        let new_view_alignment = match self.current_view_alignment {
+            None => ViewAlignment::Top,
+            Some(ViewAlignment::Top) => ViewAlignment::Center,
+            Some(ViewAlignment::Center) => ViewAlignment::Bottom,
+            Some(ViewAlignment::Bottom) => ViewAlignment::Top,
+        };
+        self.current_view_alignment = Some(new_view_alignment);
+        match new_view_alignment {
+            ViewAlignment::Top => self.align_cursor_to_top(),
+            ViewAlignment::Center => self.align_cursor_to_center(),
+            ViewAlignment::Bottom => self.align_cursor_to_bottom(),
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
+pub enum ViewAlignment {
+    Top,
+    Center,
+    Bottom,
 }
 
 enum Enclosure {
@@ -2876,7 +2878,6 @@ pub enum DispatchEditor {
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
     FindOneChar,
-    EnterScrollLineMode,
     MoveSelection(Movement),
     Copy,
     Cut,
