@@ -2239,13 +2239,10 @@ impl Editor {
     }
 
     fn apply_scroll(&mut self, direction: Direction, scroll_height: usize) {
-        log::info!("before={}", self.scroll_offset);
-
         self.scroll_offset = match direction {
             Direction::Start => self.scroll_offset.saturating_sub(scroll_height as u16),
             Direction::End => self.scroll_offset.saturating_add(scroll_height as u16),
         };
-        log::info!("after = {}", self.scroll_offset);
     }
 
     pub fn backspace(&mut self) -> anyhow::Result<Vec<Dispatch>> {
@@ -2413,7 +2410,21 @@ impl Editor {
     }
 
     fn scroll(&mut self, direction: Direction, scroll_height: usize) -> anyhow::Result<()> {
-        self.apply_scroll(direction, scroll_height);
+        self.update_selection_set(self.selection_set.apply(
+            self.selection_set.mode.clone(),
+            |selection| {
+                let position = selection.extended_range().start.to_position(&self.buffer());
+                let line = if direction == Direction::End {
+                    position.line.saturating_add(scroll_height)
+                } else {
+                    position.line.saturating_sub(scroll_height)
+                };
+                let position = Position { line, ..position };
+                let start = position.to_char_index(&self.buffer())?;
+                Ok(selection.clone().set_range((start..start).into()))
+            },
+        )?);
+        self.align_cursor_to_center();
 
         Ok(())
     }
