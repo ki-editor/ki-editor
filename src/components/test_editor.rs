@@ -465,6 +465,21 @@ fn f() {
     }
 
     #[test]
+    fn highlight_kill() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() {}");
+        let context = Context::default();
+        // Select first token
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.toggle_highlight_mode();
+        editor.move_selection(&context, Movement::Next)?;
+
+        assert_eq!(editor.get_selected_texts(), vec!["fn main"]);
+        editor.kill(&context)?;
+        assert_eq!(editor.get_selected_texts(), vec![""]);
+        Ok(())
+    }
+
+    #[test]
     /// Kill means delete until the next selection
     fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() {}");
@@ -474,7 +489,7 @@ fn f() {
         editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         // Delete
-        editor.delete(&context)?;
+        editor.kill(&context)?;
 
         // Expect the text to be 'main() {}'
         assert_eq!(editor.text(), "main() {}");
@@ -494,7 +509,7 @@ fn f() {
         editor.set_selection_mode(&context, SelectionMode::Character)?;
 
         // Delete
-        editor.delete(&context)?;
+        editor.kill(&context)?;
 
         assert_eq!(editor.text(), "n main() {}");
 
@@ -514,7 +529,7 @@ fn f() {
         editor.move_selection(&context, Movement::Last)?;
 
         // Delete
-        editor.delete(&context)?;
+        editor.kill(&context)?;
 
         assert_eq!(editor.text(), "fn main() {");
 
@@ -532,7 +547,7 @@ fn f() {
         editor.match_literal(&context, "ma")?;
 
         // Delete
-        editor.delete(&context)?;
+        editor.kill(&context)?;
 
         // Expect the text to be 'fn ima() {}'
         assert_eq!(editor.text(), "fn ima() {}");

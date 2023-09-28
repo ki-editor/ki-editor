@@ -203,11 +203,12 @@
 - [] feat(keymap): ctrl+d/u = scroll down/up ; ctrl+n/p = scroll line ; ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
 - [] feat(keymap): change i -> a, a -> e, so that it matches ctrl+a and ctrl+e in insert mode?
 - [] feat(kill): kill should treat nameless node as whitespace (in syntax mode)
-- [] fix(kill): should collapse selection when killing extended range
+- [x] fix(kill): should collapse selection when killing extended range
 - [] feat(line): should not include leading whitespace (to synergize better with new jumping ux)
 - [] feat(dropdown): fuzzy search (https://docs.rs/fuzzy-matcher/0.3.7/fuzzy_matcher/trait.FuzzyMatcher.html#tymethod.fuzzy_indices)
 - [] feat(quickfix): u/d = prev/next file
 - [] feat(render): show highlight mode
+- [] feat(v): change v = navigation history, b = bookmark mode
 
 # Grammar loading
 

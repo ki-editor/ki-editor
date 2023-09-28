@@ -874,7 +874,7 @@ impl Editor {
             .map(|dispatches| dispatches.into_iter().chain(dispatch).collect())
     }
 
-    pub fn delete(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn kill(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -925,7 +925,12 @@ impl Editor {
                                 range: delete_range,
                                 new: Rope::new(),
                             }),
-                            Action::Select(selection.clone().set_range(select_range)),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range(select_range)
+                                    .set_initial_range(None),
+                            ),
                         ]
                         .to_vec(),
                     ))
@@ -1853,7 +1858,7 @@ impl Editor {
 
             key!("i") => self.enter_insert_mode(Direction::Start)?,
             // j = jump
-            key!("k") => return self.delete(context),
+            key!("k") => return self.kill(context),
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
