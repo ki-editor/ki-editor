@@ -67,6 +67,7 @@ The following keybindings work regardless of any mode.
 - `*`: Select the whole file
 - `%`: Toggle cursor position to start/end of selection
 - `'`: Open List menu
+- `(`/`{`/`[`/`<`: Enclose current selection(s) with `()`/`{}`/`[]`/`<>`
 - `space`: Open context menu
 
 > [!NOTE] 
