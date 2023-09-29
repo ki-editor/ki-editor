@@ -42,7 +42,7 @@ use super::{
     keymap_legend::{Keymap, KeymapLegendConfig},
 };
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Eq)]
 pub enum Mode {
     Normal,
     Insert,
@@ -50,6 +50,7 @@ pub enum Mode {
     FindOneChar,
     ScrollLine,
     Exchange,
+    UndoTree,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -1046,20 +1047,31 @@ impl Editor {
     }
 
     pub fn get_document_did_change_dispatch(&mut self) -> Vec<Dispatch> {
-        vec![Dispatch::DocumentDidChange {
+        [Dispatch::DocumentDidChange {
             component_id: self.id(),
             path: self.buffer().path(),
             content: self.buffer().rope().to_string(),
             language: self.buffer().language(),
         }]
+        .into_iter()
+        .chain(if self.mode == Mode::UndoTree {
+            Some(self.show_undo_tree_dispatch())
+        } else {
+            None
+        })
+        .collect_vec()
     }
 
-    pub fn go_to_history_branch(&mut self, offset: isize) -> anyhow::Result<Vec<Dispatch>> {
-        let selection_set = self.buffer.borrow_mut().go_to_history_branch(offset)?;
-        if let Some(selection_set) = selection_set {
-            self.update_selection_set(selection_set);
+    pub fn enter_undo_tree_mode(&mut self) -> Vec<Dispatch> {
+        self.mode = Mode::UndoTree;
+        [self.show_undo_tree_dispatch()].to_vec()
+    }
+
+    pub fn show_undo_tree_dispatch(&self) -> Dispatch {
+        Dispatch::ShowInfo {
+            title: "Undo Tree History".to_string(),
+            content: [self.buffer().display_history()].to_vec(),
         }
-        Ok(self.get_document_did_change_dispatch())
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
@@ -1316,6 +1328,11 @@ impl Editor {
                                         self.transform_keymap_legend_config(),
                                     ),
                                 ),
+                                Keymap::new(
+                                    "z",
+                                    "Undo Tree",
+                                    Dispatch::DispatchEditor(DispatchEditor::EnterUndoTreeMode),
+                                ),
                             ]
                             .to_vec()
                         })
@@ -1370,7 +1387,7 @@ impl Editor {
             DispatchEditor::FindOneChar => self.enter_single_character_mode(),
 
             DispatchEditor::MoveSelection(direction) => {
-                return self.move_selection(context, direction)
+                return self.handle_movement(context, direction)
             }
             DispatchEditor::Copy => return self.copy(context),
             DispatchEditor::Paste => return self.paste(context),
@@ -1379,6 +1396,7 @@ impl Editor {
             DispatchEditor::Replace => return self.replace(context),
             DispatchEditor::Cut => return self.cut(),
             DispatchEditor::ToggleHighlightMode => self.toggle_highlight_mode(),
+            DispatchEditor::EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
         }
         Ok([].to_vec())
     }
@@ -1515,6 +1533,7 @@ impl Editor {
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
                         Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
                         Mode::Exchange => self.handle_exchange_mode(context, key_event),
+                        Mode::UndoTree => self.handle_undo_tree_mode(context, key_event),
                     }
                 }
             }
@@ -1585,7 +1604,7 @@ impl Editor {
                 match matching_jumps.split_first() {
                     None => Ok(Vec::new()),
                     Some((jump, [])) => self
-                        .move_selection(context, Movement::Jump(jump.selection.extended_range())),
+                        .handle_movement(context, Movement::Jump(jump.selection.extended_range())),
                     Some(_) => {
                         self.jumps = Some(
                             matching_jumps
@@ -1741,7 +1760,7 @@ impl Editor {
         }
     }
 
-    pub fn move_selection(
+    pub fn handle_movement(
         &mut self,
         context: &Context,
         movement: Movement,
@@ -1752,8 +1771,9 @@ impl Editor {
                 movement,
                 self.selection_set.mode.clone(),
             ),
-            Mode::Exchange => self.exchange(movement, context),
-            Mode::MultiCursor => self.add_cursor(&movement, context).map(|_| Vec::new()),
+            Mode::Exchange => self.exchange(context, movement),
+            Mode::UndoTree => self.navigate_undo_tree(movement),
+            Mode::MultiCursor => self.add_cursor(context, &movement).map(|_| Vec::new()),
             _ => Ok(Vec::new()),
         }
     }
@@ -1765,7 +1785,7 @@ impl Editor {
         self.buffer_mut().save_bookmarks(selections)
     }
 
-    fn handle_movement(
+    fn handle_movement_key(
         &mut self,
         key_event: &KeyEvent,
         context: &Context,
@@ -1799,15 +1819,13 @@ impl Editor {
         context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(dispatches) = self.handle_movement(&event, context)? {
+        if let Some(dispatches) = self.handle_movement_key(&event, context)? {
             return Ok(dispatches);
         }
         if self.mode != Mode::Normal {
             self.mode = Mode::Normal
         }
         match event {
-            key!("1") => return self.go_to_history_branch(-1),
-            key!("2") => return self.go_to_history_branch(1),
             key!("'") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.list_mode_keymap_legend_config(),
@@ -1817,10 +1835,10 @@ impl Editor {
             key!("*") => self.select_whole_file(),
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!(",") => self.select_backward(),
-            key!("left") => return self.move_selection(context, Movement::Previous),
-            key!("shift+left") => return self.move_selection(context, Movement::First),
-            key!("right") => return self.move_selection(context, Movement::Next),
-            key!("shift+right") => return self.move_selection(context, Movement::Last),
+            key!("left") => return self.handle_movement(context, Movement::Previous),
+            key!("shift+left") => return self.handle_movement(context, Movement::First),
+            key!("right") => return self.handle_movement(context, Movement::Next),
+            key!("shift+right") => return self.handle_movement(context, Movement::Last),
             key!("esc") => {
                 self.reset();
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
@@ -1876,7 +1894,7 @@ impl Editor {
                 )]
                 .to_vec())
             }
-            key!("shift+X") => return self.exchange(Movement::Previous, context),
+            key!("shift+X") => return self.exchange(context, Movement::Previous),
             // y = unused
             key!("backspace") => {
                 return self.change();
@@ -2180,14 +2198,14 @@ impl Editor {
 
     pub fn exchange(
         &mut self,
-        movement: Movement,
         context: &Context,
+        movement: Movement,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let mode = self.selection_set.mode.clone();
         self.replace_faultlessly(&mode, movement, context)
     }
 
-    pub fn add_cursor(&mut self, direction: &Movement, context: &Context) -> anyhow::Result<()> {
+    pub fn add_cursor(&mut self, context: &Context, direction: &Movement) -> anyhow::Result<()> {
         self.selection_set.add_selection(
             &self.buffer.borrow(),
             direction,
@@ -2623,6 +2641,7 @@ impl Editor {
             Mode::FindOneChar => "FIND ONE CHAR".to_string(),
             Mode::ScrollLine => "SCROLL LINE".to_string(),
             Mode::Exchange => "EXCHANGE".to_string(),
+            Mode::UndoTree => "UNDO TREE".to_string(),
         };
         if self.jumps.is_some() {
             format!("{} (JUMPING)", mode)
@@ -2655,9 +2674,9 @@ impl Editor {
             key!("a") => self.add_cursor_to_all_selections(context),
             // todo: kill primary cursor does not work as expected, we need another editr cursor mode
             key!("k") => self.kill_primary_cursor(),
-            key!("n") => self.add_cursor(&Movement::Next, context),
+            key!("n") => self.add_cursor(context, &Movement::Next),
             key!("o") => self.only_current_cursor(),
-            key!("p") => self.add_cursor(&Movement::Previous, context),
+            key!("p") => self.add_cursor(context, &Movement::Previous),
             other => return self.handle_normal_mode(context, other),
         }?;
         Ok(Vec::new())
@@ -2859,6 +2878,33 @@ impl Editor {
             ViewAlignment::Bottom => self.align_cursor_to_bottom(),
         }
     }
+
+    fn handle_undo_tree_mode(
+        &mut self,
+        context: &Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        match key_event {
+            key!("esc") => {
+                self.enter_normal_mode()?;
+                Ok(Vec::new())
+            }
+            other => self.handle_normal_mode(context, other),
+        }
+    }
+
+    fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Vec<Dispatch>, anyhow::Error> {
+        if let Some(selection_set) = match movement {
+            Movement::Up => self.buffer_mut().redo()?,
+            Movement::Down => self.buffer_mut().undo()?,
+            Movement::Next => self.buffer_mut().go_to_history_branch(Direction::End)?,
+            Movement::Previous => self.buffer_mut().go_to_history_branch(Direction::Start)?,
+            _ => None,
+        } {
+            self.update_selection_set(selection_set)
+        };
+        Ok(self.get_document_did_change_dispatch())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2896,4 +2942,5 @@ pub enum DispatchEditor {
     SelectWholeFile,
     SetContent(String),
     ToggleHighlightMode,
+    EnterUndoTreeMode,
 }

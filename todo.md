@@ -196,7 +196,6 @@
 - [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
 - [] feat(package): incorporate Mason, see https://www.reddit.com/r/neovim/comments/122ow0u/psa_changes_to_the_masonnvim_registry/, and https://mason-registry.dev/registry/list#search, and https://github.com/williamboman/mason-lspconfig.nvim#default-configuration, and https://github.com/williamboman/mason.nvim#how-to-use-installed-packages
 - [x] minor(keybinding): change fr to fx, so that fr can be find local references
-- [] feat(util): history tree, useful for undo tree and navigation tree
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
 - [x] fix: cannot transition from global mode to local mode properly
 - [] feat(keymap): map every keybinding to a Dispatch (so that we can show help, and also easier to run test, this could also allow running commands on a set of selected editors)

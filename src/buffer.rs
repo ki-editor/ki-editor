@@ -1,6 +1,6 @@
 use crate::{
     char_index_range::CharIndexRange,
-    components::suggestive_editor::Decoration,
+    components::{editor::Direction, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
@@ -432,28 +432,19 @@ impl Buffer {
         Ok(selection_set)
     }
 
-    pub fn go_to_history_branch(&mut self, offset: isize) -> anyhow::Result<Option<SelectionSet>> {
+    pub fn go_to_history_branch(
+        &mut self,
+        direction: Direction,
+    ) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
-        let current_branch_index = self.history.head().root;
+        let Some(destination) = (match direction {
+            Direction::Start => self.history.prev_branch_head(),
+            Direction::End => self.history.next_branch_head(),
+        }) else { return Ok(None) };
 
-        let new_branch_index = (current_branch_index as isize + offset) as usize;
-        if let Some(branch) = self.history.get_branch(new_branch_index) {
-            let parent_node = branch.parent();
-            let previous_branch_first_node = undo::At {
-                root: new_branch_index,
-                index: parent_node.index + 1,
-            };
-
-            if let Some(Ok(last_selection)) = self
-                .history
-                .go_to(&mut content, previous_branch_first_node)
-                .last()
-            {
-                self.update(&content);
-                Ok(Some(last_selection.clone()))
-            } else {
-                Ok(None)
-            }
+        if let Some(Ok(last_selection)) = self.history.go_to(&mut content, destination).last() {
+            self.update(&content);
+            Ok(Some(last_selection.clone()))
         } else {
             Ok(None)
         }

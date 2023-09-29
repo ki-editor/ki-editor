@@ -2173,7 +2173,7 @@ dependencies = [
 [[package]]
 name = "undo"
 version = "0.50.0"
-source = "git+https://github.com/evenorog/undo?branch=0.51.0#a7b0985789ea8bbbc1795dce04922817508f33ca"
+source = "git+https://github.com/evenorog/undo?branch=0.51.0#441229ccdc429e6e7075da4ef526d333bfd2174e"
 dependencies = [
  "serde",
 ]

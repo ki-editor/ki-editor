@@ -2,6 +2,7 @@
 mod test_editor {
 
     use crate::{
+        app::Dispatch,
         components::{
             component::Component,
             editor::{Direction, Editor, Mode, Movement, ViewAlignment},
@@ -22,10 +23,10 @@ mod test_editor {
         let context = Context::default();
         editor.set_selection_mode(&context, SelectionMode::Character)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["n"]);
 
-        editor.move_selection(&context, Movement::Previous)?;
+        editor.handle_movement(&context, Movement::Previous)?;
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
         Ok(())
     }
@@ -36,7 +37,7 @@ mod test_editor {
         let context = Context::new();
 
         editor.match_literal(&context, "x")?;
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x"]);
 
@@ -52,16 +53,16 @@ mod test_editor {
         editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
         // Move token to "x: usize"
         for _ in 0..3 {
-            editor.move_selection(&context, Movement::Next)?;
+            editor.handle_movement(&context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
-        editor.exchange(Movement::Previous, &context)?;
+        editor.exchange(&context, Movement::Previous)?;
         assert_eq!(editor.text(), "fn main(x: usize, y: Vec<A>) {}");
         Ok(())
     }
@@ -74,13 +75,13 @@ mod test_editor {
         // Select first statement
         editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.move_selection(&context, Movement::Up)?;
+        editor.handle_movement(&context, Movement::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
         Ok(())
     }
@@ -117,7 +118,7 @@ fn main() {
         editor.select_line(Movement::Next, &context)?;
         editor.select_line(Movement::Next, &context)?;
 
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(
             editor.text(),
             "
@@ -127,7 +128,7 @@ let x = 1;
 }"
         );
 
-        editor.exchange(Movement::Previous, &context)?;
+        editor.exchange(&context, Movement::Previous)?;
         assert_eq!(
             editor.text(),
             "
@@ -144,14 +145,14 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
         let context = Context::default();
         editor.set_selection_mode(&context, SelectionMode::Character)?;
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(editor.text(), "n fmain() { let x = 1; }");
 
-        editor.exchange(Movement::Previous, &context)?;
+        editor.exchange(&context, Movement::Previous)?;
         assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(Movement::Previous, &context)?;
+        editor.exchange(&context, Movement::Previous)?;
 
         assert_eq!(editor.text(), "fn main() { let x = 1; }");
         Ok(())
@@ -167,7 +168,7 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["usize"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next, &context)?;
+        editor.add_cursor(&context, &Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
         editor.enter_insert_mode(Direction::Start)?;
@@ -192,7 +193,7 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next, &context)?;
+        editor.add_cursor(&context, &Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
@@ -201,7 +202,7 @@ fn main() {
 
         editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
         for _ in 0..5 {
-            editor.move_selection(&context, Movement::Next)?;
+            editor.handle_movement(&context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
@@ -232,7 +233,7 @@ fn main() {
         assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next, &context)?;
+        editor.add_cursor(&context, &Movement::Next)?;
         assert_eq!(
             editor.get_selected_texts(),
             vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
@@ -240,17 +241,17 @@ fn main() {
 
         editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
         for _ in 0..3 {
-            editor.move_selection(&context, Movement::Next)?;
+            editor.handle_movement(&context, Movement::Next)?;
         }
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(Movement::Next, &context)?;
+        editor.exchange(&context, Movement::Next)?;
         assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
-        editor.exchange(Movement::Previous, &context)?;
+        editor.exchange(&context, Movement::Previous)?;
         assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
         Ok(())
     }
@@ -271,12 +272,12 @@ fn main() {
         );
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&Movement::Next, &context)?;
+        editor.add_cursor(&context, &Movement::Next)?;
 
         editor.set_selection_mode(&context, SelectionMode::OutermostNode)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(
             editor.get_selected_texts(),
@@ -305,15 +306,15 @@ fn main() {
 
         editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn f("]);
 
         // Toggle the second time should inverse the initial_range
         editor.toggle_highlight_mode();
 
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["f("]);
 
@@ -321,7 +322,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["f"]);
 
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["("]);
 
@@ -472,7 +473,7 @@ fn f() {
         // Select first token
         editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn main"]);
         editor.kill(&context)?;
@@ -527,7 +528,7 @@ fn f() {
 
         // Select last token
         editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.move_selection(&context, Movement::Last)?;
+        editor.handle_movement(&context, Movement::Last)?;
 
         // Delete
         editor.kill(&context)?;
@@ -609,9 +610,9 @@ fn f() {
 
         editor.add_cursor_to_all_selections(&context)?;
 
-        editor.move_selection(&context, Movement::Down)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Down)?;
+        editor.handle_movement(&context, Movement::Down)?;
+        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Down)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["j:J", "k:K", "m:M"]);
 
@@ -667,7 +668,7 @@ fn f() {
 
         // Go to the middle of the file
         editor.set_selection_mode(&context, SelectionMode::Token)?;
-        editor.move_selection(&context, Movement::Index(3))?;
+        editor.handle_movement(&context, Movement::Index(3))?;
 
         assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
 
@@ -722,7 +723,7 @@ fn f() {
 
         editor.toggle_highlight_mode();
         editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), vec!["hello world"]);
         editor.change()?;
         editor.insert("wow")?;
@@ -814,7 +815,7 @@ fn f() {
         // Set the selection mode as word
         editor.set_selection_mode(&context, SelectionMode::Word)?;
         editor.toggle_highlight_mode();
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
         editor.jump(&context)?;
         assert_eq!(editor.jump_chars(), &['w', 'l', 'o', 's', 's', '?']);
         Ok(())
@@ -853,8 +854,8 @@ fn f() {
             height: 3,
         });
         editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.move_selection(&context, Movement::Next)?;
-        editor.move_selection(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), ["c"]);
         assert_eq!(editor.scroll_offset(), 0);
         assert_eq!(editor.current_view_alignment, None);
@@ -870,6 +871,54 @@ fn f() {
         editor.switch_view_alignment();
         assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Bottom));
         assert_eq!(editor.scroll_offset(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn undo_tree() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), &"".split("").collect_vec().join("\n"));
+        let context = Context::default();
+        editor.insert("a")?;
+        editor.insert("bc")?;
+        editor.enter_undo_tree_mode();
+
+        // Down = undo
+        editor.handle_movement(&context, Movement::Down)?;
+        assert_eq!(editor.content(), "a\n");
+
+        // Up = redo
+        editor.handle_movement(&context, Movement::Up)?;
+        assert_eq!(editor.content(), "abc\n");
+
+        editor.handle_movement(&context, Movement::Down)?;
+        assert_eq!(editor.content(), "a\n");
+        editor.insert("de")?;
+        let dispatches = editor.enter_undo_tree_mode();
+
+        assert_eq!(
+            dispatches,
+            [Dispatch::ShowInfo {
+                title: "Undo Tree History".to_string(),
+                content: [" 
+* 1-2 [HEAD] 
+| * 0-2 
+|/
+* 1-1 
+* 1-0 [SAVED]"
+                    .trim()
+                    .to_string()]
+                .to_vec()
+            }]
+        );
+
+        // Previous = go to previous history branch
+        editor.handle_movement(&context, Movement::Previous)?;
+        // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
+        assert_eq!(editor.content(), "abc\n");
+
+        // Next = go to next history branch
+        editor.handle_movement(&context, Movement::Next)?;
+        assert_eq!(editor.content(), "ade\n");
         Ok(())
     }
 }
