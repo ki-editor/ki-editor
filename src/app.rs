@@ -59,8 +59,6 @@ pub struct App<T: Frontend> {
     lsp_manager: LspManager,
     enable_lsp: bool,
 
-    layout_kind: LayoutKind,
-
     working_directory: CanonicalizedPath,
 
     layout: Layout,
@@ -90,7 +88,6 @@ impl<T: Frontend> App<T> {
         receiver: Receiver<AppMessage>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
-        let layout_kind = LayoutKind::Wide;
         let app = App {
             context: Context::new(),
             buffers: Vec::new(),
@@ -98,8 +95,7 @@ impl<T: Frontend> App<T> {
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp: true,
             sender,
-            layout_kind,
-            layout: Layout::new(dimension, layout_kind, &working_directory)?,
+            layout: Layout::new(dimension, &working_directory)?,
             working_directory,
             frontend,
             syntax_highlight_request_sender: None,

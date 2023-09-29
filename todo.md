@@ -187,7 +187,7 @@
 - [x] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
 - [x] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
-- [] feat(layout): use wide layout as default, so that we can avoid wrapping unnecessarily
+- [x] feat(layout): toggle layout automatically depending on terminal dimension
 - [] feat(movement): leftmost and rightmost (for things like: last word of the line)
 - [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
 - [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)

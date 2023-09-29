@@ -37,17 +37,13 @@ pub struct Layout {
 
     focused_component_id: Option<ComponentId>,
 
-    layout_kind: LayoutKind,
     terminal_dimension: Dimension,
 }
 
 impl Layout {
-    pub fn new(
-        terminal_dimension: Dimension,
-        layout_kind: LayoutKind,
-        path: &CanonicalizedPath,
-    ) -> anyhow::Result<Layout> {
-        let (rectangles, borders) = Rectangle::generate(layout_kind, 1, 0.7, terminal_dimension);
+    pub fn new(terminal_dimension: Dimension, path: &CanonicalizedPath) -> anyhow::Result<Layout> {
+        let (rectangles, borders) =
+            Rectangle::generate(layout_kind(&terminal_dimension), 1, 0.7, terminal_dimension);
         Ok(Layout {
             main_panel: None,
             main_panel_history_backward: vec![],
@@ -56,7 +52,6 @@ impl Layout {
             keymap_legend: None,
             quickfix_lists: None,
             prompts: vec![],
-            layout_kind,
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
             file_explorer: Rc::new(RefCell::new(FileExplorer::new(path)?)),
@@ -238,7 +233,7 @@ impl Layout {
 
     pub fn recalculate_layout(&mut self) {
         let (rectangles, borders) = Rectangle::generate(
-            self.layout_kind,
+            layout_kind(&self.terminal_dimension),
             self.components().len(),
             0.7,
             self.terminal_dimension,
@@ -415,5 +410,14 @@ impl Layout {
             .update_highlighted_spans(highlighted_spans);
 
         Ok(())
+    }
+}
+fn layout_kind(terminal_dimension: &Dimension) -> LayoutKind {
+    const MAIN_PANEL_MIN_WIDTH: u16 = 100;
+    const RIGHT_PANEL_MIN_WIDTH: u16 = 60;
+    if terminal_dimension.width > MAIN_PANEL_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH {
+        LayoutKind::Tall
+    } else {
+        LayoutKind::Wide
     }
 }
