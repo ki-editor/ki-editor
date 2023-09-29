@@ -112,7 +112,7 @@ impl Component for Editor {
                 width = max_line_number_len as usize
             )
         };
-
+        // log::info!("\n:{}", self.buffer().display_history());
         let line_numbers_grid = (0..height.min(len_lines.saturating_sub(scroll_offset))).fold(
             Grid::new(Dimension {
                 height,
@@ -1054,6 +1054,14 @@ impl Editor {
         }]
     }
 
+    pub fn go_to_history_branch(&mut self, offset: isize) -> anyhow::Result<Vec<Dispatch>> {
+        let selection_set = self.buffer.borrow_mut().go_to_history_branch(offset)?;
+        if let Some(selection_set) = selection_set {
+            self.update_selection_set(selection_set);
+        }
+        Ok(self.get_document_did_change_dispatch())
+    }
+
     pub fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         let selection_set = self.buffer.borrow_mut().undo()?;
         if let Some(selection_set) = selection_set {
@@ -1798,6 +1806,8 @@ impl Editor {
             self.mode = Mode::Normal
         }
         match event {
+            key!("1") => return self.go_to_history_branch(-1),
+            key!("2") => return self.go_to_history_branch(1),
             key!("'") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.list_mode_keymap_legend_config(),

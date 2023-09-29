@@ -73,7 +73,7 @@ ignore = "0.4.20"
 crossbeam = "0.8.2"
 diff = "0.1.13"
 clap = { version = "4.3.23", features = ["derive"] } 
-undo = "0.50.0"
+undo = { git = "https://github.com/evenorog/undo", branch = "0.51.0" }
 [dev-dependencies]
 serial_test = "2.0.0"
 tempfile = "3.6.0"
