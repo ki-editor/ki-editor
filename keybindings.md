@@ -116,7 +116,14 @@ In this mode, you can edit the cursors:
 - `r`: ***R**emove cursors matching conditions
 - `s`: ***S**plit current selection
 
+## Highlight mode
+This is not really a mode, but it allows extended selections. 
+Once toggled, each selection consists of two ends, and both ends are also selections on their own. 
+To switch between ends, press `h` again. 
+To stop the extended selection, press `esc`.
 
+The first `h` press is like `ctrl+space` in Emacs, or `v` in Vim.
+Subsequent `h` presses are like `ctrl+x ctrl+x` in Emacs, and `o` in Vim.
 
 ## Jump
 Jump is like Vim's Easymotion which allows you to jump to any selection on the screen easily and quickly. How to use it?
