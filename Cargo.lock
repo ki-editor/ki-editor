@@ -2172,8 +2172,9 @@ dependencies = [
 
 [[package]]
 name = "undo"
-version = "0.50.0"
-source = "git+https://github.com/evenorog/undo?branch=0.51.0#441229ccdc429e6e7075da4ef526d333bfd2174e"
+version = "0.51.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd8be0a8a8e33d55025c36fc461beafffcaebe2ef104eca0287334310cb685b6"
 dependencies = [
  "serde",
 ]
