@@ -372,7 +372,7 @@ impl SelectionMode {
                 SearchKind::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
-                SearchKind::BlindCase => Box::new(selection_mode::Regex::new(
+                SearchKind::LiteralIgnoreCase => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
                     true,

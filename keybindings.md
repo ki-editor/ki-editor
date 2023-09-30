@@ -113,7 +113,38 @@ Note: this guarantee does not work in multi-cursor mode yet, but you can easily 
 ## Find menu
 
 The keybindings under the Find (local) and the Find (global) menu are almost identical.  
-The keybindings are not listed here because once you press `f` or `g` you will see them.
+Not every keybindings are listed here because once you press `f` or `g` you will see them.
+
+Local = find in current document only.  
+Global = find in current repository.
+
+There are 3 categories of keybindings under the Find menu:
+
+1. Text search
+
+- `a`: [Search by **A**ST-Grep](https://ast-grep.github.io/guide/pattern-syntax.html)
+- `c`: Search **c**urrent primary selection
+- `l`: **L**iteral (i.e. no characters has special meaning, e.g. a `(` means a `(`)
+- `i`: Literal (**i**gnore case)
+- `x`: [Rege**x**](https://ast-grep.github.io/guide/pattern-syntax.html) (Rust-flavor)
+
+2. LSP Objects
+
+- `d`: **D**efinition(s)
+- `shift+D`: **D**eclaration(s)
+- `e`: Diagnostic **E**rror
+- `h`: Diagnostic **H**int
+- `r`: **R**eference(s)
+- `m`: I**m**plementation(s)
+- `t`: **T**ype definition
+- `s`: **S**ymbols
+- `w`: Diagnostic **W**arning
+- `y`: An**y** Diagnostic
+
+3. Misc
+
+- `g`: **G**it hunks
+- `q`: Latest **q**uickfixes (local mode only)
 
 ## Multicursor mode
 

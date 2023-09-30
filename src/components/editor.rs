@@ -1127,7 +1127,7 @@ impl Editor {
     fn search_kinds_keymap() -> Vec<(&'static str, &'static str, SearchKind)> {
         [
             ("a", "Ast Grep", SearchKind::AstGrep),
-            ("b", "Case Blind", SearchKind::BlindCase),
+            ("i", "Literal (Ignore case)", SearchKind::LiteralIgnoreCase),
             ("l", "Literal", SearchKind::Literal),
             ("x", "Regex", SearchKind::Regex),
         ]
@@ -1437,7 +1437,7 @@ impl Editor {
                         ),
                     ),
                     Keymap::new(
-                        "i",
+                        "m",
                         "Implementations",
                         Dispatch::RequestImplementations(
                             params.clone().set_description("Implementations"),

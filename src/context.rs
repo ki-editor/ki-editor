@@ -44,7 +44,7 @@ pub enum SearchKind {
     Literal,
     Regex,
     AstGrep,
-    BlindCase,
+    LiteralIgnoreCase,
 }
 
 impl SearchKind {
@@ -53,7 +53,7 @@ impl SearchKind {
             SearchKind::Literal => "Literal",
             SearchKind::Regex => "Regex",
             SearchKind::AstGrep => "AST Grep",
-            SearchKind::BlindCase => "Blind Case",
+            SearchKind::LiteralIgnoreCase => "Blind Case",
         }
     }
 }

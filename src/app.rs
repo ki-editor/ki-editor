@@ -1057,7 +1057,7 @@ impl<T: Frontend> App<T> {
             SearchKind::AstGrep => {
                 list::ast_grep::run(&search.search, working_directory.clone().into())
             }
-            SearchKind::BlindCase => {
+            SearchKind::LiteralIgnoreCase => {
                 list::grep::run(&search.search, working_directory.clone().into(), true, true)
             }
         }?;
