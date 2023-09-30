@@ -7,6 +7,7 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript(true),
     &javascript(false),
     &json(),
+    &markdown(),
     &rust(),
     &sql(),
     &toml(),
@@ -98,6 +99,22 @@ const fn json() -> Language {
         }),
         highlight_query: None,
         formatter_command: Some(Command("prettierd", &[".json"])),
+    }
+}
+
+const fn markdown() -> Language {
+    Language {
+        lsp_language_id: None,
+        extensions: &["md"],
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "markdown",
+            url: "https://github.com/MDeiml/tree-sitter-markdown",
+            commit: "aaf76797aa8ecd9a5e78e0ec3681941de6c945ee",
+            subpath: Some("tree-sitter-markdown"),
+        }),
+        formatter_command: Some(Command("prettierd", &[".md"])),
+        ..Language::new()
     }
 }
 
