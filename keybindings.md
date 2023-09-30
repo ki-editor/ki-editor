@@ -146,6 +146,9 @@ There are 3 categories of keybindings under the Find menu:
 - `g`: **G**it hunks
 - `q`: Latest **q**uickfixes (local mode only)
 
+You might wonder how finding for local LSP objects is useful, they are useful because local objects can be used with multicursor;
+For example, placing the cursor on all references of a variable in the current file.
+
 ## Multicursor mode
 
 In this mode, you can edit the cursors:
