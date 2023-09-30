@@ -8,12 +8,14 @@ mod test_editor {
             editor::{Direction, Editor, Mode, Movement, ViewAlignment},
         },
         context::Context,
+        grid::Style,
         position::Position,
         selection::SelectionMode,
+        themes::Theme,
     };
 
     use itertools::Itertools;
-    use my_proc_macros::{key, keys};
+    use my_proc_macros::{hex, key, keys};
     use pretty_assertions::assert_eq;
     use tree_sitter_rust::language;
 
@@ -919,6 +921,94 @@ fn f() {
         // Next = go to next history branch
         editor.handle_movement(&context, Movement::Next)?;
         assert_eq!(editor.content(), "ade\n");
+        Ok(())
+    }
+
+    #[test]
+    fn get_grid_parent_line() -> anyhow::Result<()> {
+        let content = "
+// hello
+fn main() {
+  let x = 1;
+  let y = 2;
+  for a in b {
+    let z = 4;
+    print()
+  }
+}
+"
+        .trim();
+        let mut editor = Editor::from_text(language(), content);
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 20,
+            height: 5,
+        });
+
+        let mut theme = Theme::default();
+        let parent_lines_background = hex!("#badbad");
+        theme.ui.parent_lines_background = parent_lines_background;
+        let bookmark_background_color = hex!("#cebceb");
+        theme.ui.bookmark = Style::default().background_color(bookmark_background_color);
+        let context = Context::default().set_theme(theme);
+
+        // Go to "print()" and skip the first 3 lines for rendering
+        editor.match_literal(&context, "print()")?;
+        editor.set_scroll_offset(3);
+
+        let result = editor.get_grid(&context);
+        // Expect `fn main()` is visible although it is out of view,
+        // because it is amongst the parent lines of the current selection
+        let expected_grid = "
+2│fn main() {
+4│  let y = 2;
+5│  for a in b {
+6│    let z = 4;
+7│    print()
+"
+        .trim();
+        assert_eq!(result.grid.to_string(), expected_grid);
+
+        // Bookmark "z"
+        editor.match_literal(&context, "z")?;
+        editor.save_bookmarks();
+
+        // Expect the parent lines of the current selections are highlighted with parent_lines_background,
+        // regardless of whether the parent lines are inbound or outbound
+        assert!([0, 2].into_iter().all(|row_index| {
+            result.grid.rows[row_index]
+                .iter()
+                .all(|cell| cell.background_color == parent_lines_background)
+        }));
+
+        // Expect the current line is not treated as parent line
+        assert!(!result.grid.rows[4]
+            .iter()
+            .any(|cell| cell.background_color == parent_lines_background));
+
+        // Bookmark the "fn" token
+        editor.match_literal(&context, "fn")?;
+        editor.save_bookmarks();
+
+        // Go to "print()" and skip the first 3 lines for rendering
+        editor.match_literal(&context, "print()")?;
+        editor.set_scroll_offset(3);
+
+        let result = editor.get_grid(&context);
+        assert_eq!(result.grid.to_string(), expected_grid);
+
+        // Expect the decorations of outbound parent lines are rendered properly
+        // In this case, the outbound parent line is "fn main() {"
+        assert!(result.grid.rows[0][2..4]
+            .iter()
+            .all(|cell| bookmark_background_color == cell.background_color));
+
+        // Expect the decorations of inbound lines are rendered properly
+        // In this case, we want to check that the bookmark on "z" is rendered
+        let z_cell = result.grid.rows[3][10].clone();
+        assert_eq!(z_cell.symbol, "z");
+        assert!(z_cell.background_color == bookmark_background_color);
+
         Ok(())
     }
 }

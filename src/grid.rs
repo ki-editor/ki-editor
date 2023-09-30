@@ -5,6 +5,7 @@ use crate::{
     themes::Color,
 };
 
+use itertools::Itertools;
 use my_proc_macros::hex;
 #[cfg(test)]
 use ropey::Rope;
@@ -36,9 +37,9 @@ impl Cell {
         }
     }
 
-    fn apply_update(&self, update: CellUpdate) -> Cell {
+    fn apply_update(&self, update: &CellUpdate) -> Cell {
         Cell {
-            symbol: update.symbol.unwrap_or(self.symbol.clone()),
+            symbol: update.symbol.clone().unwrap_or(self.symbol.clone()),
             foreground_color: update
                 .style
                 .foreground_color
@@ -65,7 +66,7 @@ impl Default for Cell {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CellUpdate {
     pub position: Position,
     pub symbol: Option<String>,
@@ -143,6 +144,13 @@ impl CellUpdate {
 
     pub fn set_position(self, position: Position) -> CellUpdate {
         CellUpdate { position, ..self }
+    }
+
+    pub(crate) fn move_right(self, by: u16) -> CellUpdate {
+        CellUpdate {
+            position: self.position.move_right(by),
+            ..self
+        }
     }
 }
 
@@ -290,27 +298,11 @@ impl Grid {
         }
     }
 
-    pub fn set_line(self, row: usize, title: &str, style: Style) -> Grid {
-        let mut grid = self;
-        // Pad end with spaces
-        let title = format!("{:<width$}", title, width = grid.dimension().width as usize);
-        for (column_index, character) in title
-            .chars()
-            .take(grid.dimension().width as usize)
-            .enumerate()
-        {
-            let default = Cell::default();
-            grid.rows[row][column_index] = Cell {
-                symbol: character.to_string(),
-                foreground_color: style.foreground_color.unwrap_or(default.foreground_color),
-                background_color: style.background_color.unwrap_or(default.background_color),
-                ..default
-            }
-        }
-        grid
+    pub fn set_line(self, row: usize, title: &str, style: &Style) -> Grid {
+        self.set_row(row, None, None, title, style)
     }
 
-    pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
+    pub fn apply_cell_update(mut self, update: &CellUpdate) -> Grid {
         let Position { line, column } = update.position;
         if line < self.rows.len() && column < self.rows[line].len() {
             self.rows[line][column] = self.rows[line][column].apply_update(update);
@@ -318,9 +310,9 @@ impl Grid {
         self
     }
 
-    pub fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
+    pub fn apply_cell_updates(self, updates: &Vec<CellUpdate>) -> Grid {
         updates
-            .into_iter()
+            .iter()
             .fold(self, |grid, update| grid.apply_cell_update(update))
     }
 
@@ -364,6 +356,55 @@ impl Grid {
             })
         })
     }
+
+    pub fn to_string(&self) -> String {
+        self.rows
+            .iter()
+            .map(|row| {
+                row.iter()
+                    .map(|cell| cell.symbol.to_string())
+                    .collect_vec()
+                    .join("")
+                    .trim()
+                    .to_string()
+            })
+            .collect_vec()
+            .join("\n")
+    }
+
+    pub(crate) fn set_row(
+        self,
+        row_index: usize,
+        column_start: Option<usize>,
+        column_end: Option<usize>,
+        content: &str,
+        style: &Style,
+    ) -> Self {
+        let dimension = self.dimension();
+        let mut grid = self;
+        let column_range =
+            column_start.unwrap_or(0)..column_end.unwrap_or(dimension.width as usize);
+        // Trim or Pad end with spaces
+        let content = format!("{:<width$}", content, width = column_range.len());
+        for (column_index, character) in content
+            .chars()
+            .take(grid.dimension().width as usize)
+            .enumerate()
+        {
+            let default = Cell::default();
+
+            let column_index = column_range.start + column_index;
+            if row_index < grid.rows.len() && column_index < grid.rows[row_index].len() {
+                grid.rows[row_index][column_index] = Cell {
+                    symbol: character.to_string(),
+                    foreground_color: style.foreground_color.unwrap_or(default.foreground_color),
+                    background_color: style.background_color.unwrap_or(default.background_color),
+                    ..default
+                }
+            }
+        }
+        grid
+    }
 }
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -399,6 +440,13 @@ impl Style {
     pub const fn undercurl(self, color: Option<Color>) -> Style {
         Style {
             undercurl: color,
+            ..self
+        }
+    }
+
+    pub(crate) fn set_some_background_color(self, background_color: Option<Color>) -> Style {
+        Style {
+            background_color,
             ..self
         }
     }

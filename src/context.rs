@@ -146,4 +146,8 @@ impl Context {
                 .collect()
         })
     }
+
+    pub fn set_theme(self, theme: Theme) -> Self {
+        Self { theme, ..self }
+    }
 }

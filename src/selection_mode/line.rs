@@ -74,7 +74,6 @@ fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
         let leading_whitespace_count = line
             .to_string()
             .chars()
-            .into_iter()
             .take_while(|c| c.is_whitespace())
             .count();
         byte_start.saturating_add(leading_whitespace_count)

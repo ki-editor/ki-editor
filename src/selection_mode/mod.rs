@@ -178,7 +178,6 @@ pub trait SelectionMode {
                     .slice(&selection.range()) // Cannot use extend_range here, must use range only
                     .ok()?
                     .chars()
-                    .into_iter()
                     .next()?
                     .to_ascii_lowercase();
                 Some(Jump {
@@ -201,7 +200,6 @@ pub trait SelectionMode {
                 .into_iter()
                 .cycle()
                 .zip(jumps)
-                .into_iter()
                 .map(|(char, jump)| Jump {
                     character: char,
                     selection: jump.selection,

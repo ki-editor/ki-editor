@@ -21,7 +21,7 @@ use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
 use lsp_types::DiagnosticSeverity;
-use my_proc_macros::{hex, key};
+use my_proc_macros::key;
 use ropey::Rope;
 
 use crate::{
@@ -29,7 +29,7 @@ use crate::{
     buffer::Buffer,
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    grid::{Cell, Grid},
+    grid::Grid,
     lsp::completion::PositionalEdit,
     position::Position,
     quickfix_list::QuickfixListType,
@@ -96,7 +96,6 @@ impl Component for Editor {
         let len_lines = rope.len_lines() as u16;
         let max_line_number_len = len_lines.to_string().len() as u16;
         let line_number_separator_width = 1;
-        let width = width.saturating_sub(max_line_number_len + line_number_separator_width);
         let scroll_offset = editor.scroll_offset();
         let wrapped_lines = soft_wrap::soft_wrap(
             &rope
@@ -113,53 +112,33 @@ impl Component for Editor {
                 width = max_line_number_len as usize
             )
         };
-        // log::info!("\n:{}", self.buffer().display_history());
-        let line_numbers_grid = (0..height.min(len_lines.saturating_sub(scroll_offset))).fold(
-            Grid::new(Dimension {
-                height,
-                width: max_line_number_len,
-            }),
-            |grid, index| {
-                let line_number = index + scroll_offset + 1;
-                let line_number_str = format_line_number(line_number as usize);
+        let (hidden_parent_lines, visible_parent_lines) =
+            self.get_parent_lines().unwrap_or_default();
+        let visible_parent_lines_numbers = visible_parent_lines
+            .iter()
+            .chain(hidden_parent_lines.iter())
+            .map(|line| line.line)
+            .collect_vec();
 
-                if let Ok(position) = wrapped_lines.calibrate(Position {
-                    line: (line_number.saturating_sub(scroll_offset).saturating_sub(1)) as usize,
-                    column: 0,
-                }) {
-                    let line_index = position.line;
-                    if line_index < height as usize {
-                        return grid.set_line(line_index, &line_number_str, theme.ui.line_number);
-                    }
-                }
-                grid
-            },
-        );
-        let make_line_numbers_separator_grid = |height: u16| {
-            (0..height).fold(
-                Grid::new(Dimension {
-                    height,
-                    width: line_number_separator_width,
-                }),
-                |grid, index| grid.set_line(index as usize, "│", theme.ui.line_number_separator),
-            )
-        };
+        let grid: Grid = Grid::new(Dimension { height, width });
 
-        let line_numbers_separator_grid = make_line_numbers_separator_grid(height);
-
-        let mut grid: Grid = Grid::new(Dimension { height, width });
         let selection = &editor.selection_set.primary;
-
         // If the buffer selection is updated less recently than the window's scroll offset,
+
         // use the window's scroll offset.
 
         let lines = wrapped_lines
             .lines()
             .iter()
-            .flat_map(|line| line.lines())
+            .flat_map(|line| {
+                let line_number = line.line_number();
+                line.lines()
+                    .into_iter()
+                    .map(|line| (line_number + scroll_offset as usize, line))
+                    .collect_vec()
+            })
             .take(height as usize)
-            .enumerate()
-            .collect::<Vec<(_, String)>>();
+            .collect::<Vec<(_, _)>>();
 
         let bookmarks = buffer
             .bookmarks()
@@ -167,18 +146,6 @@ impl Component for Editor {
             .flat_map(|bookmark| range_to_cell_update(&buffer, bookmark, theme.ui.bookmark));
 
         let secondary_selections = &editor.selection_set.secondary;
-
-        for (line_index, line) in lines {
-            for (column_index, c) in line.chars().take(width as usize).enumerate() {
-                grid.rows[line_index][column_index] = Cell {
-                    symbol: c.to_string(),
-                    background_color: theme.ui.text.background_color.unwrap_or(hex!("#ffffff")),
-                    foreground_color: theme.ui.text.foreground_color.unwrap_or(hex!("#000000")),
-                    undercurl: None,
-                    is_cursor: false,
-                };
-            }
-        }
 
         fn range_to_cell_update(
             buffer: &Buffer,
@@ -268,19 +235,14 @@ impl Component for Editor {
             .flatten();
 
         let highlighted_spans = buffer.highlighted_spans();
-        let (inbound_highlight_spans, outbound_highlight_spans): (Vec<_>, Vec<_>) =
-            highlighted_spans
-                .iter()
-                .flat_map(|highlighted_span| {
-                    highlighted_span.byte_range.clone().filter_map(|byte| {
-                        Some(
-                            CellUpdate::new(buffer.byte_to_position(byte).ok()?)
-                                .style(highlighted_span.style),
-                        )
-                    })
-                })
-                .partition(|span| span.position.line >= scroll_offset as usize);
-
+        let highlighted_spans = highlighted_spans.iter().flat_map(|highlighted_span| {
+            highlighted_span.byte_range.clone().filter_map(|byte| {
+                Some(
+                    CellUpdate::new(buffer.byte_to_position(byte).ok()?)
+                        .style(highlighted_span.style),
+                )
+            })
+        });
         let diagnostics = diagnostics
             .iter()
             .sorted_by(|a, b| a.severity.cmp(&b.severity))
@@ -347,75 +309,118 @@ impl Component for Editor {
             .chain(secondary_selection)
             .chain(seconday_selection_anchors)
             .chain(diagnostics)
-            .chain(inbound_highlight_spans)
+            .chain(highlighted_spans)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
-            .chain(extra_decorations)
-            .filter_map(|update| {
-                let update = update.subtract_vertical_offset(scroll_offset.into())?;
-                Some(CellUpdate {
-                    position: wrapped_lines.calibrate(update.position).ok()?,
-                    ..update
-                })
-            })
-            .collect::<Vec<_>>();
+            .chain(extra_decorations);
 
-        let hidden_parent_lines_grid = {
-            let hidden_parent_lines = self.get_hidden_parent_lines().unwrap_or_default();
-            let height = hidden_parent_lines.len() as u16;
-            let line_number_grid = hidden_parent_lines.iter().enumerate().fold(
-                Grid::new(Dimension {
-                    width: max_line_number_len,
-                    height,
-                }),
-                |grid, (index, line)| {
-                    grid.set_line(
-                        index,
-                        &format_line_number(line.line + 1),
-                        theme
+        let render_lines = |grid: Grid, lines: Vec<(usize, String)>, updates: &Vec<CellUpdate>| {
+            lines
+                .into_iter()
+                .enumerate()
+                .fold(grid, |grid, (line_index, (line_number, line))| {
+                    let background_color =
+                        if visible_parent_lines_numbers.iter().contains(&line_number) {
+                            Some(theme.ui.parent_lines_background)
+                        } else {
+                            None
+                        };
+                    let line_number_str = format_line_number(line_number + 1);
+                    Grid::new(Dimension {
+                        height,
+                        width: max_line_number_len,
+                    });
+                    grid.set_row(
+                        line_index,
+                        Some(0),
+                        Some(max_line_number_len as usize),
+                        &line_number_str,
+                        &theme
                             .ui
                             .line_number
-                            .background_color(theme.ui.parent_lines_background),
+                            .set_some_background_color(background_color),
                     )
-                },
-            );
-            let line_numbers_separator_grid = make_line_numbers_separator_grid(height);
-            let content_grid = hidden_parent_lines.into_iter().enumerate().fold(
+                    .set_row(
+                        line_index,
+                        Some(max_line_number_len as usize),
+                        Some((max_line_number_len + 1) as usize),
+                        "│",
+                        &theme
+                            .ui
+                            .line_number_separator
+                            .set_some_background_color(background_color),
+                    )
+                    .set_row(
+                        line_index,
+                        Some((max_line_number_len + 1) as usize),
+                        None,
+                        &line.chars().take(width as usize).collect::<String>(),
+                        &theme.ui.text.set_some_background_color(background_color),
+                    )
+                    .apply_cell_updates(updates)
+                })
+        };
+
+        let grid = render_lines(
+            grid,
+            lines,
+            &updates
+                .clone()
+                .filter_map(|update| {
+                    let update = update.subtract_vertical_offset(scroll_offset.into())?;
+                    Some(CellUpdate {
+                        position: wrapped_lines
+                            .calibrate(update.position)
+                            .ok()?
+                            .move_right(max_line_number_len + line_number_separator_width),
+                        ..update
+                    })
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        let hidden_parent_lines_grid = {
+            let height = hidden_parent_lines.len() as u16;
+            let hidden_parent_lines = hidden_parent_lines
+                .into_iter()
+                .map(|line| (line.line, line.content))
+                .collect_vec();
+            let updates = {
+                let hidden_parent_lines_with_index =
+                    hidden_parent_lines.iter().enumerate().collect_vec();
+                updates
+                    .filter_map(|update| {
+                        if let Some((index, _)) = hidden_parent_lines_with_index
+                            .iter()
+                            .find(|(_, (line_number, _))| &update.position.line == line_number)
+                        {
+                            Some(
+                                update
+                                    .set_position_line(*index)
+                                    .move_right(max_line_number_len + line_number_separator_width),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .collect_vec()
+            };
+
+            render_lines(
                 Grid::new(Dimension {
                     width: editor.dimension().width,
                     height,
                 }),
-                |grid, (index, line)| {
-                    let updates = outbound_highlight_spans
-                        .iter()
-                        .filter(|update| update.position.line == line.line)
-                        .map(|update| update.clone().set_position(update.position.set_line(index)))
-                        .collect_vec();
-
-                    grid.set_line(
-                        index,
-                        &line.content,
-                        theme
-                            .ui
-                            .text
-                            .background_color(theme.ui.parent_lines_background),
-                    )
-                    .apply_cell_updates(updates)
-                },
-            );
-            line_number_grid
-                .merge_horizontal(line_numbers_separator_grid)
-                .merge_horizontal(content_grid)
+                hidden_parent_lines,
+                &updates,
+            )
         };
 
         let grid = {
             let bottom_height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
 
-            let bottom = line_numbers_grid
-                .merge_horizontal(line_numbers_separator_grid)
-                .merge_horizontal(grid.apply_cell_updates(updates))
-                .clamp_bottom(bottom_height);
+            let bottom = grid.clamp_bottom(bottom_height);
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
@@ -603,13 +608,13 @@ pub enum Movement {
 }
 
 impl Editor {
-    pub fn get_hidden_parent_lines(&self) -> anyhow::Result<Vec<Line>> {
+    /// Returns (hidden_parent_lines, visible_parent_lines)
+    pub fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
         let parent_lines = self.buffer().get_parent_lines(position.line)?;
         Ok(parent_lines
             .into_iter()
-            .filter(|line| line.line < self.scroll_offset as usize)
-            .collect_vec())
+            .partition(|line| line.line < self.scroll_offset as usize))
     }
     pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
         Self {
@@ -799,11 +804,7 @@ impl Editor {
     }
 
     fn jump_characters() -> Vec<char> {
-        ('a'..='z')
-            .into_iter()
-            .chain('A'..='Z')
-            .chain('0'..'9')
-            .collect_vec()
+        ('a'..='z').chain('A'..='Z').chain('0'..'9').collect_vec()
     }
 
     fn jump_from_selection(
@@ -1778,7 +1779,7 @@ impl Editor {
         }
     }
 
-    fn save_bookmarks(&mut self) {
+    pub fn save_bookmarks(&mut self) {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
@@ -2904,6 +2905,10 @@ impl Editor {
             self.update_selection_set(selection_set)
         };
         Ok(self.get_document_did_change_dispatch())
+    }
+
+    pub fn set_scroll_offset(&mut self, scroll_offset: u16) {
+        self.scroll_offset = scroll_offset
     }
 }
 

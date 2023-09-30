@@ -68,6 +68,10 @@ impl WrappedLine {
             .collect()
     }
 
+    pub fn line_number(&self) -> usize {
+        self.line_number
+    }
+
     fn get_position(&self, column: usize, width: usize) -> Option<Position> {
         // If the column is within the primary line
         // or if the line is not wrapped and the column is within the width

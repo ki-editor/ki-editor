@@ -214,6 +214,9 @@
 - [] fix(selection_mode/syntax_tree): when going into syntax_tree mode from other mode, should prioritize selection of current line, same like going into outermost node mode
 - [] feat(bookmark): b = save/unsave current selection into bookmarks, fb = find bookmarks, gb = global find bookmarks (question how bookmark recalibrate after auto-format?)
 - [] fix(render): cursor out of bound sometimes due to contextual parent lines
+- [] feat(git_hunk): trim leading whitespaces when showing diff
+- [] test(render): with wrapped lines, decorations are rendered properly, and cursor position too
+- [] fix(render): unicode causes extra padding
 
 # Grammar loading
 

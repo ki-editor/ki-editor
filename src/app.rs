@@ -38,7 +38,6 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
-    rectangle::LayoutKind,
     selection::SelectionMode,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
@@ -261,7 +260,7 @@ impl<T: Frontend> App<T> {
                         let title_grid = Grid::new(title_rectangle.dimension()).set_line(
                             0,
                             &title,
-                            self.context.theme().ui.window_title,
+                            &self.context.theme().ui.window_title,
                         );
                         (
                             grid.update(&component_grid, &rectangle)
@@ -308,7 +307,7 @@ impl<T: Frontend> App<T> {
                 height: 1,
                 width: dimension.width,
             })
-            .set_line(0, &title, self.context.theme().ui.global_title)
+            .set_line(0, &title, &self.context.theme().ui.global_title)
         };
 
         self.render_grid(grid.merge_vertical(global_title_grid), cursor)?;

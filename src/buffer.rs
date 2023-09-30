@@ -35,7 +35,7 @@ pub struct Buffer {
     decorations: Vec<Decoration>,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Line {
     origin_position: Position,
     /// 0-based
@@ -105,8 +105,8 @@ impl Buffer {
             .collect()
     }
 
-    pub fn get_parent_lines(&self, line: usize) -> anyhow::Result<Vec<Line>> {
-        let char_index = self.line_to_char(line)?;
+    pub fn get_parent_lines(&self, line_number: usize) -> anyhow::Result<Vec<Line>> {
+        let char_index = self.line_to_char(line_number)?;
         let node = self.get_nearest_node_after_char(char_index);
         fn get_parent_lines(
             buffer: &Buffer,
@@ -146,6 +146,8 @@ impl Buffer {
             .collect_vec()
             .into_iter()
             .rev()
+            // Remove line that is not above `line`
+            .filter(|line| line.line < line_number)
             .collect_vec())
     }
 
@@ -690,7 +692,6 @@ mod test_buffer {
         let expected = "
 - who:
   - in:
-    - pineapple
 "
         .trim()
         .to_string();
@@ -723,10 +724,9 @@ fn f(
             .join("\n");
         let expected = "
 fn f(
-) -> Result<
-  B"
-        .trim()
-        .to_string();
+) -> Result<"
+            .trim()
+            .to_string();
         pretty_assertions::assert_eq!(actual, expected)
     }
 
