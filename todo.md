@@ -217,6 +217,9 @@
 - [] feat(git_hunk): trim leading whitespaces when showing diff
 - [] test(render): with wrapped lines, decorations are rendered properly, and cursor position too
 - [] fix(render): unicode causes extra padding
+- [] fix(editor): cursor is missing when content is empty
+- [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
+- [] fix(key): crash when super is pressed
 
 # Grammar loading
 

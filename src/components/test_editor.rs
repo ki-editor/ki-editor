@@ -1011,4 +1011,38 @@ fn main() {
 
         Ok(())
     }
+
+    #[test]
+    fn test_wrapped_lines() -> anyhow::Result<()> {
+        let content = "
+// hello world\n hey
+"
+        .trim();
+        let context = Context::default();
+        let mut editor = Editor::from_text(language(), content);
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 13,
+            height: 3,
+        });
+
+        editor.match_literal(&context, "world")?;
+        editor.enter_insert_mode(Direction::End)?;
+        let result = editor.get_grid(&context);
+
+        let expected_grid = "
+1│// hello
+↪│world
+2│ hey
+"
+        .trim();
+        assert_eq!(result.grid.to_string(), expected_grid);
+
+        // Expect the cursor is after 'd'
+        assert_eq!(
+            result.cursor.unwrap().position(),
+            &Position { line: 1, column: 7 }
+        );
+        Ok(())
+    }
 }

@@ -103,15 +103,8 @@ impl Component for Editor {
                 .skip(scroll_offset as usize)
                 .take(height as usize)
                 .join(""),
-            width as usize,
+            (width - max_line_number_len - line_number_separator_width) as usize,
         );
-        let format_line_number = |line_number: usize| {
-            format!(
-                "{: >width$}",
-                line_number.to_string(),
-                width = max_line_number_len as usize
-            )
-        };
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
         let visible_parent_lines_numbers = visible_parent_lines
@@ -134,11 +127,16 @@ impl Component for Editor {
                 let line_number = line.line_number();
                 line.lines()
                     .into_iter()
-                    .map(|line| (line_number + scroll_offset as usize, line))
+                    .enumerate()
+                    .map(|(index, line)| RenderLine {
+                        line_number: line_number + scroll_offset as usize,
+                        content: line,
+                        wrapped: index > 0,
+                    })
                     .collect_vec()
             })
             .take(height as usize)
-            .collect::<Vec<(_, _)>>();
+            .collect::<Vec<_>>();
 
         let bookmarks = buffer
             .bookmarks()
@@ -315,18 +313,42 @@ impl Component for Editor {
             .chain(secondary_selection_cursors)
             .chain(extra_decorations);
 
-        let render_lines = |grid: Grid, lines: Vec<(usize, String)>, updates: &Vec<CellUpdate>| {
-            lines
-                .into_iter()
-                .enumerate()
-                .fold(grid, |grid, (line_index, (line_number, line))| {
+        struct RenderLine {
+            line_number: usize,
+            content: String,
+            wrapped: bool,
+        };
+
+        let render_lines = |grid: Grid, lines: Vec<RenderLine>, updates: &Vec<CellUpdate>| {
+            lines.into_iter().enumerate().fold(
+                grid,
+                |grid,
+                 (
+                    line_index,
+                    RenderLine {
+                        line_number,
+                        content: line,
+                        wrapped,
+                    },
+                )| {
                     let background_color =
                         if visible_parent_lines_numbers.iter().contains(&line_number) {
                             Some(theme.ui.parent_lines_background)
                         } else {
                             None
                         };
-                    let line_number_str = format_line_number(line_number + 1);
+                    let line_number_str = {
+                        let line_number = if wrapped {
+                            "↪".to_string()
+                        } else {
+                            (line_number + 1).to_string()
+                        };
+                        format!(
+                            "{: >width$}",
+                            line_number.to_string(),
+                            width = max_line_number_len as usize
+                        )
+                    };
                     Grid::new(Dimension {
                         height,
                         width: max_line_number_len,
@@ -359,7 +381,8 @@ impl Component for Editor {
                         &theme.ui.text.set_some_background_color(background_color),
                     )
                     .apply_cell_updates(updates)
-                })
+                },
+            )
         };
 
         let grid = render_lines(
@@ -384,7 +407,11 @@ impl Component for Editor {
             let height = hidden_parent_lines.len() as u16;
             let hidden_parent_lines = hidden_parent_lines
                 .into_iter()
-                .map(|line| (line.line, line.content))
+                .map(|line| RenderLine {
+                    line_number: line.line,
+                    content: line.content,
+                    wrapped: false,
+                })
                 .collect_vec();
             let updates = {
                 let hidden_parent_lines_with_index =
@@ -393,7 +420,7 @@ impl Component for Editor {
                     .filter_map(|update| {
                         if let Some((index, _)) = hidden_parent_lines_with_index
                             .iter()
-                            .find(|(_, (line_number, _))| &update.position.line == line_number)
+                            .find(|(_, line)| &update.position.line == &line.line_number)
                         {
                             Some(
                                 update
