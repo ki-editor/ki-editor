@@ -192,6 +192,13 @@ Kill also means delete, it does the following things (in order):
 
 If you are familiar with Vim, this behaves like `x`. However, it is not only restricted to character, it works for any selection mode as long as the condition is met.
 
+## Other movements
+`n`: Next most selection (i.e. the last selection)
+`p`: Previous most selection (i.e. the first selection)
+`i`: Go to a selection by index (1-based)
+
+For example: press `l o n` to go to the last line, press `l o p` to go to the first line, and press `l o i 9 enter` to go to line 9. 
+
 ## List menu
 
 This is like Neovim's Telescope plugin, where you can search through a list of objects.
