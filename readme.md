@@ -1,12 +1,15 @@
 # Tim Editor
 
+> **Warning**
+This editor is not stable yet, in particular, the keybindings are not fully settled yet.
+
 ## Disclaimer
 
 This documentation does not and will not in the future include features that are not yet implemented.
 
 ## Core concepts
 
-### 1. Movable objects are movable using the same set keybindings
+### 1. Movable objects are movable using the same set of keybindings
 
 Almost all kinds of movement in Tim have can be moved based on the same set of keybindings.
 
