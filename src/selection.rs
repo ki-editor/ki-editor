@@ -316,8 +316,8 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::BottomNode => "TOKEN".to_string(),
-            SelectionMode::TopNode => "OUTERMOST NODE".to_string(),
+            SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
+            SelectionMode::TopNode => "TOP NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
