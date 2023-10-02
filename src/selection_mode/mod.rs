@@ -1,30 +1,30 @@
 pub mod ast_grep;
 pub mod bookmark;
+pub mod bottom_node;
 pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
 pub mod line;
 pub mod local_quickfix;
-pub mod outermost_node;
 pub mod regex;
 pub mod small_word;
 pub mod syntax_tree;
-pub mod token;
+pub mod top_node;
 
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use bookmark::Bookmark;
+pub use bottom_node::Token;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
 use itertools::Itertools;
 pub use line::Line;
 pub use local_quickfix::LocalQuickfix;
-pub use outermost_node::OutermostNode;
 pub use small_word::SmallWord;
 use std::ops::Range;
 pub use syntax_tree::SyntaxTree;
-pub use token::Token;
+pub use top_node::OutermostNode;
 
 use crate::{
     buffer::Buffer,

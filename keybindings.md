@@ -40,7 +40,7 @@ The following keybindings work regardless of any mode.
 ## Normal mode
 
 - `a`: Enter insert mode **a**fter current selection
-- `b`: (unassigned)
+- `b`: Set selection mode to **b**ottom node
 - `c`: Set selection mode to **c**haracter
 - `d`: Move **d**own
 - `e`: Enter **e**xchange mode
@@ -53,19 +53,19 @@ The following keybindings work regardless of any mode.
 - `l`: Set selection mode to **l**ine
 - `m`: Enter **m**ulti-cursor mode
 - `n`: Move to **n**ext selection(s)
-- `o`: Set selection mode to **o**utermode node
+- `o`: Open **o**ther movement menu
 - `p`: Move to **p**revious selection(s)
 - `q`: Set selection mode to **q**uickfix
 - `r`: Raise current selection(s) (Replace parent node with current node)
 - `shift+R`: Replace the current selection with copied content, and copy the replaced content
 - `s`: Set selection mode to **s**yntax tree
-- `t`: Set selection mode to syntax **t**oken
+- `t`: Set selection mode to **t**op node
 - `u`: Move **u**p
 - `v`: (unassigned)
 - `w`: Set selection mode to **w**ord
 - `x`: Open common rege**x** menu
 - `y`: (unassigned)
-- `z`: Open other movements menu
+- `z`: (unassigned)
 - `:`: Enter command mode
 - `,`: Change to the previous selection(s)
 - `*`: Select the whole file

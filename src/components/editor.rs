@@ -739,7 +739,7 @@ impl Editor {
             .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::OutermostNode
+            SelectionMode::TopNode
         } else {
             SelectionMode::Custom
         };
@@ -1806,11 +1806,14 @@ impl Editor {
                 Ok(Some(Vec::new()))
             }
             key!("n") => move_selection(Movement::Next),
+            key!("o") => Ok(Some(
+                [Dispatch::ShowKeymapLegend(
+                    self.other_movement_keymap_legend(),
+                )]
+                .to_vec(),
+            )),
             key!("p") => move_selection(Movement::Previous),
             key!("u") => move_selection(Movement::Up),
-            key!("z") => Ok(Some(
-                [Dispatch::ShowKeymapLegend(self.move_mode_keymap_legend())].to_vec(),
-            )),
             _ => Ok(None),
         }
     }
@@ -1846,6 +1849,7 @@ impl Editor {
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::End)?,
+            key!("b") => return self.set_selection_mode(context, SelectionMode::BottomNode),
             key!("ctrl+b") => self.save_bookmarks(),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
@@ -1870,7 +1874,7 @@ impl Editor {
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
-            key!("o") => return self.set_selection_mode(context, SelectionMode::OutermostNode),
+
             // p = previous
             key!("q") => {
                 return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::QuickfixListItem))].to_vec())
@@ -1880,7 +1884,7 @@ impl Editor {
             key!("r") => return self.raise(context),
             key!("shift+R") => return self.replace(context),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
-            key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
+            key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
             // u = up
             key!("v") => {
                 return Ok([Dispatch::SetGlobalMode(Some(
@@ -2752,7 +2756,7 @@ impl Editor {
         (self.dimension().height / 2) as usize
     }
 
-    fn move_mode_keymap_legend(&self) -> KeymapLegendConfig {
+    fn other_movement_keymap_legend(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Move".to_string(),
             owner_id: self.id(),
@@ -2764,13 +2768,13 @@ impl Editor {
                 ),
                 Keymap::new(
                     "p",
-                    "First selection",
+                    "Previous most (first) selection",
                     Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
                 ),
                 Keymap::new("i", "To Index (1-based)", Dispatch::OpenMoveToIndexPrompt),
                 Keymap::new(
                     "n",
-                    "Last selection",
+                    "Next most (last) selection",
                     Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Last)),
                 ),
             ]

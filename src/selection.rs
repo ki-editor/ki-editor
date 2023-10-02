@@ -283,8 +283,8 @@ pub enum SelectionMode {
     Find { search: Search },
 
     // Syntax-tree
-    Token,
-    OutermostNode,
+    BottomNode,
+    TopNode,
     SyntaxTree,
 
     // LSP
@@ -306,7 +306,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, OutermostNode | SyntaxTree)
+        matches!(self, TopNode | SyntaxTree)
     }
 
     pub fn display(&self) -> String {
@@ -316,8 +316,8 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::OutermostNode => "OUTERMOST NODE".to_string(),
+            SelectionMode::BottomNode => "TOKEN".to_string(),
+            SelectionMode::TopNode => "OUTERMOST NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
@@ -379,8 +379,8 @@ impl SelectionMode {
                     true,
                 )?),
             },
-            SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::OutermostNode => Box::new(selection_mode::OutermostNode),
+            SelectionMode::BottomNode => Box::new(selection_mode::Token),
+            SelectionMode::TopNode => Box::new(selection_mode::OutermostNode),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
