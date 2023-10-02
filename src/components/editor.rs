@@ -2900,10 +2900,10 @@ impl Editor {
 
     fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Vec<Dispatch>, anyhow::Error> {
         if let Some(selection_set) = match movement {
-            Movement::Up => self.buffer_mut().redo()?,
-            Movement::Down => self.buffer_mut().undo()?,
-            Movement::Next => self.buffer_mut().go_to_history_branch(Direction::End)?,
-            Movement::Previous => self.buffer_mut().go_to_history_branch(Direction::Start)?,
+            Movement::Next => self.buffer_mut().redo()?,
+            Movement::Previous => self.buffer_mut().undo()?,
+            Movement::Up => self.buffer_mut().go_to_history_branch(Direction::End)?,
+            Movement::Down => self.buffer_mut().go_to_history_branch(Direction::Start)?,
             _ => None,
         } {
             self.update_selection_set(selection_set)

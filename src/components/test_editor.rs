@@ -884,15 +884,15 @@ fn f() {
         editor.insert("bc")?;
         editor.enter_undo_tree_mode();
 
-        // Down = undo
-        editor.handle_movement(&context, Movement::Down)?;
+        // Previous = undo
+        editor.handle_movement(&context, Movement::Previous)?;
         assert_eq!(editor.content(), "a\n");
 
-        // Up = redo
-        editor.handle_movement(&context, Movement::Up)?;
+        // Next = redo
+        editor.handle_movement(&context, Movement::Next)?;
         assert_eq!(editor.content(), "abc\n");
 
-        editor.handle_movement(&context, Movement::Down)?;
+        editor.handle_movement(&context, Movement::Previous)?;
         assert_eq!(editor.content(), "a\n");
         editor.insert("de")?;
         let dispatches = editor.enter_undo_tree_mode();
@@ -913,13 +913,13 @@ fn f() {
             }]
         );
 
-        // Previous = go to previous history branch
-        editor.handle_movement(&context, Movement::Previous)?;
+        // Down = go to previous history branch
+        editor.handle_movement(&context, Movement::Down)?;
         // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
         assert_eq!(editor.content(), "abc\n");
 
-        // Next = go to next history branch
-        editor.handle_movement(&context, Movement::Next)?;
+        // Up = go to next history branch
+        editor.handle_movement(&context, Movement::Up)?;
         assert_eq!(editor.content(), "ade\n");
         Ok(())
     }

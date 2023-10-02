@@ -82,6 +82,13 @@ The following keybindings work regardless of any mode.
 
 ## Movements and selection modes
 
+## Core movements
+
+The core movements are `n`, `p`, `d` and `u`.
+In general, `d` (down) and `u` (up) should be understood as multiple `n`s (next) or `p`s.
+
+For example, in Character mode, `u` means go to the character of the same column above this line, which is a multitude of `p`.
+
 ### Legends:
 
 - (blank) = As implied by the name of the movement
@@ -193,11 +200,12 @@ Kill also means delete, it does the following things (in order):
 If you are familiar with Vim, this behaves like `x`. However, it is not only restricted to character, it works for any selection mode as long as the condition is met.
 
 ## Other movements
+
 `n`: Next most selection (i.e. the last selection)
 `p`: Previous most selection (i.e. the first selection)
 `i`: Go to a selection by index (1-based)
 
-For example: press `l o n` to go to the last line, press `l o p` to go to the first line, and press `l o i 9 enter` to go to line 9. 
+For example: press `l o n` to go to the last line, press `l o p` to go to the first line, and press `l o i 9 enter` to go to line 9.
 
 ## List menu
 
