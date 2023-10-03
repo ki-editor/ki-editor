@@ -57,7 +57,7 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
         receiver,
     )?;
 
-    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
+    // app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();
 

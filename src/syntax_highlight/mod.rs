@@ -33,8 +33,7 @@ pub fn highlight(
         &language.highlight_query().unwrap_or_default(),
         language.injection_query().unwrap_or_default(),
         language.locals_query().unwrap_or_default(),
-    )
-    .unwrap();
+    )?;
 
     config.configure(crate::themes::HIGHLIGHT_NAMES);
 

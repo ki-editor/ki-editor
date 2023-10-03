@@ -997,14 +997,11 @@ impl<T: Frontend> App<T> {
                     .show_quickfix_lists(self.context.quickfix_lists().clone());
                 self.goto_quickfix_list_item(Movement::Next)
             }
-            Some(RequestKind::Local) => {
-                log::info!("hello");
-                self.handle_dispatch(Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                    SelectionMode::LocalQuickfix {
-                        title: context.description.unwrap_or_default(),
-                    },
-                )))
-            }
+            Some(RequestKind::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
+                DispatchEditor::SetSelectionMode(SelectionMode::LocalQuickfix {
+                    title: context.description.unwrap_or_default(),
+                }),
+            )),
         }
     }
 
