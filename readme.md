@@ -3,6 +3,9 @@
 > **Warning**
 This editor is not stable yet, in particular, the keybindings are not fully settled yet.
 
+## Showcase
+[Click here](./showcase.md)
+
 ## Disclaimer
 
 This documentation does not and will not in the future include features that are not yet implemented.
