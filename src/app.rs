@@ -1,6 +1,6 @@
 use event::event::Event;
 use itertools::Itertools;
-use my_proc_macros::key;
+use my_proc_macros::{key};
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
@@ -39,7 +39,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     selection::SelectionMode,
-    syntax_highlight::{SyntaxHighlightRequest},
+    syntax_highlight::SyntaxHighlightRequest,
     themes::VSCODE_LIGHT,
 };
 

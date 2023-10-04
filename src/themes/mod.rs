@@ -19,7 +19,9 @@ pub enum StyleKey {
 impl StyleKey {
     pub fn get_style(&self, theme: &Theme) -> Style {
         match self {
-            StyleKey::UiPrimarySelection => theme.ui.primary_selection,
+            StyleKey::UiPrimarySelection => {
+                Style::default().background_color(theme.ui.primary_selection_background)
+            }
         }
     }
 }
@@ -47,11 +49,11 @@ pub struct UiStyles {
     pub jump_mark_odd: Style,
     pub jump_mark_even: Style,
     pub text: Style,
-    pub primary_selection: Style,
-    pub primary_selection_anchor: Style,
+    pub primary_selection_background: Color,
+    pub primary_selection_anchor_background: Color,
     pub primary_selection_secondary_cursor: Style,
-    pub secondary_selection: Style,
-    pub secondary_selection_anchor: Style,
+    pub secondary_selection_background: Color,
+    pub secondary_selection_anchor_background: Color,
     pub secondary_selection_primary_cursor: Style,
     pub secondary_selection_secondary_cursor: Style,
     pub line_number: Style,

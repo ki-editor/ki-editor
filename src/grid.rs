@@ -23,6 +23,13 @@ pub struct Cell {
     pub background_color: Color,
     pub undercurl: Option<Color>,
     pub is_cursor: bool,
+    #[cfg(test)]
+    /// For debugging purposes, so that we can trace this Cell is updated by which decoration, e.g. Diagnostic
+    pub source: Option<String>,
+}
+
+fn choose<T>(old: Option<T>, new: Option<T>) -> Option<T> {
+    new.or(old)
 }
 
 impl Cell {
@@ -30,14 +37,11 @@ impl Cell {
     fn from_char(c: char) -> Self {
         Cell {
             symbol: c.to_string(),
-            foreground_color: hex!("#ffffff"),
-            background_color: hex!("#ffffff"),
-            undercurl: None,
-            is_cursor: false,
+            ..Default::default()
         }
     }
 
-    fn apply_update(&self, update: &CellUpdate) -> Cell {
+    fn apply_update(&self, update: CellUpdate) -> Cell {
         Cell {
             symbol: update.symbol.clone().unwrap_or(self.symbol.clone()),
             foreground_color: update
@@ -48,8 +52,10 @@ impl Cell {
                 .style
                 .background_color
                 .unwrap_or(self.background_color),
-            undercurl: update.style.undercurl.or(self.undercurl),
+            undercurl: choose(self.undercurl, update.style.undercurl),
             is_cursor: update.is_cursor || self.is_cursor,
+            #[cfg(test)]
+            source: update.source.clone().or_else(|| self.source.clone()),
         }
     }
 }
@@ -62,6 +68,8 @@ impl Default for Cell {
             background_color: hex!("#ffffff"),
             undercurl: None,
             is_cursor: false,
+            #[cfg(test)]
+            source: None,
         }
     }
 }
@@ -72,6 +80,10 @@ pub struct CellUpdate {
     pub symbol: Option<String>,
     pub style: Style,
     pub is_cursor: bool,
+
+    #[cfg(test)]
+    /// For debugging purposes
+    pub source: Option<String>,
 }
 
 impl CellUpdate {
@@ -81,6 +93,16 @@ impl CellUpdate {
             symbol: None,
             style: Style::default(),
             is_cursor: false,
+            #[cfg(test)]
+            source: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn source(self, source: String) -> CellUpdate {
+        CellUpdate {
+            source: Some(source),
+            ..self
         }
     }
 
@@ -302,7 +324,7 @@ impl Grid {
         self.set_row(row, None, None, title, style)
     }
 
-    pub fn apply_cell_update(mut self, update: &CellUpdate) -> Grid {
+    pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
         let Position { line, column } = update.position;
         if line < self.rows.len() && column < self.rows[line].len() {
             self.rows[line][column] = self.rows[line][column].apply_update(update);
@@ -310,9 +332,9 @@ impl Grid {
         self
     }
 
-    pub fn apply_cell_updates(self, updates: &Vec<CellUpdate>) -> Grid {
+    pub fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
         updates
-            .iter()
+            .into_iter()
             .fold(self, |grid, update| grid.apply_cell_update(update))
     }
 

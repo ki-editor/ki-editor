@@ -1048,7 +1048,9 @@ fn main() {
 
     #[test]
     fn syntax_highlighting() -> anyhow::Result<()> {
-        let theme = Theme::default();
+        let mut theme = Theme::default();
+        let bookmark_foreground = hex!("#deface");
+        theme.ui.bookmark = Style::new().foreground_color(bookmark_foreground);
         let context = Context::default().set_theme(theme.clone());
         let content = "
 fn main() { // too long
@@ -1094,6 +1096,30 @@ fn main() { // too long
         result.grid.assert_ranges(ranges, |cell| {
             cell.foreground_color == keyword_foreground_color
         });
+
+        // Expect decorations overrides syntax highlighting
+        editor.match_literal(&context, "fn")?;
+        editor.save_bookmarks();
+        // Move cursor to next line, so that "fn" is not selected,
+        //  so that we can test the style applied to "fn" ,
+        // otherwise the style of primary selection anchors will override the bookmark style
+        editor.match_literal(&context, "let")?;
+        let result = editor.get_grid(&context);
+
+        assert_eq!(
+            result.grid.to_string(),
+            "
+1│fn main() { // too
+↪│ long
+2│  let foo = 1;
+"
+            .trim()
+        );
+        result
+            .grid
+            .assert_range(&(Position::new(0, 2)..=Position::new(0, 3)), |cell| {
+                cell.foreground_color == bookmark_foreground
+            });
 
         Ok(())
     }

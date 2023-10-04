@@ -187,10 +187,9 @@ impl Component for Editor {
                 })
                 .collect_vec()
         };
-        let bookmarks = buffer
-            .bookmarks()
-            .into_iter()
-            .flat_map(|bookmark| range_to_cell_update(&buffer, bookmark, theme.ui.bookmark));
+        let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
+            range_to_cell_update(&buffer, bookmark, theme.ui.bookmark, "bookmarks")
+        });
 
         let secondary_selections = &editor.selection_set.secondary;
 
@@ -198,12 +197,17 @@ impl Component for Editor {
             buffer: &Buffer,
             range: CharIndexRange,
             style: Style,
+            _source: &str,
         ) -> Vec<CellUpdate> {
             range
                 .iter()
                 .filter_map(|char_index| {
                     let position = buffer.char_to_position(char_index).ok()?;
-                    Some(CellUpdate::new(position).style(style))
+                    Some({
+                        #[cfg(test)]
+                        let style = style.source(source.to_string());
+                        CellUpdate::new(position).style(style)
+                    })
                 })
                 .collect()
         }
@@ -222,10 +226,16 @@ impl Component for Editor {
         let primary_selection = range_to_cell_update(
             &buffer,
             selection.extended_range(),
-            theme.ui.primary_selection,
+            Style::default().background_color(theme.ui.primary_selection_background),
+            "primary_selection",
         );
         let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
-            range_to_cell_update(&buffer, range, theme.ui.primary_selection_anchor)
+            range_to_cell_update(
+                &buffer,
+                range,
+                Style::default().background_color(theme.ui.primary_selection_anchor_background),
+                "primary_selection_anchors",
+            )
         });
 
         let primary_selection_primary_cursor = char_index_to_cell_update(
@@ -242,19 +252,26 @@ impl Component for Editor {
                 &buffer,
                 selection.to_char_index(&editor.cursor_direction.reverse()),
                 theme.ui.primary_selection_secondary_cursor,
-            )
+            );
         };
 
         let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
             range_to_cell_update(
                 &buffer,
                 secondary_selection.extended_range(),
-                theme.ui.secondary_selection,
+                Style::default().background_color(theme.ui.secondary_selection_background),
+                "secondary_selection",
             )
         });
         let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
             selection.anchors().into_iter().flat_map(|range| {
-                range_to_cell_update(&buffer, range, theme.ui.secondary_selection_anchor)
+                range_to_cell_update(
+                    &buffer,
+                    range,
+                    Style::default()
+                        .background_color(theme.ui.secondary_selection_anchor_background),
+                    "secondary_selection_anchors",
+                )
             })
         });
 
@@ -301,7 +318,12 @@ impl Component for Editor {
                     },
                     None => theme.diagnostic.default,
                 };
-                Some(range_to_cell_update(&buffer, char_index_range, style))
+                Some(range_to_cell_update(
+                    &buffer,
+                    char_index_range,
+                    style,
+                    "diagnostics",
+                ))
             })
             .flatten();
 
@@ -334,6 +356,7 @@ impl Component for Editor {
                     &buffer,
                     decoration.byte_range.to_char_index_range(&buffer).ok()?,
                     decoration.style_key.get_style(theme),
+                    "extra_decorations",
                 ))
             })
             .flatten()
@@ -358,7 +381,7 @@ impl Component for Editor {
             wrapped: bool,
         }
 
-        let render_lines = |grid: Grid, lines: Vec<RenderLine>, updates: &Vec<CellUpdate>| {
+        let render_lines = |grid: Grid, lines: Vec<RenderLine>| {
             lines.into_iter().enumerate().fold(
                 grid,
                 |grid,
@@ -418,30 +441,26 @@ impl Component for Editor {
                         &line.chars().take(width as usize).collect::<String>(),
                         &theme.ui.text.set_some_background_color(background_color),
                     )
-                    .apply_cell_updates(updates)
                 },
             )
         };
-
-        let grid = render_lines(
-            grid,
-            lines,
-            &updates
-                .clone()
-                .filter_map(|update| {
-                    let update = update.subtract_vertical_offset(scroll_offset.into())?;
-                    Some(CellUpdate {
-                        position: wrapped_lines
-                            .calibrate(update.position)
-                            .ok()?
-                            .move_right(max_line_number_len + line_number_separator_width),
-                        ..update
-                    })
+        let visible_lines_updates = updates
+            .clone()
+            .filter_map(|update| {
+                let update = update.subtract_vertical_offset(scroll_offset.into())?;
+                Some(CellUpdate {
+                    position: wrapped_lines
+                        .calibrate(update.position)
+                        .ok()?
+                        .move_down(hidden_parent_lines.len())
+                        .move_right(max_line_number_len + line_number_separator_width),
+                    ..update
                 })
-                .collect::<Vec<_>>(),
-        );
+            })
+            .collect::<Vec<_>>();
+        let visible_lines_grid = render_lines(grid, lines);
 
-        let hidden_parent_lines_grid = {
+        let (hidden_parent_lines_grid, hidden_parent_lines_updates) = {
             let height = hidden_parent_lines.len() as u16;
             let hidden_parent_lines = hidden_parent_lines
                 .into_iter()
@@ -472,25 +491,28 @@ impl Component for Editor {
                     .collect_vec()
             };
 
-            render_lines(
+            let grid = render_lines(
                 Grid::new(Dimension {
                     width: editor.dimension().width,
                     height,
                 }),
                 hidden_parent_lines,
-                &updates,
-            )
+            );
+            (grid, updates)
         };
 
         let grid = {
             let bottom_height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
 
-            let bottom = grid.clamp_bottom(bottom_height);
+            let bottom = visible_lines_grid.clamp_bottom(bottom_height);
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
 
-        let grid = grid.apply_cell_updates(&highlighted_spans);
+        let grid = grid
+            .apply_cell_updates(highlighted_spans)
+            .apply_cell_updates(hidden_parent_lines_updates)
+            .apply_cell_updates(visible_lines_updates);
 
         let cursor_position = grid.get_cursor_position();
 

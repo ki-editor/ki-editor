@@ -215,13 +215,15 @@
 - [] feat(bookmark): b = save/unsave current selection into bookmarks, fb = find bookmarks, gb = global find bookmarks (question how bookmark recalibrate after auto-format?)
 - [] fix(render): cursor out of bound sometimes due to contextual parent lines
 - [] feat(git_hunk): trim leading whitespaces when showing diff
-- [] test(render): with wrapped lines, decorations are rendered properly, and cursor position too
+- [x] test(render): with wrapped lines, decorations are rendered properly, and cursor position too
 - [] fix(render): unicode causes extra padding
 - [] fix(editor): cursor is missing when content is empty
 - [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
 - [] fix(key): crash when super is pressed
 - [] feat(title): window title and app title should be wrappable
 - [] perf(insert): only store edit patch and reparse tree upon exit, don't compute them on every keystroke
+- [] feat: how to enter newline in insert mode?!
+- [] style(parent_lines): don't highlight the leading and trailing whitespaces of parent lines
 
 # Grammar loading
 

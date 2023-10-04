@@ -29,17 +29,13 @@ pub const VSCODE_LIGHT: Theme = Theme {
         text: Style::new()
             .background_color(hex!("#ffffff"))
             .foreground_color(hex!("#333333")),
-        primary_selection: Style::new()
-            .background_color(hex!("#c7e6ff"))
-            .foreground_color(hex!("#333333")),
-        primary_selection_anchor: Style::new().background_color(hex!("#add6ff")),
+        primary_selection_background: hex!("#c7e6ff"),
+        primary_selection_anchor_background: hex!("#add6ff"),
         primary_selection_secondary_cursor: Style::new()
             .background_color(hex!("#808080"))
             .foreground_color(hex!("#ffffff")),
-        secondary_selection: Style::new()
-            .background_color(hex!("#ebebeb"))
-            .foreground_color(hex!("#333333")),
-        secondary_selection_anchor: Style::new().background_color(hex!("#d7d7d7")),
+        secondary_selection_background: hex!("#ebebeb"),
+        secondary_selection_anchor_background: hex!("#d7d7d7"),
         secondary_selection_primary_cursor: Style::new()
             .background_color(hex!("#000000"))
             .foreground_color(hex!("#ffffff")),
