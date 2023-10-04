@@ -39,7 +39,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     selection::SelectionMode,
-    syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
+    syntax_highlight::{SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
 };
 
@@ -102,10 +102,6 @@ impl<T: Frontend> App<T> {
         Ok(app)
     }
 
-    pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
-        self.syntax_highlight_request_sender = Some(sender);
-    }
-
     pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
         {
             let mut frontend = self.frontend.lock().unwrap();
@@ -130,12 +126,6 @@ impl<T: Frontend> App<T> {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
                 AppMessage::QuitAll => Ok(true),
-                AppMessage::SyntaxHighlightResponse {
-                    component_id,
-                    highlighted_spans,
-                } => self
-                    .update_highlighted_spans(component_id, highlighted_spans)
-                    .map(|_| false),
             }
             .unwrap_or_else(|e| {
                 self.show_info("ERROR", vec![e.to_string()]);
@@ -398,15 +388,7 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestDocumentSymbols(params) => {
                 self.lsp_manager.request_document_symbols(params)?;
             }
-            Dispatch::DocumentDidChange {
-                component_id,
-                path,
-                content,
-                language,
-            } => {
-                if let Some(language) = language {
-                    self.request_syntax_highlight(component_id, language, content.clone())?;
-                }
+            Dispatch::DocumentDidChange { path, content, .. } => {
                 if let Some(path) = path {
                     self.lsp_manager.document_did_change(path, content)?;
                 }
@@ -997,14 +979,11 @@ impl<T: Frontend> App<T> {
                     .show_quickfix_lists(self.context.quickfix_lists().clone());
                 self.goto_quickfix_list_item(Movement::Next)
             }
-            Some(RequestKind::Local) => {
-                log::info!("hello");
-                self.handle_dispatch(Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                    SelectionMode::LocalQuickfix {
-                        title: context.description.unwrap_or_default(),
-                    },
-                )))
-            }
+            Some(RequestKind::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
+                DispatchEditor::SetSelectionMode(SelectionMode::LocalQuickfix {
+                    title: context.description.unwrap_or_default(),
+                }),
+            )),
         }
     }
 
@@ -1161,15 +1140,6 @@ impl<T: Frontend> App<T> {
         self.layout.reveal_path_in_explorer(&path.try_into()?)?;
 
         Ok(())
-    }
-
-    fn update_highlighted_spans(
-        &self,
-        component_id: ComponentId,
-        highlighted_spans: HighlighedSpans,
-    ) -> Result<(), anyhow::Error> {
-        self.layout
-            .update_highlighted_spans(component_id, highlighted_spans)
     }
 
     fn request_syntax_highlight(
@@ -1384,8 +1354,4 @@ pub enum AppMessage {
     LspNotification(LspNotification),
     Event(Event),
     QuitAll,
-    SyntaxHighlightResponse {
-        component_id: ComponentId,
-        highlighted_spans: HighlighedSpans,
-    },
 }

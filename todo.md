@@ -220,6 +220,8 @@
 - [] fix(editor): cursor is missing when content is empty
 - [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
 - [] fix(key): crash when super is pressed
+- [] feat(title): window title and app title should be wrappable
+- [] perf(insert): only store edit patch and reparse tree upon exit, don't compute them on every keystroke
 
 # Grammar loading
 

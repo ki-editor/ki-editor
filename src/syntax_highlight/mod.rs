@@ -1,8 +1,8 @@
-use std::{ops::Range, sync::mpsc::Sender};
+use std::{ops::Range};
 
 use tree_sitter_highlight::{HighlightEvent, Highlighter};
 
-use crate::{app::AppMessage, components::component::ComponentId, grid::Style, themes::Theme};
+use crate::{components::component::ComponentId, grid::Style, themes::Theme};
 use shared::language::Language;
 
 #[derive(Clone, Debug)]
@@ -33,8 +33,7 @@ pub fn highlight(
         &language.highlight_query().unwrap_or_default(),
         language.injection_query().unwrap_or_default(),
         language.locals_query().unwrap_or_default(),
-    )
-    .unwrap();
+    )?;
 
     config.configure(crate::themes::HIGHLIGHT_NAMES);
 
@@ -82,21 +81,4 @@ pub struct SyntaxHighlightRequest {
 pub struct SyntaxHighlightResponse {
     pub component_id: ComponentId,
     pub highlighted_spans: HighlighedSpans,
-}
-
-pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
-    let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
-    std::thread::spawn(move || {
-        while let Ok(request) = receiver.recv() {
-            if let Ok(highlighted_spans) =
-                highlight(request.language, &request.theme, &request.source_code)
-            {
-                let _ = callback.send(AppMessage::SyntaxHighlightResponse {
-                    component_id: request.component_id,
-                    highlighted_spans,
-                });
-            }
-        }
-    });
-    sender
 }

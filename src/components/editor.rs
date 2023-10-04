@@ -7,9 +7,10 @@ use crate::{
     grid::{CellUpdate, Style},
     lsp::process::ResponseContext,
     selection_mode, soft_wrap,
+    syntax_highlight::highlight,
 };
 
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::Range,
@@ -97,17 +98,18 @@ impl Component for Editor {
         let max_line_number_len = len_lines.to_string().len() as u16;
         let line_number_separator_width = 1;
         let scroll_offset = editor.scroll_offset();
-        let wrapped_lines = soft_wrap::soft_wrap(
-            &rope
-                .lines()
-                .skip(scroll_offset as usize)
-                .take(height as usize)
-                .join(""),
-            (width - max_line_number_len - line_number_separator_width) as usize,
-        );
+        let visible_lines = &rope
+            .lines()
+            .skip(scroll_offset as usize)
+            .take(height as usize)
+            .map(|slice| slice.to_string())
+            .collect_vec();
+        let content_container_width =
+            (width - max_line_number_len - line_number_separator_width) as usize;
+        let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
-        let visible_parent_lines_numbers = visible_parent_lines
+        let parent_lines_numbers = visible_parent_lines
             .iter()
             .chain(hidden_parent_lines.iter())
             .map(|line| line.line)
@@ -137,7 +139,54 @@ impl Component for Editor {
             })
             .take(height as usize)
             .collect::<Vec<_>>();
+        // NOTE: due to performance issue, we only highlight the content that are within view
+        // This might result in some incorrectness, but that's a reasonable trade-off, because
+        // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
+        let highlighted_spans = {
+            let current_frame_content = hidden_parent_lines
+                .iter()
+                .map(|line| {
+                    // Trim hidden parent line, because we do not wrapped their content
+                    line.content
+                        .chars()
+                        .take(content_container_width)
+                        .collect::<String>()
+                })
+                .chain(
+                    visible_lines
+                        .iter()
+                        .map(|line| line.clone().trim_end().to_string()),
+                )
+                .collect_vec()
+                .join("\n");
 
+            let highlighted_spans = buffer
+                .language()
+                .map(|language| {
+                    highlight(language, context.theme(), &current_frame_content).unwrap_or_default()
+                })
+                .unwrap_or_default();
+            let buffer = Buffer::new(buffer.treesitter_language(), &current_frame_content);
+            let wrapped_lines =
+                soft_wrap::soft_wrap(&current_frame_content, content_container_width);
+            highlighted_spans
+                .0
+                .iter()
+                .flat_map(|highlighted_span| {
+                    highlighted_span.byte_range.clone().filter_map(|byte| {
+                        Some(
+                            CellUpdate::new(
+                                wrapped_lines
+                                    .calibrate(buffer.byte_to_position(byte).ok()?)
+                                    .ok()?
+                                    .move_right(max_line_number_len + line_number_separator_width),
+                            )
+                            .style(highlighted_span.style),
+                        )
+                    })
+                })
+                .collect_vec()
+        };
         let bookmarks = buffer
             .bookmarks()
             .into_iter()
@@ -232,15 +281,6 @@ impl Component for Editor {
             })
             .flatten();
 
-        let highlighted_spans = buffer.highlighted_spans();
-        let highlighted_spans = highlighted_spans.iter().flat_map(|highlighted_span| {
-            highlighted_span.byte_range.clone().filter_map(|byte| {
-                Some(
-                    CellUpdate::new(buffer.byte_to_position(byte).ok()?)
-                        .style(highlighted_span.style),
-                )
-            })
-        });
         let diagnostics = diagnostics
             .iter()
             .sorted_by(|a, b| a.severity.cmp(&b.severity))
@@ -307,7 +347,6 @@ impl Component for Editor {
             .chain(secondary_selection)
             .chain(seconday_selection_anchors)
             .chain(diagnostics)
-            .chain(highlighted_spans)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
@@ -317,7 +356,7 @@ impl Component for Editor {
             line_number: usize,
             content: String,
             wrapped: bool,
-        };
+        }
 
         let render_lines = |grid: Grid, lines: Vec<RenderLine>, updates: &Vec<CellUpdate>| {
             lines.into_iter().enumerate().fold(
@@ -331,12 +370,11 @@ impl Component for Editor {
                         wrapped,
                     },
                 )| {
-                    let background_color =
-                        if visible_parent_lines_numbers.iter().contains(&line_number) {
-                            Some(theme.ui.parent_lines_background)
-                        } else {
-                            None
-                        };
+                    let background_color = if parent_lines_numbers.iter().contains(&line_number) {
+                        Some(theme.ui.parent_lines_background)
+                    } else {
+                        None
+                    };
                     let line_number_str = {
                         let line_number = if wrapped {
                             "↪".to_string()
@@ -451,6 +489,8 @@ impl Component for Editor {
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
+
+        let grid = grid.apply_cell_updates(&highlighted_spans);
 
         let cursor_position = grid.get_cursor_position();
 
@@ -2940,6 +2980,10 @@ impl Editor {
 
     pub fn set_scroll_offset(&mut self, scroll_offset: u16) {
         self.scroll_offset = scroll_offset
+    }
+
+    pub(crate) fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
+        self.buffer_mut().set_language(language)
     }
 }
 

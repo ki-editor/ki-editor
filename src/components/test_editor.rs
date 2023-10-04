@@ -1045,4 +1045,56 @@ fn main() {
         );
         Ok(())
     }
+
+    #[test]
+    fn syntax_highlighting() -> anyhow::Result<()> {
+        let theme = Theme::default();
+        let context = Context::default().set_theme(theme.clone());
+        let content = "
+fn main() { // too long
+  let foo = 1;
+  let bar = baba; let wrapped = coco;
+}
+"
+        .trim();
+        let mut editor = Editor::from_text(language(), content);
+        editor.set_language(shared::language::from_extension("rs").unwrap())?;
+        editor.match_literal(&context, "bar")?;
+        editor.set_scroll_offset(2);
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 20,
+            height: 3,
+        });
+        let result = editor.get_grid(&context);
+
+        // The "long" of "too long" is not shown, because it exceeded the view width
+        assert_eq!(
+            result.grid.to_string(),
+            "
+1│fn main() { // too
+3│  let bar = baba;
+↪│let wrapped = coco
+"
+            .trim()
+        );
+        let keyword_foreground_color = theme.syntax.keyword.unwrap().foreground_color.unwrap();
+        let ranges = &[
+            //
+            // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
+            Position::new(0, 2)..=Position::new(0, 3),
+            //
+            // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
+            Position::new(1, 4)..=Position::new(1, 6),
+            //
+            // Expect the `let` keyword of line 3 (which is inbound but wrapped) is highlighted properly
+            Position::new(2, 2)..=Position::new(2, 4),
+        ];
+
+        result.grid.assert_ranges(ranges, |cell| {
+            cell.foreground_color == keyword_foreground_color
+        });
+
+        Ok(())
+    }
 }
