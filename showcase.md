@@ -1,5 +1,13 @@
 # Showcase
 
+## Gathering values into a single array
+In this example, I wanted to gather the first arguments of each `assert_range` call, and then put them into a `ranges` variable.
+
+
+[![asciicast](https://asciinema.org/a/611840.svg)](https://asciinema.org/a/611840)
+
+---
+
 ## Removing all `println` statement in Rust file
 
 ```
