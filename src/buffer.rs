@@ -564,6 +564,11 @@ impl Buffer {
         self.language.clone()
     }
 
+    pub fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
+        self.language = Some(language);
+        self.reparse_tree()
+    }
+
     pub fn treesitter_language(&self) -> tree_sitter::Language {
         self.treesitter_language
     }

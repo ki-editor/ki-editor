@@ -10,7 +10,7 @@ use crate::{
     syntax_highlight::highlight,
 };
 
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::Range,
@@ -145,7 +145,13 @@ impl Component for Editor {
         let highlighted_spans = {
             let current_frame_content = hidden_parent_lines
                 .iter()
-                .map(|line| line.content.clone())
+                .map(|line| {
+                    // Trim hidden parent line, because we do not wrapped their content
+                    line.content
+                        .chars()
+                        .take(content_container_width)
+                        .collect::<String>()
+                })
                 .chain(
                     visible_lines
                         .iter()
@@ -181,7 +187,6 @@ impl Component for Editor {
                 })
                 .collect_vec()
         };
-
         let bookmarks = buffer
             .bookmarks()
             .into_iter()
@@ -2975,6 +2980,10 @@ impl Editor {
 
     pub fn set_scroll_offset(&mut self, scroll_offset: u16) {
         self.scroll_offset = scroll_offset
+    }
+
+    pub(crate) fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
+        self.buffer_mut().set_language(language)
     }
 }
 

@@ -405,6 +405,31 @@ impl Grid {
         }
         grid
     }
+
+    #[cfg(test)]
+    pub(crate) fn assert_range(
+        &self,
+        range: &std::ops::RangeInclusive<Position>,
+        predicate: impl Fn(&Cell) -> bool,
+    ) {
+        for (row_index, row) in self.rows.iter().enumerate() {
+            for (column_index, cell) in row.iter().enumerate() {
+                if range.contains(&Position::new(row_index, column_index)) {
+                    assert!(predicate(cell))
+                }
+            }
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn assert_ranges(
+        &self,
+        ranges: &[std::ops::RangeInclusive<Position>],
+        predicate: impl Fn(&Cell) -> bool + Clone,
+    ) {
+        for range in ranges {
+            self.assert_range(range, predicate.clone())
+        }
+    }
 }
 
 #[derive(Default, Clone, Copy, Debug)]
