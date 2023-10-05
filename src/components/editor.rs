@@ -94,7 +94,8 @@ impl Component for Editor {
 
         let buffer = editor.buffer();
         let rope = buffer.rope();
-        let len_lines = rope.len_lines() as u16;
+
+        let len_lines = rope.len_lines().max(1) as u16;
         let max_line_number_len = len_lines.to_string().len() as u16;
         let line_number_separator_width = 1;
         let scroll_offset = editor.scroll_offset();
@@ -104,8 +105,10 @@ impl Component for Editor {
             .take(height as usize)
             .map(|slice| slice.to_string())
             .collect_vec();
-        let content_container_width =
-            (width - max_line_number_len - line_number_separator_width) as usize;
+        let content_container_width = (width
+            .saturating_sub(max_line_number_len)
+            .saturating_sub(line_number_separator_width))
+            as usize;
         let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
@@ -372,6 +375,7 @@ impl Component for Editor {
             .chain(secondary_selection_cursors)
             .chain(extra_decorations);
 
+        #[derive(Clone)]
         struct RenderLine {
             line_number: usize,
             content: String,
@@ -455,7 +459,17 @@ impl Component for Editor {
                 })
             })
             .collect::<Vec<_>>();
-        let visible_lines_grid = render_lines(grid, lines);
+        let visible_lines = if lines.is_empty() {
+            [RenderLine {
+                line_number: 0,
+                content: String::new(),
+                wrapped: false,
+            }]
+            .to_vec()
+        } else {
+            lines
+        };
+        let visible_lines_grid = render_lines(grid, visible_lines);
 
         let (hidden_parent_lines_grid, hidden_parent_lines_updates) = {
             let height = hidden_parent_lines.len() as u16;

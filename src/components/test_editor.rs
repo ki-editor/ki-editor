@@ -1120,4 +1120,19 @@ fn main() { // too long
 
         Ok(())
     }
+
+    #[test]
+    fn empty_content_should_have_one_line() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "");
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 20,
+            height: 1,
+        });
+        let context = Context::default();
+        let result = editor.get_grid(&context);
+        assert_eq!(result.grid.to_string(), "1│");
+        assert_eq!(result.cursor.unwrap().position(), &Position::new(0, 2));
+        Ok(())
+    }
 }
