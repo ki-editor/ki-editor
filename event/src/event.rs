@@ -67,6 +67,7 @@ pub enum KeyModifiers {
     CtrlShift,
     AltShift,
     CtrlAltShift,
+    Unknown,
 }
 
 impl From<crossterm::event::KeyModifiers> for KeyModifiers {
@@ -89,7 +90,7 @@ impl From<crossterm::event::KeyModifiers> for KeyModifiers {
         } else if value == KeyModifiers::CONTROL | KeyModifiers::ALT | KeyModifiers::SHIFT {
             self::KeyModifiers::CtrlAltShift
         } else {
-            unreachable!()
+            self::KeyModifiers::Unknown
         }
     }
 }
@@ -114,7 +115,7 @@ impl From<HashSet<KeyModifiers>> for KeyModifiers {
         } else if value == HashSet::from([Ctrl, Alt, Shift]) {
             CtrlAltShift
         } else {
-            unreachable!()
+            Unknown
         }
     }
 }
