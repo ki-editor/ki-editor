@@ -8,7 +8,7 @@ mod test_editor {
             editor::{Direction, Editor, Mode, Movement, ViewAlignment},
         },
         context::Context,
-        grid::Style,
+        grid::{Style, StyleSource},
         position::Position,
         selection::SelectionMode,
         themes::Theme,
@@ -1048,9 +1048,7 @@ fn main() {
 
     #[test]
     fn syntax_highlighting() -> anyhow::Result<()> {
-        let mut theme = Theme::default();
-        let bookmark_foreground = hex!("#deface");
-        theme.ui.bookmark = Style::new().foreground_color(bookmark_foreground);
+        let theme = Theme::default();
         let context = Context::default().set_theme(theme.clone());
         let content = "
 fn main() { // too long
@@ -1080,7 +1078,6 @@ fn main() { // too long
 "
             .trim()
         );
-        let keyword_foreground_color = theme.syntax.keyword.unwrap().foreground_color.unwrap();
         let ranges = &[
             //
             // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
@@ -1094,7 +1091,7 @@ fn main() { // too long
         ];
 
         result.grid.assert_ranges(ranges, |cell| {
-            cell.foreground_color == keyword_foreground_color
+            cell.source == Some(StyleSource::SyntaxKeyword)
         });
 
         // Expect decorations overrides syntax highlighting
@@ -1118,7 +1115,7 @@ fn main() { // too long
         result
             .grid
             .assert_range(&(Position::new(0, 2)..=Position::new(0, 3)), |cell| {
-                cell.foreground_color == bookmark_foreground
+                cell.source == Some(StyleSource::Bookmark)
             });
 
         Ok(())

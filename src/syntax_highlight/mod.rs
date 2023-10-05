@@ -1,14 +1,19 @@
-use std::{ops::Range};
+use std::ops::Range;
 
 use tree_sitter_highlight::{HighlightEvent, Highlighter};
 
-use crate::{components::component::ComponentId, grid::Style, themes::Theme};
+use crate::{
+    components::component::ComponentId,
+    grid::{Style, StyleSource},
+    themes::Theme,
+};
 use shared::language::Language;
 
 #[derive(Clone, Debug)]
 pub struct HighlighedSpan {
     pub byte_range: Range<usize>,
     pub style: Style,
+    pub source: Option<StyleSource>,
 }
 
 /// In hex format, e.g. "#FF0000"
@@ -59,6 +64,15 @@ pub fn highlight(
                         highlighted_spans.push(HighlighedSpan {
                             byte_range: start..end,
                             style: color,
+                            source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0).as_deref()
+                            {
+                                Some(&"comment") => Some(StyleSource::SyntaxComment),
+                                Some(&"keyword") => Some(StyleSource::SyntaxKeyword),
+                                Some(&"string") => Some(StyleSource::SyntaxString),
+                                Some(&"type") => Some(StyleSource::SyntaxType),
+                                Some(&"function") => Some(StyleSource::SyntaxFunction),
+                                _ => None,
+                            },
                         });
                     }
                 }

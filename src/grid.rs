@@ -23,9 +23,8 @@ pub struct Cell {
     pub background_color: Color,
     pub undercurl: Option<Color>,
     pub is_cursor: bool,
-    #[cfg(test)]
     /// For debugging purposes, so that we can trace this Cell is updated by which decoration, e.g. Diagnostic
-    pub source: Option<String>,
+    pub source: Option<StyleSource>,
 }
 
 fn choose<T>(old: Option<T>, new: Option<T>) -> Option<T> {
@@ -54,8 +53,7 @@ impl Cell {
                 .unwrap_or(self.background_color),
             undercurl: choose(self.undercurl, update.style.undercurl),
             is_cursor: update.is_cursor || self.is_cursor,
-            #[cfg(test)]
-            source: update.source.clone().or_else(|| self.source.clone()),
+            source: update.source.or(self.source),
         }
     }
 }
@@ -68,7 +66,6 @@ impl Default for Cell {
             background_color: hex!("#ffffff"),
             undercurl: None,
             is_cursor: false,
-            #[cfg(test)]
             source: None,
         }
     }
@@ -81,9 +78,8 @@ pub struct CellUpdate {
     pub style: Style,
     pub is_cursor: bool,
 
-    #[cfg(test)]
     /// For debugging purposes
-    pub source: Option<String>,
+    pub source: Option<StyleSource>,
 }
 
 impl CellUpdate {
@@ -93,17 +89,12 @@ impl CellUpdate {
             symbol: None,
             style: Style::default(),
             is_cursor: false,
-            #[cfg(test)]
             source: None,
         }
     }
 
-    #[cfg(test)]
-    pub fn source(self, source: String) -> CellUpdate {
-        CellUpdate {
-            source: Some(source),
-            ..self
-        }
+    pub fn source(self, source: Option<StyleSource>) -> CellUpdate {
+        CellUpdate { source, ..self }
     }
 
     pub fn symbol(self, symbol: String) -> Self {
@@ -452,6 +443,22 @@ impl Grid {
             self.assert_range(range, predicate.clone())
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum StyleSource {
+    PrimarySelection,
+    PrimarySelectionAnchors,
+    SecondarySelection,
+    SecondarySelectionAnchors,
+    Diagnostics,
+    ExtraDecorations,
+    Bookmark,
+    SyntaxKeyword,
+    SyntaxFunction,
+    SyntaxComment,
+    SyntaxString,
+    SyntaxType,
 }
 
 #[derive(Default, Clone, Copy, Debug)]

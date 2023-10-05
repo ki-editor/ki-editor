@@ -4,7 +4,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::component::Cursor,
     context::{Context, GlobalMode, Search, SearchKind},
-    grid::{CellUpdate, Style},
+    grid::{CellUpdate, Style, StyleSource},
     lsp::process::ResponseContext,
     selection_mode, soft_wrap,
     syntax_highlight::highlight,
@@ -181,14 +181,15 @@ impl Component for Editor {
                                     .ok()?
                                     .move_right(max_line_number_len + line_number_separator_width),
                             )
-                            .style(highlighted_span.style),
+                            .style(highlighted_span.style)
+                            .source(highlighted_span.source),
                         )
                     })
                 })
                 .collect_vec()
         };
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
-            range_to_cell_update(&buffer, bookmark, theme.ui.bookmark, "bookmarks")
+            range_to_cell_update(&buffer, bookmark, theme.ui.bookmark, StyleSource::Bookmark)
         });
 
         let secondary_selections = &editor.selection_set.secondary;
@@ -197,17 +198,13 @@ impl Component for Editor {
             buffer: &Buffer,
             range: CharIndexRange,
             style: Style,
-            _source: &str,
+            source: StyleSource,
         ) -> Vec<CellUpdate> {
             range
                 .iter()
                 .filter_map(|char_index| {
                     let position = buffer.char_to_position(char_index).ok()?;
-                    Some({
-                        #[cfg(test)]
-                        let style = style.source(source.to_string());
-                        CellUpdate::new(position).style(style)
-                    })
+                    Some(CellUpdate::new(position).style(style).source(Some(source)))
                 })
                 .collect()
         }
@@ -227,14 +224,14 @@ impl Component for Editor {
             &buffer,
             selection.extended_range(),
             Style::default().background_color(theme.ui.primary_selection_background),
-            "primary_selection",
+            StyleSource::PrimarySelection,
         );
         let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
             range_to_cell_update(
                 &buffer,
                 range,
                 Style::default().background_color(theme.ui.primary_selection_anchor_background),
-                "primary_selection_anchors",
+                StyleSource::PrimarySelectionAnchors,
             )
         });
 
@@ -252,7 +249,7 @@ impl Component for Editor {
                 &buffer,
                 selection.to_char_index(&editor.cursor_direction.reverse()),
                 theme.ui.primary_selection_secondary_cursor,
-            );
+            )
         };
 
         let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
@@ -260,7 +257,7 @@ impl Component for Editor {
                 &buffer,
                 secondary_selection.extended_range(),
                 Style::default().background_color(theme.ui.secondary_selection_background),
-                "secondary_selection",
+                StyleSource::SecondarySelection,
             )
         });
         let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
@@ -270,7 +267,7 @@ impl Component for Editor {
                     range,
                     Style::default()
                         .background_color(theme.ui.secondary_selection_anchor_background),
-                    "secondary_selection_anchors",
+                    StyleSource::SecondarySelectionAnchors,
                 )
             })
         });
@@ -322,7 +319,7 @@ impl Component for Editor {
                     &buffer,
                     char_index_range,
                     style,
-                    "diagnostics",
+                    StyleSource::Diagnostics,
                 ))
             })
             .flatten();
@@ -356,7 +353,7 @@ impl Component for Editor {
                     &buffer,
                     decoration.byte_range.to_char_index_range(&buffer).ok()?,
                     decoration.style_key.get_style(theme),
-                    "extra_decorations",
+                    StyleSource::ExtraDecorations,
                 ))
             })
             .flatten()
