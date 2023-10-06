@@ -80,6 +80,10 @@ impl QuickfixLists {
     pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
         self.dropdown.get_item(movement)
     }
+
+    pub fn get_items(&self) -> Option<&Vec<QuickfixListItem>> {
+        self.lists.last().map(|list| &list.items)
+    }
 }
 
 #[derive(Clone)]

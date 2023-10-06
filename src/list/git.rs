@@ -33,7 +33,8 @@ impl GitRepo {
                 status.is_wt_new() || status.is_wt_modified()
             })
             .filter_map(|entry| -> Option<CanonicalizedPath> {
-                Some(entry.path()?.to_string().try_into().ok()?)
+                let path = self.path.join(&entry.path()?.to_string()).ok()?;
+                Some(path)
             })
             .collect();
 
@@ -180,7 +181,9 @@ impl GitOperation for CanonicalizedPath {
     fn content_at_last_commit(&self, repo: &GitRepo) -> anyhow::Result<String> {
         let head_commit = repo.repo.head()?.peel_to_commit()?;
         let tree = head_commit.tree()?;
-        let entry = tree.get_path(std::path::Path::new(&self.display_relative()?))?;
+        let entry = tree.get_path(std::path::Path::new(
+            &self.display_relative_to(repo.path())?,
+        ))?;
         let blob = entry.to_object(&repo.repo)?.peel_to_blob()?;
         let content = blob.content().to_vec();
         Ok(String::from_utf8(content)?)

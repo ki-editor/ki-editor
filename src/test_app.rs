@@ -7,6 +7,7 @@ mod test_app {
     use serial_test::serial;
 
     use std::sync::{Arc, Mutex};
+    use Dispatch::*;
     use DispatchEditor::*;
 
     use shared::canonicalized_path::CanonicalizedPath;
@@ -17,6 +18,8 @@ mod test_app {
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
+        position::Position,
+        quickfix_list::{Location, QuickfixListItem},
         selection::SelectionMode,
     };
 
@@ -312,8 +315,63 @@ mod test_app {
             ))?;
             assert_eq!(app.components().len(), 2);
 
-            app.handle_dispatch(Dispatch::HandleKeyEvent(key!("esc")))?;
+            app.handle_dispatch(HandleKeyEvent(key!("esc")))?;
             assert_eq!(app.components().len(), 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let path_main = temp_dir.join("src/main.rs")?;
+            let path_foo = temp_dir.join("src/foo.rs")?;
+
+            app.handle_dispatches(
+                [
+                    // Delete the first line of main.rs
+                    OpenFile {
+                        path: path_main.clone(),
+                    },
+                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(Kill),
+                    // Insert a comment at the first line of foo.rs
+                    OpenFile {
+                        path: path_foo.clone(),
+                    },
+                    DispatchEditor(Insert("// Hello".to_string())),
+                    // Save the files,
+                    SaveAll,
+                    // Get the repo hunks
+                    GetRepoGitHunks,
+                ]
+                .to_vec(),
+            )?;
+
+            let expected_quickfixes = [
+                QuickfixListItem::new(
+                    Location {
+                        path: path_foo,
+                        range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
+                    },
+                    ["- pub struct Foo {", "+ // Hellopub struct Foo {"]
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: path_main,
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                    },
+                    ["- mod foo;", "-"]
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
+                ),
+            ];
+            assert_eq!(app.get_quickfixes(), expected_quickfixes);
 
             Ok(())
         })

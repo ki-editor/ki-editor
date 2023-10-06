@@ -1502,6 +1502,8 @@ impl Editor {
             DispatchEditor::ToggleHighlightMode => self.toggle_highlight_mode(),
             DispatchEditor::EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             DispatchEditor::EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
+            DispatchEditor::Kill => return self.kill(context),
+            DispatchEditor::Insert(string) => return self.insert(&string),
         }
         Ok([].to_vec())
     }
@@ -3066,4 +3068,6 @@ pub enum DispatchEditor {
     ToggleHighlightMode,
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
+    Kill,
+    Insert(String),
 }

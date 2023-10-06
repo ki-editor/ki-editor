@@ -391,6 +391,14 @@ impl Layout {
     pub fn open_file_explorer(&mut self) {
         self.file_explorer_open = true
     }
+
+    pub(crate) fn get_quickfixes(&self) -> Option<Vec<crate::quickfix_list::QuickfixListItem>> {
+        if let Some(list) = self.quickfix_lists.as_ref() {
+            list.borrow().get_items().cloned()
+        } else {
+            None
+        }
+    }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> LayoutKind {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;

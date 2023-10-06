@@ -336,7 +336,7 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches?)
     }
 
-    fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) -> Result<(), anyhow::Error> {
+    pub fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) -> Result<(), anyhow::Error> {
         for dispatch in dispatches {
             self.handle_dispatch(dispatch)?;
         }
@@ -445,6 +445,7 @@ impl<T: Frontend> App<T> {
                 self.handle_event(Event::Key(key_event))?;
             }
             Dispatch::GetRepoGitHunks => self.get_repo_git_hunks()?,
+            Dispatch::SaveAll => self.save_all()?,
         }
         Ok(())
     }
@@ -1211,7 +1212,6 @@ impl<T: Frontend> App<T> {
                 diffs
                     .into_iter()
                     .flat_map(|file_diff| {
-                        let path = file_diff.path();
                         file_diff
                             .hunks()
                             .into_iter()
@@ -1234,6 +1234,10 @@ impl<T: Frontend> App<T> {
                     .collect_vec(),
             ),
         )
+    }
+
+    pub(crate) fn get_quickfixes(&self) -> Vec<QuickfixListItem> {
+        self.layout.get_quickfixes().unwrap_or_default()
     }
 }
 
@@ -1330,6 +1334,7 @@ pub enum Dispatch {
     SetGlobalMode(Option<GlobalMode>),
     HandleKeyEvent(event::KeyEvent),
     GetRepoGitHunks,
+    SaveAll,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -58,7 +58,7 @@ impl<T: DropdownItem> Dropdown<T> {
     }
 
     pub fn next_item(&mut self) -> Option<T> {
-        if self.current_item_index == self.filtered_items.len() - 1 {
+        if self.current_item_index == self.filtered_items.len().saturating_sub(1) {
             return self.current_item();
         }
         self.current_item_index += 1;
