@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use tree_sitter_highlight::{HighlightEvent, Highlighter};
+use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
     components::component::ComponentId,
@@ -20,66 +20,76 @@ pub struct HighlighedSpan {
 #[derive(Debug, Clone, Copy)]
 pub struct Color(&'static str);
 
-pub fn highlight(
-    language: Language,
-    theme: &Theme,
-    source_code: &str,
-) -> anyhow::Result<HighlighedSpans> {
-    let tree_sitter_language = if let Some(tree_sitter_language) = language.tree_sitter_language() {
-        tree_sitter_language
-    } else {
-        return Ok(HighlighedSpans(Vec::new()));
-    };
-    let mut highlighter = Highlighter::new();
-    use tree_sitter_highlight::HighlightConfiguration;
+pub trait GetHighlightConfig {
+    fn get_highlight_config(&self) -> anyhow::Result<Option<HighlightConfiguration>>;
+}
 
-    let mut config = HighlightConfiguration::new(
-        tree_sitter_language,
-        &language.highlight_query().unwrap_or_default(),
-        language.injection_query().unwrap_or_default(),
-        language.locals_query().unwrap_or_default(),
-    )?;
+impl GetHighlightConfig for Language {
+    fn get_highlight_config(&self) -> anyhow::Result<Option<HighlightConfiguration>> {
+        let tree_sitter_language = if let Some(tree_sitter_language) = self.tree_sitter_language() {
+            tree_sitter_language
+        } else {
+            return Ok(None);
+        };
 
-    config.configure(crate::themes::HIGHLIGHT_NAMES);
+        let mut config = HighlightConfiguration::new(
+            tree_sitter_language,
+            &self.highlight_query().unwrap_or_default(),
+            self.injection_query().unwrap_or_default(),
+            self.locals_query().unwrap_or_default(),
+        )?;
 
-    let highlights = highlighter
-        .highlight(&config, source_code.as_bytes(), None, |_| None)
-        .unwrap();
+        config.configure(crate::themes::HIGHLIGHT_NAMES);
 
-    let mut highlight = None;
+        Ok(Some(config))
+    }
+}
 
-    let mut highlighted_spans = vec![];
+pub trait Highlight {
+    fn highlight(&self, theme: &Theme, source_code: &str) -> anyhow::Result<HighlighedSpans>;
+}
+impl Highlight for HighlightConfiguration {
+    fn highlight(&self, theme: &Theme, source_code: &str) -> anyhow::Result<HighlighedSpans> {
+        let mut highlighter = Highlighter::new();
 
-    for event in highlights {
-        match event? {
-            HighlightEvent::HighlightStart(s) => {
-                highlight = Some(s);
-            }
-            HighlightEvent::HighlightEnd => {
-                highlight = None;
-            }
-            HighlightEvent::Source { start, end } => {
-                if let Some(highlight) = highlight {
-                    if let Some(color) = theme.syntax.get_color(highlight.0) {
-                        highlighted_spans.push(HighlighedSpan {
-                            byte_range: start..end,
-                            style: color,
-                            source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0)
-                            {
-                                Some(&"comment") => Some(StyleSource::SyntaxComment),
-                                Some(&"keyword") => Some(StyleSource::SyntaxKeyword),
-                                Some(&"string") => Some(StyleSource::SyntaxString),
-                                Some(&"type") => Some(StyleSource::SyntaxType),
-                                Some(&"function") => Some(StyleSource::SyntaxFunction),
-                                _ => None,
-                            },
-                        });
+        let highlights = highlighter
+            .highlight(&self, source_code.as_bytes(), None, |_| None)
+            .unwrap();
+
+        let mut highlight = None;
+
+        let mut highlighted_spans = vec![];
+
+        for event in highlights {
+            match event? {
+                HighlightEvent::HighlightStart(s) => {
+                    highlight = Some(s);
+                }
+                HighlightEvent::HighlightEnd => {
+                    highlight = None;
+                }
+                HighlightEvent::Source { start, end } => {
+                    if let Some(highlight) = highlight {
+                        if let Some(color) = theme.syntax.get_color(highlight.0) {
+                            highlighted_spans.push(HighlighedSpan {
+                                byte_range: start..end,
+                                style: color,
+                                source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0) {
+                                    Some(&"comment") => Some(StyleSource::SyntaxComment),
+                                    Some(&"keyword") => Some(StyleSource::SyntaxKeyword),
+                                    Some(&"string") => Some(StyleSource::SyntaxString),
+                                    Some(&"type") => Some(StyleSource::SyntaxType),
+                                    Some(&"function") => Some(StyleSource::SyntaxFunction),
+                                    _ => None,
+                                },
+                            });
+                        }
                     }
                 }
             }
         }
+        Ok(HighlighedSpans(highlighted_spans))
     }
-    Ok(HighlighedSpans(highlighted_spans))
 }
 
 #[derive(Clone, Default, Debug)]

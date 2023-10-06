@@ -176,7 +176,7 @@
 - [x] fix(signature-help): cannot be closed by pressing esc key
 - [] file explorer (integrate with LSP)
 - [] fix: paste from clipboard does not work properly if contains newline
-- [] la should open cursor at end of line, not beginning of next line
+- [x] la should open cursor at end of line, not beginning of next line
 - [] fs watcher, watch for file changes
 - [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
@@ -225,6 +225,7 @@
 - [] feat: how to enter newline in insert mode?!
 - [] style(parent_lines): don't highlight the leading and trailing whitespaces of parent lines
 - [] feat(remove-surronding-brackets): press ])}> to remove the brackets of the current selection
+- [] fix(hover-info): should be closed upon pressing esc in normal mode
 
 # Grammar loading
 

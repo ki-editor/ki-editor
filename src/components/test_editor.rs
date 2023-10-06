@@ -950,13 +950,13 @@ fn main() {
         theme.ui.parent_lines_background = parent_lines_background;
         let bookmark_background_color = hex!("#cebceb");
         theme.ui.bookmark = Style::default().background_color(bookmark_background_color);
-        let context = Context::default().set_theme(theme);
+        let mut context = Context::default().set_theme(theme);
 
         // Go to "print()" and skip the first 3 lines for rendering
         editor.match_literal(&context, "print()")?;
         editor.set_scroll_offset(3);
 
-        let result = editor.get_grid(&context);
+        let result = editor.get_grid(&mut context);
         // Expect `fn main()` is visible although it is out of view,
         // because it is amongst the parent lines of the current selection
         let expected_grid = "
@@ -994,7 +994,7 @@ fn main() {
         editor.match_literal(&context, "print()")?;
         editor.set_scroll_offset(3);
 
-        let result = editor.get_grid(&context);
+        let result = editor.get_grid(&mut context);
         assert_eq!(result.grid.to_string(), expected_grid);
 
         // Expect the decorations of outbound parent lines are rendered properly
@@ -1018,7 +1018,7 @@ fn main() {
 // hello world\n hey
 "
         .trim();
-        let context = Context::default();
+        let mut context = Context::default();
         let mut editor = Editor::from_text(language(), content);
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
@@ -1028,7 +1028,7 @@ fn main() {
 
         editor.match_literal(&context, "world")?;
         editor.enter_insert_mode(Direction::End)?;
-        let result = editor.get_grid(&context);
+        let result = editor.get_grid(&mut context);
 
         let expected_grid = "
 1│// hello
@@ -1049,7 +1049,7 @@ fn main() {
     #[test]
     fn syntax_highlighting() -> anyhow::Result<()> {
         let theme = Theme::default();
-        let context = Context::default().set_theme(theme.clone());
+        let mut context = Context::default().set_theme(theme.clone());
         let content = "
 fn main() { // too long
   let foo = 1;
@@ -1066,7 +1066,7 @@ fn main() { // too long
             width: 20,
             height: 3,
         });
-        let result = editor.get_grid(&context);
+        let result = editor.get_grid(&mut context);
 
         // The "long" of "too long" is not shown, because it exceeded the view width
         assert_eq!(
@@ -1101,7 +1101,7 @@ fn main() { // too long
         //  so that we can test the style applied to "fn" ,
         // otherwise the style of primary selection anchors will override the bookmark style
         editor.match_literal(&context, "let")?;
-        let result = editor.get_grid(&context);
+        let result = editor.get_grid(&mut context);
 
         assert_eq!(
             result.grid.to_string(),
@@ -1129,8 +1129,8 @@ fn main() { // too long
             width: 20,
             height: 1,
         });
-        let context = Context::default();
-        let result = editor.get_grid(&context);
+        let mut context = Context::default();
+        let result = editor.get_grid(&mut context);
         assert_eq!(result.grid.to_string(), "1│");
         assert_eq!(result.cursor.unwrap().position(), &Position::new(0, 2));
         Ok(())
