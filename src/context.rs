@@ -19,7 +19,7 @@ pub struct Context {
     theme: Theme,
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
-    /// We have to cache the highlight configuration because they load slow.
+    /// We have to cache the highlight configurations because they load slowly.
     tree_sitter_highlight_configs:
         HashMap<TreeSitterGrammarId, tree_sitter_highlight::HighlightConfiguration>,
 }
