@@ -204,7 +204,8 @@ impl<T: Frontend> App<T> {
             width: dimension.width,
         });
 
-        let theme = self.context.theme().clone();
+        let theme = self.context.theme();
+        let theme_ui_window_title = theme.ui.window_title.clone();
 
         // Render every window
         let (grid, cursor) = self
@@ -252,7 +253,7 @@ impl<T: Frontend> App<T> {
                         let title_grid = Grid::new(title_rectangle.dimension()).set_line(
                             0,
                             &title,
-                            &theme.ui.window_title,
+                            &theme_ui_window_title,
                         );
                         (
                             grid.update(&component_grid, &rectangle)
