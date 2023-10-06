@@ -66,6 +66,11 @@ impl Language {
             formatter_command: None,
         }
     }
+
+    pub fn tree_sitter_grammar_id(&self) -> Option<String> {
+        self.tree_sitter_grammar_config()
+            .map(|config| config.grammar_id)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

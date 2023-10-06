@@ -42,7 +42,7 @@ pub trait Component: Any + AnyComponent {
     }
     fn editor(&self) -> &Editor;
     fn editor_mut(&mut self) -> &mut Editor;
-    fn get_grid(&self, context: &Context) -> GetGridResult {
+    fn get_grid(&self, context: &mut Context) -> GetGridResult {
         self.editor().get_grid(context)
     }
 
