@@ -64,7 +64,7 @@ pub fn highlight(
                         highlighted_spans.push(HighlighedSpan {
                             byte_range: start..end,
                             style: color,
-                            source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0).as_deref()
+                            source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0)
                             {
                                 Some(&"comment") => Some(StyleSource::SyntaxComment),
                                 Some(&"keyword") => Some(StyleSource::SyntaxKeyword),

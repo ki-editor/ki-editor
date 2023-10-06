@@ -98,6 +98,11 @@ impl Component for SuggestiveEditor {
         context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
+        if self.editor.mode == Mode::Insert && event == key!("esc") {
+            self.close_all_subcomponents();
+            self.editor.enter_normal_mode()?;
+            return Ok(vec![]);
+        }
         let dispatches = if self.editor.mode == Mode::Insert && self.dropdown_opened() {
             match event {
                 key!("ctrl+n") | key!("down") => {
@@ -130,11 +135,6 @@ impl Component for SuggestiveEditor {
                     return Ok(vec![]);
                 }
                 key!("ctrl+enter") => self.editor.open_new_line()?,
-                key!("esc") => {
-                    self.close_all_subcomponents();
-                    self.editor.enter_normal_mode()?;
-                    return Ok(vec![]);
-                }
 
                 // Every other character typed in Insert mode should update the dropdown to show
                 // relevant completions.

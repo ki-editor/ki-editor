@@ -83,3 +83,6 @@ fs_extra = "1.3.0"
 rand = "0.8.5"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
+
+[profile.release]
+debug = true

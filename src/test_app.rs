@@ -3,6 +3,7 @@
 ///   access the clipboard at the same time.
 #[cfg(test)]
 mod test_app {
+    use my_proc_macros::key;
     use serial_test::serial;
 
     use std::sync::{Arc, Mutex};
@@ -11,10 +12,11 @@ mod test_app {
     use shared::canonicalized_path::CanonicalizedPath;
 
     use crate::{
-        app::App,
-        components::editor::{DispatchEditor, Movement},
+        app::{App, Dispatch},
+        components::editor::{Direction, DispatchEditor, Movement},
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
+        lsp::{process::LspNotification, signature_help::SignatureInformation},
         selection::SelectionMode,
     };
 
@@ -271,6 +273,47 @@ mod test_app {
                 app.get_file_content(&path_main),
                 "fn{ let x = S(a); let y = S(b); }"
             );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn esc_should_close_signature_help() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            let path_main = temp_dir.join("src/main.rs")?;
+            app.open_file(&path_main, true)?;
+
+            assert_eq!(app.components().len(), 1);
+
+            app.handle_dispatch_editors(&[
+                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
+                SetSelectionMode(SelectionMode::BottomNode),
+                EnterInsertMode(Direction::End),
+            ])?;
+
+            let component_id = app.components()[0].borrow().id();
+            app.handle_lsp_notification(LspNotification::SignatureHelp(
+                crate::lsp::process::ResponseContext {
+                    component_id,
+                    request_kind: None,
+                    description: None,
+                },
+                Some(crate::lsp::signature_help::SignatureHelp {
+                    signatures: [SignatureInformation {
+                        label: "Signature Help".to_string(),
+                        documentation: Some(crate::lsp::documentation::Documentation {
+                            content: "spongebob".to_string(),
+                        }),
+                        active_parameter_byte_range: None,
+                    }]
+                    .to_vec(),
+                }),
+            ))?;
+            assert_eq!(app.components().len(), 2);
+
+            app.handle_dispatch(Dispatch::HandleKeyEvent(key!("esc")))?;
+            assert_eq!(app.components().len(), 1);
 
             Ok(())
         })

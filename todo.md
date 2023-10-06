@@ -173,7 +173,7 @@
 - [] feat(find): sentence, paragraph
 - [] refactor(buffer): hide rope
 - [] fix failing test cases
-- [] fix(signature-help): cannot be closed by pressing esc key
+- [x] fix(signature-help): cannot be closed by pressing esc key
 - [] file explorer (integrate with LSP)
 - [] fix: paste from clipboard does not work properly if contains newline
 - [] la should open cursor at end of line, not beginning of next line

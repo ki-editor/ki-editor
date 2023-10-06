@@ -1,6 +1,6 @@
 use event::event::Event;
 use itertools::Itertools;
-use my_proc_macros::{key};
+use my_proc_macros::key;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
@@ -150,7 +150,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
         self.layout.components()
     }
 
@@ -340,7 +340,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
+    pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
@@ -438,6 +438,9 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetClipboardContent(content) => self.context.set_clipboard_content(content),
             Dispatch::SetGlobalMode(mode) => self.context.set_mode(mode),
+            Dispatch::HandleKeyEvent(key_event) => {
+                self.handle_event(Event::Key(key_event))?;
+            }
         }
         Ok(())
     }
@@ -766,7 +769,7 @@ impl<T: Frontend> App<T> {
         self.layout.get_suggestive_editor(component_id)
     }
 
-    fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
+    pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
             LspNotification::Hover(context, hover) => {
                 self.get_suggestive_editor(context.component_id)?
@@ -1290,6 +1293,7 @@ pub enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent(String),
     SetGlobalMode(Option<GlobalMode>),
+    HandleKeyEvent(event::KeyEvent),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
