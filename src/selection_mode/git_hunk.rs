@@ -1,8 +1,8 @@
-use std::path::Path;
-
-use crate::buffer::Buffer;
+use crate::{
+    buffer::Buffer,
+    list::git::{GitOperation, LineDiff},
+};
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{ByteRange, SelectionMode};
 
@@ -17,27 +17,21 @@ impl GitHunk {
                     ranges: Vec::new()
                 });
             };
-        let latest_committed_content = get_latest_file_content(".", &path)?;
-        let current_content = buffer.rope().to_string();
-
-        let patch = diffy::DiffOptions::new()
-            .set_context_len(0)
-            .create_patch(&latest_committed_content, &current_content);
-        let hunks = patch.hunks();
-
+        let binding = path.file_diff(&".".try_into()?)?;
+        let hunks = binding.hunks();
         let ranges = hunks
             .iter()
             .filter_map(|hunk| {
-                let line_range = hunk.new_range().range();
+                let line_range = hunk.line_range();
+                let lines = hunk.lines();
                 let start = buffer
                     .line_to_byte(line_range.start.saturating_sub(1))
                     .ok()?;
                 let end = buffer.line_to_byte(line_range.end.saturating_sub(1)).ok()?;
-                let lines = hunk.lines();
                 let inserted = lines
                     .iter()
                     .filter_map(|line| match line {
-                        diffy::Line::Insert(inserted) => Some(inserted.to_string()),
+                        LineDiff::Insert(inserted) => Some(inserted.to_string()),
                         _ => None,
                     })
                     .collect_vec()
@@ -45,7 +39,7 @@ impl GitHunk {
                 let deleted = lines
                     .iter()
                     .filter_map(|line| match line {
-                        diffy::Line::Delete(deleted) => Some(deleted.to_string()),
+                        LineDiff::Delete(deleted) => Some(deleted.to_string()),
                         _ => None,
                     })
                     .collect_vec()
@@ -66,15 +60,7 @@ impl GitHunk {
 
                 Some(ByteRange::with_info(
                     start..end,
-                    hunk.lines()
-                        .iter()
-                        .map(|line| match line {
-                            diffy::Line::Context(context) => format!("  {}", context),
-                            diffy::Line::Delete(deleted) => format!("- {}", deleted),
-                            diffy::Line::Insert(inserted) => format!("+ {}", inserted),
-                        })
-                        .collect_vec()
-                        .join(""),
+                    hunk.diff_strings().join("\n"),
                 ))
             })
             .collect_vec();
@@ -92,18 +78,4 @@ impl SelectionMode for GitHunk {
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(self.ranges.clone().into_iter()))
     }
-}
-
-fn get_latest_file_content(
-    repo_path: &str,
-    file_path: &CanonicalizedPath,
-) -> anyhow::Result<String> {
-    use git2::Repository;
-    let repo = Repository::open(repo_path)?;
-    let head_commit = repo.head()?.peel_to_commit()?;
-    let tree = head_commit.tree()?;
-    let entry = tree.get_path(Path::new(&file_path.display_relative()?))?;
-    let blob = entry.to_object(&repo)?.peel_to_blob()?;
-    let content = blob.content().to_vec();
-    Ok(String::from_utf8(content)?)
 }

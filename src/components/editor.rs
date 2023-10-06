@@ -1617,6 +1617,11 @@ impl Editor {
                 .into_iter()
                 .chain(diagnostics_keymaps)
                 .chain(self.lsp_keymaps(RequestKind::Global))
+                .chain(Some(Keymap::new(
+                    "g",
+                    "Git Hunk",
+                    Dispatch::GetRepoGitHunks,
+                )))
                 .collect_vec(),
         }
     }

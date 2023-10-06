@@ -4,7 +4,9 @@ use std::path::Path;
 
 use shared::canonicalized_path::CanonicalizedPath;
 
-pub fn non_git_ignored_files(directory: &CanonicalizedPath) -> anyhow::Result<Vec<String>> {
+pub fn non_git_ignored_files(
+    directory: &CanonicalizedPath,
+) -> anyhow::Result<Vec<CanonicalizedPath>> {
     use git2::{Repository, StatusOptions};
 
     let git_status_files = {
@@ -58,6 +60,7 @@ pub fn non_git_ignored_files(directory: &CanonicalizedPath) -> anyhow::Result<Ve
     Ok(git_files
         .into_iter()
         .chain(git_status_files)
+        .filter_map(|path| -> Option<CanonicalizedPath> { path.try_into().ok() })
         .unique_by(|item| item.clone())
         .collect_vec())
 }
