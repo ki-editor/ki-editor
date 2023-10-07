@@ -403,7 +403,7 @@ mod test_app {
                     AddPath(
                         temp_dir
                             .to_path_buf()
-                            .join("rust.rs")
+                            .join("src/rust.rs")
                             .to_string_lossy()
                             .to_string(),
                     ),
@@ -424,8 +424,8 @@ mod test_app {
             // Expect "temp.txt" is not in the list, since it is git-ignored
             assert!(!paths.contains(&"temp.txt".to_string()));
 
-            // Expect the unstaged file "rust.rs" is in the list
-            assert!(paths.contains(&"rust.rs".to_string()));
+            // Expect the unstaged file "src/rust.rs" is in the list
+            assert!(paths.contains(&"src/rust.rs".to_string()));
 
             // Expect the staged file "main.rs" is in the list
             assert!(paths.contains(&"src/main.rs".to_string()));

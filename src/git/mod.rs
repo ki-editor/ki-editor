@@ -56,18 +56,7 @@ impl GitRepo {
     }
 
     pub fn non_git_ignored_files(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
-        let repo = &self.repo;
-        let git_status_files = {
-            let mut opts = git2::StatusOptions::new();
-            let mut opts = opts.include_untracked(true).include_ignored(false);
-            let statuses = repo.statuses(Some(&mut opts))?;
-            statuses
-                .iter()
-                .filter(|entry| !entry.status().is_ignored())
-                .filter_map(|entry| entry.path().map(|path| path.to_owned()))
-                .flat_map(|path| self.path.join(&path))
-                .collect::<Vec<_>>()
-        };
+        let git_status_files = self.git_status_files()?;
 
         let git_files = {
             let repo = git2::Repository::open(&self.path)?;
@@ -88,9 +77,14 @@ impl GitRepo {
 
             let mut result = vec![];
             // Iterate over the tree entries and print their names
-            tree.walk(git2::TreeWalkMode::PostOrder, |_, entry| {
+            tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
                 let entry_name = entry.name().unwrap_or_default();
-                if let Ok(path) = self.path.join(entry_name) {
+                if let Ok(path) = self.path.join(
+                    &std::path::Path::new(root)
+                        .join(entry_name)
+                        .to_string_lossy()
+                        .to_string(),
+                ) {
                     result.push(path)
                 };
                 git2::TreeWalkResult::Ok
