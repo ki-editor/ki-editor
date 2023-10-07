@@ -131,4 +131,12 @@ impl CanonicalizedPath {
     pub fn is_dir(&self) -> bool {
         self.0.is_dir()
     }
+
+    pub fn to_path_buf(&self) -> &PathBuf {
+        &self.0
+    }
+
+    pub fn is_file(&self) -> bool {
+        self.0.is_file()
+    }
 }

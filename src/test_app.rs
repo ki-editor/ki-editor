@@ -3,6 +3,7 @@
 ///   access the clipboard at the same time.
 #[cfg(test)]
 mod test_app {
+    use itertools::Itertools;
     use my_proc_macros::key;
     use serial_test::serial;
 
@@ -372,6 +373,62 @@ mod test_app {
                 ),
             ];
             assert_eq!(app.get_quickfixes(), expected_quickfixes);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let path_git_ignore = temp_dir.join(".gitignore")?;
+
+            app.handle_dispatches(
+                [
+                    // Ignore *.txt files
+                    OpenFile {
+                        path: path_git_ignore.clone(),
+                    },
+                    DispatchEditor(Insert("*.txt\n".to_string())),
+                    SaveAll,
+                    // Add new txt file
+                    AddPath(
+                        temp_dir
+                            .to_path_buf()
+                            .join("temp.txt")
+                            .to_string_lossy()
+                            .to_string(),
+                    ),
+                    // Add a new Rust file
+                    AddPath(
+                        temp_dir
+                            .to_path_buf()
+                            .join("rust.rs")
+                            .to_string_lossy()
+                            .to_string(),
+                    ),
+                ]
+                .to_vec(),
+            )?;
+
+            let paths = crate::git::GitRepo::try_from(&temp_dir)?.non_git_ignored_files()?;
+
+            // Expect all the paths are files, not directory for example
+            assert!(paths.iter().all(|file| file.is_file()));
+
+            let paths = paths
+                .into_iter()
+                .flat_map(|path| path.display_relative_to(&temp_dir))
+                .collect_vec();
+
+            // Expect "temp.txt" is not in the list, since it is git-ignored
+            assert!(!paths.contains(&"temp.txt".to_string()));
+
+            // Expect the unstaged file "rust.rs" is in the list
+            assert!(paths.contains(&"rust.rs".to_string()));
+
+            // Expect the staged file "main.rs" is in the list
+            assert!(paths.contains(&"src/main.rs".to_string()));
 
             Ok(())
         })

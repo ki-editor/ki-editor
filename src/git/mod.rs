@@ -65,12 +65,7 @@ impl GitRepo {
                 .iter()
                 .filter(|entry| !entry.status().is_ignored())
                 .filter_map(|entry| entry.path().map(|path| path.to_owned()))
-                .filter_map(|path| {
-                    CanonicalizedPath::try_from(&path)
-                        .ok()?
-                        .display_relative_to(&self.path)
-                        .ok()
-                })
+                .flat_map(|path| self.path.join(&path))
                 .collect::<Vec<_>>()
         };
 
@@ -93,11 +88,11 @@ impl GitRepo {
 
             let mut result = vec![];
             // Iterate over the tree entries and print their names
-            tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
+            tree.walk(git2::TreeWalkMode::PostOrder, |_, entry| {
                 let entry_name = entry.name().unwrap_or_default();
-                let name = Path::new(root).join(entry_name);
-                let name = name.to_string_lossy();
-                result.push(name.to_string());
+                if let Ok(path) = self.path.join(entry_name) {
+                    result.push(path)
+                };
                 git2::TreeWalkResult::Ok
             })?;
 
@@ -107,6 +102,7 @@ impl GitRepo {
             .into_iter()
             .chain(git_status_files)
             .filter_map(|path| -> Option<CanonicalizedPath> { path.try_into().ok() })
+            .filter(|path| path.is_file())
             .unique_by(|item| item.clone())
             .collect_vec())
     }
