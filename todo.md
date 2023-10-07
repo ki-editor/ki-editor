@@ -229,6 +229,7 @@
 - [] feat(x): m jumps to matching enclosure (e.g. bracket, quote)
 - [] fix(hover-info): should be closed upon pressing esc in normal mode
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
+- [] feat(dev): ci/cd
 
 # Grammar loading
 

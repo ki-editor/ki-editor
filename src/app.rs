@@ -206,7 +206,7 @@ impl<T: Frontend> App<T> {
         });
 
         let theme = self.context.theme();
-        let theme_ui_window_title = theme.ui.window_title.clone();
+        let theme_ui_window_title = theme.ui.window_title;
 
         // Render every window
         let (grid, cursor) = self
@@ -1215,7 +1215,7 @@ impl<T: Frontend> App<T> {
                     .flat_map(|file_diff| {
                         file_diff
                             .hunks()
-                            .into_iter()
+                            .iter()
                             .map(|hunk| {
                                 let line_range = hunk.line_range();
                                 let location = Location {

@@ -307,7 +307,7 @@ impl Component for Editor {
                 Some(range_to_cell_update(
                     &buffer,
                     decoration.byte_range.to_char_index_range(&buffer).ok()?,
-                    decoration.style_key.get_style(&theme),
+                    decoration.style_key.get_style(theme),
                     StyleSource::ExtraDecorations,
                 ))
             })

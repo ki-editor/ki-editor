@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use std::{ops::Range, path::Path};
+use std::ops::Range;
 
 use git2::Repository;
 
@@ -33,7 +33,7 @@ impl GitRepo {
                 status.is_wt_new() || status.is_wt_modified()
             })
             .filter_map(|entry| -> Option<CanonicalizedPath> {
-                let path = self.path.join(&entry.path()?.to_string()).ok()?;
+                let path = self.path.join(entry.path()?).ok()?;
                 Some(path)
             })
             .collect();
@@ -47,7 +47,7 @@ impl GitRepo {
             .git_status_files()?
             .into_iter()
             .par_bridge()
-            .flat_map(|file| file.file_diff(&repo_path))
+            .flat_map(|file| file.file_diff(repo_path))
             .collect())
     }
 
@@ -185,7 +185,7 @@ impl GitOperation for CanonicalizedPath {
         Ok(FileDiff {
             path: self.clone(),
             hunks: hunks
-                .into_iter()
+                .iter()
                 .filter_map(|hunk| {
                     let line_range = hunk.new_range().range();
                     let start = line_range.start.saturating_sub(1);
@@ -223,7 +223,7 @@ impl GitOperation for CanonicalizedPath {
 
                     Some(Hunk {
                         line_range: start..end,
-                        lines: hunk.lines().into_iter().map(From::from).collect_vec(),
+                        lines: hunk.lines().iter().map(From::from).collect_vec(),
                     })
                 })
                 .collect_vec(),
