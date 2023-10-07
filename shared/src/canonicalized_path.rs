@@ -139,4 +139,8 @@ impl CanonicalizedPath {
     pub fn is_file(&self) -> bool {
         self.0.is_file()
     }
+
+    pub fn join_as_path_buf(&self, other: &str) -> String {
+        self.to_path_buf().join(other).to_string_lossy().to_string()
+    }
 }

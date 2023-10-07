@@ -5,6 +5,7 @@
 mod test_app {
     use itertools::Itertools;
     use my_proc_macros::key;
+    use pretty_assertions::assert_eq;
     use serial_test::serial;
 
     use std::sync::{Arc, Mutex};
@@ -328,6 +329,7 @@ mod test_app {
         run_test(|mut app, temp_dir| {
             let path_main = temp_dir.join("src/main.rs")?;
             let path_foo = temp_dir.join("src/foo.rs")?;
+            let path_new_file = temp_dir.join_as_path_buf("new_file.md");
 
             app.handle_dispatches(
                 [
@@ -344,32 +346,39 @@ mod test_app {
                     DispatchEditor(Insert("// Hello".to_string())),
                     // Save the files,
                     SaveAll,
+                    // Add a new file
+                    AddPath(path_new_file.clone()),
                     // Get the repo hunks
                     GetRepoGitHunks,
                 ]
                 .to_vec(),
             )?;
 
+            fn strs_to_strings(strs: &[&str]) -> Vec<String> {
+                strs.iter().map(|s| s.to_string()).collect_vec()
+            }
+
             let expected_quickfixes = [
+                QuickfixListItem::new(
+                    Location {
+                        path: path_new_file.try_into()?,
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                    },
+                    strs_to_strings(&["+ [This file is untracked by Git]"]),
+                ),
                 QuickfixListItem::new(
                     Location {
                         path: path_foo,
                         range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
                     },
-                    ["- pub struct Foo {", "+ // Hellopub struct Foo {"]
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect(),
+                    strs_to_strings(&["- pub struct Foo {", "+ // Hellopub struct Foo {"]),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: path_main,
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
                     },
-                    ["- mod foo;", "-"]
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect(),
+                    strs_to_strings(&["- mod foo;", "-"]),
                 ),
             ];
             assert_eq!(app.get_quickfixes(), expected_quickfixes);
@@ -392,21 +401,9 @@ mod test_app {
                     DispatchEditor(Insert("*.txt\n".to_string())),
                     SaveAll,
                     // Add new txt file
-                    AddPath(
-                        temp_dir
-                            .to_path_buf()
-                            .join("temp.txt")
-                            .to_string_lossy()
-                            .to_string(),
-                    ),
+                    AddPath(temp_dir.join_as_path_buf("temp.txt")),
                     // Add a new Rust file
-                    AddPath(
-                        temp_dir
-                            .to_path_buf()
-                            .join("src/rust.rs")
-                            .to_string_lossy()
-                            .to_string(),
-                    ),
+                    AddPath(temp_dir.join_as_path_buf("src/rust.rs")),
                 ]
                 .to_vec(),
             )?;

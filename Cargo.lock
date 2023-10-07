@@ -951,6 +951,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "indoc"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e186cfbae8084e513daff4240b4797e342f988cecda4fb6c939150f96315fd8"
+
+[[package]]
 name = "insta"
 version = "1.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2026,6 +2032,7 @@ dependencies = [
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "indoc",
  "insta",
  "itertools",
  "json-rpc-types",
