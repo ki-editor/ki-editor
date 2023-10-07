@@ -1,6 +1,6 @@
 use crate::{
     buffer::Buffer,
-    list::git::{GitOperation, LineDiff},
+    git::{GitOperation, LineDiff},
 };
 use itertools::Itertools;
 

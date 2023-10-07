@@ -24,6 +24,7 @@ use crate::{
     },
     context::{Context, GlobalMode, Search, SearchKind},
     frontend::frontend::Frontend,
+    git,
     grid::Grid,
     layout::Layout,
     list,
@@ -707,10 +708,10 @@ impl<T: Frontend> App<T> {
             items: {
                 match kind {
                     FilePickerKind::NonGitIgnored => {
-                        list::non_gitignore_files::non_git_ignored_files(&self.working_directory)?
+                        git::GitRepo::try_from(&self.working_directory)?.non_git_ignored_files()?
                     }
                     FilePickerKind::GitStatus => {
-                        list::git::GitRepo::try_from(&self.working_directory)?.git_status_files()?
+                        git::GitRepo::try_from(&self.working_directory)?.git_status_files()?
                     }
                     FilePickerKind::Opened => self.layout.get_opened_files(),
                 }
@@ -1204,7 +1205,7 @@ impl<T: Frontend> App<T> {
 
     fn get_repo_git_hunks(&mut self) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
-        let repo = list::git::GitRepo::try_from(&working_directory)?;
+        let repo = git::GitRepo::try_from(&working_directory)?;
         let diffs = repo.diffs()?;
         self.set_quickfix_list(
             ResponseContext::default().set_description("Repo Git Hunks"),
