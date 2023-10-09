@@ -101,7 +101,7 @@ For example, in Character mode, `u` means go to the character of the same column
 | Line                |              |                  | Move to nearest parent line       |                               |
 | Quickfix            |              |                  | \*First quickfix of previous file | \*First quickfix of next file |
 | Syntax tree         | Next sibling | Previous sibling | Select parent                     | Select first child            |
-| Undo Tree (space z) | Next branch  | Previous branch  | Redo                              | Undo                          |
+| Undo Tree (space z) | Redo  | Undo  | Go to next branch                              | Go to previous branch                          |
 
 ## Exchange mode
 
