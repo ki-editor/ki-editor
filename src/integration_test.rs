@@ -145,6 +145,7 @@ pub mod integration_test {
         Ok(())
     }
 
+    /// TODO: move to test_app.rs
     #[test]
     #[ignore]
     fn saving_should_not_crash() -> anyhow::Result<()> {
@@ -172,6 +173,7 @@ pub mod integration_test {
         Ok(())
     }
 
+    /// TODO: move to test_app.rs
     #[test]
     #[ignore]
     fn search() -> anyhow::Result<()> {

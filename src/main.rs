@@ -1,4 +1,5 @@
 mod buffer;
+mod git;
 
 pub mod char_index_range;
 mod cli;

@@ -3,10 +3,13 @@
 ///   access the clipboard at the same time.
 #[cfg(test)]
 mod test_app {
+    use itertools::Itertools;
     use my_proc_macros::key;
+    use pretty_assertions::assert_eq;
     use serial_test::serial;
 
     use std::sync::{Arc, Mutex};
+    use Dispatch::*;
     use DispatchEditor::*;
 
     use shared::canonicalized_path::CanonicalizedPath;
@@ -17,6 +20,8 @@ mod test_app {
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
+        position::Position,
+        quickfix_list::{Location, QuickfixListItem},
         selection::SelectionMode,
     };
 
@@ -312,8 +317,115 @@ mod test_app {
             ))?;
             assert_eq!(app.components().len(), 2);
 
-            app.handle_dispatch(Dispatch::HandleKeyEvent(key!("esc")))?;
+            app.handle_dispatch(HandleKeyEvent(key!("esc")))?;
             assert_eq!(app.components().len(), 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let path_main = temp_dir.join("src/main.rs")?;
+            let path_foo = temp_dir.join("src/foo.rs")?;
+            let path_new_file = temp_dir.join_as_path_buf("new_file.md");
+
+            app.handle_dispatches(
+                [
+                    // Delete the first line of main.rs
+                    OpenFile {
+                        path: path_main.clone(),
+                    },
+                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(Kill),
+                    // Insert a comment at the first line of foo.rs
+                    OpenFile {
+                        path: path_foo.clone(),
+                    },
+                    DispatchEditor(Insert("// Hello".to_string())),
+                    // Save the files,
+                    SaveAll,
+                    // Add a new file
+                    AddPath(path_new_file.clone()),
+                    // Get the repo hunks
+                    GetRepoGitHunks,
+                ]
+                .to_vec(),
+            )?;
+
+            fn strs_to_strings(strs: &[&str]) -> Vec<String> {
+                strs.iter().map(|s| s.to_string()).collect_vec()
+            }
+
+            let expected_quickfixes = [
+                QuickfixListItem::new(
+                    Location {
+                        path: path_new_file.try_into()?,
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                    },
+                    strs_to_strings(&["+ [This file is untracked by Git]"]),
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: path_foo,
+                        range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
+                    },
+                    strs_to_strings(&["- pub struct Foo {", "+ // Hellopub struct Foo {"]),
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: path_main,
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
+                    },
+                    strs_to_strings(&["- mod foo;", "-"]),
+                ),
+            ];
+            assert_eq!(app.get_quickfixes(), expected_quickfixes);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let path_git_ignore = temp_dir.join(".gitignore")?;
+
+            app.handle_dispatches(
+                [
+                    // Ignore *.txt files
+                    OpenFile {
+                        path: path_git_ignore.clone(),
+                    },
+                    DispatchEditor(Insert("*.txt\n".to_string())),
+                    SaveAll,
+                    // Add new txt file
+                    AddPath(temp_dir.join_as_path_buf("temp.txt")),
+                    // Add a new Rust file
+                    AddPath(temp_dir.join_as_path_buf("src/rust.rs")),
+                ]
+                .to_vec(),
+            )?;
+
+            let paths = crate::git::GitRepo::try_from(&temp_dir)?.non_git_ignored_files()?;
+
+            // Expect all the paths are files, not directory for example
+            assert!(paths.iter().all(|file| file.is_file()));
+
+            let paths = paths
+                .into_iter()
+                .flat_map(|path| path.display_relative_to(&temp_dir))
+                .collect_vec();
+
+            // Expect "temp.txt" is not in the list, since it is git-ignored
+            assert!(!paths.contains(&"temp.txt".to_string()));
+
+            // Expect the unstaged file "src/rust.rs" is in the list
+            assert!(paths.contains(&"src/rust.rs".to_string()));
+
+            // Expect the staged file "main.rs" is in the list
+            assert!(paths.contains(&"src/main.rs".to_string()));
 
             Ok(())
         })

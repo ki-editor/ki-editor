@@ -42,8 +42,8 @@ pub struct Layout {
 
 impl Layout {
     pub fn new(terminal_dimension: Dimension, path: &CanonicalizedPath) -> anyhow::Result<Layout> {
-        let (rectangles, borders) =
-            Rectangle::generate(layout_kind(&terminal_dimension), 1, 0.7, terminal_dimension);
+        let (layout_kind, ratio) = layout_kind(&terminal_dimension);
+        let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
         Ok(Layout {
             main_panel: None,
             main_panel_history_backward: vec![],
@@ -232,10 +232,12 @@ impl Layout {
     }
 
     pub fn recalculate_layout(&mut self) {
+        let (layout_kind, ratio) = layout_kind(&self.terminal_dimension);
+
         let (rectangles, borders) = Rectangle::generate(
-            layout_kind(&self.terminal_dimension),
+            layout_kind,
             self.components().len(),
-            0.7,
+            ratio,
             self.terminal_dimension,
         );
         self.rectangles = rectangles;
@@ -391,13 +393,21 @@ impl Layout {
     pub fn open_file_explorer(&mut self) {
         self.file_explorer_open = true
     }
+
+    pub(crate) fn get_quickfixes(&self) -> Option<Vec<crate::quickfix_list::QuickfixListItem>> {
+        if let Some(list) = self.quickfix_lists.as_ref() {
+            list.borrow().get_items().cloned()
+        } else {
+            None
+        }
+    }
 }
-fn layout_kind(terminal_dimension: &Dimension) -> LayoutKind {
+fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;
     const RIGHT_PANEL_MIN_WIDTH: u16 = 60;
     if terminal_dimension.width > MAIN_PANEL_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH {
-        LayoutKind::Tall
+        (LayoutKind::Tall, 0.55)
     } else {
-        LayoutKind::Wide
+        (LayoutKind::Wide, 0.65)
     }
 }

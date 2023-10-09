@@ -131,4 +131,16 @@ impl CanonicalizedPath {
     pub fn is_dir(&self) -> bool {
         self.0.is_dir()
     }
+
+    pub fn to_path_buf(&self) -> &PathBuf {
+        &self.0
+    }
+
+    pub fn is_file(&self) -> bool {
+        self.0.is_file()
+    }
+
+    pub fn join_as_path_buf(&self, other: &str) -> String {
+        self.to_path_buf().join(other).to_string_lossy().to_string()
+    }
 }

@@ -53,7 +53,7 @@ impl Highlight for HighlightConfiguration {
         let mut highlighter = Highlighter::new();
 
         let highlights = highlighter
-            .highlight(&self, source_code.as_bytes(), None, |_| None)
+            .highlight(self, source_code.as_bytes(), None, |_| None)
             .unwrap();
 
         let mut highlight = None;

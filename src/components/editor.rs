@@ -307,7 +307,7 @@ impl Component for Editor {
                 Some(range_to_cell_update(
                     &buffer,
                     decoration.byte_range.to_char_index_range(&buffer).ok()?,
-                    decoration.style_key.get_style(&theme),
+                    decoration.style_key.get_style(theme),
                     StyleSource::ExtraDecorations,
                 ))
             })
@@ -1502,6 +1502,8 @@ impl Editor {
             DispatchEditor::ToggleHighlightMode => self.toggle_highlight_mode(),
             DispatchEditor::EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             DispatchEditor::EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
+            DispatchEditor::Kill => return self.kill(context),
+            DispatchEditor::Insert(string) => return self.insert(&string),
         }
         Ok([].to_vec())
     }
@@ -1617,6 +1619,11 @@ impl Editor {
                 .into_iter()
                 .chain(diagnostics_keymaps)
                 .chain(self.lsp_keymaps(RequestKind::Global))
+                .chain(Some(Keymap::new(
+                    "g",
+                    "Git Hunk",
+                    Dispatch::GetRepoGitHunks,
+                )))
                 .collect_vec(),
         }
     }
@@ -3061,4 +3068,6 @@ pub enum DispatchEditor {
     ToggleHighlightMode,
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
+    Kill,
+    Insert(String),
 }
