@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, git::GitOperation};
+use crate::{buffer::Buffer, components::suggestive_editor::Info, git::GitOperation};
 use itertools::Itertools;
 
 use super::{ByteRange, SelectionMode};
@@ -24,7 +24,10 @@ impl GitHunk {
                 let start = buffer.line_to_byte(line_range.start).ok()?;
                 let end = buffer.line_to_byte(line_range.end).ok()?;
 
-                Some(ByteRange::with_info(start..end, hunk.to_string()))
+                Some(ByteRange::with_info(
+                    start..end,
+                    Info::new(hunk.to_string()),
+                ))
             })
             .collect_vec();
         Ok(GitHunk { ranges })

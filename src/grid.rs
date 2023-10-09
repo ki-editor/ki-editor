@@ -445,13 +445,16 @@ impl Grid {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum StyleSource {
-    PrimarySelection,
-    PrimarySelectionAnchors,
-    SecondarySelection,
-    SecondarySelectionAnchors,
-    Diagnostics,
+    UiPrimarySelection,
+    UiPrimarySelectionAnchors,
+    UiSecondarySelection,
+    UiSecondarySelectionAnchors,
+    DiagnosticsHint,
+    DiagnosticsError,
+    DiagnosticsWarning,
+    DiagnosticsInformation,
     ExtraDecorations,
     Bookmark,
     SyntaxKeyword,
@@ -459,6 +462,7 @@ pub enum StyleSource {
     SyntaxComment,
     SyntaxString,
     SyntaxType,
+    DiagnosticsDefault,
 }
 
 #[derive(Default, Clone, Copy, Debug)]

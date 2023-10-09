@@ -53,7 +53,7 @@ pub const VSCODE_LIGHT: Theme = Theme {
     diagnostic: DiagnosticStyles {
         error: Style::new().undercurl(Some(hex!("#ff0000"))),
         warning: Style::new().undercurl(Some(hex!("#ffa500"))),
-        info: Style::new().undercurl(Some(hex!("#007acc"))),
+        information: Style::new().undercurl(Some(hex!("#007acc"))),
         hint: Style::new().undercurl(Some(hex!("#008000"))),
         default: Style::new(),
     },

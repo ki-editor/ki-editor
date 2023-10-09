@@ -22,6 +22,7 @@ mod quickfix_list;
 mod rectangle;
 mod selection;
 pub mod selection_mode;
+pub mod selection_range;
 pub mod soft_wrap;
 pub mod syntax_highlight;
 mod terminal;

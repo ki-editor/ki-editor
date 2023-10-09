@@ -29,23 +29,26 @@ pub use top_node::OutermostNode;
 use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
-    components::editor::{Direction, Jump, Movement},
+    components::{
+        editor::{Direction, Jump, Movement},
+        suggestive_editor::Info,
+    },
     context::Context,
     edit::is_overlapping,
     selection::Selection,
 };
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct ByteRange {
     range: Range<usize>,
-    info: Option<String>,
+    info: Option<Info>,
 }
 impl ByteRange {
     pub fn new(range: Range<usize>) -> Self {
         Self { range, info: None }
     }
 
-    pub fn with_info(range: Range<usize>, info: String) -> Self {
+    pub fn with_info(range: Range<usize>, info: Info) -> Self {
         Self {
             range,
             info: Some(info),
@@ -353,7 +356,10 @@ mod test_selection_mode {
     use crate::{
         buffer::Buffer,
         char_index_range::CharIndexRange,
-        components::editor::{Direction, Movement},
+        components::{
+            editor::{Direction, Movement},
+            suggestive_editor::Info,
+        },
         context::Context,
         selection::{CharIndex, Selection},
         selection_mode::Line,
@@ -453,7 +459,7 @@ mod test_selection_mode {
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default()
                 .set_range((CharIndex(1)..CharIndex(2)).into())
-                .set_info(Some("Spongebob".to_string())),
+                .set_info(Some(Info::new("Spongebob".to_string()))),
             cursor_direction: &Direction::Start,
         };
         struct Dummy;
@@ -467,8 +473,8 @@ mod test_selection_mode {
             ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
                 Ok(Box::new(
                     [
-                        ByteRange::with_info(1..2, "Spongebob".to_string()),
-                        ByteRange::with_info(1..2, "Squarepants".to_string()),
+                        ByteRange::with_info(1..2, Info::new("Spongebob".to_string())),
+                        ByteRange::with_info(1..2, Info::new("Squarepants".to_string())),
                     ]
                     .into_iter(),
                 ))
@@ -481,7 +487,7 @@ mod test_selection_mode {
                 .unwrap();
             let expected_range: CharIndexRange = (CharIndex(1)..CharIndex(2)).into();
             assert_eq!(expected_range, actual.range());
-            let expected_info = expected_info.to_string();
+            let expected_info = Info::new(expected_info.to_string());
             assert_eq!(expected_info, actual.info().unwrap());
         };
         run_test(Movement::Current, "Spongebob");

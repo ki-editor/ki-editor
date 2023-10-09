@@ -1,7 +1,7 @@
 pub mod vscode_light;
 pub use vscode_light::VSCODE_LIGHT;
 
-use crate::grid::Style;
+use crate::grid::{Style, StyleSource};
 
 #[derive(Clone)]
 pub struct Theme {
@@ -10,18 +10,32 @@ pub struct Theme {
     pub ui: UiStyles,
     pub diagnostic: DiagnosticStyles,
 }
-
-#[derive(Clone)]
-pub enum StyleKey {
-    UiPrimarySelection,
-}
-
-impl StyleKey {
-    pub fn get_style(&self, theme: &Theme) -> Style {
-        match self {
-            StyleKey::UiPrimarySelection => {
-                Style::default().background_color(theme.ui.primary_selection_background)
+impl Theme {
+    pub(crate) fn get_style(&self, source: &StyleSource) -> Style {
+        match source {
+            StyleSource::UiPrimarySelection => {
+                Style::new().background_color(self.ui.primary_selection_background)
             }
+            StyleSource::UiPrimarySelectionAnchors => {
+                Style::new().background_color(self.ui.primary_selection_anchor_background)
+            }
+            StyleSource::UiSecondarySelection => {
+                Style::new().background_color(self.ui.secondary_selection_background)
+            }
+            StyleSource::UiSecondarySelectionAnchors => {
+                Style::new().background_color(self.ui.secondary_selection_anchor_background)
+            }
+            StyleSource::DiagnosticsHint => self.diagnostic.hint,
+            StyleSource::DiagnosticsError => self.diagnostic.error,
+            StyleSource::DiagnosticsWarning => self.diagnostic.warning,
+            StyleSource::DiagnosticsInformation => self.diagnostic.information,
+            StyleSource::DiagnosticsDefault => self.diagnostic.default,
+            StyleSource::Bookmark => todo!(),
+            StyleSource::SyntaxKeyword => todo!(),
+            StyleSource::SyntaxFunction => todo!(),
+            StyleSource::SyntaxComment => todo!(),
+            StyleSource::SyntaxString => todo!(),
+            StyleSource::SyntaxType => todo!(),
         }
     }
 }
@@ -36,7 +50,7 @@ impl Default for Theme {
 pub struct DiagnosticStyles {
     pub error: Style,
     pub warning: Style,
-    pub info: Style,
+    pub information: Style,
     pub hint: Style,
     pub default: Style,
 }

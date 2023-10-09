@@ -1,11 +1,11 @@
 use crate::app::Dispatch;
 use crate::context::Context;
+use crate::grid::StyleSource;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::lsp::signature_help::SignatureHelp;
 
 use crate::selection_mode::ByteRange;
-use crate::themes::StyleKey;
 use crate::{
     buffer::Buffer,
     lsp::completion::{Completion, CompletionItem},
@@ -278,47 +278,18 @@ impl SuggestiveEditor {
         if self.editor.mode != Mode::Insert {
             return;
         }
-        if let Some(signature_help) = signature_help {
-            self.show_infos(
-                "Signature help",
-                signature_help
-                    .signatures
-                    .into_iter()
-                    .map(|signature| {
-                        let signature_label_len = signature.label.len();
-                        let content = [signature.label]
-                            .into_iter()
-                            .chain(signature.documentation.map(|doc| doc.content))
-                            .collect_vec()
-                            .join(&format!("{}\n", "-".repeat(signature_label_len)));
-
-                        let decoration =
-                            signature
-                                .active_parameter_byte_range
-                                .map(|byte_range| Decoration {
-                                    byte_range,
-                                    style_key: StyleKey::UiPrimarySelection,
-                                });
-                        Info {
-                            content,
-                            decorations: [].into_iter().chain(decoration).collect_vec(),
-                        }
-                    })
-                    .collect_vec(),
-            );
+        if let Some(info) = signature_help.and_then(|s| s.into_info()) {
+            self.show_infos("Signature help", info);
         } else {
             self.info_panel = None;
         }
     }
 
-    pub fn show_infos(&mut self, title: &str, infos: Vec<Info>) {
-        // TODO: show NOT only the first info
-        if let Some(info) = infos.first() {
-            let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
-            editor.add_decorations(info.decorations.to_owned());
-            editor.set_title(title.into());
-            self.info_panel = Some(Rc::new(RefCell::new(editor)));
-        }
+    pub fn show_infos(&mut self, title: &str, info: Info) {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
+        editor.add_decorations(info.decorations());
+        editor.set_title(title.into());
+        self.info_panel = Some(Rc::new(RefCell::new(editor)));
     }
 
     pub fn set_code_actions(&mut self, code_actions: Vec<CodeAction>) {
@@ -856,14 +827,49 @@ mod test_suggestive_editor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Info {
-    pub content: String,
-    pub decorations: Vec<Decoration>,
+    content: String,
+    decorations: Vec<Decoration>,
+}
+impl Info {
+    pub(crate) fn new(content: String) -> Info {
+        Info {
+            content,
+            decorations: Vec::new(),
+        }
+    }
+
+    pub fn content(&self) -> &String {
+        &self.content
+    }
+
+    pub fn decorations(&self) -> &Vec<Decoration> {
+        &self.decorations
+    }
+
+    pub fn take(self) -> (String, Vec<Decoration>) {
+        let Self {
+            content,
+            decorations,
+        } = self;
+        (content, decorations)
+    }
+
+    pub fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
+        Info {
+            decorations,
+            ..self
+        }
+    }
+
+    pub(crate) fn join(self, other: Info) -> Info {
+        todo!()
+    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Decoration {
     pub byte_range: ByteRange,
-    pub style_key: StyleKey,
+    pub style_key: StyleSource,
 }

@@ -129,7 +129,7 @@ impl<T: Frontend> App<T> {
                 AppMessage::QuitAll => Ok(true),
             }
             .unwrap_or_else(|e| {
-                self.show_info("ERROR", vec![e.to_string()]);
+                self.show_info("ERROR", Info::new(e.to_string()));
                 false
             });
 
@@ -179,7 +179,7 @@ impl<T: Frontend> App<T> {
                 component.map(|component| {
                     let dispatches = component.borrow_mut().handle_event(&self.context, event);
                     self.handle_dispatches_result(dispatches)
-                        .unwrap_or_else(|e| self.show_info("ERROR", vec![e.to_string()]));
+                        .unwrap_or_else(|e| self.show_info("ERROR", Info::new(e.to_string())));
                 });
             }
         }
@@ -400,7 +400,7 @@ impl<T: Frontend> App<T> {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowInfo { title, content } => self.show_info(&title, content),
+            Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
@@ -776,14 +776,7 @@ impl<T: Frontend> App<T> {
             LspNotification::Hover(context, hover) => {
                 self.get_suggestive_editor(context.component_id)?
                     .borrow_mut()
-                    .show_infos(
-                        "Hover info",
-                        [Info {
-                            content: hover.contents.join("\n\n"),
-                            decorations: Vec::new(),
-                        }]
-                        .to_vec(),
-                    );
+                    .show_infos("Hover info", Info::new(hover.contents.join("\n\n")));
                 Ok(())
             }
             LspNotification::Definition(context, response) => {
@@ -793,7 +786,7 @@ impl<T: Frontend> App<T> {
                         if locations.is_empty() {
                             self.show_info(
                                 "Goto definition info",
-                                vec!["No definitions found".to_string()],
+                                Info::new("No definitions found".to_string()),
                             );
                         } else {
                             self.set_quickfix_list(
@@ -882,7 +875,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::Error(error) => {
-                self.show_info("LSP error", vec![error]);
+                self.show_info("LSP error", Info::new(error));
                 Ok(())
             }
             LspNotification::WorkspaceEdit(workspace_edit) => {
@@ -920,12 +913,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_info(&mut self, title: &str, contents: Vec<String>) {
-        self.layout
-            .show_info(title, contents)
-            .unwrap_or_else(|err| {
-                log::error!("Error showing info: {:?}", err);
-            });
+    fn show_info(&mut self, title: &str, info: Info) {
+        self.layout.show_info(title, info).unwrap_or_else(|err| {
+            log::error!("Error showing info: {:?}", err);
+        });
     }
 
     fn go_to_location(&mut self, location: &Location) -> Result<(), anyhow::Error> {
@@ -1274,7 +1265,7 @@ pub enum Dispatch {
     },
     ShowInfo {
         title: String,
-        content: Vec<String>,
+        info: Info,
     },
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),

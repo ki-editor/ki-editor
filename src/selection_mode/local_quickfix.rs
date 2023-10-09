@@ -1,3 +1,5 @@
+use crate::components::suggestive_editor::Info;
+
 use super::{ByteRange, SelectionMode};
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
@@ -20,7 +22,7 @@ impl LocalQuickfix {
                             buffer
                                 .position_range_to_byte_range(&item.location().range)
                                 .ok()?,
-                            item.infos().join("\n\n"),
+                            Info::new(item.infos().join("\n\n")),
                         ))
                     })
                     .collect()

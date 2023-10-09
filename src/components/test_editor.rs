@@ -6,6 +6,7 @@ mod test_editor {
         components::{
             component::Component,
             editor::{Direction, Editor, Mode, Movement, ViewAlignment},
+            suggestive_editor::Info,
         },
         context::Context,
         grid::{Style, StyleSource},
@@ -897,21 +898,20 @@ fn f() {
         editor.insert("de")?;
         let dispatches = editor.enter_undo_tree_mode();
 
-        assert_eq!(
-            dispatches,
-            [Dispatch::ShowInfo {
-                title: "Undo Tree History".to_string(),
-                content: [" 
+        let expected = [Dispatch::ShowInfo {
+            title: "Undo Tree History".to_string(),
+            info: Info::new(
+                " 
 * 1-2 [HEAD] 
 | * 0-2 
 |/
 * 1-1 
 * 1-0 [SAVED]"
                     .trim()
-                    .to_string()]
-                .to_vec()
-            }]
-        );
+                    .to_string(),
+            ),
+        }];
+        assert_eq!(dispatches, expected);
 
         // Down = go to previous history branch
         editor.handle_movement(&context, Movement::Down)?;

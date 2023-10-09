@@ -40,6 +40,7 @@ use crate::{
 use super::{
     component::{ComponentId, GetGridResult},
     keymap_legend::{Keymap, KeymapLegendConfig},
+    suggestive_editor::Info,
 };
 
 #[derive(PartialEq, Clone, Debug, Eq)]
@@ -143,7 +144,7 @@ impl Component for Editor {
             .collect::<Vec<_>>();
 
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
-            range_to_cell_update(&buffer, bookmark, theme.ui.bookmark, StyleSource::Bookmark)
+            range_to_cell_update(&buffer, bookmark, &theme, StyleSource::Bookmark)
         });
 
         let secondary_selections = &editor.selection_set.secondary;
@@ -151,13 +152,14 @@ impl Component for Editor {
         fn range_to_cell_update(
             buffer: &Buffer,
             range: CharIndexRange,
-            style: Style,
+            theme: &crate::themes::Theme,
             source: StyleSource,
         ) -> Vec<CellUpdate> {
             range
                 .iter()
                 .filter_map(|char_index| {
                     let position = buffer.char_to_position(char_index).ok()?;
+                    let style = theme.get_style(&source);
                     Some(CellUpdate::new(position).style(style).source(Some(source)))
                 })
                 .collect()
@@ -177,16 +179,16 @@ impl Component for Editor {
         let primary_selection = range_to_cell_update(
             &buffer,
             selection.extended_range(),
-            Style::default().background_color(theme.ui.primary_selection_background),
-            StyleSource::PrimarySelection,
+            &theme,
+            StyleSource::UiPrimarySelection,
         );
 
         let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
             range_to_cell_update(
                 &buffer,
                 range,
-                Style::default().background_color(theme.ui.primary_selection_anchor_background),
-                StyleSource::PrimarySelectionAnchors,
+                &theme,
+                StyleSource::UiPrimarySelectionAnchors,
             )
         });
 
@@ -211,8 +213,8 @@ impl Component for Editor {
             range_to_cell_update(
                 &buffer,
                 secondary_selection.extended_range(),
-                Style::default().background_color(theme.ui.secondary_selection_background),
-                StyleSource::SecondarySelection,
+                &theme,
+                StyleSource::UiSecondarySelection,
             )
         });
         let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
@@ -220,9 +222,8 @@ impl Component for Editor {
                 range_to_cell_update(
                     &buffer,
                     range,
-                    Style::default()
-                        .background_color(theme.ui.secondary_selection_anchor_background),
-                    StyleSource::SecondarySelectionAnchors,
+                    &theme,
+                    StyleSource::UiSecondarySelectionAnchors,
                 )
             })
         });
@@ -260,21 +261,22 @@ impl Component for Editor {
                 let end = buffer.position_to_char(diagnostic.range.end).ok()?;
                 let end = if start == end { end + 1 } else { end };
                 let char_index_range = (start..end).into();
-                let style = match diagnostic.severity {
+
+                let style_source = match diagnostic.severity {
                     Some(severity) => match severity {
-                        DiagnosticSeverity::ERROR => theme.diagnostic.error,
-                        DiagnosticSeverity::WARNING => theme.diagnostic.warning,
-                        DiagnosticSeverity::INFORMATION => theme.diagnostic.info,
-                        DiagnosticSeverity::HINT => theme.diagnostic.hint,
-                        _ => theme.diagnostic.default,
+                        DiagnosticSeverity::ERROR => StyleSource::DiagnosticsError,
+                        DiagnosticSeverity::WARNING => StyleSource::DiagnosticsWarning,
+                        DiagnosticSeverity::INFORMATION => StyleSource::DiagnosticsInformation,
+                        DiagnosticSeverity::HINT => StyleSource::DiagnosticsHint,
+                        _ => StyleSource::DiagnosticsDefault,
                     },
                     None => theme.diagnostic.default,
                 };
                 Some(range_to_cell_update(
                     &buffer,
                     char_index_range,
-                    style,
-                    StyleSource::Diagnostics,
+                    &theme,
+                    style_source,
                 ))
             })
             .flatten();
@@ -307,8 +309,8 @@ impl Component for Editor {
                 Some(range_to_cell_update(
                     &buffer,
                     decoration.byte_range.to_char_index_range(&buffer).ok()?,
-                    decoration.style_key.get_style(theme),
-                    StyleSource::ExtraDecorations,
+                    &theme,
+                    decoration.style_key,
                 ))
             })
             .flatten()
@@ -719,6 +721,12 @@ impl Editor {
             .into_iter()
             .partition(|line| line.line < self.scroll_offset as usize))
     }
+
+    pub fn show_info(&mut self, info: Info) {
+        self.add_decorations(info.decorations());
+        self.set_content(info.content());
+    }
+
     pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
@@ -1174,7 +1182,7 @@ impl Editor {
     pub fn show_undo_tree_dispatch(&self) -> Dispatch {
         Dispatch::ShowInfo {
             title: "Undo Tree History".to_string(),
-            content: [self.buffer().display_history()].to_vec(),
+            info: Info::new(self.buffer().display_history()),
         }
     }
 
@@ -2845,7 +2853,7 @@ impl Editor {
         }
     }
 
-    pub fn add_decorations(&mut self, decorations: Vec<super::suggestive_editor::Decoration>) {
+    pub fn add_decorations(&mut self, decorations: &Vec<super::suggestive_editor::Decoration>) {
         self.buffer.borrow_mut().add_decorations(decorations)
     }
 
@@ -2955,21 +2963,20 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         self.select(selection_mode, movement, context)?;
 
-        let infos = self
+        if let Some(info) = self
             .selection_set
             .map(|selection| selection.info())
             .into_iter()
             .flatten()
-            .collect::<Vec<_>>();
-
-        if infos.join("").is_empty() {
-            return Ok(vec![]);
+            .reduce(Info::join)
+        {
+            Ok(vec![Dispatch::ShowInfo {
+                title: "INFO".to_string(),
+                info: info,
+            }])
+        } else {
+            Ok(Vec::new())
         }
-
-        Ok(vec![Dispatch::ShowInfo {
-            title: "INFO".to_string(),
-            content: infos,
-        }])
     }
 
     pub fn scroll_page_down(&mut self) -> Result<(), anyhow::Error> {
