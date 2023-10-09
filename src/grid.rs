@@ -24,7 +24,7 @@ pub struct Cell {
     pub undercurl: Option<Color>,
     pub is_cursor: bool,
     /// For debugging purposes, so that we can trace this Cell is updated by which decoration, e.g. Diagnostic
-    pub source: Option<StyleSource>,
+    pub source: Option<StyleKey>,
 }
 
 fn choose<T>(old: Option<T>, new: Option<T>) -> Option<T> {
@@ -79,7 +79,7 @@ pub struct CellUpdate {
     pub is_cursor: bool,
 
     /// For debugging purposes
-    pub source: Option<StyleSource>,
+    pub source: Option<StyleKey>,
 }
 
 impl CellUpdate {
@@ -93,7 +93,7 @@ impl CellUpdate {
         }
     }
 
-    pub fn source(self, source: Option<StyleSource>) -> CellUpdate {
+    pub fn source(self, source: Option<StyleKey>) -> CellUpdate {
         CellUpdate { source, ..self }
     }
 
@@ -445,8 +445,8 @@ impl Grid {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-pub enum StyleSource {
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
+pub enum StyleKey {
     UiPrimarySelection,
     UiPrimarySelectionAnchors,
     UiSecondarySelection,
@@ -455,14 +455,18 @@ pub enum StyleSource {
     DiagnosticsError,
     DiagnosticsWarning,
     DiagnosticsInformation,
-    ExtraDecorations,
-    Bookmark,
+    UiBookmark,
     SyntaxKeyword,
     SyntaxFunction,
     SyntaxComment,
     SyntaxString,
     SyntaxType,
     DiagnosticsDefault,
+    HunkLineOld,
+    HunkCharOld,
+    HunkLineNew,
+    HunkCharNew,
+    SyntaxDefault,
 }
 
 #[derive(Default, Clone, Copy, Debug)]

@@ -16,7 +16,10 @@ mod test_app {
 
     use crate::{
         app::{App, Dispatch},
-        components::editor::{Direction, DispatchEditor, Movement},
+        components::{
+            editor::{Direction, DispatchEditor, Movement},
+            suggestive_editor::Info,
+        },
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
@@ -354,8 +357,10 @@ mod test_app {
                 .to_vec(),
             )?;
 
-            fn strs_to_strings(strs: &[&str]) -> Vec<String> {
-                strs.iter().map(|s| s.to_string()).collect_vec()
+            fn strs_to_strings(strs: &[&str]) -> Option<Info> {
+                strs.iter()
+                    .map(|s| Info::new(s.to_string()))
+                    .reduce(Info::join)
             }
 
             let expected_quickfixes = [

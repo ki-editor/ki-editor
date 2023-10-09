@@ -8,6 +8,7 @@ use crate::{
         component::{Component, ComponentId},
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
         editor::Movement,
+        suggestive_editor::Info,
     },
     position::Position,
 };
@@ -23,8 +24,8 @@ impl DropdownItem for QuickfixListItem {
         self.location().display()
     }
 
-    fn info(&self) -> Option<String> {
-        self.infos.join("\n").into()
+    fn info(&self) -> Option<Info> {
+        self.info.clone()
     }
 }
 
@@ -110,7 +111,10 @@ impl QuickfixList {
                     .into_iter()
                     .map(|(location, items)| QuickfixListItem {
                         location,
-                        infos: items.into_iter().flat_map(|item| item.infos).collect_vec(),
+                        info: items
+                            .into_iter()
+                            .flat_map(|item| item.info)
+                            .reduce(Info::join),
                     })
                     .collect_vec()
             },
@@ -130,7 +134,7 @@ impl QuickfixList {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuickfixListItem {
     location: Location,
-    infos: Vec<String>,
+    info: Option<Info>,
 }
 
 impl PartialOrd for QuickfixListItem {
@@ -149,22 +153,22 @@ impl From<Location> for QuickfixListItem {
     fn from(value: Location) -> Self {
         QuickfixListItem {
             location: value,
-            infos: vec![],
+            info: None,
         }
     }
 }
 
 impl QuickfixListItem {
-    pub fn new(location: Location, infos: Vec<String>) -> QuickfixListItem {
-        QuickfixListItem { location, infos }
+    pub fn new(location: Location, info: Option<Info>) -> QuickfixListItem {
+        QuickfixListItem { location, info }
     }
 
     pub fn location(&self) -> &Location {
         &self.location
     }
 
-    pub fn infos(&self) -> &Vec<String> {
-        &self.infos
+    pub fn info(&self) -> &Option<Info> {
+        &self.info
     }
 }
 
@@ -252,7 +256,7 @@ pub enum QuickfixListType {
 
 #[cfg(test)]
 mod test_quickfix_list {
-    use crate::position::Position;
+    use crate::{components::suggestive_editor::Info, position::Position};
 
     use super::{Location, QuickfixList, QuickfixListItem};
     use pretty_assertions::assert_eq;
@@ -264,21 +268,21 @@ mod test_quickfix_list {
                 path: ".gitignore".try_into().unwrap(),
                 range: Position { line: 1, column: 2 }..Position { line: 1, column: 3 },
             },
-            infos: vec![],
+            info: None,
         };
         let bar = QuickfixListItem {
             location: Location {
                 path: "readme.md".try_into().unwrap(),
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
-            infos: vec![],
+            info: None,
         };
         let spam = QuickfixListItem {
             location: Location {
                 path: ".gitignore".try_into().unwrap(),
                 range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
             },
-            infos: vec![],
+            info: None,
         };
         let quickfix_list = QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()]);
 
@@ -287,22 +291,23 @@ mod test_quickfix_list {
 
     #[test]
     fn should_merge_items_of_same_location() {
-        let items = vec![
+        let items = [
             QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
-                infos: vec!["spongebob".to_string()],
+                info: Some(Info::new("spongebob".to_string())),
             },
             QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
-                infos: vec!["squarepants".to_string()],
+                info: Some(Info::new("squarepants".to_string())),
             },
-        ];
+        ]
+        .to_vec();
 
         let quickfix_list = QuickfixList::new(items);
 
@@ -313,7 +318,9 @@ mod test_quickfix_list {
                     path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
-                infos: vec!["spongebob".to_string(), "squarepants".to_string()],
+                info: Some(Info::new(
+                    ["spongebob", "squarepants"].join("\n==========\n")
+                ))
             }]
         )
     }

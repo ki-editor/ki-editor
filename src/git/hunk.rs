@@ -1,12 +1,19 @@
 use std::ops::Range;
 
-use itertools::Itertools;
+use itertools::{Either, Itertools};
+
+use crate::{
+    components::suggestive_editor::{Decoration, Info},
+    grid::StyleKey,
+    selection_range::SelectionRange,
+};
 
 #[derive(Debug, Clone)]
 pub struct Hunk {
     /// 0-based index
     line_range: Range<usize>,
-    lines: Vec<LineDiff>,
+    old: String,
+    new: String,
 }
 impl Hunk {
     pub fn get(old: &str, new: &str) -> Vec<Hunk> {
@@ -25,38 +32,42 @@ impl Hunk {
                 let start = line_range.start.saturating_sub(1);
                 let end = line_range.end.saturating_sub(1);
                 let lines = hunk.lines();
-                let inserted = lines
+                struct Line {
+                    kind: LineKind,
+                    content: String,
+                }
+                #[derive(PartialEq)]
+                enum LineKind {
+                    Delete,
+                    Insert,
+                }
+                let (old, new): (Vec<_>, Vec<_>) = lines
                     .iter()
                     .filter_map(|line| match line {
-                        diffy::Line::Insert(inserted) => Some(inserted.to_string()),
-                        _ => None,
+                        diffy::Line::Context(_) => None,
+                        diffy::Line::Delete(content) => Some(Line {
+                            kind: LineKind::Delete,
+                            content: content.to_string(),
+                        }),
+                        diffy::Line::Insert(content) => Some(Line {
+                            kind: LineKind::Insert,
+                            content: content.to_string(),
+                        }),
                     })
-                    .collect_vec()
-                    .join("\n");
-                let deleted = lines
-                    .iter()
-                    .filter_map(|line| match line {
-                        diffy::Line::Delete(deleted) => Some(deleted.to_string()),
-                        _ => None,
-                    })
-                    .collect_vec()
-                    .join("\n");
-                let _diff = diff::chars(&deleted, &inserted)
-                    .into_iter()
-                    .filter_map(|result| match result {
-                        diff::Result::Left(left) => Some(left),
-                        _ => None,
-                    })
-                    .collect::<String>();
-                let lines = hunk.lines().iter().map(LineDiff::from);
-                let min_leading_whitespaces_count = lines
-                    .clone()
-                    .map(|line| leading_whitespace_count(line.content()))
+                    .partition_map(|line| match line.kind {
+                        LineKind::Delete => Either::Left(line.content),
+                        LineKind::Insert => Either::Right(line.content),
+                    });
+                let old = old.join("");
+                let new = new.join("");
+                let min_leading_whitespaces_count = old
+                    .lines()
+                    .chain(new.lines())
+                    .map(leading_whitespace_count)
                     .min()
                     .unwrap_or_default();
-                let trimmed = lines
-                    .map(|line| line.trim_leading_whitespace(min_leading_whitespaces_count))
-                    .collect_vec();
+                let old = trim_start(old, min_leading_whitespaces_count);
+                let new = trim_start(new, min_leading_whitespaces_count);
 
                 // TODO: style the diff
                 // - red for deleted line
@@ -66,43 +77,60 @@ impl Hunk {
 
                 Some(Hunk {
                     line_range: start..end,
-                    lines: trimmed,
+                    old,
+                    new,
                 })
             })
             .collect_vec()
     }
-    pub(crate) fn lines(&self) -> &Vec<LineDiff> {
-        &self.lines
-    }
-
     pub(crate) fn line_range(&self) -> &Range<usize> {
         &self.line_range
-    }
-
-    pub(crate) fn diff_strings(&self) -> Vec<String> {
-        self.lines()
-            .iter()
-            .map(|line| {
-                match line {
-                    LineDiff::Context(context) => format!("  {}", context),
-                    LineDiff::Delete(deleted) => format!("- {}", deleted),
-                    LineDiff::Insert(inserted) => format!("+ {}", inserted),
-                }
-                .trim_end()
-                .to_string()
-            })
-            .collect_vec()
-    }
-
-    pub fn to_string(&self) -> String {
-        self.diff_strings().join("\n")
     }
 
     pub(crate) fn one_insert(message: &str) -> Hunk {
         Hunk {
             line_range: 0..0,
-            lines: [LineDiff::Insert(message.to_string())].to_vec(),
+            old: "".to_string(),
+            new: message.to_string(),
         }
+    }
+
+    pub(crate) fn to_info(&self) -> Option<crate::components::suggestive_editor::Info> {
+        let old_lines_len = self.old.lines().count();
+        let content = self.old.clone() + "\n" + &self.new;
+        let old_decorations = (0..old_lines_len).map(|line_index| {
+            Decoration::new(SelectionRange::Line(line_index), StyleKey::HunkLineOld)
+        });
+        let new_lines_len = self.new.lines().count();
+        let new_decorations = (0..new_lines_len).map(|line_index| {
+            Decoration::new(
+                SelectionRange::Line(line_index + old_lines_len),
+                StyleKey::HunkLineNew,
+            )
+        });
+        let char_diffs = if old_lines_len == 1 && new_lines_len == 1 {
+            diff::chars(&self.old, &self.new)
+                .into_iter()
+                .enumerate()
+                .filter_map(|(index, result)| {
+                    let range = SelectionRange::Byte(index..index + 1);
+                    match result {
+                        diff::Result::Left(_) => {
+                            Some(Decoration::new(range, StyleKey::HunkCharOld))
+                        }
+                        diff::Result::Both(_, _) => None,
+                        diff::Result::Right(_) => None,
+                    }
+                })
+                .collect_vec() // TODO: char diff for new char
+        } else {
+            Vec::new()
+        };
+        let decorations = old_decorations
+            .chain(new_decorations)
+            .chain(char_diffs)
+            .collect_vec();
+        Some(Info::new(content).set_decorations(decorations))
     }
 }
 
@@ -140,7 +168,11 @@ impl LineDiff {
 }
 
 fn trim_start(content: String, count: usize) -> String {
-    content.chars().skip(count).collect()
+    content
+        .lines()
+        .map(|line| line.chars().skip(count).collect::<String>())
+        .collect_vec()
+        .join("\n")
 }
 
 impl From<&diffy::Line<'_, str>> for LineDiff {
@@ -178,14 +210,9 @@ mod test_hunk {
             let actual_indents = hunks
                 .into_iter()
                 .map(|hunk| {
-                    hunk.lines()
-                        .iter()
-                        .map(|line| {
-                            line.content()
-                                .chars()
-                                .take_while(|c| c.is_whitespace())
-                                .count()
-                        })
+                    (hunk.old + &hunk.new)
+                        .lines()
+                        .map(|line| line.chars().take_while(|c| c.is_whitespace()).count())
                         .collect_vec()
                 })
                 .collect_vec();

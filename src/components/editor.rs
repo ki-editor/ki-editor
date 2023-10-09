@@ -4,7 +4,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::component::Cursor,
     context::{Context, GlobalMode, Search, SearchKind},
-    grid::{CellUpdate, Style, StyleSource},
+    grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
     selection_mode, soft_wrap,
 };
@@ -144,7 +144,7 @@ impl Component for Editor {
             .collect::<Vec<_>>();
 
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
-            range_to_cell_update(&buffer, bookmark, &theme, StyleSource::Bookmark)
+            range_to_cell_update(&buffer, bookmark, &theme, StyleKey::UiBookmark)
         });
 
         let secondary_selections = &editor.selection_set.secondary;
@@ -153,14 +153,18 @@ impl Component for Editor {
             buffer: &Buffer,
             range: CharIndexRange,
             theme: &crate::themes::Theme,
-            source: StyleSource,
+            source: StyleKey,
         ) -> Vec<CellUpdate> {
             range
                 .iter()
                 .filter_map(|char_index| {
                     let position = buffer.char_to_position(char_index).ok()?;
                     let style = theme.get_style(&source);
-                    Some(CellUpdate::new(position).style(style).source(Some(source)))
+                    Some(
+                        CellUpdate::new(position)
+                            .style(style)
+                            .source(Some(source.clone())),
+                    )
                 })
                 .collect()
         }
@@ -180,16 +184,11 @@ impl Component for Editor {
             &buffer,
             selection.extended_range(),
             &theme,
-            StyleSource::UiPrimarySelection,
+            StyleKey::UiPrimarySelection,
         );
 
         let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
-            range_to_cell_update(
-                &buffer,
-                range,
-                &theme,
-                StyleSource::UiPrimarySelectionAnchors,
-            )
+            range_to_cell_update(&buffer, range, &theme, StyleKey::UiPrimarySelectionAnchors)
         });
 
         let primary_selection_primary_cursor = char_index_to_cell_update(
@@ -214,7 +213,7 @@ impl Component for Editor {
                 &buffer,
                 secondary_selection.extended_range(),
                 &theme,
-                StyleSource::UiSecondarySelection,
+                StyleKey::UiSecondarySelection,
             )
         });
         let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
@@ -223,7 +222,7 @@ impl Component for Editor {
                     &buffer,
                     range,
                     &theme,
-                    StyleSource::UiSecondarySelectionAnchors,
+                    StyleKey::UiSecondarySelectionAnchors,
                 )
             })
         });
@@ -263,14 +262,11 @@ impl Component for Editor {
                 let char_index_range = (start..end).into();
 
                 let style_source = match diagnostic.severity {
-                    Some(severity) => match severity {
-                        DiagnosticSeverity::ERROR => StyleSource::DiagnosticsError,
-                        DiagnosticSeverity::WARNING => StyleSource::DiagnosticsWarning,
-                        DiagnosticSeverity::INFORMATION => StyleSource::DiagnosticsInformation,
-                        DiagnosticSeverity::HINT => StyleSource::DiagnosticsHint,
-                        _ => StyleSource::DiagnosticsDefault,
-                    },
-                    None => theme.diagnostic.default,
+                    Some(DiagnosticSeverity::ERROR) => StyleKey::DiagnosticsError,
+                    Some(DiagnosticSeverity::WARNING) => StyleKey::DiagnosticsWarning,
+                    Some(DiagnosticSeverity::INFORMATION) => StyleKey::DiagnosticsInformation,
+                    Some(DiagnosticSeverity::HINT) => StyleKey::DiagnosticsHint,
+                    _ => StyleKey::DiagnosticsDefault,
                 };
                 Some(range_to_cell_update(
                     &buffer,
@@ -308,15 +304,19 @@ impl Component for Editor {
             .flat_map(|decoration| {
                 Some(range_to_cell_update(
                     &buffer,
-                    decoration.byte_range.to_char_index_range(&buffer).ok()?,
+                    decoration
+                        .selection_range()
+                        .to_char_index_range(&buffer)
+                        .ok()?,
                     &theme,
-                    decoration.style_key,
+                    decoration.style_key().clone(),
                 ))
             })
             .flatten()
             .collect_vec();
         let updates = vec![]
             .into_iter()
+            .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
             .chain(bookmarks)
             .chain(primary_selection)
@@ -326,8 +326,7 @@ impl Component for Editor {
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
-            .chain(secondary_selection_cursors)
-            .chain(extra_decorations);
+            .chain(secondary_selection_cursors);
 
         #[derive(Clone)]
         struct RenderLine {

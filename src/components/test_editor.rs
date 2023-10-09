@@ -9,7 +9,7 @@ mod test_editor {
             suggestive_editor::Info,
         },
         context::Context,
-        grid::{Style, StyleSource},
+        grid::{Style, StyleKey},
         position::Position,
         selection::SelectionMode,
         themes::Theme,
@@ -1090,9 +1090,9 @@ fn main() { // too long
             Position::new(2, 2)..=Position::new(2, 4),
         ];
 
-        result.grid.assert_ranges(ranges, |cell| {
-            cell.source == Some(StyleSource::SyntaxKeyword)
-        });
+        result
+            .grid
+            .assert_ranges(ranges, |cell| cell.source == Some(StyleKey::SyntaxKeyword));
 
         // Expect decorations overrides syntax highlighting
         editor.match_literal(&context, "fn")?;
@@ -1115,7 +1115,7 @@ fn main() { // too long
         result
             .grid
             .assert_range(&(Position::new(0, 2)..=Position::new(0, 3)), |cell| {
-                cell.source == Some(StyleSource::Bookmark)
+                cell.source == Some(StyleKey::UiBookmark)
             });
 
         Ok(())

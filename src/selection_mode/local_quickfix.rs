@@ -18,12 +18,14 @@ impl LocalQuickfix {
                 items
                     .into_iter()
                     .filter_map(|item| {
-                        Some(super::ByteRange::with_info(
-                            buffer
-                                .position_range_to_byte_range(&item.location().range)
-                                .ok()?,
-                            Info::new(item.infos().join("\n\n")),
-                        ))
+                        Some(
+                            super::ByteRange::new(
+                                buffer
+                                    .position_range_to_byte_range(&item.location().range)
+                                    .ok()?,
+                            )
+                            .set_info(item.info().clone()),
+                        )
                     })
                     .collect()
             })

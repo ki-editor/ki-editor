@@ -644,6 +644,19 @@ impl Buffer {
     ) -> anyhow::Result<Range<usize>> {
         Ok(self.position_to_byte(range.start)?..self.position_to_byte(range.end)?)
     }
+
+    pub fn byte_range_to_char_index_range(
+        &self,
+        range: &Range<usize>,
+    ) -> anyhow::Result<CharIndexRange> {
+        Ok((self.byte_to_char(range.start)?..self.byte_to_char(range.end)?).into())
+    }
+    pub fn position_range_to_char_index_range(
+        &self,
+        range: &Range<Position>,
+    ) -> anyhow::Result<CharIndexRange> {
+        Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
+    }
 }
 
 #[derive(Clone, Debug)]

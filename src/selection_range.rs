@@ -3,11 +3,30 @@
 // So that we do not have to keep converting back and forth
 use std::ops::Range;
 
-use crate::{position::Position, selection::CharIndex};
-enum SelectionRange {
+use crate::{char_index_range::CharIndexRange, position::Position, selection::CharIndex};
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum SelectionRange {
     Byte(Range<usize>),
     CharIndex(Range<CharIndex>),
     Position(Range<Position>),
+    /// 0-based index
+    Line(usize),
+}
+impl SelectionRange {
+    pub(crate) fn to_char_index_range(
+        &self,
+        buffer: &std::cell::Ref<'_, crate::buffer::Buffer>,
+    ) -> anyhow::Result<CharIndexRange> {
+        match self {
+            SelectionRange::Byte(byte_range) => buffer.byte_range_to_char_index_range(byte_range),
+            SelectionRange::CharIndex(range) => Ok(range.clone().into()),
+            SelectionRange::Position(position) => {
+                buffer.position_range_to_char_index_range(position)
+            }
+            SelectionRange::Line(line) => buffer.line_to_char_range(*line),
+        }
+    }
 }
 
 impl From<Range<Position>> for SelectionRange {

@@ -1,11 +1,12 @@
 use crate::app::Dispatch;
 use crate::context::Context;
-use crate::grid::StyleSource;
+use crate::grid::StyleKey;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::lsp::signature_help::SignatureHelp;
 
 use crate::selection_mode::ByteRange;
+use crate::selection_range::SelectionRange;
 use crate::{
     buffer::Buffer,
     lsp::completion::{Completion, CompletionItem},
@@ -46,7 +47,7 @@ impl DropdownItem for CodeAction {
     fn label(&self) -> String {
         self.title()
     }
-    fn info(&self) -> Option<String> {
+    fn info(&self) -> Option<Info> {
         None
     }
 }
@@ -66,21 +67,21 @@ impl DropdownItem for CompletionItem {
     fn label(&self) -> String {
         self.label()
     }
-    fn info(&self) -> Option<String> {
+    fn info(&self) -> Option<Info> {
         let kind = self.kind.map(|kind| {
             convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
         });
         let detail = self.detail.clone();
 
         let documentation = self.documentation().map(|d| d.content);
-        Some(
+        Some(Info::new(
             [].into_iter()
                 .chain(kind)
                 .chain(detail)
                 .chain(documentation)
-                .collect::<Vec<String>>()
-                .join("\n----------\n"),
-        )
+                .collect_vec()
+                .join("\n==========\n"),
+        ))
     }
 }
 
@@ -864,12 +865,56 @@ impl Info {
     }
 
     pub(crate) fn join(self, other: Info) -> Info {
-        todo!()
+        let separator = "=".repeat(10).to_string();
+        let content = format!("{}\n{}\n{}", self.content, separator, other.content);
+        let other_decorations = other
+            .decorations
+            .into_iter()
+            .map(|decoration| decoration.increase_byte(separator.len() + 2))
+            .collect_vec();
+        let decorations = self
+            .decorations
+            .into_iter()
+            .chain(other_decorations)
+            .collect_vec();
+        Info {
+            content,
+            decorations,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Decoration {
-    pub byte_range: ByteRange,
-    pub style_key: StyleSource,
+    selection_range: SelectionRange,
+    style_key: StyleKey,
+    adjustments: Vec<Adjustment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Adjustment {
+    IncreaseByte(usize),
+}
+
+impl Decoration {
+    fn increase_byte(mut self, len: usize) -> Decoration {
+        self.adjustments.push(Adjustment::IncreaseByte(len));
+        self
+    }
+
+    pub(crate) fn selection_range(&self) -> &SelectionRange {
+        &self.selection_range
+    }
+
+    pub(crate) fn style_key(&self) -> &StyleKey {
+        &self.style_key
+    }
+
+    pub(crate) fn new(selection_range: SelectionRange, style_key: StyleKey) -> Decoration {
+        Decoration {
+            selection_range,
+            style_key,
+            adjustments: Default::default(),
+        }
+    }
 }

@@ -64,6 +64,10 @@ impl ByteRange {
             .set_range(self.to_char_index_range(buffer)?)
             .set_info(self.info))
     }
+
+    fn set_info(self, info: Option<Info>) -> ByteRange {
+        ByteRange { info, ..self }
+    }
 }
 
 impl PartialOrd for ByteRange {

@@ -942,7 +942,7 @@ impl<T: Frontend> App<T> {
                                     path: (*path).clone(),
                                     range: diagnostic.range.clone(),
                                 },
-                                vec![diagnostic.message()],
+                                Some(Info::new(diagnostic.message())),
                             )
                         })
                         .collect(),
@@ -1041,7 +1041,7 @@ impl<T: Frontend> App<T> {
             QuickfixList::new(
                 locations
                     .into_iter()
-                    .map(|location| QuickfixListItem::new(location, vec![]))
+                    .map(|location| QuickfixListItem::new(location, None))
                     .collect_vec(),
             ),
         )
@@ -1219,7 +1219,7 @@ impl<T: Frontend> App<T> {
                                         column: 0,
                                     },
                                 };
-                                QuickfixListItem::new(location, hunk.diff_strings())
+                                QuickfixListItem::new(location, hunk.to_info())
                             })
                             .collect_vec()
                     })
