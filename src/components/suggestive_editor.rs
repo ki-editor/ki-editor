@@ -917,4 +917,11 @@ impl Decoration {
             adjustments: Default::default(),
         }
     }
+
+    pub(crate) fn move_left(self, count: usize) -> Decoration {
+        Decoration {
+            selection_range: self.selection_range.move_left(count),
+            ..self
+        }
+    }
 }

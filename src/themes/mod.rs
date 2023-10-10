@@ -9,10 +9,10 @@ pub struct Theme {
     pub syntax: SyntaxStyles,
     pub ui: UiStyles,
     pub diagnostic: DiagnosticStyles,
-    pub hunk_line_old_background: Color,
-    pub hunk_line_new_background: Color,
-    pub hunk_char_old_background: Color,
-    pub hunk_char_new_background: Color,
+    pub hunk_old_background: Color,
+    pub hunk_new_background: Color,
+    pub hunk_old_emphasized_background: Color,
+    pub hunk_new_emphasized_background: Color,
 }
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
@@ -41,10 +41,14 @@ impl Theme {
             StyleKey::SyntaxString => self.syntax.string,
             StyleKey::SyntaxDefault => self.syntax.default,
             StyleKey::SyntaxType => self.syntax.type_,
-            StyleKey::HunkLineOld => Style::new().background_color(self.hunk_line_old_background),
-            StyleKey::HunkLineNew => Style::new().background_color(self.hunk_line_new_background),
-            StyleKey::HunkCharOld => Style::new().background_color(self.hunk_char_old_background),
-            StyleKey::HunkCharNew => Style::new().background_color(self.hunk_char_new_background),
+            StyleKey::HunkOld => Style::new().background_color(self.hunk_old_background),
+            StyleKey::HunkNew => Style::new().background_color(self.hunk_new_background),
+            StyleKey::HunkOldEmphasized => {
+                Style::new().background_color(self.hunk_old_emphasized_background)
+            }
+            StyleKey::HunkNewEmphasized => {
+                Style::new().background_color(self.hunk_new_emphasized_background)
+            }
         }
     }
 }

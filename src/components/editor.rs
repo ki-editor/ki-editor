@@ -2969,6 +2969,7 @@ impl Editor {
             .flatten()
             .reduce(Info::join)
         {
+            log::info!("info\n = {:#?}", info);
             Ok(vec![Dispatch::ShowInfo {
                 title: "INFO".to_string(),
                 info: info,

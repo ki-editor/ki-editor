@@ -37,7 +37,7 @@ impl Position {
         }
     }
 
-    pub fn move_left(&self, by: i32) -> Position {
+    pub fn move_left(&self, by: usize) -> Position {
         Position {
             line: self.line,
             column: self.column.saturating_sub(by as usize),

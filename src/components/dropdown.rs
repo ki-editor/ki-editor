@@ -81,7 +81,9 @@ impl<T: DropdownItem> Dropdown<T> {
             .get(self.current_item_index)
             .cloned()
             .map(|item| {
-                self.show_info(item.info());
+                let info = item.info();
+                log::info!("info =\n{:#?}", info);
+                self.show_info(info);
                 item
             })
     }

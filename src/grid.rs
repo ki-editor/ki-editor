@@ -462,10 +462,10 @@ pub enum StyleKey {
     SyntaxString,
     SyntaxType,
     DiagnosticsDefault,
-    HunkLineOld,
-    HunkCharOld,
-    HunkLineNew,
-    HunkCharNew,
+    HunkOld,
+    HunkOldEmphasized,
+    HunkNew,
+    HunkNewEmphasized,
     SyntaxDefault,
 }
 

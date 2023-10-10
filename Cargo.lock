@@ -1849,9 +1849,9 @@ checksum = "238abfbb77c1915110ad968465608b68e869e0772622c9656714e73e5a1a522f"
 
 [[package]]
 name = "similar"
-version = "2.2.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "420acb44afdae038210c99e69aae24109f32f15500aa708e81d46c9f29d55fcf"
+checksum = "2aeaf503862c419d66959f5d7ca015337d864e9c49485d771b732e2a20453597"
 
 [[package]]
 name = "simple-logging"
@@ -2052,6 +2052,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "shared",
+ "similar",
  "simple-logging",
  "tempfile",
  "tree-sitter",

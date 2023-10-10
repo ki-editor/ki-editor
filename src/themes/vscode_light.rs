@@ -57,8 +57,8 @@ pub const VSCODE_LIGHT: Theme = Theme {
         hint: Style::new().undercurl(Some(hex!("#008000"))),
         default: Style::new(),
     },
-    hunk_line_new_background: hex!("#EBFEED"),
-    hunk_line_old_background: hex!("#FCECEA"),
-    hunk_char_old_background: hex!("#F9D8D6"),
-    hunk_char_new_background: hex!("#BAF0C0"),
+    hunk_new_background: hex!("#EBFEED"),
+    hunk_old_background: hex!("#FCECEA"),
+    hunk_old_emphasized_background: hex!("#F9D8D6"),
+    hunk_new_emphasized_background: hex!("#BAF0C0"),
 };

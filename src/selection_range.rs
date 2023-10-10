@@ -27,6 +27,17 @@ impl SelectionRange {
             SelectionRange::Line(line) => buffer.line_to_char_range(*line),
         }
     }
+
+    pub(crate) fn move_left(&self, count: usize) -> SelectionRange {
+        match self {
+            SelectionRange::Byte(_) => todo!(),
+            SelectionRange::CharIndex(_) => todo!(),
+            SelectionRange::Position(range) => {
+                Self::Position(range.start.move_left(count)..range.end.move_left(count))
+            }
+            SelectionRange::Line(_) => todo!(),
+        }
+    }
 }
 
 impl From<Range<Position>> for SelectionRange {
