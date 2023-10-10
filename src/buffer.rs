@@ -69,8 +69,8 @@ impl Buffer {
     pub fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
-    pub fn add_decorations(&mut self, decorations: &Vec<Decoration>) {
-        self.decorations.extend(decorations.clone());
+    pub fn set_decorations(&mut self, decorations: &Vec<Decoration>) {
+        self.decorations = decorations.clone();
     }
 
     pub fn save_bookmarks(&mut self, ranges: Vec<CharIndexRange>) {

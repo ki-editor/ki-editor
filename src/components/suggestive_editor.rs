@@ -5,7 +5,6 @@ use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::lsp::signature_help::SignatureHelp;
 
-
 use crate::selection_range::SelectionRange;
 use crate::{
     buffer::Buffer,
@@ -288,7 +287,7 @@ impl SuggestiveEditor {
 
     pub fn show_infos(&mut self, title: &str, info: Info) {
         let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
-        editor.add_decorations(info.decorations());
+        editor.set_decorations(info.decorations());
         editor.set_title(title.into());
         self.info_panel = Some(Rc::new(RefCell::new(editor)));
     }

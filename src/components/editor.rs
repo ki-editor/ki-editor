@@ -160,11 +160,7 @@ impl Component for Editor {
                 .filter_map(|char_index| {
                     let position = buffer.char_to_position(char_index).ok()?;
                     let style = theme.get_style(&source);
-                    Some(
-                        CellUpdate::new(position)
-                            .style(style)
-                            .source(Some(source)),
-                    )
+                    Some(CellUpdate::new(position).style(style).source(Some(source)))
                 })
                 .collect()
         }
@@ -218,12 +214,7 @@ impl Component for Editor {
         });
         let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
             selection.anchors().into_iter().flat_map(|range| {
-                range_to_cell_update(
-                    &buffer,
-                    range,
-                    theme,
-                    StyleKey::UiSecondarySelectionAnchors,
-                )
+                range_to_cell_update(&buffer, range, theme, StyleKey::UiSecondarySelectionAnchors)
             })
         });
 
@@ -722,7 +713,7 @@ impl Editor {
     }
 
     pub fn show_info(&mut self, info: Info) {
-        self.add_decorations(info.decorations());
+        self.set_decorations(info.decorations());
         self.set_content(info.content());
     }
 
@@ -2852,8 +2843,8 @@ impl Editor {
         }
     }
 
-    pub fn add_decorations(&mut self, decorations: &Vec<super::suggestive_editor::Decoration>) {
-        self.buffer.borrow_mut().add_decorations(decorations)
+    pub fn set_decorations(&mut self, decorations: &Vec<super::suggestive_editor::Decoration>) {
+        self.buffer.borrow_mut().set_decorations(decorations)
     }
 
     fn handle_scroll_line_mode(
