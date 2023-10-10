@@ -144,7 +144,7 @@ impl Component for Editor {
             .collect::<Vec<_>>();
 
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
-            range_to_cell_update(&buffer, bookmark, &theme, StyleKey::UiBookmark)
+            range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
         });
 
         let secondary_selections = &editor.selection_set.secondary;
@@ -163,7 +163,7 @@ impl Component for Editor {
                     Some(
                         CellUpdate::new(position)
                             .style(style)
-                            .source(Some(source.clone())),
+                            .source(Some(source)),
                     )
                 })
                 .collect()
@@ -183,12 +183,12 @@ impl Component for Editor {
         let primary_selection = range_to_cell_update(
             &buffer,
             selection.extended_range(),
-            &theme,
+            theme,
             StyleKey::UiPrimarySelection,
         );
 
         let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
-            range_to_cell_update(&buffer, range, &theme, StyleKey::UiPrimarySelectionAnchors)
+            range_to_cell_update(&buffer, range, theme, StyleKey::UiPrimarySelectionAnchors)
         });
 
         let primary_selection_primary_cursor = char_index_to_cell_update(
@@ -212,7 +212,7 @@ impl Component for Editor {
             range_to_cell_update(
                 &buffer,
                 secondary_selection.extended_range(),
-                &theme,
+                theme,
                 StyleKey::UiSecondarySelection,
             )
         });
@@ -221,7 +221,7 @@ impl Component for Editor {
                 range_to_cell_update(
                     &buffer,
                     range,
-                    &theme,
+                    theme,
                     StyleKey::UiSecondarySelectionAnchors,
                 )
             })
@@ -271,7 +271,7 @@ impl Component for Editor {
                 Some(range_to_cell_update(
                     &buffer,
                     char_index_range,
-                    &theme,
+                    theme,
                     style_source,
                 ))
             })
@@ -308,8 +308,8 @@ impl Component for Editor {
                         .selection_range()
                         .to_char_index_range(&buffer)
                         .ok()?,
-                    &theme,
-                    decoration.style_key().clone(),
+                    theme,
+                    *decoration.style_key(),
                 ))
             })
             .flatten()
@@ -2969,10 +2969,9 @@ impl Editor {
             .flatten()
             .reduce(Info::join)
         {
-            log::info!("info\n = {:#?}", info);
             Ok(vec![Dispatch::ShowInfo {
                 title: "INFO".to_string(),
-                info: info,
+                info,
             }])
         } else {
             Ok(Vec::new())

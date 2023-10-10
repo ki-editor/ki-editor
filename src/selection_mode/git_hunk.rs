@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, components::suggestive_editor::Info, git::GitOperation};
+use crate::{buffer::Buffer, git::GitOperation};
 use itertools::Itertools;
 
 use super::{ByteRange, SelectionMode};

@@ -3,7 +3,6 @@ use itertools::Itertools;
 use crate::{
     components::suggestive_editor::{Decoration, Info},
     grid::StyleKey,
-    selection_mode::ByteRange,
     selection_range::SelectionRange,
 };
 

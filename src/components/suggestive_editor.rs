@@ -5,7 +5,7 @@ use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::lsp::signature_help::SignatureHelp;
 
-use crate::selection_mode::ByteRange;
+
 use crate::selection_range::SelectionRange;
 use crate::{
     buffer::Buffer,

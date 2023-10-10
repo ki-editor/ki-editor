@@ -1,7 +1,7 @@
 use similar::{ChangeTag, TextDiff};
 use std::ops::Range;
 
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 
 use crate::{
     components::suggestive_editor::{Decoration, Info},
@@ -19,23 +19,15 @@ pub struct Hunk {
 }
 impl Hunk {
     pub fn get(old: &str, new: &str) -> Vec<Hunk> {
-        let latest_committed_content = old;
-        let current_content = new;
-
-        let patch = diffy::DiffOptions::new()
-            .set_context_len(0)
-            .create_patch(latest_committed_content, current_content);
-        let hunks = patch.hunks();
         let diff = TextDiff::from_lines(old, new);
 
         let context_len = 0;
         return diff
             .grouped_ops(context_len)
             .iter()
-            .enumerate()
-            .filter_map(|(idx, group)| {
+            .filter_map(|group| {
                 // I'm going to assume each group only has one change (i.e. Delete/Insert/Replace)
-                let line_range = group.into_iter().find_map(|diff_op| match diff_op {
+                let line_range = group.iter().find_map(|diff_op| match diff_op {
                     similar::DiffOp::Equal { .. } => None,
                     similar::DiffOp::Delete { new_index, .. } => Some(*new_index..*new_index),
                     similar::DiffOp::Insert {
@@ -45,18 +37,14 @@ impl Hunk {
                         new_index, new_len, ..
                     } => Some(*new_index..(new_index + new_len)),
                 })?;
-                struct Line {
-                    kind: LineKind,
-                    content: String,
-                    decorations: Vec<Decoration>,
-                }
+
                 #[derive(PartialEq)]
                 enum LineKind {
                     Delete,
                     Insert,
                 }
                 let (lines, decorations): (Vec<_>, Vec<_>) = group
-                    .into_iter()
+                    .iter()
                     .flat_map(|diff_op| {
                         diff.iter_inline_changes(diff_op).enumerate().filter_map(
                             |(line_index, change)| {
@@ -86,7 +74,6 @@ impl Hunk {
                                             Decoration::new(selection_range, style_key);
                                         Some((value.to_string(), decoration))
                                     })
-                                    .into_iter()
                                     .unzip();
                                 let content = words.join("").trim_end().to_string();
                                 Some((content, decorations))
@@ -141,28 +128,6 @@ pub enum LineDiff {
     Context(String),
     Delete(String),
     Insert(String),
-}
-impl LineDiff {
-    fn content(&self) -> &str {
-        use LineDiff::*;
-        match self {
-            Context(content) | Delete(content) | Insert(content) => content,
-        }
-    }
-
-    fn trim_leading_whitespace(self, min_leading_whitespaces_count: usize) -> LineDiff {
-        match self {
-            LineDiff::Context(content) => {
-                LineDiff::Context(trim_start(content, min_leading_whitespaces_count))
-            }
-            LineDiff::Delete(content) => {
-                LineDiff::Delete(trim_start(content, min_leading_whitespaces_count))
-            }
-            LineDiff::Insert(content) => {
-                LineDiff::Insert(trim_start(content, min_leading_whitespaces_count))
-            }
-        }
-    }
 }
 
 fn trim_start(content: String, count: usize) -> String {
