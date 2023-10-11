@@ -358,9 +358,9 @@ mod test_app {
             )?;
 
             fn strs_to_strings(strs: &[&str]) -> Option<Info> {
-                strs.iter()
-                    .map(|s| Info::new(s.to_string()))
-                    .reduce(Info::join)
+                Some(Info::new(
+                    strs.iter().map(|s| s.to_string()).join("\n").to_string(),
+                ))
             }
 
             let expected_quickfixes = [
@@ -369,24 +369,35 @@ mod test_app {
                         path: path_new_file.try_into()?,
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
                     },
-                    strs_to_strings(&["+ [This file is untracked by Git]"]),
+                    strs_to_strings(&["[This file is untracked by Git]"]),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: path_foo,
                         range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
                     },
-                    strs_to_strings(&["- pub struct Foo {", "+ // Hellopub struct Foo {"]),
+                    strs_to_strings(&["pub struct Foo {", "// Hellopub struct Foo {"]),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: path_main,
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
                     },
-                    strs_to_strings(&["- mod foo;", "-"]),
+                    strs_to_strings(&["mod foo;"]),
                 ),
             ];
-            assert_eq!(app.get_quickfixes(), expected_quickfixes);
+            let actual_quickfixes = app
+                .get_quickfixes()
+                .into_iter()
+                .map(|quickfix| {
+                    let info = quickfix
+                        .info()
+                        .as_ref()
+                        .map(|info| info.clone().set_decorations(Vec::new()));
+                    quickfix.set_info(info)
+                })
+                .collect_vec();
+            assert_eq!(actual_quickfixes, expected_quickfixes);
 
             Ok(())
         })

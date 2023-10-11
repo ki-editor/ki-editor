@@ -170,6 +170,10 @@ impl QuickfixListItem {
     pub fn info(&self) -> &Option<Info> {
         &self.info
     }
+
+    pub(crate) fn set_info(self, info: Option<Info>) -> Self {
+        Self { info, ..self }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
