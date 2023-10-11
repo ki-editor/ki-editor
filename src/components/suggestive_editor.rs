@@ -279,13 +279,13 @@ impl SuggestiveEditor {
             return;
         }
         if let Some(info) = signature_help.and_then(|s| s.into_info()) {
-            self.show_infos("Signature help", info);
+            self.show_info("Signature help", info);
         } else {
             self.info_panel = None;
         }
     }
 
-    pub fn show_infos(&mut self, title: &str, info: Info) {
+    pub fn show_info(&mut self, title: &str, info: Info) {
         let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
         editor.set_decorations(info.decorations());
         editor.set_title(title.into());

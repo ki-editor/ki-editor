@@ -1,5 +1,3 @@
-
-
 use super::{ByteRange, SelectionMode};
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc

@@ -776,7 +776,7 @@ impl<T: Frontend> App<T> {
             LspNotification::Hover(context, hover) => {
                 self.get_suggestive_editor(context.component_id)?
                     .borrow_mut()
-                    .show_infos("Hover info", Info::new(hover.contents.join("\n\n")));
+                    .show_info("Hover info", Info::new(hover.contents.join("\n\n")));
                 Ok(())
             }
             LspNotification::Definition(context, response) => {

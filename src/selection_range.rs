@@ -16,7 +16,7 @@ pub enum SelectionRange {
 impl SelectionRange {
     pub(crate) fn to_char_index_range(
         &self,
-        buffer: &std::cell::Ref<'_, crate::buffer::Buffer>,
+        buffer: &crate::buffer::Buffer,
     ) -> anyhow::Result<CharIndexRange> {
         match self {
             SelectionRange::Byte(byte_range) => buffer.byte_range_to_char_index_range(byte_range),

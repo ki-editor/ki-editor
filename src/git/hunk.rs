@@ -155,8 +155,8 @@ mod test_hunk {
     use itertools::Itertools;
 
     use crate::{
-        components::suggestive_editor::Decoration, grid::StyleKey, position::Position,
-        selection_range::SelectionRange,
+        buffer::Buffer, components::suggestive_editor::Decoration, grid::StyleKey,
+        position::Position, selection_range::SelectionRange,
     };
 
     use super::Hunk;
@@ -164,11 +164,12 @@ mod test_hunk {
     #[test]
     fn decorations() {
         // Note that both strings has leading spaces
-        let hunks = Hunk::get("  Hello world", "  Hello bumi");
+        let hunks = Hunk::get("  Hello(world)", "  Hello(bumi)");
         assert_eq!(hunks.len(), 1);
         let actual = hunks[0].decorations.clone();
         // The hunk should trim the common leading spaces
-        assert_eq!(hunks[0].content, "Hello world\nHello bumi");
+        assert_eq!(hunks[0].content, "Hello(world)\nHello(bumi)");
+
         let expected = [
             Decoration::new(
                 SelectionRange::Position(Position::new(0, 0)..Position::new(0, 6)),
@@ -179,6 +180,10 @@ mod test_hunk {
                 StyleKey::HunkOldEmphasized,
             ),
             Decoration::new(
+                SelectionRange::Position(Position::new(0, 11)..Position::new(0, 12)),
+                StyleKey::HunkOld,
+            ),
+            Decoration::new(
                 SelectionRange::Position(Position::new(1, 0)..Position::new(1, 6)),
                 StyleKey::HunkNew,
             ),
@@ -186,9 +191,24 @@ mod test_hunk {
                 SelectionRange::Position(Position::new(1, 6)..Position::new(1, 10)),
                 StyleKey::HunkNewEmphasized,
             ),
+            Decoration::new(
+                SelectionRange::Position(Position::new(1, 10)..Position::new(1, 11)),
+                StyleKey::HunkNew,
+            ),
         ]
         .to_vec();
         pretty_assertions::assert_eq!(actual, expected);
+
+        // The inline diff should split at unicode grapheme boundary
+        let buffer = Buffer::new(tree_sitter_md::language(), &hunks[0].content);
+        let words = expected
+            .into_iter()
+            .flat_map(|decoraction| -> Result<ropey::Rope, anyhow::Error> {
+                let range = decoraction.selection_range().to_char_index_range(&buffer)?;
+                buffer.slice(&range)
+            })
+            .collect_vec();
+        assert_eq!(words, vec!["Hello(", "world", ")", "Hello(", "bumi", ")"]);
     }
     #[test]
     fn to_info_insertion() {
