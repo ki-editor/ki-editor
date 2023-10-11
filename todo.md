@@ -225,11 +225,12 @@
 - [] feat: how to enter newline in insert mode?!
 - [] style(parent_lines): don't highlight the leading and trailing whitespaces of parent lines
 - [] feat(remove-surronding-brackets): press ])}> to remove the brackets of the current selection
-- [] feat(x): xi{ = select inside {, xa( = select around {
+- [] feat(x): xi{ = select inside {, xa( = select around {. c = curly, p = parenthesis, s = square, a = angular, q = single quote, d = double quote, b = backtick. Or any character, for example like \*, even space
 - [] feat(x): m jumps to matching enclosure (e.g. bracket, quote)
 - [] fix(hover-info): should be closed upon pressing esc in normal mode
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
 - [] feat(dev): ci/cd
+- [] feat(editor): trim, which trims both ends of every selection by 1 character
 
 # Grammar loading
 

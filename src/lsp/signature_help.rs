@@ -1,4 +1,10 @@
-use crate::selection_mode::ByteRange;
+use itertools::Itertools;
+
+use crate::{
+    components::suggestive_editor::{Decoration, Info},
+    grid::StyleKey,
+    selection_range::SelectionRange,
+};
 
 use super::documentation::Documentation;
 
@@ -11,7 +17,7 @@ pub struct SignatureHelp {
 pub struct SignatureInformation {
     pub label: String,
     pub documentation: Option<Documentation>,
-    pub active_parameter_byte_range: Option<ByteRange>,
+    pub active_parameter_byte_range: Option<SelectionRange>,
 }
 
 impl From<lsp_types::SignatureHelp> for SignatureHelp {
@@ -23,6 +29,29 @@ impl From<lsp_types::SignatureHelp> for SignatureHelp {
                 .map(SignatureInformation::from)
                 .collect(),
         }
+    }
+}
+
+impl SignatureHelp {
+    pub fn into_info(self) -> Option<Info> {
+        self.signatures
+            .into_iter()
+            .map(|signature| {
+                let signature_label_len = signature.label.len();
+                let content = [signature.label]
+                    .into_iter()
+                    .chain(signature.documentation.map(|doc| doc.content))
+                    .collect_vec()
+                    .join(&format!("{}\n", "-".repeat(signature_label_len)));
+
+                let decoration = signature
+                    .active_parameter_byte_range
+                    .map(|selection_range| {
+                        Decoration::new(selection_range, StyleKey::UiPrimarySelection)
+                    });
+                Info::new(content).set_decorations(decoration.into_iter().collect_vec())
+            })
+            .reduce(Info::join)
     }
 }
 
@@ -38,7 +67,7 @@ impl From<lsp_types::SignatureInformation> for SignatureInformation {
                     .to_owned();
                 match label {
                     lsp_types::ParameterLabel::LabelOffsets([start, end]) => {
-                        Some(ByteRange::new(start as usize..end as usize))
+                        Some(SelectionRange::Byte(start as usize..end as usize))
                     }
                     _ => None,
                 }

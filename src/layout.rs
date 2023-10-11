@@ -6,7 +6,7 @@ use crate::{
         file_explorer::FileExplorer,
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
-        suggestive_editor::SuggestiveEditor,
+        suggestive_editor::{Info, SuggestiveEditor},
     },
     quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
@@ -314,22 +314,17 @@ impl Layout {
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
-    pub fn show_info(&mut self, title: &str, contents: Vec<String>) -> anyhow::Result<()> {
-        let info = contents.join("\n===========\n");
-        match &self.info_panel {
-            None => {
-                let info_panel = Rc::new(RefCell::new(Editor::from_text(
-                    tree_sitter_md::language(),
-                    &info,
-                )));
-                info_panel.borrow_mut().set_title(title.to_string());
-                self.info_panel = Some(info_panel);
-            }
-            Some(info_panel) => {
-                info_panel.borrow_mut().set_title(title.to_string());
-                info_panel.borrow_mut().set_content(&info)?;
-            }
-        }
+    pub fn show_info(&mut self, title: &str, info: Info) -> anyhow::Result<()> {
+        let info_panel = self.info_panel.take().unwrap_or_else(|| {
+            Rc::new(RefCell::new(Editor::from_text(
+                tree_sitter_md::language(),
+                "",
+            )))
+        });
+        info_panel.borrow_mut().set_title(title.to_string());
+        info_panel.borrow_mut().show_info(info);
+        self.info_panel = Some(info_panel);
+
         Ok(())
     }
 

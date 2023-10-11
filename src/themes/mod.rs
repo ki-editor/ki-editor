@@ -1,7 +1,7 @@
 pub mod vscode_light;
 pub use vscode_light::VSCODE_LIGHT;
 
-use crate::grid::Style;
+use crate::grid::{Style, StyleKey};
 
 #[derive(Clone)]
 pub struct Theme {
@@ -9,18 +9,45 @@ pub struct Theme {
     pub syntax: SyntaxStyles,
     pub ui: UiStyles,
     pub diagnostic: DiagnosticStyles,
+    pub hunk_old_background: Color,
+    pub hunk_new_background: Color,
+    pub hunk_old_emphasized_background: Color,
+    pub hunk_new_emphasized_background: Color,
 }
-
-#[derive(Clone)]
-pub enum StyleKey {
-    UiPrimarySelection,
-}
-
-impl StyleKey {
-    pub fn get_style(&self, theme: &Theme) -> Style {
-        match self {
+impl Theme {
+    pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
+        match source {
+            StyleKey::UiBookmark => self.ui.bookmark,
             StyleKey::UiPrimarySelection => {
-                Style::default().background_color(theme.ui.primary_selection_background)
+                Style::new().background_color(self.ui.primary_selection_background)
+            }
+            StyleKey::UiPrimarySelectionAnchors => {
+                Style::new().background_color(self.ui.primary_selection_anchor_background)
+            }
+            StyleKey::UiSecondarySelection => {
+                Style::new().background_color(self.ui.secondary_selection_background)
+            }
+            StyleKey::UiSecondarySelectionAnchors => {
+                Style::new().background_color(self.ui.secondary_selection_anchor_background)
+            }
+            StyleKey::DiagnosticsHint => self.diagnostic.hint,
+            StyleKey::DiagnosticsError => self.diagnostic.error,
+            StyleKey::DiagnosticsWarning => self.diagnostic.warning,
+            StyleKey::DiagnosticsInformation => self.diagnostic.information,
+            StyleKey::DiagnosticsDefault => self.diagnostic.default,
+            StyleKey::SyntaxKeyword => self.syntax.keyword,
+            StyleKey::SyntaxFunction => self.syntax.function,
+            StyleKey::SyntaxComment => self.syntax.comment,
+            StyleKey::SyntaxString => self.syntax.string,
+            StyleKey::SyntaxDefault => self.syntax.default,
+            StyleKey::SyntaxType => self.syntax.type_,
+            StyleKey::HunkOld => Style::new().background_color(self.hunk_old_background),
+            StyleKey::HunkNew => Style::new().background_color(self.hunk_new_background),
+            StyleKey::HunkOldEmphasized => {
+                Style::new().background_color(self.hunk_old_emphasized_background)
+            }
+            StyleKey::HunkNewEmphasized => {
+                Style::new().background_color(self.hunk_new_emphasized_background)
             }
         }
     }
@@ -36,7 +63,7 @@ impl Default for Theme {
 pub struct DiagnosticStyles {
     pub error: Style,
     pub warning: Style,
-    pub info: Style,
+    pub information: Style,
     pub hint: Style,
     pub default: Style,
 }
@@ -63,11 +90,11 @@ pub struct UiStyles {
 
 #[derive(Default, Clone)]
 pub struct SyntaxStyles {
-    pub function: Option<Style>,
-    pub keyword: Option<Style>,
-    pub string: Option<Style>,
-    pub type_: Option<Style>,
-    pub comment: Option<Style>,
+    pub function: Style,
+    pub keyword: Style,
+    pub string: Style,
+    pub type_: Style,
+    pub comment: Style,
     pub default: Style,
 }
 
@@ -77,11 +104,11 @@ impl SyntaxStyles {
     /// The `index` should tally with the `HIGHLIGHT_NAMES` array.
     pub fn get_color(&self, index: usize) -> Option<Style> {
         match index {
-            0 => self.comment,
-            1 => self.keyword,
-            2 => self.string,
-            3 => self.type_,
-            4 => self.function,
+            0 => Some(self.comment),
+            1 => Some(self.keyword),
+            2 => Some(self.string),
+            3 => Some(self.type_),
+            4 => Some(self.function),
             _ => None,
         }
     }

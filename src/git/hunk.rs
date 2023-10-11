@@ -1,108 +1,121 @@
+use similar::{ChangeTag, TextDiff};
 use std::ops::Range;
 
 use itertools::Itertools;
+
+use crate::{
+    components::suggestive_editor::{Decoration, Info},
+    grid::StyleKey,
+    position::Position,
+    selection_range::SelectionRange,
+};
 
 #[derive(Debug, Clone)]
 pub struct Hunk {
     /// 0-based index
     line_range: Range<usize>,
-    lines: Vec<LineDiff>,
+    content: String,
+    decorations: Vec<Decoration>,
 }
 impl Hunk {
     pub fn get(old: &str, new: &str) -> Vec<Hunk> {
-        let latest_committed_content = old;
-        let current_content = new;
+        let diff = TextDiff::from_lines(old, new);
 
-        let patch = diffy::DiffOptions::new()
-            .set_context_len(0)
-            .create_patch(latest_committed_content, current_content);
-        let hunks = patch.hunks();
-
-        hunks
+        let context_len = 0;
+        return diff
+            .grouped_ops(context_len)
             .iter()
-            .filter_map(|hunk| {
-                let line_range = hunk.new_range().range();
-                let start = line_range.start.saturating_sub(1);
-                let end = line_range.end.saturating_sub(1);
-                let lines = hunk.lines();
-                let inserted = lines
+            .filter_map(|group| {
+                // I'm going to assume each group only has one change (i.e. Delete/Insert/Replace)
+                let line_range = group.iter().find_map(|diff_op| match diff_op {
+                    similar::DiffOp::Equal { .. } => None,
+                    similar::DiffOp::Delete { new_index, .. } => Some(*new_index..*new_index),
+                    similar::DiffOp::Insert {
+                        new_index, new_len, ..
+                    }
+                    | similar::DiffOp::Replace {
+                        new_index, new_len, ..
+                    } => Some(*new_index..(new_index + new_len)),
+                })?;
+
+                #[derive(PartialEq)]
+                enum LineKind {
+                    Delete,
+                    Insert,
+                }
+                let (lines, decorations): (Vec<_>, Vec<_>) = group
                     .iter()
-                    .filter_map(|line| match line {
-                        diffy::Line::Insert(inserted) => Some(inserted.to_string()),
-                        _ => None,
+                    .flat_map(|diff_op| {
+                        diff.iter_inline_changes(diff_op).enumerate().filter_map(
+                            |(line_index, change)| {
+                                let kind = match change.tag() {
+                                    ChangeTag::Equal => None,
+                                    ChangeTag::Delete => Some(LineKind::Delete),
+                                    ChangeTag::Insert => Some(LineKind::Insert),
+                                }?;
+                                let (words, decorations): (Vec<_>, Vec<_>) = change
+                                    .iter_strings_lossy()
+                                    .scan(0, |column_index, (emphasized, value)| {
+                                        let selection_range = SelectionRange::Position(
+                                            Position::new(line_index, *column_index)
+                                                ..Position::new(
+                                                    line_index,
+                                                    *column_index + value.len(),
+                                                ),
+                                        );
+                                        *column_index += value.len();
+                                        let style_key = match (&kind, emphasized) {
+                                            (LineKind::Delete, true) => StyleKey::HunkOldEmphasized,
+                                            (LineKind::Delete, false) => StyleKey::HunkOld,
+                                            (LineKind::Insert, true) => StyleKey::HunkNewEmphasized,
+                                            (LineKind::Insert, false) => StyleKey::HunkNew,
+                                        };
+                                        let decoration =
+                                            Decoration::new(selection_range, style_key);
+                                        Some((value.to_string(), decoration))
+                                    })
+                                    .unzip();
+                                let content = words.join("").trim_end().to_string();
+                                Some((content, decorations))
+                            },
+                        )
                     })
-                    .collect_vec()
-                    .join("\n");
-                let deleted = lines
-                    .iter()
-                    .filter_map(|line| match line {
-                        diffy::Line::Delete(deleted) => Some(deleted.to_string()),
-                        _ => None,
-                    })
-                    .collect_vec()
-                    .join("\n");
-                let _diff = diff::chars(&deleted, &inserted)
-                    .into_iter()
-                    .filter_map(|result| match result {
-                        diff::Result::Left(left) => Some(left),
-                        _ => None,
-                    })
-                    .collect::<String>();
-                let lines = hunk.lines().iter().map(LineDiff::from);
-                let min_leading_whitespaces_count = lines
-                    .clone()
-                    .map(|line| leading_whitespace_count(line.content()))
+                    .unzip();
+                let content = lines.join("\n");
+                let min_leading_whitespaces_count = content
+                    .lines()
+                    .map(leading_whitespace_count)
                     .min()
                     .unwrap_or_default();
-                let trimmed = lines
-                    .map(|line| line.trim_leading_whitespace(min_leading_whitespaces_count))
+                let decorations = decorations
+                    .into_iter()
+                    .flatten()
+                    .map(|decoration| decoration.move_left(min_leading_whitespaces_count))
                     .collect_vec();
-
-                // TODO: style the diff
-                // - red for deleted line
-                // - green for inserted line
-                // - light red for deleted char within line
-                // - light green for inserted char within line
-
+                let content = trim_start(content, min_leading_whitespaces_count);
                 Some(Hunk {
-                    line_range: start..end,
-                    lines: trimmed,
+                    line_range,
+                    content,
+                    decorations,
                 })
             })
-            .collect_vec()
+            .collect_vec();
     }
-    pub(crate) fn lines(&self) -> &Vec<LineDiff> {
-        &self.lines
-    }
-
     pub(crate) fn line_range(&self) -> &Range<usize> {
         &self.line_range
-    }
-
-    pub(crate) fn diff_strings(&self) -> Vec<String> {
-        self.lines()
-            .iter()
-            .map(|line| {
-                match line {
-                    LineDiff::Context(context) => format!("  {}", context),
-                    LineDiff::Delete(deleted) => format!("- {}", deleted),
-                    LineDiff::Insert(inserted) => format!("+ {}", inserted),
-                }
-                .trim_end()
-                .to_string()
-            })
-            .collect_vec()
-    }
-
-    pub fn to_string(&self) -> String {
-        self.diff_strings().join("\n")
     }
 
     pub(crate) fn one_insert(message: &str) -> Hunk {
         Hunk {
             line_range: 0..0,
-            lines: [LineDiff::Insert(message.to_string())].to_vec(),
+            content: message.to_string(),
+            decorations: Vec::new(),
         }
+    }
+
+    pub(crate) fn to_info(&self) -> Option<crate::components::suggestive_editor::Info> {
+        let info = Info::new(self.content.clone()).set_decorations(self.decorations.clone());
+        Some(info)
     }
 }
 
@@ -116,31 +129,13 @@ pub enum LineDiff {
     Delete(String),
     Insert(String),
 }
-impl LineDiff {
-    fn content(&self) -> &str {
-        use LineDiff::*;
-        match self {
-            Context(content) | Delete(content) | Insert(content) => content,
-        }
-    }
-
-    fn trim_leading_whitespace(self, min_leading_whitespaces_count: usize) -> LineDiff {
-        match self {
-            LineDiff::Context(content) => {
-                LineDiff::Context(trim_start(content, min_leading_whitespaces_count))
-            }
-            LineDiff::Delete(content) => {
-                LineDiff::Delete(trim_start(content, min_leading_whitespaces_count))
-            }
-            LineDiff::Insert(content) => {
-                LineDiff::Insert(trim_start(content, min_leading_whitespaces_count))
-            }
-        }
-    }
-}
 
 fn trim_start(content: String, count: usize) -> String {
-    content.chars().skip(count).collect()
+    content
+        .lines()
+        .map(|line| line.chars().skip(count).collect::<String>())
+        .collect_vec()
+        .join("\n")
 }
 
 impl From<&diffy::Line<'_, str>> for LineDiff {
@@ -159,7 +154,68 @@ mod test_hunk {
     use indoc::indoc;
     use itertools::Itertools;
 
+    use crate::{
+        buffer::Buffer, components::suggestive_editor::Decoration, grid::StyleKey,
+        position::Position, selection_range::SelectionRange,
+    };
+
     use super::Hunk;
+
+    #[test]
+    fn decorations() {
+        // Note that both strings has leading spaces
+        let hunks = Hunk::get("  Hello(world)", "  Hello(bumi)");
+        assert_eq!(hunks.len(), 1);
+        let actual = hunks[0].decorations.clone();
+        // The hunk should trim the common leading spaces
+        assert_eq!(hunks[0].content, "Hello(world)\nHello(bumi)");
+
+        let expected = [
+            Decoration::new(
+                SelectionRange::Position(Position::new(0, 0)..Position::new(0, 6)),
+                StyleKey::HunkOld,
+            ),
+            Decoration::new(
+                SelectionRange::Position(Position::new(0, 6)..Position::new(0, 11)),
+                StyleKey::HunkOldEmphasized,
+            ),
+            Decoration::new(
+                SelectionRange::Position(Position::new(0, 11)..Position::new(0, 12)),
+                StyleKey::HunkOld,
+            ),
+            Decoration::new(
+                SelectionRange::Position(Position::new(1, 0)..Position::new(1, 6)),
+                StyleKey::HunkNew,
+            ),
+            Decoration::new(
+                SelectionRange::Position(Position::new(1, 6)..Position::new(1, 10)),
+                StyleKey::HunkNewEmphasized,
+            ),
+            Decoration::new(
+                SelectionRange::Position(Position::new(1, 10)..Position::new(1, 11)),
+                StyleKey::HunkNew,
+            ),
+        ]
+        .to_vec();
+        pretty_assertions::assert_eq!(actual, expected);
+
+        // The inline diff should split at unicode grapheme boundary
+        let buffer = Buffer::new(tree_sitter_md::language(), &hunks[0].content);
+        let words = expected
+            .into_iter()
+            .flat_map(|decoraction| -> Result<ropey::Rope, anyhow::Error> {
+                let range = decoraction.selection_range().to_char_index_range(&buffer)?;
+                buffer.slice(&range)
+            })
+            .collect_vec();
+        assert_eq!(words, vec!["Hello(", "world", ")", "Hello(", "bumi", ")"]);
+    }
+    #[test]
+    fn to_info_insertion() {
+        let hunk = Hunk::get("a\nd", "a\nb\nc\nd")[0].clone();
+        assert_eq!(hunk.content, "b\nc");
+        assert_eq!(hunk.to_info().unwrap().content(), "b\nc")
+    }
 
     #[test]
     fn should_trim_common_leading_whitespace() {
@@ -178,14 +234,9 @@ mod test_hunk {
             let actual_indents = hunks
                 .into_iter()
                 .map(|hunk| {
-                    hunk.lines()
-                        .iter()
-                        .map(|line| {
-                            line.content()
-                                .chars()
-                                .take_while(|c| c.is_whitespace())
-                                .count()
-                        })
+                    hunk.content
+                        .lines()
+                        .map(|line| line.chars().take_while(|c| c.is_whitespace()).count())
                         .collect_vec()
                 })
                 .collect_vec();

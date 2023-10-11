@@ -24,7 +24,7 @@ impl GitHunk {
                 let start = buffer.line_to_byte(line_range.start).ok()?;
                 let end = buffer.line_to_byte(line_range.end).ok()?;
 
-                Some(ByteRange::with_info(start..end, hunk.to_string()))
+                Some(ByteRange::new(start..end).set_info(hunk.to_info()))
             })
             .collect_vec();
         Ok(GitHunk { ranges })

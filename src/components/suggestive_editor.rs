@@ -1,11 +1,11 @@
 use crate::app::Dispatch;
 use crate::context::Context;
+use crate::grid::StyleKey;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use crate::lsp::signature_help::SignatureHelp;
 
-use crate::selection_mode::ByteRange;
-use crate::themes::StyleKey;
+use crate::selection_range::SelectionRange;
 use crate::{
     buffer::Buffer,
     lsp::completion::{Completion, CompletionItem},
@@ -46,7 +46,7 @@ impl DropdownItem for CodeAction {
     fn label(&self) -> String {
         self.title()
     }
-    fn info(&self) -> Option<String> {
+    fn info(&self) -> Option<Info> {
         None
     }
 }
@@ -66,21 +66,21 @@ impl DropdownItem for CompletionItem {
     fn label(&self) -> String {
         self.label()
     }
-    fn info(&self) -> Option<String> {
+    fn info(&self) -> Option<Info> {
         let kind = self.kind.map(|kind| {
             convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
         });
         let detail = self.detail.clone();
 
         let documentation = self.documentation().map(|d| d.content);
-        Some(
+        Some(Info::new(
             [].into_iter()
                 .chain(kind)
                 .chain(detail)
                 .chain(documentation)
-                .collect::<Vec<String>>()
-                .join("\n----------\n"),
-        )
+                .collect_vec()
+                .join("\n==========\n"),
+        ))
     }
 }
 
@@ -278,47 +278,18 @@ impl SuggestiveEditor {
         if self.editor.mode != Mode::Insert {
             return;
         }
-        if let Some(signature_help) = signature_help {
-            self.show_infos(
-                "Signature help",
-                signature_help
-                    .signatures
-                    .into_iter()
-                    .map(|signature| {
-                        let signature_label_len = signature.label.len();
-                        let content = [signature.label]
-                            .into_iter()
-                            .chain(signature.documentation.map(|doc| doc.content))
-                            .collect_vec()
-                            .join(&format!("{}\n", "-".repeat(signature_label_len)));
-
-                        let decoration =
-                            signature
-                                .active_parameter_byte_range
-                                .map(|byte_range| Decoration {
-                                    byte_range,
-                                    style_key: StyleKey::UiPrimarySelection,
-                                });
-                        Info {
-                            content,
-                            decorations: [].into_iter().chain(decoration).collect_vec(),
-                        }
-                    })
-                    .collect_vec(),
-            );
+        if let Some(info) = signature_help.and_then(|s| s.into_info()) {
+            self.show_info("Signature help", info);
         } else {
             self.info_panel = None;
         }
     }
 
-    pub fn show_infos(&mut self, title: &str, infos: Vec<Info>) {
-        // TODO: show NOT only the first info
-        if let Some(info) = infos.first() {
-            let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
-            editor.add_decorations(info.decorations.to_owned());
-            editor.set_title(title.into());
-            self.info_panel = Some(Rc::new(RefCell::new(editor)));
-        }
+    pub fn show_info(&mut self, title: &str, info: Info) {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
+        editor.set_decorations(info.decorations());
+        editor.set_title(title.into());
+        self.info_panel = Some(Rc::new(RefCell::new(editor)));
     }
 
     pub fn set_code_actions(&mut self, code_actions: Vec<CodeAction>) {
@@ -856,14 +827,100 @@ mod test_suggestive_editor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Info {
-    pub content: String,
-    pub decorations: Vec<Decoration>,
+    content: String,
+    decorations: Vec<Decoration>,
+}
+impl Info {
+    pub(crate) fn new(content: String) -> Info {
+        Info {
+            content,
+            decorations: Vec::new(),
+        }
+    }
+
+    pub fn content(&self) -> &String {
+        &self.content
+    }
+
+    pub fn decorations(&self) -> &Vec<Decoration> {
+        &self.decorations
+    }
+
+    pub fn take(self) -> (String, Vec<Decoration>) {
+        let Self {
+            content,
+            decorations,
+        } = self;
+        (content, decorations)
+    }
+
+    pub fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
+        Info {
+            decorations,
+            ..self
+        }
+    }
+
+    pub(crate) fn join(self, other: Info) -> Info {
+        let separator = "=".repeat(10).to_string();
+        let content = format!("{}\n{}\n{}", self.content, separator, other.content);
+        let other_decorations = other
+            .decorations
+            .into_iter()
+            .map(|decoration| decoration.increase_byte(separator.len() + 2))
+            .collect_vec();
+        let decorations = self
+            .decorations
+            .into_iter()
+            .chain(other_decorations)
+            .collect_vec();
+        Info {
+            content,
+            decorations,
+        }
+    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Decoration {
-    pub byte_range: ByteRange,
-    pub style_key: StyleKey,
+    selection_range: SelectionRange,
+    style_key: StyleKey,
+    adjustments: Vec<Adjustment>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Adjustment {
+    IncreaseByte(usize),
+}
+
+impl Decoration {
+    fn increase_byte(mut self, len: usize) -> Decoration {
+        self.adjustments.push(Adjustment::IncreaseByte(len));
+        self
+    }
+
+    pub(crate) fn selection_range(&self) -> &SelectionRange {
+        &self.selection_range
+    }
+
+    pub(crate) fn style_key(&self) -> &StyleKey {
+        &self.style_key
+    }
+
+    pub(crate) fn new(selection_range: SelectionRange, style_key: StyleKey) -> Decoration {
+        Decoration {
+            selection_range,
+            style_key,
+            adjustments: Default::default(),
+        }
+    }
+
+    pub(crate) fn move_left(self, count: usize) -> Decoration {
+        Decoration {
+            selection_range: self.selection_range.move_left(count),
+            ..self
+        }
+    }
 }

@@ -9,13 +9,14 @@ use std::rc::Rc;
 
 use super::component::ComponentId;
 use super::editor::Editor;
+use super::suggestive_editor::Info;
 
 pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
     fn emoji(&self) -> String {
         String::new()
     }
     fn label(&self) -> String;
-    fn info(&self) -> Option<String>;
+    fn info(&self) -> Option<Info>;
 }
 
 impl DropdownItem for String {
@@ -23,7 +24,7 @@ impl DropdownItem for String {
         self.clone()
     }
 
-    fn info(&self) -> Option<String> {
+    fn info(&self) -> Option<Info> {
         None
     }
 }
@@ -80,7 +81,8 @@ impl<T: DropdownItem> Dropdown<T> {
             .get(self.current_item_index)
             .cloned()
             .map(|item| {
-                self.show_info(item.info());
+                let info = item.info();
+                self.show_info(info);
                 item
             })
     }
@@ -139,9 +141,9 @@ impl<T: DropdownItem> Dropdown<T> {
         Ok(())
     }
 
-    fn show_info(&mut self, info: Option<String>) -> anyhow::Result<()> {
+    fn show_info(&mut self, info: Option<Info>) -> anyhow::Result<()> {
         match info {
-            Some(info) if !info.is_empty() => {
+            Some(info) => {
                 let info_panel = match self.info_panel.take() {
                     Some(info_panel) => info_panel,
                     None => Rc::new(RefCell::new(Editor::from_text(
@@ -150,7 +152,7 @@ impl<T: DropdownItem> Dropdown<T> {
                     ))),
                 };
 
-                info_panel.borrow_mut().set_content(&info)?;
+                info_panel.borrow_mut().show_info(info);
                 self.info_panel = Some(info_panel);
             }
             _ => self.info_panel = None,
@@ -208,7 +210,10 @@ impl<T: DropdownItem + 'static> Component for Dropdown<T> {
 #[cfg(test)]
 mod test_dropdown {
     use crate::{
-        components::dropdown::{Dropdown, DropdownConfig, DropdownItem},
+        components::{
+            dropdown::{Dropdown, DropdownConfig, DropdownItem},
+            suggestive_editor::Info,
+        },
         selection::CharIndex,
     };
 
@@ -282,17 +287,28 @@ mod test_dropdown {
 
     #[test]
     fn setting_filter_should_show_info_of_the_new_first_item() -> anyhow::Result<()> {
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+        #[derive(Debug, Clone, PartialEq, Eq)]
         struct Item {
             label: String,
-            info: String,
+            info: Info,
+        }
+        impl PartialOrd for Item {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                self.label.partial_cmp(&other.label)
+            }
+        }
+
+        impl Ord for Item {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.label.cmp(&other.label)
+            }
         }
 
         impl Item {
             fn new(label: &str, info: &str) -> Self {
                 Self {
                     label: label.to_string(),
-                    info: info.to_string(),
+                    info: Info::new(info.to_string()),
                 }
             }
         }
@@ -302,8 +318,8 @@ mod test_dropdown {
                 self.label.to_string()
             }
 
-            fn info(&self) -> Option<String> {
-                Some(self.info.to_string())
+            fn info(&self) -> Option<Info> {
+                Some(self.info.clone())
             }
         }
         let mut dropdown = Dropdown::new(DropdownConfig {

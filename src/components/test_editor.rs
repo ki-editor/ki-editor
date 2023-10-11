@@ -6,9 +6,10 @@ mod test_editor {
         components::{
             component::Component,
             editor::{Direction, Editor, Mode, Movement, ViewAlignment},
+            suggestive_editor::Info,
         },
         context::Context,
-        grid::{Style, StyleSource},
+        grid::{Style, StyleKey},
         position::Position,
         selection::SelectionMode,
         themes::Theme,
@@ -897,21 +898,20 @@ fn f() {
         editor.insert("de")?;
         let dispatches = editor.enter_undo_tree_mode();
 
-        assert_eq!(
-            dispatches,
-            [Dispatch::ShowInfo {
-                title: "Undo Tree History".to_string(),
-                content: [" 
+        let expected = [Dispatch::ShowInfo {
+            title: "Undo Tree History".to_string(),
+            info: Info::new(
+                " 
 * 1-2 [HEAD] 
 | * 0-2 
 |/
 * 1-1 
 * 1-0 [SAVED]"
                     .trim()
-                    .to_string()]
-                .to_vec()
-            }]
-        );
+                    .to_string(),
+            ),
+        }];
+        assert_eq!(dispatches, expected);
 
         // Down = go to previous history branch
         editor.handle_movement(&context, Movement::Down)?;
@@ -1090,9 +1090,9 @@ fn main() { // too long
             Position::new(2, 2)..=Position::new(2, 4),
         ];
 
-        result.grid.assert_ranges(ranges, |cell| {
-            cell.source == Some(StyleSource::SyntaxKeyword)
-        });
+        result
+            .grid
+            .assert_ranges(ranges, |cell| cell.source == Some(StyleKey::SyntaxKeyword));
 
         // Expect decorations overrides syntax highlighting
         editor.match_literal(&context, "fn")?;
@@ -1115,7 +1115,7 @@ fn main() { // too long
         result
             .grid
             .assert_range(&(Position::new(0, 2)..=Position::new(0, 3)), |cell| {
-                cell.source == Some(StyleSource::Bookmark)
+                cell.source == Some(StyleKey::UiBookmark)
             });
 
         Ok(())

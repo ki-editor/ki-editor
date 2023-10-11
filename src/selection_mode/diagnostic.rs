@@ -1,5 +1,7 @@
 use lsp_types::DiagnosticSeverity;
 
+use crate::components::suggestive_editor::Info;
+
 use super::SelectionMode;
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
@@ -43,7 +45,7 @@ impl SelectionMode for Diagnostic {
                         buffer
                             .position_range_to_byte_range(&diagnostic.range)
                             .ok()?,
-                        diagnostic.message.clone(),
+                        Info::new(diagnostic.message.clone()),
                     ))
                 }),
         ))

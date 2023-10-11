@@ -4,7 +4,7 @@ use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter}
 
 use crate::{
     components::component::ComponentId,
-    grid::{Style, StyleSource},
+    grid::{Style, StyleKey},
     themes::Theme,
 };
 use shared::language::Language;
@@ -13,7 +13,7 @@ use shared::language::Language;
 pub struct HighlighedSpan {
     pub byte_range: Range<usize>,
     pub style: Style,
-    pub source: Option<StyleSource>,
+    pub source: Option<StyleKey>,
 }
 
 /// In hex format, e.g. "#FF0000"
@@ -75,11 +75,11 @@ impl Highlight for HighlightConfiguration {
                                 byte_range: start..end,
                                 style: color,
                                 source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0) {
-                                    Some(&"comment") => Some(StyleSource::SyntaxComment),
-                                    Some(&"keyword") => Some(StyleSource::SyntaxKeyword),
-                                    Some(&"string") => Some(StyleSource::SyntaxString),
-                                    Some(&"type") => Some(StyleSource::SyntaxType),
-                                    Some(&"function") => Some(StyleSource::SyntaxFunction),
+                                    Some(&"comment") => Some(StyleKey::SyntaxComment),
+                                    Some(&"keyword") => Some(StyleKey::SyntaxKeyword),
+                                    Some(&"string") => Some(StyleKey::SyntaxString),
+                                    Some(&"type") => Some(StyleKey::SyntaxType),
+                                    Some(&"function") => Some(StyleKey::SyntaxFunction),
                                     _ => None,
                                 },
                             });

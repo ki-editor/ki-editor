@@ -8,7 +8,10 @@ use crate::{
     app::Dispatch,
     buffer::Buffer,
     char_index_range::CharIndexRange,
-    components::editor::{Direction, Movement},
+    components::{
+        editor::{Direction, Movement},
+        suggestive_editor::Info,
+    },
     context::{Context, Search, SearchKind},
     position::Position,
     selection_mode::{self, SelectionModeParams},
@@ -408,7 +411,7 @@ pub struct Selection {
     initial_range: Option<CharIndexRange>,
 
     /// For example, used for Diagnostic and Git Hunk
-    info: Option<String>,
+    info: Option<Info>,
 }
 
 impl Selection {
@@ -440,7 +443,7 @@ impl Selection {
         }
     }
 
-    pub fn set_info(self, info: Option<String>) -> Self {
+    pub fn set_info(self, info: Option<Info>) -> Self {
         Selection { info, ..self }
     }
 
@@ -536,7 +539,7 @@ impl Selection {
             .or_else(|| context.get_clipboard_content().map(Rope::from))
     }
 
-    pub fn info(&self) -> Option<String> {
+    pub fn info(&self) -> Option<Info> {
         self.info.clone()
     }
 
