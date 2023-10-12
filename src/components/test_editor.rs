@@ -942,7 +942,7 @@ fn main() {
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 20,
-            height: 5,
+            height: 6,
         });
 
         let mut theme = Theme::default();
@@ -960,6 +960,7 @@ fn main() {
         // Expect `fn main()` is visible although it is out of view,
         // because it is amongst the parent lines of the current selection
         let expected_grid = "
+[No title]
 2│fn main() {
 4│  let y = 2;
 5│  for a in b {
@@ -975,14 +976,14 @@ fn main() {
 
         // Expect the parent lines of the current selections are highlighted with parent_lines_background,
         // regardless of whether the parent lines are inbound or outbound
-        assert!([0, 2].into_iter().all(|row_index| {
+        assert!([1, 3].into_iter().all(|row_index| {
             result.grid.rows[row_index]
                 .iter()
                 .all(|cell| cell.background_color == parent_lines_background)
         }));
 
         // Expect the current line is not treated as parent line
-        assert!(!result.grid.rows[4]
+        assert!(!result.grid.rows[5]
             .iter()
             .any(|cell| cell.background_color == parent_lines_background));
 
@@ -999,13 +1000,13 @@ fn main() {
 
         // Expect the decorations of outbound parent lines are rendered properly
         // In this case, the outbound parent line is "fn main() {"
-        assert!(result.grid.rows[0][2..4]
+        assert!(result.grid.rows[1][2..4]
             .iter()
             .all(|cell| bookmark_background_color == cell.background_color));
 
         // Expect the decorations of inbound lines are rendered properly
         // In this case, we want to check that the bookmark on "z" is rendered
-        let z_cell = result.grid.rows[3][10].clone();
+        let z_cell = result.grid.rows[4][10].clone();
         assert_eq!(z_cell.symbol, "z");
         assert!(z_cell.background_color == bookmark_background_color);
 
@@ -1023,7 +1024,7 @@ fn main() {
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 13,
-            height: 3,
+            height: 4,
         });
 
         editor.match_literal(&context, "world")?;
@@ -1031,6 +1032,7 @@ fn main() {
         let result = editor.get_grid(&mut context);
 
         let expected_grid = "
+[No title]
 1│// hello
 ↪│world
 2│ hey
@@ -1041,7 +1043,7 @@ fn main() {
         // Expect the cursor is after 'd'
         assert_eq!(
             result.cursor.unwrap().position(),
-            &Position { line: 1, column: 7 }
+            &Position { line: 2, column: 7 }
         );
         Ok(())
     }
@@ -1064,7 +1066,7 @@ fn main() { // too long
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 20,
-            height: 3,
+            height: 4,
         });
         let result = editor.get_grid(&mut context);
 
@@ -1072,6 +1074,7 @@ fn main() { // too long
         assert_eq!(
             result.grid.to_string(),
             "
+[No title]
 1│fn main() { // too
 3│  let bar = baba;
 ↪│let wrapped = coco
@@ -1081,13 +1084,13 @@ fn main() { // too long
         let ranges = &[
             //
             // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
-            Position::new(0, 2)..=Position::new(0, 3),
+            Position::new(1, 2)..=Position::new(1, 3),
             //
             // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
-            Position::new(1, 4)..=Position::new(1, 6),
+            Position::new(2, 4)..=Position::new(2, 6),
             //
             // Expect the `let` keyword of line 3 (which is inbound but wrapped) is highlighted properly
-            Position::new(2, 2)..=Position::new(2, 4),
+            Position::new(3, 2)..=Position::new(3, 4),
         ];
 
         result
@@ -1106,6 +1109,7 @@ fn main() { // too long
         assert_eq!(
             result.grid.to_string(),
             "
+[No title]
 1│fn main() { // too
 ↪│ long
 2│  let foo = 1;
@@ -1114,7 +1118,7 @@ fn main() { // too long
         );
         result
             .grid
-            .assert_range(&(Position::new(0, 2)..=Position::new(0, 3)), |cell| {
+            .assert_range(&(Position::new(1, 2)..=Position::new(1, 3)), |cell| {
                 cell.source == Some(StyleKey::UiBookmark)
             });
 
@@ -1127,12 +1131,19 @@ fn main() { // too long
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 20,
-            height: 1,
+            height: 2,
         });
         let mut context = Context::default();
         let result = editor.get_grid(&mut context);
-        assert_eq!(result.grid.to_string(), "1│");
-        assert_eq!(result.cursor.unwrap().position(), &Position::new(0, 2));
+        assert_eq!(
+            result.grid.to_string(),
+            "
+[No title]
+1│
+"
+            .trim()
+        );
+        assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 2));
         Ok(())
     }
 
@@ -1151,7 +1162,7 @@ fn main () {
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 20,
-            height: 3,
+            height: 4,
         });
         let mut context = Context::default();
         editor.match_literal(&context, "spam()")?;
@@ -1160,20 +1171,21 @@ fn main () {
         assert_eq!(
             result.grid.to_string(),
             "
+[No title]
 1│fn main () {
 4│  spam();
 5│}
 "
             .trim()
         );
-        assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 4));
-        println!("=================");
+        assert_eq!(result.cursor.unwrap().position(), &Position::new(2, 4));
 
         editor.align_cursor_to_bottom();
         let result = editor.get_grid(&mut context);
         assert_eq!(
             result.grid.to_string(),
             "
+[No title]
 1│fn main () {
 3│  bar();
 4│  spam();

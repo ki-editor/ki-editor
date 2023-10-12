@@ -59,7 +59,7 @@ pub struct Jump {
     pub character: char,
     pub selection: Selection,
 }
-
+const WINDOW_TITLE_HEIGHT: usize = 1;
 impl Component for Editor {
     fn id(&self) -> ComponentId {
         self.id
@@ -79,7 +79,12 @@ impl Component for Editor {
     }
 
     fn title(&self) -> String {
-        self.title.clone()
+        let title = self.title.clone();
+        if title.is_empty() {
+            "[No title]".to_string()
+        } else {
+            title
+        }
     }
 
     fn set_title(&mut self, title: String) {
@@ -100,10 +105,12 @@ impl Component for Editor {
         let line_number_separator_width = 1;
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
+
+        let top_offset = hidden_parent_lines.len() + WINDOW_TITLE_HEIGHT;
         let scroll_offset = {
             let scroll_offset = editor.scroll_offset();
             if editor.cursor_at_last_line_of_view() {
-                scroll_offset.saturating_add(hidden_parent_lines.len() as u16)
+                scroll_offset.saturating_add(top_offset as u16)
             } else {
                 scroll_offset
             }
@@ -465,12 +472,13 @@ impl Component for Editor {
         };
 
         let grid = {
-            let height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
+            let height = height.saturating_sub(top_offset as u16);
 
             let bottom = visible_lines_grid.clamp_bottom(height);
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
+        let window_title_style = theme.ui.window_title;
 
         // NOTE: due to performance issue, we only highlight the content that are within view
         // This might result in some incorrectness, but that's a reasonable trade-off, because
@@ -528,6 +536,13 @@ impl Component for Editor {
             .apply_cell_updates(hidden_parent_lines_updates)
             .apply_cell_updates(visible_lines_updates);
 
+        let title_grid = Grid::new(Dimension {
+            height: 1,
+            width: editor.dimension().width,
+        })
+        .set_line(0, &self.title(), &window_title_style);
+
+        let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
 
         GetGridResult {
@@ -880,9 +895,12 @@ impl Editor {
     }
 
     pub fn align_cursor_to_bottom(&mut self) {
-        self.scroll_offset = self
-            .cursor_row()
-            .saturating_sub(self.rectangle.height.saturating_sub(1));
+        self.scroll_offset = self.cursor_row().saturating_sub(
+            self.rectangle
+                .height
+                .saturating_sub(1)
+                .saturating_sub(WINDOW_TITLE_HEIGHT as u16),
+        );
     }
 
     pub fn align_cursor_to_top(&mut self) {

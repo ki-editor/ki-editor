@@ -206,7 +206,6 @@ impl<T: Frontend> App<T> {
         });
 
         let theme = self.context.theme();
-        let theme_ui_window_title = theme.ui.window_title;
 
         // Render every window
         let (grid, cursor) = self
@@ -215,10 +214,7 @@ impl<T: Frontend> App<T> {
             .map(|component| {
                 let component = component.borrow();
 
-                let rectangle = component
-                    .rectangle()
-                    .clamp_top(GLOBAL_TITLE_BAR_HEIGHT as usize);
-
+                let rectangle = component.rectangle();
                 let GetGridResult { grid, cursor } = component.get_grid(&mut self.context);
                 let focused_component_id = self.layout.focused_component_id();
                 let cursor_position = if focused_component_id
@@ -250,16 +246,8 @@ impl<T: Frontend> App<T> {
                 (grid, None),
                 |(grid, current_cursor_point), (component_grid, rectangle, cursor_point, title)| {
                     {
-                        let title_rectangle = rectangle.move_up(1).set_height(1);
-                        let title_grid = Grid::new(title_rectangle.dimension()).set_line(
-                            0,
-                            &title,
-                            &theme_ui_window_title,
-                        );
                         (
-                            grid.update(&component_grid, &rectangle)
-                                // Set title
-                                .update(&title_grid, &title_rectangle),
+                            grid.update(&component_grid, &rectangle),
                             current_cursor_point.or(cursor_point),
                         )
                     }
