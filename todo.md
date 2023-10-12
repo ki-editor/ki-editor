@@ -231,6 +231,7 @@
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
 - [] feat(dev): ci/cd
 - [] feat(editor): trim, which trims both ends of every selection by 1 character
+- [] feat(layout): the height of prompt window should be one
 
 # Grammar loading
 

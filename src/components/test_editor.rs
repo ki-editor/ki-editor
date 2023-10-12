@@ -1135,4 +1135,52 @@ fn main() { // too long
         assert_eq!(result.cursor.unwrap().position(), &Position::new(0, 2));
         Ok(())
     }
+
+    #[test]
+    fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(
+            language(),
+            "
+fn main () {
+  foo();
+  bar();
+  spam();
+}"
+            .trim(),
+        );
+        editor.set_rectangle(crate::rectangle::Rectangle {
+            origin: Position::default(),
+            width: 20,
+            height: 3,
+        });
+        let mut context = Context::default();
+        editor.match_literal(&context, "spam()")?;
+        editor.align_cursor_to_top();
+        let result = editor.get_grid(&mut context);
+        assert_eq!(
+            result.grid.to_string(),
+            "
+1│fn main () {
+4│  spam();
+5│}
+"
+            .trim()
+        );
+        assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 4));
+        println!("=================");
+
+        editor.align_cursor_to_bottom();
+        let result = editor.get_grid(&mut context);
+        assert_eq!(
+            result.grid.to_string(),
+            "
+1│fn main () {
+3│  bar();
+4│  spam();
+"
+            .trim()
+        );
+        assert_eq!(result.cursor.unwrap().position(), &Position::new(2, 4));
+        Ok(())
+    }
 }

@@ -98,7 +98,16 @@ impl Component for Editor {
         let len_lines = rope.len_lines().max(1) as u16;
         let max_line_number_len = len_lines.to_string().len() as u16;
         let line_number_separator_width = 1;
-        let scroll_offset = editor.scroll_offset();
+        let (hidden_parent_lines, visible_parent_lines) =
+            self.get_parent_lines().unwrap_or_default();
+        let scroll_offset = {
+            let scroll_offset = editor.scroll_offset();
+            if editor.cursor_at_last_line_of_view() {
+                scroll_offset.saturating_add(hidden_parent_lines.len() as u16)
+            } else {
+                scroll_offset
+            }
+        };
         let visible_lines = &rope
             .lines()
             .skip(scroll_offset as usize)
@@ -110,15 +119,16 @@ impl Component for Editor {
             .saturating_sub(line_number_separator_width))
             as usize;
         let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
-        let (hidden_parent_lines, visible_parent_lines) =
-            self.get_parent_lines().unwrap_or_default();
         let parent_lines_numbers = visible_parent_lines
             .iter()
             .chain(hidden_parent_lines.iter())
             .map(|line| line.line)
             .collect_vec();
 
-        let grid: Grid = Grid::new(Dimension { height, width });
+        let visible_lines_grid: Grid = Grid::new(Dimension {
+            height: (height as usize).max(wrapped_lines.lines_count()) as u16,
+            width,
+        });
 
         let selection = &editor.selection_set.primary;
         // If the buffer selection is updated less recently than the window's scroll offset,
@@ -393,14 +403,12 @@ impl Component for Editor {
             .clone()
             .filter_map(|update| {
                 let update = update.subtract_vertical_offset(scroll_offset.into())?;
-                Some(CellUpdate {
-                    position: wrapped_lines
-                        .calibrate(update.position)
-                        .ok()?
-                        .move_down(hidden_parent_lines.len())
-                        .move_right(max_line_number_len + line_number_separator_width),
-                    ..update
-                })
+                let position = wrapped_lines
+                    .calibrate(update.position)
+                    .ok()?
+                    .move_down(hidden_parent_lines.len())
+                    .move_right(max_line_number_len + line_number_separator_width);
+                Some(CellUpdate { position, ..update })
             })
             .collect::<Vec<_>>();
         let visible_render_lines = if lines.is_empty() {
@@ -413,7 +421,7 @@ impl Component for Editor {
         } else {
             lines
         };
-        let visible_lines_grid = render_lines(grid, visible_render_lines);
+        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines);
 
         let (hidden_parent_lines_grid, hidden_parent_lines_updates) = {
             let height = hidden_parent_lines.len() as u16;
@@ -457,9 +465,9 @@ impl Component for Editor {
         };
 
         let grid = {
-            let bottom_height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
+            let height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
 
-            let bottom = visible_lines_grid.clamp_bottom(bottom_height);
+            let bottom = visible_lines_grid.clamp_bottom(height);
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
@@ -871,11 +879,13 @@ impl Editor {
         self.current_view_alignment = None;
     }
 
-    fn align_cursor_to_bottom(&mut self) {
-        self.scroll_offset = self.cursor_row().saturating_sub(self.rectangle.height);
+    pub fn align_cursor_to_bottom(&mut self) {
+        self.scroll_offset = self
+            .cursor_row()
+            .saturating_sub(self.rectangle.height.saturating_sub(1));
     }
 
-    fn align_cursor_to_top(&mut self) {
+    pub fn align_cursor_to_top(&mut self) {
         self.scroll_offset = self.cursor_row();
     }
 
@@ -3025,6 +3035,13 @@ impl Editor {
 
     pub(crate) fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
         self.buffer_mut().set_language(language)
+    }
+
+    fn cursor_at_last_line_of_view(&self) -> bool {
+        let Ok(position) = self.get_cursor_position() else { return false; };
+
+        position.line.saturating_sub(self.scroll_offset() as usize)
+            == (self.dimension().height.saturating_sub(1) as usize)
     }
 }
 
