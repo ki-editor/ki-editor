@@ -247,16 +247,11 @@ impl<T: Frontend> App<T> {
                     None
                 };
 
-                (
-                    grid,
-                    rectangle.clone(),
-                    cursor_position,
-                    component.title(&self.context),
-                )
+                (grid, rectangle.clone(), cursor_position)
             })
             .fold(
                 (grid, None),
-                |(grid, current_cursor_point), (component_grid, rectangle, cursor_point, title)| {
+                |(grid, current_cursor_point), (component_grid, rectangle, cursor_point)| {
                     {
                         (
                             grid.update(&component_grid, &rectangle),
@@ -944,7 +939,7 @@ impl<T: Frontend> App<T> {
                                     path: (*path).clone(),
                                     range: diagnostic.range.clone(),
                                 },
-                                Some(Info::new(diagnostic.message(&self.working_directory))),
+                                Some(Info::new(diagnostic.message())),
                             )
                         })
                         .collect(),

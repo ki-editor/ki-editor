@@ -3,7 +3,6 @@ use std::ops::Range;
 use crate::{position::Position, quickfix_list::Location};
 
 use lsp_types::DiagnosticSeverity;
-use shared::canonicalized_path::CanonicalizedPath;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
@@ -24,7 +23,7 @@ impl Diagnostic {
             code_description: None,
         }
     }
-    pub fn message(&self, current_working_directory: &CanonicalizedPath) -> String {
+    pub fn message(&self) -> String {
         let severity = self.severity.map(|severity| match severity {
             DiagnosticSeverity::ERROR => "ERROR",
             DiagnosticSeverity::WARNING => "WARNING",
