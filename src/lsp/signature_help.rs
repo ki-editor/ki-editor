@@ -42,7 +42,7 @@ impl SignatureHelp {
                     .into_iter()
                     .chain(signature.documentation.map(|doc| doc.content))
                     .collect_vec()
-                    .join(&format!("{}\n", "-".repeat(signature_label_len)));
+                    .join(&format!("\n{}\n", "-".repeat(signature_label_len)));
 
                 let decoration = signature
                     .active_parameter_byte_range
