@@ -39,21 +39,21 @@ The following keybindings work regardless of any mode.
 
 ## Normal mode
 
-- `a`: Enter insert mode **a**fter current selection
+- `a`: Enter insert mode at the **a**pex (front) of selection
 - `b`: Set selection mode to **b**ottom node
 - `c`: Set selection mode to **c**haracter
 - `d`: Move **d**own
-- `e`: Enter **e**xchange mode
+- `e`: Enter insert mode at the **e**nd of selection
 - `f`: Open **f**ind (local) menu
 - `g`: Open find (**g**lobal) menu
 - `h`: Toggle **h**ighlight mode
-- `i`: Enter **i**nsert mode before current selection
+- `i`: (unassigned)
 - `j`: Enter **j**ump mode
 - `k`: Kill current selection(s)
 - `l`: Set selection mode to **l**ine
 - `m`: Enter **m**ulti-cursor mode
 - `n`: Move to **n**ext selection(s)
-- `o`: Open **o**ther movement menu
+- `o`: (unassigned)
 - `p`: Move to **p**revious selection(s)
 - `q`: Set selection mode to **q**uickfix
 - `r`: Raise current selection(s) (Replace parent node with current node)
@@ -63,11 +63,14 @@ The following keybindings work regardless of any mode.
 - `u`: Move **u**p
 - `v`: (unassigned)
 - `w`: Set selection mode to **w**ord
-- `x`: Open common rege**x** menu
+- `x`: Enter e**x**change mode
 - `y`: (unassigned)
 - `z`: (unassigned)
+- `0`: Jump to specific index of the current selection mode (Useful for going to specific line number)
 - `:`: Enter command mode
-- `,`: Change to the previous selection(s)
+- `,`: Go to the first selection (resembles `<` on keyboard)
+- `.`: Go to the last selection (resembles `>` on keyboard)
+- `-`: Change to the previous selection(s)
 - `*`: Select the whole file
 - `%`: Toggle cursor position to start/end of selection
 - `'`: Open List menu
@@ -101,7 +104,7 @@ For example, in Character mode, `u` means go to the character of the same column
 | Line                |              |                  | Move to nearest parent line       |                               |
 | Quickfix            |              |                  | \*First quickfix of previous file | \*First quickfix of next file |
 | Syntax tree         | Next sibling | Previous sibling | Select parent                     | Select first child            |
-| Undo Tree (space z) | Redo  | Undo  | Go to next branch                              | Go to previous branch                          |
+| Undo Tree (space z) | Redo         | Undo             | Go to next branch                 | Go to previous branch         |
 
 ## Exchange mode
 
