@@ -1943,14 +1943,10 @@ impl Editor {
                 Ok(Some(Vec::new()))
             }
             key!("n") => move_selection(Movement::Next),
-            key!("o") => Ok(Some(
-                [Dispatch::ShowKeymapLegend(
-                    self.other_movement_keymap_legend(),
-                )]
-                .to_vec(),
-            )),
             key!("p") => move_selection(Movement::Previous),
             key!("u") => move_selection(Movement::Up),
+            key!(".") => move_selection(Movement::Last),
+            key!(",") => move_selection(Movement::First),
             _ => Ok(None),
         }
     }
@@ -1975,7 +1971,8 @@ impl Editor {
             }
             key!("*") => self.select_whole_file(),
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
-            key!(",") => self.select_backward(),
+            key!("-") => self.select_backward(),
+
             key!("left") => return self.handle_movement(context, Movement::Previous),
             key!("shift+left") => return self.handle_movement(context, Movement::First),
             key!("right") => return self.handle_movement(context, Movement::Next),
@@ -1985,13 +1982,13 @@ impl Editor {
                 return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
             }
             // Objects
-            key!("a") => self.enter_insert_mode(Direction::End)?,
+            key!("a") => self.enter_insert_mode(Direction::Start)?,
             key!("b") => return self.set_selection_mode(context, SelectionMode::BottomNode),
             key!("ctrl+b") => self.save_bookmarks(),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
-            key!("e") => self.mode = Mode::Exchange,
+            key!("e") => self.enter_insert_mode(Direction::End)?,
             key!("f") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.find_mode_keymap_legend_config(context)?,
@@ -2005,7 +2002,8 @@ impl Editor {
             }
             key!("h") => self.toggle_highlight_mode(),
 
-            key!("i") => self.enter_insert_mode(Direction::Start)?,
+            // Initial
+
             // j = jump
             key!("k") => return self.kill(context),
             key!("shift+K") => self.select_kids()?,
@@ -2030,7 +2028,8 @@ impl Editor {
                 .to_vec())
             }
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
-            key!("x") => {
+            key!("x") => self.mode = Mode::Exchange,
+            key!("z") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.x_mode_keymap_legend_config()?,
                 )]
@@ -2055,6 +2054,7 @@ impl Editor {
                     self.space_mode_keymap_legend_config(),
                 )])
             }
+            key!("0") => return Ok([Dispatch::OpenMoveToIndexPrompt].to_vec()),
             _ => {
                 log::info!("event: {:?}", event);
             }
