@@ -22,6 +22,7 @@ pub struct Context {
     /// We have to cache the highlight configurations because they load slowly.
     tree_sitter_highlight_configs:
         HashMap<TreeSitterGrammarId, tree_sitter_highlight::HighlightConfiguration>,
+    current_working_directory: Option<CanonicalizedPath>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -73,13 +74,17 @@ impl Default for Context {
             mode: None,
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
             tree_sitter_highlight_configs: HashMap::new(),
+            current_working_directory: None,
         }
     }
 }
 
 impl Context {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(current_working_directory: CanonicalizedPath) -> Self {
+        Self {
+            current_working_directory: Some(current_working_directory),
+            ..Self::default()
+        }
     }
 
     pub fn quickfix_lists(&self) -> Rc<RefCell<QuickfixLists>> {
@@ -181,5 +186,9 @@ impl Context {
             }
         };
         config.highlight(self.theme(), source_code)
+    }
+
+    pub(crate) fn current_working_directory(&self) -> Option<&CanonicalizedPath> {
+        self.current_working_directory.as_ref()
     }
 }

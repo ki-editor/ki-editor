@@ -109,8 +109,8 @@ pub trait Component: Any + AnyComponent {
         self.editor().buffer().content()
     }
 
-    fn title(&self) -> String {
-        self.editor().title()
+    fn title(&self, context: &Context) -> String {
+        self.editor().title(context)
     }
 
     fn set_title(&mut self, title: String) {
@@ -171,13 +171,13 @@ impl ComponentId {
 mod test_component {
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::components::component::Component;
+    use crate::{components::component::Component, context::Context};
 
     #[test]
     fn child_should_rank_lower_than_parent() {
         struct GrandChild {}
         impl Component for GrandChild {
-            fn title(&self) -> String {
+            fn title(&self, _: &Context) -> String {
                 "GrandChild".to_string()
             }
             fn editor(&self) -> &crate::components::editor::Editor {
@@ -208,7 +208,7 @@ mod test_component {
             grand_child: Rc<RefCell<GrandChild>>,
         }
         impl Component for Child {
-            fn title(&self) -> String {
+            fn title(&self, _: &Context) -> String {
                 "Child".to_string()
             }
             fn editor(&self) -> &crate::components::editor::Editor {
@@ -240,7 +240,7 @@ mod test_component {
             child: Rc<RefCell<Child>>,
         }
         impl Component for Parent {
-            fn title(&self) -> String {
+            fn title(&self, _: &Context) -> String {
                 "Parent".to_string()
             }
             fn editor(&self) -> &crate::components::editor::Editor {
@@ -277,11 +277,12 @@ mod test_component {
         let descendants = parent.descendants();
 
         assert_eq!(descendants.len(), 2);
+        let context = Context::default();
 
         assert_eq!(
             descendants
                 .into_iter()
-                .map(|d| d.borrow().title())
+                .map(|d| d.borrow().title(&context))
                 .collect::<Vec<_>>(),
             vec!["Child".to_string(), "GrandChild".to_string()],
         )

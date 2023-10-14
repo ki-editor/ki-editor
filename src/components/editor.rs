@@ -78,22 +78,28 @@ impl Component for Editor {
         self.clamp()
     }
 
-    fn title(&self) -> String {
+    fn title(&self, context: &Context) -> String {
+        context.current_working_directory();
         let title = self.title.clone();
-        if title.is_empty() {
-            "[No title]".to_string()
-        } else {
-            title
-        }
+        title
+            .or_else(|| {
+                let path = self.buffer().path()?;
+                let current_working_directory = context.current_working_directory()?;
+                let string = path
+                    .display_relative_to(current_working_directory)
+                    .unwrap_or_else(|_| path.display());
+                Some(format!(" {} {}", string, path.icon()))
+            })
+            .unwrap_or_else(|| "[No title]".to_string())
     }
 
     fn set_title(&mut self, title: String) {
-        self.title = title;
+        self.title = Some(title);
     }
 
     fn get_grid(&self, context: &mut Context) -> GetGridResult {
         let editor = self;
-        let Dimension { height, width } = editor.dimension();
+        let Dimension { height, width } = editor.render_area();
         let theme = context.theme();
         let diagnostics = context.get_diagnostics(self.path());
 
@@ -106,7 +112,7 @@ impl Component for Editor {
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
 
-        let top_offset = hidden_parent_lines.len() + WINDOW_TITLE_HEIGHT;
+        let top_offset = hidden_parent_lines.len();
         let scroll_offset = {
             let scroll_offset = editor.scroll_offset();
             if editor.cursor_at_last_line_of_view() {
@@ -336,7 +342,7 @@ impl Component for Editor {
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors);
 
-        #[derive(Clone)]
+        #[derive(Debug, Clone)]
         struct RenderLine {
             line_number: usize,
             content: String,
@@ -413,7 +419,7 @@ impl Component for Editor {
                 let position = wrapped_lines
                     .calibrate(update.position)
                     .ok()?
-                    .move_down(hidden_parent_lines.len())
+                    .move_down(top_offset)
                     .move_right(max_line_number_len + line_number_separator_width);
                 Some(CellUpdate { position, ..update })
             })
@@ -540,7 +546,7 @@ impl Component for Editor {
             height: 1,
             width: editor.dimension().width,
         })
-        .set_line(0, &self.title(), &window_title_style);
+        .set_line(0, &self.title(context), &window_title_style);
 
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -691,7 +697,7 @@ pub struct Editor {
     rectangle: Rectangle,
 
     buffer: Rc<RefCell<Buffer>>,
-    title: String,
+    title: Option<String>,
     id: ComponentId,
     pub current_view_alignment: Option<ViewAlignment>,
 }
@@ -754,21 +760,13 @@ impl Editor {
             scroll_offset: 0,
             rectangle: Rectangle::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
-            title: String::new(),
+            title: None,
             id: ComponentId::new(),
             current_view_alignment: None,
         }
     }
 
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
-        let title = buffer
-            .borrow()
-            .path()
-            .map(|path| {
-                let string = path.display_relative().unwrap_or_else(|_| path.display());
-                format!(" {} {}", string, path.icon())
-            })
-            .unwrap_or_else(|| "<Untitled>".to_string());
         Self {
             selection_set: SelectionSet {
                 primary: Selection::default(),
@@ -782,7 +780,7 @@ impl Editor {
             scroll_offset: 0,
             rectangle: Rectangle::default(),
             buffer,
-            title,
+            title: None,
             id: ComponentId::new(),
             current_view_alignment: None,
         }
@@ -1530,6 +1528,7 @@ impl Editor {
             DispatchEditor::EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
             DispatchEditor::Kill => return self.kill(context),
             DispatchEditor::Insert(string) => return self.insert(&string),
+            DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
         }
         Ok([].to_vec())
     }
@@ -2919,7 +2918,6 @@ impl Editor {
         }
     }
 
-    #[cfg(test)]
     pub fn match_literal(
         &mut self,
         context: &Context,
@@ -3057,9 +3055,21 @@ impl Editor {
 
     fn cursor_at_last_line_of_view(&self) -> bool {
         let Ok(position) = self.get_cursor_position() else { return false; };
+        let height = self
+            .dimension()
+            .height
+            .saturating_sub(WINDOW_TITLE_HEIGHT as u16) as usize;
+        let scroll_offset = self.scroll_offset() as usize;
 
-        position.line.saturating_sub(self.scroll_offset() as usize)
-            == (self.dimension().height.saturating_sub(1) as usize)
+        position.line.saturating_sub(scroll_offset) == height.saturating_sub(1)
+    }
+
+    fn render_area(&self) -> Dimension {
+        let Dimension { height, width } = self.dimension();
+        Dimension {
+            height: height.saturating_sub(WINDOW_TITLE_HEIGHT as u16),
+            width,
+        }
     }
 }
 
@@ -3102,4 +3112,5 @@ pub enum DispatchEditor {
     EnterInsertMode(Direction),
     Kill,
     Insert(String),
+    MatchLiteral(String),
 }

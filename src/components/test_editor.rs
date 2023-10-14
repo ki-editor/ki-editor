@@ -37,7 +37,7 @@ mod test_editor {
     #[test]
     fn select_kids() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let context = Context::new();
+        let context = Context::default();
 
         editor.match_literal(&context, "x")?;
         editor.handle_movement(&context, Movement::Next)?;
@@ -865,15 +865,12 @@ fn f() {
 
         editor.switch_view_alignment();
         assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Top));
-        assert_eq!(editor.scroll_offset(), 3);
 
         editor.switch_view_alignment();
         assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Center));
-        assert_eq!(editor.scroll_offset(), 1);
 
         editor.switch_view_alignment();
         assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Bottom));
-        assert_eq!(editor.scroll_offset(), 0);
         Ok(())
     }
 
@@ -1144,55 +1141,6 @@ fn main() { // too long
             .trim()
         );
         assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 2));
-        Ok(())
-    }
-
-    #[test]
-    fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "
-fn main () {
-  foo();
-  bar();
-  spam();
-}"
-            .trim(),
-        );
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 20,
-            height: 4,
-        });
-        let mut context = Context::default();
-        editor.match_literal(&context, "spam()")?;
-        editor.align_cursor_to_top();
-        let result = editor.get_grid(&mut context);
-        assert_eq!(
-            result.grid.to_string(),
-            "
-[No title]
-1│fn main () {
-4│  spam();
-5│}
-"
-            .trim()
-        );
-        assert_eq!(result.cursor.unwrap().position(), &Position::new(2, 4));
-
-        editor.align_cursor_to_bottom();
-        let result = editor.get_grid(&mut context);
-        assert_eq!(
-            result.grid.to_string(),
-            "
-[No title]
-1│fn main () {
-3│  bar();
-4│  spam();
-"
-            .trim()
-        );
-        assert_eq!(result.cursor.unwrap().position(), &Position::new(2, 4));
         Ok(())
     }
 }

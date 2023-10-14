@@ -60,6 +60,7 @@ pub struct App<T: Frontend> {
     enable_lsp: bool,
 
     working_directory: CanonicalizedPath,
+    global_title: Option<String>,
 
     layout: Layout,
 
@@ -67,7 +68,7 @@ pub struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 }
-
+const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 impl<T: Frontend> App<T> {
     pub fn new(
         frontend: Arc<Mutex<T>>,
@@ -89,16 +90,20 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
-            context: Context::new(),
+            context: Context::new(working_directory.clone()),
             buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp: true,
             sender,
-            layout: Layout::new(dimension, &working_directory)?,
+            layout: Layout::new(
+                dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT),
+                &working_directory,
+            )?,
             working_directory,
             frontend,
             syntax_highlight_request_sender: None,
+            global_title: None,
         };
         Ok(app)
     }
@@ -193,19 +198,21 @@ impl<T: Frontend> App<T> {
     }
 
     fn render(&mut self) -> Result<(), anyhow::Error> {
+        let GetGridResult { grid, cursor } = self.get_grid()?;
+        self.render_grid(grid, cursor)?;
+        Ok(())
+    }
+
+    pub fn get_grid(&mut self) -> Result<GetGridResult, anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
-
-        const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 
         // Generate layout
         let dimension = self.layout.terminal_dimension();
         let grid = Grid::new(Dimension {
-            height: dimension.height.saturating_sub(GLOBAL_TITLE_BAR_HEIGHT),
+            height: dimension.height,
             width: dimension.width,
         });
-
-        let theme = self.context.theme();
 
         // Render every window
         let (grid, cursor) = self
@@ -240,7 +247,12 @@ impl<T: Frontend> App<T> {
                     None
                 };
 
-                (grid, rectangle.clone(), cursor_position, component.title())
+                (
+                    grid,
+                    rectangle.clone(),
+                    cursor_position,
+                    component.title(&self.context),
+                )
             })
             .fold(
                 (grid, None),
@@ -274,15 +286,15 @@ impl<T: Frontend> App<T> {
                 String::new()
             };
 
-            let title = if let Some(current_branch) = self.current_branch() {
-                format!(
-                    "{} ({}) {}",
-                    self.working_directory.display(),
-                    current_branch,
-                    mode
-                )
+            let title = if let Some(title) = self.global_title.as_ref() {
+                title.clone()
             } else {
-                format!("{} {}", self.working_directory.display(), mode)
+                let branch = if let Some(current_branch) = self.current_branch() {
+                    format!(" ({}) ", current_branch,)
+                } else {
+                    " ".to_string()
+                };
+                format!("{}{}{}", self.working_directory.display(), branch, mode)
             };
 
             Grid::new(Dimension {
@@ -291,10 +303,9 @@ impl<T: Frontend> App<T> {
             })
             .set_line(0, &title, &self.context.theme().ui.global_title)
         };
+        let grid = grid.merge_vertical(global_title_grid);
 
-        self.render_grid(grid.merge_vertical(global_title_grid), cursor)?;
-
-        Ok(())
+        Ok(GetGridResult { grid, cursor })
     }
 
     fn current_branch(&self) -> Option<String> {
@@ -435,6 +446,8 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::GetRepoGitHunks => self.get_repo_git_hunks()?,
             Dispatch::SaveAll => self.save_all()?,
+            Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
+            Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
         }
         Ok(())
     }
@@ -452,7 +465,8 @@ impl<T: Frontend> App<T> {
     }
 
     fn resize(&mut self, dimension: Dimension) {
-        self.layout.set_terminal_dimension(dimension);
+        self.layout
+            .set_terminal_dimension(dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT));
     }
 
     fn open_move_to_index_prompt(&mut self) {
@@ -930,7 +944,7 @@ impl<T: Frontend> App<T> {
                                     path: (*path).clone(),
                                     range: diagnostic.range.clone(),
                                 },
-                                Some(Info::new(diagnostic.message())),
+                                Some(Info::new(diagnostic.message(&self.working_directory))),
                             )
                         })
                         .collect(),
@@ -1219,6 +1233,10 @@ impl<T: Frontend> App<T> {
     pub(crate) fn get_quickfixes(&self) -> Vec<QuickfixListItem> {
         self.layout.get_quickfixes().unwrap_or_default()
     }
+
+    fn set_global_title(&mut self, title: String) {
+        self.global_title = Some(title)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1236,6 +1254,13 @@ impl Dimension {
         (0..self.height as usize)
             .flat_map(|line| (0..self.width as usize).map(move |column| Position { column, line }))
             .collect()
+    }
+
+    fn decrement_height(&self, global_title_bar_height: u16) -> Dimension {
+        Dimension {
+            height: self.height.saturating_sub(global_title_bar_height),
+            width: self.width,
+        }
     }
 }
 
@@ -1315,6 +1340,8 @@ pub enum Dispatch {
     HandleKeyEvent(event::KeyEvent),
     GetRepoGitHunks,
     SaveAll,
+    TerminalDimensionChanged(Dimension),
+    SetGlobalTitle(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

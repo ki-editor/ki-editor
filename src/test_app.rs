@@ -446,4 +446,72 @@ mod test_app {
             Ok(())
         })
     }
+
+    #[test]
+    fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            let path_main = temp_dir.join_as_path_buf("src/main.rs");
+
+            app.handle_dispatches(
+                [
+                    Dispatch::SetGlobalTitle("[GLOBAL TITLE]".to_string()),
+                    OpenFile {
+                        path: path_main.try_into()?,
+                    },
+                    Dispatch::TerminalDimensionChanged(crate::app::Dimension {
+                        width: 20,
+                        height: 5,
+                    }),
+                ]
+                .to_vec(),
+            )?;
+            app.handle_dispatch_editors(&[
+                SelectWholeFile,
+                Kill,
+                Insert(
+                    "
+fn main () {
+  foo();
+  bar();
+  spam();
+}"
+                    .trim()
+                    .to_string(),
+                ),
+                DispatchEditor::MatchLiteral("spam()".to_string()),
+                AlignViewTop,
+            ])?;
+
+            let result = app.get_grid()?;
+            assert_eq!(
+                result.grid.to_string(),
+                "
+src/main.rs 🦀
+1│fn main () {
+4│  spam();
+5│}
+[GLOBAL TITLE]
+"
+                .trim()
+            );
+            assert_eq!(result.cursor.unwrap().position(), &Position::new(2, 4));
+
+            app.handle_dispatch_editors(&[AlignViewBottom])?;
+
+            let result = app.get_grid()?;
+            assert_eq!(
+                result.grid.to_string(),
+                "
+src/main.rs 🦀
+1│fn main () {
+3│  bar();
+4│  spam();
+[GLOBAL TITLE]
+"
+                .trim()
+            );
+            assert_eq!(result.cursor.unwrap().position(), &Position::new(3, 4));
+            Ok(())
+        })
+    }
 }
