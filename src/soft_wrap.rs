@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use regex::Regex;
 
 use crate::position::Position;
@@ -52,8 +53,42 @@ impl WrappedLines {
         &self.lines
     }
 
-    pub(crate) fn lines_count(&self) -> usize {
+    pub(crate) fn wrapped_lines_count(&self) -> usize {
         self.lines.iter().map(|line| line.count()).sum()
+    }
+
+    /// Remove lines from the top until at least `wrapped_lines_count` is skipped.
+    /// Returns the clamped `WrappedLines` and the number of lines skipped.
+    pub(crate) fn skip_top(self, wrapped_lines_count: usize) -> (WrappedLines, usize) {
+        let old_lines_len = self.lines.len();
+        let new_lines = self
+            .lines
+            .into_iter()
+            .scan(0, |cumulative_line_count, line| {
+                let line_count = line.count();
+                let result = (*cumulative_line_count, line);
+                *cumulative_line_count += line_count;
+                Some(result)
+            })
+            .skip_while(|(cumulative_line_count, _)| *cumulative_line_count < wrapped_lines_count)
+            .map(|(_, line)| line)
+            .collect_vec();
+        let no_of_skipped_lines = old_lines_len.saturating_sub(new_lines.len());
+        (
+            WrappedLines {
+                lines: new_lines
+                    .into_iter()
+                    .map(|line| WrappedLine {
+                        // Re-adjust the line number of each WrappedLine
+                        // So that calibration works as expected after `skip_top`
+                        line_number: line.line_number.saturating_sub(no_of_skipped_lines),
+                        ..line
+                    })
+                    .collect_vec(),
+                ..self
+            },
+            no_of_skipped_lines,
+        )
     }
 }
 
@@ -151,6 +186,30 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
 
 #[cfg(test)]
 mod test_soft_wrap {
+    use crate::{position::Position, soft_wrap::soft_wrap};
+    #[test]
+    fn skip_top_1() {
+        let content = "a ba\nc\nd";
+        let wrapped_lines = soft_wrap(content, 3);
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 4);
+        let (clamped, no_of_skipped_lines) = wrapped_lines.skip_top(1);
+        assert_eq!(clamped.wrapped_lines_count(), 2);
+        assert_eq!(no_of_skipped_lines, 1);
+        assert_eq!(
+            clamped.calibrate(Position::new(0, 0)).unwrap(),
+            Position::new(0, 0)
+        );
+    }
+
+    #[test]
+    fn skip_top_2() {
+        let content = "a\nc de\nf";
+        let wrapped_lines = soft_wrap(content, 3);
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 4);
+        let (clamped, no_of_skipped_lines) = wrapped_lines.skip_top(1);
+        assert_eq!(clamped.wrapped_lines_count(), 3);
+        assert_eq!(no_of_skipped_lines, 1);
+    }
 
     #[cfg(test)]
     mod calibrate {

@@ -14,6 +14,18 @@ pub struct GetGridResult {
     pub grid: Grid,
     pub cursor: Option<Cursor>,
 }
+impl GetGridResult {
+    pub(crate) fn to_string(&self) -> String {
+        match &self.cursor {
+            Some(cursor) => self
+                .grid
+                .clone()
+                .apply_cell_update(crate::grid::CellUpdate::new(cursor.position).set_symbol("█"))
+                .to_string(),
+            None => self.grid.to_string(),
+        }
+    }
+}
 
 pub struct Cursor {
     position: Position,

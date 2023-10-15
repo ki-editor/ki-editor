@@ -98,6 +98,7 @@ impl Component for Editor {
     }
 
     fn get_grid(&self, context: &mut Context) -> GetGridResult {
+        log::info!("=======");
         let editor = self;
         let Dimension { height, width } = editor.render_area();
         let theme = context.theme();
@@ -112,26 +113,54 @@ impl Component for Editor {
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
 
-        let top_offset = hidden_parent_lines.len();
-        let scroll_offset = {
-            let scroll_offset = editor.scroll_offset();
-            if editor.cursor_at_last_line_of_view() {
-                scroll_offset.saturating_add(top_offset as u16)
-            } else {
-                scroll_offset
-            }
-        };
+        let top_offset = hidden_parent_lines.len() as u16;
+        let cursor_at_last_line_of_view = editor.cursor_at_last_line_of_view();
+        let cursor_row = editor.cursor_row();
+        log::info!("cursor_row = {cursor_row}");
+        log::info!("height = {height}");
+        let cursor_distance_to_bottom_of_view = height
+            .saturating_sub(1)
+            .saturating_sub(cursor_row.saturating_sub(self.scroll_offset));
+        log::info!("self.scroll_offset = {}", self.scroll_offset);
+        log::info!("distance_to_bottom_of_view = {cursor_distance_to_bottom_of_view}");
+        log::info!("top_offset = {top_offset}");
+
+        let scroll_offset = self.scroll_offset;
+        // let scroll_offset = self.scroll_offset.saturating_add(overshoot);
+        log::info!("scroll_offset = {}", scroll_offset);
         let visible_lines = &rope
             .lines()
             .skip(scroll_offset as usize)
             .take(height as usize)
             .map(|slice| slice.to_string())
             .collect_vec();
+        log::info!("visible_lines = {:?}", visible_lines);
         let content_container_width = (width
             .saturating_sub(max_line_number_len)
             .saturating_sub(line_number_separator_width))
             as usize;
-        let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
+
+        let (wrapped_lines, no_of_skipped_lines) = {
+            let wrapped_lines =
+                soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
+            let extra_lines_count = wrapped_lines
+                .wrapped_lines_count()
+                .saturating_sub(visible_lines.len()) as u16;
+            let overshoot =
+                (top_offset + extra_lines_count).saturating_sub(cursor_distance_to_bottom_of_view);
+            wrapped_lines.skip_top(overshoot as usize)
+
+            // TODO: should not depends on the `cursor_at_last_line_of_view`
+            // if cursor_at_last_line_of_view {
+            // let (wrapped_lines, no_of_skipped_lines) =
+            // wrapped_lines.skip_top(top_offset as usize);
+            // (wrapped_lines, no_of_skipped_lines as u16)
+            // } else {
+            // (wrapped_lines, 0)
+            // }
+            // (wrapped_lines, 0)
+        };
+
         let parent_lines_numbers = visible_parent_lines
             .iter()
             .chain(hidden_parent_lines.iter())
@@ -139,7 +168,7 @@ impl Component for Editor {
             .collect_vec();
 
         let visible_lines_grid: Grid = Grid::new(Dimension {
-            height: (height as usize).max(wrapped_lines.lines_count()) as u16,
+            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
             width,
         });
 
@@ -157,7 +186,7 @@ impl Component for Editor {
                     .into_iter()
                     .enumerate()
                     .map(|(index, line)| RenderLine {
-                        line_number: line_number + scroll_offset as usize,
+                        line_number: line_number + (scroll_offset as usize) + no_of_skipped_lines,
                         content: line,
                         wrapped: index > 0,
                     })
@@ -415,12 +444,27 @@ impl Component for Editor {
         let visible_lines_updates = updates
             .clone()
             .filter_map(|update| {
-                let update = update.subtract_vertical_offset(scroll_offset.into())?;
-                let position = wrapped_lines
-                    .calibrate(update.position)
-                    .ok()?
-                    .move_down(top_offset)
+                if update.is_cursor {
+                    log::info!("no_of_skipped_lines = {}", no_of_skipped_lines);
+                    log::info!("cursor.position = {:?}", update.position)
+                }
+                let update =
+                    update.move_up((scroll_offset + (no_of_skipped_lines as u16)).into())?;
+                if update.is_cursor {
+                    log::info!("cursor(moved_up).position = {:?}", update.position)
+                }
+                let position = wrapped_lines.calibrate(update.position).ok()?;
+                if update.is_cursor {
+                    log::info!("cursor(calibrated).position = {:?}", position);
+                    log::info!("top_offset = {}", top_offset);
+                }
+                let position = position
+                    .move_down(top_offset as usize)
                     .move_right(max_line_number_len + line_number_separator_width);
+                if update.is_cursor {
+                    log::info!("cursor(moved_down).position = {:?}", position)
+                }
+
                 Some(CellUpdate { position, ..update })
             })
             .collect::<Vec<_>>();
@@ -582,6 +626,7 @@ impl Component for Editor {
 
     fn set_rectangle(&mut self, rectangle: Rectangle) {
         self.rectangle = rectangle;
+        self.recalculate_scroll_offset();
     }
 
     fn rectangle(&self) -> &Rectangle {
@@ -691,7 +736,7 @@ pub struct Editor {
 
     selection_history: Vec<SelectionSet>,
 
-    /// Zero-based index.
+    /// This means the number of lines to be skipped from the top during rendering.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
     rectangle: Rectangle,
@@ -884,12 +929,20 @@ impl Editor {
     fn recalculate_scroll_offset(&mut self) {
         // Update scroll_offset if primary selection is out of view.
         let cursor_row = self.cursor_row();
-        if cursor_row.saturating_sub(self.scroll_offset) > self.rectangle.height
+        let render_area = self.render_area();
+        if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
             || cursor_row < self.scroll_offset
         {
-            self.align_cursor_to_center();
+            self.align_view();
         }
-        self.current_view_alignment = None;
+    }
+
+    pub fn align_view(&mut self) {
+        match self.current_view_alignment.unwrap_or(ViewAlignment::Center) {
+            ViewAlignment::Top => self.align_cursor_to_top(),
+            ViewAlignment::Center => self.align_cursor_to_center(),
+            ViewAlignment::Bottom => self.align_cursor_to_bottom(),
+        }
     }
 
     pub fn align_cursor_to_bottom(&mut self) {
@@ -899,16 +952,19 @@ impl Editor {
                 .saturating_sub(1)
                 .saturating_sub(WINDOW_TITLE_HEIGHT as u16),
         );
+        self.current_view_alignment = Some(ViewAlignment::Bottom)
     }
 
     pub fn align_cursor_to_top(&mut self) {
         self.scroll_offset = self.cursor_row();
+        self.current_view_alignment = Some(ViewAlignment::Top)
     }
 
     fn align_cursor_to_center(&mut self) {
         self.scroll_offset = self
             .cursor_row()
             .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
+        self.current_view_alignment = Some(ViewAlignment::Center)
     }
 
     pub fn select(
@@ -3004,17 +3060,10 @@ impl Editor {
     }
 
     pub fn switch_view_alignment(&mut self) {
-        let new_view_alignment = match self.current_view_alignment {
-            None => ViewAlignment::Top,
-            Some(ViewAlignment::Top) => ViewAlignment::Center,
-            Some(ViewAlignment::Center) => ViewAlignment::Bottom,
-            Some(ViewAlignment::Bottom) => ViewAlignment::Top,
-        };
-        self.current_view_alignment = Some(new_view_alignment);
-        match new_view_alignment {
-            ViewAlignment::Top => self.align_cursor_to_top(),
-            ViewAlignment::Center => self.align_cursor_to_center(),
-            ViewAlignment::Bottom => self.align_cursor_to_bottom(),
+        match self.current_view_alignment {
+            Some(ViewAlignment::Top) => self.align_cursor_to_center(),
+            Some(ViewAlignment::Center) => self.align_cursor_to_bottom(),
+            Some(ViewAlignment::Bottom) | None => self.align_cursor_to_top(),
         }
     }
 

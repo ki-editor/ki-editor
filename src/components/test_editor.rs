@@ -860,7 +860,6 @@ fn f() {
         editor.handle_movement(&context, Movement::Next)?;
         editor.handle_movement(&context, Movement::Next)?;
         assert_eq!(editor.get_selected_texts(), ["c"]);
-        assert_eq!(editor.scroll_offset(), 0);
         assert_eq!(editor.current_view_alignment, None);
 
         editor.switch_view_alignment();
@@ -1059,17 +1058,17 @@ fn main() { // too long
         let mut editor = Editor::from_text(language(), content);
         editor.set_language(shared::language::from_extension("rs").unwrap())?;
         editor.match_literal(&context, "bar")?;
-        editor.set_scroll_offset(2);
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 20,
             height: 4,
         });
+        editor.align_cursor_to_top();
         let result = editor.get_grid(&mut context);
 
         // The "long" of "too long" is not shown, because it exceeded the view width
         assert_eq!(
-            result.grid.to_string(),
+            result.to_string(),
             "
 [No title]
 1│fn main() { // too

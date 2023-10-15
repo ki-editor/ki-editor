@@ -119,7 +119,7 @@ impl CellUpdate {
         }
     }
 
-    pub fn subtract_vertical_offset(self, scroll_offset: usize) -> Option<CellUpdate> {
+    pub fn move_up(self, scroll_offset: usize) -> Option<CellUpdate> {
         if scroll_offset > self.position.line {
             None
         } else {
@@ -162,6 +162,13 @@ impl CellUpdate {
     pub(crate) fn move_right(self, by: u16) -> CellUpdate {
         CellUpdate {
             position: self.position.move_right(by),
+            ..self
+        }
+    }
+
+    pub(crate) fn set_symbol(self, symbol: &str) -> CellUpdate {
+        CellUpdate {
+            symbol: Some(symbol.to_string()),
             ..self
         }
     }
