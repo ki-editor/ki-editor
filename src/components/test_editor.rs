@@ -849,12 +849,15 @@ fn f() {
 
     #[test]
     fn switch_view_alignment() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), &"abcde".split("").collect_vec().join("\n"));
+        let mut editor = Editor::from_text(
+            language(),
+            &"abcde".split("").collect_vec().join("\n").trim(),
+        );
         let context = Context::default();
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 100,
-            height: 3,
+            height: 4,
         });
         editor.set_selection_mode(&context, SelectionMode::Word)?;
         editor.handle_movement(&context, Movement::Next)?;
@@ -1072,7 +1075,7 @@ fn main() { // too long
             "
 [No title]
 1│fn main() { // too
-3│  let bar = baba;
+3│  let █ar = baba;
 ↪│let wrapped = coco
 "
             .trim()

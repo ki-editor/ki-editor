@@ -98,7 +98,6 @@ impl Component for Editor {
     }
 
     fn get_grid(&self, context: &mut Context) -> GetGridResult {
-        log::info!("=======");
         let editor = self;
         let Dimension { height, width } = editor.render_area();
         let theme = context.theme();
@@ -114,27 +113,21 @@ impl Component for Editor {
             self.get_parent_lines().unwrap_or_default();
 
         let top_offset = hidden_parent_lines.len() as u16;
-        let cursor_at_last_line_of_view = editor.cursor_at_last_line_of_view();
         let cursor_row = editor.cursor_row();
-        log::info!("cursor_row = {cursor_row}");
-        log::info!("height = {height}");
+
         let cursor_distance_to_bottom_of_view = height
             .saturating_sub(1)
             .saturating_sub(cursor_row.saturating_sub(self.scroll_offset));
-        log::info!("self.scroll_offset = {}", self.scroll_offset);
-        log::info!("distance_to_bottom_of_view = {cursor_distance_to_bottom_of_view}");
-        log::info!("top_offset = {top_offset}");
 
         let scroll_offset = self.scroll_offset;
-        // let scroll_offset = self.scroll_offset.saturating_add(overshoot);
-        log::info!("scroll_offset = {}", scroll_offset);
+
         let visible_lines = &rope
             .lines()
             .skip(scroll_offset as usize)
             .take(height as usize)
             .map(|slice| slice.to_string())
             .collect_vec();
-        log::info!("visible_lines = {:?}", visible_lines);
+
         let content_container_width = (width
             .saturating_sub(max_line_number_len)
             .saturating_sub(line_number_separator_width))
@@ -143,22 +136,23 @@ impl Component for Editor {
         let (wrapped_lines, no_of_skipped_lines) = {
             let wrapped_lines =
                 soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
-            let extra_lines_count = wrapped_lines
-                .wrapped_lines_count()
-                .saturating_sub(visible_lines.len()) as u16;
-            let overshoot =
-                (top_offset + extra_lines_count).saturating_sub(cursor_distance_to_bottom_of_view);
-            wrapped_lines.skip_top(overshoot as usize)
 
-            // TODO: should not depends on the `cursor_at_last_line_of_view`
-            // if cursor_at_last_line_of_view {
-            // let (wrapped_lines, no_of_skipped_lines) =
-            // wrapped_lines.skip_top(top_offset as usize);
-            // (wrapped_lines, no_of_skipped_lines as u16)
-            // } else {
-            // (wrapped_lines, 0)
-            // }
-            // (wrapped_lines, 0)
+            let new_cursor_row = wrapped_lines
+                .calibrate(
+                    self.get_cursor_position()
+                        .unwrap_or_default()
+                        .move_up(scroll_offset as usize),
+                )
+                .map(|position| position.line)
+                .unwrap_or_default()
+                .saturating_add(scroll_offset as usize) as u16;
+
+            let cursor_moved_down_by = new_cursor_row.saturating_sub(cursor_row);
+
+            let overshoot = (top_offset + cursor_moved_down_by)
+                .saturating_sub(cursor_distance_to_bottom_of_view);
+
+            wrapped_lines.skip_top(overshoot as usize)
         };
 
         let parent_lines_numbers = visible_parent_lines
@@ -444,26 +438,14 @@ impl Component for Editor {
         let visible_lines_updates = updates
             .clone()
             .filter_map(|update| {
-                if update.is_cursor {
-                    log::info!("no_of_skipped_lines = {}", no_of_skipped_lines);
-                    log::info!("cursor.position = {:?}", update.position)
-                }
                 let update =
                     update.move_up((scroll_offset + (no_of_skipped_lines as u16)).into())?;
-                if update.is_cursor {
-                    log::info!("cursor(moved_up).position = {:?}", update.position)
-                }
+
                 let position = wrapped_lines.calibrate(update.position).ok()?;
-                if update.is_cursor {
-                    log::info!("cursor(calibrated).position = {:?}", position);
-                    log::info!("top_offset = {}", top_offset);
-                }
+
                 let position = position
                     .move_down(top_offset as usize)
                     .move_right(max_line_number_len + line_number_separator_width);
-                if update.is_cursor {
-                    log::info!("cursor(moved_down).position = {:?}", position)
-                }
 
                 Some(CellUpdate { position, ..update })
             })
