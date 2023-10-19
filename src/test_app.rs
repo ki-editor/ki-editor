@@ -498,6 +498,7 @@ src/main.rs 🦀
             );
 
             app.handle_dispatch_editors(&[AlignViewBottom])?;
+            println!("======\nafter\n======");
 
             let result = app.get_grid()?;
             assert_eq!(

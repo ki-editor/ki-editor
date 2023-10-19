@@ -237,6 +237,9 @@
 - [] feat(keymap): change e->x, i->a, a->e, x->z (zephyr/misc), op -> i = initial (first selection), on -> o = omega (last selection), oi -> 0 = index
 - [] feat: stack based language for modifying the content of each selections, example: `trim '1.' prepend`
 - [] feat: for more sophisticated modifications like rotating the selections, we can push the metadata to the first stack
+- [] feat(synax-highlight): don't udpate during insert mode, only update in normal mode
+- [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
+- [] feat(keymap): y = yeet away the both end by one character for each selection(s)
 
 # Grammar loading
 

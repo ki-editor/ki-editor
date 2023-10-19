@@ -100,11 +100,18 @@ impl Component for Editor {
     fn get_grid(&self, context: &mut Context) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.render_area();
-        let theme = context.theme();
-        let diagnostics = context.get_diagnostics(self.path());
-
         let buffer = editor.buffer();
         let rope = buffer.rope();
+
+        // TODO: move this to under buffer, such that it is only generated upon updates
+        let highlighted_spans = if let Some(language) = buffer.language() {
+            context
+                .highlight(language, &rope.to_string())
+                .unwrap_or_default()
+        } else {
+            Default::default()
+        };
+        let diagnostics = context.get_diagnostics(self.path());
 
         let len_lines = rope.len_lines().max(1) as u16;
         let max_line_number_len = len_lines.to_string().len() as u16;
@@ -152,7 +159,8 @@ impl Component for Editor {
             let overshoot = (top_offset + cursor_moved_down_by)
                 .saturating_sub(cursor_distance_to_bottom_of_view);
 
-            wrapped_lines.skip_top(overshoot as usize)
+            // wrapped_lines.skip_top(overshoot as usize)
+            (wrapped_lines, 0)
         };
 
         let parent_lines_numbers = visible_parent_lines
@@ -186,9 +194,8 @@ impl Component for Editor {
                     })
                     .collect_vec()
             })
-            .take(height as usize)
             .collect::<Vec<_>>();
-
+        let theme = context.theme();
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
             range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
         });
@@ -313,7 +320,6 @@ impl Component for Editor {
                 ))
             })
             .flatten();
-
         let jumps = editor
             .jumps()
             .into_iter()
@@ -351,8 +357,23 @@ impl Component for Editor {
             })
             .flatten()
             .collect_vec();
+        let highlighted_spans = highlighted_spans
+            .0
+            .iter()
+            .flat_map(|highlighted_span| {
+                highlighted_span.byte_range.clone().filter_map(|byte| {
+                    Some(
+                        CellUpdate::new(buffer.byte_to_position(byte).ok()?)
+                            .style(highlighted_span.style)
+                            .source(highlighted_span.source),
+                    )
+                })
+            })
+            .collect_vec();
+
         let updates = vec![]
             .into_iter()
+            .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
             .chain(bookmarks)
@@ -438,14 +459,12 @@ impl Component for Editor {
         let visible_lines_updates = updates
             .clone()
             .filter_map(|update| {
-                let update =
-                    update.move_up((scroll_offset + (no_of_skipped_lines as u16)).into())?;
+                let update = update.move_up((scroll_offset).into())?;
 
                 let position = wrapped_lines.calibrate(update.position).ok()?;
 
-                let position = position
-                    .move_down(top_offset as usize)
-                    .move_right(max_line_number_len + line_number_separator_width);
+                let position =
+                    position.move_right(max_line_number_len + line_number_separator_width);
 
                 Some(CellUpdate { position, ..update })
             })
@@ -460,7 +479,10 @@ impl Component for Editor {
         } else {
             lines
         };
-        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines);
+        let cursor_update = visible_lines_updates.iter().find(|update| update.is_cursor);
+
+        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines)
+            .apply_cell_updates(visible_lines_updates);
 
         let (hidden_parent_lines_grid, hidden_parent_lines_updates) = {
             let height = hidden_parent_lines.len() as u16;
@@ -502,11 +524,26 @@ impl Component for Editor {
             );
             (grid, updates)
         };
+        let hidden_parent_lines_grid =
+            hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);
 
+        let cursor_beyond_view_bottom =
+            if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
+                cursor_position.line.saturating_sub(
+                    height.saturating_sub(1).saturating_sub(top_offset as u16) as usize,
+                )
+            } else {
+                0
+            };
         let grid = {
-            let height = height.saturating_sub(top_offset as u16);
-
-            let bottom = visible_lines_grid.clamp_bottom(height);
+            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
+            let clamp_bottom_by = visible_lines_grid
+                .dimension()
+                .height
+                .saturating_sub(height)
+                .saturating_add(top_offset)
+                .saturating_sub(cursor_beyond_view_bottom as u16);
+            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
@@ -515,58 +552,6 @@ impl Component for Editor {
         // NOTE: due to performance issue, we only highlight the content that are within view
         // This might result in some incorrectness, but that's a reasonable trade-off, because
         // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
-        let highlighted_spans = {
-            let current_frame_content = hidden_parent_lines
-                .into_iter()
-                .map(|line| {
-                    // Trim hidden parent line, because we do not wrapped their content
-                    line.content
-                        .chars()
-                        .take(content_container_width)
-                        .collect::<String>()
-                })
-                .chain(
-                    visible_lines
-                        .iter()
-                        .map(|line| line.clone().trim_end().to_string()),
-                )
-                .collect_vec()
-                .join("\n");
-            let highlighted_spans = if let Some(language) = buffer.language() {
-                context
-                    .highlight(language, &current_frame_content)
-                    .unwrap_or_default()
-            } else {
-                Default::default()
-            };
-
-            let buffer = Buffer::new(buffer.treesitter_language(), &current_frame_content);
-            let wrapped_lines =
-                soft_wrap::soft_wrap(&current_frame_content, content_container_width);
-            highlighted_spans
-                .0
-                .iter()
-                .flat_map(|highlighted_span| {
-                    highlighted_span.byte_range.clone().filter_map(|byte| {
-                        Some(
-                            CellUpdate::new(
-                                wrapped_lines
-                                    .calibrate(buffer.byte_to_position(byte).ok()?)
-                                    .ok()?
-                                    .move_right(max_line_number_len + line_number_separator_width),
-                            )
-                            .style(highlighted_span.style)
-                            .source(highlighted_span.source),
-                        )
-                    })
-                })
-                .collect_vec()
-        };
-
-        let grid = grid
-            .apply_cell_updates(highlighted_spans)
-            .apply_cell_updates(hidden_parent_lines_updates)
-            .apply_cell_updates(visible_lines_updates);
 
         let title_grid = Grid::new(Dimension {
             height: 1,

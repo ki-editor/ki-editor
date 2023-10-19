@@ -356,13 +356,22 @@ impl Grid {
         top
     }
 
-    pub fn clamp_bottom(self, height: u16) -> Grid {
+    pub fn clamp_bottom(self, by: u16) -> Grid {
         let mut grid = self;
         let dimension = grid.dimension();
+        let height = dimension.height.saturating_sub(by);
+
         if dimension.height > height {
             grid.rows.truncate(height as usize);
         }
         grid
+    }
+
+    pub(crate) fn clamp_top(self, by: usize) -> Self {
+        Self {
+            rows: self.rows.into_iter().skip(by).collect_vec(),
+            ..self
+        }
     }
 
     pub fn get_cursor_position(&self) -> Option<Position> {
