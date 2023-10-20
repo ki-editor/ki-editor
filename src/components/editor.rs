@@ -103,14 +103,7 @@ impl Component for Editor {
         let buffer = editor.buffer();
         let rope = buffer.rope();
 
-        // TODO: move this to under buffer, such that it is only generated upon updates
-        let highlighted_spans = if let Some(language) = buffer.language() {
-            context
-                .highlight(language, &rope.to_string())
-                .unwrap_or_default()
-        } else {
-            Default::default()
-        };
+        let highlighted_spans = buffer.highlighted_spans();
         let diagnostics = context.get_diagnostics(self.path());
 
         let len_lines = rope.len_lines().max(1) as u16;
@@ -120,11 +113,6 @@ impl Component for Editor {
             self.get_parent_lines().unwrap_or_default();
 
         let top_offset = hidden_parent_lines.len() as u16;
-        let cursor_row = editor.cursor_row();
-
-        let cursor_distance_to_bottom_of_view = height
-            .saturating_sub(1)
-            .saturating_sub(cursor_row.saturating_sub(self.scroll_offset));
 
         let scroll_offset = self.scroll_offset;
 
@@ -140,28 +128,7 @@ impl Component for Editor {
             .saturating_sub(line_number_separator_width))
             as usize;
 
-        let (wrapped_lines, no_of_skipped_lines) = {
-            let wrapped_lines =
-                soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
-
-            let new_cursor_row = wrapped_lines
-                .calibrate(
-                    self.get_cursor_position()
-                        .unwrap_or_default()
-                        .move_up(scroll_offset as usize),
-                )
-                .map(|position| position.line)
-                .unwrap_or_default()
-                .saturating_add(scroll_offset as usize) as u16;
-
-            let cursor_moved_down_by = new_cursor_row.saturating_sub(cursor_row);
-
-            let overshoot = (top_offset + cursor_moved_down_by)
-                .saturating_sub(cursor_distance_to_bottom_of_view);
-
-            // wrapped_lines.skip_top(overshoot as usize)
-            (wrapped_lines, 0)
-        };
+        let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
 
         let parent_lines_numbers = visible_parent_lines
             .iter()
@@ -188,7 +155,7 @@ impl Component for Editor {
                     .into_iter()
                     .enumerate()
                     .map(|(index, line)| RenderLine {
-                        line_number: line_number + (scroll_offset as usize) + no_of_skipped_lines,
+                        line_number: line_number + (scroll_offset as usize),
                         content: line,
                         wrapped: index > 0,
                     })
@@ -358,7 +325,6 @@ impl Component for Editor {
             .flatten()
             .collect_vec();
         let highlighted_spans = highlighted_spans
-            .0
             .iter()
             .flat_map(|highlighted_span| {
                 highlighted_span.byte_range.clone().filter_map(|byte| {
@@ -479,7 +445,6 @@ impl Component for Editor {
         } else {
             lines
         };
-        let cursor_update = visible_lines_updates.iter().find(|update| update.is_cursor);
 
         let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines)
             .apply_cell_updates(visible_lines_updates);
@@ -3069,23 +3034,25 @@ impl Editor {
         self.buffer_mut().set_language(language)
     }
 
-    fn cursor_at_last_line_of_view(&self) -> bool {
-        let Ok(position) = self.get_cursor_position() else { return false; };
-        let height = self
-            .dimension()
-            .height
-            .saturating_sub(WINDOW_TITLE_HEIGHT as u16) as usize;
-        let scroll_offset = self.scroll_offset() as usize;
-
-        position.line.saturating_sub(scroll_offset) == height.saturating_sub(1)
-    }
-
     fn render_area(&self) -> Dimension {
         let Dimension { height, width } = self.dimension();
         Dimension {
             height: height.saturating_sub(WINDOW_TITLE_HEIGHT as u16),
             width,
         }
+    }
+
+    pub(crate) fn apply_syntax_highlighting(
+        &mut self,
+        context: &mut Context,
+    ) -> anyhow::Result<()> {
+        let source_code = self.text();
+        let mut buffer = self.buffer_mut();
+        if let Some(language) = buffer.language() {
+            let highlighted_spans = context.highlight(language, &source_code)?;
+            buffer.update_highlighted_spans(highlighted_spans);
+        }
+        Ok(())
     }
 }
 

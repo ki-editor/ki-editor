@@ -1061,6 +1061,7 @@ fn main() { // too long
         let mut editor = Editor::from_text(language(), content);
         editor.set_language(shared::language::from_extension("rs").unwrap())?;
         editor.match_literal(&context, "bar")?;
+        editor.apply_syntax_highlighting(&mut context)?;
         editor.set_rectangle(crate::rectangle::Rectangle {
             origin: Position::default(),
             width: 20,

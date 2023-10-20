@@ -51,12 +51,14 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     // return;
 
     let (sender, receiver) = std::sync::mpsc::channel();
-    let app = App::from_channel(
+    let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
+    let mut app = App::from_channel(
         Arc::new(Mutex::new(Crossterm::new())),
         CanonicalizedPath::try_from(".")?,
         sender,
         receiver,
     )?;
+    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();
 

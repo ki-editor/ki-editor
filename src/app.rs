@@ -40,7 +40,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     selection::SelectionMode,
-    syntax_highlight::SyntaxHighlightRequest,
+    syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
 };
 
@@ -107,6 +107,14 @@ impl<T: Frontend> App<T> {
         };
         Ok(app)
     }
+    fn update_highlighted_spans(
+        &self,
+        component_id: ComponentId,
+        highlighted_spans: HighlighedSpans,
+    ) -> Result<(), anyhow::Error> {
+        self.layout
+            .update_highlighted_spans(component_id, highlighted_spans)
+    }
 
     pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
         {
@@ -132,6 +140,12 @@ impl<T: Frontend> App<T> {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
                 AppMessage::QuitAll => Ok(true),
+                AppMessage::SyntaxHighlightResponse {
+                    component_id,
+                    highlighted_spans,
+                } => self
+                    .update_highlighted_spans(component_id, highlighted_spans)
+                    .map(|_| false),
             }
             .unwrap_or_else(|e| {
                 self.show_info("ERROR", Info::new(e.to_string()));
@@ -386,7 +400,17 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestDocumentSymbols(params) => {
                 self.lsp_manager.request_document_symbols(params)?;
             }
-            Dispatch::DocumentDidChange { path, content, .. } => {
+            Dispatch::DocumentDidChange {
+                path,
+                content,
+                language,
+                component_id,
+            } => {
+                if let Some(language) = language {
+                    self.request_syntax_highlight(component_id, language, content.clone())?;
+                    // let highlight_spans = self.context.highlight(language, &content)?;
+                    // self.update_highlighted_spans(component_id, highlight_spans)?
+                }
                 if let Some(path) = path {
                     self.lsp_manager.document_did_change(path, content)?;
                 }
@@ -1146,7 +1170,7 @@ impl<T: Frontend> App<T> {
                 component_id,
                 language,
                 source_code: content,
-                theme: VSCODE_LIGHT,
+                theme: Box::new(VSCODE_LIGHT),
             })?;
         }
         Ok(())
@@ -1231,6 +1255,10 @@ impl<T: Frontend> App<T> {
 
     fn set_global_title(&mut self, title: String) {
         self.global_title = Some(title)
+    }
+
+    pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
+        self.syntax_highlight_request_sender = Some(sender);
     }
 }
 
@@ -1401,4 +1429,8 @@ pub enum AppMessage {
     LspNotification(LspNotification),
     Event(Event),
     QuitAll,
+    SyntaxHighlightResponse {
+        component_id: ComponentId,
+        highlighted_spans: HighlighedSpans,
+    },
 }
