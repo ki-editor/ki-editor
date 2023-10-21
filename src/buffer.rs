@@ -209,7 +209,6 @@ impl Buffer {
     }
 
     pub fn update(&mut self, text: &str) {
-        self.rope = Rope::from_str(text);
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language, text);
     }
 

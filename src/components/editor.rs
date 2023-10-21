@@ -865,15 +865,8 @@ impl Editor {
         if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
             || cursor_row < self.scroll_offset
         {
-            self.align_view();
-        }
-    }
-
-    pub fn align_view(&mut self) {
-        match self.current_view_alignment.unwrap_or(ViewAlignment::Center) {
-            ViewAlignment::Top => self.align_cursor_to_top(),
-            ViewAlignment::Center => self.align_cursor_to_center(),
-            ViewAlignment::Bottom => self.align_cursor_to_bottom(),
+            self.align_cursor_to_center();
+            self.current_view_alignment = None;
         }
     }
 
@@ -884,19 +877,16 @@ impl Editor {
                 .saturating_sub(1)
                 .saturating_sub(WINDOW_TITLE_HEIGHT as u16),
         );
-        self.current_view_alignment = Some(ViewAlignment::Bottom)
     }
 
     pub fn align_cursor_to_top(&mut self) {
         self.scroll_offset = self.cursor_row();
-        self.current_view_alignment = Some(ViewAlignment::Top)
     }
 
     fn align_cursor_to_center(&mut self) {
         self.scroll_offset = self
             .cursor_row()
             .saturating_sub((self.rectangle.height as f64 / 2.0).ceil() as u16);
-        self.current_view_alignment = Some(ViewAlignment::Center)
     }
 
     pub fn select(
@@ -2992,11 +2982,20 @@ impl Editor {
     }
 
     pub fn switch_view_alignment(&mut self) {
-        match self.current_view_alignment {
-            Some(ViewAlignment::Top) => self.align_cursor_to_center(),
-            Some(ViewAlignment::Center) => self.align_cursor_to_bottom(),
-            Some(ViewAlignment::Bottom) | None => self.align_cursor_to_top(),
-        }
+        self.current_view_alignment = Some(match self.current_view_alignment {
+            Some(ViewAlignment::Top) => {
+                self.align_cursor_to_center();
+                ViewAlignment::Center
+            }
+            Some(ViewAlignment::Center) => {
+                self.align_cursor_to_bottom();
+                ViewAlignment::Bottom
+            }
+            None | Some(ViewAlignment::Bottom) => {
+                self.align_cursor_to_top();
+                ViewAlignment::Top
+            }
+        })
     }
 
     fn handle_undo_tree_mode(
