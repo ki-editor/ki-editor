@@ -1,3 +1,5 @@
+use ropey::Rope;
+
 use crate::selection::Selection;
 
 use super::{ByteRange, SelectionMode, SelectionModeParams};
@@ -29,8 +31,9 @@ impl SelectionMode for Column {
         let line = buffer.char_to_line(char_index)?;
         let line_start_char_index = buffer.line_to_char(line)?;
         let current_line = buffer.get_line_by_char_index(char_index)?;
+        let line_len = line_len_without_new_line(&current_line);
 
-        Ok(Box::new((0..current_line.len_chars()).flat_map(
+        Ok(Box::new((0..line_len).flat_map(
             move |column| -> anyhow::Result<ByteRange> {
                 let byte = buffer.char_to_byte(line_start_char_index + column)?;
                 Ok(ByteRange::new(byte..byte + 1))
@@ -49,6 +52,21 @@ impl SelectionMode for Column {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.move_vertically(false, params)
+    }
+}
+
+fn line_len_without_new_line(current_line: &ropey::Rope) -> usize {
+    let last_char_index = current_line.len_chars().saturating_sub(1);
+    let last_char_is_newline = if let Some(chars) = current_line.get_chars_at(last_char_index) {
+        chars.collect::<String>() == "\n".to_string()
+    } else {
+        false
+    };
+
+    if last_char_is_newline {
+        last_char_index
+    } else {
+        last_char_index.saturating_add(1)
     }
 }
 
@@ -72,7 +90,7 @@ impl Column {
         };
         let line_len = buffer
             .get_line_by_line_index(line_index)
-            .map(|line| line.len_chars())
+            .map(|line| line_len_without_new_line(&Rope::from_str(&line.to_string())))
             .unwrap_or_default();
         let column = self.current_column.min(line_len.saturating_sub(1));
         let char_index =
@@ -96,7 +114,7 @@ mod test_column {
         Column::new(0).assert_all_selections(
             &buffer,
             selection,
-            &[(0..1, "f"), (1..2, "o"), (2..3, "o"), (3..4, "\n")],
+            &[(0..1, "f"), (1..2, "o"), (2..3, "o")],
         );
 
         // Second line
@@ -150,13 +168,13 @@ gam
         test_move_up(1, "z");
         test_move_up(2, "t");
         test_move_up(3, "o");
-        test_move_up(4, "\n");
+        test_move_up(4, "m");
 
         let test_move_down =
             |selected_line: usize, expected: &str| test(selected_line, false, expected);
         test_move_down(0, "t");
         test_move_down(1, "o");
-        test_move_down(2, "\n");
+        test_move_down(2, "m");
         test_move_down(3, "u");
     }
 }
