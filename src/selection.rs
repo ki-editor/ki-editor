@@ -207,18 +207,23 @@ impl SelectionSet {
         Ok(())
     }
 
-    pub fn add_all(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<()> {
+    pub fn add_all(
+        &mut self,
+        buffer: &Buffer,
+        cursor_direction: &Direction,
+        context: &Context,
+    ) -> anyhow::Result<()> {
         match self
             .map(|selection| {
                 let object = self
                     .mode
-                    .to_selection_mode_trait_object(buffer, selection, context)
+                    .to_selection_mode_trait_object(buffer, selection, cursor_direction, context)
                     .ok()?;
                 let iter = object
                     .iter(SelectionModeParams {
                         buffer,
                         current_selection: selection,
-                        cursor_direction: &Direction::Start,
+                        cursor_direction,
                         context,
                     })
                     .ok()?;
@@ -342,19 +347,23 @@ impl SelectionMode {
         &self,
         buffer: &Buffer,
         current_selection: &Selection,
+        cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         let params = SelectionModeParams {
             buffer,
             current_selection,
-            cursor_direction: &Direction::Start,
+            cursor_direction,
             context,
         };
         Ok(match self {
             SelectionMode::Word => Box::new(selection_mode::SmallWord::new(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::Line),
             SelectionMode::Character => {
-                Box::new(selection_mode::Regex::new(buffer, r"(?s).", false, true)?)
+                let current_column = buffer
+                    .char_to_position(current_selection.to_char_index(cursor_direction))?
+                    .column;
+                Box::new(selection_mode::Column::new(current_column))
             }
             SelectionMode::Custom => {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
@@ -490,8 +499,12 @@ impl Selection {
                 Direction::End => index - 1,
             }
         };
-        let selection_mode =
-            mode.to_selection_mode_trait_object(buffer, current_selection, context)?;
+        let selection_mode = mode.to_selection_mode_trait_object(
+            buffer,
+            current_selection,
+            cursor_direction,
+            context,
+        )?;
 
         let params = SelectionModeParams {
             context,
@@ -500,7 +513,6 @@ impl Selection {
             cursor_direction,
         };
 
-        log::info!("direction: {:?}", direction);
         Ok(selection_mode
             .apply_direction(params, *direction)?
             .unwrap_or_else(|| current_selection.clone()))

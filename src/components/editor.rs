@@ -922,6 +922,7 @@ impl Editor {
         let object = self.selection_set.mode.to_selection_mode_trait_object(
             &self.buffer(),
             selection,
+            &self.cursor_direction,
             context,
         )?;
 
@@ -2807,7 +2808,8 @@ impl Editor {
     }
 
     pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
-        self.selection_set.add_all(&self.buffer.borrow(), context)?;
+        self.selection_set
+            .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
         self.recalculate_scroll_offset();
         self.enter_normal_mode()?;
         Ok(())

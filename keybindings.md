@@ -41,7 +41,7 @@ The following keybindings work regardless of any mode.
 
 - `a`: Enter insert mode at the **a**pex (front) of selection
 - `b`: Set selection mode to **b**ottom node
-- `c`: Set selection mode to **c**haracter
+- `c`: Set selection mode to **c**olumn
 - `d`: Move **d**own
 - `e`: Enter insert mode at the **e**nd of selection
 - `f`: Open **f**ind (local) menu
@@ -97,14 +97,15 @@ For example, in Character mode, `u` means go to the character of the same column
 - (blank) = As implied by the name of the movement
 
 > [!NOTE]
-> This table only shows selection modes where next/previous/up/down has special meanings.
+> This table only shows selection modes where next/previous/up/down/first/last has special meanings.
 
-| Selection mode      | Next         | Previous         | Up                                | Down                          |
-| ------------------- | ------------ | ---------------- | --------------------------------- | ----------------------------- |
-| Line                |              |                  | Move to nearest parent line       |                               |
-| Quickfix            |              |                  | \*First quickfix of previous file | \*First quickfix of next file |
-| Syntax tree         | Next sibling | Previous sibling | Select parent                     | Select first child            |
-| Undo Tree (space z) | Redo         | Undo             | Go to next branch                 | Go to previous branch         |
+| Selection mode      | Next         | Previous         | Up                                | Down                          | First/Last                        |
+| ------------------- | ------------ | ---------------- | --------------------------------- | ----------------------------- | --------------------------------- |
+| Line                |              |                  | Move to nearest parent line       |                               |                                   |
+| Quickfix            |              |                  | \*First quickfix of previous file | \*First quickfix of next file |                                   |
+| Syntax tree         | Next sibling | Previous sibling | Select parent                     | Select first child            |                                   |
+| Undo Tree (space z) | Redo         | Undo             | Go to next branch                 | Go to previous branch         |                                   |
+| Column              |              |                  |                                   |                               | First/Last column of current line |
 
 ## Exchange mode
 

@@ -1,6 +1,7 @@
 pub mod ast_grep;
 pub mod bookmark;
 pub mod bottom_node;
+pub mod column;
 pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
@@ -15,6 +16,7 @@ pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use bookmark::Bookmark;
 pub use bottom_node::Token;
+pub use column::Column;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
