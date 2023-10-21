@@ -851,7 +851,7 @@ fn f() {
     fn switch_view_alignment() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(
             language(),
-            &"abcde".split("").collect_vec().join("\n").trim(),
+            "abcde".split("").collect_vec().join("\n").trim(),
         );
         let context = Context::default();
         editor.set_rectangle(crate::rectangle::Rectangle {

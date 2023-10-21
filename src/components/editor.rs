@@ -494,9 +494,9 @@ impl Component for Editor {
 
         let cursor_beyond_view_bottom =
             if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
-                cursor_position.line.saturating_sub(
-                    height.saturating_sub(1).saturating_sub(top_offset as u16) as usize,
-                )
+                cursor_position
+                    .line
+                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
             } else {
                 0
             };

@@ -6,7 +6,7 @@ use crate::{
     clipboard::Clipboard,
     lsp::diagnostic::Diagnostic,
     quickfix_list::{QuickfixListItem, QuickfixLists},
-    syntax_highlight::{GetHighlightConfig, Highlight, HighlightConfigs},
+    syntax_highlight::{Highlight, HighlightConfigs},
     themes::Theme,
 };
 
@@ -66,7 +66,7 @@ impl Default for Context {
         Self {
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
-            theme: Box::new(Theme::default()),
+            theme: Box::<Theme>::default(),
             diagnostics: Default::default(),
             mode: None,
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
