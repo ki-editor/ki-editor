@@ -51,6 +51,10 @@ impl WrappedLines {
     pub fn lines(&self) -> &Vec<WrappedLine> {
         &self.lines
     }
+
+    pub(crate) fn wrapped_lines_count(&self) -> usize {
+        self.lines.iter().map(|line| line.count()).sum()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -108,6 +112,10 @@ impl WrappedLine {
 
     fn last_line(&self) -> String {
         self.wrapped.last().unwrap_or(&self.primary).to_string()
+    }
+
+    fn count(&self) -> usize {
+        1 + self.wrapped.len()
     }
 }
 

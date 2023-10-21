@@ -6,22 +6,20 @@ use crate::{
     clipboard::Clipboard,
     lsp::diagnostic::Diagnostic,
     quickfix_list::{QuickfixListItem, QuickfixLists},
-    syntax_highlight::{GetHighlightConfig, Highlight},
+    syntax_highlight::{Highlight, HighlightConfigs},
     themes::Theme,
 };
 
-type TreeSitterGrammarId = String;
 pub struct Context {
     previous_searches: Vec<Search>,
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
     diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
-    theme: Theme,
+    theme: Box<Theme>,
     quickfix_lists: Rc<RefCell<QuickfixLists>>,
 
-    /// We have to cache the highlight configurations because they load slowly.
-    tree_sitter_highlight_configs:
-        HashMap<TreeSitterGrammarId, tree_sitter_highlight::HighlightConfiguration>,
+    highlight_configs: HighlightConfigs,
+    current_working_directory: Option<CanonicalizedPath>,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -68,18 +66,22 @@ impl Default for Context {
         Self {
             previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
-            theme: Theme::default(),
+            theme: Box::<Theme>::default(),
             diagnostics: Default::default(),
             mode: None,
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
-            tree_sitter_highlight_configs: HashMap::new(),
+            highlight_configs: HighlightConfigs::new(),
+            current_working_directory: None,
         }
     }
 }
 
 impl Context {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(current_working_directory: CanonicalizedPath) -> Self {
+        Self {
+            current_working_directory: Some(current_working_directory),
+            ..Self::default()
+        }
     }
 
     pub fn quickfix_lists(&self) -> Rc<RefCell<QuickfixLists>> {
@@ -154,7 +156,10 @@ impl Context {
     }
 
     pub fn set_theme(self, theme: Theme) -> Self {
-        Self { theme, ..self }
+        Self {
+            theme: Box::new(theme),
+            ..self
+        }
     }
 
     pub(crate) fn highlight(
@@ -162,24 +167,11 @@ impl Context {
         language: shared::language::Language,
         source_code: &str,
     ) -> anyhow::Result<crate::syntax_highlight::HighlighedSpans> {
-        let Some(grammar_id) = language.tree_sitter_grammar_id() else { return Ok(Default::default()) };
-        let config = match self.tree_sitter_highlight_configs.get(&grammar_id) {
-            Some(config) => config,
-            None => {
-                if let Some(highlight_config) = language.get_highlight_config()? {
-                    self.tree_sitter_highlight_configs
-                        .insert(grammar_id.clone(), highlight_config);
-                    let get_error = || {
-                        anyhow::anyhow!("Unreachable: should be able to obtain a value that is inserted to the HashMap")
-                    };
-                    self.tree_sitter_highlight_configs
-                        .get(&grammar_id)
-                        .ok_or_else(get_error)?
-                } else {
-                    return Ok(Default::default());
-                }
-            }
-        };
-        config.highlight(self.theme(), source_code)
+        self.highlight_configs
+            .highlight(self.theme.clone(), language, source_code)
+    }
+
+    pub(crate) fn current_working_directory(&self) -> Option<&CanonicalizedPath> {
+        self.current_working_directory.as_ref()
     }
 }

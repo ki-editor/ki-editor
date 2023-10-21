@@ -15,7 +15,7 @@ mod test_app {
     use shared::canonicalized_path::CanonicalizedPath;
 
     use crate::{
-        app::{App, Dispatch},
+        app::{App, Dimension, Dispatch},
         components::{
             editor::{Direction, DispatchEditor, Movement},
             suggestive_editor::Info,
@@ -443,6 +443,102 @@ mod test_app {
             // Expect the staged file "main.rs" is in the list
             assert!(paths.contains(&"src/main.rs".to_string()));
 
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            let path_main = temp_dir.join_as_path_buf("src/main.rs");
+
+            app.handle_dispatches(
+                [
+                    Dispatch::SetGlobalTitle("[GLOBAL TITLE]".to_string()),
+                    OpenFile {
+                        path: path_main.try_into()?,
+                    },
+                    TerminalDimensionChanged(Dimension {
+                        width: 200,
+                        height: 6,
+                    }),
+                ]
+                .to_vec(),
+            )?;
+            app.handle_dispatch_editors(&[
+                SelectWholeFile,
+                Kill,
+                Insert(
+                    "
+fn first () {
+  second();
+  third();
+  fourth(); // this line is long
+  fifth();
+}"
+                    .trim()
+                    .to_string(),
+                ),
+                DispatchEditor::MatchLiteral("fifth()".to_string()),
+                AlignViewTop,
+            ])?;
+
+            let result = app.get_grid()?;
+            assert_eq!(
+                result.to_string(),
+                "
+src/main.rs 🦀
+1│fn first () {
+5│  █ifth();
+6│}
+
+[GLOBAL TITLE]
+"
+                .trim()
+            );
+
+            app.handle_dispatch_editors(&[AlignViewBottom])?;
+            println!("======\nafter\n======");
+
+            let result = app.get_grid()?;
+            assert_eq!(
+                result.to_string(),
+                "
+src/main.rs 🦀
+1│fn first () {
+3│  third();
+4│  fourth(); // this line is long
+5│  █ifth();
+[GLOBAL TITLE]
+"
+                .trim()
+            );
+
+            // Resize the terminal dimension sucht that the fourth line will be wrapped
+            app.handle_dispatches(
+                [
+                    TerminalDimensionChanged(Dimension {
+                        width: 20,
+                        height: 6,
+                    }),
+                    DispatchEditor(AlignViewBottom),
+                ]
+                .to_vec(),
+            )?;
+
+            let result = app.get_grid()?;
+            assert_eq!(
+                result.to_string(),
+                "
+src/main.rs 🦀
+1│fn first () {
+4│  fourth(); //
+↪│this line is long
+5│  █ifth();
+[GLOBAL TITLE]
+"
+                .trim()
+            );
             Ok(())
         })
     }

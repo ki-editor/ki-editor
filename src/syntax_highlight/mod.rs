@@ -1,8 +1,9 @@
-use std::ops::Range;
+use std::{collections::HashMap, ops::Range, sync::mpsc::Sender};
 
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
+    app::AppMessage,
     components::component::ComponentId,
     grid::{Style, StyleKey},
     themes::Theme,
@@ -46,10 +47,10 @@ impl GetHighlightConfig for Language {
 }
 
 pub trait Highlight {
-    fn highlight(&self, theme: &Theme, source_code: &str) -> anyhow::Result<HighlighedSpans>;
+    fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans>;
 }
 impl Highlight for HighlightConfiguration {
-    fn highlight(&self, theme: &Theme, source_code: &str) -> anyhow::Result<HighlighedSpans> {
+    fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans> {
         let mut highlighter = Highlighter::new();
 
         let highlights = highlighter
@@ -98,11 +99,64 @@ pub struct HighlighedSpans(pub Vec<HighlighedSpan>);
 pub struct SyntaxHighlightRequest {
     pub component_id: ComponentId,
     pub language: Language,
-    pub theme: Theme,
+    pub theme: Box<Theme>,
     pub source_code: String,
 }
 
 pub struct SyntaxHighlightResponse {
     pub component_id: ComponentId,
     pub highlighted_spans: HighlighedSpans,
+}
+
+pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
+    let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
+    std::thread::spawn(move || {
+        let mut highlight_configs = HighlightConfigs::new();
+        while let Ok(request) = receiver.recv() {
+            if let Ok(highlighted_spans) =
+                highlight_configs.highlight(request.theme, request.language, &request.source_code)
+            {
+                let _ = callback.send(AppMessage::SyntaxHighlightResponse {
+                    component_id: request.component_id,
+                    highlighted_spans,
+                });
+            }
+        }
+    });
+    sender
+}
+type TreeSitterGrammarId = String;
+/// We have to cache the highlight configurations because they load slowly.
+pub struct HighlightConfigs(
+    HashMap<TreeSitterGrammarId, tree_sitter_highlight::HighlightConfiguration>,
+);
+
+impl HighlightConfigs {
+    pub(crate) fn new() -> HighlightConfigs {
+        HighlightConfigs(Default::default())
+    }
+
+    pub(crate) fn highlight(
+        &mut self,
+        theme: Box<Theme>,
+        language: Language,
+        source_code: &str,
+    ) -> Result<HighlighedSpans, anyhow::Error> {
+        let Some(grammar_id) = language.tree_sitter_grammar_id() else { return Ok(Default::default()) };
+        let config = match self.0.get(&grammar_id) {
+            Some(config) => config,
+            None => {
+                if let Some(highlight_config) = language.get_highlight_config()? {
+                    self.0.insert(grammar_id.clone(), highlight_config);
+                    let get_error = || {
+                        anyhow::anyhow!("Unreachable: should be able to obtain a value that is inserted to the HashMap")
+                    };
+                    self.0.get(&grammar_id).ok_or_else(get_error)?
+                } else {
+                    return Ok(Default::default());
+                }
+            }
+        };
+        config.highlight(theme, source_code)
+    }
 }

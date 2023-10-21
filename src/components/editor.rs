@@ -59,7 +59,7 @@ pub struct Jump {
     pub character: char,
     pub selection: Selection,
 }
-
+const WINDOW_TITLE_HEIGHT: usize = 1;
 impl Component for Editor {
     fn id(&self) -> ComponentId {
         self.id
@@ -78,47 +78,68 @@ impl Component for Editor {
         self.clamp()
     }
 
-    fn title(&self) -> String {
-        self.title.clone()
+    fn title(&self, context: &Context) -> String {
+        context.current_working_directory();
+        let title = self.title.clone();
+        title
+            .or_else(|| {
+                let path = self.buffer().path()?;
+                let current_working_directory = context.current_working_directory()?;
+                let string = path
+                    .display_relative_to(current_working_directory)
+                    .unwrap_or_else(|_| path.display());
+                Some(format!(" {} {}", string, path.icon()))
+            })
+            .unwrap_or_else(|| "[No title]".to_string())
     }
 
     fn set_title(&mut self, title: String) {
-        self.title = title;
+        self.title = Some(title);
     }
 
     fn get_grid(&self, context: &mut Context) -> GetGridResult {
         let editor = self;
-        let Dimension { height, width } = editor.dimension();
-        let theme = context.theme();
-        let diagnostics = context.get_diagnostics(self.path());
-
+        let Dimension { height, width } = editor.render_area();
         let buffer = editor.buffer();
         let rope = buffer.rope();
+
+        let highlighted_spans = buffer.highlighted_spans();
+        let diagnostics = context.get_diagnostics(self.path());
 
         let len_lines = rope.len_lines().max(1) as u16;
         let max_line_number_len = len_lines.to_string().len() as u16;
         let line_number_separator_width = 1;
-        let scroll_offset = editor.scroll_offset();
+        let (hidden_parent_lines, visible_parent_lines) =
+            self.get_parent_lines().unwrap_or_default();
+
+        let top_offset = hidden_parent_lines.len() as u16;
+
+        let scroll_offset = self.scroll_offset;
+
         let visible_lines = &rope
             .lines()
             .skip(scroll_offset as usize)
             .take(height as usize)
             .map(|slice| slice.to_string())
             .collect_vec();
+
         let content_container_width = (width
             .saturating_sub(max_line_number_len)
             .saturating_sub(line_number_separator_width))
             as usize;
+
         let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
-        let (hidden_parent_lines, visible_parent_lines) =
-            self.get_parent_lines().unwrap_or_default();
+
         let parent_lines_numbers = visible_parent_lines
             .iter()
             .chain(hidden_parent_lines.iter())
             .map(|line| line.line)
             .collect_vec();
 
-        let grid: Grid = Grid::new(Dimension { height, width });
+        let visible_lines_grid: Grid = Grid::new(Dimension {
+            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
+            width,
+        });
 
         let selection = &editor.selection_set.primary;
         // If the buffer selection is updated less recently than the window's scroll offset,
@@ -134,15 +155,14 @@ impl Component for Editor {
                     .into_iter()
                     .enumerate()
                     .map(|(index, line)| RenderLine {
-                        line_number: line_number + scroll_offset as usize,
+                        line_number: line_number + (scroll_offset as usize),
                         content: line,
                         wrapped: index > 0,
                     })
                     .collect_vec()
             })
-            .take(height as usize)
             .collect::<Vec<_>>();
-
+        let theme = context.theme();
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
             range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
         });
@@ -267,7 +287,6 @@ impl Component for Editor {
                 ))
             })
             .flatten();
-
         let jumps = editor
             .jumps()
             .into_iter()
@@ -305,8 +324,22 @@ impl Component for Editor {
             })
             .flatten()
             .collect_vec();
+        let highlighted_spans = highlighted_spans
+            .iter()
+            .flat_map(|highlighted_span| {
+                highlighted_span.byte_range.clone().filter_map(|byte| {
+                    Some(
+                        CellUpdate::new(buffer.byte_to_position(byte).ok()?)
+                            .style(highlighted_span.style)
+                            .source(highlighted_span.source),
+                    )
+                })
+            })
+            .collect_vec();
+
         let updates = vec![]
             .into_iter()
+            .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
             .chain(bookmarks)
@@ -319,7 +352,7 @@ impl Component for Editor {
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors);
 
-        #[derive(Clone)]
+        #[derive(Debug, Clone)]
         struct RenderLine {
             line_number: usize,
             content: String,
@@ -392,15 +425,14 @@ impl Component for Editor {
         let visible_lines_updates = updates
             .clone()
             .filter_map(|update| {
-                let update = update.subtract_vertical_offset(scroll_offset.into())?;
-                Some(CellUpdate {
-                    position: wrapped_lines
-                        .calibrate(update.position)
-                        .ok()?
-                        .move_down(hidden_parent_lines.len())
-                        .move_right(max_line_number_len + line_number_separator_width),
-                    ..update
-                })
+                let update = update.move_up((scroll_offset).into())?;
+
+                let position = wrapped_lines.calibrate(update.position).ok()?;
+
+                let position =
+                    position.move_right(max_line_number_len + line_number_separator_width);
+
+                Some(CellUpdate { position, ..update })
             })
             .collect::<Vec<_>>();
         let visible_render_lines = if lines.is_empty() {
@@ -413,7 +445,9 @@ impl Component for Editor {
         } else {
             lines
         };
-        let visible_lines_grid = render_lines(grid, visible_render_lines);
+
+        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines)
+            .apply_cell_updates(visible_lines_updates);
 
         let (hidden_parent_lines_grid, hidden_parent_lines_updates) = {
             let height = hidden_parent_lines.len() as u16;
@@ -455,71 +489,42 @@ impl Component for Editor {
             );
             (grid, updates)
         };
+        let hidden_parent_lines_grid =
+            hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);
 
+        let cursor_beyond_view_bottom =
+            if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
+                cursor_position
+                    .line
+                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
+            } else {
+                0
+            };
         let grid = {
-            let bottom_height = height.saturating_sub(hidden_parent_lines_grid.dimension().height);
-
-            let bottom = visible_lines_grid.clamp_bottom(bottom_height);
+            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
+            let clamp_bottom_by = visible_lines_grid
+                .dimension()
+                .height
+                .saturating_sub(height)
+                .saturating_add(top_offset)
+                .saturating_sub(cursor_beyond_view_bottom as u16);
+            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
+        let window_title_style = theme.ui.window_title;
 
         // NOTE: due to performance issue, we only highlight the content that are within view
         // This might result in some incorrectness, but that's a reasonable trade-off, because
         // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
-        let highlighted_spans = {
-            let current_frame_content = hidden_parent_lines
-                .into_iter()
-                .map(|line| {
-                    // Trim hidden parent line, because we do not wrapped their content
-                    line.content
-                        .chars()
-                        .take(content_container_width)
-                        .collect::<String>()
-                })
-                .chain(
-                    visible_lines
-                        .iter()
-                        .map(|line| line.clone().trim_end().to_string()),
-                )
-                .collect_vec()
-                .join("\n");
-            let highlighted_spans = if let Some(language) = buffer.language() {
-                context
-                    .highlight(language, &current_frame_content)
-                    .unwrap_or_default()
-            } else {
-                Default::default()
-            };
 
-            let buffer = Buffer::new(buffer.treesitter_language(), &current_frame_content);
-            let wrapped_lines =
-                soft_wrap::soft_wrap(&current_frame_content, content_container_width);
-            highlighted_spans
-                .0
-                .iter()
-                .flat_map(|highlighted_span| {
-                    highlighted_span.byte_range.clone().filter_map(|byte| {
-                        Some(
-                            CellUpdate::new(
-                                wrapped_lines
-                                    .calibrate(buffer.byte_to_position(byte).ok()?)
-                                    .ok()?
-                                    .move_right(max_line_number_len + line_number_separator_width),
-                            )
-                            .style(highlighted_span.style)
-                            .source(highlighted_span.source),
-                        )
-                    })
-                })
-                .collect_vec()
-        };
+        let title_grid = Grid::new(Dimension {
+            height: 1,
+            width: editor.dimension().width,
+        })
+        .set_line(0, &self.title(context), &window_title_style);
 
-        let grid = grid
-            .apply_cell_updates(highlighted_spans)
-            .apply_cell_updates(hidden_parent_lines_updates)
-            .apply_cell_updates(visible_lines_updates);
-
+        let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
 
         GetGridResult {
@@ -553,6 +558,7 @@ impl Component for Editor {
 
     fn set_rectangle(&mut self, rectangle: Rectangle) {
         self.rectangle = rectangle;
+        self.recalculate_scroll_offset();
     }
 
     fn rectangle(&self) -> &Rectangle {
@@ -662,13 +668,13 @@ pub struct Editor {
 
     selection_history: Vec<SelectionSet>,
 
-    /// Zero-based index.
+    /// This means the number of lines to be skipped from the top during rendering.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
     rectangle: Rectangle,
 
     buffer: Rc<RefCell<Buffer>>,
-    title: String,
+    title: Option<String>,
     id: ComponentId,
     pub current_view_alignment: Option<ViewAlignment>,
 }
@@ -731,21 +737,13 @@ impl Editor {
             scroll_offset: 0,
             rectangle: Rectangle::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
-            title: String::new(),
+            title: None,
             id: ComponentId::new(),
             current_view_alignment: None,
         }
     }
 
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
-        let title = buffer
-            .borrow()
-            .path()
-            .map(|path| {
-                let string = path.display_relative().unwrap_or_else(|_| path.display());
-                format!(" {} {}", string, path.icon())
-            })
-            .unwrap_or_else(|| "<Untitled>".to_string());
         Self {
             selection_set: SelectionSet {
                 primary: Selection::default(),
@@ -759,7 +757,7 @@ impl Editor {
             scroll_offset: 0,
             rectangle: Rectangle::default(),
             buffer,
-            title,
+            title: None,
             id: ComponentId::new(),
             current_view_alignment: None,
         }
@@ -863,19 +861,25 @@ impl Editor {
     fn recalculate_scroll_offset(&mut self) {
         // Update scroll_offset if primary selection is out of view.
         let cursor_row = self.cursor_row();
-        if cursor_row.saturating_sub(self.scroll_offset) > self.rectangle.height
+        let render_area = self.render_area();
+        if cursor_row.saturating_sub(self.scroll_offset) > render_area.height.saturating_sub(1)
             || cursor_row < self.scroll_offset
         {
             self.align_cursor_to_center();
+            self.current_view_alignment = None;
         }
-        self.current_view_alignment = None;
     }
 
-    fn align_cursor_to_bottom(&mut self) {
-        self.scroll_offset = self.cursor_row().saturating_sub(self.rectangle.height);
+    pub fn align_cursor_to_bottom(&mut self) {
+        self.scroll_offset = self.cursor_row().saturating_sub(
+            self.rectangle
+                .height
+                .saturating_sub(1)
+                .saturating_sub(WINDOW_TITLE_HEIGHT as u16),
+        );
     }
 
-    fn align_cursor_to_top(&mut self) {
+    pub fn align_cursor_to_top(&mut self) {
         self.scroll_offset = self.cursor_row();
     }
 
@@ -1502,6 +1506,7 @@ impl Editor {
             DispatchEditor::EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
             DispatchEditor::Kill => return self.kill(context),
             DispatchEditor::Insert(string) => return self.insert(&string),
+            DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
         }
         Ok([].to_vec())
     }
@@ -2891,7 +2896,6 @@ impl Editor {
         }
     }
 
-    #[cfg(test)]
     pub fn match_literal(
         &mut self,
         context: &Context,
@@ -2978,18 +2982,20 @@ impl Editor {
     }
 
     pub fn switch_view_alignment(&mut self) {
-        let new_view_alignment = match self.current_view_alignment {
-            None => ViewAlignment::Top,
-            Some(ViewAlignment::Top) => ViewAlignment::Center,
-            Some(ViewAlignment::Center) => ViewAlignment::Bottom,
-            Some(ViewAlignment::Bottom) => ViewAlignment::Top,
-        };
-        self.current_view_alignment = Some(new_view_alignment);
-        match new_view_alignment {
-            ViewAlignment::Top => self.align_cursor_to_top(),
-            ViewAlignment::Center => self.align_cursor_to_center(),
-            ViewAlignment::Bottom => self.align_cursor_to_bottom(),
-        }
+        self.current_view_alignment = Some(match self.current_view_alignment {
+            Some(ViewAlignment::Top) => {
+                self.align_cursor_to_center();
+                ViewAlignment::Center
+            }
+            Some(ViewAlignment::Center) => {
+                self.align_cursor_to_bottom();
+                ViewAlignment::Bottom
+            }
+            None | Some(ViewAlignment::Bottom) => {
+                self.align_cursor_to_top();
+                ViewAlignment::Top
+            }
+        })
     }
 
     fn handle_undo_tree_mode(
@@ -3025,6 +3031,27 @@ impl Editor {
 
     pub(crate) fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
         self.buffer_mut().set_language(language)
+    }
+
+    fn render_area(&self) -> Dimension {
+        let Dimension { height, width } = self.dimension();
+        Dimension {
+            height: height.saturating_sub(WINDOW_TITLE_HEIGHT as u16),
+            width,
+        }
+    }
+
+    pub(crate) fn apply_syntax_highlighting(
+        &mut self,
+        context: &mut Context,
+    ) -> anyhow::Result<()> {
+        let source_code = self.text();
+        let mut buffer = self.buffer_mut();
+        if let Some(language) = buffer.language() {
+            let highlighted_spans = context.highlight(language, &source_code)?;
+            buffer.update_highlighted_spans(highlighted_spans);
+        }
+        Ok(())
     }
 }
 
@@ -3067,4 +3094,5 @@ pub enum DispatchEditor {
     EnterInsertMode(Direction),
     Kill,
     Insert(String),
+    MatchLiteral(String),
 }

@@ -231,6 +231,15 @@
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
 - [] feat(dev): ci/cd
 - [] feat(editor): trim, which trims both ends of every selection by 1 character
+- [] feat(layout): the height of prompt window should be one
+- [] feat(selection_mode/character): let first/last be the first/last char of the current line, similar behavior like SyntaxType, this is so that to get to the last char, we can do `con`
+- [] feat(movement): move first/last accessible with 1 keypress, perhaps y=first and z=last? But z is hard to combo with last
+- [] feat(keymap): change e->x, i->a, a->e, x->z (zephyr/misc), op -> i = initial (first selection), on -> o = omega (last selection), oi -> 0 = index
+- [] feat: stack based language for modifying the content of each selections, example: `trim '1.' prepend`
+- [] feat: for more sophisticated modifications like rotating the selections, we can push the metadata to the first stack
+- [] feat(synax-highlight): don't udpate during insert mode, only update in normal mode
+- [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
+- [] feat(keymap): y = yeet away the both end by one character for each selection(s)
 
 # Grammar loading
 
