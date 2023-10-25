@@ -38,6 +38,7 @@ pub struct Layout {
     focused_component_id: Option<ComponentId>,
 
     terminal_dimension: Dimension,
+    navigation_tree: undo::History<Rc<RefCell<SuggestiveEditor>>>,
 }
 
 impl Layout {
@@ -59,6 +60,7 @@ impl Layout {
             borders,
             terminal_dimension,
             file_explorer_open: false,
+            navigation_tree: undo::History::new(),
         })
     }
 
@@ -181,6 +183,7 @@ impl Layout {
     }
 
     pub fn goto_opened_editor(&mut self, movement: Movement) {
+        // TODO: complete this code
         let editor = match movement {
             Movement::Next | Movement::Current => self.main_panel_history_forward.pop(),
             Movement::Previous => self.main_panel_history_backward.pop(),

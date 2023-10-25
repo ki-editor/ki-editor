@@ -7,6 +7,7 @@ use crate::{
     selection_mode::ByteRange,
     syntax_highlight::{HighlighedSpan, HighlighedSpans},
     themes::Theme,
+    undo_tree::{Applicable, OldNew, UndoTree},
     utils::find_previous,
 };
 use itertools::Itertools;
@@ -19,14 +20,13 @@ use shared::{
 use std::ops::Range;
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
-use undo::History;
 
 #[derive(Clone)]
 pub struct Buffer {
     rope: Rope,
     tree: Tree,
     treesitter_language: tree_sitter::Language,
-    history: History<Patch>,
+    undo_tree: UndoTree<Patch2>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
@@ -59,7 +59,7 @@ impl Buffer {
             theme: Theme::default(),
             bookmarks: Vec::new(),
             decorations: Vec::new(),
-            history: undo::History::new(),
+            undo_tree: UndoTree::new(),
         }
     }
     pub fn content(&self) -> String {
@@ -113,12 +113,12 @@ impl Buffer {
             node: Option<tree_sitter::Node>,
             lines: Vec<Line>,
         ) -> anyhow::Result<Vec<Line>> {
-            let Some(node) = node else {return Ok(lines)};
+            let Some(node) = node else { return Ok(lines) };
             let start_position = buffer.byte_to_position(node.start_byte())?;
 
-            let Some(line) = buffer
-                    .get_line_by_line_index(start_position.line)
-                     else {return Ok(lines)};
+            let Some(line) = buffer.get_line_by_line_index(start_position.line) else {
+                return Ok(lines);
+            };
             let lines = lines
                 .into_iter()
                 .chain([Line {
@@ -191,10 +191,10 @@ impl Buffer {
 
     pub fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
         let Some(start) = self.char_to_byte(range.start).ok() else {
-            return false
+            return false;
         };
         let Some(end) = self.char_to_byte(range.end).ok() else {
-            return false
+            return false;
         };
         let byte_range = start..end;
         self.tree
@@ -418,18 +418,24 @@ impl Buffer {
         if before == after {
             return;
         }
-        let patch = Patch {
-            old_selection_set,
-            old_to_new_patch: diffy::create_patch(before, after).to_string(),
-            new_to_old_patch: diffy::create_patch(after, before).to_string(),
-            new_selection_set,
+        let old_new = OldNew {
+            old_to_new: Patch2 {
+                patch: diffy::create_patch(before, after).to_string(),
+                selection_set: old_selection_set,
+            },
+            new_to_old: Patch2 {
+                patch: diffy::create_patch(after, before).to_string(),
+                selection_set: new_selection_set,
+            },
         };
-        self.history.edit(&mut before.to_owned(), patch).unwrap();
+        self.undo_tree
+            .edit(&mut before.to_owned(), old_new)
+            .unwrap();
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
-        let selection_set = self.history.undo(&mut content).transpose()?;
+        let selection_set = self.undo_tree.undo(&mut content).transpose()?;
         self.update(&content);
         Ok(selection_set)
     }
@@ -440,11 +446,13 @@ impl Buffer {
     ) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
         let Some(destination) = (match direction {
-            Direction::Start => self.history.prev_branch_head(),
-            Direction::End => self.history.next_branch_head(),
-        }) else { return Ok(None) };
+            Direction::Start => self.undo_tree.prev_branch_head(),
+            Direction::End => self.undo_tree.next_branch_head(),
+        }) else {
+            return Ok(None);
+        };
 
-        if let Some(Ok(last_selection)) = self.history.go_to(&mut content, destination).last() {
+        if let Some(Ok(last_selection)) = self.undo_tree.go_to(&mut content, destination).last() {
             self.update(&content);
             Ok(Some(last_selection.clone()))
         } else {
@@ -453,12 +461,12 @@ impl Buffer {
     }
 
     pub fn display_history(&self) -> String {
-        format!("{}", self.history.display().detailed(false))
+        format!("{}", self.undo_tree.display().detailed(false))
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
-        let selection_set = self.history.redo(&mut content).transpose()?;
+        let selection_set = self.undo_tree.redo(&mut content).transpose()?;
         self.update(&content);
         Ok(selection_set)
     }
@@ -884,5 +892,23 @@ impl undo::Edit for Patch {
     fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
         *target = diffy::apply(target, &diffy::Patch::from_str(&self.new_to_old_patch)?)?;
         Ok(self.old_selection_set.clone())
+    }
+}
+
+#[derive(Clone)]
+pub struct Patch2 {
+    /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
+    pub patch: String,
+    pub selection_set: SelectionSet,
+}
+
+impl Applicable for Patch2 {
+    type Target = String;
+
+    type Output = anyhow::Result<SelectionSet>;
+
+    fn apply(&self, target: &mut Self::Target) -> Self::Output {
+        *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
+        Ok(self.selection_set.clone())
     }
 }

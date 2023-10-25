@@ -890,11 +890,14 @@ fn f() {
 
         // Next = redo
         editor.handle_movement(&context, Movement::Next)?;
-        assert_eq!(editor.content(), "abc\n");
 
+        assert_eq!(editor.content(), "abc\n");
         editor.handle_movement(&context, Movement::Previous)?;
+
         assert_eq!(editor.content(), "a\n");
         editor.insert("de")?;
+        panic!();
+
         let dispatches = editor.enter_undo_tree_mode();
 
         let expected = [Dispatch::ShowInfo {
