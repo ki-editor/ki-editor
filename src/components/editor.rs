@@ -1712,7 +1712,9 @@ impl Editor {
                 Ok(Vec::new())
             }
             key => {
-                let KeyCode::Char(c) = key.code else {return Ok(Vec::new())};
+                let KeyCode::Char(c) = key.code else {
+                    return Ok(Vec::new());
+                };
                 let matching_jumps = jumps
                     .iter()
                     .filter(|jump| c == jump.character)
@@ -2025,8 +2027,6 @@ impl Editor {
             key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
             key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
 
-            key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Movement::Previous)]),
-            key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Movement::Next)]),
             key!("space") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.space_mode_keymap_legend_config(),
@@ -2653,8 +2653,8 @@ impl Editor {
     }
 
     pub fn save(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())?  else {
-            return Ok(vec![])
+        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
+            return Ok(vec![]);
         };
         self.clamp()?;
         Ok(vec![Dispatch::DocumentDidSave { path }]
@@ -3015,15 +3015,10 @@ impl Editor {
     }
 
     fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Vec<Dispatch>, anyhow::Error> {
-        if let Some(selection_set) = match movement {
-            Movement::Next => self.buffer_mut().redo()?,
-            Movement::Previous => self.buffer_mut().undo()?,
-            Movement::Up => self.buffer_mut().go_to_history_branch(Direction::End)?,
-            Movement::Down => self.buffer_mut().go_to_history_branch(Direction::Start)?,
-            _ => None,
-        } {
-            self.update_selection_set(selection_set)
-        };
+        let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
+        if let Some(selection_set) = selection_set {
+            self.update_selection_set(selection_set);
+        }
         Ok(self.get_document_did_change_dispatch())
     }
 

@@ -1,6 +1,7 @@
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 use event::event::Event;
+use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
     app::Dispatch, context::Context, grid::Grid, position::Position, rectangle::Rectangle,
@@ -56,6 +57,10 @@ pub trait Component: Any + AnyComponent {
     fn editor_mut(&mut self) -> &mut Editor;
     fn get_grid(&self, context: &mut Context) -> GetGridResult {
         self.editor().get_grid(context)
+    }
+
+    fn path(&self) -> Option<CanonicalizedPath> {
+        self.editor().buffer().path()
     }
 
     #[cfg(test)]

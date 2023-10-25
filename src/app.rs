@@ -421,7 +421,11 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
+            Dispatch::GotoOpenedEditor(direction) => {
+                let tree = self.layout.display_navigation_history();
+                self.show_info("Navigation History", Info::new(tree));
+                self.layout.goto_opened_editor(direction)
+            }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
@@ -1259,6 +1263,16 @@ impl<T: Frontend> App<T> {
 
     pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
         self.syntax_highlight_request_sender = Some(sender);
+    }
+
+    pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
+        self.current_component()
+            .map(|component| component.borrow().path())
+            .flatten()
+    }
+
+    pub(crate) fn get_current_info(&self) -> Option<String> {
+        self.layout.get_info()
     }
 }
 

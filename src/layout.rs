@@ -10,6 +10,7 @@ use crate::{
     },
     quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
+    undo_tree::{Applicable, OldNew, UndoTree},
 };
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -21,9 +22,10 @@ use std::{cell::RefCell, rc::Rc};
 /// The main panel is where the user edits code, and the info panel is for displaying info like
 /// hover text, diagnostics, etc.
 pub struct Layout {
-    main_panel: Option<Rc<RefCell<SuggestiveEditor>>>,
+    main_panel: MainPanel,
     main_panel_history_backward: Vec<Rc<RefCell<SuggestiveEditor>>>,
     main_panel_history_forward: Vec<Rc<RefCell<SuggestiveEditor>>>,
+    undo_tree: UndoTree<MainPanel>,
     info_panel: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Option<Rc<RefCell<KeymapLegend>>>,
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
@@ -39,14 +41,63 @@ pub struct Layout {
 
     terminal_dimension: Dimension,
     navigation_tree: undo::History<Rc<RefCell<SuggestiveEditor>>>,
+    working_directory: CanonicalizedPath,
+}
+
+#[derive(Clone)]
+struct MainPanel {
+    editor: Option<Rc<RefCell<SuggestiveEditor>>>,
+    working_directory: CanonicalizedPath,
+}
+impl MainPanel {
+    fn display_relative_path(&self) -> Option<String> {
+        self.editor
+            .as_ref()
+            .and_then(|editor| editor.borrow().path())
+            .and_then(|path| path.display_relative_to(&self.working_directory).ok())
+    }
+
+    fn take(&mut self) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.editor.take()
+    }
+
+    fn id(&self) -> Option<ComponentId> {
+        self.editor.as_ref().map(|editor| editor.borrow().id())
+    }
+}
+
+impl std::fmt::Display for MainPanel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(path) = self.display_relative_path() {
+            f.write_str(&path)
+        } else {
+            f.write_str("[UNTITLED]")
+        }
+    }
+}
+
+impl Applicable for MainPanel {
+    type Target = ();
+
+    type Output = Self;
+
+    fn apply(&self, _: &mut Self::Target) -> Self::Output {
+        self.clone()
+    }
 }
 
 impl Layout {
-    pub fn new(terminal_dimension: Dimension, path: &CanonicalizedPath) -> anyhow::Result<Layout> {
+    pub fn new(
+        terminal_dimension: Dimension,
+        working_directory: &CanonicalizedPath,
+    ) -> anyhow::Result<Layout> {
         let (layout_kind, ratio) = layout_kind(&terminal_dimension);
         let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
         Ok(Layout {
-            main_panel: None,
+            main_panel: MainPanel {
+                editor: None,
+                working_directory: working_directory.clone(),
+            },
             main_panel_history_backward: vec![],
             main_panel_history_forward: vec![],
             info_panel: None,
@@ -55,12 +106,14 @@ impl Layout {
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
-            file_explorer: Rc::new(RefCell::new(FileExplorer::new(path)?)),
+            file_explorer: Rc::new(RefCell::new(FileExplorer::new(working_directory)?)),
             rectangles,
             borders,
             terminal_dimension,
             file_explorer_open: false,
             navigation_tree: undo::History::new(),
+            undo_tree: UndoTree::new(),
+            working_directory: working_directory.clone(),
         })
     }
 
@@ -69,6 +122,7 @@ impl Layout {
             .into_iter()
             .chain(
                 self.main_panel
+                    .editor
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
@@ -122,16 +176,27 @@ impl Layout {
             .find(|c| c.borrow().id() == id)
     }
 
+    fn new_main_panel(
+        &self,
+        suggestive_editor: Option<Rc<RefCell<SuggestiveEditor>>>,
+    ) -> MainPanel {
+        MainPanel {
+            editor: suggestive_editor,
+            working_directory: self.working_directory.clone(),
+        }
+    }
+
     /// Return true if there's no more windows
     pub fn remove_current_component(&mut self) -> bool {
         self.focused_component_id.map(|id| {
             self.prompts.retain(|c| c.borrow().id() != id);
 
-            self.main_panel = self
-                .main_panel
-                .take()
-                .filter(|c| c.borrow().id() != id)
-                .or_else(|| self.background_suggestive_editors.last().cloned());
+            let main_panel = self.main_panel.take();
+            self.main_panel = self.new_main_panel(
+                main_panel
+                    .filter(|c| c.borrow().id() != id)
+                    .or_else(|| self.background_suggestive_editors.last().cloned()),
+            );
 
             self.keymap_legend = self.keymap_legend.take().filter(|c| c.borrow().id() != id);
 
@@ -164,38 +229,25 @@ impl Layout {
         self.quickfix_lists = Some(quickfix_lists);
     }
 
-    pub fn set_main_panel(
-        &mut self,
-        editor: Option<Rc<RefCell<SuggestiveEditor>>>,
-        set_backward_history: bool,
-    ) {
-        self.focused_component_id = editor.as_ref().map(|editor| editor.borrow().id());
-
-        if let Some(editor) = self.main_panel.take() {
-            if set_backward_history {
-                self.main_panel_history_forward.clear();
-                self.main_panel_history_backward.push(editor.clone());
-            } else {
-                self.main_panel_history_forward.push(editor.clone());
-            }
-        }
-        self.main_panel = editor;
+    fn set_main_panel(&mut self, new: MainPanel) {
+        self.focused_component_id = new.id();
+        let old = self.main_panel.take();
+        self.main_panel = new.clone();
+        self.undo_tree.edit(
+            &mut (),
+            OldNew {
+                old_to_new: new,
+                new_to_old: self.new_main_panel(old),
+            },
+        );
     }
 
     pub fn goto_opened_editor(&mut self, movement: Movement) {
-        // TODO: complete this code
-        let editor = match movement {
-            Movement::Next | Movement::Current => self.main_panel_history_forward.pop(),
-            Movement::Previous => self.main_panel_history_backward.pop(),
-            _ => todo!(),
+        let main_panel = self.undo_tree.apply_movement(&mut (), movement);
+        if let Some(main_panel) = main_panel {
+            self.focused_component_id = main_panel.id();
+            self.main_panel = main_panel.clone()
         }
-        .or_else(|| self.main_panel.take());
-        let set_backward_history = match movement {
-            Movement::Next | Movement::Current => true,
-            Movement::Previous => false,
-            _ => todo!(),
-        };
-        self.set_main_panel(editor, set_backward_history);
     }
 
     pub fn change_view(&mut self) {
@@ -269,7 +321,7 @@ impl Layout {
                         .unwrap_or(false)
                 })
         {
-            self.set_main_panel(Some(matching_editor.clone()), true);
+            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
             Some(matching_editor)
         } else {
             None
@@ -303,7 +355,7 @@ impl Layout {
     ) {
         self.add_suggestive_editor(suggestive_editor.clone());
 
-        self.set_main_panel(Some(suggestive_editor), true);
+        self.set_main_panel(self.new_main_panel(Some(suggestive_editor)));
     }
 
     pub fn get_suggestive_editor(
@@ -418,6 +470,16 @@ impl Layout {
             .update_highlighted_spans(highlighted_spans);
 
         Ok(())
+    }
+
+    pub(crate) fn get_info(&self) -> Option<String> {
+        self.info_panel
+            .as_ref()
+            .map(|info_panel| info_panel.borrow().text())
+    }
+
+    pub(crate) fn display_navigation_history(&self) -> String {
+        self.undo_tree.display().to_string()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

@@ -1,4 +1,8 @@
+use std::fmt::Display;
+
 use undo::History;
+
+use crate::components::editor::{Direction, Movement};
 
 #[derive(Clone)]
 pub struct OldNew<T: Clone> {
@@ -13,11 +17,11 @@ pub trait Applicable {
 }
 
 #[derive(Clone)]
-pub struct UndoTree<T: Applicable + Clone> {
+pub struct UndoTree<T: Applicable + Clone + Display> {
     history: History<OldNew<T>>,
 }
 
-impl<T: Applicable + Clone> UndoTree<T> {
+impl<T: Applicable + Clone + Display> UndoTree<T> {
     pub fn edit(&mut self, target: &mut T::Target, edit: OldNew<T>) -> T::Output {
         self.history.edit(target, edit)
     }
@@ -36,24 +40,41 @@ impl<T: Applicable + Clone> UndoTree<T> {
         }
     }
 
-    pub(crate) fn prev_branch_head(&self) -> Option<undo::At> {
-        self.history.prev_branch_head()
+    pub(crate) fn display(&self) -> String {
+        self.history.display().detailed(false).to_string()
     }
 
-    pub(crate) fn next_branch_head(&self) -> Option<undo::At> {
-        self.history.next_branch_head()
-    }
-
-    pub(crate) fn go_to(
+    pub(crate) fn apply_movement(
         &mut self,
         target: &mut T::Target,
-        at: undo::At,
-    ) -> Vec<<T as Applicable>::Output> {
-        self.history.go_to(target, at)
+        movement: Movement,
+    ) -> Option<T::Output> {
+        match movement {
+            Movement::Next => self.redo(target),
+            Movement::Previous => self.undo(target),
+            Movement::Last => todo!(),
+            Movement::Current => todo!(),
+            Movement::Up => self.go_to_history_branch(target, Direction::End),
+            Movement::Down => self.go_to_history_branch(target, Direction::Start),
+            Movement::First => todo!(),
+            Movement::Index(_) => todo!(),
+            Movement::Jump(_) => todo!(),
+        }
     }
 
-    pub(crate) fn display(&self) -> undo::history::Display<'_, OldNew<T>, ()> {
-        self.history.display()
+    fn go_to_history_branch(
+        &mut self,
+        target: &mut T::Target,
+        direction: Direction,
+    ) -> Option<T::Output> {
+        let Some(destination) = (match direction {
+            Direction::Start => self.history.prev_branch_head(),
+            Direction::End => self.history.next_branch_head(),
+        }) else {
+            return None;
+        };
+
+        self.history.go_to(target, destination).pop()
     }
 }
 
@@ -70,8 +91,8 @@ impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
     }
 }
 
-impl<T: Clone> std::fmt::Display for OldNew<T> {
+impl<T: Clone + std::fmt::Display> std::fmt::Display for OldNew<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "")
+        self.old_to_new.fmt(f)
     }
 }

@@ -1,6 +1,9 @@
 use crate::{
     char_index_range::CharIndexRange,
-    components::{editor::Direction, suggestive_editor::Decoration},
+    components::{
+        editor::{Direction, Movement},
+        suggestive_editor::Decoration,
+    },
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
@@ -434,41 +437,29 @@ impl Buffer {
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
-        let mut content = self.rope.to_string();
-        let selection_set = self.undo_tree.undo(&mut content).transpose()?;
-        self.update(&content);
-        Ok(selection_set)
-    }
-
-    pub fn go_to_history_branch(
-        &mut self,
-        direction: Direction,
-    ) -> anyhow::Result<Option<SelectionSet>> {
-        let mut content = self.rope.to_string();
-        let Some(destination) = (match direction {
-            Direction::Start => self.undo_tree.prev_branch_head(),
-            Direction::End => self.undo_tree.next_branch_head(),
-        }) else {
-            return Ok(None);
-        };
-
-        if let Some(Ok(last_selection)) = self.undo_tree.go_to(&mut content, destination).last() {
-            self.update(&content);
-            Ok(Some(last_selection.clone()))
-        } else {
-            Ok(None)
-        }
+        self.undo_tree_apply_movement(Movement::Previous)
     }
 
     pub fn display_history(&self) -> String {
-        format!("{}", self.undo_tree.display().detailed(false))
+        self.undo_tree.display()
+    }
+
+    pub fn undo_tree_apply_movement(
+        &mut self,
+        movement: Movement,
+    ) -> anyhow::Result<Option<SelectionSet>> {
+        let mut content = self.rope.to_string();
+        let selection_set = self
+            .undo_tree
+            .apply_movement(&mut content, movement)
+            .transpose()?;
+        self.update(&content);
+
+        Ok(selection_set)
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
-        let mut content = self.rope.to_string();
-        let selection_set = self.undo_tree.redo(&mut content).transpose()?;
-        self.update(&content);
-        Ok(selection_set)
+        self.undo_tree_apply_movement(Movement::Next)
     }
 
     pub fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
@@ -866,6 +857,12 @@ pub struct Patch {
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
     pub patch: String,
     pub selection_set: SelectionSet,
+}
+
+impl std::fmt::Display for Patch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("")
+    }
 }
 
 impl Applicable for Patch {

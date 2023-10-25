@@ -20,6 +20,7 @@ mod test_app {
             editor::{Direction, DispatchEditor, Movement},
             suggestive_editor::Info,
         },
+        context::GlobalMode,
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
@@ -539,6 +540,60 @@ src/main.rs 🦀
 "
                 .trim()
             );
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn navigation() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
+                Ok(temp_dir.join_as_path_buf(&filename).try_into()?)
+            };
+            let open = |filename: &str| -> anyhow::Result<Dispatch> {
+                Ok(OpenFile {
+                    path: file(filename)?,
+                })
+            };
+
+            app.handle_dispatches(
+                [
+                    open("src/main.rs")?,
+                    open("src/foo.rs")?,
+                    open("Cargo.toml")?,
+                ]
+                .to_vec(),
+            )?;
+
+            assert_eq!(app.get_current_file_path(), Some(file("Cargo.toml")?));
+            app.handle_dispatches(
+                [SetGlobalMode(Some(GlobalMode::BufferNavigationHistory))].to_vec(),
+            )?;
+
+            app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
+            assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
+
+            app.handle_dispatches([open("Cargo.lock")?].to_vec())?;
+            assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
+
+            app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
+            assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
+
+            app.handle_dispatch_editors(&[MoveSelection(Movement::Next)])?;
+            assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
+
+            let expected_display = "
+* 1-3 Cargo.lock
+| * 0-3 Cargo.toml
+|/
+* 1-2 [HEAD] src/foo.rs
+* 1-1 src/main.rs
+* 1-0 [SAVED]
+"
+            .trim()
+            .to_string();
+            pretty_assertions::assert_eq!(app.get_current_info().unwrap(), expected_display);
+
             Ok(())
         })
     }
