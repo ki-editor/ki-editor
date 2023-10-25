@@ -422,9 +422,8 @@ impl<T: Frontend> App<T> {
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoOpenedEditor(direction) => {
-                let tree = self.layout.display_navigation_history();
-                self.show_info("Navigation History", Info::new(tree));
-                self.layout.goto_opened_editor(direction)
+                self.layout.goto_opened_editor(direction);
+                self.show_navigation_history()
             }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
@@ -463,7 +462,8 @@ impl<T: Frontend> App<T> {
                 self.layout.refresh_file_explorer(&self.working_directory)?
             }
             Dispatch::SetClipboardContent(content) => self.context.set_clipboard_content(content),
-            Dispatch::SetGlobalMode(mode) => self.context.set_mode(mode),
+            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
+
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
@@ -1273,6 +1273,18 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_current_info(&self) -> Option<String> {
         self.layout.get_info()
+    }
+
+    fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
+        if mode == Some(GlobalMode::BufferNavigationHistory) {
+            self.show_navigation_history()
+        }
+        self.context.set_mode(mode);
+    }
+
+    fn show_navigation_history(&mut self) {
+        let tree = self.layout.display_navigation_history();
+        self.show_info("Navigation History", Info::new(tree));
     }
 }
 

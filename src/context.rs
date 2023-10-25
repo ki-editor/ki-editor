@@ -111,7 +111,7 @@ impl Context {
         self.mode.clone()
     }
     pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
-        self.mode = mode
+        self.mode = mode;
     }
 
     pub fn theme(&self) -> &Theme {

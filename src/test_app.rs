@@ -583,10 +583,10 @@ src/main.rs 🦀
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
 
             let expected_display = "
-* 1-3 Cargo.lock
+* 1-3 [HEAD] Cargo.lock
 | * 0-3 Cargo.toml
 |/
-* 1-2 [HEAD] src/foo.rs
+* 1-2 src/foo.rs
 * 1-1 src/main.rs
 * 1-0 [SAVED]
 "
