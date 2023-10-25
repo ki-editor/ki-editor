@@ -26,7 +26,7 @@ pub struct Buffer {
     rope: Rope,
     tree: Tree,
     treesitter_language: tree_sitter::Language,
-    undo_tree: UndoTree<Patch2>,
+    undo_tree: UndoTree<Patch>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
@@ -419,13 +419,13 @@ impl Buffer {
             return;
         }
         let old_new = OldNew {
-            old_to_new: Patch2 {
+            old_to_new: Patch {
                 patch: diffy::create_patch(before, after).to_string(),
-                selection_set: old_selection_set,
-            },
-            new_to_old: Patch2 {
-                patch: diffy::create_patch(after, before).to_string(),
                 selection_set: new_selection_set,
+            },
+            new_to_old: Patch {
+                patch: diffy::create_patch(after, before).to_string(),
+                selection_set: old_selection_set,
             },
         };
         self.undo_tree
@@ -667,24 +667,6 @@ impl Buffer {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Patch {
-    /// Used for restoring previous selection after undo/redo
-    pub old_selection_set: SelectionSet,
-    /// Unified format patch
-    /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
-    pub old_to_new_patch: String,
-    /// For undoing this patch, I have to store this because at the moment there's no convenient
-    /// method to inverse a patch file in Rust
-    pub new_to_old_patch: String,
-    pub new_selection_set: SelectionSet,
-}
-impl std::fmt::Display for Patch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "")
-    }
-}
-
 #[cfg(test)]
 mod test_buffer {
     use itertools::Itertools;
@@ -879,30 +861,14 @@ fn f(
     }
 }
 
-impl undo::Edit for Patch {
-    type Target = String;
-
-    type Output = anyhow::Result<SelectionSet>;
-
-    fn edit(&mut self, target: &mut Self::Target) -> Self::Output {
-        *target = diffy::apply(target, &diffy::Patch::from_str(&self.old_to_new_patch)?)?;
-        Ok(self.new_selection_set.clone())
-    }
-
-    fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
-        *target = diffy::apply(target, &diffy::Patch::from_str(&self.new_to_old_patch)?)?;
-        Ok(self.old_selection_set.clone())
-    }
-}
-
 #[derive(Clone)]
-pub struct Patch2 {
+pub struct Patch {
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
     pub patch: String,
     pub selection_set: SelectionSet,
 }
 
-impl Applicable for Patch2 {
+impl Applicable for Patch {
     type Target = String;
 
     type Output = anyhow::Result<SelectionSet>;

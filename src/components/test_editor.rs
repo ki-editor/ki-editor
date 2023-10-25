@@ -896,7 +896,6 @@ fn f() {
 
         assert_eq!(editor.content(), "a\n");
         editor.insert("de")?;
-        panic!();
 
         let dispatches = editor.enter_undo_tree_mode();
 
