@@ -24,7 +24,7 @@ pub struct UndoTree<T: Applicable> {
 impl<T: Applicable> UndoTree<T> {
     pub fn edit(&mut self, target: &mut T::Target, edit: OldNew<T>) -> Option<T::Output> {
         match self.history.entries().last() {
-            Some(last_entry) if last_entry.get() == &edit => None,
+            Some(last_entry) if last_entry.get().old_to_new == edit.old_to_new => None,
             _ => Some(self.history.edit(target, edit)),
         }
     }

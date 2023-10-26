@@ -23,8 +23,6 @@ use std::{cell::RefCell, rc::Rc};
 /// hover text, diagnostics, etc.
 pub struct Layout {
     main_panel: MainPanel,
-    main_panel_history_backward: Vec<Rc<RefCell<SuggestiveEditor>>>,
-    main_panel_history_forward: Vec<Rc<RefCell<SuggestiveEditor>>>,
     undo_tree: UndoTree<MainPanel>,
     info_panel: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Option<Rc<RefCell<KeymapLegend>>>,
@@ -53,7 +51,7 @@ struct MainPanel {
 impl PartialEq for MainPanel {
     fn eq(&self, other: &Self) -> bool {
         match (&self.editor, &other.editor) {
-            (Some(a), Some(b)) => a.borrow().id() == b.borrow().id(),
+            (Some(a), Some(b)) => a.borrow().path() == b.borrow().path(),
             (None, None) => true,
             _ => false,
         }
@@ -109,8 +107,6 @@ impl Layout {
                 editor: None,
                 working_directory: working_directory.clone(),
             },
-            main_panel_history_backward: vec![],
-            main_panel_history_forward: vec![],
             info_panel: None,
             keymap_legend: None,
             quickfix_lists: None,
