@@ -561,6 +561,8 @@ src/main.rs 🦀
                     open("src/main.rs")?,
                     open("src/foo.rs")?,
                     open("Cargo.toml")?,
+                    // Open "Cargo.toml" again to test that the navigation tree does not take duplicated input
+                    open("Cargo.toml")?,
                 ]
                 .to_vec(),
             )?;

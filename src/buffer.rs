@@ -875,3 +875,9 @@ impl Applicable for Patch {
         Ok(self.selection_set.clone())
     }
 }
+impl PartialEq for Patch {
+    fn eq(&self, other: &Self) -> bool {
+        // Always return false, assuming that no two patches can be identical
+        false
+    }
+}

@@ -4,26 +4,29 @@ use undo::History;
 
 use crate::components::editor::{Direction, Movement};
 
-#[derive(Clone)]
-pub struct OldNew<T: Clone> {
+#[derive(Clone, PartialEq)]
+pub struct OldNew<T: Clone + PartialEq> {
     pub old_to_new: T,
     pub new_to_old: T,
 }
 
-pub trait Applicable {
+pub trait Applicable: Clone + Display + PartialEq {
     type Target;
     type Output;
     fn apply(&self, target: &mut Self::Target) -> Self::Output;
 }
 
 #[derive(Clone)]
-pub struct UndoTree<T: Applicable + Clone + Display> {
+pub struct UndoTree<T: Applicable> {
     history: History<OldNew<T>>,
 }
 
-impl<T: Applicable + Clone + Display> UndoTree<T> {
-    pub fn edit(&mut self, target: &mut T::Target, edit: OldNew<T>) -> T::Output {
-        self.history.edit(target, edit)
+impl<T: Applicable> UndoTree<T> {
+    pub fn edit(&mut self, target: &mut T::Target, edit: OldNew<T>) -> Option<T::Output> {
+        match self.history.entries().last() {
+            Some(last_entry) if last_entry.get() == &edit => None,
+            _ => Some(self.history.edit(target, edit)),
+        }
     }
 
     pub fn undo(&mut self, target: &mut T::Target) -> Option<T::Output> {
@@ -91,7 +94,7 @@ impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
     }
 }
 
-impl<T: Clone + std::fmt::Display> std::fmt::Display for OldNew<T> {
+impl<T: Clone + std::fmt::Display + PartialEq> std::fmt::Display for OldNew<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.old_to_new.fmt(f)
     }

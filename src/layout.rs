@@ -49,6 +49,17 @@ struct MainPanel {
     editor: Option<Rc<RefCell<SuggestiveEditor>>>,
     working_directory: CanonicalizedPath,
 }
+
+impl PartialEq for MainPanel {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.editor, &other.editor) {
+            (Some(a), Some(b)) => a.borrow().id() == b.borrow().id(),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
 impl MainPanel {
     fn display_relative_path(&self) -> Option<String> {
         self.editor
