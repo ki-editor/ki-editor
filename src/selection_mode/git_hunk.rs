@@ -10,10 +10,8 @@ pub struct GitHunk {
 impl GitHunk {
     pub fn new(buffer: &Buffer) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
-                return Ok(GitHunk {
-                    ranges: Vec::new()
-                });
-            };
+            return Ok(GitHunk { ranges: Vec::new() });
+        };
         // TODO: pass in current working directory
         let binding = path.file_diff(&".".try_into()?)?;
         let hunks = binding.hunks();

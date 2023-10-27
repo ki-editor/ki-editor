@@ -1,9 +1,6 @@
 use crate::{
     char_index_range::CharIndexRange,
-    components::{
-        editor::{Direction, Movement},
-        suggestive_editor::Decoration,
-    },
+    components::{editor::Movement, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
@@ -883,7 +880,7 @@ impl Applicable for Patch {
     }
 }
 impl PartialEq for Patch {
-    fn eq(&self, other: &Self) -> bool {
+    fn eq(&self, _other: &Self) -> bool {
         // Always return false, assuming that no two patches can be identical
         false
     }

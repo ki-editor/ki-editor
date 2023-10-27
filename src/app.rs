@@ -765,7 +765,6 @@ impl<T: Frontend> App<T> {
         // so that we won't notify the LSP twice
         if let Some(matching_editor) = self.layout.open_file(entry_path)? {
             return Ok(matching_editor);
-        } else {
         }
 
         let buffer = Buffer::from_path(entry_path)?;
@@ -1278,8 +1277,7 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component()
-            .map(|component| component.borrow().path())
-            .flatten()
+            .and_then(|component| component.borrow().path())
     }
 
     pub(crate) fn get_current_info(&self) -> Option<String> {

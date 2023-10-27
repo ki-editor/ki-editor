@@ -143,8 +143,7 @@ pub trait Component: Any + AnyComponent {
             .into_iter()
             .flatten()
             .flat_map(|component| {
-                std::iter::once(component.clone())
-                    .chain(component.borrow().descendants().into_iter())
+                std::iter::once(component.clone()).chain(component.borrow().descendants())
             })
             .collect::<Vec<_>>()
     }

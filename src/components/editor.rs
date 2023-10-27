@@ -633,8 +633,7 @@ impl Component for Editor {
             .into_iter()
             .flatten()
             .flat_map(|component| {
-                std::iter::once(component.clone())
-                    .chain(component.borrow().descendants().into_iter())
+                std::iter::once(component.clone()).chain(component.borrow().descendants())
             })
             .collect::<Vec<_>>()
     }
@@ -1851,7 +1850,7 @@ impl Editor {
         .map(|dispatches| {
             Some(Dispatch::SetGlobalMode(None))
                 .into_iter()
-                .chain(dispatches.into_iter())
+                .chain(dispatches)
                 .collect::<Vec<_>>()
         })
     }

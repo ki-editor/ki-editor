@@ -1,6 +1,5 @@
 use std::fmt::Display;
 
-use itertools::Itertools;
 use undo::History;
 
 use crate::components::editor::{Direction, Movement};
@@ -95,7 +94,7 @@ impl<T: Applicable> UndoTree<T> {
         // Switch to destination branch
         let mut first_outputs = self.history.go_to(target, destination);
 
-        let first_output = first_outputs.pop();
+        let _first_output = first_outputs.pop();
 
         // Go to the last entry of the current branch
         let entries_len = self.history.len();
@@ -104,7 +103,7 @@ impl<T: Applicable> UndoTree<T> {
             index: entries_len,
         };
 
-        let mut output = self.history.go_to(target, at);
+        let _output = self.history.go_to(target, at);
 
         Ok(())
     }

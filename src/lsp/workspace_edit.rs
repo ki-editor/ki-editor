@@ -93,8 +93,7 @@ impl TryFrom<lsp_types::WorkspaceEdit> for WorkspaceEdit {
                     .chain(edits3)
                     .flatten()
                     .map(|edit| edit.try_into())
-                    .collect::<Result<Vec<_>, _>>()?
-                    .into_iter(),
+                    .collect::<Result<Vec<_>, _>>()?,
             )
             .collect_vec();
         Ok(WorkspaceEdit {

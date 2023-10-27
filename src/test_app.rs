@@ -547,7 +547,7 @@ src/main.rs 🦀
     fn navigation() -> Result<(), anyhow::Error> {
         run_test(|mut app, temp_dir| {
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
-                Ok(temp_dir.join_as_path_buf(&filename).try_into()?)
+                temp_dir.join_as_path_buf(filename).try_into()
             };
             let open = |filename: &str| -> anyhow::Result<Dispatch> {
                 Ok(OpenFile {
