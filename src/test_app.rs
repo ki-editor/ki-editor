@@ -575,7 +575,16 @@ src/main.rs 🦀
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
             assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
 
-            app.handle_dispatches([open("Cargo.lock")?].to_vec())?;
+            app.handle_dispatches(
+                [
+                    // After moving back, open "src/foo.rs" again
+                    // This is to make sure that "src/foo.rs" will not be
+                    // added as a new entry
+                    open("src/foo.rs")?,
+                    open("Cargo.lock")?,
+                ]
+                .to_vec(),
+            )?;
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
 
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;

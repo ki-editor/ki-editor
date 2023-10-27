@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use itertools::Itertools;
 use undo::History;
 
 use crate::components::editor::{Direction, Movement};
@@ -23,7 +24,11 @@ pub struct UndoTree<T: Applicable> {
 
 impl<T: Applicable> UndoTree<T> {
     pub fn edit(&mut self, target: &mut T::Target, edit: OldNew<T>) -> Option<T::Output> {
-        match self.history.entries().last() {
+        let head = self.history.head();
+
+        let current_entry = self.history.get_entry(head.index.saturating_sub(1));
+
+        match current_entry {
             Some(last_entry) if last_entry.get().old_to_new == edit.old_to_new => None,
             _ => Some(self.history.edit(target, edit)),
         }
