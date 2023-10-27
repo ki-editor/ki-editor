@@ -59,11 +59,10 @@ impl PartialEq for MainPanel {
 }
 
 impl MainPanel {
-    fn display_relative_path(&self) -> Option<String> {
+    fn path(&self) -> Option<CanonicalizedPath> {
         self.editor
             .as_ref()
             .and_then(|editor| editor.borrow().path())
-            .and_then(|path| path.display_relative_to(&self.working_directory).ok())
     }
 
     fn take(&mut self) -> Option<Rc<RefCell<SuggestiveEditor>>> {
@@ -77,21 +76,33 @@ impl MainPanel {
 
 impl std::fmt::Display for MainPanel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(path) = self.display_relative_path() {
-            f.write_str(&path)
+        if let Some(path) = self.path() {
+            f.write_str(
+                &path
+                    .display_relative_to(&self.working_directory)
+                    .unwrap_or_else(|_| path.display_absolute()),
+            )
         } else {
             f.write_str("[UNTITLED]")
         }
     }
 }
 
+struct Null;
+impl std::fmt::Display for Null {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NULL")
+    }
+}
+
 impl Applicable for MainPanel {
-    type Target = ();
+    type Target = MainPanel;
 
-    type Output = Self;
+    type Output = Null;
 
-    fn apply(&self, _: &mut Self::Target) -> Self::Output {
-        self.clone()
+    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
+        *target = self.clone();
+        Ok(Null)
     }
 }
 
@@ -236,25 +247,25 @@ impl Layout {
         self.quickfix_lists = Some(quickfix_lists);
     }
 
-    fn set_main_panel(&mut self, new: MainPanel) {
+    fn set_main_panel(&mut self, new: MainPanel) -> anyhow::Result<()> {
         self.focused_component_id = new.id();
         let old = self.main_panel.take();
         self.main_panel = new.clone();
-        self.undo_tree.edit(
-            &mut (),
-            OldNew {
-                old_to_new: new,
-                new_to_old: self.new_main_panel(old),
-            },
-        );
+        let old_new = OldNew {
+            old_to_new: new,
+            new_to_old: self.new_main_panel(old),
+        };
+        self.undo_tree.edit(&mut self.main_panel, old_new)?;
+        Ok(())
     }
 
-    pub fn goto_opened_editor(&mut self, movement: Movement) {
-        let main_panel = self.undo_tree.apply_movement(&mut (), movement);
-        if let Some(main_panel) = main_panel {
-            self.focused_component_id = main_panel.id();
-            self.main_panel = main_panel.clone()
+    pub fn goto_opened_editor(&mut self, movement: Movement) -> anyhow::Result<()> {
+        self.undo_tree
+            .apply_movement(&mut self.main_panel, movement)?;
+        if let Some(editor) = &self.main_panel.editor {
+            self.focused_component_id = Some(editor.borrow().id());
         }
+        Ok(())
     }
 
     pub fn change_view(&mut self) {
@@ -313,7 +324,10 @@ impl Layout {
             });
     }
 
-    pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+    pub fn open_file(
+        &mut self,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<Option<Rc<RefCell<SuggestiveEditor>>>> {
         if let Some(matching_editor) =
             self.background_suggestive_editors
                 .iter()
@@ -328,10 +342,10 @@ impl Layout {
                         .unwrap_or(false)
                 })
         {
-            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
-            Some(matching_editor)
+            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())))?;
+            Ok(Some(matching_editor))
         } else {
-            None
+            Ok(None)
         }
     }
 

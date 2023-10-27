@@ -104,7 +104,7 @@ impl CanonicalizedPath {
         Ok(relative.display().to_string())
     }
 
-    pub fn display(&self) -> String {
+    pub fn display_absolute(&self) -> String {
         self.0.display().to_string()
     }
 

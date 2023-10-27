@@ -449,10 +449,8 @@ impl Buffer {
         movement: Movement,
     ) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
-        let selection_set = self
-            .undo_tree
-            .apply_movement(&mut content, movement)
-            .transpose()?;
+        let selection_set = self.undo_tree.apply_movement(&mut content, movement)?;
+
         self.update(&content);
 
         Ok(selection_set)
@@ -865,13 +863,22 @@ impl std::fmt::Display for Patch {
     }
 }
 
+impl std::fmt::Display for SelectionSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: this should describe the action
+        // For example, "kill", "exchange", "insert"
+        f.write_str("")
+    }
+}
+
 impl Applicable for Patch {
     type Target = String;
 
-    type Output = anyhow::Result<SelectionSet>;
+    type Output = SelectionSet;
 
-    fn apply(&self, target: &mut Self::Target) -> Self::Output {
+    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
         *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
+
         Ok(self.selection_set.clone())
     }
 }

@@ -13,8 +13,8 @@ pub struct OldNew<T: Clone + PartialEq> {
 
 pub trait Applicable: Clone + Display + PartialEq {
     type Target;
-    type Output;
-    fn apply(&self, target: &mut Self::Target) -> Self::Output;
+    type Output: Display;
+    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output>;
 }
 
 #[derive(Clone)]
@@ -23,23 +23,27 @@ pub struct UndoTree<T: Applicable> {
 }
 
 impl<T: Applicable> UndoTree<T> {
-    pub fn edit(&mut self, target: &mut T::Target, edit: OldNew<T>) -> Option<T::Output> {
+    pub fn edit(
+        &mut self,
+        target: &mut T::Target,
+        edit: OldNew<T>,
+    ) -> anyhow::Result<Option<T::Output>> {
         let head = self.history.head();
 
         let current_entry = self.history.get_entry(head.index.saturating_sub(1));
 
         match current_entry {
-            Some(last_entry) if last_entry.get().old_to_new == edit.old_to_new => None,
-            _ => Some(self.history.edit(target, edit)),
+            Some(last_entry) if last_entry.get().old_to_new == edit.old_to_new => Ok(None),
+            _ => Ok(Some(self.history.edit(target, edit)?)),
         }
     }
 
-    pub fn undo(&mut self, target: &mut T::Target) -> Option<T::Output> {
-        self.history.undo(target)
+    pub fn undo(&mut self, target: &mut T::Target) -> anyhow::Result<Option<T::Output>> {
+        self.history.undo(target).transpose()
     }
 
-    pub fn redo(&mut self, target: &mut T::Target) -> Option<T::Output> {
-        self.history.redo(target)
+    pub fn redo(&mut self, target: &mut T::Target) -> anyhow::Result<Option<T::Output>> {
+        self.history.redo(target).transpose()
     }
 
     pub(crate) fn new() -> UndoTree<T> {
@@ -56,14 +60,20 @@ impl<T: Applicable> UndoTree<T> {
         &mut self,
         target: &mut T::Target,
         movement: Movement,
-    ) -> Option<T::Output> {
+    ) -> anyhow::Result<Option<T::Output>> {
         match movement {
             Movement::Next => self.redo(target),
             Movement::Previous => self.undo(target),
             Movement::Last => todo!(),
             Movement::Current => todo!(),
-            Movement::Up => self.go_to_history_branch(target, Direction::End),
-            Movement::Down => self.go_to_history_branch(target, Direction::Start),
+            Movement::Up => {
+                self.go_to_history_branch(target, Direction::End)?;
+                Ok(None)
+            }
+            Movement::Down => {
+                self.go_to_history_branch(target, Direction::Start)?;
+                Ok(None)
+            }
             Movement::First => todo!(),
             Movement::Index(_) => todo!(),
             Movement::Jump(_) => todo!(),
@@ -74,21 +84,35 @@ impl<T: Applicable> UndoTree<T> {
         &mut self,
         target: &mut T::Target,
         direction: Direction,
-    ) -> Option<T::Output> {
+    ) -> anyhow::Result<()> {
         let Some(destination) = (match direction {
             Direction::Start => self.history.prev_branch_head(),
             Direction::End => self.history.next_branch_head(),
         }) else {
-            return None;
+            return Ok(());
         };
 
-        self.history.go_to(target, destination).pop()
+        // Switch to destination branch
+        let mut first_outputs = self.history.go_to(target, destination);
+
+        let first_output = first_outputs.pop();
+
+        // Go to the last entry of the current branch
+        let entries_len = self.history.len();
+        let at = undo::At {
+            root: destination.root,
+            index: entries_len,
+        };
+
+        let mut output = self.history.go_to(target, at);
+
+        Ok(())
     }
 }
 
 impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
     type Target = T::Target;
-    type Output = T::Output;
+    type Output = anyhow::Result<T::Output>;
 
     fn edit(&mut self, target: &mut Self::Target) -> Self::Output {
         self.old_to_new.apply(target)

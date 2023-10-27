@@ -303,7 +303,12 @@ impl<T: Frontend> App<T> {
                 } else {
                     " ".to_string()
                 };
-                format!("{}{}{}", self.working_directory.display(), branch, mode)
+                format!(
+                    "{}{}{}",
+                    self.working_directory.display_absolute(),
+                    branch,
+                    mode
+                )
             };
 
             Grid::new(Dimension {
@@ -319,7 +324,7 @@ impl<T: Frontend> App<T> {
 
     fn current_branch(&self) -> Option<String> {
         // Open the repository
-        let repo = git2::Repository::open(self.working_directory.display()).ok()?;
+        let repo = git2::Repository::open(self.working_directory.display_absolute()).ok()?;
 
         // Get the current branch
         let head = repo.head().ok()?;
@@ -616,7 +621,7 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Add path".to_string(),
             history: Vec::new(),
-            initial_text: Some(path.display()),
+            initial_text: Some(path.display_absolute()),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
@@ -632,7 +637,7 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Move file".to_string(),
             history: Vec::new(),
-            initial_text: Some(path.display()),
+            initial_text: Some(path.display_absolute()),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::MoveFile {
@@ -758,7 +763,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(entry_path) {
+        if let Some(matching_editor) = self.layout.open_file(entry_path)? {
             return Ok(matching_editor);
         } else {
         }
@@ -1129,7 +1134,11 @@ impl<T: Frontend> App<T> {
 
     fn move_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
-        log::info!("move file from {} to {}", from.display(), to.display());
+        log::info!(
+            "move file from {} to {}",
+            from.display_absolute(),
+            to.display()
+        );
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
         self.layout.refresh_file_explorer(&self.working_directory)?;
@@ -1184,6 +1193,7 @@ impl<T: Frontend> App<T> {
     pub fn get_selected_texts(&mut self, path: &CanonicalizedPath) -> Vec<String> {
         self.layout
             .open_file(path)
+            .unwrap()
             .map(|matching_editor| matching_editor.borrow().editor().get_selected_texts())
             .unwrap_or_default()
     }
@@ -1192,6 +1202,7 @@ impl<T: Frontend> App<T> {
     pub fn get_file_content(&mut self, path: &CanonicalizedPath) -> String {
         self.layout
             .open_file(path)
+            .unwrap()
             .map(|matching_editor| matching_editor.borrow().content())
             .unwrap_or_default()
     }

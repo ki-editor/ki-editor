@@ -87,7 +87,7 @@ impl Component for Editor {
                 let current_working_directory = context.current_working_directory()?;
                 let string = path
                     .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display());
+                    .unwrap_or_else(|_| path.display_absolute());
                 Some(format!(" {} {}", string, path.icon()))
             })
             .unwrap_or_else(|| "[No title]".to_string())
