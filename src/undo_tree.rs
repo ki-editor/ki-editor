@@ -63,10 +63,10 @@ impl<T: Applicable> UndoTree<T> {
         match movement {
             Movement::Next => self.redo(target),
             Movement::Previous => self.undo(target),
-            Movement::Last => Err(anyhow::anyhow(
+            Movement::Last => Err(anyhow::anyhow!(
                 "UndoTree: moving to Last is not supported yet",
             )),
-            Movement::Current => Err(anyhow::anyhow(
+            Movement::Current => Err(anyhow::anyhow!(
                 "UndoTree: moving to Current is not supported yet",
             )),
             Movement::Up => {
@@ -77,13 +77,13 @@ impl<T: Applicable> UndoTree<T> {
                 self.go_to_history_branch(target, Direction::Start)?;
                 Ok(None)
             }
-            Movement::First => Err(anyhow::anyhow(
+            Movement::First => Err(anyhow::anyhow!(
                 "UndoTree: moving to First is not supported yet",
             )),
-            Movement::Index(_) => Err(anyhow::anyhow(
+            Movement::Index(_) => Err(anyhow::anyhow!(
                 "UndoTree: moving to Index is not supported yet",
             )),
-            Movement::Jump(_) => Err(anyhow::anyhow(
+            Movement::Jump(_) => Err(anyhow::anyhow!(
                 "UndoTree: moving to Jump is not supported yet",
             )),
         }
