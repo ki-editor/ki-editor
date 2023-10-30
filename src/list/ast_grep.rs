@@ -8,7 +8,7 @@ pub fn run(pattern: &str, path: PathBuf) -> anyhow::Result<Vec<Location>> {
     let start_time = std::time::Instant::now();
     WalkBuilder::new(path).build_parallel().run(move || {
         let sender = sender.clone();
-        let pattern = pattern.clone();
+        let pattern = pattern;
 
         Box::new(move |path| {
             if let Ok(result) = (|| -> anyhow::Result<Vec<Location>> {

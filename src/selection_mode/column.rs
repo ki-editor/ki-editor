@@ -58,7 +58,7 @@ impl SelectionMode for Column {
 fn line_len_without_new_line(current_line: &ropey::Rope) -> usize {
     let last_char_index = current_line.len_chars().saturating_sub(1);
     let last_char_is_newline = if let Some(chars) = current_line.get_chars_at(last_char_index) {
-        chars.collect::<String>() == "\n".to_string()
+        chars.collect::<String>() == *"\n"
     } else {
         false
     };

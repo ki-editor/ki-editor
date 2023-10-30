@@ -365,7 +365,10 @@ impl Component for FileExplorer {
                                         "Delete path",
                                         Dispatch::OpenYesNoPrompt(YesNoPrompt {
                                             owner_id: self.id(),
-                                            title: format!("Delete \"{}\"?", node.path.display()),
+                                            title: format!(
+                                                "Delete \"{}\"?",
+                                                node.path.display_absolute()
+                                            ),
                                             yes: Box::new(Dispatch::DeletePath(node.path.clone())),
                                         }),
                                     ),

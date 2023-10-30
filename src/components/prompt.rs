@@ -101,7 +101,7 @@ impl Component for Prompt {
                     self.editor
                         .current_item()
                         .map(|item| item.label())
-                        .unwrap_or(String::new())
+                        .unwrap_or_default()
                 } else {
                     self.text.clone()
                 };

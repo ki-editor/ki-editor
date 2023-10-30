@@ -87,7 +87,7 @@ impl Component for Editor {
                 let current_working_directory = context.current_working_directory()?;
                 let string = path
                     .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display());
+                    .unwrap_or_else(|_| path.display_absolute());
                 Some(format!(" {} {}", string, path.icon()))
             })
             .unwrap_or_else(|| "[No title]".to_string())
@@ -633,8 +633,7 @@ impl Component for Editor {
             .into_iter()
             .flatten()
             .flat_map(|component| {
-                std::iter::once(component.clone())
-                    .chain(component.borrow().descendants().into_iter())
+                std::iter::once(component.clone()).chain(component.borrow().descendants())
             })
             .collect::<Vec<_>>()
     }
@@ -1712,7 +1711,9 @@ impl Editor {
                 Ok(Vec::new())
             }
             key => {
-                let KeyCode::Char(c) = key.code else {return Ok(Vec::new())};
+                let KeyCode::Char(c) = key.code else {
+                    return Ok(Vec::new());
+                };
                 let matching_jumps = jumps
                     .iter()
                     .filter(|jump| c == jump.character)
@@ -1849,7 +1850,7 @@ impl Editor {
         .map(|dispatches| {
             Some(Dispatch::SetGlobalMode(None))
                 .into_iter()
-                .chain(dispatches.into_iter())
+                .chain(dispatches)
                 .collect::<Vec<_>>()
         })
     }
@@ -1863,9 +1864,7 @@ impl Editor {
         if let Some(global_mode) = &context.mode() {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
-                GlobalMode::BufferNavigationHistory => {
-                    Ok([Dispatch::GotoOpenedEditor(movement)].to_vec())
-                }
+                GlobalMode::FileNavigation => Ok([Dispatch::GotoOpenedEditor(movement)].to_vec()),
             }
         } else {
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2000,10 +1999,7 @@ impl Editor {
             key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
             // u = up
             key!("v") => {
-                return Ok([Dispatch::SetGlobalMode(Some(
-                    GlobalMode::BufferNavigationHistory,
-                ))]
-                .to_vec())
+                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())
             }
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.mode = Mode::Exchange,
@@ -2025,8 +2021,6 @@ impl Editor {
             key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
             key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
 
-            key!("alt+left") => return Ok(vec![Dispatch::GotoOpenedEditor(Movement::Previous)]),
-            key!("alt+right") => return Ok(vec![Dispatch::GotoOpenedEditor(Movement::Next)]),
             key!("space") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.space_mode_keymap_legend_config(),
@@ -2653,8 +2647,8 @@ impl Editor {
     }
 
     pub fn save(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())?  else {
-            return Ok(vec![])
+        let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
+            return Ok(vec![]);
         };
         self.clamp()?;
         Ok(vec![Dispatch::DocumentDidSave { path }]
@@ -3015,15 +3009,10 @@ impl Editor {
     }
 
     fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Vec<Dispatch>, anyhow::Error> {
-        if let Some(selection_set) = match movement {
-            Movement::Next => self.buffer_mut().redo()?,
-            Movement::Previous => self.buffer_mut().undo()?,
-            Movement::Up => self.buffer_mut().go_to_history_branch(Direction::End)?,
-            Movement::Down => self.buffer_mut().go_to_history_branch(Direction::Start)?,
-            _ => None,
-        } {
-            self.update_selection_set(selection_set)
-        };
+        let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
+        if let Some(selection_set) = selection_set {
+            self.update_selection_set(selection_set);
+        }
         Ok(self.get_document_did_change_dispatch())
     }
 

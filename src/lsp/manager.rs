@@ -152,8 +152,12 @@ impl LspManager {
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
 
     pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
-        let Some(language) = language::from_path(&path) else { return Ok(()) };
-        let Some(language_id) = language.id() else { return Ok(()) };
+        let Some(language) = language::from_path(&path) else {
+            return Ok(());
+        };
+        let Some(language_id) = language.id() else {
+            return Ok(());
+        };
 
         if let Some(channel) = self.lsp_server_process_channels.get(&language_id) {
             if channel.is_initialized() {
@@ -179,7 +183,9 @@ impl LspManager {
     }
 
     pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
-        let Some(language_id) = language.id() else { return };
+        let Some(language_id) = language.id() else {
+            return;
+        };
         self.lsp_server_process_channels
             .get_mut(&language_id)
             .map(|channel| {

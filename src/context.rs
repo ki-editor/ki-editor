@@ -25,13 +25,13 @@ pub struct Context {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum GlobalMode {
     QuickfixListItem,
-    BufferNavigationHistory,
+    FileNavigation,
 }
 impl GlobalMode {
     pub fn display(&self) -> String {
         match self {
             GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
-            GlobalMode::BufferNavigationHistory => "BUFFER NAVIGATION HISTORY".to_string(),
+            GlobalMode::FileNavigation => "FILE NAVIGATION".to_string(),
         }
     }
 }
@@ -111,7 +111,7 @@ impl Context {
         self.mode.clone()
     }
     pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
-        self.mode = mode
+        self.mode = mode;
     }
 
     pub fn theme(&self) -> &Theme {

@@ -188,7 +188,7 @@ impl Location {
             "{}:{}:{}-{}:{}",
             self.path
                 .display_relative()
-                .unwrap_or_else(|_| self.path.display()),
+                .unwrap_or_else(|_| self.path.display_absolute()),
             self.range.start.line + 1,
             self.range.start.column + 1,
             self.range.end.line + 1,
@@ -215,7 +215,7 @@ impl Location {
             .map_err(|err| {
                 anyhow::anyhow!(
                     "Failed to read file {}: {}",
-                    self.path.display(),
+                    self.path.display_absolute(),
                     err.to_string()
                 )
             })

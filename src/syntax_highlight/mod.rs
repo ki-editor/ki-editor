@@ -142,7 +142,9 @@ impl HighlightConfigs {
         language: Language,
         source_code: &str,
     ) -> Result<HighlighedSpans, anyhow::Error> {
-        let Some(grammar_id) = language.tree_sitter_grammar_id() else { return Ok(Default::default()) };
+        let Some(grammar_id) = language.tree_sitter_grammar_id() else {
+            return Ok(Default::default());
+        };
         let config = match self.0.get(&grammar_id) {
             Some(config) => config,
             None => {

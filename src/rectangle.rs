@@ -212,7 +212,7 @@ impl Rectangle {
                 Element::Rectangle(rectangle) => Either::Left(rectangle),
                 Element::Border(border) => Either::Right(border),
             });
-        let rectangles = vec![up].into_iter().chain(rectangles.into_iter()).collect();
+        let rectangles = vec![up].into_iter().chain(rectangles).collect();
 
         (rectangles, borders)
     }
@@ -291,14 +291,8 @@ impl Rectangle {
                 Element::Border(border) => Either::Right(border),
             });
 
-        let rectangles = vec![left]
-            .into_iter()
-            .chain(rectangles.into_iter())
-            .collect();
-        let borders = vec![center_border]
-            .into_iter()
-            .chain(borders.into_iter())
-            .collect();
+        let rectangles = vec![left].into_iter().chain(rectangles).collect();
+        let borders = vec![center_border].into_iter().chain(borders).collect();
         (rectangles, borders)
     }
 

@@ -303,7 +303,12 @@ impl<T: Frontend> App<T> {
                 } else {
                     " ".to_string()
                 };
-                format!("{}{}{}", self.working_directory.display(), branch, mode)
+                format!(
+                    "{}{}{}",
+                    self.working_directory.display_absolute(),
+                    branch,
+                    mode
+                )
             };
 
             Grid::new(Dimension {
@@ -319,7 +324,7 @@ impl<T: Frontend> App<T> {
 
     fn current_branch(&self) -> Option<String> {
         // Open the repository
-        let repo = git2::Repository::open(self.working_directory.display()).ok()?;
+        let repo = git2::Repository::open(self.working_directory.display_absolute()).ok()?;
 
         // Get the current branch
         let head = repo.head().ok()?;
@@ -421,7 +426,10 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::GotoOpenedEditor(direction) => self.layout.goto_opened_editor(direction),
+            Dispatch::GotoOpenedEditor(direction) => {
+                self.layout.goto_opened_editor(direction);
+                self.show_navigation_history()
+            }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
@@ -459,7 +467,8 @@ impl<T: Frontend> App<T> {
                 self.layout.refresh_file_explorer(&self.working_directory)?
             }
             Dispatch::SetClipboardContent(content) => self.context.set_clipboard_content(content),
-            Dispatch::SetGlobalMode(mode) => self.context.set_mode(mode),
+            Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
+
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
@@ -612,7 +621,7 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Add path".to_string(),
             history: Vec::new(),
-            initial_text: Some(path.display()),
+            initial_text: Some(path.display_absolute()),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
@@ -628,7 +637,7 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Move file".to_string(),
             history: Vec::new(),
-            initial_text: Some(path.display()),
+            initial_text: Some(path.display_absolute()),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::MoveFile {
@@ -754,9 +763,8 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(entry_path) {
+        if let Some(matching_editor) = self.layout.open_file(entry_path)? {
             return Ok(matching_editor);
-        } else {
         }
 
         let buffer = Buffer::from_path(entry_path)?;
@@ -1125,7 +1133,11 @@ impl<T: Frontend> App<T> {
 
     fn move_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
-        log::info!("move file from {} to {}", from.display(), to.display());
+        log::info!(
+            "move file from {} to {}",
+            from.display_absolute(),
+            to.display()
+        );
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
         self.layout.refresh_file_explorer(&self.working_directory)?;
@@ -1180,6 +1192,7 @@ impl<T: Frontend> App<T> {
     pub fn get_selected_texts(&mut self, path: &CanonicalizedPath) -> Vec<String> {
         self.layout
             .open_file(path)
+            .unwrap()
             .map(|matching_editor| matching_editor.borrow().editor().get_selected_texts())
             .unwrap_or_default()
     }
@@ -1188,6 +1201,7 @@ impl<T: Frontend> App<T> {
     pub fn get_file_content(&mut self, path: &CanonicalizedPath) -> String {
         self.layout
             .open_file(path)
+            .unwrap()
             .map(|matching_editor| matching_editor.borrow().content())
             .unwrap_or_default()
     }
@@ -1259,6 +1273,27 @@ impl<T: Frontend> App<T> {
 
     pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
         self.syntax_highlight_request_sender = Some(sender);
+    }
+
+    pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
+        self.current_component()
+            .and_then(|component| component.borrow().path())
+    }
+
+    pub(crate) fn get_current_info(&self) -> Option<String> {
+        self.layout.get_info()
+    }
+
+    fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
+        if mode == Some(GlobalMode::FileNavigation) {
+            self.show_navigation_history()
+        }
+        self.context.set_mode(mode);
+    }
+
+    fn show_navigation_history(&mut self) {
+        let tree = self.layout.display_navigation_history();
+        self.show_info("Navigation History", Info::new(tree));
     }
 }
 

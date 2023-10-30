@@ -257,7 +257,9 @@ impl LspServerProcessChannel {
 
     pub fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let content = path.read()?;
-        let Some(language_id) = self.language.id() else { return Ok(()) };
+        let Some(language_id) = self.language.id() else {
+            return Ok(());
+        };
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidOpen {
                 file_path: path,
@@ -367,7 +369,7 @@ impl LspServerProcess {
                 process_id: None,
                 root_uri: Some(Url::parse(&format!(
                     "file://{}",
-                    self.current_working_directory.display()
+                    self.current_working_directory.display_absolute()
                 ))?),
                 initialization_options: self.language.initialization_options(),
 
@@ -1023,8 +1025,8 @@ impl LspServerProcess {
     ) -> Result<(), anyhow::Error> {
         self.send_notification::<lsp_notification!("workspace/didRenameFiles")>(RenameFilesParams {
             files: [FileRename {
-                old_uri: old.display(),
-                new_uri: new.display(),
+                old_uri: old.display_absolute(),
+                new_uri: new.display_absolute(),
             }]
             .to_vec(),
         })
@@ -1224,7 +1226,7 @@ impl LspServerProcess {
 }
 
 fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
-    Ok(Url::parse(&format!("file://{}", path.display()))?)
+    Ok(Url::parse(&format!("file://{}", path.display_absolute()))?)
 }
 
 fn path_buf_to_text_document_identifier(
