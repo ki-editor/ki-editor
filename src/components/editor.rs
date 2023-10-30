@@ -1864,9 +1864,7 @@ impl Editor {
         if let Some(global_mode) = &context.mode() {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
-                GlobalMode::BufferNavigationHistory => {
-                    Ok([Dispatch::GotoOpenedEditor(movement)].to_vec())
-                }
+                GlobalMode::FileNavigation => Ok([Dispatch::GotoOpenedEditor(movement)].to_vec()),
             }
         } else {
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2001,10 +1999,7 @@ impl Editor {
             key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
             // u = up
             key!("v") => {
-                return Ok([Dispatch::SetGlobalMode(Some(
-                    GlobalMode::BufferNavigationHistory,
-                ))]
-                .to_vec())
+                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())
             }
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.mode = Mode::Exchange,

@@ -25,13 +25,13 @@ pub struct Context {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum GlobalMode {
     QuickfixListItem,
-    BufferNavigationHistory,
+    FileNavigation,
 }
 impl GlobalMode {
     pub fn display(&self) -> String {
         match self {
             GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
-            GlobalMode::BufferNavigationHistory => "BUFFER NAVIGATION".to_string(),
+            GlobalMode::FileNavigation => "FILE NAVIGATION".to_string(),
         }
     }
 }

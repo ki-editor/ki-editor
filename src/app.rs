@@ -1285,7 +1285,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        if mode == Some(GlobalMode::BufferNavigationHistory) {
+        if mode == Some(GlobalMode::FileNavigation) {
             self.show_navigation_history()
         }
         self.context.set_mode(mode);

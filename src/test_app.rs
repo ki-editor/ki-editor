@@ -568,9 +568,7 @@ src/main.rs 🦀
             )?;
 
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.toml")?));
-            app.handle_dispatches(
-                [SetGlobalMode(Some(GlobalMode::BufferNavigationHistory))].to_vec(),
-            )?;
+            app.handle_dispatches([SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())?;
 
             app.handle_dispatch_editors(&[
                 MoveSelection(Movement::Previous),
