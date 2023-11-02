@@ -241,6 +241,7 @@
 - [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
 - [] feat(keymap): y = yeet away the both end by one character for each selection(s)
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
+- [] feat(mode): surround, when in this mode, brackets, quotes becomes object, use u to select outer surrond, like syntax tree, how to change surround, use (r)aise, that's why raise has to work also in this mode
 
 # Grammar loading
 

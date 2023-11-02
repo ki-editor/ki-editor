@@ -9,7 +9,8 @@ members = [
   'event',
   'my_proc_macros',
   'grammar',
-  'shared'
+  'shared',
+  'tree_sitter_yard'
 ]
 exclude = [
   'tests/mock_repos/rust1'
@@ -64,6 +65,7 @@ arboard = "3.2.0"
 event = {path = "event"}
 grammar = {path = "grammar"}
 shared = {path = "shared"}
+tree-sitter-yard = {path = "tree_sitter_yard"}
 my_proc_macros = {path = "my_proc_macros"}
 pretty_assertions = "1.3.0"
 tree-sitter-highlight = "0.20.1"

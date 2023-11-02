@@ -2083,6 +2083,7 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-traversal",
  "tree-sitter-typescript",
+ "tree-sitter-yard",
  "undo",
  "uuid",
  "vt100",
@@ -2139,9 +2140,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.20.9"
+version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4423c784fe11398ca91e505cdc71356b07b1a924fc8735cfab5333afe3e18bc"
+checksum = "e747b1f9b7b931ed39a548c1fae149101497de3c1fc8d9e18c62c1a66c683d3d"
 dependencies = [
  "cc",
  "regex",
@@ -2215,6 +2216,14 @@ name = "tree-sitter-typescript"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "079c695c32d39ad089101c66393aeaca30e967fba3486a91f573d2f0e12d290a"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-yard"
+version = "0.0.1"
 dependencies = [
  "cc",
  "tree-sitter",
