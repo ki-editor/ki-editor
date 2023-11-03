@@ -242,6 +242,10 @@
 - [] feat(keymap): y = yeet away the both end by one character for each selection(s)
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
 - [] feat(mode): surround, when in this mode, brackets, quotes becomes object, use u to select outer surrond, like syntax tree, how to change surround, use (r)aise, that's why raise has to work also in this mode
+- [] keymap: change ma -> mm, so that ma can enter insert mode without pressing esc
+- [] keymap: saving should clear all cursors, since they are useless after formatting
+- [] ui:  highlight mode indicator
+- [] ui: show number of cursors
 
 # Grammar loading
 

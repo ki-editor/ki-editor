@@ -1,0 +1,11 @@
+==========
+Quote in bracket
+==========
+("hello" {})
+---
+(source_file
+  (paren_expression
+    (expressions
+      (double_quote_expression
+        (expressions))
+      (brace_expression))))

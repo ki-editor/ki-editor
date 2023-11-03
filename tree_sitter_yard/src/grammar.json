@@ -22,31 +22,24 @@
       ]
     },
     "expressions": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "PREC_RIGHT",
-          "value": 0,
-          "content": {
-            "type": "REPEAT1",
-            "content": {
+      "type": "PREC_LEFT",
+      "value": 0,
+      "content": {
+        "type": "REPEAT1",
+        "content": {
+          "type": "CHOICE",
+          "members": [
+            {
               "type": "SYMBOL",
               "name": "_bracket_expression"
-            }
-          }
-        },
-        {
-          "type": "PREC_LEFT",
-          "value": 0,
-          "content": {
-            "type": "REPEAT1",
-            "content": {
+            },
+            {
               "type": "SYMBOL",
               "name": "_quote_expression"
             }
-          }
+          ]
         }
-      ]
+      }
     },
     "_bracket_expression": {
       "type": "CHOICE",
@@ -321,41 +314,6 @@
               }
             ]
           }
-        }
-      ]
-    },
-    "c_style_block_comment": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SEQ",
-          "members": [
-            {
-              "type": "STRING",
-              "value": "/*"
-            },
-            {
-              "type": "STRING",
-              "value": "*/"
-            }
-          ]
-        },
-        {
-          "type": "SEQ",
-          "members": [
-            {
-              "type": "STRING",
-              "value": "/*"
-            },
-            {
-              "type": "SYMBOL",
-              "name": "expressions"
-            },
-            {
-              "type": "STRING",
-              "value": "*/"
-            }
-          ]
         }
       ]
     }
