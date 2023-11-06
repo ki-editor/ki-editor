@@ -1,6 +1,8 @@
 use std::ops::Range;
 
-use crate::{components::editor::Direction, edit::ApplyOffset, selection::CharIndex};
+use crate::{
+    buffer::Buffer, components::editor::Direction, edit::ApplyOffset, selection::CharIndex,
+};
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
@@ -22,6 +24,26 @@ impl std::ops::Sub<usize> for CharIndexRange {
 impl From<CharIndexRange> for Range<CharIndex> {
     fn from(val: CharIndexRange) -> Self {
         val.start..val.end
+    }
+}
+
+pub trait ToByteRange {
+    fn to_byte_range(&self, buffer: &Buffer) -> anyhow::Result<Range<usize>>;
+}
+
+pub trait ToCharIndexRange {
+    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange>;
+}
+
+impl ToCharIndexRange for Range<usize> {
+    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+        Ok((buffer.byte_to_char(self.start)?..buffer.byte_to_char(self.end)?).into())
+    }
+}
+
+impl ToByteRange for CharIndexRange {
+    fn to_byte_range(&self, buffer: &Buffer) -> anyhow::Result<Range<usize>> {
+        Ok(buffer.char_to_byte(self.start)?..buffer.char_to_byte(self.end)?)
     }
 }
 

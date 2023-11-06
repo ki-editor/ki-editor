@@ -5,6 +5,7 @@ pub mod column;
 pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
+pub mod inside;
 pub mod line;
 pub mod local_quickfix;
 pub mod regex;
@@ -20,6 +21,7 @@ pub use column::Column;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
+pub use inside::Inside;
 use itertools::Itertools;
 pub use line::Line;
 pub use local_quickfix::LocalQuickfix;
@@ -102,6 +104,13 @@ pub struct SelectionModeParams<'a> {
     pub cursor_direction: &'a Direction,
     pub context: &'a Context,
 }
+impl<'a> SelectionModeParams<'a> {
+    fn selected_text(&self) -> anyhow::Result<String> {
+        self.buffer
+            .slice(&self.current_selection.extended_range())
+            .map(|rope| rope.to_string())
+    }
+}
 
 pub trait SelectionMode {
     fn name(&self) -> &'static str;
@@ -110,7 +119,7 @@ pub trait SelectionMode {
         params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
 
-    fn apply_direction(
+    fn apply_movement(
         &self,
         params: SelectionModeParams,
         movement: Movement,
@@ -353,6 +362,42 @@ pub trait SelectionMode {
 
         assert_eq!(expected, actual);
     }
+
+    #[cfg(test)]
+    fn generate_selections(
+        &self,
+        buffer: &Buffer,
+        movement: Movement,
+        up_to: usize,
+        initial_range: CharIndexRange,
+    ) -> anyhow::Result<Vec<String>> {
+        let params = SelectionModeParams {
+            buffer: &buffer,
+            current_selection: &Selection::default(),
+            cursor_direction: &crate::components::editor::Direction::Start,
+            context: &Context::default(),
+        };
+        Ok((0..up_to)
+            .into_iter()
+            .fold(
+                Ok((initial_range, Vec::new())),
+                |result, _| -> anyhow::Result<_> {
+                    let (range, mut results) = result?;
+                    let selection = self.apply_movement(
+                        SelectionModeParams {
+                            current_selection: &Selection::new(range),
+                            ..params
+                        },
+                        movement,
+                    );
+
+                    let parent_range = selection.unwrap().unwrap().range();
+                    results.push(buffer.slice(&parent_range)?.to_string());
+                    Ok((parent_range, results))
+                },
+            )?
+            .1)
+    }
 }
 
 #[cfg(test)]
@@ -406,7 +451,7 @@ mod test_selection_mode {
             cursor_direction: &Direction::Start,
         };
         let actual = Dummy
-            .apply_direction(params, movement)
+            .apply_movement(params, movement)
             .unwrap()
             .unwrap()
             .range();
@@ -488,7 +533,7 @@ mod test_selection_mode {
         }
         let run_test = |movement: Movement, expected_info: &str| {
             let actual = Dummy
-                .apply_direction(params.clone(), movement)
+                .apply_movement(params.clone(), movement)
                 .unwrap()
                 .unwrap();
             let expected_range: CharIndexRange = (CharIndex(1)..CharIndex(2)).into();
@@ -517,7 +562,7 @@ mod test_selection_mode {
             cursor_direction: &Direction::Start,
         };
         let actual = Dummy
-            .apply_direction(params, Movement::Next)
+            .apply_movement(params, Movement::Next)
             .unwrap()
             .unwrap()
             .range();
@@ -539,7 +584,7 @@ mod test_selection_mode {
             cursor_direction: &Direction::Start,
         };
         let actual = Line
-            .apply_direction(params, Movement::Current)
+            .apply_movement(params, Movement::Current)
             .unwrap()
             .unwrap()
             .range();

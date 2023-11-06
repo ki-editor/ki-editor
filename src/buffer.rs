@@ -651,6 +651,29 @@ impl Buffer {
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
     }
+
+    pub(crate) fn find_nearest_string_before(
+        &self,
+        start: CharIndex,
+        substr: &str,
+    ) -> Option<CharIndex> {
+        let slice = self.rope.get_slice(0..start.0)?;
+        let byte = slice.to_string().rfind(&substr)? + substr.len();
+        self.byte_to_char(byte).ok()
+    }
+
+    pub(crate) fn find_nearest_string_after(
+        &self,
+        end: CharIndex,
+        substr: &str,
+    ) -> Option<CharIndex> {
+        let slice = self.rope.get_slice(end.0..self.len_chars())?;
+
+        let byte = (slice.to_string().find(&substr)? + self.char_to_byte(end).ok()? + substr.len())
+            .saturating_sub(1);
+
+        self.byte_to_char(byte).ok()
+    }
 }
 
 #[cfg(test)]

@@ -514,7 +514,7 @@ impl Selection {
         };
 
         Ok(selection_mode
-            .apply_direction(params, *direction)?
+            .apply_movement(params, *direction)?
             .unwrap_or_else(|| current_selection.clone()))
     }
     pub fn escape_highlight_mode(&mut self) {
