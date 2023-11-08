@@ -6,7 +6,8 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection_mode, soft_wrap,
+    selection_mode::{self, inside::InsideKind},
+    soft_wrap,
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -1507,6 +1508,9 @@ impl Editor {
             DispatchEditor::Kill => return self.kill(context),
             DispatchEditor::Insert(string) => return self.insert(&string),
             DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
+            DispatchEditor::EnterInsideMode(kind) => {
+                return self.set_selection_mode(context, SelectionMode::Inside(kind))
+            }
         }
         Ok([].to_vec())
     }
@@ -1978,6 +1982,12 @@ impl Editor {
                 )])
             }
             key!("h") => self.toggle_highlight_mode(),
+            key!("i") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.inside_mode_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
 
             // Initial
 
@@ -3044,6 +3054,31 @@ impl Editor {
         }
         Ok(())
     }
+
+    fn inside_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Inside".to_string(),
+            owner_id: self.id(),
+            keymaps: [
+                ("a", "Angular Bracket <>", InsideKind::AngularBrackets),
+                ("b", "Back Quote ``", InsideKind::BackQuotes),
+                ("c", "Curly Brace {}", InsideKind::CurlyBraces),
+                ("d", "Double Quote \"\"", InsideKind::DoubleQuotes),
+                ("p", "Parenthesis ()", InsideKind::Parentheses),
+                ("q", "Single Quote ''", InsideKind::SingleQuotes),
+                ("s", "Square Bracket []", InsideKind::SquareBrackets),
+            ]
+            .into_iter()
+            .map(|(key, description, inside_kind)| {
+                Keymap::new(
+                    key,
+                    description,
+                    Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(inside_kind)),
+                )
+            })
+            .collect(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3086,4 +3121,5 @@ pub enum DispatchEditor {
     Kill,
     Insert(String),
     MatchLiteral(String),
+    EnterInsideMode(InsideKind),
 }

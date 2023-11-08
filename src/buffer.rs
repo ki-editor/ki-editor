@@ -1,5 +1,5 @@
 use crate::{
-    char_index_range::CharIndexRange,
+    char_index_range::{CharIndexRange, ToCharIndexRange},
     components::{editor::Movement, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
@@ -654,25 +654,71 @@ impl Buffer {
 
     pub(crate) fn find_nearest_string_before(
         &self,
-        start: CharIndex,
+        index: CharIndex,
         substr: &str,
-    ) -> Option<CharIndex> {
-        let slice = self.rope.get_slice(0..start.0)?;
-        let byte = slice.to_string().rfind(&substr)? + substr.len();
-        self.byte_to_char(byte).ok()
+    ) -> Option<CharIndexRange> {
+        let slice = self.rope.get_slice(0..index.0)?;
+        let start = slice.to_string().rfind(&substr)?;
+        let end = start.saturating_add(substr.len());
+        (start..end).to_char_index_range(self).ok()
     }
 
     pub(crate) fn find_nearest_string_after(
         &self,
-        end: CharIndex,
+        index: CharIndex,
         substr: &str,
-    ) -> Option<CharIndex> {
-        let slice = self.rope.get_slice(end.0..self.len_chars())?;
+    ) -> Option<CharIndexRange> {
+        let slice = self.rope.get_slice(index.0..self.len_chars())?;
 
-        let byte = (slice.to_string().find(&substr)? + self.char_to_byte(end).ok()? + substr.len())
-            .saturating_sub(1);
+        let start = slice.to_string().find(&substr)? + self.char_to_byte(index).ok()?;
+        let end = start.saturating_add(substr.len());
 
-        self.byte_to_char(byte).ok()
+        (start..end).to_char_index_range(self).ok()
+    }
+
+    /// `index` is exclusive
+    pub(crate) fn find_nearest_opening_before(
+        &self,
+        index: CharIndex,
+        open: &str,
+        close: &str,
+    ) -> Option<CharIndexRange> {
+        let slice = self.rope.get_slice(0..index.0)?.to_string();
+        let mut closings = slice.rmatch_indices(close);
+        let openings = slice.rmatch_indices(open);
+        for opening in openings {
+            match closings.next() {
+                Some(closing) if closing.0 > opening.0 => {}
+                _ => {
+                    let byte_range = opening.0..opening.0 + opening.1.len();
+                    return byte_range.to_char_index_range(self).ok();
+                }
+            }
+        }
+        None
+    }
+
+    ///`index` is inclusive
+    pub(crate) fn find_nearest_closing_after(
+        &self,
+        index: CharIndex,
+        open: &str,
+        close: &str,
+    ) -> Option<CharIndexRange> {
+        let slice = self.rope.get_slice(index.0..self.len_chars())?.to_string();
+        let closings = slice.match_indices(close);
+        let mut openings = slice.match_indices(open);
+        for closing in closings {
+            match openings.next() {
+                Some(opening) if opening.0 < closing.0 => {}
+                _ => {
+                    let start = closing.0 + self.char_to_byte(index).ok()?;
+                    let byte_range = start..start + closing.1.len();
+                    return byte_range.to_char_index_range(self).ok();
+                }
+            }
+        }
+        None
     }
 }
 
@@ -680,7 +726,43 @@ impl Buffer {
 mod test_buffer {
     use itertools::Itertools;
 
+    use crate::selection::CharIndex;
+
     use super::Buffer;
+
+    #[test]
+    fn find_nearest_opening_before() {
+        let test_cases = &[
+            ("( () a)", 5, 0..1),
+            ("( () a)", 3, 2..3),
+            ("() ( () a)", 7, 3..4),
+        ];
+        for (content, index, expected) in test_cases {
+            let buffer = Buffer::new(tree_sitter_md::language(), content);
+            let range = buffer.find_nearest_opening_before(CharIndex(*index), "(", ")");
+            assert_eq!(
+                range,
+                Some((CharIndex(expected.start)..CharIndex(expected.end)).into())
+            );
+        }
+    }
+
+    #[test]
+    fn find_nearest_closing_after() {
+        let test_cases = &[
+            ("( () a)", 1, 6..7),
+            ("( () a)", 3, 3..4),
+            ("() ( () a)", 1, 1..2),
+        ];
+        for (content, index, expected) in test_cases {
+            let buffer = Buffer::new(tree_sitter_md::language(), content);
+            let range = buffer.find_nearest_closing_after(CharIndex(*index), "(", ")");
+            assert_eq!(
+                range,
+                Some((CharIndex(expected.start)..CharIndex(expected.end)).into())
+            );
+        }
+    }
 
     #[test]
     fn get_parent_lines_1() {

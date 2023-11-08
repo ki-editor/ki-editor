@@ -1,11 +1,17 @@
 use crate::{
-    char_index_range::{ToByteRange, ToCharIndexRange},
+    char_index_range::{CharIndexRange, ToByteRange, ToCharIndexRange},
     selection::Selection,
 };
 
 use super::{SelectionMode, SelectionModeParams};
 
 pub struct Inside(InsideKind);
+
+impl Inside {
+    pub fn new(kind: InsideKind) -> Self {
+        Self(kind)
+    }
+}
 
 impl SelectionMode for Inside {
     fn name(&self) -> &'static str {
@@ -28,34 +34,43 @@ impl SelectionMode for Inside {
     ) -> anyhow::Result<Option<Selection>> {
         let (open, close) = self.0.open_close_symbols();
         let range = current_selection.extended_range();
-        let start = buffer.find_nearest_string_before(range.start, &open);
-        let end = buffer.find_nearest_string_after(range.end, &close);
+        let (opening, closing) = if open == close {
+            let opening = buffer.find_nearest_string_before(range.start, &open);
+            let closing = buffer.find_nearest_string_after(range.end, &close);
 
-        Ok(Some(match (start, end) {
-            (Some(start), Some(end)) => current_selection.clone().set_range((start..end).into()),
-            _ => current_selection.clone(),
-        }))
+            (opening, closing)
+        } else {
+            let opening = buffer.find_nearest_opening_before(range.start, &open, &close);
+            let closing = buffer.find_nearest_closing_after(range.end, &open, &close);
+            (opening, closing)
+        };
+        let range = match (opening, closing) {
+            (Some(open), Some(close)) => Some((open.end..close.start).into()),
+            _ => None,
+        };
+        Ok(Some(current_selection.clone().set_range(
+            range.unwrap_or(current_selection.extended_range()),
+        )))
     }
 
     fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
-            buffer,
-            current_selection,
-            ..
+            current_selection, ..
         } = params;
         let text = params.selected_text()?;
+
         let (open, close) = self.0.open_close_symbols();
+        let range = current_selection.extended_range();
         if text.starts_with(&open) && text.ends_with(&close) {
             return self.current(params);
         }
-        let range = current_selection.range().to_byte_range(buffer)?;
-        let start = range.start.saturating_sub(open.len());
-        let end = range.end.saturating_add(close.len());
-        Ok(Some(
-            current_selection
-                .clone()
-                .set_range((start..end).to_char_index_range(buffer)?),
-        ))
+
+        let start = range.start - open.chars().count();
+        let end = range.end + close.chars().count();
+
+        let range: CharIndexRange = (start..end).into();
+
+        Ok(Some(current_selection.clone().set_range(range)))
     }
     fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
@@ -65,6 +80,7 @@ impl SelectionMode for Inside {
         } = params;
         let (open, close) = self.0.open_close_symbols();
         let text = params.selected_text()?;
+
         let range = current_selection.extended_range();
 
         if text.starts_with(&open) && text.ends_with(&close) {
@@ -72,21 +88,18 @@ impl SelectionMode for Inside {
             let start = range.start.saturating_add(open.len());
             let end = range.end.saturating_sub(close.len());
 
-            Ok(Some(
+            return Ok(Some(
                 current_selection
                     .clone()
                     .set_range((start..end).to_char_index_range(buffer)?),
-            ))
+            ));
         } else {
             let start = buffer.find_nearest_string_after(range.start, &open);
             let end = buffer.find_nearest_string_before(range.end, &close);
             Ok(Some(match (start, end) {
-                (Some(start), Some(end)) => {
-                    let end = buffer
-                        .byte_to_char(buffer.char_to_byte(end)?.saturating_add(close.len()))?
-                        - 1;
-                    current_selection.clone().set_range((start..end).into())
-                }
+                (Some(start), Some(end)) => current_selection
+                    .clone()
+                    .set_range((start.start..end.end).into()),
                 _ => current_selection.clone(),
             }))
         }
@@ -102,11 +115,11 @@ pub enum InsideKind {
     DoubleQuotes,
     SingleQuotes,
     BackQuotes,
-    Custom(char),
+    Custom { open: String, close: String },
 }
 
 impl InsideKind {
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             InsideKind::Parentheses => "Parentheses".to_string(),
             InsideKind::CurlyBraces => "Curly Braces".to_string(),
@@ -115,7 +128,7 @@ impl InsideKind {
             InsideKind::DoubleQuotes => "Double Quotes".to_string(),
             InsideKind::SingleQuotes => "Single Quotes".to_string(),
             InsideKind::BackQuotes => "Back Quotes".to_string(),
-            InsideKind::Custom(char) => format!("'{}'", char),
+            InsideKind::Custom { open, close } => format!("'{} {}'", open, close),
         }
     }
 
@@ -128,7 +141,7 @@ impl InsideKind {
             InsideKind::DoubleQuotes => ("\"".to_string(), "\"".to_string()),
             InsideKind::SingleQuotes => ("'".to_string(), "'".to_string()),
             InsideKind::BackQuotes => ("`".to_string(), "`".to_string()),
-            InsideKind::Custom(char) => (char.to_string(), char.to_string()),
+            InsideKind::Custom { open, close } => (open.clone(), close.clone()),
         }
     }
 }
@@ -136,30 +149,101 @@ impl InsideKind {
 #[cfg(test)]
 mod test_inside {
 
-    use crate::{buffer::Buffer, components::editor::Movement, selection::CharIndex};
+    use crate::{
+        buffer::Buffer, components::editor::Movement, context::Context, selection::CharIndex,
+    };
 
     use super::*;
 
     #[test]
+    fn current_open_close_same() -> anyhow::Result<()> {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a b 'c 'd e''");
+        let inside = Inside(InsideKind::Custom {
+            open: "{|".to_string(),
+            close: "|}".to_string(),
+        });
+        let params = SelectionModeParams {
+            buffer: &buffer,
+            current_selection: &Selection::default(),
+            cursor_direction: &crate::components::editor::Direction::Start,
+            context: &Context::default(),
+        };
+
+        let current = inside.current(SelectionModeParams {
+            current_selection: &Selection::default().set_range((CharIndex(5)..CharIndex(6)).into()),
+            ..params
+        })?;
+        let current_text = buffer.slice(&current.unwrap().extended_range())?;
+        assert_eq!(current_text, "c ");
+
+        let current = inside.current(SelectionModeParams {
+            current_selection: &Selection::default()
+                .set_range((CharIndex(9)..CharIndex(10)).into()),
+            ..params
+        })?;
+        let current_text = buffer.slice(&current.unwrap().extended_range())?;
+        assert_eq!(current_text, "d e");
+
+        Ok(())
+    }
+
+    #[test]
+    fn current_open_close_different() -> anyhow::Result<()> {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
+        let inside = Inside(InsideKind::Custom {
+            open: "{|".to_string(),
+            close: "|}".to_string(),
+        });
+
+        let current = inside.current(SelectionModeParams {
+            buffer: &buffer,
+            current_selection: &Selection::default().set_range((CharIndex(6)..CharIndex(7)).into()),
+            cursor_direction: &crate::components::editor::Direction::Start,
+            context: &Context::default(),
+        })?;
+        let current_text = buffer.slice(&current.unwrap().extended_range())?;
+        assert_eq!(current_text, "c {|d e|}");
+
+        Ok(())
+    }
+
+    #[test]
     fn up() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a b (c (d e))");
-        let inside = Inside(InsideKind::Parentheses);
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
+        let inside = Inside(InsideKind::Custom {
+            open: "{|".to_string(),
+            close: "|}".to_string(),
+        });
 
         let ups = inside.generate_selections(
             &buffer,
             Movement::Up,
             4,
-            (CharIndex(8)..CharIndex(11)).into(),
+            (CharIndex(10)..CharIndex(13)).into(),
         )?;
-        assert_eq!(ups, &["(d e)", "c (d e)", "(c (d e))", "(c (d e))"]);
+        assert_eq!(
+            ups,
+            &["{|d e|}", "c {|d e|}", "{|c {|d e|}|}", "{|c {|d e|}|}"]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn down() -> anyhow::Result<()> {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
+        let inside = Inside(InsideKind::Custom {
+            open: "{|".to_string(),
+            close: "|}".to_string(),
+        });
 
         let downs = inside.generate_selections(
             &buffer,
             Movement::Down,
             4,
-            (CharIndex(4)..CharIndex(13)).into(),
+            (CharIndex(4)..CharIndex(17)).into(),
         )?;
-        assert_eq!(downs, &["c (d e)", "(d e)", "d e", "d e"]);
+        assert_eq!(downs, &["c {|d e|}", "{|d e|}", "d e", "d e"]);
 
         Ok(())
     }

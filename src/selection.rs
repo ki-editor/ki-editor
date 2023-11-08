@@ -14,7 +14,7 @@ use crate::{
     },
     context::{Context, Search, SearchKind},
     position::Position,
-    selection_mode::{self, SelectionModeParams},
+    selection_mode::{self, inside::InsideKind, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -306,6 +306,7 @@ pub enum SelectionMode {
 
     // Bookmark
     Bookmark,
+    Inside(InsideKind),
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -340,6 +341,7 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Inside(kind) => format!("INSIDE {}", kind.to_string()),
         }
     }
 
@@ -405,6 +407,7 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
+            SelectionMode::Inside(kind) => Box::new(selection_mode::Inside::new(kind.clone())),
         })
     }
 }

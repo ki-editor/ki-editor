@@ -106,6 +106,21 @@ mod test_editor {
     }
 
     #[test]
+    /// After raise the node kind should be the same
+    /// Raising (a).into() in Some((a).into())
+    /// should result in (a).into()
+    /// not Some(a).into()
+    fn raise_preserve_current_node_structure() {
+        todo!()
+    }
+
+    #[test]
+    /// Example: from "hello" -> hello
+    fn raise_inside() {
+        todo!()
+    }
+
+    #[test]
     fn exchange_line() -> anyhow::Result<()> {
         // Multiline source code
         let mut editor = Editor::from_text(
