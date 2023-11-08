@@ -97,9 +97,9 @@ mod test_editor {
         editor.match_literal(&context, "c()")?;
         assert_eq!(editor.get_selected_texts(), vec!["c()"]);
 
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
         editor.raise(&context)?;
         assert_eq!(editor.text(), "fn main() { let x = c(); }");
-
         editor.raise(&context)?;
         assert_eq!(editor.text(), "fn main() { c() }");
         Ok(())
@@ -110,8 +110,15 @@ mod test_editor {
     /// Raising (a).into() in Some((a).into())
     /// should result in (a).into()
     /// not Some(a).into()
-    fn raise_preserve_current_node_structure() {
-        todo!()
+    fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() { Some((a).b()) }");
+        let context = Context::default();
+        editor.match_literal(&context, "(a).b()")?;
+
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.raise(&context)?;
+        assert_eq!(editor.text(), "fn main() { (a).b() }");
+        Ok(())
     }
 
     #[test]
@@ -225,6 +232,7 @@ fn main() {
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
         editor.raise(&context)?;
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");

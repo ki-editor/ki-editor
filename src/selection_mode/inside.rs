@@ -195,14 +195,18 @@ mod test_inside {
             close: "|}".to_string(),
         });
 
-        let current = inside.current(SelectionModeParams {
-            buffer: &buffer,
-            current_selection: &Selection::default().set_range((CharIndex(6)..CharIndex(7)).into()),
-            cursor_direction: &crate::components::editor::Direction::Start,
-            context: &Context::default(),
-        })?;
-        let current_text = buffer.slice(&current.unwrap().extended_range())?;
-        assert_eq!(current_text, "c {|d e|}");
+        let test_cases = &[(6..7, "c {|d e|}"), (8..10, "c {|d e|}")];
+        for (range, expected) in test_cases {
+            let current = inside.current(SelectionModeParams {
+                buffer: &buffer,
+                current_selection: &Selection::default()
+                    .set_range((CharIndex(range.start)..CharIndex(range.end)).into()),
+                cursor_direction: &crate::components::editor::Direction::Start,
+                context: &Context::default(),
+            })?;
+            let current_text = buffer.slice(&current.unwrap().extended_range())?;
+            assert_eq!(current_text.to_string(), expected.to_string());
+        }
 
         Ok(())
     }
@@ -231,7 +235,7 @@ mod test_inside {
 
     #[test]
     fn down() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
+        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|} {| x |}");
         let inside = Inside(InsideKind::Custom {
             open: "{|".to_string(),
             close: "|}".to_string(),

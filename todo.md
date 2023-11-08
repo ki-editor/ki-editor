@@ -241,6 +241,7 @@
 - [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
 - [] feat(keymap): y = yeet away the both end by one character for each selection(s)
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
+- [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
 
 # Grammar loading
 
