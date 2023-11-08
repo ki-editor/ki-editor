@@ -1015,7 +1015,9 @@ impl Editor {
                                 (current_range.end..next_range.start).into();
 
                             let inbetween_text = buffer.slice(&inbetween_range)?.to_string();
-                            if !inbetween_text.trim().is_empty() {
+                            if !inbetween_text.trim().is_empty()
+                                && !self.selection_set.mode.is_contiguous()
+                            {
                                 default
                             } else {
                                 let delete_range: CharIndexRange = (current_range.start

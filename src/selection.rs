@@ -407,6 +407,18 @@ impl SelectionMode {
             }
         })
     }
+
+    pub(crate) fn is_contiguous(&self) -> bool {
+        match self {
+            SelectionMode::Word
+            | SelectionMode::Line
+            | SelectionMode::Character
+            | SelectionMode::BottomNode
+            | SelectionMode::TopNode
+            | SelectionMode::SyntaxTree => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]

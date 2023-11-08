@@ -561,6 +561,27 @@ fn f() {
     }
 
     #[test]
+    /// The selection mode is contiguous
+    fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main(a:A,b:B) {}");
+        let context = Context::default();
+        editor.match_literal(&context, "a:A")?;
+
+        // Select first character
+        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+
+        // Delete
+        editor.kill(&context)?;
+
+        assert_eq!(editor.text(), "fn main(b:B) {}");
+
+        // Expect the current selection is 'b:B'
+        assert_eq!(editor.get_selected_texts(), vec!["b:B"]);
+
+        Ok(())
+    }
+
+    #[test]
     fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn maima() {}");
         let context = Context::default();
