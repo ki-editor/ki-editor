@@ -12,6 +12,7 @@ mod test_editor {
         grid::{Style, StyleKey},
         position::Position,
         selection::SelectionMode,
+        selection_mode::inside::InsideKind,
         themes::Theme,
     };
 
@@ -107,9 +108,9 @@ mod test_editor {
 
     #[test]
     /// After raise the node kind should be the same
-    /// Raising (a).into() in Some((a).into())
-    /// should result in (a).into()
-    /// not Some(a).into()
+    /// Raising `(a).into()` in `Some((a).into())`
+    /// should result in `(a).into()`
+    /// not `Some(a).into()`
     fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { Some((a).b()) }");
         let context = Context::default();
@@ -123,8 +124,16 @@ mod test_editor {
 
     #[test]
     /// Example: from "hello" -> hello
-    fn raise_inside() {
-        todo!()
+    fn raise_inside() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "fn main() { (a, b) }");
+        let context = Context::default();
+        editor.match_literal(&context, "b")?;
+
+        editor.set_selection_mode(&context, SelectionMode::Inside(InsideKind::Parentheses))?;
+        assert_eq!(editor.get_selected_texts(), &["a, b"]);
+        editor.raise(&context)?;
+        assert_eq!(editor.text(), "fn main() { a, b }");
+        Ok(())
     }
 
     #[test]
