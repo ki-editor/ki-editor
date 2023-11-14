@@ -1004,10 +1004,10 @@ impl Editor {
                     let next_range = next_selection.extended_range();
 
                     let (delete_range, select_range) = {
-                        let default = (
-                            current_range,
-                            (current_range.start..current_range.start).into(),
-                        );
+                        let default = {
+                            let start = current_range.start;
+                            (current_range, (start..start + 1).into())
+                        };
                         if current_range.end > next_range.start {
                             default
                         } else {

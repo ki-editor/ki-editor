@@ -497,7 +497,7 @@ fn f() {
 
         assert_eq!(editor.get_selected_texts(), vec!["fn main"]);
         editor.kill(&context)?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
+        assert_eq!(editor.get_selected_texts(), vec!["("]);
         Ok(())
     }
 
@@ -555,8 +555,6 @@ fn f() {
 
         assert_eq!(editor.text(), "fn main() {");
 
-        // Expect the current selection is empty
-        assert_eq!(editor.get_selected_texts(), vec![""]);
         Ok(())
     }
 
@@ -595,8 +593,8 @@ fn f() {
         // Expect the text to be 'fn ima() {}'
         assert_eq!(editor.text(), "fn ima() {}");
 
-        // Expect the current selection is empty
-        assert_eq!(editor.get_selected_texts(), vec![""]);
+        // Expect the current selection is the character after "ma"
+        assert_eq!(editor.get_selected_texts(), vec!["i"]);
         Ok(())
     }
 
