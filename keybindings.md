@@ -40,7 +40,7 @@ The following keybindings work regardless of any mode.
 ## Normal mode
 
 - `a`: Enter insert mode at the **a**pex (front) of selection
-- `b`: Set selection mode to **b**ottom node
+- `b`: (unassigned)
 - `c`: Set selection mode to **c**olumn
 - `d`: Move **d**own
 - `e`: Enter insert mode at the **e**nd of selection
@@ -59,7 +59,7 @@ The following keybindings work regardless of any mode.
 - `r`: Raise current selection(s) (Replace parent node with current node)
 - `shift+R`: Replace the current selection with copied content, and copy the replaced content
 - `s`: Set selection mode to **s**yntax tree
-- `t`: Set selection mode to **t**op node
+- `t`: Set selection mode to **t**oken
 - `u`: Move **u**p
 - `v`: Enter buffer na**v**igation mode
 - `w`: Set selection mode to **w**ord

@@ -12,7 +12,7 @@ impl SelectionMode for SyntaxTree {
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
-        let node = buffer.get_current_node(current_selection)?;
+        let node = buffer.get_current_node(current_selection, false)?;
 
         if let Some(parent) = node.parent() {
             Ok(Box::new(
@@ -23,6 +23,20 @@ impl SelectionMode for SyntaxTree {
         } else {
             Ok(Box::new(std::iter::empty()))
         }
+    }
+    fn current(
+        &self,
+        super::SelectionModeParams {
+            buffer,
+            current_selection,
+            ..
+        }: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let byte_range = buffer
+            .get_current_node(current_selection, true)?
+            .byte_range();
+        let range = buffer.byte_range_to_char_index_range(&byte_range)?;
+        Ok(Some(current_selection.clone().set_range(range)))
     }
     fn up(
         &self,
@@ -44,7 +58,9 @@ impl SyntaxTree {
         params: super::SelectionModeParams,
         go_up: bool,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let mut node = params.buffer.get_current_node(params.current_selection)?;
+        let mut node = params
+            .buffer
+            .get_current_node(params.current_selection, false)?;
         while let Some(some_node) = get_node(node, go_up) {
             // This is necessary because sometimes the parent node can have the same range as
             // the current node
@@ -67,9 +83,10 @@ fn get_node(node: tree_sitter::Node, go_up: bool) -> Option<tree_sitter::Node> {
 }
 
 #[cfg(test)]
-mod test_sibling {
+mod test_syntax_tree {
     use crate::{
         buffer::Buffer,
+        char_index_range::CharIndexRange,
         context::Context,
         selection::{CharIndex, Selection},
         selection_mode::SelectionModeParams,
@@ -88,6 +105,53 @@ mod test_sibling {
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
         );
+    }
+
+    #[test]
+    fn case_2() {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = S(a); }");
+        SyntaxTree.assert_all_selections(
+            &buffer,
+            Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
+            &[(20..21, "S"), (21..24, "(a)")],
+        );
+    }
+
+    #[test]
+    /// Getting the current node should get the largest node where its start range
+    /// is same as the current selection start range
+    fn current_1() -> anyhow::Result<()> {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main(a:A,b:B) {  }");
+        let input_range: CharIndexRange = (CharIndex(8)..CharIndex(12)).into();
+        assert_eq!(buffer.slice(&input_range)?, "a:A,");
+        let selection = SyntaxTree.current(SelectionModeParams {
+            context: &Context::default(),
+            buffer: &buffer,
+            current_selection: &Selection::new(input_range),
+            cursor_direction: &crate::components::editor::Direction::Start,
+        });
+
+        let new_range = selection.unwrap().unwrap().range();
+        assert_eq!(buffer.slice(&new_range)?, "a:A");
+        Ok(())
+    }
+
+    #[test]
+    /// Selecting the current node should not select the root node
+    /// when the current selection is at the beginning of the buffer
+    fn current_2() -> anyhow::Result<()> {
+        let buffer = Buffer::new(tree_sitter_rust::language(), "use a; use b;");
+        let input_range: CharIndexRange = (CharIndex(0)..CharIndex(1)).into();
+        let selection = SyntaxTree.current(SelectionModeParams {
+            context: &Context::default(),
+            buffer: &buffer,
+            current_selection: &Selection::new(input_range),
+            cursor_direction: &crate::components::editor::Direction::Start,
+        });
+
+        let new_range = selection.unwrap().unwrap().range();
+        assert_eq!(buffer.slice(&new_range)?, "use a;");
+        Ok(())
     }
 
     #[test]
