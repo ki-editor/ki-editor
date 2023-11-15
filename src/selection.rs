@@ -297,8 +297,7 @@ pub enum SelectionMode {
     Find { search: Search },
 
     // Syntax-tree
-    BottomNode,
-    TopNode,
+    Token,
     SyntaxTree,
 
     // LSP
@@ -320,7 +319,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, TopNode | SyntaxTree)
+        matches!(self, SyntaxTree)
     }
 
     pub fn display(&self) -> String {
@@ -330,8 +329,7 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
-            SelectionMode::TopNode => "TOP NODE".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
@@ -397,8 +395,7 @@ impl SelectionMode {
                     true,
                 )?),
             },
-            SelectionMode::BottomNode => Box::new(selection_mode::Token),
-            SelectionMode::TopNode => Box::new(selection_mode::OutermostNode),
+            SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
@@ -419,8 +416,7 @@ impl SelectionMode {
             SelectionMode::Word
             | SelectionMode::Line
             | SelectionMode::Character
-            | SelectionMode::BottomNode
-            | SelectionMode::TopNode
+            | SelectionMode::Token
             | SelectionMode::SyntaxTree => true,
             _ => false,
         }

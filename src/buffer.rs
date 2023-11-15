@@ -320,15 +320,22 @@ impl Buffer {
         traverse(self.tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
     }
 
-    pub fn get_current_node<'a>(&'a self, selection: &Selection) -> anyhow::Result<Node<'a>> {
+    pub fn get_current_node<'a>(
+        &'a self,
+        selection: &Selection,
+        get_largest_end: bool,
+    ) -> anyhow::Result<Node<'a>> {
         let range = selection.range();
+        let start = self.char_to_byte(range.start)?;
+        let (start, end) = if get_largest_end {
+            (start, start + 1)
+        } else {
+            (start, self.char_to_byte(range.end)?)
+        };
         let node = self
             .tree
             .root_node()
-            .descendant_for_byte_range(
-                self.char_to_byte(range.start)?,
-                self.char_to_byte(range.end)?,
-            )
+            .descendant_for_byte_range(start, end)
             .unwrap_or_else(|| self.tree.root_node());
 
         // Get the most ancestral node of this range
@@ -339,8 +346,12 @@ impl Buffer {
         // If we don't get the most ancestral node, then movements like "go to next sibling" will
         // not work as expected.
         let mut result = node;
+        let root_node_id = self.tree.root_node().id();
         while let Some(parent) = result.parent() {
-            if parent.start_byte() == node.start_byte() && parent.end_byte() == node.end_byte() {
+            if parent.start_byte() == node.start_byte()
+                && root_node_id != parent.id()
+                && (get_largest_end || node.end_byte() == parent.end_byte())
+            {
                 result = parent;
             } else {
                 return Ok(result);

@@ -82,7 +82,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 Copy,
                 MoveSelection(Movement::Next),
                 Replace,
@@ -108,7 +108,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 Copy,
                 MoveSelection(Movement::Next),
                 Paste,
@@ -133,7 +133,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 Cut,
             ])?;
 
@@ -160,7 +160,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 MoveSelection(Movement::Next),
                 MoveSelection(Movement::Next),
@@ -196,7 +196,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 MoveSelection(Movement::Next),
                 MoveSelection(Movement::Next),
@@ -223,7 +223,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 MoveSelection(Movement::Next),
                 MoveSelection(Movement::Next),
@@ -234,8 +234,8 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 Copy,
-                SetSelectionMode(SelectionMode::TopNode),
-                MoveSelection(Movement::Next),
+                MatchLiteral("{".to_string()),
+                SetSelectionMode(SelectionMode::SyntaxTree),
             ])?;
 
             assert_eq!(
@@ -260,7 +260,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 Copy,
             ])?;
@@ -297,7 +297,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 EnterInsertMode(Direction::End),
             ])?;
 

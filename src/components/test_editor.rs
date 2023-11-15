@@ -53,11 +53,7 @@ mod test_editor {
     fn exchange_sibling() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
         let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::TopNode)?;
-        // Move token to "x: usize"
-        for _ in 0..3 {
-            editor.handle_movement(&context, Movement::Next)?;
-        }
+        editor.match_literal(&context, "x: usize")?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
@@ -76,9 +72,8 @@ mod test_editor {
         let context = Context::default();
 
         // Select first statement
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.handle_movement(&context, Movement::Up)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
@@ -219,14 +214,20 @@ fn main() {
             vec!["let x = S(a);", "let y = S(b);"]
         );
 
-        editor.set_selection_mode(&context, SelectionMode::TopNode)?;
-        for _ in 0..5 {
-            editor.handle_movement(&context, Movement::Next)?;
-        }
+        editor.handle_movements(
+            &context,
+            &[
+                Movement::Down,
+                Movement::Next,
+                Movement::Down,
+                Movement::Next,
+                Movement::Down,
+                Movement::Next,
+            ],
+        )?;
 
         assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
 
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
         editor.raise(&context)?;
 
         assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
@@ -259,10 +260,9 @@ fn main() {
             vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
         );
 
-        editor.set_selection_mode(&context, SelectionMode::TopNode)?;
-        for _ in 0..3 {
-            editor.handle_movement(&context, Movement::Next)?;
-        }
+        editor.handle_movement(&context, Movement::Down)?;
+        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Down)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
 
@@ -294,9 +294,7 @@ fn main() {
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
         editor.add_cursor(&context, &Movement::Next)?;
 
-        editor.set_selection_mode(&context, SelectionMode::TopNode)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Next)?;
+        editor.handle_movement(&context, Movement::Down)?;
         editor.handle_movement(&context, Movement::Next)?;
 
         assert_eq!(
@@ -324,7 +322,7 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let context = Context::default();
 
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
         editor.handle_movement(&context, Movement::Next)?;
         editor.handle_movement(&context, Movement::Next)?;
@@ -438,7 +436,7 @@ fn f() {
         // Select a range which highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 2))?;
 
-        assert_eq!(editor.selection_set.mode, SelectionMode::TopNode);
+        assert_eq!(editor.selection_set.mode, SelectionMode::SyntaxTree);
 
         // Select a range which does not highlights a node
         editor.set_selection(Position::new(0, 0)..Position::new(0, 1))?;
@@ -473,7 +471,7 @@ fn f() {
         let context = Context::default();
 
         // Select the first token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         // Enter insert mode
         editor.enter_insert_mode(Direction::End)?;
@@ -491,7 +489,7 @@ fn f() {
         let mut editor = Editor::from_text(language(), "fn main() {}");
         let context = Context::default();
         // Select first token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.toggle_highlight_mode();
         editor.handle_movement(&context, Movement::Next)?;
 
@@ -508,7 +506,7 @@ fn f() {
         let context = Context::default();
 
         // Select first token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
 
         // Delete
         editor.kill(&context)?;
@@ -547,7 +545,7 @@ fn f() {
         let context = Context::default();
 
         // Select last token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.handle_movement(&context, Movement::Last)?;
 
         // Delete
@@ -642,17 +640,13 @@ fn f() {
         let context = Context::default();
         editor.match_literal(&context, "fn a")?;
 
-        editor.set_selection_mode(&context, SelectionMode::TopNode)?;
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
 
         assert_eq!(editor.get_selected_texts(), vec!["fn a(j:J){}"]);
 
         editor.add_cursor_to_all_selections(&context)?;
 
-        editor.handle_movement(&context, Movement::Down)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Down)?;
-
+        editor.handle_movements(&context, &[Movement::Down, Movement::Next, Movement::Down])?;
         assert_eq!(editor.get_selected_texts(), vec!["j:J", "k:K", "m:M"]);
 
         editor.add_cursor_to_all_selections(&context)?;
@@ -706,7 +700,7 @@ fn f() {
         let context = Context::default();
 
         // Go to the middle of the file
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
+        editor.set_selection_mode(&context, SelectionMode::Token)?;
         editor.handle_movement(&context, Movement::Index(3))?;
 
         assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
