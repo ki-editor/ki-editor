@@ -163,9 +163,26 @@ impl Component for Editor {
             })
             .collect::<Vec<_>>();
         let theme = context.theme();
-        let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
-            range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
-        });
+        let bookmarks = buffer
+            .bookmarks()
+            .into_iter()
+            .flat_map(|bookmark| {
+                range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
+            })
+            .chain(
+                self.selection_set
+                    .map(|selection| {
+                        Some(range_to_cell_update(
+                            &buffer,
+                            selection.mark_range()?,
+                            theme,
+                            StyleKey::UiBookmark,
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .flatten(),
+            );
 
         let secondary_selections = &editor.selection_set.secondary;
 
@@ -1988,6 +2005,7 @@ impl Editor {
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
+            key!("o") => self.mark(),
 
             // p = previous
             key!("q") => {
@@ -2004,7 +2022,13 @@ impl Editor {
                 return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())
             }
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
-            key!("x") => self.mode = Mode::Exchange,
+            key!("x") => {
+                if self.has_mark() {
+                    return self.exchange_with_mark();
+                } else {
+                    self.mode = Mode::Exchange
+                }
+            }
             key!("z") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.x_mode_keymap_legend_config()?,
@@ -2589,6 +2613,7 @@ impl Editor {
             return Ok(vec![]);
         };
         self.clamp()?;
+        self.only_current_cursor()?;
         Ok(vec![Dispatch::DocumentDidSave { path }]
             .into_iter()
             .chain(self.get_document_did_change_dispatch())
@@ -2684,17 +2709,18 @@ impl Editor {
     }
 
     pub fn display_mode(&self) -> String {
+        let selection_mode = self.selection_set.mode.display();
         let mode = match &self.mode {
-            Mode::Normal => {
-                format!("NORMAL:{}", self.selection_set.mode.display())
-            }
-            Mode::Insert => "INSERT".to_string(),
-            Mode::MultiCursor => "MULTI CURSOR".to_string(),
-            Mode::FindOneChar => "FIND ONE CHAR".to_string(),
-            Mode::ScrollLine => "SCROLL LINE".to_string(),
-            Mode::Exchange => "EXCHANGE".to_string(),
-            Mode::UndoTree => "UNDO TREE".to_string(),
+            Mode::Normal => "MOVE",
+            Mode::Insert => "INSERT",
+            Mode::MultiCursor => "MULTI CURSOR",
+            Mode::FindOneChar => "FIND ONE CHAR",
+            Mode::ScrollLine => "SCROLL LINE",
+            Mode::Exchange => "EXCHANGE",
+            Mode::UndoTree => "UNDO TREE",
         };
+        let cursor_count = self.selection_set.len();
+        let mode = format!("{}:{} x {}", mode, selection_mode, cursor_count);
         if self.jumps.is_some() {
             format!("{} (JUMPING)", mode)
         } else {
@@ -2955,6 +2981,69 @@ impl Editor {
             buffer.update_highlighted_spans(highlighted_spans);
         }
         Ok(())
+    }
+
+    fn mark(&mut self) {
+        self.selection_set
+            .apply_mut(|selection| selection.toggle_mark());
+    }
+
+    fn has_mark(&self) -> bool {
+        self.selection_set.primary.has_mark()
+    }
+
+    fn exchange_with_mark(&mut self) -> Result<Vec<Dispatch>, anyhow::Error> {
+        let edit_transactions = self
+            .selection_set
+            .map(|selection| {
+                let buffer = self.buffer();
+                let current_range = selection.extended_range();
+                let mark_range = selection.mark_range()?;
+                let current_range_text = buffer.slice(&current_range).ok()?;
+                let current_range_text_len = current_range_text.len_chars();
+                Some(EditTransaction::merge(
+                    [
+                        EditTransaction::from_action_groups(
+                            [ActionGroup::new(
+                                [Action::Edit(Edit {
+                                    range: current_range,
+                                    new: buffer.slice(&mark_range).ok()?,
+                                })]
+                                .to_vec(),
+                            )]
+                            .to_vec(),
+                        ),
+                        EditTransaction::from_action_groups(
+                            [ActionGroup::new(
+                                [
+                                    Action::Edit(Edit {
+                                        range: mark_range,
+                                        new: current_range_text,
+                                    }),
+                                    Action::Select(
+                                        selection
+                                            .clone()
+                                            .unmark()
+                                            .set_initial_range(None)
+                                            .set_range(
+                                                (mark_range.start
+                                                    ..mark_range.start + current_range_text_len)
+                                                    .into(),
+                                            ),
+                                    ),
+                                ]
+                                .to_vec(),
+                            )]
+                            .to_vec(),
+                        ),
+                    ]
+                    .to_vec(),
+                ))
+            })
+            .into_iter()
+            .flatten()
+            .collect_vec();
+        self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
     }
 }
 

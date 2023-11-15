@@ -100,6 +100,7 @@ impl SelectionSet {
                 // `copied_text` should be `None`, so that pasting between different files can work properly
                 copied_text: None,
                 info: None,
+                mark: None,
             };
             Ok([Dispatch::SetClipboardContent(copied_text.to_string())].to_vec())
         } else {
@@ -141,6 +142,7 @@ impl SelectionSet {
                             copied_text: selection.copied_text.clone(),
                             initial_range: selection.initial_range,
                             info: selection.info.clone(),
+                            mark: selection.mark.clone(),
                         };
                     }
                 }
@@ -277,6 +279,10 @@ impl SelectionSet {
         if let Some((index, _)) = nearest {
             self.primary = self.secondary.remove(index);
         }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.secondary.len() + 1
     }
 }
 
@@ -426,6 +432,8 @@ pub struct Selection {
     range: CharIndexRange,
     copied_text: Option<Rope>,
 
+    mark: Option<CharIndexRange>,
+
     /// Used for extended selection.
     /// Some = the selection is being extended
     /// None = the selection is not being extended
@@ -491,6 +499,7 @@ impl Selection {
             copied_text: None,
             initial_range: None,
             info: None,
+            mark: None,
         }
     }
 
@@ -554,6 +563,7 @@ impl Selection {
             copied_text: self.copied_text.clone(),
             initial_range: self.initial_range,
             info: self.info.clone(),
+            mark: None,
         }
     }
 
@@ -583,6 +593,27 @@ impl Selection {
             .chain(self.initial_range)
             .collect_vec()
     }
+
+    pub(crate) fn toggle_mark(&mut self) {
+        if let Some(range) = self.mark.take() {
+            self.range = range
+        } else {
+            self.mark = Some(self.extended_range());
+            self.initial_range = None;
+        }
+    }
+
+    pub(crate) fn has_mark(&self) -> bool {
+        self.mark.is_some()
+    }
+
+    pub(crate) fn mark_range(&self) -> Option<CharIndexRange> {
+        self.mark
+    }
+
+    pub(crate) fn unmark(self) -> Selection {
+        Selection { mark: None, ..self }
+    }
 }
 
 // TODO: this works, but the result is not satisfactory,
@@ -597,6 +628,7 @@ impl Add<usize> for Selection {
             copied_text: self.copied_text,
             initial_range: self.initial_range,
             info: self.info,
+            mark: None,
         }
     }
 }
@@ -610,6 +642,7 @@ impl Sub<usize> for Selection {
             copied_text: self.copied_text,
             initial_range: self.initial_range,
             info: self.info,
+            mark: None,
         }
     }
 }
