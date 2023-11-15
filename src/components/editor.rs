@@ -837,7 +837,7 @@ impl Editor {
             .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::TopNode
+            SelectionMode::SyntaxTree
         } else {
             SelectionMode::Custom
         };
@@ -1962,7 +1962,7 @@ impl Editor {
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => return self.set_selection_mode(context, SelectionMode::BottomNode),
+            key!("b") => { /*Reserved for bookmark*/ }
             key!("ctrl+b") => self.save_bookmarks(),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
@@ -1998,7 +1998,7 @@ impl Editor {
             key!("r") => return self.raise(context),
             key!("shift+R") => return self.replace(context),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
-            key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
+            key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u = up
             key!("v") => {
                 return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())
@@ -2150,7 +2150,7 @@ impl Editor {
             let edit_transaction =
                 get_actual_edit_transaction(&current_selection, &next_selection)?;
             edit_transaction.selections();
-            let current_node = buffer.get_current_node(&current_selection)?;
+            let current_node = buffer.get_current_node(&current_selection, false)?;
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
@@ -2167,7 +2167,9 @@ impl Editor {
             let next_nodes = edit_transaction
                 .selections()
                 .into_iter()
-                .map(|selection| -> anyhow::Result<_> { new_buffer.get_current_node(&selection) })
+                .map(|selection| -> anyhow::Result<_> {
+                    new_buffer.get_current_node(&selection, false)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
 
             // Why don't we just use `tree.root_node().has_error()` instead?
@@ -2953,6 +2955,18 @@ impl Editor {
         if let Some(language) = buffer.language() {
             let highlighted_spans = context.highlight(language, &source_code)?;
             buffer.update_highlighted_spans(highlighted_spans);
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn handle_movements(
+        &mut self,
+        context: &Context,
+        movements: &[Movement],
+    ) -> anyhow::Result<()> {
+        for movement in movements {
+            self.handle_movement(context, *movement)?;
         }
         Ok(())
     }

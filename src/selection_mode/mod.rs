@@ -1,6 +1,5 @@
 pub mod ast_grep;
 pub mod bookmark;
-pub mod bottom_node;
 pub mod column;
 pub mod custom;
 pub mod diagnostic;
@@ -10,12 +9,10 @@ pub mod local_quickfix;
 pub mod regex;
 pub mod small_word;
 pub mod syntax_tree;
-pub mod top_node;
-
+pub mod token;
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use bookmark::Bookmark;
-pub use bottom_node::Token;
 pub use column::Column;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
@@ -26,7 +23,7 @@ pub use local_quickfix::LocalQuickfix;
 pub use small_word::SmallWord;
 use std::ops::Range;
 pub use syntax_tree::SyntaxTree;
-pub use top_node::OutermostNode;
+pub use token::Token;
 
 use crate::{
     buffer::Buffer,
