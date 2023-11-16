@@ -51,19 +51,19 @@ mod test_app {
             app.open_file(&path_main, true)?;
 
             // Copy the entire file
-            app.handle_dispatch_editors(&[SelectWholeFile, Copy])?;
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line), SelectAll, Copy])?;
 
             // Open foo.rs
             app.open_file(&path_foo, true)?;
 
             // Copy the entire file
-            app.handle_dispatch_editors(&[SelectWholeFile, Copy])?;
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line), SelectAll, Copy])?;
 
             // Open main.rs
             app.open_file(&path_main, true)?;
 
             // Select the entire file and paste
-            app.handle_dispatch_editors(&[SelectWholeFile, Paste])?;
+            app.handle_dispatch_editors(&[SelectAll, Paste])?;
 
             // Expect the content of main.rs to be that of foo.rs
             let content_main = app.get_file_content(&path_main);
@@ -467,7 +467,8 @@ mod test_app {
                 .to_vec(),
             )?;
             app.handle_dispatch_editors(&[
-                SelectWholeFile,
+                SetSelectionMode(SelectionMode::Line),
+                SelectAll,
                 Kill,
                 Insert(
                     "

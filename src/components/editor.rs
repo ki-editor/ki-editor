@@ -1516,7 +1516,7 @@ impl Editor {
             }
             DispatchEditor::Copy => return self.copy(context),
             DispatchEditor::Paste => return self.paste(context),
-            DispatchEditor::SelectWholeFile => self.select_whole_file(),
+            DispatchEditor::SelectAll => self.select_all(context)?,
             DispatchEditor::SetContent(content) => self.update_buffer(&content),
             DispatchEditor::Replace => return self.replace(context),
             DispatchEditor::Cut => return self.cut(),
@@ -1965,9 +1965,9 @@ impl Editor {
                 )]
                 .to_vec())
             }
-            key!("*") => self.select_whole_file(),
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!("-") => self.select_backward(),
+            key!("*") => self.select_all(context)?,
 
             key!("left") => return self.handle_movement(context, Movement::Previous),
             key!("shift+left") => return self.handle_movement(context, Movement::First),
@@ -2872,17 +2872,19 @@ impl Editor {
         self.enter_insert_mode(Direction::End)
     }
 
-    fn select_whole_file(&mut self) {
-        let selection_set = SelectionSet {
-            primary: self
-                .selection_set
-                .primary
-                .clone()
-                .set_range((CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into()),
-            secondary: vec![],
-            mode: SelectionMode::Custom,
-        };
-        self.update_selection_set(selection_set);
+    fn select_all(&mut self, context: &Context) -> anyhow::Result<()> {
+        self.move_selection_with_selection_mode_without_global_mode(
+            context,
+            Movement::First,
+            self.selection_set.mode.clone(),
+        )?;
+        self.toggle_highlight_mode();
+        self.move_selection_with_selection_mode_without_global_mode(
+            context,
+            Movement::Last,
+            self.selection_set.mode.clone(),
+        )?;
+        Ok(())
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
@@ -3092,7 +3094,7 @@ pub enum DispatchEditor {
     Cut,
     Replace,
     Paste,
-    SelectWholeFile,
+    SelectAll,
     SetContent(String),
     ToggleHighlightMode,
     EnterUndoTreeMode,
