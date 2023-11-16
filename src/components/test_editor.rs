@@ -1003,7 +1003,7 @@ fn main() {
 
         // Bookmark "z"
         editor.match_literal(&context, "z")?;
-        editor.save_bookmarks();
+        editor.toggle_bookmarks();
 
         // Expect the parent lines of the current selections are highlighted with parent_lines_background,
         // regardless of whether the parent lines are inbound or outbound
@@ -1020,7 +1020,7 @@ fn main() {
 
         // Bookmark the "fn" token
         editor.match_literal(&context, "fn")?;
-        editor.save_bookmarks();
+        editor.toggle_bookmarks();
 
         // Go to "print()" and skip the first 3 lines for rendering
         editor.match_literal(&context, "print()")?;
@@ -1131,7 +1131,7 @@ fn main() { // too long
 
         // Expect decorations overrides syntax highlighting
         editor.match_literal(&context, "fn")?;
-        editor.save_bookmarks();
+        editor.toggle_bookmarks();
         // Move cursor to next line, so that "fn" is not selected,
         //  so that we can test the style applied to "fn" ,
         // otherwise the style of primary selection anchors will override the bookmark style

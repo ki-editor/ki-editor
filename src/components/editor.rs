@@ -1435,6 +1435,11 @@ impl Editor {
                         .map(|params| {
                             [
                                 Keymap::new(
+                                    "b",
+                                    "Toggle bookmark",
+                                    Dispatch::DispatchEditor(DispatchEditor::ToggleBookmark),
+                                ),
+                                Keymap::new(
                                     "e",
                                     "Reveal in Explorer",
                                     Dispatch::RevealInExplorer(params.path.clone()),
@@ -1526,6 +1531,7 @@ impl Editor {
             DispatchEditor::Kill => return self.kill(context),
             DispatchEditor::Insert(string) => return self.insert(&string),
             DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
+            DispatchEditor::ToggleBookmark => self.toggle_bookmarks(),
         }
         Ok([].to_vec())
     }
@@ -1912,7 +1918,7 @@ impl Editor {
         }
     }
 
-    pub fn save_bookmarks(&mut self) {
+    pub fn toggle_bookmarks(&mut self) {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
@@ -1979,8 +1985,7 @@ impl Editor {
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => { /*Reserved for bookmark*/ }
-            key!("ctrl+b") => self.save_bookmarks(),
+            key!("b") => return self.set_selection_mode(context, SelectionMode::Bookmark),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
@@ -3102,4 +3107,5 @@ pub enum DispatchEditor {
     Kill,
     Insert(String),
     MatchLiteral(String),
+    ToggleBookmark,
 }
