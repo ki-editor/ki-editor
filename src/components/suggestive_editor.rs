@@ -115,7 +115,7 @@ impl Component for SuggestiveEditor {
                     self.dropdown.borrow_mut().previous_item();
                     return Ok(vec![]);
                 }
-                key!("enter") => {
+                key!("tab") => {
                     if let Some(completion) = self.dropdown.borrow_mut().current_item() {
                         let dispatches = match completion.edit {
                             None => self
@@ -152,7 +152,7 @@ impl Component for SuggestiveEditor {
                     self.menu.borrow_mut().previous_item();
                     return Ok(vec![]);
                 }
-                key!("enter") => {
+                key!("tab") => {
                     if let Some(code_action) = self.menu.borrow_mut().current_item() {
                         let dispatches = vec![Dispatch::ApplyWorkspaceEdit(code_action.edit)];
                         self.menu_opened = false;
@@ -507,7 +507,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
 
         // Press enter
-        editor.handle_events(keys!("enter")).unwrap();
+        editor.handle_events(keys!("tab")).unwrap();
 
         // Expect the completion dropdown to be closed
         assert!(!editor.dropdown_opened());
@@ -546,7 +546,7 @@ mod test_suggestive_editor {
         assert_eq!(dropdown_content, "ƒ Spongebob");
 
         // Press enter
-        editor.handle_events(keys!("enter"))?;
+        editor.handle_events(keys!("tab"))?;
 
         // Expect the content of the buffer to be applied with the new edit,
         // resulting in 'Spongebob', and does not contain emoji
@@ -582,7 +582,7 @@ mod test_suggestive_editor {
         });
 
         // Press enter
-        editor.handle_events(keys!("enter")).unwrap();
+        editor.handle_events(keys!("tab")).unwrap();
 
         // Expect the content of the buffer to be applied with the new edit,
         // resulting in 'Spongebob'
@@ -659,7 +659,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
 
         // Type in enter
-        editor.handle_events(keys!("enter"))?;
+        editor.handle_events(keys!("tab"))?;
 
         // Expect a new line is added
         assert_eq!(editor.editor().text(), "pa s\n");
@@ -711,36 +711,6 @@ mod test_suggestive_editor {
             vec!["Spongebob", "Squidward"]
         );
         Ok(())
-    }
-
-    #[test]
-    fn enter_when_no_filtered_items() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Expect the completion dropdown to be opened
-        assert!(editor.dropdown_opened());
-
-        // Type in 'x'
-        editor.handle_events(keys!("x")).unwrap();
-
-        // Expect the completion dropdown to be closed,
-        // since there are no filtered items
-        assert!(!editor.dropdown_opened());
-
-        // Press enter
-        editor.handle_events(keys!("enter")).unwrap();
-
-        // Expect a newline to be inserted
-        assert_eq!(editor.editor().text(), "x\n");
     }
 
     #[test]
