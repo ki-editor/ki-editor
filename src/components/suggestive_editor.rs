@@ -152,7 +152,7 @@ impl Component for SuggestiveEditor {
                     self.menu.borrow_mut().previous_item();
                     return Ok(vec![]);
                 }
-                key!("tab") => {
+                key!("enter") => {
                     if let Some(code_action) = self.menu.borrow_mut().current_item() {
                         let dispatches = vec![Dispatch::ApplyWorkspaceEdit(code_action.edit)];
                         self.menu_opened = false;
@@ -349,6 +349,9 @@ impl SuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
+    use crate::context::Context;
+    use crate::lsp::code_action::CodeAction;
+    use crate::lsp::workspace_edit::WorkspaceEdit;
     use crate::{
         app::Dispatch,
         buffer::Buffer,
@@ -360,7 +363,7 @@ mod test_suggestive_editor {
         position::Position,
     };
     use lsp_types::CompletionItemKind;
-    use my_proc_macros::keys;
+    use my_proc_macros::{key, keys};
     use shared::canonicalized_path::CanonicalizedPath;
     use std::{cell::RefCell, rc::Rc};
 
@@ -383,6 +386,32 @@ mod test_suggestive_editor {
             Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), ""))),
             filter,
         )
+    }
+
+    #[test]
+    fn code_action() -> anyhow::Result<()> {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+        editor.set_code_actions(
+            [CodeAction {
+                title: "".to_string(),
+                kind: None,
+                edit: WorkspaceEdit {
+                    edits: [].to_vec(),
+                    resource_operations: Vec::new(),
+                },
+            }]
+            .to_vec(),
+        );
+        let context = Context::default();
+        let dispatches = editor.handle_key_event(&context, key!("enter"))?;
+        assert_eq!(
+            dispatches,
+            [Dispatch::ApplyWorkspaceEdit(WorkspaceEdit {
+                edits: [].to_vec(),
+                resource_operations: [].to_vec(),
+            },),]
+        );
+        Ok(())
     }
 
     #[test]
