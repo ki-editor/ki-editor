@@ -45,6 +45,10 @@ impl DropdownItem for QuickfixListItem {
     fn info(&self) -> Option<Info> {
         self.info.clone()
     }
+
+    fn group(&self) -> String {
+        self.location().path.display_absolute()
+    }
 }
 
 fn read_specific_line<P>(filename: &P, line_number: usize) -> anyhow::Result<String>
