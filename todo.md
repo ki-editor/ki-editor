@@ -150,6 +150,7 @@
 - [x] feat(selection_mode/character): let first/last be the first/last char of the current line, similar behavior like SyntaxType, this is so that to get to the last char, we can do `con`
 - [x] feat(movement): move first/last accessible with 1 keypress, perhaps y=first and z=last? But z is hard to combo with last
 - [x] feat(keymap): change e->x, i->a, a->e, x->z (zephyr/misc), op -> i = initial (first selection), on -> o = omega (last selection), oi -> 0 = index
+- [x] feat: how to enter newline in insert mode?!
 - [-] feat(keymap): y = yeet away the both end by one character for each selection(s)
 
 # Grammar loading
@@ -237,7 +238,6 @@
 - [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
 - [] feat(title): window title and app title should be wrappable
 - [] perf(insert): only store edit patch and reparse tree upon exit, don't compute them on every keystroke
-- [] feat: how to enter newline in insert mode?!
 - [] style(parent_lines): don't highlight the leading and trailing whitespaces of parent lines
 - [] fix(hover-info): should be closed upon pressing esc in normal mode
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
