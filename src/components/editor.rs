@@ -1379,6 +1379,13 @@ impl Editor {
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(
+                    "b",
+                    "Bookmark",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Bookmark,
+                    )),
+                ),
+                Keymap::new(
                     "c",
                     "Current selection",
                     Dispatch::ShowKeymapLegend(find_current_selection_keymaps),
@@ -1434,11 +1441,6 @@ impl Editor {
                     self.get_request_params()
                         .map(|params| {
                             [
-                                Keymap::new(
-                                    "b",
-                                    "Toggle bookmark",
-                                    Dispatch::DispatchEditor(DispatchEditor::ToggleBookmark),
-                                ),
                                 Keymap::new(
                                     "e",
                                     "Reveal in Explorer",
@@ -1985,7 +1987,7 @@ impl Editor {
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => return self.set_selection_mode(context, SelectionMode::Bookmark),
+            key!("b") => self.toggle_bookmarks(),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
@@ -2780,7 +2782,7 @@ impl Editor {
         Ok(())
     }
 
-    fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
+    pub fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set.only();
         self.enter_normal_mode()
     }

@@ -1178,4 +1178,26 @@ fn main() { // too long
         assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 2));
         Ok(())
     }
+
+    #[test]
+    fn bookmark() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spam");
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.toggle_bookmarks();
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        editor.add_cursor_to_all_selections(&context)?;
+        assert_eq!(editor.get_selected_texts(), ["foo", "spam"]);
+        editor.only_current_cursor()?;
+        assert_eq!(editor.get_selected_texts(), ["foo"]);
+
+        // Toggling the bookmark when selecting existing bookmark should
+        // cause it to be removed from the bookmark lists
+        editor.toggle_bookmarks();
+        editor.handle_movement(&context, Movement::Current)?;
+        assert_eq!(editor.get_selected_texts(), ["spam"]);
+        Ok(())
+    }
 }
