@@ -17,7 +17,7 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
-use std::ops::Range;
+use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -73,8 +73,17 @@ impl Buffer {
         self.decorations = decorations.clone();
     }
 
-    pub fn save_bookmarks(&mut self, ranges: Vec<CharIndexRange>) {
-        self.bookmarks.extend(ranges)
+    pub fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
+        let old_ranges = std::mem::replace(&mut self.bookmarks, vec![])
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();
+        // We take the symmetric difference between the old ranges and the new ranges
+        // so that user can unmark existing bookmark
+        self.bookmarks = new_ranges
+            .symmetric_difference(&old_ranges)
+            .cloned()
+            .collect_vec();
     }
 
     pub fn path(&self) -> Option<CanonicalizedPath> {
@@ -410,7 +419,7 @@ impl Buffer {
         let bookmarks = std::mem::take(&mut self.bookmarks);
         self.bookmarks = bookmarks
             .into_iter()
-            .map(|bookmark| bookmark.apply_edit(edit))
+            .filter_map(|bookmark| bookmark.apply_edit(edit))
             .collect();
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope

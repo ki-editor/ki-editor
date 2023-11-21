@@ -248,3 +248,5 @@
 - [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
 - [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
+- [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
+- [] fix(ctrl+l): should be reset after moving selection, so that after moving selection I can always align to top

@@ -1180,7 +1180,7 @@ fn main() { // too long
     }
 
     #[test]
-    fn bookmark() -> anyhow::Result<()> {
+    fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "foo bar spam");
         let context = Context::default();
         editor.set_selection_mode(&context, SelectionMode::Word)?;
@@ -1191,13 +1191,47 @@ fn main() { // too long
         editor.add_cursor_to_all_selections(&context)?;
         assert_eq!(editor.get_selected_texts(), ["foo", "spam"]);
         editor.only_current_cursor()?;
-        assert_eq!(editor.get_selected_texts(), ["foo"]);
+        assert_eq!(editor.get_selected_texts(), ["spam"]);
 
         // Toggling the bookmark when selecting existing bookmark should
         // cause it to be removed from the bookmark lists
         editor.toggle_bookmarks();
         editor.handle_movement(&context, Movement::Current)?;
-        assert_eq!(editor.get_selected_texts(), ["spam"]);
+        editor.add_cursor_to_all_selections(&context)?;
+        assert_eq!(editor.get_selected_texts(), ["foo"]);
+        Ok(())
+    }
+
+    #[test]
+    fn update_bookmark_position() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spim");
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
+        // Kill "foo"
+        editor.kill(&context)?;
+        assert_eq!(editor.content(), "bar spim");
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        // Expect bookmark position is updated, and still selects "spim"
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        // Remove "m" from "spim"
+        editor.enter_insert_mode(Direction::End)?;
+        editor.backspace()?;
+
+        assert_eq!(editor.content(), "bar spi");
+        editor.enter_normal_mode()?;
+
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        // Expect the "spim" bookmark is removed
+        // By the fact that "spi" is not selected
+        assert_eq!(editor.get_selected_texts(), ["i"]);
+
         Ok(())
     }
 }
