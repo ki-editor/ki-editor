@@ -1654,6 +1654,11 @@ impl Editor {
                     "Git Hunk",
                     Dispatch::GetRepoGitHunks,
                 )))
+                .chain(Some(Keymap::new(
+                    "b",
+                    "Bookmark",
+                    Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
+                )))
                 .collect_vec(),
         }
     }
@@ -2492,6 +2497,10 @@ impl Editor {
 
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
+    }
+
+    pub fn buffer_rc(&self) -> Rc<RefCell<Buffer>> {
+        self.buffer.clone()
     }
 
     pub fn buffer_mut(&mut self) -> RefMut<Buffer> {

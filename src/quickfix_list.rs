@@ -32,7 +32,7 @@ impl DropdownItem for QuickfixListItem {
         let line = location.range.start.line;
         let content = read_specific_line(&location.path, line)
             .unwrap_or("[Failed to read file]".to_string())
-            .trim_start()
+            .trim_start_matches(|c: char| c.is_whitespace())
             .to_string();
         let path = location
             .path
@@ -296,6 +296,7 @@ impl Ord for Location {
 pub enum QuickfixListType {
     LspDiagnostic(Option<DiagnosticSeverity>),
     Items(Vec<QuickfixListItem>),
+    Bookmark,
 }
 
 #[cfg(test)]

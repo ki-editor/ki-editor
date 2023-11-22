@@ -1,5 +1,6 @@
 use crate::{
     app::Dimension,
+    buffer::Buffer,
     components::{
         component::{Component, ComponentId},
         editor::{Editor, Movement},
@@ -15,7 +16,10 @@ use crate::{
 use anyhow::anyhow;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Ref, RefCell},
+    rc::Rc,
+};
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
@@ -501,6 +505,13 @@ impl Layout {
 
     pub(crate) fn display_navigation_history(&self) -> String {
         self.undo_tree.display().to_string()
+    }
+
+    pub(crate) fn buffers(&self) -> Vec<Rc<RefCell<Buffer>>> {
+        self.background_suggestive_editors
+            .iter()
+            .map(|editor| editor.borrow().editor().buffer_rc())
+            .collect_vec()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

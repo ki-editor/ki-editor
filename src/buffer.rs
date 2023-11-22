@@ -671,6 +671,12 @@ impl Buffer {
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
     }
+    pub fn char_index_range_to_position_range(
+        &self,
+        range: CharIndexRange,
+    ) -> anyhow::Result<Range<Position>> {
+        Ok(self.char_to_position(range.start)?..self.char_to_position(range.end)?)
+    }
 }
 
 #[cfg(test)]
