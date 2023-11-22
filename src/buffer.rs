@@ -400,6 +400,11 @@ impl Buffer {
         let new_selection_set = edit_transaction
             .selection_set(current_selection_set.mode.clone())
             .unwrap_or_else(|| current_selection_set.clone());
+        let current_buffer_state = BufferState {
+            selection_set: current_selection_set,
+            bookmarks: self.bookmarks.clone(),
+        };
+
         edit_transaction
             .edits()
             .into_iter()
@@ -408,7 +413,12 @@ impl Buffer {
                 Ok(()) => self.apply_edit(edit),
             })?;
 
-        self.add_undo_patch(current_selection_set, new_selection_set.clone(), &before);
+        let new_buffer_state = BufferState {
+            selection_set: new_selection_set.clone(),
+            bookmarks: self.bookmarks.clone(),
+        };
+
+        self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
         self.reparse_tree()?;
 
         Ok(new_selection_set)
@@ -430,8 +440,8 @@ impl Buffer {
     /// This method assumes `self.rope` is already updated
     fn add_undo_patch(
         &mut self,
-        old_selection_set: SelectionSet,
-        new_selection_set: SelectionSet,
+        old_buffer_state: BufferState,
+        new_buffer_state: BufferState,
         before: &str,
     ) {
         let after = &self.rope.to_string();
@@ -441,11 +451,11 @@ impl Buffer {
         let old_new = OldNew {
             old_to_new: Patch {
                 patch: diffy::create_patch(before, after).to_string(),
-                selection_set: new_selection_set,
+                state: new_buffer_state,
             },
             new_to_old: Patch {
                 patch: diffy::create_patch(after, before).to_string(),
-                selection_set: old_selection_set,
+                state: old_buffer_state,
             },
         };
         self.undo_tree
@@ -466,11 +476,20 @@ impl Buffer {
         movement: Movement,
     ) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
-        let selection_set = self.undo_tree.apply_movement(&mut content, movement)?;
+        let state = self.undo_tree.apply_movement(&mut content, movement)?;
 
         self.update(&content);
+        if let Some(BufferState {
+            selection_set,
+            bookmarks,
+        }) = state
+        {
+            self.bookmarks = bookmarks;
 
-        Ok(selection_set)
+            Ok(Some(selection_set))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
@@ -877,7 +896,13 @@ fn f(
 pub struct Patch {
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
     pub patch: String,
+    pub state: BufferState,
+}
+
+#[derive(Clone)]
+pub struct BufferState {
     pub selection_set: SelectionSet,
+    pub bookmarks: Vec<CharIndexRange>,
 }
 
 impl std::fmt::Display for Patch {
@@ -886,7 +911,7 @@ impl std::fmt::Display for Patch {
     }
 }
 
-impl std::fmt::Display for SelectionSet {
+impl std::fmt::Display for BufferState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: this should describe the action
         // For example, "kill", "exchange", "insert"
@@ -897,12 +922,12 @@ impl std::fmt::Display for SelectionSet {
 impl Applicable for Patch {
     type Target = String;
 
-    type Output = SelectionSet;
+    type Output = BufferState;
 
     fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
         *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
 
-        Ok(self.selection_set.clone())
+        Ok(self.state.clone())
     }
 }
 impl PartialEq for Patch {

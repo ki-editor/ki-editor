@@ -1234,4 +1234,44 @@ fn main() { // too long
 
         Ok(())
     }
+
+    #[test]
+    fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spim");
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
+        // Kill "foo"
+        editor.kill(&context)?;
+
+        assert_eq!(editor.content(), "bar spim");
+
+        // Expect bookmark position is updated, and still selects "spim"
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        // Undo
+        editor.undo()?;
+        assert_eq!(editor.content(), "foo bar spim");
+
+        // Expect bookmark position is updated, and still selects "spim"
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        // Redo
+        editor.redo()?;
+        assert_eq!(editor.content(), "bar spim");
+
+        // Expect bookmark position is updated, and still selects "spim"
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        Ok(())
+    }
 }
