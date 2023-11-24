@@ -343,11 +343,11 @@ impl Component for Editor {
             .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
-            .chain(bookmarks)
             .chain(primary_selection)
-            .chain(primary_selection_anchors)
             .chain(secondary_selection)
+            .chain(primary_selection_anchors)
             .chain(seconday_selection_anchors)
+            .chain(bookmarks)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
@@ -1363,6 +1363,13 @@ impl Editor {
             owner_id: self.id(),
             keymaps: [
                 Keymap::new(
+                    "b",
+                    "Bookmark",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Bookmark,
+                    )),
+                ),
+                Keymap::new(
                     "c",
                     "Current selection",
                     Dispatch::ShowKeymapLegend(find_current_selection_keymaps),
@@ -1500,7 +1507,7 @@ impl Editor {
             }
             DispatchEditor::Copy => return self.copy(context),
             DispatchEditor::Paste => return self.paste(context),
-            DispatchEditor::SelectWholeFile => self.select_whole_file(),
+            DispatchEditor::SelectAll => self.select_all(context)?,
             DispatchEditor::SetContent(content) => self.update_buffer(&content),
             DispatchEditor::Replace => return self.replace(context),
             DispatchEditor::Cut => return self.cut(),
@@ -1510,6 +1517,7 @@ impl Editor {
             DispatchEditor::Kill => return self.kill(context),
             DispatchEditor::Insert(string) => return self.insert(&string),
             DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
+            DispatchEditor::ToggleBookmark => self.toggle_bookmarks(),
             DispatchEditor::EnterInsideMode(kind) => {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
@@ -1632,6 +1640,11 @@ impl Editor {
                     "g",
                     "Git Hunk",
                     Dispatch::GetRepoGitHunks,
+                )))
+                .chain(Some(Keymap::new(
+                    "b",
+                    "Bookmark",
+                    Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
                 )))
                 .collect_vec(),
         }
@@ -1899,7 +1912,7 @@ impl Editor {
         }
     }
 
-    pub fn save_bookmarks(&mut self) {
+    pub fn toggle_bookmarks(&mut self) {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
@@ -1952,9 +1965,9 @@ impl Editor {
                 )]
                 .to_vec())
             }
-            key!("*") => self.select_whole_file(),
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!("-") => self.select_backward(),
+            key!("*") => self.select_all(context)?,
 
             key!("left") => return self.handle_movement(context, Movement::Previous),
             key!("shift+left") => return self.handle_movement(context, Movement::First),
@@ -1966,8 +1979,7 @@ impl Editor {
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => { /*Reserved for bookmark*/ }
-            key!("ctrl+b") => self.save_bookmarks(),
+            key!("b") => self.toggle_bookmarks(),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
@@ -1998,6 +2010,7 @@ impl Editor {
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
+            // o = (unassigned)
 
             // p = previous
             key!("q") => {
@@ -2178,7 +2191,7 @@ impl Editor {
                 .selections()
                 .into_iter()
                 .map(|selection| -> anyhow::Result<_> {
-                    new_buffer.get_current_node(&selection, false)
+                    new_buffer.get_current_node(selection, false)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -2473,6 +2486,10 @@ impl Editor {
         self.buffer.borrow()
     }
 
+    pub fn buffer_rc(&self) -> Rc<RefCell<Buffer>> {
+        self.buffer.clone()
+    }
+
     pub fn buffer_mut(&mut self) -> RefMut<Buffer> {
         self.buffer.borrow_mut()
     }
@@ -2601,6 +2618,7 @@ impl Editor {
             return Ok(vec![]);
         };
         self.clamp()?;
+        self.only_current_cursor()?;
         Ok(vec![Dispatch::DocumentDidSave { path }]
             .into_iter()
             .chain(self.get_document_did_change_dispatch())
@@ -2696,17 +2714,18 @@ impl Editor {
     }
 
     pub fn display_mode(&self) -> String {
+        let selection_mode = self.selection_set.mode.display();
         let mode = match &self.mode {
-            Mode::Normal => {
-                format!("NORMAL:{}", self.selection_set.mode.display())
-            }
-            Mode::Insert => "INSERT".to_string(),
-            Mode::MultiCursor => "MULTI CURSOR".to_string(),
-            Mode::FindOneChar => "FIND ONE CHAR".to_string(),
-            Mode::ScrollLine => "SCROLL LINE".to_string(),
-            Mode::Exchange => "EXCHANGE".to_string(),
-            Mode::UndoTree => "UNDO TREE".to_string(),
+            Mode::Normal => "MOVE",
+            Mode::Insert => "INSERT",
+            Mode::MultiCursor => "MULTI CURSOR",
+            Mode::FindOneChar => "FIND ONE CHAR",
+            Mode::ScrollLine => "SCROLL LINE",
+            Mode::Exchange => "EXCHANGE",
+            Mode::UndoTree => "UNDO TREE",
         };
+        let cursor_count = self.selection_set.len();
+        let mode = format!("{}:{} x {}", mode, selection_mode, cursor_count);
         if self.jumps.is_some() {
             format!("{} (JUMPING)", mode)
         } else {
@@ -2759,7 +2778,7 @@ impl Editor {
         Ok(())
     }
 
-    fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
+    pub fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set.only();
         self.enter_normal_mode()
     }
@@ -2856,17 +2875,19 @@ impl Editor {
         self.enter_insert_mode(Direction::End)
     }
 
-    fn select_whole_file(&mut self) {
-        let selection_set = SelectionSet {
-            primary: self
-                .selection_set
-                .primary
-                .clone()
-                .set_range((CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into()),
-            secondary: vec![],
-            mode: SelectionMode::Custom,
-        };
-        self.update_selection_set(selection_set);
+    fn select_all(&mut self, context: &Context) -> anyhow::Result<()> {
+        self.move_selection_with_selection_mode_without_global_mode(
+            context,
+            Movement::First,
+            self.selection_set.mode.clone(),
+        )?;
+        self.toggle_highlight_mode();
+        self.move_selection_with_selection_mode_without_global_mode(
+            context,
+            Movement::Last,
+            self.selection_set.mode.clone(),
+        )?;
+        Ok(())
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
@@ -3004,6 +3025,10 @@ impl Editor {
         }
         Ok(())
     }
+
+    pub(crate) fn get_formatted_content(&self) -> Option<String> {
+        self.buffer().get_formatted_content()
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3038,7 +3063,7 @@ pub enum DispatchEditor {
     Cut,
     Replace,
     Paste,
-    SelectWholeFile,
+    SelectAll,
     SetContent(String),
     ToggleHighlightMode,
     EnterUndoTreeMode,
@@ -3046,5 +3071,6 @@ pub enum DispatchEditor {
     Kill,
     Insert(String),
     MatchLiteral(String),
+    ToggleBookmark,
     EnterInsideMode(InsideKind),
 }

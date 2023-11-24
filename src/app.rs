@@ -47,8 +47,6 @@ use crate::{
 pub struct App<T: Frontend> {
     context: Context,
 
-    buffers: Vec<Rc<RefCell<Buffer>>>,
-
     sender: Sender<AppMessage>,
 
     /// Used for receiving message from various sources:
@@ -91,7 +89,6 @@ impl<T: Frontend> App<T> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
             context: Context::new(working_directory.clone()),
-            buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp: true,
@@ -771,7 +768,6 @@ impl<T: Frontend> App<T> {
         let language = buffer.language();
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
-        self.buffers.push(buffer.clone());
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
@@ -844,10 +840,11 @@ impl<T: Frontend> App<T> {
                 // Need to notify LSP that the file is opened
                 self.lsp_manager.initialized(
                     language,
-                    self.buffers
-                        .iter()
+                    self.layout
+                        .buffers()
+                        .into_iter()
                         .filter_map(|buffer| buffer.borrow().path())
-                        .collect::<Vec<_>>(),
+                        .collect_vec(),
                 );
                 Ok(())
             }
@@ -985,6 +982,37 @@ impl<T: Frontend> App<T> {
             QuickfixListType::Items(items) => {
                 self.set_quickfix_list(ResponseContext::default(), QuickfixList::new(items))
             }
+            QuickfixListType::Bookmark => {
+                let quickfix_list = QuickfixList::new(
+                    self.layout
+                        .buffers()
+                        .into_iter()
+                        .flat_map(|buffer| {
+                            buffer
+                                .borrow()
+                                .bookmarks()
+                                .into_iter()
+                                .filter_map(|bookmark| {
+                                    let buffer = buffer.borrow();
+                                    let position_range =
+                                        buffer.char_index_range_to_position_range(bookmark).ok()?;
+                                    Some(QuickfixListItem::new(
+                                        Location {
+                                            path: buffer.path()?,
+                                            range: position_range,
+                                        },
+                                        None,
+                                    ))
+                                })
+                                .collect_vec()
+                        })
+                        .collect_vec(),
+                );
+                self.set_quickfix_list(
+                    ResponseContext::default().set_description("Bookmark"),
+                    quickfix_list,
+                )
+            }
         }
     }
 
@@ -1119,13 +1147,6 @@ impl<T: Frontend> App<T> {
         } else {
             std::fs::remove_file(path)?;
         }
-        self.buffers.retain(|buffer| {
-            buffer
-                .borrow()
-                .path()
-                .as_ref()
-                .map_or(true, |buffer_path| buffer_path != path)
-        });
         self.layout.remove_suggestive_editor(path);
         self.layout.refresh_file_explorer(&self.working_directory)?;
         Ok(())

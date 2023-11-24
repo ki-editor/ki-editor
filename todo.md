@@ -150,6 +150,7 @@
 - [x] feat(selection_mode/character): let first/last be the first/last char of the current line, similar behavior like SyntaxType, this is so that to get to the last char, we can do `con`
 - [x] feat(movement): move first/last accessible with 1 keypress, perhaps y=first and z=last? But z is hard to combo with last
 - [x] feat(keymap): change e->x, i->a, a->e, x->z (zephyr/misc), op -> i = initial (first selection), on -> o = omega (last selection), oi -> 0 = index
+- [x] feat: how to enter newline in insert mode?!
 - [-] feat(keymap): y = yeet away the both end by one character for each selection(s)
 
 # Grammar loading
@@ -237,7 +238,6 @@
 - [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
 - [] feat(title): window title and app title should be wrappable
 - [] perf(insert): only store edit patch and reparse tree upon exit, don't compute them on every keystroke
-- [] feat: how to enter newline in insert mode?!
 - [] style(parent_lines): don't highlight the leading and trailing whitespaces of parent lines
 - [] fix(hover-info): should be closed upon pressing esc in normal mode
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
@@ -248,3 +248,6 @@
 - [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
 - [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
+- [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
+- [] fix(ctrl+l): should be reset after moving selection, so that after moving selection I can always align to top
+- [] feat(quickfix-list): do not repeat group name, easier for u/d to be understood, display result with hierarchy

@@ -14,6 +14,7 @@ pub const LANGUAGES: &[&Language] = &[
     &tree_sitter_query(),
     &typescript(false),
     &typescript(true),
+    &xml(),
     &yaml(),
 ];
 
@@ -206,6 +207,22 @@ const fn typescript(tsx: bool) -> Language {
         }),
         formatter_command: Some(Command("prettierd", if tsx { &[".tsx"] } else { &[".ts"] })),
         ..Language::new()
+    }
+}
+
+const fn xml() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("xml")),
+        extensions: &["xml", "svg"],
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "xml",
+            url: "https://github.com/ObserverOfTime/tree-sitter-xml",
+            subpath: Some("tree-sitter-xml"),
+            commit: "a3bfa1ae7e8400ab81a6358f5e8d2983f5dd0697",
+        }),
+        formatter_command: None,
+        highlight_query: None,
     }
 }
 
