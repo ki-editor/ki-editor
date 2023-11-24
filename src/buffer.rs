@@ -2,6 +2,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    git::hunk::Hunk,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
@@ -536,7 +537,7 @@ impl Buffer {
         Ok(())
     }
 
-    fn get_formatted_content(&self) -> Option<String> {
+    pub fn get_formatted_content(&self) -> Option<String> {
         if !self.tree.root_node().has_error() {
             if let Some(content) = self.language.as_ref().and_then(|language| {
                 language
@@ -553,6 +554,7 @@ impl Buffer {
                 }
             }
         }
+        log::info!("Unable to get formatted content because of syntax error");
         None
     }
 
@@ -563,18 +565,12 @@ impl Buffer {
         let before = self.rope.to_string();
 
         let content = if let Some(formatted_content) = self.get_formatted_content() {
-            let edit_transaction = EditTransaction::from_action_groups(
-                [ActionGroup {
-                    actions: [Action::Edit(Edit {
-                        range: (CharIndex(0)..CharIndex(self.len_chars())).into(),
-                        new: Rope::from(formatted_content.clone()),
-                    })]
-                    .to_vec(),
-                }]
-                .to_vec(),
-            );
-            self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
-            formatted_content
+            if let Ok(edit_transaction) = self.get_edit_transaction(&formatted_content) {
+                self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
+                formatted_content
+            } else {
+                before
+            }
         } else {
             before
         };
@@ -696,11 +692,37 @@ impl Buffer {
     ) -> anyhow::Result<Range<Position>> {
         Ok(self.char_to_position(range.start)?..self.char_to_position(range.end)?)
     }
+
+    fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
+        let edits: Vec<Edit> = Hunk::get(&self.rope.to_string(), new)
+            .into_iter()
+            .map(|hunk| -> anyhow::Result<_> {
+                let old_line_range = hunk.old_line_range();
+                Ok(Edit {
+                    range: self.position_range_to_char_index_range(
+                        &(Position::new(old_line_range.start, 0)
+                            ..Position::new(old_line_range.end, 0)),
+                    )?,
+                    new: Rope::from_str(&hunk.new_content()),
+                })
+            })
+            .try_collect()?;
+        Ok(EditTransaction::from_action_groups(
+            edits
+                .into_iter()
+                .map(|edit| ActionGroup {
+                    actions: [Action::Edit(edit)].to_vec(),
+                })
+                .collect_vec(),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod test_buffer {
     use itertools::Itertools;
+
+    use crate::selection::SelectionSet;
 
     use super::Buffer;
 
@@ -889,6 +911,48 @@ fn f(
                 assert_eq!(buffer.rope.to_string(), code);
             })
         }
+    }
+
+    #[test]
+    fn patch_edits() -> anyhow::Result<()> {
+        let old = r#"
+            let x = "1";
+            let y = "2";
+            let z = 3;
+            let a = 4;
+            let b = 4;
+            // This line will be removed
+                "#
+        .trim();
+
+        // Suppose the new content has all kinds of changes:
+        // 1. Replacement (line 1)
+        // 2. Insertion (line 3)
+        // 3. Deletion (last line)
+        let new = r#"
+            let x = "this line is replaced
+                     with multiline content"
+            let y = "2";
+            let z = 3;
+            // This is a newly inserted line
+            let a = 4;
+            let b = 4;
+                            "#
+        .trim();
+
+        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+
+        let edit_transaction = buffer.get_edit_transaction(new)?;
+
+        // Expect there are 3 edits
+        assert_eq!(edit_transaction.edits().len(), 3);
+
+        // Apply the edit transaction
+        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
+
+        // Expect the content to be the same as the 2nd files
+        pretty_assertions::assert_eq!(buffer.content(), new);
+        Ok(())
     }
 }
 

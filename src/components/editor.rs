@@ -3076,6 +3076,10 @@ impl Editor {
         }
         Ok(())
     }
+
+    pub(crate) fn get_formatted_content(&self) -> Option<String> {
+        self.buffer().get_formatted_content()
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]

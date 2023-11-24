@@ -1274,4 +1274,30 @@ fn main() { // too long
 
         Ok(())
     }
+
+    #[test]
+    fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Result<()> {
+        let input = "// foo bar spim\nfn foo() {}\n";
+
+        let mut editor = Editor::from_text(language(), input);
+        editor.set_language(shared::language::from_extension("rs").unwrap())?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["bar"]);
+
+        // Expect the formatted content is the same as the input
+        let formatted_content = editor.get_formatted_content().unwrap();
+        assert_eq!(formatted_content, input);
+
+        editor.save()?;
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
+        assert_eq!(editor.get_selected_texts(), ["b"]);
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["bar"]);
+
+        Ok(())
+    }
 }
