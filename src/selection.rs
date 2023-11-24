@@ -142,7 +142,7 @@ impl SelectionSet {
                             copied_text: selection.copied_text.clone(),
                             initial_range: selection.initial_range,
                             info: selection.info.clone(),
-                            mark: selection.mark.clone(),
+                            mark: selection.mark,
                         };
                     }
                 }

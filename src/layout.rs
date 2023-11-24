@@ -16,10 +16,7 @@ use crate::{
 use anyhow::anyhow;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
-use std::{
-    cell::{Ref, RefCell},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.

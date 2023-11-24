@@ -75,7 +75,7 @@ impl Buffer {
     }
 
     pub fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
-        let old_ranges = std::mem::replace(&mut self.bookmarks, vec![])
+        let old_ranges = std::mem::take(&mut self.bookmarks)
             .into_iter()
             .collect::<HashSet<_>>();
         let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();

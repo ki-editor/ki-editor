@@ -2204,7 +2204,7 @@ impl Editor {
                 .selections()
                 .into_iter()
                 .map(|selection| -> anyhow::Result<_> {
-                    new_buffer.get_current_node(&selection, false)
+                    new_buffer.get_current_node(selection, false)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
