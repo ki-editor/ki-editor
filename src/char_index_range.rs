@@ -1,6 +1,10 @@
 use std::ops::Range;
 
-use crate::{components::editor::Direction, edit::ApplyOffset, selection::CharIndex};
+use crate::{
+    components::editor::Direction,
+    edit::{is_overlapping, ApplyOffset},
+    selection::CharIndex,
+};
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
@@ -26,11 +30,13 @@ impl From<CharIndexRange> for Range<CharIndex> {
 }
 
 impl CharIndexRange {
-    pub fn apply_edit(self, edit: &crate::edit::Edit) -> CharIndexRange {
+    pub fn apply_edit(self, edit: &crate::edit::Edit) -> Option<CharIndexRange> {
         if edit.range.start >= self.end {
-            self
+            Some(self)
+        } else if edit.range.overlaps(&self) {
+            None
         } else {
-            self.apply_offset(edit.offset())
+            Some(self.apply_offset(edit.offset()))
         }
     }
 
@@ -57,6 +63,14 @@ impl CharIndexRange {
             Direction::Start => self.start,
             Direction::End => self.end,
         }
+    }
+
+    fn overlaps(&self, other: &CharIndexRange) -> bool {
+        is_overlapping(&self.to_range(), &other.to_range())
+    }
+
+    fn to_range(&self) -> Range<CharIndex> {
+        self.start..self.end
     }
 }
 

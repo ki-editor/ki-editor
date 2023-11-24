@@ -40,7 +40,7 @@ The following keybindings work regardless of any mode.
 ## Normal mode
 
 - `a`: Enter insert mode at the **a**pex (front) of selection
-- `b`: (unassigned)
+- `b`: Toggle **b**ookmark
 - `c`: Set selection mode to **c**olumn
 - `d`: Move **d**own
 - `e`: Enter insert mode at the **e**nd of selection
@@ -76,12 +76,6 @@ The following keybindings work regardless of any mode.
 - `'`: Open List menu
 - `(`/`{`/`[`/`<`: Enclose current selection(s) with `()`/`{}`/`[]`/`<>`
 - `space`: Open context menu
-
-> [!NOTE]
-> I might change `i` -> `a` and `a` -> `e` so that it's consistent with `ctrl+a` and `ctrl+e` in Insert mode. I know this sucks for Vimmers (me too), but honestly speaking it makes much more sense for non-Vimmers for two reasons:
->
-> 1. `a` is lexicographically smaller than `e`
-> 2. `a` is on the left of `e` on the most popular keyboard layouts: Qwerty, Dvorak, and Colemak.
 
 ## Movements and selection modes
 

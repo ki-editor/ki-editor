@@ -278,6 +278,10 @@ impl SelectionSet {
             self.primary = self.secondary.remove(index);
         }
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.secondary.len() + 1
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -1003,7 +1003,7 @@ fn main() {
 
         // Bookmark "z"
         editor.match_literal(&context, "z")?;
-        editor.save_bookmarks();
+        editor.toggle_bookmarks();
 
         // Expect the parent lines of the current selections are highlighted with parent_lines_background,
         // regardless of whether the parent lines are inbound or outbound
@@ -1020,7 +1020,7 @@ fn main() {
 
         // Bookmark the "fn" token
         editor.match_literal(&context, "fn")?;
-        editor.save_bookmarks();
+        editor.toggle_bookmarks();
 
         // Go to "print()" and skip the first 3 lines for rendering
         editor.match_literal(&context, "print()")?;
@@ -1131,7 +1131,7 @@ fn main() { // too long
 
         // Expect decorations overrides syntax highlighting
         editor.match_literal(&context, "fn")?;
-        editor.save_bookmarks();
+        editor.toggle_bookmarks();
         // Move cursor to next line, so that "fn" is not selected,
         //  so that we can test the style applied to "fn" ,
         // otherwise the style of primary selection anchors will override the bookmark style
@@ -1176,6 +1176,128 @@ fn main() { // too long
             .trim()
         );
         assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 2));
+        Ok(())
+    }
+
+    #[test]
+    fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spam");
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.toggle_bookmarks();
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        editor.add_cursor_to_all_selections(&context)?;
+        assert_eq!(editor.get_selected_texts(), ["foo", "spam"]);
+        editor.only_current_cursor()?;
+        assert_eq!(editor.get_selected_texts(), ["spam"]);
+
+        // Toggling the bookmark when selecting existing bookmark should
+        // cause it to be removed from the bookmark lists
+        editor.toggle_bookmarks();
+        editor.handle_movement(&context, Movement::Current)?;
+        editor.add_cursor_to_all_selections(&context)?;
+        assert_eq!(editor.get_selected_texts(), ["foo"]);
+        Ok(())
+    }
+
+    #[test]
+    fn update_bookmark_position() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spim");
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
+        // Kill "foo"
+        editor.kill(&context)?;
+        assert_eq!(editor.content(), "bar spim");
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        // Expect bookmark position is updated, and still selects "spim"
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        // Remove "m" from "spim"
+        editor.enter_insert_mode(Direction::End)?;
+        editor.backspace()?;
+
+        assert_eq!(editor.content(), "bar spi");
+        editor.enter_normal_mode()?;
+
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        // Expect the "spim" bookmark is removed
+        // By the fact that "spi" is not selected
+        assert_eq!(editor.get_selected_texts(), ["i"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spim");
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
+        // Kill "foo"
+        editor.kill(&context)?;
+
+        assert_eq!(editor.content(), "bar spim");
+
+        // Expect bookmark position is updated, and still selects "spim"
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        // Undo
+        editor.undo()?;
+        assert_eq!(editor.content(), "foo bar spim");
+
+        // Expect bookmark position is updated, and still selects "spim"
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        // Redo
+        editor.redo()?;
+        assert_eq!(editor.content(), "bar spim");
+
+        // Expect bookmark position is updated, and still selects "spim"
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["spim"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Result<()> {
+        let input = "// foo bar spim\nfn foo() {}\n";
+
+        let mut editor = Editor::from_text(language(), input);
+        editor.set_language(shared::language::from_extension("rs").unwrap())?;
+        let context = Context::default();
+        editor.set_selection_mode(&context, SelectionMode::Word)?;
+        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
+        editor.toggle_bookmarks();
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["bar"]);
+
+        // Expect the formatted content is the same as the input
+        let formatted_content = editor.get_formatted_content().unwrap();
+        assert_eq!(formatted_content, input);
+
+        editor.save()?;
+        editor.set_selection_mode(&context, SelectionMode::Character)?;
+        assert_eq!(editor.get_selected_texts(), ["b"]);
+        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
+        assert_eq!(editor.get_selected_texts(), ["bar"]);
+
         Ok(())
     }
 }
