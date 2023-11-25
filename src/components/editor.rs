@@ -1233,10 +1233,19 @@ impl Editor {
     }
     fn search_kinds_keymap() -> Vec<(&'static str, &'static str, SearchKind)> {
         [
-            ("a", "Ast Grep", SearchKind::AstGrep),
-            ("i", "Literal (Ignore case)", SearchKind::LiteralIgnoreCase),
-            ("l", "Literal", SearchKind::Literal),
-            ("x", "Regex", SearchKind::Regex),
+            ("a", "Search: Ast Grep", SearchKind::AstGrep),
+            ("l", "Search: Literal", SearchKind::Literal),
+            (
+                "shift+L",
+                "Search: Literal (Case-sensitive)",
+                SearchKind::LiteralCaseSensitive,
+            ),
+            ("x", "Search: Regex", SearchKind::Regex),
+            (
+                "shift+X",
+                "Search: Regex (Case-sensitive)",
+                SearchKind::RegexCaseSensitive,
+            ),
         ]
         .to_vec()
     }
@@ -1295,17 +1304,17 @@ impl Editor {
 
     fn diagnostics_keymaps() -> Vec<(&'static str, &'static str, Option<DiagnosticSeverity>)> {
         [
-            ("y", "Any (Diagnostic)", None),
-            ("e", "Error (Diagnostic)", Some(DiagnosticSeverity::ERROR)),
-            ("h", "Hint (Diagnostic)", Some(DiagnosticSeverity::HINT)),
+            ("y", "Diagnostic: Any", None),
+            ("e", "Diagnostic: Error", Some(DiagnosticSeverity::ERROR)),
+            ("h", "Diagnostic: Hint", Some(DiagnosticSeverity::HINT)),
             (
                 "shift+I",
-                "Information (Diagnostic)",
+                "Diagnostic: Information",
                 Some(DiagnosticSeverity::INFORMATION),
             ),
             (
                 "w",
-                "Warning (Diagnostic)",
+                "Diagnostic: Warning",
                 Some(DiagnosticSeverity::WARNING),
             ),
         ]
@@ -1556,7 +1565,7 @@ impl Editor {
                         ),
                     ),
                     Keymap::new(
-                        "m",
+                        "i",
                         "Implementations",
                         Dispatch::RequestImplementations(
                             params.clone().set_description("Implementations"),
@@ -2790,7 +2799,7 @@ impl Editor {
                     SelectionMode::Find {
                         search: Search {
                             search: c.to_string(),
-                            kind: SearchKind::Literal,
+                            kind: SearchKind::LiteralCaseSensitive,
                         },
                     },
                 )
@@ -2834,7 +2843,7 @@ impl Editor {
             context,
             SelectionMode::Find {
                 search: Search {
-                    kind: SearchKind::Literal,
+                    kind: SearchKind::LiteralCaseSensitive,
                     search: search.to_string(),
                 },
             },

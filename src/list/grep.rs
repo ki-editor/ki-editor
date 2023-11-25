@@ -17,9 +17,9 @@ pub fn run(
     pattern: &str,
     path: PathBuf,
     escape: bool,
-    ignore_case: bool,
+    case_sensitive: bool,
 ) -> anyhow::Result<Vec<Location>> {
-    let pattern = get_regex(pattern, escape, ignore_case)?
+    let pattern = get_regex(pattern, escape, case_sensitive)?
         .as_str()
         .to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;

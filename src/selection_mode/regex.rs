@@ -6,16 +6,20 @@ pub struct Regex {
     regex: regex::Regex,
     content: String,
 }
-pub fn get_regex(pattern: &str, escape: bool, ignore_case: bool) -> anyhow::Result<regex::Regex> {
+pub fn get_regex(
+    pattern: &str,
+    escape: bool,
+    case_sensitive: bool,
+) -> anyhow::Result<regex::Regex> {
     let pattern = if escape {
         regex::escape(pattern)
     } else {
         pattern.to_string()
     };
-    let pattern = if ignore_case {
-        format!("(?i){}", pattern)
-    } else {
+    let pattern = if case_sensitive {
         pattern
+    } else {
+        format!("(?i){}", pattern)
     };
     Ok(regex::Regex::new(&pattern)?)
 }
@@ -25,9 +29,9 @@ impl Regex {
         buffer: &Buffer,
         pattern: &str,
         escape: bool,
-        ignore_case: bool,
+        case_sensitive: bool,
     ) -> anyhow::Result<Self> {
-        let regex = get_regex(pattern, escape, ignore_case)?;
+        let regex = get_regex(pattern, escape, case_sensitive)?;
         Ok(Self {
             regex,
             content: buffer.rope().to_string(),
@@ -87,7 +91,7 @@ mod test_regex {
     #[test]
     fn ignore_case() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn Main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(&buffer, "m.in", false, true)
+        crate::selection_mode::Regex::new(&buffer, "m.in", false, false)
             .unwrap()
             .assert_all_selections(
                 &buffer,

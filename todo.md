@@ -251,3 +251,4 @@
 - [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
 - [] fix(ctrl+l): should be reset after moving selection, so that after moving selection I can always align to top
 - [] feat(quickfix-list): do not repeat group name, easier for u/d to be understood, display result with hierarchy
+- [] feat(exchange): exchange with first/last should not be literally exchanging with last or first, but rather move currrent select to first/last position

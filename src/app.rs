@@ -1074,24 +1074,30 @@ impl<T: Frontend> App<T> {
     fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
         let locations = match search.kind {
-            SearchKind::Regex => list::grep::run(
-                &search.search,
-                working_directory.clone().into(),
-                false,
-                false,
-            ),
+            SearchKind::AstGrep => {
+                list::ast_grep::run(&search.search, working_directory.clone().into())
+            }
             SearchKind::Literal => list::grep::run(
                 &search.search,
                 working_directory.clone().into(),
                 true,
                 false,
             ),
-            SearchKind::AstGrep => {
-                list::ast_grep::run(&search.search, working_directory.clone().into())
-            }
-            SearchKind::LiteralIgnoreCase => {
+            SearchKind::LiteralCaseSensitive => {
                 list::grep::run(&search.search, working_directory.clone().into(), true, true)
             }
+            SearchKind::Regex => list::grep::run(
+                &search.search,
+                working_directory.clone().into(),
+                false,
+                false,
+            ),
+            SearchKind::RegexCaseSensitive => list::grep::run(
+                &search.search,
+                working_directory.clone().into(),
+                false,
+                true,
+            ),
         }?;
         self.set_quickfix_list(
             ResponseContext::default().set_description("Global search"),

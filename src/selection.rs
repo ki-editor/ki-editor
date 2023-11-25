@@ -371,11 +371,20 @@ impl SelectionMode {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
             SelectionMode::Find { search } => match search.kind {
+                SearchKind::AstGrep => {
+                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
+                }
                 SearchKind::Literal => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
                     true,
                     false,
+                )?),
+                SearchKind::LiteralCaseSensitive => Box::new(selection_mode::Regex::new(
+                    buffer,
+                    &search.search,
+                    true,
+                    true,
                 )?),
                 SearchKind::Regex => Box::new(selection_mode::Regex::new(
                     buffer,
@@ -383,13 +392,10 @@ impl SelectionMode {
                     false,
                     false,
                 )?),
-                SearchKind::AstGrep => {
-                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
-                }
-                SearchKind::LiteralIgnoreCase => Box::new(selection_mode::Regex::new(
+                SearchKind::RegexCaseSensitive => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
-                    true,
+                    false,
                     true,
                 )?),
             },
