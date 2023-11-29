@@ -1,5 +1,5 @@
 use crate::{
-    char_index_range::{CharIndexRange, ToCharIndexRange},
+    char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     git::hunk::Hunk,
@@ -717,119 +717,130 @@ impl Buffer {
         ))
     }
 
-    pub(crate) fn find_nearest_string_before(
+    pub(crate) fn find_nearest_pair(
         &self,
-        index: CharIndex,
-        substr: &str,
-    ) -> Option<CharIndexRange> {
-        let slice = self.rope.get_slice(0..index.0)?;
-        let start = slice.to_string().rfind(&substr)?;
-        let end = start.saturating_add(substr.len());
-        (start..end).to_char_index_range(self).ok()
-    }
-
-    pub(crate) fn find_nearest_string_after(
-        &self,
-        index: CharIndex,
-        substr: &str,
-    ) -> Option<CharIndexRange> {
-        let slice = self.rope.get_slice(index.0..self.len_chars())?;
-
-        let start = slice.to_string().find(&substr)? + self.char_to_byte(index).ok()?;
-        let end = start.saturating_add(substr.len());
-
-        (start..end).to_char_index_range(self).ok()
-    }
-
-    /// `index` is exclusive
-    pub(crate) fn find_nearest_opening_before(
-        &self,
-        index: CharIndex,
+        range: CharIndexRange,
         open: &str,
         close: &str,
-    ) -> Option<CharIndexRange> {
-        let slice = self.rope.get_slice(0..index.0)?.to_string();
-        let mut closings = slice.rmatch_indices(close);
-        let openings = slice.rmatch_indices(open);
-        for opening in openings {
-            match closings.next() {
-                Some(closing) if closing.0 > opening.0 => {}
-                _ => {
-                    let byte_range = opening.0..opening.0 + opening.1.len();
-                    return byte_range.to_char_index_range(self).ok();
-                }
-            }
-        }
-        None
+    ) -> Option<EnclosurePair> {
+        let pairs = self.find_pairs(open, close);
+
+        pairs
+            .into_iter()
+            .sorted_by_key(|pair| pair.outer_range().len())
+            .find(|pair| {
+                let outer_range = pair.outer_range();
+                outer_range.start < range.start && range.end < outer_range.end
+            })
     }
 
-    ///`index` is inclusive
-    pub(crate) fn find_nearest_closing_after(
-        &self,
-        index: CharIndex,
-        open: &str,
-        close: &str,
-    ) -> Option<CharIndexRange> {
-        let slice = self.rope.get_slice(index.0..self.len_chars())?.to_string();
-        let closings = slice.match_indices(close);
-        let mut openings = slice.match_indices(open);
-        for closing in closings {
-            match openings.next() {
-                Some(opening) if opening.0 < closing.0 => {}
-                _ => {
-                    let start = closing.0 + self.char_to_byte(index).ok()?;
-                    let byte_range = start..start + closing.1.len();
-                    return byte_range.to_char_index_range(self).ok();
-                }
+    pub(crate) fn find_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
+        if open == close {
+            self.find_homo_pairs(open)
+        } else {
+            self.find_hetero_pairs(open, close)
+        }
+    }
+
+    pub(crate) fn find_homo_pairs(&self, representation: &str) -> Vec<EnclosurePair> {
+        let string = self.rope.to_string();
+        let matches = string
+            .match_indices(representation)
+            .enumerate()
+            .map(|(index, x)| (x, index % 2 == 0));
+        let enclosures = matches
+            .filter_map(|((byte_start, representation), is_opening)| {
+                Some(Enclosure {
+                    char_index_range: self
+                        .byte_range_to_char_index_range(
+                            &(byte_start..byte_start + representation.len()),
+                        )
+                        .ok()?,
+                    representation: representation.to_string(),
+                    is_opening,
+                })
+            })
+            .sorted_by(|a, b| a.char_index_range.start.cmp(&b.char_index_range.start));
+        let mut stack = Vec::new();
+        let mut pairs = Vec::new();
+        for enclosure in enclosures {
+            if enclosure.is_opening {
+                stack.push(enclosure);
+            } else if let Some(opening) = stack.pop() {
+                pairs.push(EnclosurePair {
+                    open: opening,
+                    close: enclosure,
+                })
             }
         }
-        None
+
+        pairs
     }
+
+    pub(crate) fn find_hetero_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
+        let string = self.rope.to_string();
+        let openings = string.match_indices(open).map(|x| (x, true));
+        let closings = string.match_indices(close).map(|x| (x, false));
+        let enclosures = openings
+            .chain(closings)
+            .filter_map(|((byte_start, representation), is_opening)| {
+                Some(Enclosure {
+                    char_index_range: self
+                        .byte_range_to_char_index_range(
+                            &(byte_start..byte_start + representation.len()),
+                        )
+                        .ok()?,
+                    representation: representation.to_string(),
+                    is_opening,
+                })
+            })
+            .sorted_by(|a, b| a.char_index_range.start.cmp(&b.char_index_range.start));
+        let mut stack = Vec::new();
+        let mut pairs = Vec::new();
+        for enclosure in enclosures {
+            if enclosure.is_opening {
+                stack.push(enclosure);
+            } else if let Some(opening) = stack.pop() {
+                pairs.push(EnclosurePair {
+                    open: opening,
+                    close: enclosure,
+                })
+            }
+        }
+
+        pairs
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EnclosurePair {
+    pub open: Enclosure,
+    pub close: Enclosure,
+}
+impl EnclosurePair {
+    pub fn outer_range(&self) -> CharIndexRange {
+        (self.open.char_index_range.start..self.close.char_index_range.end).into()
+    }
+
+    pub(crate) fn inner_range(&self) -> CharIndexRange {
+        (self.open.char_index_range.end..self.close.char_index_range.start).into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Enclosure {
+    representation: String,
+    pub char_index_range: CharIndexRange,
+    is_opening: bool,
 }
 
 #[cfg(test)]
 mod test_buffer {
     use itertools::Itertools;
 
-    use crate::selection::CharIndex;
-
     use crate::selection::SelectionSet;
 
     use super::Buffer;
-
-    #[test]
-    fn find_nearest_opening_before() {
-        let test_cases = &[
-            ("( () a)", 5, 0..1),
-            ("( () a)", 3, 2..3),
-            ("() ( () a)", 7, 3..4),
-        ];
-        for (content, index, expected) in test_cases {
-            let buffer = Buffer::new(tree_sitter_md::language(), content);
-            let range = buffer.find_nearest_opening_before(CharIndex(*index), "(", ")");
-            assert_eq!(
-                range,
-                Some((CharIndex(expected.start)..CharIndex(expected.end)).into())
-            );
-        }
-    }
-
-    #[test]
-    fn find_nearest_closing_after() {
-        let test_cases = &[
-            ("( () a)", 1, 6..7),
-            ("( () a)", 3, 3..4),
-            ("() ( () a)", 1, 1..2),
-        ];
-        for (content, index, expected) in test_cases {
-            let buffer = Buffer::new(tree_sitter_md::language(), content);
-            let range = buffer.find_nearest_closing_after(CharIndex(*index), "(", ")");
-            assert_eq!(
-                range,
-                Some((CharIndex(expected.start)..CharIndex(expected.end)).into())
-            );
-        }
-    }
 
     #[test]
     fn get_parent_lines_1() {

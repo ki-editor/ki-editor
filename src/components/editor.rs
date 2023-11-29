@@ -712,6 +712,7 @@ impl Editor {
     /// Returns (hidden_parent_lines, visible_parent_lines)
     pub fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
+
         let parent_lines = self.buffer().get_parent_lines(position.line)?;
         Ok(parent_lines
             .into_iter()

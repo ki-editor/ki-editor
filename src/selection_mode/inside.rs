@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::{
     char_index_range::{CharIndexRange, ToByteRange, ToCharIndexRange},
     selection::Selection,
@@ -19,7 +21,7 @@ impl SelectionMode for Inside {
     }
     fn iter<'a>(
         &'a self,
-        params: SelectionModeParams<'a>,
+        _: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         Ok(Box::new(std::iter::empty()))
     }
@@ -34,23 +36,8 @@ impl SelectionMode for Inside {
     ) -> anyhow::Result<Option<Selection>> {
         let (open, close) = self.0.open_close_symbols();
         let range = current_selection.extended_range();
-        let (opening, closing) = if open == close {
-            let opening = buffer.find_nearest_string_before(range.start, &open);
-            let closing = buffer.find_nearest_string_after(range.end, &close);
-
-            (opening, closing)
-        } else {
-            let opening = buffer.find_nearest_opening_before(range.start, &open, &close);
-            let closing = buffer.find_nearest_closing_after(range.end, &open, &close);
-            (opening, closing)
-        };
-        let range = match (opening, closing) {
-            (Some(open), Some(close)) => Some((open.end..close.start).into()),
-            _ => None,
-        };
-        Ok(Some(current_selection.clone().set_range(
-            range.unwrap_or(current_selection.extended_range()),
-        )))
+        let pair = buffer.find_nearest_pair(range, &open, &close);
+        Ok(pair.map(|pair| current_selection.clone().set_range(pair.inner_range())))
     }
 
     fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
@@ -72,6 +59,7 @@ impl SelectionMode for Inside {
 
         Ok(Some(current_selection.clone().set_range(range)))
     }
+
     fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
             buffer,
@@ -83,26 +71,25 @@ impl SelectionMode for Inside {
 
         let range = current_selection.extended_range();
 
-        if text.starts_with(&open) && text.ends_with(&close) {
+        let range = if text.starts_with(&open) && text.ends_with(&close) {
             let range = range.to_byte_range(buffer)?;
             let start = range.start.saturating_add(open.len());
             let end = range.end.saturating_sub(close.len());
 
-            return Ok(Some(
-                current_selection
-                    .clone()
-                    .set_range((start..end).to_char_index_range(buffer)?),
-            ));
+            Some((start..end).to_char_index_range(buffer)?)
         } else {
-            let start = buffer.find_nearest_string_after(range.start, &open);
-            let end = buffer.find_nearest_string_before(range.end, &close);
-            Ok(Some(match (start, end) {
-                (Some(start), Some(end)) => current_selection
-                    .clone()
-                    .set_range((start.start..end.end).into()),
-                _ => current_selection.clone(),
-            }))
-        }
+            buffer
+                .find_pairs(&open, &close)
+                .into_iter()
+                .map(|pair| pair)
+                .sorted_by_key(|pair| pair.open.char_index_range.start)
+                .find(|pair| {
+                    let outer_range = pair.outer_range();
+                    range.start <= outer_range.start && outer_range.end <= range.end
+                })
+                .map(|pair| pair.outer_range())
+        };
+        Ok(range.map(|range| current_selection.clone().set_range(range)))
     }
 }
 
@@ -159,8 +146,8 @@ mod test_inside {
     fn current_open_close_same() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b 'c 'd e''");
         let inside = Inside(InsideKind::Custom {
-            open: "{|".to_string(),
-            close: "|}".to_string(),
+            open: "'".to_string(),
+            close: "'".to_string(),
         });
         let params = SelectionModeParams {
             buffer: &buffer,
@@ -181,9 +168,7 @@ mod test_inside {
                 .set_range((CharIndex(9)..CharIndex(10)).into()),
             ..params
         })?;
-        let current_text = buffer.slice(&current.unwrap().extended_range())?;
-        assert_eq!(current_text, "d e");
-
+        assert!(current.is_none());
         Ok(())
     }
 
@@ -222,13 +207,10 @@ mod test_inside {
         let ups = inside.generate_selections(
             &buffer,
             Movement::Up,
-            4,
+            3,
             (CharIndex(10)..CharIndex(13)).into(),
         )?;
-        assert_eq!(
-            ups,
-            &["{|d e|}", "c {|d e|}", "{|c {|d e|}|}", "{|c {|d e|}|}"]
-        );
+        assert_eq!(ups, &["{|d e|}", "c {|d e|}", "{|c {|d e|}|}"]);
 
         Ok(())
     }
@@ -244,10 +226,10 @@ mod test_inside {
         let downs = inside.generate_selections(
             &buffer,
             Movement::Down,
-            4,
+            3,
             (CharIndex(4)..CharIndex(17)).into(),
         )?;
-        assert_eq!(downs, &["c {|d e|}", "{|d e|}", "d e", "d e"]);
+        assert_eq!(downs, &["c {|d e|}", "{|d e|}", "d e"]);
 
         Ok(())
     }
