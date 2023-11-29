@@ -748,41 +748,22 @@ impl Buffer {
             .match_indices(representation)
             .enumerate()
             .map(|(index, x)| (x, index % 2 == 0));
-        let enclosures = matches
-            .filter_map(|((byte_start, representation), is_opening)| {
-                Some(Enclosure {
-                    char_index_range: self
-                        .byte_range_to_char_index_range(
-                            &(byte_start..byte_start + representation.len()),
-                        )
-                        .ok()?,
-                    representation: representation.to_string(),
-                    is_opening,
-                })
-            })
-            .sorted_by(|a, b| a.char_index_range.start.cmp(&b.char_index_range.start));
-        let mut stack = Vec::new();
-        let mut pairs = Vec::new();
-        for enclosure in enclosures {
-            if enclosure.is_opening {
-                stack.push(enclosure);
-            } else if let Some(opening) = stack.pop() {
-                pairs.push(EnclosurePair {
-                    open: opening,
-                    close: enclosure,
-                })
-            }
-        }
-
-        pairs
+        self.get_pairs_from_enclosures(matches.collect())
     }
 
     pub(crate) fn find_hetero_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
         let string = self.rope.to_string();
         let openings = string.match_indices(open).map(|x| (x, true));
         let closings = string.match_indices(close).map(|x| (x, false));
-        let enclosures = openings
-            .chain(closings)
+        self.get_pairs_from_enclosures(openings.chain(closings).collect())
+    }
+
+    fn get_pairs_from_enclosures(
+        &self,
+        enclosures: Vec<((usize, &str), bool)>,
+    ) -> Vec<EnclosurePair> {
+        let enclosures = enclosures
+            .into_iter()
             .filter_map(|((byte_start, representation), is_opening)| {
                 Some(Enclosure {
                     char_index_range: self
@@ -797,6 +778,7 @@ impl Buffer {
             .sorted_by(|a, b| a.char_index_range.start.cmp(&b.char_index_range.start));
         let mut stack = Vec::new();
         let mut pairs = Vec::new();
+
         for enclosure in enclosures {
             if enclosure.is_opening {
                 stack.push(enclosure);
