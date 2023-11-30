@@ -47,7 +47,7 @@ The following keybindings work regardless of any mode.
 - `f`: Open **f**ind (local) menu
 - `g`: Open find (**g**lobal) menu
 - `h`: Toggle **h**ighlight mode
-- `i`: (unassigned)
+- `i`: Enter **i**side mode
 - `j`: Enter **j**ump mode
 - `k`: Kill current selection(s)
 - `l`: Set selection mode to **l**ine
