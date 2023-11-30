@@ -40,6 +40,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     selection::SelectionMode,
+    selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
 };
@@ -473,6 +474,10 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveAll => self.save_all()?,
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
+            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open(),
+            Dispatch::OpenInsideOtherPromptClose { open } => {
+                self.open_inside_other_prompt_close(open)
+            }
         }
         Ok(())
     }
@@ -607,6 +612,51 @@ impl<T: Frontend> App<T> {
                         .collect_vec()
                 })
                 .unwrap_or_default(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_inside_other_prompt_open(&mut self) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Inside (other): Open".to_string(),
+            history: Vec::new(),
+            initial_text: None,
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::OpenInsideOtherPromptClose {
+                    open: text.to_owned(),
+                }]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_inside_other_prompt_close(&mut self, open: String) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: format!("Inside (other, open = '{}'): Close", open),
+            history: Vec::new(),
+            initial_text: None,
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(
+                    InsideKind::Other {
+                        open: open.clone(),
+                        close: text.to_owned(),
+                    },
+                ))]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
         });
 
         self.layout
@@ -1421,6 +1471,10 @@ pub enum Dispatch {
     SaveAll,
     TerminalDimensionChanged(Dimension),
     SetGlobalTitle(String),
+    OpenInsideOtherPromptOpen,
+    OpenInsideOtherPromptClose {
+        open: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

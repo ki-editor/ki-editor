@@ -3012,6 +3012,11 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(inside_kind)),
                 )
             })
+            .chain(Some(Keymap::new(
+                "o",
+                "Other",
+                Dispatch::OpenInsideOtherPromptOpen,
+            )))
             .collect(),
         }
     }

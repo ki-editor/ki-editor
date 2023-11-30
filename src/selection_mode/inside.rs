@@ -102,7 +102,7 @@ pub enum InsideKind {
     DoubleQuotes,
     SingleQuotes,
     BackQuotes,
-    Custom { open: String, close: String },
+    Other { open: String, close: String },
 }
 
 impl InsideKind {
@@ -115,7 +115,7 @@ impl InsideKind {
             InsideKind::DoubleQuotes => "Double Quotes".to_string(),
             InsideKind::SingleQuotes => "Single Quotes".to_string(),
             InsideKind::BackQuotes => "Back Quotes".to_string(),
-            InsideKind::Custom { open, close } => format!("'{} {}'", open, close),
+            InsideKind::Other { open, close } => format!("'{} {}'", open, close),
         }
     }
 
@@ -128,7 +128,7 @@ impl InsideKind {
             InsideKind::DoubleQuotes => ("\"".to_string(), "\"".to_string()),
             InsideKind::SingleQuotes => ("'".to_string(), "'".to_string()),
             InsideKind::BackQuotes => ("`".to_string(), "`".to_string()),
-            InsideKind::Custom { open, close } => (open.clone(), close.clone()),
+            InsideKind::Other { open, close } => (open.clone(), close.clone()),
         }
     }
 }
@@ -145,7 +145,7 @@ mod test_inside {
     #[test]
     fn current_open_close_same() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b 'c 'd e''");
-        let inside = Inside(InsideKind::Custom {
+        let inside = Inside(InsideKind::Other {
             open: "'".to_string(),
             close: "'".to_string(),
         });
@@ -175,7 +175,7 @@ mod test_inside {
     #[test]
     fn current_open_close_different() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
-        let inside = Inside(InsideKind::Custom {
+        let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
             close: "|}".to_string(),
         });
@@ -199,7 +199,7 @@ mod test_inside {
     #[test]
     fn up() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
-        let inside = Inside(InsideKind::Custom {
+        let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
             close: "|}".to_string(),
         });
@@ -218,7 +218,7 @@ mod test_inside {
     #[test]
     fn down() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|} {| x |}");
-        let inside = Inside(InsideKind::Custom {
+        let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
             close: "|}".to_string(),
         });
