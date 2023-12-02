@@ -8,7 +8,7 @@ impl SmallWord {
             buffer,
             r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*))_*)|([^\w\s]|_)+|[0-9]+",
             false,
-            false,
+            true,
         )
     }
 }

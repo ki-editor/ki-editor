@@ -14,7 +14,7 @@ use crate::{
     },
     context::{Context, Search, SearchKind},
     position::Position,
-    selection_mode::{self, SelectionModeParams},
+    selection_mode::{self, inside::InsideKind, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -278,6 +278,10 @@ impl SelectionSet {
             self.primary = self.secondary.remove(index);
         }
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.secondary.len() + 1
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -291,8 +295,7 @@ pub enum SelectionMode {
     Find { search: Search },
 
     // Syntax-tree
-    BottomNode,
-    TopNode,
+    Token,
     SyntaxTree,
 
     // LSP
@@ -306,6 +309,7 @@ pub enum SelectionMode {
 
     // Bookmark
     Bookmark,
+    Inside(InsideKind),
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -314,7 +318,7 @@ impl SelectionMode {
 
     pub fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, TopNode | SyntaxTree)
+        matches!(self, SyntaxTree)
     }
 
     pub fn display(&self) -> String {
@@ -324,8 +328,7 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
-            SelectionMode::TopNode => "TOP NODE".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
@@ -340,6 +343,7 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Inside(kind) => format!("INSIDE {}", kind.to_string()),
         }
     }
 
@@ -369,11 +373,20 @@ impl SelectionMode {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
             SelectionMode::Find { search } => match search.kind {
+                SearchKind::AstGrep => {
+                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
+                }
                 SearchKind::Literal => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
                     true,
                     false,
+                )?),
+                SearchKind::LiteralCaseSensitive => Box::new(selection_mode::Regex::new(
+                    buffer,
+                    &search.search,
+                    true,
+                    true,
                 )?),
                 SearchKind::Regex => Box::new(selection_mode::Regex::new(
                     buffer,
@@ -381,18 +394,14 @@ impl SelectionMode {
                     false,
                     false,
                 )?),
-                SearchKind::AstGrep => {
-                    Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
-                }
-                SearchKind::LiteralIgnoreCase => Box::new(selection_mode::Regex::new(
+                SearchKind::RegexCaseSensitive => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
-                    true,
+                    false,
                     true,
                 )?),
             },
-            SelectionMode::BottomNode => Box::new(selection_mode::Token),
-            SelectionMode::TopNode => Box::new(selection_mode::OutermostNode),
+            SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
@@ -405,7 +414,19 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
+            SelectionMode::Inside(kind) => Box::new(selection_mode::Inside::new(kind.clone())),
         })
+    }
+
+    pub(crate) fn is_contiguous(&self) -> bool {
+        match self {
+            SelectionMode::Word
+            | SelectionMode::Line
+            | SelectionMode::Character
+            | SelectionMode::Token
+            | SelectionMode::SyntaxTree => true,
+            _ => false,
+        }
     }
 }
 
@@ -514,7 +535,7 @@ impl Selection {
         };
 
         Ok(selection_mode
-            .apply_direction(params, *direction)?
+            .apply_movement(params, *direction)?
             .unwrap_or_else(|| current_selection.clone()))
     }
     pub fn escape_highlight_mode(&mut self) {

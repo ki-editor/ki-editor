@@ -1,5 +1,6 @@
 use crate::{
     app::Dimension,
+    buffer::Buffer,
     components::{
         component::{Component, ComponentId},
         editor::{Editor, Movement},
@@ -501,6 +502,13 @@ impl Layout {
 
     pub(crate) fn display_navigation_history(&self) -> String {
         self.undo_tree.display().to_string()
+    }
+
+    pub(crate) fn buffers(&self) -> Vec<Rc<RefCell<Buffer>>> {
+        self.background_suggestive_editors
+            .iter()
+            .map(|editor| editor.borrow().editor().buffer_rc())
+            .collect_vec()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

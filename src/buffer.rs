@@ -2,6 +2,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
+    git::hunk::Hunk,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
@@ -17,7 +18,7 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language},
 };
-use std::ops::Range;
+use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 use tree_sitter_traversal::{traverse, Order};
 
@@ -73,8 +74,17 @@ impl Buffer {
         self.decorations = decorations.clone();
     }
 
-    pub fn save_bookmarks(&mut self, ranges: Vec<CharIndexRange>) {
-        self.bookmarks.extend(ranges)
+    pub fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
+        let old_ranges = std::mem::take(&mut self.bookmarks)
+            .into_iter()
+            .collect::<HashSet<_>>();
+        let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();
+        // We take the symmetric difference between the old ranges and the new ranges
+        // so that user can unmark existing bookmark
+        self.bookmarks = new_ranges
+            .symmetric_difference(&old_ranges)
+            .cloned()
+            .collect_vec();
     }
 
     pub fn path(&self) -> Option<CanonicalizedPath> {
@@ -320,15 +330,22 @@ impl Buffer {
         traverse(self.tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
     }
 
-    pub fn get_current_node<'a>(&'a self, selection: &Selection) -> anyhow::Result<Node<'a>> {
+    pub fn get_current_node<'a>(
+        &'a self,
+        selection: &Selection,
+        get_largest_end: bool,
+    ) -> anyhow::Result<Node<'a>> {
         let range = selection.range();
+        let start = self.char_to_byte(range.start)?;
+        let (start, end) = if get_largest_end {
+            (start, start + 1)
+        } else {
+            (start, self.char_to_byte(range.end)?)
+        };
         let node = self
             .tree
             .root_node()
-            .descendant_for_byte_range(
-                self.char_to_byte(range.start)?,
-                self.char_to_byte(range.end)?,
-            )
+            .descendant_for_byte_range(start, end)
             .unwrap_or_else(|| self.tree.root_node());
 
         // Get the most ancestral node of this range
@@ -339,8 +356,12 @@ impl Buffer {
         // If we don't get the most ancestral node, then movements like "go to next sibling" will
         // not work as expected.
         let mut result = node;
+        let root_node_id = self.tree.root_node().id();
         while let Some(parent) = result.parent() {
-            if parent.start_byte() == node.start_byte() && parent.end_byte() == node.end_byte() {
+            if parent.start_byte() == node.start_byte()
+                && root_node_id != parent.id()
+                && (get_largest_end || node.end_byte() == parent.end_byte())
+            {
                 result = parent;
             } else {
                 return Ok(result);
@@ -380,6 +401,11 @@ impl Buffer {
         let new_selection_set = edit_transaction
             .selection_set(current_selection_set.mode.clone())
             .unwrap_or_else(|| current_selection_set.clone());
+        let current_buffer_state = BufferState {
+            selection_set: current_selection_set,
+            bookmarks: self.bookmarks.clone(),
+        };
+
         edit_transaction
             .edits()
             .into_iter()
@@ -388,7 +414,12 @@ impl Buffer {
                 Ok(()) => self.apply_edit(edit),
             })?;
 
-        self.add_undo_patch(current_selection_set, new_selection_set.clone(), &before);
+        let new_buffer_state = BufferState {
+            selection_set: new_selection_set.clone(),
+            bookmarks: self.bookmarks.clone(),
+        };
+
+        self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
         self.reparse_tree()?;
 
         Ok(new_selection_set)
@@ -399,7 +430,7 @@ impl Buffer {
         let bookmarks = std::mem::take(&mut self.bookmarks);
         self.bookmarks = bookmarks
             .into_iter()
-            .map(|bookmark| bookmark.apply_edit(edit))
+            .filter_map(|bookmark| bookmark.apply_edit(edit))
             .collect();
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
@@ -410,8 +441,8 @@ impl Buffer {
     /// This method assumes `self.rope` is already updated
     fn add_undo_patch(
         &mut self,
-        old_selection_set: SelectionSet,
-        new_selection_set: SelectionSet,
+        old_buffer_state: BufferState,
+        new_buffer_state: BufferState,
         before: &str,
     ) {
         let after = &self.rope.to_string();
@@ -421,11 +452,11 @@ impl Buffer {
         let old_new = OldNew {
             old_to_new: Patch {
                 patch: diffy::create_patch(before, after).to_string(),
-                selection_set: new_selection_set,
+                state: new_buffer_state,
             },
             new_to_old: Patch {
                 patch: diffy::create_patch(after, before).to_string(),
-                selection_set: old_selection_set,
+                state: old_buffer_state,
             },
         };
         self.undo_tree
@@ -446,11 +477,20 @@ impl Buffer {
         movement: Movement,
     ) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
-        let selection_set = self.undo_tree.apply_movement(&mut content, movement)?;
+        let state = self.undo_tree.apply_movement(&mut content, movement)?;
 
         self.update(&content);
+        if let Some(BufferState {
+            selection_set,
+            bookmarks,
+        }) = state
+        {
+            self.bookmarks = bookmarks;
 
-        Ok(selection_set)
+            Ok(Some(selection_set))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
@@ -497,7 +537,7 @@ impl Buffer {
         Ok(())
     }
 
-    fn get_formatted_content(&self) -> Option<String> {
+    pub fn get_formatted_content(&self) -> Option<String> {
         if !self.tree.root_node().has_error() {
             if let Some(content) = self.language.as_ref().and_then(|language| {
                 language
@@ -514,6 +554,7 @@ impl Buffer {
                 }
             }
         }
+        log::info!("Unable to get formatted content because of syntax error");
         None
     }
 
@@ -524,18 +565,12 @@ impl Buffer {
         let before = self.rope.to_string();
 
         let content = if let Some(formatted_content) = self.get_formatted_content() {
-            let edit_transaction = EditTransaction::from_action_groups(
-                [ActionGroup {
-                    actions: [Action::Edit(Edit {
-                        range: (CharIndex(0)..CharIndex(self.len_chars())).into(),
-                        new: Rope::from(formatted_content.clone()),
-                    })]
-                    .to_vec(),
-                }]
-                .to_vec(),
-            );
-            self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
-            formatted_content
+            if let Ok(edit_transaction) = self.get_edit_transaction(&formatted_content) {
+                self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
+                formatted_content
+            } else {
+                before
+            }
         } else {
             before
         };
@@ -651,11 +686,141 @@ impl Buffer {
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
     }
+    pub fn char_index_range_to_position_range(
+        &self,
+        range: CharIndexRange,
+    ) -> anyhow::Result<Range<Position>> {
+        Ok(self.char_to_position(range.start)?..self.char_to_position(range.end)?)
+    }
+
+    fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
+        let edits: Vec<Edit> = Hunk::get(&self.rope.to_string(), new)
+            .into_iter()
+            .map(|hunk| -> anyhow::Result<_> {
+                let old_line_range = hunk.old_line_range();
+                Ok(Edit {
+                    range: self.position_range_to_char_index_range(
+                        &(Position::new(old_line_range.start, 0)
+                            ..Position::new(old_line_range.end, 0)),
+                    )?,
+                    new: Rope::from_str(&hunk.new_content()),
+                })
+            })
+            .try_collect()?;
+        Ok(EditTransaction::from_action_groups(
+            edits
+                .into_iter()
+                .map(|edit| ActionGroup {
+                    actions: [Action::Edit(edit)].to_vec(),
+                })
+                .collect_vec(),
+        ))
+    }
+
+    pub(crate) fn find_nearest_pair(
+        &self,
+        range: CharIndexRange,
+        open: &str,
+        close: &str,
+    ) -> Option<EnclosurePair> {
+        let pairs = self.find_pairs(open, close);
+
+        pairs
+            .into_iter()
+            .sorted_by_key(|pair| pair.outer_range().len())
+            .find(|pair| {
+                let outer_range = pair.outer_range();
+                outer_range.start < range.start && range.end < outer_range.end
+            })
+    }
+
+    pub(crate) fn find_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
+        if open == close {
+            self.find_homo_pairs(open)
+        } else {
+            self.find_hetero_pairs(open, close)
+        }
+    }
+
+    pub(crate) fn find_homo_pairs(&self, representation: &str) -> Vec<EnclosurePair> {
+        let string = self.rope.to_string();
+        let matches = string
+            .match_indices(representation)
+            .enumerate()
+            .map(|(index, x)| (x, index % 2 == 0));
+        self.get_pairs_from_enclosures(matches.collect())
+    }
+
+    pub(crate) fn find_hetero_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
+        let string = self.rope.to_string();
+        let openings = string.match_indices(open).map(|x| (x, true));
+        let closings = string.match_indices(close).map(|x| (x, false));
+        self.get_pairs_from_enclosures(openings.chain(closings).collect())
+    }
+
+    fn get_pairs_from_enclosures(
+        &self,
+        enclosures: Vec<((usize, &str), bool)>,
+    ) -> Vec<EnclosurePair> {
+        let enclosures = enclosures
+            .into_iter()
+            .filter_map(|((byte_start, representation), is_opening)| {
+                Some(Enclosure {
+                    char_index_range: self
+                        .byte_range_to_char_index_range(
+                            &(byte_start..byte_start + representation.len()),
+                        )
+                        .ok()?,
+                    representation: representation.to_string(),
+                    is_opening,
+                })
+            })
+            .sorted_by(|a, b| a.char_index_range.start.cmp(&b.char_index_range.start));
+        let mut stack = Vec::new();
+        let mut pairs = Vec::new();
+
+        for enclosure in enclosures {
+            if enclosure.is_opening {
+                stack.push(enclosure);
+            } else if let Some(opening) = stack.pop() {
+                pairs.push(EnclosurePair {
+                    open: opening,
+                    close: enclosure,
+                })
+            }
+        }
+
+        pairs
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EnclosurePair {
+    pub open: Enclosure,
+    pub close: Enclosure,
+}
+impl EnclosurePair {
+    pub fn outer_range(&self) -> CharIndexRange {
+        (self.open.char_index_range.start..self.close.char_index_range.end).into()
+    }
+
+    pub(crate) fn inner_range(&self) -> CharIndexRange {
+        (self.open.char_index_range.end..self.close.char_index_range.start).into()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Enclosure {
+    representation: String,
+    pub char_index_range: CharIndexRange,
+    is_opening: bool,
 }
 
 #[cfg(test)]
 mod test_buffer {
     use itertools::Itertools;
+
+    use crate::selection::SelectionSet;
 
     use super::Buffer;
 
@@ -845,13 +1010,61 @@ fn f(
             })
         }
     }
+
+    #[test]
+    fn patch_edits() -> anyhow::Result<()> {
+        let old = r#"
+            let x = "1";
+            let y = "2";
+            let z = 3;
+            let a = 4;
+            let b = 4;
+            // This line will be removed
+                "#
+        .trim();
+
+        // Suppose the new content has all kinds of changes:
+        // 1. Replacement (line 1)
+        // 2. Insertion (line 3)
+        // 3. Deletion (last line)
+        let new = r#"
+            let x = "this line is replaced
+                     with multiline content"
+            let y = "2";
+            let z = 3;
+            // This is a newly inserted line
+            let a = 4;
+            let b = 4;
+                            "#
+        .trim();
+
+        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+
+        let edit_transaction = buffer.get_edit_transaction(new)?;
+
+        // Expect there are 3 edits
+        assert_eq!(edit_transaction.edits().len(), 3);
+
+        // Apply the edit transaction
+        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
+
+        // Expect the content to be the same as the 2nd files
+        pretty_assertions::assert_eq!(buffer.content(), new);
+        Ok(())
+    }
 }
 
 #[derive(Clone)]
 pub struct Patch {
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
     pub patch: String,
+    pub state: BufferState,
+}
+
+#[derive(Clone)]
+pub struct BufferState {
     pub selection_set: SelectionSet,
+    pub bookmarks: Vec<CharIndexRange>,
 }
 
 impl std::fmt::Display for Patch {
@@ -860,7 +1073,7 @@ impl std::fmt::Display for Patch {
     }
 }
 
-impl std::fmt::Display for SelectionSet {
+impl std::fmt::Display for BufferState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: this should describe the action
         // For example, "kill", "exchange", "insert"
@@ -871,12 +1084,12 @@ impl std::fmt::Display for SelectionSet {
 impl Applicable for Patch {
     type Target = String;
 
-    type Output = SelectionSet;
+    type Output = BufferState;
 
     fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
         *target = diffy::apply(target, &diffy::Patch::from_str(&self.patch)?)?;
 
-        Ok(self.selection_set.clone())
+        Ok(self.state.clone())
     }
 }
 impl PartialEq for Patch {

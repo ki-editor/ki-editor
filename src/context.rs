@@ -44,19 +44,21 @@ pub struct Search {
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum SearchKind {
-    Literal,
-    Regex,
     AstGrep,
-    LiteralIgnoreCase,
+    Literal,
+    LiteralCaseSensitive,
+    Regex,
+    RegexCaseSensitive,
 }
 
 impl SearchKind {
     pub fn display(&self) -> &'static str {
         match self {
-            SearchKind::Literal => "Literal",
-            SearchKind::Regex => "Regex",
             SearchKind::AstGrep => "AST Grep",
-            SearchKind::LiteralIgnoreCase => "Blind Case",
+            SearchKind::Literal => "Literal",
+            SearchKind::LiteralCaseSensitive => "Literal (Case-sensitive)",
+            SearchKind::Regex => "Regex",
+            SearchKind::RegexCaseSensitive => "Regex (Case-sensitive)",
         }
     }
 }

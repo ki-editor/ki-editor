@@ -6,7 +6,8 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection_mode, soft_wrap,
+    selection_mode::{self, inside::InsideKind},
+    soft_wrap,
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -342,11 +343,11 @@ impl Component for Editor {
             .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
-            .chain(bookmarks)
             .chain(primary_selection)
-            .chain(primary_selection_anchors)
             .chain(secondary_selection)
+            .chain(primary_selection_anchors)
             .chain(seconday_selection_anchors)
+            .chain(bookmarks)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
@@ -711,6 +712,7 @@ impl Editor {
     /// Returns (hidden_parent_lines, visible_parent_lines)
     pub fn get_parent_lines(&self) -> anyhow::Result<(Vec<Line>, Vec<Line>)> {
         let position = self.get_cursor_position()?;
+
         let parent_lines = self.buffer().get_parent_lines(position.line)?;
         Ok(parent_lines
             .into_iter()
@@ -837,7 +839,7 @@ impl Editor {
             .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::TopNode
+            SelectionMode::SyntaxTree
         } else {
             SelectionMode::Custom
         };
@@ -1004,10 +1006,10 @@ impl Editor {
                     let next_range = next_selection.extended_range();
 
                     let (delete_range, select_range) = {
-                        let default = (
-                            current_range,
-                            (current_range.start..current_range.start).into(),
-                        );
+                        let default = {
+                            let start = current_range.start;
+                            (current_range, (start..start + 1).into())
+                        };
                         if current_range.end > next_range.start {
                             default
                         } else {
@@ -1015,7 +1017,9 @@ impl Editor {
                                 (current_range.end..next_range.start).into();
 
                             let inbetween_text = buffer.slice(&inbetween_range)?.to_string();
-                            if !inbetween_text.trim().is_empty() {
+                            if !inbetween_text.trim().is_empty()
+                                && !self.selection_set.mode.is_contiguous()
+                            {
                                 default
                             } else {
                                 let delete_range: CharIndexRange = (current_range.start
@@ -1231,10 +1235,19 @@ impl Editor {
     }
     fn search_kinds_keymap() -> Vec<(&'static str, &'static str, SearchKind)> {
         [
-            ("a", "Ast Grep", SearchKind::AstGrep),
-            ("i", "Literal (Ignore case)", SearchKind::LiteralIgnoreCase),
-            ("l", "Literal", SearchKind::Literal),
-            ("x", "Regex", SearchKind::Regex),
+            ("a", "Search: Ast Grep", SearchKind::AstGrep),
+            ("l", "Search: Literal", SearchKind::Literal),
+            (
+                "shift+L",
+                "Search: Literal (Case-sensitive)",
+                SearchKind::LiteralCaseSensitive,
+            ),
+            ("x", "Search: Regex", SearchKind::Regex),
+            (
+                "shift+X",
+                "Search: Regex (Case-sensitive)",
+                SearchKind::RegexCaseSensitive,
+            ),
         ]
         .to_vec()
     }
@@ -1293,17 +1306,17 @@ impl Editor {
 
     fn diagnostics_keymaps() -> Vec<(&'static str, &'static str, Option<DiagnosticSeverity>)> {
         [
-            ("y", "Any (Diagnostic)", None),
-            ("e", "Error (Diagnostic)", Some(DiagnosticSeverity::ERROR)),
-            ("h", "Hint (Diagnostic)", Some(DiagnosticSeverity::HINT)),
+            ("y", "Diagnostic: Any", None),
+            ("e", "Diagnostic: Error", Some(DiagnosticSeverity::ERROR)),
+            ("h", "Diagnostic: Hint", Some(DiagnosticSeverity::HINT)),
             (
                 "shift+I",
-                "Information (Diagnostic)",
+                "Diagnostic: Information",
                 Some(DiagnosticSeverity::INFORMATION),
             ),
             (
                 "w",
-                "Warning (Diagnostic)",
+                "Diagnostic: Warning",
                 Some(DiagnosticSeverity::WARNING),
             ),
         ]
@@ -1359,6 +1372,13 @@ impl Editor {
             title: "Find (current file)".to_string(),
             owner_id: self.id(),
             keymaps: [
+                Keymap::new(
+                    "b",
+                    "Bookmark",
+                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Bookmark,
+                    )),
+                ),
                 Keymap::new(
                     "c",
                     "Current selection",
@@ -1497,7 +1517,7 @@ impl Editor {
             }
             DispatchEditor::Copy => return self.copy(context),
             DispatchEditor::Paste => return self.paste(context),
-            DispatchEditor::SelectWholeFile => self.select_whole_file(),
+            DispatchEditor::SelectAll => self.select_all(context)?,
             DispatchEditor::SetContent(content) => self.update_buffer(&content),
             DispatchEditor::Replace => return self.replace(context),
             DispatchEditor::Cut => return self.cut(),
@@ -1507,6 +1527,10 @@ impl Editor {
             DispatchEditor::Kill => return self.kill(context),
             DispatchEditor::Insert(string) => return self.insert(&string),
             DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
+            DispatchEditor::ToggleBookmark => self.toggle_bookmarks(),
+            DispatchEditor::EnterInsideMode(kind) => {
+                return self.set_selection_mode(context, SelectionMode::Inside(kind))
+            }
         }
         Ok([].to_vec())
     }
@@ -1546,7 +1570,7 @@ impl Editor {
                         ),
                     ),
                     Keymap::new(
-                        "m",
+                        "i",
                         "Implementations",
                         Dispatch::RequestImplementations(
                             params.clone().set_description("Implementations"),
@@ -1626,6 +1650,11 @@ impl Editor {
                     "g",
                     "Git Hunk",
                     Dispatch::GetRepoGitHunks,
+                )))
+                .chain(Some(Keymap::new(
+                    "b",
+                    "Bookmark",
+                    Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
                 )))
                 .collect_vec(),
         }
@@ -1893,7 +1922,7 @@ impl Editor {
         }
     }
 
-    pub fn save_bookmarks(&mut self) {
+    pub fn toggle_bookmarks(&mut self) {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
@@ -1946,9 +1975,9 @@ impl Editor {
                 )]
                 .to_vec())
             }
-            key!("*") => self.select_whole_file(),
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!("-") => self.select_backward(),
+            key!("*") => self.select_all(context)?,
 
             key!("left") => return self.handle_movement(context, Movement::Previous),
             key!("shift+left") => return self.handle_movement(context, Movement::First),
@@ -1960,8 +1989,7 @@ impl Editor {
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => return self.set_selection_mode(context, SelectionMode::BottomNode),
-            key!("ctrl+b") => self.save_bookmarks(),
+            key!("b") => self.toggle_bookmarks(),
 
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
             // d = down
@@ -1978,6 +2006,12 @@ impl Editor {
                 )])
             }
             key!("h") => self.toggle_highlight_mode(),
+            key!("i") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.inside_mode_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
 
             // Initial
 
@@ -1986,6 +2020,7 @@ impl Editor {
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
+            // o = (unassigned)
 
             // p = previous
             key!("q") => {
@@ -1996,7 +2031,7 @@ impl Editor {
             key!("r") => return self.raise(context),
             key!("shift+R") => return self.replace(context),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
-            key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
+            key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u = up
             key!("v") => {
                 return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())
@@ -2112,19 +2147,8 @@ impl Editor {
         Ok(())
     }
 
-    /// Get the selection that will result in syntactically valid tree
+    /// Get the selection that preserves the syntactic structure of the current selection.
     ///
-    /// # Parameters
-    /// ## `get_trial_edit_transaction`
-    /// A function that returns an edit transaction based on the current and the
-    /// next selection. This is used to check if the edit transaction will result in a
-    /// syntactically valid tree.
-    ///
-    /// ## `get_actual_edit_transaction`
-    /// Same as `get_trial_edit_transaction` but returns the actual edit transaction,
-    /// which should not include any extra modifications such as white-space padding.
-    ///
-    /// # Returns
     /// Returns a valid edit transaction if there is any, otherwise `Left(current_selection)`.
     fn get_valid_selection(
         &self,
@@ -2132,10 +2156,6 @@ impl Editor {
         selection_mode: &SelectionMode,
         direction: &Movement,
         context: &Context,
-        get_trial_edit_transaction: impl Fn(
-            /* current */ &Selection,
-            /* next */ &Selection,
-        ) -> anyhow::Result<EditTransaction>,
         get_actual_edit_transaction: impl Fn(
             /* current */ &Selection,
             /* next */ &Selection,
@@ -2160,7 +2180,10 @@ impl Editor {
         }
 
         loop {
-            let edit_transaction = get_trial_edit_transaction(&current_selection, &next_selection)?;
+            let edit_transaction =
+                get_actual_edit_transaction(&current_selection, &next_selection)?;
+            edit_transaction.selections();
+            let current_node = buffer.get_current_node(&current_selection, false)?;
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
@@ -2174,11 +2197,23 @@ impl Editor {
 
             let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
 
+            let next_nodes = edit_transaction
+                .selections()
+                .into_iter()
+                .map(|selection| -> anyhow::Result<_> {
+                    new_buffer.get_current_node(selection, false)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
             // Why don't we just use `tree.root_node().has_error()` instead?
             // Because I assume we want to be able to exchange even if some part of the tree
             // contains error
             if !selection_mode.is_node()
                 || (!text_at_next_selection.to_string().trim().is_empty()
+                    && next_nodes.iter().all(|next_node| {
+                        current_node.kind_id() == next_node.kind_id()
+                            && current_node.byte_range().len() == next_node.byte_range().len()
+                    })
                     && !new_buffer.has_syntax_error_at(edit_transaction.range()))
             {
                 return Ok(Either::Right(get_actual_edit_transaction(
@@ -2214,45 +2249,8 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
-        let get_trial_edit_transaction = |current_selection: &Selection,
-                                          next_selection: &Selection|
-         -> anyhow::Result<_> {
-            let current_selection_range = current_selection.extended_range();
-            let text_at_current_selection = buffer.slice(&current_selection_range)?;
-
-            Ok(EditTransaction::from_action_groups(
-                [
-                    ActionGroup::new(
-                        [Action::Edit(Edit {
-                            range: current_selection_range,
-                            new: buffer.slice(&next_selection.extended_range())?,
-                        })]
-                        .to_vec(),
-                    ),
-                    ActionGroup::new(
-                        [Action::Edit(Edit {
-                            range: next_selection.extended_range(),
-                            // We need to add whitespace on both end of the replacement
-                            //
-                            // Otherwise we might get the following replacement in Rust:
-                            // Assuming the selection is on `baz`, and the selection mode is `ParentNode`.
-                            //
-                            // Before:                              foo.bar(baz)
-                            // Result (with whitespace padding):    baz
-                            // Result (without padding):            foo.barbaz
-                            new: Rope::from_str(
-                                &(" ".to_string() + &text_at_current_selection.to_string() + " "),
-                            ),
-                        })]
-                        .to_vec(),
-                    ),
-                ]
-                .to_vec(),
-            ))
-        };
-
-        let get_actual_edit_transaction = |current_selection: &Selection,
-                                           next_selection: &Selection|
+        let get_edit_transaction = |current_selection: &Selection,
+                                    next_selection: &Selection|
          -> anyhow::Result<_> {
             let current_selection_range = current_selection.extended_range();
             let text_at_current_selection: Rope = buffer.slice(&current_selection_range)?;
@@ -2271,7 +2269,6 @@ impl Editor {
                         [
                             Action::Edit(Edit {
                                 range: next_selection.extended_range(),
-                                // This time without whitespace padding
                                 new: text_at_current_selection.clone(),
                             }),
                             Action::Select(
@@ -2296,8 +2293,7 @@ impl Editor {
                 selection_mode,
                 &movement,
                 context,
-                get_trial_edit_transaction,
-                get_actual_edit_transaction,
+                get_edit_transaction,
             )
         });
 
@@ -2449,29 +2445,7 @@ impl Editor {
     pub fn raise(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
-            let get_trial_edit_transaction =
-                |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
-                    let range = current_selection
-                        .extended_range()
-                        .start
-                        .min(other_selection.extended_range().start)
-                        ..current_selection
-                            .extended_range()
-                            .end
-                            .max(other_selection.extended_range().end);
-
-                    // Add whitespace padding
-                    let new: Rope =
-                        format!(" {} ", buffer.slice(&current_selection.extended_range())?).into();
-
-                    Ok(EditTransaction::from_action_groups(vec![ActionGroup::new(
-                        vec![Action::Edit(Edit {
-                            range: range.into(),
-                            new,
-                        })],
-                    )]))
-                };
-            let get_actual_edit_transaction =
+            let get_edit_transaction =
                 |current_selection: &Selection, other_selection: &Selection| -> anyhow::Result<_> {
                     let range = current_selection
                         .extended_range()
@@ -2502,11 +2476,10 @@ impl Editor {
                 };
             self.get_valid_selection(
                 selection,
-                &SelectionMode::SyntaxTree,
+                &self.selection_set.mode,
                 &Movement::Up,
                 context,
-                get_trial_edit_transaction,
-                get_actual_edit_transaction,
+                get_edit_transaction,
             )
         });
         let edit_transaction = EditTransaction::merge(
@@ -2521,6 +2494,10 @@ impl Editor {
 
     pub fn buffer(&self) -> Ref<Buffer> {
         self.buffer.borrow()
+    }
+
+    pub fn buffer_rc(&self) -> Rc<RefCell<Buffer>> {
+        self.buffer.clone()
     }
 
     pub fn buffer_mut(&mut self) -> RefMut<Buffer> {
@@ -2651,6 +2628,7 @@ impl Editor {
             return Ok(vec![]);
         };
         self.clamp()?;
+        self.only_current_cursor()?;
         Ok(vec![Dispatch::DocumentDidSave { path }]
             .into_iter()
             .chain(self.get_document_did_change_dispatch())
@@ -2746,17 +2724,18 @@ impl Editor {
     }
 
     pub fn display_mode(&self) -> String {
+        let selection_mode = self.selection_set.mode.display();
         let mode = match &self.mode {
-            Mode::Normal => {
-                format!("NORMAL:{}", self.selection_set.mode.display())
-            }
-            Mode::Insert => "INSERT".to_string(),
-            Mode::MultiCursor => "MULTI CURSOR".to_string(),
-            Mode::FindOneChar => "FIND ONE CHAR".to_string(),
-            Mode::ScrollLine => "SCROLL LINE".to_string(),
-            Mode::Exchange => "EXCHANGE".to_string(),
-            Mode::UndoTree => "UNDO TREE".to_string(),
+            Mode::Normal => "MOVE",
+            Mode::Insert => "INSERT",
+            Mode::MultiCursor => "MULTI CURSOR",
+            Mode::FindOneChar => "FIND ONE CHAR",
+            Mode::ScrollLine => "SCROLL LINE",
+            Mode::Exchange => "EXCHANGE",
+            Mode::UndoTree => "UNDO TREE",
         };
+        let cursor_count = self.selection_set.len();
+        let mode = format!("{}:{} x {}", mode, selection_mode, cursor_count);
         if self.jumps.is_some() {
             format!("{} (JUMPING)", mode)
         } else {
@@ -2809,7 +2788,7 @@ impl Editor {
         Ok(())
     }
 
-    fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
+    pub fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set.only();
         self.enter_normal_mode()
     }
@@ -2831,7 +2810,7 @@ impl Editor {
                     SelectionMode::Find {
                         search: Search {
                             search: c.to_string(),
-                            kind: SearchKind::Literal,
+                            kind: SearchKind::LiteralCaseSensitive,
                         },
                     },
                 )
@@ -2866,32 +2845,6 @@ impl Editor {
         (self.dimension().height / 2) as usize
     }
 
-    fn other_movement_keymap_legend(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Move".to_string(),
-            owner_id: self.id(),
-            keymaps: [
-                Keymap::new(
-                    "c",
-                    "Current selection",
-                    Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Current)),
-                ),
-                Keymap::new(
-                    "p",
-                    "Previous most (first) selection",
-                    Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
-                ),
-                Keymap::new("i", "To Index (1-based)", Dispatch::OpenMoveToIndexPrompt),
-                Keymap::new(
-                    "n",
-                    "Next most (last) selection",
-                    Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Last)),
-                ),
-            ]
-            .to_vec(),
-        }
-    }
-
     pub fn match_literal(
         &mut self,
         context: &Context,
@@ -2901,7 +2854,7 @@ impl Editor {
             context,
             SelectionMode::Find {
                 search: Search {
-                    kind: SearchKind::Literal,
+                    kind: SearchKind::LiteralCaseSensitive,
                     search: search.to_string(),
                 },
             },
@@ -2932,17 +2885,19 @@ impl Editor {
         self.enter_insert_mode(Direction::End)
     }
 
-    fn select_whole_file(&mut self) {
-        let selection_set = SelectionSet {
-            primary: self
-                .selection_set
-                .primary
-                .clone()
-                .set_range((CharIndex(0)..CharIndex(self.buffer.borrow().len_chars())).into()),
-            secondary: vec![],
-            mode: SelectionMode::Custom,
-        };
-        self.update_selection_set(selection_set);
+    fn select_all(&mut self, context: &Context) -> anyhow::Result<()> {
+        self.move_selection_with_selection_mode_without_global_mode(
+            context,
+            Movement::First,
+            self.selection_set.mode.clone(),
+        )?;
+        self.toggle_highlight_mode();
+        self.move_selection_with_selection_mode_without_global_mode(
+            context,
+            Movement::Last,
+            self.selection_set.mode.clone(),
+        )?;
+        Ok(())
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
@@ -3044,6 +2999,51 @@ impl Editor {
         }
         Ok(())
     }
+
+    fn inside_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Inside".to_string(),
+            owner_id: self.id(),
+            keymaps: [
+                ("a", "Angular Bracket <>", InsideKind::AngularBrackets),
+                ("b", "Back Quote ``", InsideKind::BackQuotes),
+                ("c", "Curly Brace {}", InsideKind::CurlyBraces),
+                ("d", "Double Quote \"\"", InsideKind::DoubleQuotes),
+                ("p", "Parenthesis ()", InsideKind::Parentheses),
+                ("q", "Single Quote ''", InsideKind::SingleQuotes),
+                ("s", "Square Bracket []", InsideKind::SquareBrackets),
+            ]
+            .into_iter()
+            .map(|(key, description, inside_kind)| {
+                Keymap::new(
+                    key,
+                    description,
+                    Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(inside_kind)),
+                )
+            })
+            .chain(Some(Keymap::new(
+                "o",
+                "Other",
+                Dispatch::OpenInsideOtherPromptOpen,
+            )))
+            .collect(),
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn handle_movements(
+        &mut self,
+        context: &Context,
+        movements: &[Movement],
+    ) -> anyhow::Result<()> {
+        for movement in movements {
+            self.handle_movement(context, *movement)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn get_formatted_content(&self) -> Option<String> {
+        self.buffer().get_formatted_content()
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3078,7 +3078,7 @@ pub enum DispatchEditor {
     Cut,
     Replace,
     Paste,
-    SelectWholeFile,
+    SelectAll,
     SetContent(String),
     ToggleHighlightMode,
     EnterUndoTreeMode,
@@ -3086,4 +3086,6 @@ pub enum DispatchEditor {
     Kill,
     Insert(String),
     MatchLiteral(String),
+    ToggleBookmark,
+    EnterInsideMode(InsideKind),
 }

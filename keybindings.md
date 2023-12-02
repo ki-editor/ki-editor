@@ -40,14 +40,14 @@ The following keybindings work regardless of any mode.
 ## Normal mode
 
 - `a`: Enter insert mode at the **a**pex (front) of selection
-- `b`: Set selection mode to **b**ottom node
+- `b`: Toggle **b**ookmark
 - `c`: Set selection mode to **c**olumn
 - `d`: Move **d**own
 - `e`: Enter insert mode at the **e**nd of selection
 - `f`: Open **f**ind (local) menu
 - `g`: Open find (**g**lobal) menu
 - `h`: Toggle **h**ighlight mode
-- `i`: (unassigned)
+- `i`: Enter **i**side mode
 - `j`: Enter **j**ump mode
 - `k`: Kill current selection(s)
 - `l`: Set selection mode to **l**ine
@@ -59,7 +59,7 @@ The following keybindings work regardless of any mode.
 - `r`: Raise current selection(s) (Replace parent node with current node)
 - `shift+R`: Replace the current selection with copied content, and copy the replaced content
 - `s`: Set selection mode to **s**yntax tree
-- `t`: Set selection mode to **t**op node
+- `t`: Set selection mode to **t**oken
 - `u`: Move **u**p
 - `v`: Enter buffer na**v**igation mode
 - `w`: Set selection mode to **w**ord
@@ -76,12 +76,6 @@ The following keybindings work regardless of any mode.
 - `'`: Open List menu
 - `(`/`{`/`[`/`<`: Enclose current selection(s) with `()`/`{}`/`[]`/`<>`
 - `space`: Open context menu
-
-> [!NOTE]
-> I might change `i` -> `a` and `a` -> `e` so that it's consistent with `ctrl+a` and `ctrl+e` in Insert mode. I know this sucks for Vimmers (me too), but honestly speaking it makes much more sense for non-Vimmers for two reasons:
->
-> 1. `a` is lexicographically smaller than `e`
-> 2. `a` is on the left of `e` on the most popular keyboard layouts: Qwerty, Dvorak, and Colemak.
 
 ## Movements and selection modes
 

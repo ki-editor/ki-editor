@@ -124,6 +124,41 @@
 - [x] fix(suggestive_editor): autocomplete inserting emoji icons
 - [x] feat(line): line-up/down go to parent/child lines! yes
 - [x] fix(editor): paste from terminal inserts one by one
+- [x] fix(signature-help): cannot be closed by pressing esc key
+- [x] la should open cursor at end of line, not beginning of next line
+- [x] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
+- [x] fix(editor): scrolling to end always gives error (annoying!)
+- [x] feat(layout): toggle layout automatically depending on terminal dimension
+- [x] minor(keybinding): change fr to fx, so that fr can be find local references
+- [x] fix: cannot transition from global mode to local mode properly
+- [x] feat(keymap): ctrl+d/u = scroll down/up
+- [x] ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
+- [x] feat(keymap): change i -> a, a -> e, so that it matches ctrl+a and ctrl+e in insert mode?
+- [x] feat(kill): should till next in Syntax Tree mode
+- [x] fix(kill): should collapse selection when killing extended range
+- [x] feat(line): should not include leading whitespace (to synergize better with new jumping ux)
+- [x] fix(render): cursor out of bound sometimes due to contextual parent lines
+- [x] feat(git_hunk): trim leading whitespaces when showing diff
+- [x] test(render): with wrapped lines, decorations are rendered properly, and cursor position too
+- [x] fix(editor): cursor is missing when content is empty
+- [x] fix(key): crash when super is pressed
+- [-] feat(remove-surronding-brackets): press ])}> to remove the brackets of the current selection
+- [-] feat(x): xi{ = select inside {, xa( = select around {. c = curly, p = parenthesis, s = square, a = angular, q = single quote, d = double quote, b = backtick. Or any character, for example like \*, even space
+- [-] feat(x): m jumps to matching enclosure (e.g. bracket, quote)
+- [-] feat(editor): trim, which trims both ends of every selection by 1 character
+- [-] feat(layout): the height of prompt window should be one
+- [x] feat(selection_mode/character): let first/last be the first/last char of the current line, similar behavior like SyntaxType, this is so that to get to the last char, we can do `con`
+- [x] feat(movement): move first/last accessible with 1 keypress, perhaps y=first and z=last? But z is hard to combo with last
+- [x] feat(keymap): change e->x, i->a, a->e, x->z (zephyr/misc), op -> i = initial (first selection), on -> o = omega (last selection), oi -> 0 = index
+- [x] feat: how to enter newline in insert mode?!
+- [-] feat(keymap): y = yeet away the both end by one character for each selection(s)
+
+# Grammar loading
+
+- [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
+- [x] store the runtime grammars file not at helix editor config dir, use 'directories'
+- [x] remove the BUILD_TARGET env value that is needed when building
+- [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse
 - [] g for selecting the next node that is the same generation (descendant
   level from root) as the current node
 - [] e for elevate the current node such that it becomes the siblings of its parent
@@ -173,10 +208,8 @@
 - [] feat(find): sentence, paragraph
 - [] refactor(buffer): hide rope
 - [] fix failing test cases
-- [x] fix(signature-help): cannot be closed by pressing esc key
 - [] file explorer (integrate with LSP)
 - [] fix: paste from clipboard does not work properly if contains newline
-- [x] la should open cursor at end of line, not beginning of next line
 - [] fs watcher, watch for file changes
 - [] devise a theme palette rank (light/dark), auto-rank, e.g. in light mode, lightest color is background, darkest color is default
 - [] feat(prompt): with initial content, the cursor should be at the end of the line, not the beginning
@@ -184,10 +217,7 @@
 - [] feat(multicursor): split
 - [] fix: log if formatting failed
 - [] feat(suggestive_editor): text completion (based on words)
-- [x] fix(editor): copy-paste does not work all the time (probably due to the interaction with system clipboard)
-- [x] fix(editor): scrolling to end always gives error (annoying!)
 - [] feat(editor/find): tree-sitter query
-- [x] feat(layout): toggle layout automatically depending on terminal dimension
 - [] feat(movement): leftmost and rightmost (for things like: last word of the line)
 - [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
 - [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)
@@ -195,17 +225,8 @@
 - [] feat(layout): split vertically by half, then split horizontally by half (so that explorer can be on the right)
 - [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
 - [] feat(package): incorporate Mason, see https://www.reddit.com/r/neovim/comments/122ow0u/psa_changes_to_the_masonnvim_registry/, and https://mason-registry.dev/registry/list#search, and https://github.com/williamboman/mason-lspconfig.nvim#default-configuration, and https://github.com/williamboman/mason.nvim#how-to-use-installed-packages
-- [x] minor(keybinding): change fr to fx, so that fr can be find local references
 - [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
-- [x] fix: cannot transition from global mode to local mode properly
 - [] feat(keymap): map every keybinding to a Dispatch (so that we can show help, and also easier to run test, this could also allow running commands on a set of selected editors)
-- [x] feat(keymap): ctrl+d/u = scroll down/up
-- [] ctrl+n/p = scroll line ;
-- [x] ctrl+l = align view top/center/bottom/original (srcoll offset = enum {Top,Bottom,Center,Custom})
-- [] feat(keymap): change i -> a, a -> e, so that it matches ctrl+a and ctrl+e in insert mode?
-- [] feat(kill): kill should treat nameless node as whitespace (in syntax mode)
-- [x] fix(kill): should collapse selection when killing extended range
-- [x] feat(line): should not include leading whitespace (to synergize better with new jumping ux)
 - [] feat(dropdown): fuzzy search (https://docs.rs/fuzzy-matcher/0.3.7/fuzzy_matcher/trait.FuzzyMatcher.html#tymethod.fuzzy_indices)
 - [] feat(quickfix): u/d = prev/next file
 - [] feat(render): show highlight mode
@@ -213,43 +234,26 @@
 - [] feat(layout): default should be inverted-tall, where the largest pane is one the right, and the smaller panes are on the left. Why? Firstly, it's easier to look at the smaller pane that are on the left. Secondly, the code will be centered due to the left panes, making it easier to read the code. That's probably why VS Coder likes to keep their sidebar opened all the time during code.
 - [] fix(selection_mode/syntax_tree): when going into syntax_tree mode from other mode, should prioritize selection of current line, same like going into outermost node mode
 - [] feat(bookmark): b = save/unsave current selection into bookmarks, fb = find bookmarks, gb = global find bookmarks (question how bookmark recalibrate after auto-format?)
-- [] fix(render): cursor out of bound sometimes due to contextual parent lines
-- [] feat(git_hunk): trim leading whitespaces when showing diff
-- [x] test(render): with wrapped lines, decorations are rendered properly, and cursor position too
 - [] fix(render): unicode causes extra padding
-- [x] fix(editor): cursor is missing when content is empty
 - [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
-- [x] fix(key): crash when super is pressed
 - [] feat(title): window title and app title should be wrappable
 - [] perf(insert): only store edit patch and reparse tree upon exit, don't compute them on every keystroke
-- [] feat: how to enter newline in insert mode?!
 - [] style(parent_lines): don't highlight the leading and trailing whitespaces of parent lines
-- [] feat(remove-surronding-brackets): press ])}> to remove the brackets of the current selection
-- [] feat(x): xi{ = select inside {, xa( = select around {. c = curly, p = parenthesis, s = square, a = angular, q = single quote, d = double quote, b = backtick. Or any character, for example like \*, even space
-- [] feat(x): m jumps to matching enclosure (e.g. bracket, quote)
 - [] fix(hover-info): should be closed upon pressing esc in normal mode
 - [] feat(git-hunk): l = unstaged against latest commit, shift+L = staged against latest commit, m = unstaged against master, shift+M = staged against master
 - [] feat(dev): ci/cd
-- [] feat(editor): trim, which trims both ends of every selection by 1 character
-- [] feat(layout): the height of prompt window should be one
-- [x] feat(selection_mode/character): let first/last be the first/last char of the current line, similar behavior like SyntaxType, this is so that to get to the last char, we can do `con`
-- [x] feat(movement): move first/last accessible with 1 keypress, perhaps y=first and z=last? But z is hard to combo with last
-- [x] feat(keymap): change e->x, i->a, a->e, x->z (zephyr/misc), op -> i = initial (first selection), on -> o = omega (last selection), oi -> 0 = index
 - [] feat: stack based language for modifying the content of each selections, example: `trim '1.' prepend`
 - [] feat: for more sophisticated modifications like rotating the selections, we can push the metadata to the first stack
 - [] feat(synax-highlight): don't udpate during insert mode, only update in normal mode
 - [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
-- [] feat(keymap): y = yeet away the both end by one character for each selection(s)
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
 - [] feat(mode): surround, when in this mode, brackets, quotes becomes object, use u to select outer surrond, like syntax tree, how to change surround, use (r)aise, that's why raise has to work also in this mode
 - [] keymap: change ma -> mm, so that ma can enter insert mode without pressing esc
 - [] keymap: saving should clear all cursors, since they are useless after formatting
 - [] ui:  highlight mode indicator
 - [] ui: show number of cursors
-
-# Grammar loading
-
-- [x] should I use helix languages.toml or should I build the list myself again? (build myself, because Rust is much better than toml, especially at reducing duplications)
-- [x] store the runtime grammars file not at helix editor config dir, use 'directories'
-- [x] remove the BUILD_TARGET env value that is needed when building
-- [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse
+- [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
+- [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
+- [] fix(ctrl+l): should be reset after moving selection, so that after moving selection I can always align to top
+- [] feat(quickfix-list): do not repeat group name, easier for u/d to be understood, display result with hierarchy
+- [] feat(exchange): exchange with first/last should not be literally exchanging with last or first, but rather move currrent select to first/last position

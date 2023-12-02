@@ -1,4 +1,11 @@
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{
+    cell::RefCell,
+    fs::File,
+    io::{self, BufRead},
+    ops::Range,
+    path::Path,
+    rc::Rc,
+};
 
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -21,12 +28,45 @@ pub struct QuickfixLists {
 
 impl DropdownItem for QuickfixListItem {
     fn label(&self) -> String {
-        self.location().display()
+        let location = self.location();
+        let line = location.range.start.line;
+        let content = read_specific_line(&location.path, line)
+            .unwrap_or("[Failed to read file]".to_string())
+            .trim_start_matches(|c: char| c.is_whitespace())
+            .to_string();
+        let path = location
+            .path
+            .display_relative()
+            .unwrap_or_else(|_| location.path.display_absolute());
+
+        format!("{}:{} {}", path, line + 1, content)
     }
 
     fn info(&self) -> Option<Info> {
         self.info.clone()
     }
+
+    fn group(&self) -> String {
+        self.location().path.display_absolute()
+    }
+}
+
+fn read_specific_line<P>(filename: &P, line_number: usize) -> anyhow::Result<String>
+where
+    P: AsRef<Path> + Clone,
+{
+    let file = File::open(filename.clone())?;
+    let reader = io::BufReader::new(file);
+    for (i, line) in reader.lines().enumerate() {
+        if i == line_number {
+            return Ok(line?);
+        }
+    }
+    Err(anyhow::anyhow!(
+        "Line {} not found for {}",
+        line_number,
+        filename.as_ref().display()
+    ))
 }
 
 impl Component for QuickfixLists {
@@ -256,6 +296,7 @@ impl Ord for Location {
 pub enum QuickfixListType {
     LspDiagnostic(Option<DiagnosticSeverity>),
     Items(Vec<QuickfixListItem>),
+    Bookmark,
 }
 
 #[cfg(test)]

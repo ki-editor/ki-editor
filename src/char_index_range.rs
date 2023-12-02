@@ -1,6 +1,11 @@
 use std::ops::Range;
 
-use crate::{components::editor::Direction, edit::ApplyOffset, selection::CharIndex};
+use crate::{
+    buffer::Buffer,
+    components::editor::Direction,
+    edit::{is_overlapping, ApplyOffset},
+    selection::CharIndex,
+};
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
@@ -25,12 +30,34 @@ impl From<CharIndexRange> for Range<CharIndex> {
     }
 }
 
+pub trait ToByteRange {
+    fn to_byte_range(&self, buffer: &Buffer) -> anyhow::Result<Range<usize>>;
+}
+
+pub trait ToCharIndexRange {
+    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange>;
+}
+
+impl ToCharIndexRange for Range<usize> {
+    fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+        Ok((buffer.byte_to_char(self.start)?..buffer.byte_to_char(self.end)?).into())
+    }
+}
+
+impl ToByteRange for CharIndexRange {
+    fn to_byte_range(&self, buffer: &Buffer) -> anyhow::Result<Range<usize>> {
+        Ok(buffer.char_to_byte(self.start)?..buffer.char_to_byte(self.end)?)
+    }
+}
+
 impl CharIndexRange {
-    pub fn apply_edit(self, edit: &crate::edit::Edit) -> CharIndexRange {
+    pub fn apply_edit(self, edit: &crate::edit::Edit) -> Option<CharIndexRange> {
         if edit.range.start >= self.end {
-            self
+            Some(self)
+        } else if edit.range.overlaps(&self) {
+            None
         } else {
-            self.apply_offset(edit.offset())
+            Some(self.apply_offset(edit.offset()))
         }
     }
 
@@ -57,6 +84,14 @@ impl CharIndexRange {
             Direction::Start => self.start,
             Direction::End => self.end,
         }
+    }
+
+    fn overlaps(&self, other: &CharIndexRange) -> bool {
+        is_overlapping(&self.to_range(), &other.to_range())
+    }
+
+    fn to_range(&self) -> Range<CharIndex> {
+        self.start..self.end
     }
 }
 

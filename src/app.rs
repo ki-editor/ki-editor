@@ -40,14 +40,13 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     selection::SelectionMode,
+    selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
 };
 
 pub struct App<T: Frontend> {
     context: Context,
-
-    buffers: Vec<Rc<RefCell<Buffer>>>,
 
     sender: Sender<AppMessage>,
 
@@ -91,7 +90,6 @@ impl<T: Frontend> App<T> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
             context: Context::new(working_directory.clone()),
-            buffers: Vec::new(),
             receiver,
             lsp_manager: LspManager::new(sender.clone(), working_directory.clone()),
             enable_lsp: true,
@@ -476,6 +474,10 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveAll => self.save_all()?,
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
+            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open(),
+            Dispatch::OpenInsideOtherPromptClose { open } => {
+                self.open_inside_other_prompt_close(open)
+            }
         }
         Ok(())
     }
@@ -610,6 +612,51 @@ impl<T: Frontend> App<T> {
                         .collect_vec()
                 })
                 .unwrap_or_default(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_inside_other_prompt_open(&mut self) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Inside (other): Open".to_string(),
+            history: Vec::new(),
+            initial_text: None,
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::OpenInsideOtherPromptClose {
+                    open: text.to_owned(),
+                }]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_inside_other_prompt_close(&mut self, open: String) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: format!("Inside (other, open = '{}'): Close", open),
+            history: Vec::new(),
+            initial_text: None,
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(
+                    InsideKind::Other {
+                        open: open.clone(),
+                        close: text.to_owned(),
+                    },
+                ))]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
         });
 
         self.layout
@@ -771,7 +818,6 @@ impl<T: Frontend> App<T> {
         let language = buffer.language();
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
-        self.buffers.push(buffer.clone());
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
@@ -844,10 +890,11 @@ impl<T: Frontend> App<T> {
                 // Need to notify LSP that the file is opened
                 self.lsp_manager.initialized(
                     language,
-                    self.buffers
-                        .iter()
+                    self.layout
+                        .buffers()
+                        .into_iter()
                         .filter_map(|buffer| buffer.borrow().path())
-                        .collect::<Vec<_>>(),
+                        .collect_vec(),
                 );
                 Ok(())
             }
@@ -985,6 +1032,37 @@ impl<T: Frontend> App<T> {
             QuickfixListType::Items(items) => {
                 self.set_quickfix_list(ResponseContext::default(), QuickfixList::new(items))
             }
+            QuickfixListType::Bookmark => {
+                let quickfix_list = QuickfixList::new(
+                    self.layout
+                        .buffers()
+                        .into_iter()
+                        .flat_map(|buffer| {
+                            buffer
+                                .borrow()
+                                .bookmarks()
+                                .into_iter()
+                                .filter_map(|bookmark| {
+                                    let buffer = buffer.borrow();
+                                    let position_range =
+                                        buffer.char_index_range_to_position_range(bookmark).ok()?;
+                                    Some(QuickfixListItem::new(
+                                        Location {
+                                            path: buffer.path()?,
+                                            range: position_range,
+                                        },
+                                        None,
+                                    ))
+                                })
+                                .collect_vec()
+                        })
+                        .collect_vec(),
+                );
+                self.set_quickfix_list(
+                    ResponseContext::default().set_description("Bookmark"),
+                    quickfix_list,
+                )
+            }
         }
     }
 
@@ -1046,24 +1124,30 @@ impl<T: Frontend> App<T> {
     fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
         let locations = match search.kind {
-            SearchKind::Regex => list::grep::run(
-                &search.search,
-                working_directory.clone().into(),
-                false,
-                false,
-            ),
+            SearchKind::AstGrep => {
+                list::ast_grep::run(&search.search, working_directory.clone().into())
+            }
             SearchKind::Literal => list::grep::run(
                 &search.search,
                 working_directory.clone().into(),
                 true,
                 false,
             ),
-            SearchKind::AstGrep => {
-                list::ast_grep::run(&search.search, working_directory.clone().into())
-            }
-            SearchKind::LiteralIgnoreCase => {
+            SearchKind::LiteralCaseSensitive => {
                 list::grep::run(&search.search, working_directory.clone().into(), true, true)
             }
+            SearchKind::Regex => list::grep::run(
+                &search.search,
+                working_directory.clone().into(),
+                false,
+                false,
+            ),
+            SearchKind::RegexCaseSensitive => list::grep::run(
+                &search.search,
+                working_directory.clone().into(),
+                false,
+                true,
+            ),
         }?;
         self.set_quickfix_list(
             ResponseContext::default().set_description("Global search"),
@@ -1119,13 +1203,6 @@ impl<T: Frontend> App<T> {
         } else {
             std::fs::remove_file(path)?;
         }
-        self.buffers.retain(|buffer| {
-            buffer
-                .borrow()
-                .path()
-                .as_ref()
-                .map_or(true, |buffer_path| buffer_path != path)
-        });
         self.layout.remove_suggestive_editor(path);
         self.layout.refresh_file_explorer(&self.working_directory)?;
         Ok(())
@@ -1400,6 +1477,10 @@ pub enum Dispatch {
     SaveAll,
     TerminalDimensionChanged(Dimension),
     SetGlobalTitle(String),
+    OpenInsideOtherPromptOpen,
+    OpenInsideOtherPromptClose {
+        open: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -51,19 +51,19 @@ mod test_app {
             app.open_file(&path_main, true)?;
 
             // Copy the entire file
-            app.handle_dispatch_editors(&[SelectWholeFile, Copy])?;
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line), SelectAll, Copy])?;
 
             // Open foo.rs
             app.open_file(&path_foo, true)?;
 
             // Copy the entire file
-            app.handle_dispatch_editors(&[SelectWholeFile, Copy])?;
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line), SelectAll, Copy])?;
 
             // Open main.rs
             app.open_file(&path_main, true)?;
 
             // Select the entire file and paste
-            app.handle_dispatch_editors(&[SelectWholeFile, Paste])?;
+            app.handle_dispatch_editors(&[SelectAll, Paste])?;
 
             // Expect the content of main.rs to be that of foo.rs
             let content_main = app.get_file_content(&path_main);
@@ -82,7 +82,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 Copy,
                 MoveSelection(Movement::Next),
                 Replace,
@@ -108,7 +108,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 Copy,
                 MoveSelection(Movement::Next),
                 Paste,
@@ -133,7 +133,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 Cut,
             ])?;
 
@@ -160,7 +160,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 MoveSelection(Movement::Next),
                 MoveSelection(Movement::Next),
@@ -196,7 +196,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 MoveSelection(Movement::Next),
                 MoveSelection(Movement::Next),
@@ -223,7 +223,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 MoveSelection(Movement::Next),
                 MoveSelection(Movement::Next),
@@ -234,8 +234,8 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 Copy,
-                SetSelectionMode(SelectionMode::TopNode),
-                MoveSelection(Movement::Next),
+                MatchLiteral("{".to_string()),
+                SetSelectionMode(SelectionMode::SyntaxTree),
             ])?;
 
             assert_eq!(
@@ -260,7 +260,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 ToggleHighlightMode,
                 Copy,
             ])?;
@@ -297,7 +297,7 @@ mod test_app {
 
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
+                SetSelectionMode(SelectionMode::Token),
                 EnterInsertMode(Direction::End),
             ])?;
 
@@ -467,7 +467,8 @@ mod test_app {
                 .to_vec(),
             )?;
             app.handle_dispatch_editors(&[
-                SelectWholeFile,
+                SetSelectionMode(SelectionMode::Line),
+                SelectAll,
                 Kill,
                 Insert(
                     "
@@ -625,6 +626,54 @@ src/main.rs 🦀
 
             app.handle_dispatch_editors(&[MoveSelection(Movement::Up)])?;
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn global_bookmarks() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
+                temp_dir.join_as_path_buf(filename).try_into()
+            };
+            let open = |filename: &str| -> anyhow::Result<Dispatch> {
+                Ok(OpenFile {
+                    path: file(filename)?,
+                })
+            };
+
+            app.handle_dispatches(
+                [
+                    open("src/main.rs")?,
+                    DispatchEditor(SetSelectionMode(SelectionMode::Word)),
+                    DispatchEditor(ToggleBookmark),
+                    open("src/foo.rs")?,
+                    DispatchEditor(SetSelectionMode(SelectionMode::Word)),
+                    DispatchEditor(ToggleBookmark),
+                    SetQuickfixList(crate::quickfix_list::QuickfixListType::Bookmark),
+                ]
+                .to_vec(),
+            )?;
+            assert_eq!(
+                app.get_quickfixes(),
+                [
+                    QuickfixListItem::new(
+                        Location {
+                            path: file("src/foo.rs")?,
+                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        },
+                        None,
+                    ),
+                    QuickfixListItem::new(
+                        Location {
+                            path: file("src/main.rs")?,
+                            range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                        },
+                        None,
+                    ),
+                ],
+            );
 
             Ok(())
         })
