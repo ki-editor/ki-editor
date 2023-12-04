@@ -10,35 +10,24 @@ const makeEnclose = (open, close) => ($) =>
 module.exports = grammar({
   name: "yard",
 
-  extras: ($) => [/\s/], // Ignore whitespace
+  extras: ($) => [/ /], // Ignore whitespace
 
   rules: {
-    // Entry point
-    source_file: ($) => repeat($._expression),
-    _expression: ($) => choice($._bracket_expression, $._quote_expression),
-    expressions: ($) =>
-      prec.left(repeat1(choice($._bracket_expression, $._quote_expression))),
+    // The entry point of the grammar
+    source_file: ($) => repeat($.section),
 
-    _bracket_expression: ($) =>
-      choice(
-        $.paren_expression,
-        $.brace_expression,
-        $.bracket_expression,
-        $._base_expression
-      ),
-    _quote_expression: ($) =>
-      choice(
-        $.double_quote_expression,
-        $.single_quote_expression,
-        $.backtick_quote_expression
-      ),
+    // A section is a header followed by zero or more values
+    section: ($) => seq($.header, $.values),
 
-    _base_expression: ($) => /[^()\[\]{}`'"]+/,
-    paren_expression: makeEnclose("(", ")"),
-    brace_expression: makeEnclose("{", "}"),
-    bracket_expression: makeEnclose("[", "]"),
-    double_quote_expression: makeQuote('"'),
-    single_quote_expression: makeQuote("'"),
-    backtick_quote_expression: makeQuote("`"),
+    // A header is a word enclosed in square brackets
+    header: ($) => seq("[*]", $.word, "\n"),
+
+    values: ($) => repeat1($.value),
+
+    // A value is a word followed by a newline
+    value: ($) => seq("|", $.word, optional("\n")),
+
+    // A word is a sequence of non-whitespace characters
+    word: ($) => /[^\n]+/,
   },
 });

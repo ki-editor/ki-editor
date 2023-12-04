@@ -1,0 +1,32 @@
+==========
+Example 1
+==========
+[*] hello world
+ | yo
+ | lo
+[*] hey hey
+ | lo
+[*] bam
+ | hey
+---
+(source_file
+  (section
+    (header
+      (word))
+    (values
+      (value
+        (word))
+      (value
+        (word))))
+  (section
+    (header
+      (word))
+    (values
+      (value
+        (word))))
+  (section
+    (header
+      (word))
+    (values
+      (value
+        (word)))))
