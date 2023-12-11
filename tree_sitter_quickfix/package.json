@@ -1,5 +1,5 @@
 {
-  "name": "tree-sitter-yard",
+  "name": "tree-sitter-quickfix",
   "version": "0.0.1",
   "description": "yard grammar for tree-sitter",
   "main": "bindings/node",

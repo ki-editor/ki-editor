@@ -56,7 +56,7 @@ pub struct DropdownConfig {
 
 impl<T: DropdownItem> Dropdown<T> {
     pub fn new(config: DropdownConfig) -> Self {
-        let mut editor = Editor::from_text(tree_sitter_yard::language(), "");
+        let mut editor = Editor::from_text(tree_sitter_quickfix::language(), "");
         editor.set_title(config.title);
         let mut dropdown = Self {
             editor,

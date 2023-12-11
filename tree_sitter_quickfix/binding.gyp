@@ -1,7 +1,7 @@
 {
   "targets": [
     {
-      "target_name": "tree_sitter_yard_binding",
+      "target_name": "tree_sitter_quickfix_binding",
       "include_dirs": [
         "<!(node -e \"require('nan')\")",
         "src"
