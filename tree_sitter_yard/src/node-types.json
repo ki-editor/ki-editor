@@ -15,6 +15,21 @@
     }
   },
   {
+    "type": "lastValue",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "word",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "section",
     "named": true,
     "fields": {},
@@ -72,6 +87,10 @@
       "required": true,
       "types": [
         {
+          "type": "lastValue",
+          "named": true
+        },
+        {
           "type": "value",
           "named": true
         }
@@ -83,15 +102,19 @@
     "named": false
   },
   {
-    "type": "[*]",
-    "named": false
-  },
-  {
     "type": "word",
     "named": true
   },
   {
-    "type": "|",
+    "type": "└",
+    "named": false
+  },
+  {
+    "type": "├",
+    "named": false
+  },
+  {
+    "type": "■┬",
     "named": false
   }
 ]

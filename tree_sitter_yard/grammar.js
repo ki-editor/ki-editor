@@ -10,7 +10,7 @@ const makeEnclose = (open, close) => ($) =>
 module.exports = grammar({
   name: "yard",
 
-  extras: ($) => [/ /], // Ignore whitespace
+  extras: ($) => [/ /, "\n"], // Ignore whitespace
 
   rules: {
     // The entry point of the grammar
@@ -20,12 +20,14 @@ module.exports = grammar({
     section: ($) => seq($.header, $.values),
 
     // A header is a word enclosed in square brackets
-    header: ($) => seq("[*]", $.word, "\n"),
+    header: ($) => seq("■┬", $.word),
 
-    values: ($) => repeat1($.value),
+    values: ($) => seq(repeat($.value), $.lastValue),
 
     // A value is a word followed by a newline
-    value: ($) => seq("|", $.word, optional("\n")),
+    value: ($) => seq("├", $.word, "\n"),
+
+    lastValue: ($) => seq("└", $.word),
 
     // A word is a sequence of non-whitespace characters
     word: ($) => /[^\n]+/,

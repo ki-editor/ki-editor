@@ -50,8 +50,10 @@ impl DropdownItem for CodeAction {
         None
     }
 
-    fn group(&self) -> String {
-        self.kind.clone().unwrap_or("".to_string())
+    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
+        Some(Box::new(|item| {
+            item.kind.clone().unwrap_or("Unknown".to_string())
+        }))
     }
 }
 
@@ -87,10 +89,8 @@ impl DropdownItem for CompletionItem {
         ))
     }
 
-    fn group(&self) -> String {
-        self.kind
-            .map(|kind| format!("{:?}", kind))
-            .unwrap_or(self.label.to_string())
+    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
+        None
     }
 }
 

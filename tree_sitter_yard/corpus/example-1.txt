@@ -1,32 +1,40 @@
 ==========
 Example 1
 ==========
-[*] hello world
- | yo
- | lo
-[*] hey hey
- | lo
-[*] bam
- | hey
+■┬ event/src/lib.rs
+ ├ 5: pub use crate::event::{KeyEvent, KeyModifiers};
+ └ 97: use crate::{KeyEvent, KeyModifiers};
+ 
+■┬ shared/src/formatter.rs
+ └ 3: use crate::language::ProcessCommand;
+ 
+■┬ shared/src/language.rs
+ ├ 4: pub use crate::process_command::ProcessCommand;
+ ├ 5: use crate::{canonicalized_path::CanonicalizedPath, formatter::Formatter};
+ └ 7: pub use crate::languages::LANGUAGES;
 ---
-(source_file
-  (section
-    (header
-      (word))
-    (values
-      (value
-        (word))
-      (value
-        (word))))
-  (section
-    (header
-      (word))
-    (values
-      (value
-        (word))))
-  (section
-    (header
-      (word))
-    (values
-      (value
-        (word)))))
+  (source_file
+      (section
+        (header
+          (word))
+        (values
+          (value
+            (word))
+          (lastValue
+            (word))))
+      (section
+        (header
+          (word))
+        (values
+          (lastValue
+            (word))))
+      (section
+        (header
+          (word))
+        (values
+          (value
+            (word))
+          (value
+            (word))
+          (lastValue
+            (word)))))

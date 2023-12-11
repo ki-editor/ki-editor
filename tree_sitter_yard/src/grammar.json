@@ -26,7 +26,36 @@
       "members": [
         {
           "type": "STRING",
-          "value": "[*]"
+          "value": "■┬"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "word"
+        }
+      ]
+    },
+    "values": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "value"
+          }
+        },
+        {
+          "type": "SYMBOL",
+          "name": "lastValue"
+        }
+      ]
+    },
+    "value": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "├"
         },
         {
           "type": "SYMBOL",
@@ -38,35 +67,16 @@
         }
       ]
     },
-    "values": {
-      "type": "REPEAT1",
-      "content": {
-        "type": "SYMBOL",
-        "name": "value"
-      }
-    },
-    "value": {
+    "lastValue": {
       "type": "SEQ",
       "members": [
         {
           "type": "STRING",
-          "value": "|"
+          "value": "└"
         },
         {
           "type": "SYMBOL",
           "name": "word"
-        },
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "STRING",
-              "value": "\n"
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
         }
       ]
     },
@@ -79,6 +89,10 @@
     {
       "type": "PATTERN",
       "value": " "
+    },
+    {
+      "type": "STRING",
+      "value": "\n"
     }
   ],
   "conflicts": [],

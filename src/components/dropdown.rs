@@ -16,7 +16,14 @@ pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
         String::new()
     }
     fn label(&self) -> String;
-    fn group(&self) -> String;
+    fn display(&self) -> String {
+        if self.emoji().is_empty() {
+            self.label()
+        } else {
+            format!("{} {}", self.emoji(), self.label())
+        }
+    }
+    fn group() -> Option<Box<dyn Fn(&Self) -> String>>;
     fn info(&self) -> Option<Info>;
 }
 
@@ -29,8 +36,8 @@ impl DropdownItem for String {
         None
     }
 
-    fn group(&self) -> String {
-        self.clone()
+    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
+        None
     }
 }
 
@@ -49,7 +56,7 @@ pub struct DropdownConfig {
 
 impl<T: DropdownItem> Dropdown<T> {
     pub fn new(config: DropdownConfig) -> Self {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), "");
+        let mut editor = Editor::from_text(tree_sitter_yard::language(), "");
         editor.set_title(config.title);
         let mut dropdown = Self {
             editor,
@@ -68,7 +75,12 @@ impl<T: DropdownItem> Dropdown<T> {
             return self.current_item();
         }
         self.current_item_index = index;
-        self.editor.select_line_at(self.current_item_index).ok()?;
+        let group_title_size = T::group().map(|_| 1).unwrap_or(0);
+
+        let result = self.current_item_index
+            + self.get_current_item_group_index().unwrap_or(0) * group_title_size
+            + group_title_size;
+        self.editor.select_line_at(result).ok()?;
         self.show_current_item()
     }
 
@@ -88,21 +100,30 @@ impl<T: DropdownItem> Dropdown<T> {
         self.change_index(0)
     }
 
-    fn groups(&self) -> Vec<String> {
-        self.filtered_items
-            .iter()
-            .map(DropdownItem::group)
-            .unique()
-            .sorted()
-            .collect_vec()
+    fn groups(&self) -> Option<Vec<String>> {
+        T::group().map(|f| {
+            self.filtered_items
+                .iter()
+                .map(f)
+                .unique()
+                .sorted()
+                .collect_vec()
+        })
     }
 
-    fn change_group_index(&mut self, increment: bool) -> Option<T> {
-        let current_group = self.current_item()?.group();
-        let groups = self.groups();
+    fn get_current_item_group_index(&self) -> Option<usize> {
+        let current_group = T::group()?(&self.current_item()?);
+        let groups = self.groups()?;
         let (current_group_index, _) = groups
             .iter()
             .find_position(|group| group == &&current_group)?;
+        Some(current_group_index)
+    }
+
+    fn change_group_index(&mut self, increment: bool) -> Option<T> {
+        let groups = self.groups()?;
+        let get_group = T::group()?;
+        let current_group_index = self.get_current_item_group_index()?;
         let new_group_index = if increment {
             current_group_index.saturating_add(1)
         } else {
@@ -112,7 +133,7 @@ impl<T: DropdownItem> Dropdown<T> {
         let (new_item_index, _) = self
             .filtered_items
             .iter()
-            .find_position(|item| &item.group() == new_group)?;
+            .find_position(|item| &get_group(&item) == new_group)?;
         self.change_index(new_item_index)
     }
 
@@ -156,12 +177,12 @@ impl<T: DropdownItem> Dropdown<T> {
                     .contains(&self.filter.to_lowercase())
             })
             .cloned()
-            .sorted_by(|a, b| {
-                let ord = a.group().cmp(&b.group());
-                match ord {
+            .sorted_by(|a, b| match T::group() {
+                Some(f) => match f(a).cmp(&f(b)) {
                     std::cmp::Ordering::Equal => a.label().cmp(&b.label()),
-                    _ => ord,
-                }
+                    ord => ord,
+                },
+                None => a.label().cmp(&b.label()),
             })
             .collect();
 
@@ -180,18 +201,43 @@ impl<T: DropdownItem> Dropdown<T> {
             &self
                 .filtered_items
                 .iter()
-                .map(|item| {
-                    if item.emoji().is_empty() {
-                        item.label()
+                .group_by(|item| T::group().map(|f| f(item)))
+                .into_iter()
+                .map(|(group_key, items)| {
+                    if let Some(group_key) = group_key {
+                        let items = items.collect_vec();
+                        let items_len = items.len();
+                        let items = items
+                            .into_iter()
+                            .sorted()
+                            .enumerate()
+                            .map(|(index, item)| {
+                                let content = item.display();
+                                let indicator = if index == items_len.saturating_sub(1) {
+                                    "└"
+                                } else {
+                                    "├"
+                                };
+                                format!(" {} {}", indicator, content)
+                            })
+                            .join("\n");
+                        format!("■┬ {}\n{}", group_key, items)
                     } else {
-                        format!("{} {}", item.emoji(), item.label())
+                        items
+                            .into_iter()
+                            .sorted()
+                            .map(|item| item.display())
+                            .join("\n")
                     }
                 })
                 .collect::<Vec<String>>()
                 .join("\n"),
         )?;
 
-        self.editor.select_line_at(0)?;
+        self.editor.select_line_at(match T::group() {
+            Some(_) => 1,
+            None => 0,
+        })?;
         Ok(())
     }
 
@@ -229,6 +275,12 @@ impl<T: DropdownItem> Dropdown<T> {
 
     pub fn filtered_items(&self) -> &Vec<T> {
         &self.filtered_items
+    }
+
+    #[cfg(test)]
+    fn assert_current_label(&self, label: &str, current_selected_text: &str) {
+        assert_eq!(self.current_item().unwrap().label(), label);
+        assert_eq!(self.editor.get_selected_texts(), &[current_selected_text]);
     }
 }
 
@@ -311,8 +363,8 @@ mod test_dropdown {
             Some(self.info.clone())
         }
 
-        fn group(&self) -> String {
-            self.group.clone()
+        fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
+            Some(Box::new(|item| item.group.clone()))
         }
     }
 
@@ -334,63 +386,68 @@ mod test_dropdown {
         // Expect the items are sorted by group first, then by label
         assert_eq!(
             dropdown.editor.buffer().rope().to_string(),
-            "a\nc\nd\nb".to_string()
+            "
+■┬ 1
+ └ a
+■┬ 2
+ ├ c
+ └ d
+■┬ 3
+ └ b
+"
+            .trim()
         );
-
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.assert_current_label("a", " └ a\n");
 
         dropdown.next_group();
-        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.assert_current_label("c", " ├ c\n");
         dropdown.next_group();
-        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.assert_current_label("b", " └ b");
 
         dropdown.previous_group();
-        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.assert_current_label("c", " ├ c\n");
         dropdown.previous_group();
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.assert_current_label("a", " └ a\n");
     }
 
     #[test]
-    fn test_dropdown() -> anyhow::Result<()> {
+    fn test_dropdown_without_group() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
         dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
-        assert_eq!(
-            dropdown.editor.buffer().rope().to_string(),
-            "a\nb\nc".to_string()
-        );
-        assert_eq!(dropdown.editor.get_selected_texts(), vec!["a\n"]);
+        assert_eq!(dropdown.editor.buffer().rope().to_string(), "a\nb\nc");
+        dropdown.assert_current_label("a", "a\n");
         assert_eq!(
             dropdown.editor.selection_set.primary.extended_range(),
             (CharIndex(0)..CharIndex(2)).into()
         );
         dropdown.next_item();
+        dropdown.assert_current_label("b", "b\n");
         assert_eq!(dropdown.current_item().unwrap().label(), "b");
         dropdown.next_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.assert_current_label("c", "c");
         dropdown.next_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.assert_current_label("c", "c");
 
         dropdown.previous_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.assert_current_label("b", "b\n");
         dropdown.previous_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.assert_current_label("a", "a\n");
         dropdown.previous_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.assert_current_label("a", "a\n");
 
         dropdown.set_filter("b")?;
-        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.assert_current_label("b", "b");
         dropdown.set_filter("c")?;
-        assert_eq!(dropdown.current_item().unwrap().label(), "c");
+        dropdown.assert_current_label("c", "c");
         dropdown.set_filter("d")?;
         assert_eq!(dropdown.current_item(), None);
 
         dropdown.set_filter("")?;
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        dropdown.assert_current_label("a", "a\n");
         dropdown.next_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        dropdown.assert_current_label("b", "b\n");
 
         dropdown.set_items(vec![
             "lorem".to_string(),
@@ -399,11 +456,10 @@ mod test_dropdown {
         ]);
 
         // The current item should be `dolor` because dropdown will sort the items
-        assert_eq!(dropdown.current_item().unwrap().label(), "dolor");
-        assert_eq!(dropdown.editor.current_line().unwrap(), "dolor");
+        dropdown.assert_current_label("dolor", "dolor\n");
         dropdown.next_item();
-        assert_eq!(dropdown.current_item().unwrap().label(), "ipsum");
-        assert_eq!(dropdown.editor.current_line().unwrap(), "ipsum");
+        dropdown.assert_current_label("ipsum", "ipsum\n");
+
         Ok(())
     }
 
