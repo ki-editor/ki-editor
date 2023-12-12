@@ -34,20 +34,19 @@ impl DropdownItem for QuickfixListItem {
             .unwrap_or("[Failed to read file]".to_string())
             .trim_start_matches(|c: char| c.is_whitespace())
             .to_string();
-        let path = location
-            .path
-            .display_relative()
-            .unwrap_or_else(|_| location.path.display_absolute());
-
-        format!("{}:{} {}", path, line + 1, content)
+        format!("{}: {}", line + 1, content)
     }
 
     fn info(&self) -> Option<Info> {
         self.info.clone()
     }
 
-    fn group(&self) -> String {
-        self.location().path.display_absolute()
+    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
+        Some(Box::new(|item| {
+            let path = item.location().path.clone();
+            path.display_relative()
+                .unwrap_or_else(|_| path.display_absolute())
+        }))
     }
 }
 
@@ -139,14 +138,13 @@ impl QuickfixList {
         QuickfixList {
             current_index: 0,
             items: {
-                let mut items = items;
-
-                // Sort the items by location
-                items.sort_by(|a, b| a.location.cmp(&b.location));
+                let items = items;
 
                 // Merge items of same locations
                 items
                     .into_iter()
+                    // Sort the items by location
+                    .sorted_by_key(|item| item.location.clone())
                     .group_by(|item| item.location.clone())
                     .into_iter()
                     .map(|(location, items)| QuickfixListItem {
@@ -279,10 +277,11 @@ impl TryFrom<lsp_types::Location> for Location {
 
 impl PartialOrd for Location {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.path.partial_cmp(&other.path).map(|ord| match ord {
-            std::cmp::Ordering::Equal => self.range.start.cmp(&other.range.start),
-            _ => ord,
-        })
+        (&self.path, self.range.start.line, self.range.start.column).partial_cmp(&(
+            &other.path,
+            other.range.start.line,
+            other.range.start.column,
+        ))
     }
 }
 

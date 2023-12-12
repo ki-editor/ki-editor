@@ -247,6 +247,11 @@
 - [] feat(synax-highlight): don't udpate during insert mode, only update in normal mode
 - [] feat(keymap): i = inside, o = outside, p=(, q=', d=", s=[, c={, b=` a=<, other symbol as is
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
+- [] feat(mode): surround, when in this mode, brackets, quotes becomes object, use u to select outer surrond, like syntax tree, how to change surround, use (r)aise, that's why raise has to work also in this mode
+- [] keymap: change ma -> mm, so that ma can enter insert mode without pressing esc
+- [] keymap: saving should clear all cursors, since they are useless after formatting
+- [] ui:  highlight mode indicator
+- [] ui: show number of cursors
 - [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
 - [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
 - [] fix(ctrl+l): should be reset after moving selection, so that after moving selection I can always align to top

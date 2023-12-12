@@ -2080,6 +2080,7 @@ dependencies = [
  "tree-sitter-highlight",
  "tree-sitter-javascript",
  "tree-sitter-md",
+ "tree-sitter-quickfix",
  "tree-sitter-rust",
  "tree-sitter-traversal",
  "tree-sitter-typescript",
@@ -2139,9 +2140,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.20.9"
+version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4423c784fe11398ca91e505cdc71356b07b1a924fc8735cfab5333afe3e18bc"
+checksum = "e747b1f9b7b931ed39a548c1fae149101497de3c1fc8d9e18c62c1a66c683d3d"
 dependencies = [
  "cc",
  "regex",
@@ -2186,6 +2187,14 @@ name = "tree-sitter-md"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a237fa10f6b466b76c783c79b08cc172581e547ef1dbb6ddf1f8b4e230157e1"
+dependencies = [
+ "cc",
+ "tree-sitter",
+]
+
+[[package]]
+name = "tree-sitter-quickfix"
+version = "0.0.1"
 dependencies = [
  "cc",
  "tree-sitter",
