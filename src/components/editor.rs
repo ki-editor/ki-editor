@@ -983,8 +983,11 @@ impl Editor {
         } else {
             None
         };
-        self.apply_edit_transaction(edit_transaction)
-            .map(|dispatches| dispatches.into_iter().chain(dispatch).collect())
+        let dispatches = self
+            .apply_edit_transaction(edit_transaction)
+            .map(|dispatches| dispatches.into_iter().chain(dispatch).collect());
+        self.enter_insert_mode(Direction::Start)?;
+        dispatches
     }
 
     pub fn kill(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
@@ -1531,6 +1534,7 @@ impl Editor {
             DispatchEditor::EnterInsideMode(kind) => {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
+            DispatchEditor::EnterNormalMode => self.enter_normal_mode()?,
         }
         Ok([].to_vec())
     }
@@ -3088,4 +3092,5 @@ pub enum DispatchEditor {
     MatchLiteral(String),
     ToggleBookmark,
     EnterInsideMode(InsideKind),
+    EnterNormalMode,
 }

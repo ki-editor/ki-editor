@@ -135,6 +135,7 @@ mod test_app {
                 SetContent("fn main() { let x = 1; }".to_string()),
                 SetSelectionMode(SelectionMode::Token),
                 Cut,
+                EnterNormalMode,
             ])?;
 
             assert_eq!(app.get_file_content(&path_main), " main() { let x = 1; }");
