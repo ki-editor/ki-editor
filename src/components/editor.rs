@@ -749,7 +749,7 @@ impl Editor {
             selection_set: SelectionSet {
                 primary: Selection::default(),
                 secondary: vec![],
-                mode: SelectionMode::Custom,
+                mode: SelectionMode::Line,
             },
             jumps: None,
             mode: Mode::Normal,
