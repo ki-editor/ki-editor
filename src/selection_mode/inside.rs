@@ -137,7 +137,10 @@ impl InsideKind {
 mod test_inside {
 
     use crate::{
-        buffer::Buffer, components::editor::Movement, context::Context, selection::CharIndex,
+        buffer::Buffer,
+        components::editor::{Direction, Movement},
+        context::Context,
+        selection::{CharIndex, Filters},
     };
 
     use super::*;
@@ -152,8 +155,9 @@ mod test_inside {
         let params = SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::default(),
-            cursor_direction: &crate::components::editor::Direction::Start,
+            cursor_direction: &Direction::default(),
             context: &Context::default(),
+            filters: &Filters::default(),
         };
 
         let current = inside.current(SelectionModeParams {
@@ -186,8 +190,9 @@ mod test_inside {
                 buffer: &buffer,
                 current_selection: &Selection::default()
                     .set_range((CharIndex(range.start)..CharIndex(range.end)).into()),
-                cursor_direction: &crate::components::editor::Direction::Start,
+                cursor_direction: &Direction::default(),
                 context: &Context::default(),
+                filters: &Filters::default(),
             })?;
             let current_text = buffer.slice(&current.unwrap().extended_range())?;
             assert_eq!(current_text.to_string(), expected.to_string());

@@ -5,13 +5,13 @@ mod test_editor {
         app::Dispatch,
         components::{
             component::Component,
-            editor::{Direction, Editor, Mode, Movement, ViewAlignment},
+            editor::{Direction, DispatchEditor, Editor, Mode, Movement, ViewAlignment},
             suggestive_editor::Info,
         },
         context::Context,
         grid::{Style, StyleKey},
         position::Position,
-        selection::SelectionMode,
+        selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
         selection_mode::inside::InsideKind,
         themes::Theme,
     };
@@ -1313,6 +1313,47 @@ fn main() { // too long
         editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
         assert_eq!(editor.get_selected_texts(), ["bar"]);
 
+        Ok(())
+    }
+    #[test]
+    fn omit() -> Result<(), anyhow::Error> {
+        let mut editor = Editor::from_text(language(), "foo bar spam");
+        let context = Context::default();
+        use DispatchEditor::*;
+        editor.apply_dispatches(
+            &context,
+            [
+                SetContent("foo bar spam".to_string()),
+                SetSelectionMode(SelectionMode::Word),
+                FilterPush(Filter::new(
+                    FilterKind::Keep,
+                    FilterTarget::Content,
+                    FilterMechanism::Literal("a".to_string()),
+                )),
+                DispatchEditor::AddCursorToAllSelections,
+            ]
+            .to_vec(),
+        )?;
+        // Assert the selection is only "bar" and "spam"
+        assert_eq!(editor.get_selected_texts(), ["bar", "spam"]);
+
+        // Clear the filter
+        editor.apply_dispatches(
+            &context,
+            [
+                FilterClear,
+                FilterPush(Filter::new(
+                    FilterKind::Remove,
+                    FilterTarget::Content,
+                    FilterMechanism::Literal("a".to_string()),
+                )),
+                AddCursorToAllSelections,
+            ]
+            .to_vec(),
+        )?;
+
+        // Assert the selection is only "foo"
+        assert_eq!(editor.get_selected_texts(), ["foo"]);
         Ok(())
     }
 }

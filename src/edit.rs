@@ -198,12 +198,17 @@ impl EditTransaction {
         (self.min_char_index()..self.max_char_index()).into()
     }
 
-    pub fn selection_set(&self, mode: crate::selection::SelectionMode) -> Option<SelectionSet> {
+    pub fn selection_set(
+        &self,
+        mode: crate::selection::SelectionMode,
+        filters: crate::selection::Filters,
+    ) -> Option<SelectionSet> {
         if let Some((head, tail)) = self.selections().split_first() {
             Some(SelectionSet {
                 primary: (*head).clone(),
                 secondary: tail.iter().map(|selection| (*selection).clone()).collect(),
                 mode,
+                filters,
             })
         } else {
             None

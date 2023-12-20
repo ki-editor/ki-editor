@@ -250,10 +250,12 @@
 - [] feat(mode): surround, when in this mode, brackets, quotes becomes object, use u to select outer surrond, like syntax tree, how to change surround, use (r)aise, that's why raise has to work also in this mode
 - [] keymap: change ma -> mm, so that ma can enter insert mode without pressing esc
 - [] keymap: saving should clear all cursors, since they are useless after formatting
-- [] ui:  highlight mode indicator
+- [] ui: highlight mode indicator
 - [] ui: show number of cursors
 - [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
 - [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
 - [] fix(ctrl+l): should be reset after moving selection, so that after moving selection I can always align to top
 - [] feat(quickfix-list): do not repeat group name, easier for u/d to be understood, display result with hierarchy
 - [] feat(exchange): exchange with first/last should not be literally exchanging with last or first, but rather move currrent select to first/last position
+- [] feat(render): highlight all selections of non-contingous selection mode
+- [] feat(editor): press \ to enter pure change selection mode (will not change the current selection)

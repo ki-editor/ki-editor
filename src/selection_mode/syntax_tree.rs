@@ -88,7 +88,7 @@ mod test_syntax_tree {
         buffer::Buffer,
         char_index_range::CharIndexRange,
         context::Context,
-        selection::{CharIndex, Selection},
+        selection::{CharIndex, Filters, Selection},
         selection_mode::SelectionModeParams,
     };
 
@@ -129,6 +129,7 @@ mod test_syntax_tree {
             buffer: &buffer,
             current_selection: &Selection::new(input_range),
             cursor_direction: &crate::components::editor::Direction::Start,
+            filters: &Filters::default(),
         });
 
         let new_range = selection.unwrap().unwrap().range();
@@ -147,6 +148,7 @@ mod test_syntax_tree {
             buffer: &buffer,
             current_selection: &Selection::new(input_range),
             cursor_direction: &crate::components::editor::Direction::Start,
+            filters: &Filters::default(),
         });
 
         let new_range = selection.unwrap().unwrap().range();
@@ -168,6 +170,7 @@ mod test_syntax_tree {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
+            filters: &Filters::default(),
         });
 
         let parent_range = selection.unwrap().unwrap().range();
@@ -178,6 +181,7 @@ mod test_syntax_tree {
             buffer: &buffer,
             current_selection: &Selection::new(parent_range),
             cursor_direction: &crate::components::editor::Direction::Start,
+            filters: &Filters::default(),
         });
 
         let child_range = selection.unwrap().unwrap().range();

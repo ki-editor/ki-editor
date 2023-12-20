@@ -36,7 +36,7 @@ use crate::{
     },
     context::Context,
     edit::is_overlapping,
-    selection::Selection,
+    selection::{Filter, FilterTarget, Filters, Selection},
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -69,6 +69,14 @@ impl ByteRange {
     fn set_info(self, info: Option<Info>) -> ByteRange {
         ByteRange { info, ..self }
     }
+
+    pub(crate) fn range(&self) -> &Range<usize> {
+        &self.range
+    }
+
+    pub(crate) fn info(&self) -> &Option<Info> {
+        &self.info
+    }
 }
 
 impl PartialOrd for ByteRange {
@@ -100,6 +108,7 @@ pub struct SelectionModeParams<'a> {
     pub current_selection: &'a Selection,
     pub cursor_direction: &'a Direction,
     pub context: &'a Context,
+    pub filters: &'a Filters,
 }
 impl<'a> SelectionModeParams<'a> {
     fn selected_text(&self) -> anyhow::Result<String> {
@@ -111,10 +120,31 @@ impl<'a> SelectionModeParams<'a> {
 
 pub trait SelectionMode {
     fn name(&self) -> &'static str;
+    /// NOTE: this method should not be used directly,
+    /// Use `iter_filtered` instead.
+    /// I wish to have private trait methods :(
     fn iter<'a>(
         &'a self,
         params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>>;
+
+    fn iter_filtered<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        let SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+            context,
+            filters,
+        } = params;
+
+        Ok(Box::new(
+            self.iter(params)?
+                .filter_map(|item| filters.retain(buffer, item)),
+        ))
+    }
 
     fn apply_movement(
         &self,
@@ -123,6 +153,7 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Option<Selection>> {
         match movement {
             Movement::Next => self.next(params),
+
             Movement::Previous => self.previous(params),
             Movement::Last => self.last(params),
             Movement::Current => self.current(params),
@@ -155,7 +186,7 @@ pub trait SelectionMode {
         let start = current_selection.range().start;
         let current_position = buffer.char_to_position(start)?;
         let current_line = buffer.char_to_line(start)?;
-        self.iter(params)?
+        self.iter_filtered(params)?
             .filter_map(|range| {
                 let position = buffer.byte_to_position(range.range.start).ok()?;
                 Some((position, range))
@@ -181,7 +212,7 @@ pub trait SelectionMode {
         let byte_range = params.buffer.line_to_byte(line_number_range.start)?
             ..params.buffer.line_to_byte(line_number_range.end)?;
         let iter = self
-            .iter(params.clone())?
+            .iter_filtered(params.clone())?
             .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start));
         let jumps = iter
             .filter_map(|range| {
@@ -230,7 +261,7 @@ pub trait SelectionMode {
 
     fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .iter(params.clone())?
+            .iter_filtered(params.clone())?
             .sorted()
             .last()
             .and_then(|range| {
@@ -246,7 +277,7 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection;
         let buffer = params.buffer;
-        let mut iter = self.iter(params)?.sorted();
+        let mut iter = self.iter_filtered(params)?.sorted();
         if let Some(byte_range) = iter.nth(index) {
             Ok(Some(byte_range.to_selection(buffer, current_selection)?))
         } else {
@@ -259,7 +290,7 @@ pub trait SelectionMode {
         params: SelectionModeParams,
         offset: isize,
     ) -> anyhow::Result<Option<Selection>> {
-        let iter = self.iter(params.clone())?.sorted();
+        let iter = self.iter_filtered(params.clone())?.sorted();
         let buffer = params.buffer;
         let current_selection = params.current_selection;
 
@@ -300,7 +331,7 @@ pub trait SelectionMode {
             .min_by_key(|(_, diff)| *diff)
             .map(|(i, _)| i);
 
-        let mut iter = self.iter(params)?.sorted();
+        let mut iter = self.iter_filtered(params)?.sorted();
         Ok(nearest.and_then(|i| {
             iter.nth(((i as isize) + offset) as usize)
                 .and_then(|range| range.to_selection(buffer, current_selection).ok())
@@ -313,7 +344,7 @@ pub trait SelectionMode {
 
     fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .iter(params.clone())?
+            .iter_filtered(params.clone())?
             .sorted()
             .next()
             .and_then(|range| {
@@ -341,10 +372,11 @@ pub trait SelectionMode {
 
         let actual = self
             .iter(SelectionModeParams {
-                buffer,
-                current_selection: &current_selection,
-                cursor_direction: &Direction::Start,
+                buffer: &buffer,
+                current_selection: &Selection::default(),
+                cursor_direction: &Direction::default(),
                 context: &Context::default(),
+                filters: &Filters::default(),
             })
             .unwrap()
             .flat_map(|range| -> anyhow::Result<_> {
@@ -371,8 +403,9 @@ pub trait SelectionMode {
         let params = SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::default(),
-            cursor_direction: &crate::components::editor::Direction::Start,
+            cursor_direction: &Direction::default(),
             context: &Context::default(),
+            filters: &Filters::default(),
         };
         Ok((0..up_to)
             .into_iter()
@@ -409,7 +442,7 @@ mod test_selection_mode {
             suggestive_editor::Info,
         },
         context::Context,
-        selection::{CharIndex, Selection},
+        selection::{CharIndex, Filters, Selection},
         selection_mode::Line,
     };
 
@@ -439,13 +472,14 @@ mod test_selection_mode {
         expected_selection_byte_range: Range<usize>,
     ) {
         let params = SelectionModeParams {
-            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default().set_range(CharIndexRange {
                 start: CharIndex(current_selection_byte_range.start),
                 end: CharIndex(current_selection_byte_range.end),
             }),
-            cursor_direction: &Direction::Start,
+            cursor_direction: &Direction::default(),
+            context: &Context::default(),
+            filters: &Filters::default(),
         };
         let actual = Dummy
             .apply_movement(params, movement)
@@ -503,12 +537,13 @@ mod test_selection_mode {
     #[test]
     fn same_range_different_info() {
         let params = SelectionModeParams {
-            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default()
                 .set_range((CharIndex(1)..CharIndex(2)).into())
                 .set_info(Some(Info::new("Spongebob".to_string()))),
-            cursor_direction: &Direction::Start,
+            cursor_direction: &Direction::default(),
+            context: &Context::default(),
+            filters: &Filters::default(),
         };
         struct Dummy;
         impl SelectionMode for Dummy {
@@ -545,7 +580,6 @@ mod test_selection_mode {
     #[test]
     fn should_not_use_extended_range() {
         let params = SelectionModeParams {
-            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default()
                 .set_range(CharIndexRange {
@@ -556,7 +590,9 @@ mod test_selection_mode {
                     start: CharIndex(0),
                     end: CharIndex(6),
                 })),
-            cursor_direction: &Direction::Start,
+            cursor_direction: &Direction::default(),
+            context: &Context::default(),
+            filters: &Filters::default(),
         };
         let actual = Dummy
             .apply_movement(params, Movement::Next)
@@ -572,13 +608,14 @@ mod test_selection_mode {
     /// Should prioritize selection on the same line even though the selection on the next line might be closer to the cursor
     fn prioritize_same_line() {
         let params = SelectionModeParams {
-            context: &Context::default(),
             buffer: &Buffer::new(tree_sitter_md::language(), "hello\nworld"),
             current_selection: &Selection::default().set_range(CharIndexRange {
                 start: CharIndex(4),
                 end: CharIndex(5),
             }),
-            cursor_direction: &Direction::Start,
+            cursor_direction: &Direction::default(),
+            context: &Context::default(),
+            filters: &Filters::default(),
         };
         let actual = Line
             .apply_movement(params, Movement::Current)

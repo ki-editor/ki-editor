@@ -223,11 +223,7 @@ impl<T: DropdownItem> Dropdown<T> {
                             .join("\n");
                         format!("■┬ {}\n{}", group_key, items)
                     } else {
-                        items
-                            .into_iter()
-                            .sorted()
-                            .map(|item| item.display())
-                            .join("\n")
+                        items.into_iter().map(|item| item.display()).join("\n")
                     }
                 })
                 .collect::<Vec<String>>()

@@ -6,6 +6,7 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
+    selection::{Filter, FilterKind, FilterTarget, Filters},
     selection_mode::{self, inside::InsideKind},
     soft_wrap,
 };
@@ -692,6 +693,10 @@ impl Direction {
             Direction::End => Direction::Start,
         }
     }
+
+    pub(crate) fn default() -> Direction {
+        Direction::Start
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -730,6 +735,7 @@ impl Editor {
                 primary: Selection::default(),
                 secondary: vec![],
                 mode: SelectionMode::Custom,
+                filters: Filters::default(),
             },
             jumps: None,
             mode: Mode::Normal,
@@ -750,6 +756,7 @@ impl Editor {
                 primary: Selection::default(),
                 secondary: vec![],
                 mode: SelectionMode::Line,
+                filters: Filters::default(),
             },
             jumps: None,
             mode: Mode::Normal,
@@ -808,6 +815,7 @@ impl Editor {
             ),
             secondary: vec![],
             mode: SelectionMode::Line,
+            filters: Filters::default(),
         };
         self.update_selection_set(selection_set);
         Ok(())
@@ -848,6 +856,7 @@ impl Editor {
             primary,
             secondary: vec![],
             mode,
+            filters: Filters::default(),
         };
         self.update_selection_set(selection_set);
         Ok(())
@@ -925,6 +934,7 @@ impl Editor {
             selection,
             &self.cursor_direction,
             context,
+            &self.selection_set.filters,
         )?;
 
         let line_range = self.line_range();
@@ -934,6 +944,7 @@ impl Editor {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
+                filters: &self.selection_set.filters,
             },
             chars,
             line_range,
@@ -1004,6 +1015,7 @@ impl Editor {
                         &Movement::Next,
                         &self.cursor_direction,
                         context,
+                        &self.selection_set.filters,
                     )?;
 
                     let next_range = next_selection.extended_range();
@@ -1535,6 +1547,11 @@ impl Editor {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
             DispatchEditor::EnterNormalMode => self.enter_normal_mode()?,
+            DispatchEditor::FilterPush(filter) => return self.filter_push(context, filter),
+            DispatchEditor::AddCursorToAllSelections => {
+                self.add_cursor_to_all_selections(context)?
+            }
+            DispatchEditor::FilterClear => self.filter_clear(),
         }
         Ok([].to_vec())
     }
@@ -2024,7 +2041,12 @@ impl Editor {
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
-            // o = (unassigned)
+            key!("o") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.omit_mode_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
 
             // p = previous
             key!("q") => {
@@ -2177,6 +2199,7 @@ impl Editor {
             direction,
             &self.cursor_direction,
             context,
+            &self.selection_set.filters,
         )?;
 
         if next_selection.eq(&current_selection) {
@@ -2234,6 +2257,7 @@ impl Editor {
                 direction,
                 &self.cursor_direction,
                 context,
+                &self.selection_set.filters,
             )?;
 
             if next_selection.eq(&new_selection) {
@@ -2411,6 +2435,7 @@ impl Editor {
                             &movement,
                             &self.cursor_direction,
                             context,
+                            &self.selection_set.filters,
                         )
                     };
                     let current_word = get_word(Movement::Current)?;
@@ -3048,6 +3073,74 @@ impl Editor {
     pub(crate) fn get_formatted_content(&self) -> Option<String> {
         self.buffer().get_formatted_content()
     }
+
+    fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Omit".to_string(),
+            owner_id: self.id(),
+            keymaps: [
+                Keymap::new(
+                    "c",
+                    "Clear",
+                    Dispatch::DispatchEditor(DispatchEditor::FilterClear),
+                ),
+                Keymap::new(
+                    "k",
+                    "keep",
+                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                        title: "Omit Keep".to_string(),
+                        owner_id: self.id(),
+                        keymaps: [Keymap::new(
+                            "c",
+                            "Content",
+                            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                                title: "Omit Keep Content".to_string(),
+                                owner_id: self.id(),
+                                keymaps: [Keymap::new(
+                                    "l",
+                                    "Literal",
+                                    Dispatch::OpenOmitLiteralPrompt {
+                                        kind: FilterKind::Keep,
+                                        target: FilterTarget::Content,
+                                    },
+                                )]
+                                .to_vec(),
+                            }),
+                        )]
+                        .to_vec(),
+                    }),
+                ),
+            ]
+            .to_vec(),
+        }
+    }
+
+    fn filter_push(
+        &mut self,
+        context: &Context,
+        filter: Filter,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        let selection_set = self.selection_set.clone().filter_push(filter);
+        self.update_selection_set(selection_set);
+        self.handle_movement(&context, Movement::Current)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_dispatches(
+        &mut self,
+        context: &Context,
+        dispatches: Vec<DispatchEditor>,
+    ) -> anyhow::Result<()> {
+        for dispatch in dispatches {
+            self.apply_dispatch(context, dispatch)?;
+        }
+        Ok(())
+    }
+
+    fn filter_clear(&mut self) {
+        let selection_set = self.selection_set.clone().filter_clear();
+        self.update_selection_set(selection_set);
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3093,4 +3186,7 @@ pub enum DispatchEditor {
     ToggleBookmark,
     EnterInsideMode(InsideKind),
     EnterNormalMode,
+    FilterPush(Filter),
+    AddCursorToAllSelections,
+    FilterClear,
 }

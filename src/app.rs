@@ -39,7 +39,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
-    selection::SelectionMode,
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
@@ -477,6 +477,9 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open(),
             Dispatch::OpenInsideOtherPromptClose { open } => {
                 self.open_inside_other_prompt_close(open)
+            }
+            Dispatch::OpenOmitLiteralPrompt { kind, target } => {
+                self.open_omit_literal_prompt(kind, target)
             }
         }
         Ok(())
@@ -1372,6 +1375,27 @@ impl<T: Frontend> App<T> {
         let tree = self.layout.display_navigation_history();
         self.show_info("Navigation History", Info::new(tree));
     }
+
+    fn open_omit_literal_prompt(&mut self, kind: FilterKind, target: FilterTarget) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: "Omit: Keep Literal".to_string(),
+            history: Vec::new(),
+            initial_text: None,
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
+                    Filter::new(kind, target, FilterMechanism::Literal(text.to_string())),
+                ))]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1480,6 +1504,10 @@ pub enum Dispatch {
     OpenInsideOtherPromptOpen,
     OpenInsideOtherPromptClose {
         open: String,
+    },
+    OpenOmitLiteralPrompt {
+        kind: FilterKind,
+        target: FilterTarget,
     },
 }
 

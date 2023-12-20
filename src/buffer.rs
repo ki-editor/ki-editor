@@ -399,7 +399,10 @@ impl Buffer {
     ) -> Result<SelectionSet, anyhow::Error> {
         let before = self.rope.to_string();
         let new_selection_set = edit_transaction
-            .selection_set(current_selection_set.mode.clone())
+            .selection_set(
+                current_selection_set.mode.clone(),
+                current_selection_set.filters.clone(),
+            )
             .unwrap_or_else(|| current_selection_set.clone());
         let current_buffer_state = BufferState {
             selection_set: current_selection_set,
