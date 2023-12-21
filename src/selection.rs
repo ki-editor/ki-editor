@@ -49,6 +49,14 @@ impl Filters {
         result.push(filter);
         Filters(result)
     }
+
+    pub(crate) fn display(&self) -> Option<String> {
+        if self.0.is_empty() {
+            None
+        } else {
+            Some(self.0.iter().map(|filter| filter.display()).join(", "))
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -89,6 +97,19 @@ impl Filter {
             target,
             mechanism,
         }
+    }
+
+    fn display(&self) -> String {
+        let target = format!("{:?}", self.target);
+        let kind = match self.kind {
+            FilterKind::Keep => "⊇",
+            FilterKind::Remove => "⊈",
+        };
+        let mechanism = match &self.mechanism {
+            FilterMechanism::Literal(literal) => format!("\"{}\"", literal),
+            FilterMechanism::Regex(regex) => format!("/{}/", regex.to_string()),
+        };
+        format!("{}{}{}", target, kind, mechanism)
     }
 }
 

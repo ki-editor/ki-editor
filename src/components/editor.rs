@@ -6,7 +6,7 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection::{Filter, FilterKind, FilterTarget, Filters},
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, Filters},
     selection_mode::{self, inside::InsideKind},
     soft_wrap,
 };
@@ -2754,6 +2754,12 @@ impl Editor {
 
     pub fn display_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
+        let filters = self
+            .selection_set
+            .filters
+            .display()
+            .map(|display| format!("({})", display))
+            .unwrap_or_default();
         let mode = match &self.mode {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
@@ -2764,7 +2770,7 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
         };
         let cursor_count = self.selection_set.len();
-        let mode = format!("{}:{} x {}", mode, selection_mode, cursor_count);
+        let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
             format!("{} (JUMPING)", mode)
         } else {
@@ -3075,6 +3081,40 @@ impl Editor {
     }
 
     fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        let filter_mechanism_keymaps = |kind: FilterKind, target: FilterTarget| -> Dispatch {
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: format!("Omit {:?} Content", kind),
+                owner_id: self.id(),
+                keymaps: [
+                    Keymap::new(
+                        "l",
+                        "Literal",
+                        Dispatch::OpenOmitLiteralPrompt { kind, target },
+                    ),
+                    Keymap::new("x", "Regex", Dispatch::OpenOmitRegexPrompt { kind, target }),
+                ]
+                .to_vec(),
+            })
+        };
+        let filter_target_keymaps = |kind: FilterKind| -> Dispatch {
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: format!("Omit {:?}", kind),
+                owner_id: self.id(),
+                keymaps: [
+                    Keymap::new(
+                        "c",
+                        "Content",
+                        filter_mechanism_keymaps(kind, FilterTarget::Content),
+                    ),
+                    Keymap::new(
+                        "i",
+                        "Info",
+                        filter_mechanism_keymaps(kind, FilterTarget::Info),
+                    ),
+                ]
+                .to_vec(),
+            })
+        };
         KeymapLegendConfig {
             title: "Omit".to_string(),
             owner_id: self.id(),
@@ -3084,32 +3124,8 @@ impl Editor {
                     "Clear",
                     Dispatch::DispatchEditor(DispatchEditor::FilterClear),
                 ),
-                Keymap::new(
-                    "k",
-                    "keep",
-                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Omit Keep".to_string(),
-                        owner_id: self.id(),
-                        keymaps: [Keymap::new(
-                            "c",
-                            "Content",
-                            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                                title: "Omit Keep Content".to_string(),
-                                owner_id: self.id(),
-                                keymaps: [Keymap::new(
-                                    "l",
-                                    "Literal",
-                                    Dispatch::OpenOmitLiteralPrompt {
-                                        kind: FilterKind::Keep,
-                                        target: FilterTarget::Content,
-                                    },
-                                )]
-                                .to_vec(),
-                            }),
-                        )]
-                        .to_vec(),
-                    }),
-                ),
+                Keymap::new("k", "keep", filter_target_keymaps(FilterKind::Keep)),
+                Keymap::new("r", "remove", filter_target_keymaps(FilterKind::Remove)),
             ]
             .to_vec(),
         }

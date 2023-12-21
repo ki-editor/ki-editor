@@ -478,9 +478,18 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenInsideOtherPromptClose { open } => {
                 self.open_inside_other_prompt_close(open)
             }
-            Dispatch::OpenOmitLiteralPrompt { kind, target } => {
-                self.open_omit_literal_prompt(kind, target)
-            }
+            Dispatch::OpenOmitLiteralPrompt { kind, target } => self.open_omit_prompt(
+                kind,
+                target,
+                "Literal",
+                Box::new(|text| Ok(FilterMechanism::Literal(text.to_string()))),
+            ),
+            Dispatch::OpenOmitRegexPrompt { kind, target } => self.open_omit_prompt(
+                kind,
+                target,
+                "Regex",
+                Box::new(|text| Ok(FilterMechanism::Regex(regex::Regex::new(text)?))),
+            ),
         }
         Ok(())
     }
@@ -1376,16 +1385,25 @@ impl<T: Frontend> App<T> {
         self.show_info("Navigation History", Info::new(tree));
     }
 
-    fn open_omit_literal_prompt(&mut self, kind: FilterKind, target: FilterTarget) {
+    fn open_omit_prompt(
+        &mut self,
+        kind: FilterKind,
+        target: FilterTarget,
+        mechanism: &str,
+        make_filter_mechanism: Box<dyn Fn(&str) -> anyhow::Result<FilterMechanism>>,
+    ) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
-            title: "Omit: Keep Literal".to_string(),
+            title: format!(
+                "Omit: {:?} selection by {:?} matching {}",
+                kind, target, mechanism
+            ),
             history: Vec::new(),
             initial_text: None,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
-                    Filter::new(kind, target, FilterMechanism::Literal(text.to_string())),
+                    Filter::new(kind, target, make_filter_mechanism(text)?),
                 ))]
                 .to_vec())
             }),
@@ -1506,6 +1524,10 @@ pub enum Dispatch {
         open: String,
     },
     OpenOmitLiteralPrompt {
+        kind: FilterKind,
+        target: FilterTarget,
+    },
+    OpenOmitRegexPrompt {
         kind: FilterKind,
         target: FilterTarget,
     },

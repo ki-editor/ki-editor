@@ -1317,43 +1317,75 @@ fn main() { // too long
     }
     #[test]
     fn omit() -> Result<(), anyhow::Error> {
-        let mut editor = Editor::from_text(language(), "foo bar spam");
-        let context = Context::default();
         use DispatchEditor::*;
-        editor.apply_dispatches(
-            &context,
-            [
-                SetContent("foo bar spam".to_string()),
-                SetSelectionMode(SelectionMode::Word),
-                FilterPush(Filter::new(
-                    FilterKind::Keep,
-                    FilterTarget::Content,
-                    FilterMechanism::Literal("a".to_string()),
-                )),
-                DispatchEditor::AddCursorToAllSelections,
-            ]
-            .to_vec(),
-        )?;
-        // Assert the selection is only "bar" and "spam"
-        assert_eq!(editor.get_selected_texts(), ["bar", "spam"]);
 
-        // Clear the filter
-        editor.apply_dispatches(
-            &context,
-            [
-                FilterClear,
-                FilterPush(Filter::new(
-                    FilterKind::Remove,
-                    FilterTarget::Content,
-                    FilterMechanism::Literal("a".to_string()),
-                )),
-                AddCursorToAllSelections,
-            ]
-            .to_vec(),
+        fn run_test(
+            input: &str,
+            kind: FilterKind,
+            target: FilterTarget,
+            mechanism: FilterMechanism,
+            expected_output: &[&str],
+        ) -> anyhow::Result<()> {
+            let mut editor = Editor::from_text(language(), input);
+            let context = Context::default();
+            editor.apply_dispatches(
+                &context,
+                [
+                    SetSelectionMode(SelectionMode::Word),
+                    FilterPush(Filter::new(kind, target, mechanism)),
+                    DispatchEditor::AddCursorToAllSelections,
+                ]
+                .to_vec(),
+            )?;
+            // Assert the selection is only "bar" and "spam"
+            assert_eq!(
+                editor.get_selected_texts(),
+                expected_output,
+                "Expected output is {:?}",
+                expected_output
+            );
+            Ok(())
+        }
+        use regex::Regex as R;
+        use FilterKind::*;
+        use FilterMechanism::*;
+        use FilterTarget::*;
+        run_test(
+            "foo bar spam",
+            Keep,
+            Content,
+            Literal("a".to_string()),
+            &["bar", "spam"],
+        )?;
+        run_test(
+            "foo bar spam",
+            Keep,
+            Content,
+            Literal("a".to_string()),
+            &["bar", "spam"],
+        )?;
+        run_test(
+            "foo bar spam",
+            Remove,
+            Content,
+            Literal("a".to_string()),
+            &["foo"],
+        )?;
+        run_test(
+            "hello wehello",
+            Keep,
+            Content,
+            Regex(R::new(r"^he")?),
+            &["hello"],
+        )?;
+        run_test(
+            "hello wehello",
+            Remove,
+            Content,
+            Regex(R::new(r"^he")?),
+            &["wehello"],
         )?;
 
-        // Assert the selection is only "foo"
-        assert_eq!(editor.get_selected_texts(), ["foo"]);
         Ok(())
     }
 }
