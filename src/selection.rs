@@ -57,6 +57,10 @@ impl Filters {
             Some(self.0.iter().map(|filter| filter.display()).join(", "))
         }
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

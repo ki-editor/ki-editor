@@ -36,7 +36,7 @@ use crate::{
     },
     context::Context,
     edit::is_overlapping,
-    selection::{Filters, Selection},
+    selection::{Filter, FilterTarget, Filters, Selection},
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -134,9 +134,9 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let SelectionModeParams {
             buffer,
-            current_selection: _,
-            cursor_direction: _,
-            context: _,
+            current_selection,
+            cursor_direction,
+            context,
             filters,
         } = params;
 
@@ -203,17 +203,28 @@ pub trait SelectionMode {
             .transpose()
     }
 
+    fn selections_in_line_number_range(
+        &self,
+        params: &SelectionModeParams,
+        line_number_range: Range<usize>,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let byte_range = params.buffer.line_to_byte(line_number_range.start)?
+            ..params.buffer.line_to_byte(line_number_range.end)?;
+        Ok(self
+            .iter_filtered(params.clone())?
+            .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start))
+            .collect_vec())
+    }
+
     fn jumps(
         &self,
         params: SelectionModeParams,
         chars: Vec<char>,
         line_number_range: Range<usize>,
     ) -> anyhow::Result<Vec<Jump>> {
-        let byte_range = params.buffer.line_to_byte(line_number_range.start)?
-            ..params.buffer.line_to_byte(line_number_range.end)?;
         let iter = self
-            .iter_filtered(params.clone())?
-            .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start));
+            .selections_in_line_number_range(&params, line_number_range)?
+            .into_iter();
         let jumps = iter
             .filter_map(|range| {
                 let selection = range
@@ -372,7 +383,7 @@ pub trait SelectionMode {
 
         let actual = self
             .iter(SelectionModeParams {
-                buffer,
+                buffer: &buffer,
                 current_selection: &current_selection,
                 cursor_direction: &Direction::default(),
                 context: &Context::default(),
@@ -401,13 +412,14 @@ pub trait SelectionMode {
         initial_range: CharIndexRange,
     ) -> anyhow::Result<Vec<String>> {
         let params = SelectionModeParams {
-            buffer,
+            buffer: &buffer,
             current_selection: &Selection::default(),
             cursor_direction: &Direction::default(),
             context: &Context::default(),
             filters: &Filters::default(),
         };
         Ok((0..up_to)
+            .into_iter()
             .fold(
                 Ok((initial_range, Vec::new())),
                 |result, _| -> anyhow::Result<_> {

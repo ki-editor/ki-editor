@@ -6,8 +6,8 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection::{Filter, FilterKind, FilterTarget, Filters},
-    selection_mode::{self, inside::InsideKind},
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, Filters},
+    selection_mode::{self, inside::InsideKind, ByteRange, SelectionModeParams},
     soft_wrap,
 };
 
@@ -165,6 +165,17 @@ impl Component for Editor {
             })
             .collect::<Vec<_>>();
         let theme = context.theme();
+
+        let possible_selections = self
+            .possible_selections_in_line_number_range(&self.selection_set.primary, context)
+            .unwrap_or_default()
+            .into_iter()
+            .flat_map(|range| buffer.byte_range_to_char_index_range(range.range()))
+            .flat_map(|bookmark| {
+                range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiPossibleSelection)
+            })
+            .collect_vec();
+
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
             range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
         });
@@ -344,6 +355,7 @@ impl Component for Editor {
             .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
+            .chain(possible_selections)
             .chain(primary_selection)
             .chain(secondary_selection)
             .chain(primary_selection_anchors)
@@ -922,6 +934,43 @@ impl Editor {
         ('a'..='z').chain('A'..='Z').chain('0'..'9').collect_vec()
     }
 
+    fn get_selection_mode_trait_object(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+        self.selection_set.mode.to_selection_mode_trait_object(
+            &self.buffer(),
+            selection,
+            &self.cursor_direction,
+            context,
+            &self.selection_set.filters,
+        )
+    }
+
+    fn possible_selections_in_line_number_range(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let object = self.get_selection_mode_trait_object(selection, context)?;
+        if self.selection_set.mode.is_contiguous() && self.selection_set.filters.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let line_range = self.line_range();
+        object.selections_in_line_number_range(
+            &selection_mode::SelectionModeParams {
+                context,
+                buffer: &self.buffer(),
+                current_selection: selection,
+                cursor_direction: &self.cursor_direction,
+                filters: &self.selection_set.filters,
+            },
+            line_range,
+        )
+    }
+
     fn jump_from_selection(
         &mut self,
         selection: &Selection,
@@ -929,13 +978,7 @@ impl Editor {
     ) -> anyhow::Result<()> {
         let chars = Self::jump_characters();
 
-        let object = self.selection_set.mode.to_selection_mode_trait_object(
-            &self.buffer(),
-            selection,
-            &self.cursor_direction,
-            context,
-            &self.selection_set.filters,
-        )?;
+        let object = self.get_selection_mode_trait_object(selection, context)?;
 
         let line_range = self.line_range();
         let jumps = object.jumps(
@@ -3141,7 +3184,7 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set);
-        self.handle_movement(context, Movement::Current)
+        self.handle_movement(&context, Movement::Current)
     }
 
     #[cfg(test)]

@@ -53,7 +53,7 @@ The following keybindings work regardless of any mode.
 - `l`: Set selection mode to **l**ine
 - `m`: Enter **m**ulti-cursor mode
 - `n`: Move to **n**ext selection(s)
-- `o`: (unassigned)
+- `o`: Omit
 - `p`: Move to **p**revious selection(s)
 - `q`: Set selection mode to **q**uickfix
 - `r`: Raise current selection(s) (Replace parent node with current node)
@@ -214,3 +214,10 @@ Currently, the only searchable objects are files:
 - Opened files
 - Non-git-ignored files
 - Git status files (i.e. modified files)
+
+## Omit
+
+This feature allows you to omit certain selections of the current selection mode.
+For example, say you wanted to select every line that starts with the word `use`,
+you can first set the selection mode to Line, then use this feature to keep only selections
+that starts with `use` using regex `^use`.
