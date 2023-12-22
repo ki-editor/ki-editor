@@ -373,7 +373,7 @@ pub trait SelectionMode {
         let actual = self
             .iter(SelectionModeParams {
                 buffer: &buffer,
-                current_selection: &Selection::default(),
+                current_selection: &current_selection,
                 cursor_direction: &Direction::default(),
                 context: &Context::default(),
                 filters: &Filters::default(),

@@ -1547,11 +1547,12 @@ impl Editor {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
             DispatchEditor::EnterNormalMode => self.enter_normal_mode()?,
-            DispatchEditor::FilterPush(filter) => return self.filter_push(context, filter),
-            DispatchEditor::AddCursorToAllSelections => {
+            DispatchEditor::FilterPush(filter) => return self.filters_push(context, filter),
+            DispatchEditor::CursorAddToAllSelections => {
                 self.add_cursor_to_all_selections(context)?
             }
-            DispatchEditor::FilterClear => self.filter_clear(),
+            DispatchEditor::FilterClear => self.filters_clear(),
+            DispatchEditor::CursorKeepPrimaryOnly => self.only_current_cursor()?,
         }
         Ok([].to_vec())
     }
@@ -1892,6 +1893,7 @@ impl Editor {
         context: &Context,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
+        self.filters_clear();
         self.move_selection_with_selection_mode_without_global_mode(
             context,
             Movement::Current,
@@ -2950,10 +2952,11 @@ impl Editor {
             .flatten()
             .reduce(Info::join)
         {
-            Ok(vec![Dispatch::ShowInfo {
+            Ok([Dispatch::ShowInfo {
                 title: "INFO".to_string(),
                 info,
-            }])
+            }]
+            .to_vec())
         } else {
             Ok(Vec::new())
         }
@@ -3083,7 +3086,7 @@ impl Editor {
     fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         let filter_mechanism_keymaps = |kind: FilterKind, target: FilterTarget| -> Dispatch {
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: format!("Omit {:?} Content", kind),
+                title: format!("Omit: {:?} {:?} matching", kind, target),
                 owner_id: self.id(),
                 keymaps: [
                     Keymap::new(
@@ -3098,7 +3101,7 @@ impl Editor {
         };
         let filter_target_keymaps = |kind: FilterKind| -> Dispatch {
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: format!("Omit {:?}", kind),
+                title: format!("Omit: {:?}", kind),
                 owner_id: self.id(),
                 keymaps: [
                     Keymap::new(
@@ -3131,7 +3134,7 @@ impl Editor {
         }
     }
 
-    fn filter_push(
+    fn filters_push(
         &mut self,
         context: &Context,
         filter: Filter,
@@ -3153,7 +3156,7 @@ impl Editor {
         Ok(())
     }
 
-    fn filter_clear(&mut self) {
+    fn filters_clear(&mut self) {
         let selection_set = self.selection_set.clone().filter_clear();
         self.update_selection_set(selection_set);
     }
@@ -3203,6 +3206,7 @@ pub enum DispatchEditor {
     EnterInsideMode(InsideKind),
     EnterNormalMode,
     FilterPush(Filter),
-    AddCursorToAllSelections,
     FilterClear,
+    CursorAddToAllSelections,
+    CursorKeepPrimaryOnly,
 }
