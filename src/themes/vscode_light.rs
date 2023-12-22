@@ -49,6 +49,7 @@ pub const VSCODE_LIGHT: Theme = Theme {
             .background_color(hex!("#ffffff"))
             .foreground_color(hex!("#d7d7d7")),
         bookmark: Style::new().background_color(hex!("#ffcc00")),
+        possible_selection_background: hex!("#f6f7b2"),
     },
     diagnostic: DiagnosticStyles {
         error: Style::new().undercurl(Some(hex!("#ff0000"))),

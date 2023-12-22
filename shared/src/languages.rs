@@ -26,7 +26,7 @@ const fn common_lisp() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "commonlisp",
             url: "https://github.com/theHamsta/tree-sitter-commonlisp",
-            commit: "5153dbbc70e4cc2324320c1bdae020d31079c7c0",
+            commit: "master",
             subpath: None,
         }),
         highlight_query: None,
@@ -43,7 +43,7 @@ const fn csv() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "csv",
             url: "https://github.com/arnau/tree-sitter-csv",
-            commit: "ae0728a5f00ad8f02357c20e61249af1a52e89b4",
+            commit: "main",
             subpath: None,
         }),
     }
@@ -56,7 +56,7 @@ const fn graphql() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "graphql",
             url: "https://github.com/bkegley/tree-sitter-graphql",
-            commit: "5e66e961eee421786bdda8495ed1db045e06b5fe",
+            commit: "master",
             subpath: None,
         }),
         formatter_command: Some(Command("prettierd", &[".graphql", ".gql"])),
@@ -79,7 +79,7 @@ const fn javascript(jsx: bool) -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: if jsx { "jsx" } else { "javascript" },
             url: "https://github.com/tree-sitter/tree-sitter-javascript",
-            commit: "c69aabab53609d00e8e198ab902e4fde4b8e449f",
+            commit: "master",
             subpath: None,
         }),
         formatter_command: Some(Command("prettierd", if jsx { &[".jsx"] } else { &[".js"] })),
@@ -95,7 +95,7 @@ const fn json() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "json",
             url: "https://github.com/tree-sitter/tree-sitter-json",
-            commit: "ca3f8919800e3c1ad4508de3bfd7b0b860ce434f",
+            commit: "master",
             subpath: None,
         }),
         highlight_query: None,
@@ -111,7 +111,7 @@ const fn markdown() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "markdown",
             url: "https://github.com/MDeiml/tree-sitter-markdown",
-            commit: "aaf76797aa8ecd9a5e78e0ec3681941de6c945ee",
+            commit: "split_parser",
             subpath: Some("tree-sitter-markdown"),
         }),
         formatter_command: Some(Command("prettierd", &[".md"])),
@@ -131,7 +131,7 @@ const fn rust() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "rust",
             url: "https://github.com/tree-sitter/tree-sitter-rust",
-            commit: "afb6000a71fb9dff3f47f90d412ec080ae12bbb4",
+            commit: "master",
             subpath: None,
         }),
         formatter_command: Some(Command("rustfmt", &[])),
@@ -147,7 +147,7 @@ const fn sql() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "sql",
             url: "https://github.com/m-novikov/tree-sitter-sql",
-            commit: "63cd04238b18c7f55987465b3252597da47b6924",
+            commit: "main",
             subpath: None,
         }),
         formatter_command: Some(Command("sql-formatter", &[])),
@@ -163,7 +163,7 @@ const fn toml() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "toml",
             url: "https://github.com/ikatyang/tree-sitter-toml",
-            commit: "8bd2056818b21860e3d756b5a58c4f6e05fb744e",
+            commit: "master",
             subpath: None,
         }),
         highlight_query: None,
@@ -179,7 +179,7 @@ const fn tree_sitter_query() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "tsq",
             url: "https://github.com/tree-sitter/tree-sitter-tsq",
-            commit: "b665659d3238e6036e22ed0e24935e60efb39415",
+            commit: "main",
             subpath: None,
         }),
         highlight_query: None,
@@ -187,25 +187,33 @@ const fn tree_sitter_query() -> Language {
     }
 }
 
+const fn choice<T: Copy>(condition: bool, left: T, right: T) -> T {
+    if condition {
+        left
+    } else {
+        right
+    }
+}
+
 const fn typescript(tsx: bool) -> Language {
     Language {
-        lsp_language_id: Some(LanguageId::new(if tsx {
-            "typescriptreact"
-        } else {
-            "typescript"
-        })),
-        extensions: if tsx { &["tsx"] } else { &["ts"] },
+        lsp_language_id: Some(LanguageId::new(choice(
+            tsx,
+            "typescriptreact",
+            "typescript",
+        ))),
+        extensions: choice(tsx, &["tsx"], &["ts"]),
         lsp_command: Some(LspCommand {
             command: Command("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         tree_sitter_grammar_config: Some(GrammarConfig {
-            id: if tsx { "tsx" } else { "typescript" },
+            id: choice(tsx, "tsx", "typescript"),
             url: "https://github.com/tree-sitter/tree-sitter-typescript",
-            commit: "b1bf4825d9eaa0f3bdeb1e52f099533328acfbdf",
-            subpath: Some(if tsx { "tsx" } else { "typescript" }),
+            commit: "master",
+            subpath: Some(choice(tsx, "tsx", "typescript")),
         }),
-        formatter_command: Some(Command("prettierd", if tsx { &[".tsx"] } else { &[".ts"] })),
+        formatter_command: Some(Command("prettierd", choice(tsx, &[".tsx"], &[".ts"]))),
         ..Language::new()
     }
 }
@@ -219,7 +227,7 @@ const fn xml() -> Language {
             id: "xml",
             url: "https://github.com/ObserverOfTime/tree-sitter-xml",
             subpath: Some("tree-sitter-xml"),
-            commit: "a3bfa1ae7e8400ab81a6358f5e8d2983f5dd0697",
+            commit: "master",
         }),
         formatter_command: None,
         highlight_query: None,
@@ -235,7 +243,7 @@ const fn yaml() -> Language {
             id: "yaml",
             url: "https://github.com/ikatyang/tree-sitter-yaml",
             subpath: None,
-            commit: "0e36bed171768908f331ff7dff9d956bae016efb",
+            commit: "master",
         }),
         formatter_command: None,
         highlight_query: None,

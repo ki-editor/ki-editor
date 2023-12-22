@@ -472,6 +472,7 @@ pub enum StyleKey {
     DiagnosticsWarning,
     DiagnosticsInformation,
     UiBookmark,
+    UiPossibleSelection,
     SyntaxKeyword,
     SyntaxFunction,
     SyntaxComment,

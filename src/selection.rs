@@ -22,14 +22,142 @@ pub struct SelectionSet {
     pub primary: Selection,
     pub secondary: Vec<Selection>,
     pub mode: SelectionMode,
+    pub filters: Filters,
 }
+
+/// Filters is a stack.
+/// Operations on filter:
+/// 1. Push new filter
+/// 2. Pop latest filter
+/// 3. Clear all filters
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct Filters(Vec<Filter>);
+impl Filters {
+    /// Returns `Some(item)` if it satisfy this `Filters`.
+    pub(crate) fn retain(
+        &self,
+        buffer: &Buffer,
+        item: selection_mode::ByteRange,
+    ) -> Option<selection_mode::ByteRange> {
+        self.0.iter().fold(Some(item), |item, filter| {
+            item.and_then(|item| filter.retain(buffer, item))
+        })
+    }
+
+    fn push(self, filter: Filter) -> Filters {
+        let mut result = self.0;
+        result.push(filter);
+        Filters(result)
+    }
+
+    pub(crate) fn display(&self) -> Option<String> {
+        if self.0.is_empty() {
+            None
+        } else {
+            Some(self.0.iter().map(|filter| filter.display()).join(", "))
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Filter {
+    kind: FilterKind,
+    mechanism: FilterMechanism,
+    target: FilterTarget,
+}
+impl Filter {
+    pub(crate) fn retain(
+        &self,
+        buffer: &Buffer,
+        item: selection_mode::ByteRange,
+    ) -> Option<selection_mode::ByteRange> {
+        let target = match self.target {
+            FilterTarget::Content => buffer
+                .slice(&buffer.byte_range_to_char_index_range(item.range()).ok()?)
+                .ok()
+                .map(|rope| rope.to_string()),
+            FilterTarget::Info => item.info().as_ref().map(|info| info.content().clone()),
+        }?;
+        let matched: bool = match &self.mechanism {
+            FilterMechanism::Literal(literal) => {
+                target.to_lowercase().contains(&literal.to_lowercase())
+            }
+            FilterMechanism::Regex(regex) => regex.is_match(&target),
+        };
+        match self.kind {
+            FilterKind::Keep => matched,
+            FilterKind::Remove => !matched,
+        }
+        .then_some(item)
+    }
+
+    pub(crate) fn new(kind: FilterKind, target: FilterTarget, mechanism: FilterMechanism) -> Self {
+        Self {
+            kind,
+            target,
+            mechanism,
+        }
+    }
+
+    fn display(&self) -> String {
+        let target = format!("{:?}", self.target);
+        let kind = match self.kind {
+            FilterKind::Keep => "⊇",
+            FilterKind::Remove => "⊈",
+        };
+        let mechanism = match &self.mechanism {
+            FilterMechanism::Literal(literal) => format!("\"{}\"", literal),
+            FilterMechanism::Regex(regex) => format!("/{}/", regex),
+        };
+        format!("{}{}{}", target, kind, mechanism)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum FilterTarget {
+    Info,
+    Content,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum FilterKind {
+    Keep,
+    Remove,
+}
+
+#[derive(Clone, Debug)]
+pub enum FilterMechanism {
+    Literal(String),
+    Regex(regex::Regex),
+    // AstGrep(ast_grep_core::Pattern),
+    // TreeSitterKind(String),
+}
+
+impl PartialEq for FilterMechanism {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (FilterMechanism::Literal(x), FilterMechanism::Literal(y)) => x == y,
+            (FilterMechanism::Regex(a), FilterMechanism::Regex(b)) => {
+                a.to_string() == b.to_string()
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for FilterMechanism {}
 
 impl Default for SelectionSet {
     fn default() -> Self {
         Self {
             primary: Selection::default(),
             secondary: vec![],
-            mode: SelectionMode::Custom,
+            mode: SelectionMode::Line,
+            filters: Filters::default(),
         }
     }
 }
@@ -62,6 +190,7 @@ impl SelectionSet {
                 .map(f)
                 .collect::<anyhow::Result<Vec<_>>>()?,
             mode,
+            filters: self.filters.clone(),
         })
     }
 
@@ -168,6 +297,7 @@ impl SelectionSet {
                 direction,
                 cursor_direction,
                 context,
+                &self.filters,
             )
         })
     }
@@ -188,6 +318,7 @@ impl SelectionSet {
             direction,
             cursor_direction,
             context,
+            &self.filters,
         )?;
 
         let matching_index =
@@ -217,22 +348,29 @@ impl SelectionSet {
             .map(|selection| {
                 let object = self
                     .mode
-                    .to_selection_mode_trait_object(buffer, selection, cursor_direction, context)
+                    .to_selection_mode_trait_object(
+                        buffer,
+                        selection,
+                        cursor_direction,
+                        context,
+                        &self.filters,
+                    )
                     .ok()?;
                 let iter = object
-                    .iter(SelectionModeParams {
+                    .iter_filtered(SelectionModeParams {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
                         context,
+                        filters: &self.filters,
                     })
                     .ok()?;
-                Some(
-                    iter.filter_map(|range| -> Option<Selection> {
+                let result = iter
+                    .filter_map(|range| -> Option<Selection> {
                         range.to_selection(buffer, &self.primary).ok()
                     })
-                    .collect_vec(),
-                )
+                    .collect_vec();
+                Some(result)
             })
             .into_iter()
             .flatten()
@@ -281,6 +419,28 @@ impl SelectionSet {
 
     pub(crate) fn len(&self) -> usize {
         self.secondary.len() + 1
+    }
+
+    pub(crate) fn filter_push(self, filter: Filter) -> SelectionSet {
+        let SelectionSet {
+            primary,
+            secondary,
+            mode,
+            filters,
+        } = self;
+        Self {
+            primary,
+            secondary,
+            mode,
+            filters: filters.push(filter),
+        }
+    }
+
+    pub(crate) fn filter_clear(self) -> Self {
+        Self {
+            filters: Filters::default(),
+            ..self
+        }
     }
 }
 
@@ -353,12 +513,14 @@ impl SelectionMode {
         current_selection: &Selection,
         cursor_direction: &Direction,
         context: &Context,
+        filters: &Filters,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         let params = SelectionModeParams {
             buffer,
             current_selection,
             cursor_direction,
             context,
+            filters,
         };
         Ok(match self {
             SelectionMode::Word => Box::new(selection_mode::SmallWord::new(buffer)?),
@@ -510,6 +672,7 @@ impl Selection {
         direction: &Movement,
         cursor_direction: &Direction,
         context: &Context,
+        filters: &Filters,
     ) -> anyhow::Result<Selection> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
         let _cursor_char_index = {
@@ -525,6 +688,7 @@ impl Selection {
             current_selection,
             cursor_direction,
             context,
+            filters,
         )?;
 
         let params = SelectionModeParams {
@@ -532,6 +696,7 @@ impl Selection {
             buffer,
             current_selection,
             cursor_direction,
+            filters,
         };
 
         Ok(selection_mode

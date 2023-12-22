@@ -82,7 +82,13 @@ fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
 
 #[cfg(test)]
 mod test_line {
-    use crate::{buffer::Buffer, context::Context, selection::Selection};
+    use crate::{
+        buffer::Buffer,
+        components::editor::Direction,
+        context::Context,
+        selection::{Filters, Selection},
+        selection_mode::SelectionModeParams,
+    };
 
     use super::*;
 
@@ -130,11 +136,12 @@ fn f() {
         let test = |selected_line: usize, expected: &str| {
             let start = buffer.line_to_char(selected_line).unwrap();
             let result = Line
-                .up(crate::selection_mode::SelectionModeParams {
-                    context: &Context::default(),
+                .up(SelectionModeParams {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
-                    cursor_direction: &crate::components::editor::Direction::End,
+                    cursor_direction: &Direction::default(),
+                    context: &Context::default(),
+                    filters: &Filters::default(),
                 })
                 .unwrap()
                 .unwrap();

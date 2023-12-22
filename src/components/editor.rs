@@ -6,7 +6,8 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection_mode::{self, inside::InsideKind},
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, Filters},
+    selection_mode::{self, inside::InsideKind, ByteRange, SelectionModeParams},
     soft_wrap,
 };
 
@@ -164,6 +165,17 @@ impl Component for Editor {
             })
             .collect::<Vec<_>>();
         let theme = context.theme();
+
+        let possible_selections = self
+            .possible_selections_in_line_number_range(&self.selection_set.primary, context)
+            .unwrap_or_default()
+            .into_iter()
+            .flat_map(|range| buffer.byte_range_to_char_index_range(range.range()))
+            .flat_map(|bookmark| {
+                range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiPossibleSelection)
+            })
+            .collect_vec();
+
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
             range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
         });
@@ -343,6 +355,7 @@ impl Component for Editor {
             .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(primary_selection_primary_cursor)
+            .chain(possible_selections)
             .chain(primary_selection)
             .chain(secondary_selection)
             .chain(primary_selection_anchors)
@@ -692,6 +705,10 @@ impl Direction {
             Direction::End => Direction::Start,
         }
     }
+
+    pub(crate) fn default() -> Direction {
+        Direction::Start
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -730,6 +747,7 @@ impl Editor {
                 primary: Selection::default(),
                 secondary: vec![],
                 mode: SelectionMode::Custom,
+                filters: Filters::default(),
             },
             jumps: None,
             mode: Mode::Normal,
@@ -750,6 +768,7 @@ impl Editor {
                 primary: Selection::default(),
                 secondary: vec![],
                 mode: SelectionMode::Line,
+                filters: Filters::default(),
             },
             jumps: None,
             mode: Mode::Normal,
@@ -808,6 +827,7 @@ impl Editor {
             ),
             secondary: vec![],
             mode: SelectionMode::Line,
+            filters: Filters::default(),
         };
         self.update_selection_set(selection_set);
         Ok(())
@@ -848,6 +868,7 @@ impl Editor {
             primary,
             secondary: vec![],
             mode,
+            filters: Filters::default(),
         };
         self.update_selection_set(selection_set);
         Ok(())
@@ -913,6 +934,43 @@ impl Editor {
         ('a'..='z').chain('A'..='Z').chain('0'..'9').collect_vec()
     }
 
+    fn get_selection_mode_trait_object(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+        self.selection_set.mode.to_selection_mode_trait_object(
+            &self.buffer(),
+            selection,
+            &self.cursor_direction,
+            context,
+            &self.selection_set.filters,
+        )
+    }
+
+    fn possible_selections_in_line_number_range(
+        &self,
+        selection: &Selection,
+        context: &Context,
+    ) -> anyhow::Result<Vec<ByteRange>> {
+        let object = self.get_selection_mode_trait_object(selection, context)?;
+        if self.selection_set.mode.is_contiguous() && self.selection_set.filters.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let line_range = self.line_range();
+        object.selections_in_line_number_range(
+            &selection_mode::SelectionModeParams {
+                context,
+                buffer: &self.buffer(),
+                current_selection: selection,
+                cursor_direction: &self.cursor_direction,
+                filters: &self.selection_set.filters,
+            },
+            line_range,
+        )
+    }
+
     fn jump_from_selection(
         &mut self,
         selection: &Selection,
@@ -920,12 +978,7 @@ impl Editor {
     ) -> anyhow::Result<()> {
         let chars = Self::jump_characters();
 
-        let object = self.selection_set.mode.to_selection_mode_trait_object(
-            &self.buffer(),
-            selection,
-            &self.cursor_direction,
-            context,
-        )?;
+        let object = self.get_selection_mode_trait_object(selection, context)?;
 
         let line_range = self.line_range();
         let jumps = object.jumps(
@@ -934,6 +987,7 @@ impl Editor {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
+                filters: &self.selection_set.filters,
             },
             chars,
             line_range,
@@ -1004,6 +1058,7 @@ impl Editor {
                         &Movement::Next,
                         &self.cursor_direction,
                         context,
+                        &self.selection_set.filters,
                     )?;
 
                     let next_range = next_selection.extended_range();
@@ -1535,6 +1590,12 @@ impl Editor {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
             DispatchEditor::EnterNormalMode => self.enter_normal_mode()?,
+            DispatchEditor::FilterPush(filter) => return self.filters_push(context, filter),
+            DispatchEditor::CursorAddToAllSelections => {
+                self.add_cursor_to_all_selections(context)?
+            }
+            DispatchEditor::FilterClear => self.filters_clear(),
+            DispatchEditor::CursorKeepPrimaryOnly => self.only_current_cursor()?,
         }
         Ok([].to_vec())
     }
@@ -1875,6 +1936,7 @@ impl Editor {
         context: &Context,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
+        self.filters_clear();
         self.move_selection_with_selection_mode_without_global_mode(
             context,
             Movement::Current,
@@ -2024,7 +2086,12 @@ impl Editor {
             key!("shift+K") => self.select_kids()?,
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
-            // o = (unassigned)
+            key!("o") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.omit_mode_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
 
             // p = previous
             key!("q") => {
@@ -2177,6 +2244,7 @@ impl Editor {
             direction,
             &self.cursor_direction,
             context,
+            &self.selection_set.filters,
         )?;
 
         if next_selection.eq(&current_selection) {
@@ -2234,6 +2302,7 @@ impl Editor {
                 direction,
                 &self.cursor_direction,
                 context,
+                &self.selection_set.filters,
             )?;
 
             if next_selection.eq(&new_selection) {
@@ -2411,6 +2480,7 @@ impl Editor {
                             &movement,
                             &self.cursor_direction,
                             context,
+                            &self.selection_set.filters,
                         )
                     };
                     let current_word = get_word(Movement::Current)?;
@@ -2729,6 +2799,12 @@ impl Editor {
 
     pub fn display_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
+        let filters = self
+            .selection_set
+            .filters
+            .display()
+            .map(|display| format!("({})", display))
+            .unwrap_or_default();
         let mode = match &self.mode {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
@@ -2739,7 +2815,7 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
         };
         let cursor_count = self.selection_set.len();
-        let mode = format!("{}:{} x {}", mode, selection_mode, cursor_count);
+        let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
             format!("{} (JUMPING)", mode)
         } else {
@@ -2919,10 +2995,11 @@ impl Editor {
             .flatten()
             .reduce(Info::join)
         {
-            Ok(vec![Dispatch::ShowInfo {
+            Ok([Dispatch::ShowInfo {
                 title: "INFO".to_string(),
                 info,
-            }])
+            }]
+            .to_vec())
         } else {
             Ok(Vec::new())
         }
@@ -3048,6 +3125,84 @@ impl Editor {
     pub(crate) fn get_formatted_content(&self) -> Option<String> {
         self.buffer().get_formatted_content()
     }
+
+    fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+        let filter_mechanism_keymaps = |kind: FilterKind, target: FilterTarget| -> Dispatch {
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: format!("Omit: {:?} {:?} matching", kind, target),
+                owner_id: self.id(),
+                keymaps: [
+                    Keymap::new(
+                        "l",
+                        "Literal",
+                        Dispatch::OpenOmitLiteralPrompt { kind, target },
+                    ),
+                    Keymap::new("x", "Regex", Dispatch::OpenOmitRegexPrompt { kind, target }),
+                ]
+                .to_vec(),
+            })
+        };
+        let filter_target_keymaps = |kind: FilterKind| -> Dispatch {
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: format!("Omit: {:?}", kind),
+                owner_id: self.id(),
+                keymaps: [
+                    Keymap::new(
+                        "c",
+                        "Content",
+                        filter_mechanism_keymaps(kind, FilterTarget::Content),
+                    ),
+                    Keymap::new(
+                        "i",
+                        "Info",
+                        filter_mechanism_keymaps(kind, FilterTarget::Info),
+                    ),
+                ]
+                .to_vec(),
+            })
+        };
+        KeymapLegendConfig {
+            title: "Omit".to_string(),
+            owner_id: self.id(),
+            keymaps: [
+                Keymap::new(
+                    "c",
+                    "Clear",
+                    Dispatch::DispatchEditor(DispatchEditor::FilterClear),
+                ),
+                Keymap::new("k", "keep", filter_target_keymaps(FilterKind::Keep)),
+                Keymap::new("r", "remove", filter_target_keymaps(FilterKind::Remove)),
+            ]
+            .to_vec(),
+        }
+    }
+
+    fn filters_push(
+        &mut self,
+        context: &Context,
+        filter: Filter,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        let selection_set = self.selection_set.clone().filter_push(filter);
+        self.update_selection_set(selection_set);
+        self.handle_movement(&context, Movement::Current)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_dispatches(
+        &mut self,
+        context: &Context,
+        dispatches: Vec<DispatchEditor>,
+    ) -> anyhow::Result<()> {
+        for dispatch in dispatches {
+            self.apply_dispatch(context, dispatch)?;
+        }
+        Ok(())
+    }
+
+    fn filters_clear(&mut self) {
+        let selection_set = self.selection_set.clone().filter_clear();
+        self.update_selection_set(selection_set);
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3093,4 +3248,8 @@ pub enum DispatchEditor {
     ToggleBookmark,
     EnterInsideMode(InsideKind),
     EnterNormalMode,
+    FilterPush(Filter),
+    FilterClear,
+    CursorAddToAllSelections,
+    CursorKeepPrimaryOnly,
 }

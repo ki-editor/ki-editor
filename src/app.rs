@@ -39,7 +39,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
-    selection::SelectionMode,
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
@@ -478,6 +478,18 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenInsideOtherPromptClose { open } => {
                 self.open_inside_other_prompt_close(open)
             }
+            Dispatch::OpenOmitLiteralPrompt { kind, target } => self.open_omit_prompt(
+                kind,
+                target,
+                "Literal",
+                Box::new(|text| Ok(FilterMechanism::Literal(text.to_string()))),
+            ),
+            Dispatch::OpenOmitRegexPrompt { kind, target } => self.open_omit_prompt(
+                kind,
+                target,
+                "Regex",
+                Box::new(|text| Ok(FilterMechanism::Regex(regex::Regex::new(text)?))),
+            ),
         }
         Ok(())
     }
@@ -1372,6 +1384,36 @@ impl<T: Frontend> App<T> {
         let tree = self.layout.display_navigation_history();
         self.show_info("Navigation History", Info::new(tree));
     }
+
+    fn open_omit_prompt(
+        &mut self,
+        kind: FilterKind,
+        target: FilterTarget,
+        mechanism: &str,
+        make_filter_mechanism: Box<dyn Fn(&str) -> anyhow::Result<FilterMechanism>>,
+    ) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: format!(
+                "Omit: {:?} selection by {:?} matching {}",
+                kind, target, mechanism
+            ),
+            history: Vec::new(),
+            initial_text: None,
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
+                    Filter::new(kind, target, make_filter_mechanism(text)?),
+                ))]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1480,6 +1522,14 @@ pub enum Dispatch {
     OpenInsideOtherPromptOpen,
     OpenInsideOtherPromptClose {
         open: String,
+    },
+    OpenOmitLiteralPrompt {
+        kind: FilterKind,
+        target: FilterTarget,
+    },
+    OpenOmitRegexPrompt {
+        kind: FilterKind,
+        target: FilterTarget,
     },
 }
 

@@ -9,10 +9,7 @@ pub struct CodeAction {
 
 impl CodeAction {
     pub fn title(&self) -> String {
-        match &self.kind {
-            Some(kind) => format!("({}) {}", kind, self.title),
-            None => self.title.clone(),
-        }
+        self.title.clone()
     }
 }
 

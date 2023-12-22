@@ -5,16 +5,17 @@ mod test_editor {
         app::Dispatch,
         components::{
             component::Component,
-            editor::{Direction, Editor, Mode, Movement, ViewAlignment},
+            editor::{Direction, DispatchEditor, Editor, Mode, Movement, ViewAlignment},
             suggestive_editor::Info,
         },
         context::Context,
         grid::{Style, StyleKey},
         position::Position,
-        selection::SelectionMode,
+        selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
         selection_mode::inside::InsideKind,
         themes::Theme,
     };
+    use DispatchEditor::*;
 
     use itertools::Itertools;
     use my_proc_macros::{hex, key, keys};
@@ -1312,6 +1313,118 @@ fn main() { // too long
         assert_eq!(editor.get_selected_texts(), ["b"]);
         editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
         assert_eq!(editor.get_selected_texts(), ["bar"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn filters_should_be_cleared_after_changing_selection_mode() -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(language(), "foo bar spam");
+        let context = Context::default();
+        editor.apply_dispatches(
+            &context,
+            [
+                SetSelectionMode(SelectionMode::Word),
+                FilterPush(Filter::new(
+                    FilterKind::Keep,
+                    FilterTarget::Content,
+                    FilterMechanism::Literal("a".to_string()),
+                )),
+                CursorAddToAllSelections,
+            ]
+            .to_vec(),
+        )?;
+        assert_eq!(editor.get_selected_texts(), &["bar", "spam"]);
+        editor.apply_dispatches(
+            &context,
+            [
+                CursorKeepPrimaryOnly,
+                SetSelectionMode(SelectionMode::Line),
+                SetSelectionMode(SelectionMode::Word),
+                CursorAddToAllSelections,
+            ]
+            .to_vec(),
+        )?;
+        assert_eq!(editor.get_selected_texts(), &["foo", "bar", "spam"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn omit() -> Result<(), anyhow::Error> {
+        fn run_test(
+            (input, kind, target, mechanism, expected_output): (
+                &str,
+                FilterKind,
+                FilterTarget,
+                FilterMechanism,
+                &[&str],
+            ),
+        ) -> anyhow::Result<()> {
+            let mut editor = Editor::from_text(language(), input);
+            let context = Context::default();
+            editor.apply_dispatches(
+                &context,
+                [
+                    SetSelectionMode(SelectionMode::Word),
+                    FilterPush(Filter::new(kind, target, mechanism)),
+                    DispatchEditor::CursorAddToAllSelections,
+                ]
+                .to_vec(),
+            )?;
+            // Assert the selection is only "bar" and "spam"
+            assert_eq!(
+                editor.get_selected_texts(),
+                expected_output,
+                "Expected output is {:?}",
+                expected_output
+            );
+            Ok(())
+        }
+        use regex::Regex as R;
+        use FilterKind::*;
+        use FilterMechanism::*;
+        use FilterTarget::*;
+        let cases: &[(&str, FilterKind, FilterTarget, FilterMechanism, &[&str])] = &[
+            (
+                "foo bar spam",
+                Keep,
+                Content,
+                Literal("a".to_string()),
+                &["bar", "spam"],
+            ),
+            (
+                "foo bar spam",
+                Keep,
+                Content,
+                Literal("a".to_string()),
+                &["bar", "spam"],
+            ),
+            (
+                "foo bar spam",
+                Remove,
+                Content,
+                Literal("a".to_string()),
+                &["foo"],
+            ),
+            (
+                "hello wehello",
+                Keep,
+                Content,
+                Regex(R::new(r"^he")?),
+                &["hello"],
+            ),
+            (
+                "hello wehello",
+                Remove,
+                Content,
+                Regex(R::new(r"^he")?),
+                &["wehello"],
+            ),
+        ];
+        for case in cases.to_owned() {
+            run_test(case)?;
+        }
 
         Ok(())
     }

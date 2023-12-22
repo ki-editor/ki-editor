@@ -30,6 +30,9 @@ impl Theme {
             StyleKey::UiSecondarySelectionAnchors => {
                 Style::new().background_color(self.ui.secondary_selection_anchor_background)
             }
+            StyleKey::UiPossibleSelection => {
+                Style::new().background_color(self.ui.possible_selection_background)
+            }
             StyleKey::DiagnosticsHint => self.diagnostic.hint,
             StyleKey::DiagnosticsError => self.diagnostic.error,
             StyleKey::DiagnosticsWarning => self.diagnostic.warning,
@@ -81,6 +84,7 @@ pub struct UiStyles {
     pub primary_selection_secondary_cursor: Style,
     pub secondary_selection_background: Color,
     pub secondary_selection_anchor_background: Color,
+    pub possible_selection_background: Color,
     pub secondary_selection_primary_cursor: Style,
     pub secondary_selection_secondary_cursor: Style,
     pub line_number: Style,
