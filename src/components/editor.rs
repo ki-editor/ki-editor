@@ -6,7 +6,7 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, Filters},
+    selection::{Filter, FilterKind, FilterTarget, Filters},
     selection_mode::{self, inside::InsideKind},
     soft_wrap,
 };
@@ -3141,7 +3141,7 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set);
-        self.handle_movement(&context, Movement::Current)
+        self.handle_movement(context, Movement::Current)
     }
 
     #[cfg(test)]

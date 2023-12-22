@@ -73,7 +73,7 @@ impl Filter {
     ) -> Option<selection_mode::ByteRange> {
         let target = match self.target {
             FilterTarget::Content => buffer
-                .slice(&buffer.byte_range_to_char_index_range(&item.range()).ok()?)
+                .slice(&buffer.byte_range_to_char_index_range(item.range()).ok()?)
                 .ok()
                 .map(|rope| rope.to_string()),
             FilterTarget::Info => item.info().as_ref().map(|info| info.content().clone()),
@@ -88,7 +88,7 @@ impl Filter {
             FilterKind::Keep => matched,
             FilterKind::Remove => !matched,
         }
-        .then(|| item)
+        .then_some(item)
     }
 
     pub(crate) fn new(kind: FilterKind, target: FilterTarget, mechanism: FilterMechanism) -> Self {
@@ -107,7 +107,7 @@ impl Filter {
         };
         let mechanism = match &self.mechanism {
             FilterMechanism::Literal(literal) => format!("\"{}\"", literal),
-            FilterMechanism::Regex(regex) => format!("/{}/", regex.to_string()),
+            FilterMechanism::Regex(regex) => format!("/{}/", regex),
         };
         format!("{}{}{}", target, kind, mechanism)
     }

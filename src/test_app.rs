@@ -26,7 +26,7 @@ mod test_app {
         lsp::{process::LspNotification, signature_help::SignatureInformation},
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
-        selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
+        selection::SelectionMode,
     };
 
     fn run_test(

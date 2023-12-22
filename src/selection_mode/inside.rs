@@ -81,7 +81,6 @@ impl SelectionMode for Inside {
             buffer
                 .find_pairs(&open, &close)
                 .into_iter()
-                .map(|pair| pair)
                 .sorted_by_key(|pair| pair.open.char_index_range.start)
                 .find(|pair| {
                     let outer_range = pair.outer_range();

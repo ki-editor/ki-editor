@@ -133,7 +133,7 @@ impl<T: DropdownItem> Dropdown<T> {
         let (new_item_index, _) = self
             .filtered_items
             .iter()
-            .find_position(|item| &get_group(&item) == new_group)?;
+            .find_position(|item| &get_group(item) == new_group)?;
         self.change_index(new_item_index)
     }
 
