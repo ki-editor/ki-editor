@@ -2987,6 +2987,7 @@ impl Editor {
         selection_mode: SelectionMode,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         self.select(selection_mode, movement, context)?;
+        self.current_view_alignment = None;
 
         if let Some(info) = self
             .selection_set

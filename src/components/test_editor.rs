@@ -919,6 +919,9 @@ fn f() {
 
         editor.switch_view_alignment();
         assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Bottom));
+        editor.apply_dispatch(&context, MoveSelection(Movement::Previous))?;
+        assert_eq!(editor.current_view_alignment, None);
+
         Ok(())
     }
 
