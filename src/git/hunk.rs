@@ -40,8 +40,8 @@ impl Hunk {
                         similar::DiffOp::Delete {
                             new_index,
                             old_index,
-                            ..
-                        } => Some((*old_index..*old_index, *new_index..*new_index)),
+                            old_len,
+                        } => Some((*old_index..(old_index + old_len), *new_index..*new_index)),
                         similar::DiffOp::Insert {
                             new_index,
                             new_len,

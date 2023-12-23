@@ -696,6 +696,7 @@ impl Buffer {
         Ok(self.char_to_position(range.start)?..self.char_to_position(range.end)?)
     }
 
+    /// Get an `EditTransaction` by getting the line diffs between the content of this buffer and the given `new` string
     fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
         let edits: Vec<Edit> = Hunk::get(&self.rope.to_string(), new)
             .into_iter()
@@ -1012,6 +1013,36 @@ fn f(
                 assert_eq!(buffer.rope.to_string(), code);
             })
         }
+    }
+
+    #[test]
+    fn patch_edits_empty_line_removal() -> anyhow::Result<()> {
+        let old = r#"
+            let y = "2";
+            let z = 3;
+
+            let a = 4;
+            "#
+        .trim();
+
+        let new = r#"
+            let y = "2";
+            let z = 3;
+            let a = 4;
+            "#
+        .trim();
+
+        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+
+        let edit_transaction = buffer.get_edit_transaction(new)?;
+
+        // Apply the edit transaction
+        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
+
+        // Expect the content to be the same as the 2nd files
+        pretty_assertions::assert_eq!(buffer.content(), new);
+
+        Ok(())
     }
 
     #[test]
