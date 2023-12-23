@@ -1,4 +1,4 @@
-use crate::app::{RequestKind, RequestParams};
+use crate::app::{RequestParams, Scope};
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
@@ -79,7 +79,7 @@ pub struct ResponseContext {
     /// This field is purposefully not an `Option` so that we do not need to
     /// use `unwrap()` to obtain the `component_id`.
     pub component_id: ComponentId,
-    pub request_kind: Option<RequestKind>,
+    pub scope: Option<Scope>,
     pub description: Option<String>,
 }
 impl ResponseContext {

@@ -246,5 +246,3 @@
 - [] feat(editor): press \ to enter pure change selection mode (will not change the current selection)
 - [] feat(omit): not working for quickfix list
 - [] refactor(test_editor): should use DispatchEditor, not Editor's methods (should be private)
-- [] feat(keymap/fg): should I group search under s, LSP under l, and git under g? so that it is more extensible? e.g. fsl = find-search-literal, fld = find-lsp-definition
-- [] feat(search-prompt): press enter should not take the first suggestion

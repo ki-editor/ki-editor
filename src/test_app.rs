@@ -306,7 +306,7 @@ mod test_app {
             app.handle_lsp_notification(LspNotification::SignatureHelp(
                 crate::lsp::process::ResponseContext {
                     component_id,
-                    request_kind: None,
+                    scope: None,
                     description: None,
                 },
                 Some(crate::lsp::signature_help::SignatureHelp {

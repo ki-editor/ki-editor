@@ -1,5 +1,5 @@
 use crate::{
-    app::{FilePickerKind, RequestKind, RequestParams},
+    app::{FilePickerKind, RequestParams, Scope},
     buffer::Line,
     char_index_range::CharIndexRange,
     components::component::Cursor,
@@ -1291,23 +1291,53 @@ impl Editor {
         self.selection_set.toggle_highlight_mode();
         self.recalculate_scroll_offset()
     }
-    fn search_kinds_keymap() -> Vec<(&'static str, &'static str, SearchKind)> {
-        [
-            ("a", "Search: Ast Grep", SearchKind::AstGrep),
-            ("l", "Search: Literal", SearchKind::Literal),
-            (
-                "shift+L",
-                "Search: Literal (Case-sensitive)",
-                SearchKind::LiteralCaseSensitive,
-            ),
-            ("x", "Search: Regex", SearchKind::Regex),
-            (
-                "shift+X",
-                "Search: Regex (Case-sensitive)",
-                SearchKind::RegexCaseSensitive,
-            ),
-        ]
-        .to_vec()
+    fn search_keymap(&self, scope: Scope) -> Keymap {
+        Keymap::new(
+            "s",
+            "Search",
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: Self::find_submenu_title("Search", scope),
+                keymaps: [
+                    ("a", "Ast Grep", SearchKind::AstGrep),
+                    ("l", "Literal", SearchKind::Literal),
+                    (
+                        "shift+L",
+                        "Literal (Case-sensitive)",
+                        SearchKind::LiteralCaseSensitive,
+                    ),
+                    ("r", "Regex", SearchKind::Regex),
+                    (
+                        "shift+R",
+                        "Regex (Case-sensitive)",
+                        SearchKind::RegexCaseSensitive,
+                    ),
+                ]
+                .into_iter()
+                .map(|(key, description, kind)| {
+                    Keymap::new(key, description, Dispatch::OpenSearchPrompt(kind, scope))
+                })
+                .chain(
+                    self.current_selection()
+                        .map(|search| {
+                            Keymap::new(
+                                "c",
+                                "Current selection",
+                                Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                    SelectionMode::Find {
+                                        search: Search {
+                                            kind: SearchKind::RegexCaseSensitive,
+                                            search: format!("\\b{search}\\b"),
+                                        },
+                                    },
+                                )),
+                            )
+                        })
+                        .ok(),
+                )
+                .collect_vec(),
+                owner_id: self.id(),
+            }),
+        )
     }
 
     fn x_mode_keymap_legend_config(&self) -> anyhow::Result<KeymapLegendConfig> {
@@ -1362,73 +1392,51 @@ impl Editor {
         })
     }
 
-    fn diagnostics_keymaps() -> Vec<(&'static str, &'static str, Option<DiagnosticSeverity>)> {
-        [
-            ("y", "Diagnostic: Any", None),
-            ("e", "Diagnostic: Error", Some(DiagnosticSeverity::ERROR)),
-            ("h", "Diagnostic: Hint", Some(DiagnosticSeverity::HINT)),
-            (
-                "shift+I",
-                "Diagnostic: Information",
-                Some(DiagnosticSeverity::INFORMATION),
-            ),
-            (
-                "w",
-                "Diagnostic: Warning",
-                Some(DiagnosticSeverity::WARNING),
-            ),
+    fn diagnostics_keymap(&self, scope: Scope) -> Keymap {
+        let keymaps = [
+            ("a", "Any", None),
+            ("e", "Error", Some(DiagnosticSeverity::ERROR)),
+            ("h", "Hint", Some(DiagnosticSeverity::HINT)),
+            ("i", "Information", Some(DiagnosticSeverity::INFORMATION)),
+            ("w", "Warning", Some(DiagnosticSeverity::WARNING)),
         ]
         .into_iter()
-        .collect_vec()
+        .into_iter()
+        .map(|(char, description, severity)| {
+            Keymap::new(
+                char,
+                description,
+                match scope {
+                    Scope::Local => Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                        SelectionMode::Diagnostic(severity),
+                    )),
+                    Scope::Global => {
+                        Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic(severity))
+                    }
+                },
+            )
+        })
+        .collect_vec();
+        Keymap::new(
+            "d",
+            "Diagnostics",
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: Self::find_submenu_title("Diagnostic", scope),
+                keymaps,
+                owner_id: self.id(),
+            }),
+        )
     }
 
-    fn find_mode_keymap_legend_config(
+    fn find_local_keymap_legend_config(
         &self,
         context: &Context,
     ) -> anyhow::Result<KeymapLegendConfig> {
-        let diagnostics_keymaps = Self::diagnostics_keymaps()
-            .into_iter()
-            .map(|(char, description, severity)| {
-                Keymap::new(
-                    char,
-                    description,
-                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        SelectionMode::Diagnostic(severity),
-                    )),
-                )
-            })
-            .collect_vec();
-        let open_search_prompt_keymaps = Self::search_kinds_keymap()
-            .clone()
-            .into_iter()
-            .map(|(key, description, search_kind)| {
-                Keymap::new(key, description, Dispatch::OpenSearchPrompt(search_kind))
-            })
-            .collect_vec();
-        let find_current_selection_keymaps = KeymapLegendConfig {
-            title: "Find current selection by".to_string(),
-            keymaps: Self::search_kinds_keymap()
-                .into_iter()
-                .flat_map(|(key, description, search_kind)| -> anyhow::Result<_> {
-                    Ok(Keymap::new(
-                        key,
-                        description,
-                        Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                            SelectionMode::Find {
-                                search: Search {
-                                    kind: search_kind,
-                                    search: self.current_selection()?,
-                                },
-                            },
-                        )),
-                    ))
-                })
-                .collect(),
-            owner_id: self.id,
-        };
+        let owner_id = self.id();
+        let scope = Scope::Local;
         Ok(KeymapLegendConfig {
-            title: "Find (current file)".to_string(),
-            owner_id: self.id(),
+            title: Self::find_submenu_title("", scope),
+            owner_id,
             keymaps: [
                 Keymap::new(
                     "b",
@@ -1436,11 +1444,6 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::Bookmark,
                     )),
-                ),
-                Keymap::new(
-                    "c",
-                    "Current selection",
-                    Dispatch::ShowKeymapLegend(find_current_selection_keymaps),
                 ),
                 Keymap::new(
                     "g",
@@ -1460,9 +1463,9 @@ impl Editor {
                 ),
             ]
             .into_iter()
-            .chain(open_search_prompt_keymaps)
-            .chain(diagnostics_keymaps)
-            .chain(self.lsp_keymaps(RequestKind::Local))
+            .chain(Some(self.search_keymap(scope)))
+            .chain(Some(self.diagnostics_keymap(scope)))
+            .chain(Some(self.lsp_keymap(scope)))
             .chain(context.last_search().map(|search| {
                 Keymap::new(
                     "f",
@@ -1470,13 +1473,6 @@ impl Editor {
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::Find { search },
                     )),
-                )
-            }))
-            .chain(self.get_request_params().map(|params| {
-                Keymap::new(
-                    "s",
-                    "Symbols",
-                    Dispatch::RequestDocumentSymbols(params.clone()),
                 )
             }))
             .collect_vec(),
@@ -1617,22 +1613,23 @@ impl Editor {
         }
     }
 
-    fn lsp_keymaps(&self, kind: RequestKind) -> Vec<Keymap> {
-        self.get_request_params()
+    fn lsp_keymap(&self, scope: Scope) -> Keymap {
+        let keymaps = self
+            .get_request_params()
             .map(|params| {
-                let params = params.set_kind(Some(kind));
+                let params = params.set_kind(Some(scope));
                 [
                     Keymap::new(
-                        "d",
-                        "Definitions",
-                        Dispatch::RequestDefinitions(params.clone().set_description("Definitions")),
-                    ),
-                    Keymap::new(
-                        "shift+D",
+                        "c",
                         "Declarations",
                         Dispatch::RequestDeclarations(
                             params.clone().set_description("Declarations"),
                         ),
+                    ),
+                    Keymap::new(
+                        "d",
+                        "Definitions",
+                        Dispatch::RequestDefinitions(params.clone().set_description("Definitions")),
                     ),
                     Keymap::new(
                         "i",
@@ -1650,67 +1647,41 @@ impl Editor {
                         "t",
                         "Type Definitions",
                         Dispatch::RequestTypeDefinitions(
-                            params.set_description("Type Definitions"),
+                            params.clone().set_description("Type Definitions"),
                         ),
+                    ),
+                    Keymap::new(
+                        "s",
+                        "Symbols",
+                        Dispatch::RequestDocumentSymbols(params.set_description("Symbols")),
                     ),
                 ]
                 .into_iter()
                 .collect_vec()
             })
-            .unwrap_or_default()
+            .unwrap_or_default();
+
+        Keymap::new(
+            "l",
+            "LSP",
+            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                title: Self::find_submenu_title("LSP", scope),
+                keymaps,
+                owner_id: self.id(),
+            }),
+        )
     }
 
-    fn global_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        let search_keymaps = Self::search_kinds_keymap()
-            .into_iter()
-            .map(|(key, description, search_kind)| {
-                Keymap::new(
-                    key,
-                    description,
-                    Dispatch::OpenGlobalSearchPrompt(search_kind),
-                )
-            })
-            .chain(self.current_selection().ok().map(|selection| {
-                Keymap::new(
-                    "c",
-                    "Current selection",
-                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Find current selection (GLOBAL)".to_string(),
-                        keymaps: Self::search_kinds_keymap()
-                            .into_iter()
-                            .map(|(key, description, search_kind)| {
-                                Keymap::new(
-                                    key,
-                                    description,
-                                    Dispatch::GlobalSearch(Search {
-                                        kind: search_kind,
-                                        search: selection.clone(),
-                                    }),
-                                )
-                            })
-                            .collect(),
-                        owner_id: self.id,
-                    }),
-                )
-            }))
-            .collect_vec();
-        let diagnostics_keymaps =
-            Self::diagnostics_keymaps()
-                .into_iter()
-                .map(|(key, description, severity)| {
-                    Keymap::new(
-                        key,
-                        description,
-                        Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic(severity)),
-                    )
-                });
+    fn find_global_keymap_legend_config(&self) -> KeymapLegendConfig {
+        let scope = Scope::Global;
         KeymapLegendConfig {
-            title: "Get (global)".to_string(),
+            title: Self::find_submenu_title("", scope),
             owner_id: self.id(),
-            keymaps: search_keymaps
+            keymaps: []
                 .into_iter()
-                .chain(diagnostics_keymaps)
-                .chain(self.lsp_keymaps(RequestKind::Global))
+                .chain(Some(self.search_keymap(scope)))
+                .chain(Some(self.diagnostics_keymap(scope)))
+                .chain(Some(self.lsp_keymap(scope)))
                 .chain(Some(Keymap::new(
                     "g",
                     "Git Hunk",
@@ -1925,7 +1896,7 @@ impl Editor {
             position,
             context: ResponseContext {
                 component_id,
-                request_kind: None,
+                scope: None,
                 description: None,
             },
         })
@@ -2062,13 +2033,13 @@ impl Editor {
             key!("e") => self.enter_insert_mode(Direction::End)?,
             key!("f") => {
                 return Ok([Dispatch::ShowKeymapLegend(
-                    self.find_mode_keymap_legend_config(context)?,
+                    self.find_local_keymap_legend_config(context)?,
                 )]
                 .to_vec())
             }
             key!("g") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.global_mode_keymap_legend_config(),
+                    self.find_global_keymap_legend_config(),
                 )])
             }
             key!("h") => self.toggle_highlight_mode(),
@@ -3138,7 +3109,7 @@ impl Editor {
                         "Literal",
                         Dispatch::OpenOmitLiteralPrompt { kind, target },
                     ),
-                    Keymap::new("x", "Regex", Dispatch::OpenOmitRegexPrompt { kind, target }),
+                    Keymap::new("r", "Regex", Dispatch::OpenOmitRegexPrompt { kind, target }),
                 ]
                 .to_vec(),
             })
@@ -3203,6 +3174,18 @@ impl Editor {
     fn filters_clear(&mut self) {
         let selection_set = self.selection_set.clone().filter_clear();
         self.update_selection_set(selection_set);
+    }
+
+    fn find_submenu_title(title: &str, scope: Scope) -> String {
+        let scope = match scope {
+            Scope::Local => "Local".to_string(),
+            Scope::Global => "Global".to_string(),
+        };
+        format!("Find ({scope}): {title}")
+    }
+
+    fn find_local_submenu_title(arg: &str) -> String {
+        format!("Find (this file): {arg}")
     }
 }
 

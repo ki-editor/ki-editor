@@ -361,7 +361,10 @@ impl<T: Frontend> App<T> {
                 self.close_current_window(change_focused_to)
             }
             Dispatch::SetSearch(search) => self.set_search(search),
-            Dispatch::OpenSearchPrompt(search_kind) => self.open_search_prompt(search_kind),
+            Dispatch::OpenSearchPrompt(search_kind, scope) => match scope {
+                Scope::Local => self.open_local_search_prompt(search_kind),
+                Scope::Global => self.open_global_search_prompt(search_kind),
+            },
             Dispatch::OpenFile { path } => {
                 self.open_file(&path, true)?;
             }
@@ -442,9 +445,6 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch_editor(dispatch_editor)?
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
-            Dispatch::OpenGlobalSearchPrompt(search_kind) => {
-                self.open_global_search_prompt(search_kind)
-            }
             Dispatch::GlobalSearch(search) => self.global_search(search)?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt(),
             Dispatch::RunCommand(command) => self.run_command(command)?,
@@ -582,7 +582,7 @@ impl<T: Frontend> App<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_search_prompt(&mut self, kind: SearchKind) {
+    fn open_local_search_prompt(&mut self, kind: SearchKind) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: format!("Search ({})", kind.display()),
@@ -1099,13 +1099,13 @@ impl<T: Frontend> App<T> {
             .quickfix_lists()
             .borrow_mut()
             .push(quickfix_list.set_title(context.description.clone()));
-        match context.request_kind {
-            None | Some(RequestKind::Global) => {
+        match context.scope {
+            None | Some(Scope::Global) => {
                 self.layout
                     .show_quickfix_lists(self.context.quickfix_lists().clone());
                 self.goto_quickfix_list_item(Movement::Next)
             }
-            Some(RequestKind::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
+            Some(Scope::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
                 DispatchEditor::SetSelectionMode(SelectionMode::LocalQuickfix {
                     title: context.description.unwrap_or_default(),
                 }),
@@ -1461,7 +1461,7 @@ pub enum Dispatch {
     },
     SetSearch(Search),
     OpenFilePicker(FilePickerKind),
-    OpenSearchPrompt(SearchKind),
+    OpenSearchPrompt(SearchKind, Scope),
     OpenFile {
         path: CanonicalizedPath,
     },
@@ -1505,7 +1505,6 @@ pub enum Dispatch {
     DispatchEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),
-    OpenGlobalSearchPrompt(SearchKind),
     GlobalSearch(Search),
     OpenMoveToIndexPrompt,
     RunCommand(String),
@@ -1575,10 +1574,10 @@ pub struct RequestParams {
     pub context: ResponseContext,
 }
 impl RequestParams {
-    pub fn set_kind(self, request_kind: Option<RequestKind>) -> Self {
+    pub fn set_kind(self, scope: Option<Scope>) -> Self {
         Self {
             context: ResponseContext {
-                request_kind,
+                scope,
                 ..self.context
             },
             ..self
@@ -1596,8 +1595,8 @@ impl RequestParams {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RequestKind {
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum Scope {
     Local,
     Global,
 }
