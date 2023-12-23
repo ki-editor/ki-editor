@@ -161,7 +161,11 @@ mod test_keymap_legend {
         let owner_id = ComponentId::new();
         let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
             title: "Test".to_string(),
-            keymaps: vec![Keymap::new("s", "test", Dispatch::Custom("Spongebob"))],
+            keymaps: vec![Keymap::new(
+                "s",
+                "test",
+                Dispatch::Custom("Spongebob".to_string()),
+            )],
             owner_id,
         });
 
@@ -173,7 +177,7 @@ mod test_keymap_legend {
                 Dispatch::CloseCurrentWindow {
                     change_focused_to: Some(owner_id)
                 },
-                Dispatch::Custom("Spongebob")
+                Dispatch::Custom("Spongebob".to_string())
             ]
         )
     }

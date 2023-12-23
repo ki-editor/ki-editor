@@ -527,6 +527,7 @@ impl<T: Frontend> App<T> {
             }),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: vec![],
+            enter_selects_first_matching_item: false,
         });
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
@@ -547,6 +548,7 @@ impl<T: Frontend> App<T> {
             }),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: vec![],
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -574,6 +576,7 @@ impl<T: Frontend> App<T> {
                 })]
                 .to_vec())
             }),
+            enter_selects_first_matching_item: false,
         });
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
@@ -624,6 +627,7 @@ impl<T: Frontend> App<T> {
                         .collect_vec()
                 })
                 .unwrap_or_default(),
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -645,6 +649,7 @@ impl<T: Frontend> App<T> {
             }),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: Vec::new(),
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -669,6 +674,7 @@ impl<T: Frontend> App<T> {
             }),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: Vec::new(),
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -685,6 +691,7 @@ impl<T: Frontend> App<T> {
             on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: Vec::new(),
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -707,6 +714,7 @@ impl<T: Frontend> App<T> {
             }),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: Vec::new(),
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -752,6 +760,7 @@ impl<T: Frontend> App<T> {
                         Ok(vec![])
                     }
                 }),
+                enter_selects_first_matching_item: true,
             });
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
@@ -775,6 +784,7 @@ impl<T: Frontend> App<T> {
                 .iter()
                 .flat_map(|command| command.to_completion_items())
                 .collect(),
+            enter_selects_first_matching_item: true,
         });
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
@@ -809,6 +819,7 @@ impl<T: Frontend> App<T> {
                 .map(CompletionItem::from_label)
                 .collect_vec()
             },
+            enter_selects_first_matching_item: true,
         });
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
@@ -1409,6 +1420,7 @@ impl<T: Frontend> App<T> {
             }),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
             items: Vec::new(),
+            enter_selects_first_matching_item: false,
         });
 
         self.layout
@@ -1489,7 +1501,7 @@ pub enum Dispatch {
 
     #[cfg(test)]
     /// Used for testing
-    Custom(&'static str),
+    Custom(String),
     DispatchEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),

@@ -22,6 +22,7 @@ pub struct Prompt {
     owner: Option<Rc<RefCell<dyn Component>>>,
     on_enter: OnEnter,
     on_text_change: OnTextChange,
+    enter_selects_first_matching_item: bool,
 }
 
 type OnEnter = Box<
@@ -46,6 +47,7 @@ pub struct PromptConfig {
     pub on_text_change: OnTextChange,
     pub items: Vec<CompletionItem>,
     pub title: String,
+    pub enter_selects_first_matching_item: bool,
 }
 
 impl Prompt {
@@ -74,6 +76,7 @@ impl Prompt {
             owner: config.owner,
             on_enter: config.on_enter,
             on_text_change: config.on_text_change,
+            enter_selects_first_matching_item: config.enter_selects_first_matching_item,
         }
     }
 }
@@ -97,14 +100,15 @@ impl Component for Prompt {
                 }])
             }
             key!("enter") => {
-                let current_item = if self.editor.dropdown_opened() {
-                    self.editor
-                        .current_item()
-                        .map(|item| item.label())
-                        .unwrap_or_default()
-                } else {
-                    self.text.clone()
-                };
+                let current_item =
+                    if self.enter_selects_first_matching_item && self.editor.dropdown_opened() {
+                        self.editor
+                            .current_item()
+                            .map(|item| item.label())
+                            .unwrap_or_default()
+                    } else {
+                        self.text.clone()
+                    };
 
                 let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
 
@@ -115,25 +119,25 @@ impl Component for Prompt {
                 .chain(dispatches)
                 .collect_vec());
             }
-            _ => {}
-        };
+            _ => {
+                let dispatches = self.editor.handle_key_event(context, event)?;
 
-        let dispatches = self.editor.handle_key_event(context, event)?;
+                let current_text = self.editor().current_line()?;
 
-        let current_text = self.editor().current_line()?;
+                let result = if current_text == self.text {
+                    dispatches
+                } else {
+                    self.text = current_text.clone();
 
-        let result = if current_text == self.text {
-            dispatches
-        } else {
-            self.text = current_text.clone();
+                    if let Some(owner) = self.owner.clone() {
+                        (self.on_text_change)(&current_text, owner.clone())?;
+                    }
 
-            if let Some(owner) = self.owner.clone() {
-                (self.on_text_change)(&current_text, owner.clone())?;
+                    dispatches.into_iter().chain(vec![]).collect_vec()
+                };
+                Ok(result)
             }
-
-            dispatches.into_iter().chain(vec![]).collect_vec()
-        };
-        Ok(result)
+        }
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
@@ -158,23 +162,61 @@ mod test_prompt {
     use super::*;
 
     #[test]
+    fn enter_selects_first_matching_item() {
+        fn run_test(
+            enter_selects_first_matching_item: bool,
+            input_text: &str,
+            expected_invoked_text: &str,
+        ) {
+            let mut prompt = Prompt::new(super::PromptConfig {
+                history: vec![],
+                initial_text: None,
+                owner: None,
+                on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
+                on_text_change: Box::new(|_, _| Ok(vec![])),
+                items: [
+                    CompletionItem::from_label("foo".to_string()),
+                    CompletionItem::from_label("bar".to_string()),
+                ]
+                .to_vec(),
+
+                title: "".to_string(),
+                enter_selects_first_matching_item,
+            });
+            prompt
+                .handle_events(&event::parse_key_events(&input_text).unwrap())
+                .unwrap();
+
+            let dispatches = prompt.handle_events(keys!("enter")).unwrap();
+
+            assert!(dispatches
+                .iter()
+                .any(|dispatch| matches!(dispatch, Dispatch::Custom(text) if text == expected_invoked_text)));
+        }
+
+        run_test(true, "f", "foo");
+        run_test(false, "f", "f");
+    }
+
+    #[test]
     fn should_return_custom_dispatches_regardless_of_owner_id() {
         fn run_test(owner: Option<Rc<RefCell<dyn Component>>>) {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
                 initial_text: None,
                 owner,
-                on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha")])),
+                on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha".to_string())])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),
                 items: vec![],
                 title: "".to_string(),
+                enter_selects_first_matching_item: false,
             });
 
             let dispatches = prompt.handle_events(keys!("enter")).unwrap();
 
             assert!(dispatches
                 .iter()
-                .any(|dispatch| matches!(dispatch, Dispatch::Custom("haha"))));
+                .any(|dispatch| matches!(dispatch, Dispatch::Custom(text) if text == "haha")));
         }
 
         run_test(None);

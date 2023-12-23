@@ -159,13 +159,6 @@
 - [x] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building
 - [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse
-- [] g for selecting the next node that is the same generation (descendant
-  level from root) as the current node
-- [] e for elevate the current node such that it becomes the siblings of its parent
-- [] e for enclose the current node with one of the brackets
-- [] f for moving to the next node which has the same field name as the current node
-- [] . for selecting the whole file
-- [] multi eat parent should not proceed if the final edit overlaps (not too important because we use patch for undo/redo now, so messed up stuff can be undone)
 - [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
@@ -253,3 +246,5 @@
 - [] feat(editor): press \ to enter pure change selection mode (will not change the current selection)
 - [] feat(omit): not working for quickfix list
 - [] refactor(test_editor): should use DispatchEditor, not Editor's methods (should be private)
+- [] feat(keymap/fg): should I group search under s, LSP under l, and git under g? so that it is more extensible? e.g. fsl = find-search-literal, fld = find-lsp-definition
+- [] feat(search-prompt): press enter should not take the first suggestion
