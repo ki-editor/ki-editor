@@ -2933,6 +2933,7 @@ impl Editor {
 
     pub fn end(&mut self, context: &Context) -> anyhow::Result<()> {
         self.select_line(Movement::Current, context)?;
+        self.handle_movement(context, Movement::Last)?;
         self.enter_insert_mode(Direction::End)
     }
 

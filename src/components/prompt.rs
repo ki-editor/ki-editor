@@ -79,6 +79,9 @@ impl Prompt {
             enter_selects_first_matching_item: config.enter_selects_first_matching_item,
         }
     }
+    fn text(&self) -> &str {
+        &self.text
+    }
 }
 
 impl Component for Prompt {
@@ -98,6 +101,18 @@ impl Component for Prompt {
                 return Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
                 }])
+            }
+            key!("tab") => {
+                if self.editor.dropdown_opened() {
+                    if let Some(item) = self.editor.current_item() {
+                        self.text = item.label();
+                        self.editor.set_content(&self.text)?;
+                        self.editor_mut().end(context)?;
+                    }
+                    Ok(Vec::new())
+                } else {
+                    return self.editor_mut().handle_key_event(context, event);
+                }
             }
             key!("enter") => {
                 let current_item =
@@ -157,6 +172,7 @@ mod test_prompt {
     use crate::{
         app::Dispatch,
         components::{component::Component, prompt::Prompt},
+        position::Position,
     };
 
     use super::*;
@@ -196,6 +212,31 @@ mod test_prompt {
 
         run_test(true, "f", "foo");
         run_test(false, "f", "f");
+    }
+
+    #[test]
+    fn tab_replace_current_content_with_first_highlighted_suggestion() -> anyhow::Result<()> {
+        let mut prompt = Prompt::new(super::PromptConfig {
+            history: vec![],
+            initial_text: None,
+            owner: None,
+            on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
+            on_text_change: Box::new(|_, _| Ok(vec![])),
+            items: [CompletionItem::from_label("foo_bar".to_string())].to_vec(),
+
+            title: "".to_string(),
+            enter_selects_first_matching_item: true,
+        });
+        prompt.handle_events(&event::parse_key_events("f o o _ b")?)?;
+
+        prompt.handle_events(keys!("tab"))?;
+        assert_eq!(prompt.text(), "foo_bar");
+        assert_eq!(prompt.content(), prompt.text());
+        assert_eq!(
+            prompt.editor().get_cursor_position()?,
+            Position { line: 0, column: 7 }
+        );
+        Ok(())
     }
 
     #[test]
