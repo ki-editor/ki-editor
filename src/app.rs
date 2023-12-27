@@ -375,7 +375,12 @@ impl<T: Frontend> App<T> {
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
             }
-            Dispatch::RequestReferences(params) => self.lsp_manager.request_references(params)?,
+            Dispatch::RequestReferences {
+                params,
+                include_declaration,
+            } => self
+                .lsp_manager
+                .request_references(params, include_declaration)?,
             Dispatch::RequestHover(params) => {
                 self.lsp_manager.request_hover(params)?;
             }
@@ -1476,7 +1481,10 @@ pub enum Dispatch {
     RequestDeclarations(RequestParams),
     RequestImplementations(RequestParams),
     RequestTypeDefinitions(RequestParams),
-    RequestReferences(RequestParams),
+    RequestReferences {
+        params: RequestParams,
+        include_declaration: bool,
+    },
     PrepareRename(RequestParams),
     RequestCodeAction(RequestParams),
     RenameSymbol {

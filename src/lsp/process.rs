@@ -102,7 +102,10 @@ enum FromEditor {
     RequestHover(RequestParams),
     RequestCompletion(RequestParams),
     RequestDefinition(RequestParams),
-    RequestReferences(RequestParams),
+    RequestReferences {
+        params: RequestParams,
+        include_declaration: bool,
+    },
     TextDocumentDidOpen {
         file_path: CanonicalizedPath,
         language_id: String,
@@ -163,9 +166,16 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub fn request_references(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+    pub fn request_references(
+        &self,
+        params: RequestParams,
+        include_declaration: bool,
+    ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestReferences(params),
+            FromEditor::RequestReferences {
+                params,
+                include_declaration,
+            },
         ))
     }
 
@@ -516,7 +526,10 @@ impl LspServerProcess {
                     FromEditor::RequestCompletion(params) => self.text_document_completion(params),
                     FromEditor::RequestHover(params) => self.text_document_hover(params),
                     FromEditor::RequestDefinition(params) => self.text_document_definition(params),
-                    FromEditor::RequestReferences(params) => self.text_document_references(params),
+                    FromEditor::RequestReferences {
+                        params,
+                        include_declaration,
+                    } => self.text_document_references(params, include_declaration),
                     FromEditor::RequestDeclaration(params) => {
                         self.text_document_declaration(params)
                     }
@@ -1083,12 +1096,13 @@ impl LspServerProcess {
             position,
             context,
         }: RequestParams,
+        include_declaration: bool,
     ) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("textDocument/references")>(
             context,
             ReferenceParams {
                 context: ReferenceContext {
-                    include_declaration: true,
+                    include_declaration,
                 },
                 partial_result_params: Default::default(),
                 text_document_position: TextDocumentPositionParams {

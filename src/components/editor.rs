@@ -1669,7 +1669,20 @@ impl Editor {
                     Keymap::new(
                         "r",
                         "References",
-                        Dispatch::RequestReferences(params.clone().set_description("References")),
+                        Dispatch::RequestReferences {
+                            params: params.clone().set_description("References"),
+                            include_declaration: false,
+                        },
+                    ),
+                    Keymap::new(
+                        "shift+R",
+                        "References (include declaration)",
+                        Dispatch::RequestReferences {
+                            params: params
+                                .clone()
+                                .set_description("References (include declaration)"),
+                            include_declaration: true,
+                        },
                     ),
                     Keymap::new(
                         "t",

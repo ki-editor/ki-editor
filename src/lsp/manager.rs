@@ -63,9 +63,13 @@ impl LspManager {
         })
     }
 
-    pub fn request_references(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub fn request_references(
+        &self,
+        params: RequestParams,
+        include_declaration: bool,
+    ) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to find references", |channel| {
-            channel.request_references(params.clone())
+            channel.request_references(params.clone(), include_declaration)
         })
     }
 

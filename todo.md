@@ -233,4 +233,3 @@
 - [] feat(omit): not working for quickfix list
 - [] refactor(test_editor): should use DispatchEditor, not Editor's methods (should be private)
 - [] feat(keybinding): move keys under z to f
-- [] feat(keybinding): group hover and rename under space l
