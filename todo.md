@@ -186,9 +186,6 @@
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
 
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
-- [] swap jump: press '>', and then jump labels appear, pressing the jump label swaps the current selection with that selection
-- [] filter selections/quickfix-list: useful for multi-cursor
-- [] fix(buffer/bookmarks): bookmarks not updated upon undo/redo/formatted
 - [] feat(g): 'ggh' for global git hunks
 - [] feat(space-f): for file mode, r = rename, d = delete, a = add, s = save
 - [] feat(doc): add motto about having no shift keys for key bindings;
@@ -211,24 +208,16 @@
 - [] fix: log if formatting failed
 - [] feat(suggestive_editor): text completion (based on words)
 - [] feat(editor/find): tree-sitter query
-- [] feat(movement): leftmost and rightmost (for things like: last word of the line)
 - [] feat(highlight-queries & lsp): piggyback off helix editor, don't reinvent the wheel
 - [] fix(suggestive_editor): pressing enter after pressing dot replaces the first word before cursor position with the first completion (expected the completion to be inserted after the dot)
 - [] feat(editor/insert/shortcuts): alt-delete, home, end, alt-left, alt-right
 - [] feat(layout): split vertically by half, then split horizontally by half (so that explorer can be on the right)
 - [] feat(highlight-queries & lsp): clone from nvim-treesitter or helix
 - [] feat(package): incorporate Mason, see https://www.reddit.com/r/neovim/comments/122ow0u/psa_changes_to_the_masonnvim_registry/, and https://mason-registry.dev/registry/list#search, and https://github.com/williamboman/mason-lspconfig.nvim#default-configuration, and https://github.com/williamboman/mason.nvim#how-to-use-installed-packages
-- [] feat(keybinding): z for going into undo tree mode (show undo tree, horizontal), change current z to y, reference: https://github.com/Microsoft/vscode/issues/20889#issuecomment-, https://github.com/mbbill/undotree
 - [] feat(keymap): map every keybinding to a Dispatch (so that we can show help, and also easier to run test, this could also allow running commands on a set of selected editors)
 - [] feat(dropdown): fuzzy search (https://docs.rs/fuzzy-matcher/0.3.7/fuzzy_matcher/trait.FuzzyMatcher.html#tymethod.fuzzy_indices)
-- [] feat(quickfix): u/d = prev/next file
 - [] feat(render): show highlight mode
-- [] feat(v): change v = navigation history, b = bookmark mode
-- [] feat(layout): default should be inverted-tall, where the largest pane is one the right, and the smaller panes are on the left. Why? Firstly, it's easier to look at the smaller pane that are on the left. Secondly, the code will be centered due to the left panes, making it easier to read the code. That's probably why VS Coder likes to keep their sidebar opened all the time during code.
-- [] fix(selection_mode/syntax_tree): when going into syntax_tree mode from other mode, should prioritize selection of current line, same like going into outermost node mode
-- [] feat(bookmark): b = save/unsave current selection into bookmarks, fb = find bookmarks, gb = global find bookmarks (question how bookmark recalibrate after auto-format?)
 - [] fix(render): unicode causes extra padding
-- [] feat(editor/other_movement): k = keep, r = remove selections matching certain criterion
 - [] feat(title): window title and app title should be wrappable
 - [] perf(insert): only store edit patch and reparse tree upon exit, don't compute them on every keystroke
 - [] fix(hover-info): should be closed upon pressing esc in normal mode
@@ -238,12 +227,10 @@
 - [] feat: for more sophisticated modifications like rotating the selections, we can push the metadata to the first stack
 - [] feat(synax-highlight): don't udpate during insert mode, only update in normal mode
 - [] feat(prompt): show history at top, so that user can press up (or ctrl+p) to navigate to previous commands, like they do in shell
-- [] feat(mode): surround, when in this mode, brackets, quotes becomes object, use u to select outer surrond, like syntax tree, how to change surround, use (r)aise, that's why raise has to work also in this mode
-- [] ui: highlight mode indicator
-- [] feat(keymap idea): alt-movement for swapping, shift-movement for replacing
 - [] feat(highlight): when quiting highlight mode, revert back to previous selection mode, this allow for more ergonomics usage such as deleting current line, then move on to the next selection (say search "hello")
 - [] feat(exchange): exchange with first/last should not be literally exchanging with last or first, but rather move currrent select to first/last position
 - [] feat(editor): press \ to enter pure change selection mode (will not change the current selection)
 - [] feat(omit): not working for quickfix list
 - [] refactor(test_editor): should use DispatchEditor, not Editor's methods (should be private)
 - [] feat(keybinding): move keys under z to f
+- [] feat(keybinding): group hover and rename under space l

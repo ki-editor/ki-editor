@@ -1491,15 +1491,43 @@ impl Editor {
                             [
                                 Keymap::new(
                                     "e",
-                                    "Reveal in Explorer",
-                                    Dispatch::RevealInExplorer(params.path.clone()),
+                                    "Explorer",
+                                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                                        title: "Space: Explorer".to_string(),
+                                        keymaps: [Keymap::new(
+                                            "r",
+                                            "Reveal in Explorer",
+                                            Dispatch::RevealInExplorer(params.path.clone()),
+                                        )]
+                                        .to_vec(),
+                                        owner_id: self.id(),
+                                    }),
                                 ),
-                                Keymap::new("h", "Hover", Dispatch::RequestHover(params.clone())),
-                                Keymap::new("r", "Rename", Dispatch::PrepareRename(params.clone())),
                                 Keymap::new(
-                                    "a",
-                                    "Code Actions",
-                                    Dispatch::RequestCodeAction(params),
+                                    "l",
+                                    "LSP",
+                                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                                        title: "Space: LSP".to_string(),
+                                        keymaps: [
+                                            Keymap::new(
+                                                "h",
+                                                "Hover",
+                                                Dispatch::RequestHover(params.clone()),
+                                            ),
+                                            Keymap::new(
+                                                "r",
+                                                "Rename",
+                                                Dispatch::PrepareRename(params.clone()),
+                                            ),
+                                            Keymap::new(
+                                                "a",
+                                                "Code Actions",
+                                                Dispatch::RequestCodeAction(params),
+                                            ),
+                                        ]
+                                        .to_vec(),
+                                        owner_id: self.id(),
+                                    }),
                                 ),
                                 Keymap::new(
                                     "t",
