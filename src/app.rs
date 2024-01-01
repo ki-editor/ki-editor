@@ -402,8 +402,11 @@ impl<T: Frontend> App<T> {
             Dispatch::RenameSymbol { params, new_name } => {
                 self.lsp_manager.rename_symbol(params, new_name)?;
             }
-            Dispatch::RequestCodeAction(action) => {
-                self.lsp_manager.request_code_action(action)?;
+            Dispatch::RequestCodeAction {
+                params,
+                diagnostics,
+            } => {
+                self.lsp_manager.request_code_action(params, diagnostics)?;
             }
             Dispatch::RequestSignatureHelp(params) => {
                 self.lsp_manager.request_signature_help(params)?;
@@ -1486,7 +1489,10 @@ pub enum Dispatch {
         include_declaration: bool,
     },
     PrepareRename(RequestParams),
-    RequestCodeAction(RequestParams),
+    RequestCodeAction {
+        params: RequestParams,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    },
     RenameSymbol {
         params: RequestParams,
         new_name: String,

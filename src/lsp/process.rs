@@ -126,7 +126,10 @@ enum FromEditor {
         params: RequestParams,
         new_name: String,
     },
-    RequestCodeAction(RequestParams),
+    RequestCodeAction {
+        params: RequestParams,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    },
     RequestSignatureHelp(RequestParams),
     RequestDeclaration(RequestParams),
     RequestImplementation(RequestParams),
@@ -225,9 +228,16 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub fn request_code_action(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+    pub fn request_code_action(
+        &self,
+        params: RequestParams,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestCodeAction(params),
+            FromEditor::RequestCodeAction {
+                params,
+                diagnostics,
+            },
         ))
     }
 
@@ -545,7 +555,10 @@ impl LspServerProcess {
                     FromEditor::PrepareRenameSymbol(params) => {
                         self.text_document_prepare_rename(params)
                     }
-                    FromEditor::RequestCodeAction(params) => self.text_document_code_action(params),
+                    FromEditor::RequestCodeAction {
+                        params,
+                        diagnostics,
+                    } => self.text_document_code_action(params, diagnostics),
                     FromEditor::RequestDocumentSymbols(params) => {
                         self.text_document_document_symbol(params)
                     }
@@ -1187,13 +1200,17 @@ impl LspServerProcess {
         )
     }
 
-    fn text_document_code_action(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+    fn text_document_code_action(
+        &mut self,
+        params: RequestParams,
+        diagnostics: Vec<Diagnostic>,
+    ) -> Result<(), anyhow::Error> {
         self.send_request::<lsp_request!("textDocument/codeAction")>(
             params.context,
             CodeActionParams {
                 context: CodeActionContext {
-                    trigger_kind: Some(CodeActionTriggerKind::INVOKED),
-                    diagnostics: vec![],
+                    diagnostics,
+                    trigger_kind: None,
                     only: None,
                 },
                 partial_result_params: Default::default(),

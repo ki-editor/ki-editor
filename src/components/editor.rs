@@ -1479,7 +1479,7 @@ impl Editor {
         })
     }
 
-    fn space_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    fn space_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
             owner_id: self.id(),
@@ -1522,7 +1522,22 @@ impl Editor {
                                             Keymap::new(
                                                 "a",
                                                 "Code Actions",
-                                                Dispatch::RequestCodeAction(params),
+                                                Dispatch::RequestCodeAction {
+                                                    params,
+                                                    diagnostics: context
+                                                        .get_diagnostics(self.path())
+                                                        .into_iter()
+                                                        .filter_map(|diagnostic| {
+                                                            if diagnostic.range.contains(
+                                                                &self.get_cursor_position().ok()?,
+                                                            ) {
+                                                                diagnostic.original_value.clone()
+                                                            } else {
+                                                                None
+                                                            }
+                                                        })
+                                                        .collect_vec(),
+                                                },
                                             ),
                                         ]
                                         .to_vec(),
@@ -2141,7 +2156,7 @@ impl Editor {
 
             key!("space") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.space_mode_keymap_legend_config(),
+                    self.space_mode_keymap_legend_config(context),
                 )])
             }
             key!("0") => return Ok([Dispatch::OpenMoveToIndexPrompt].to_vec()),

@@ -103,9 +103,13 @@ impl LspManager {
         })
     }
 
-    pub fn request_code_action(&self, action: RequestParams) -> anyhow::Result<()> {
+    pub fn request_code_action(
+        &self,
+        action: RequestParams,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    ) -> anyhow::Result<()> {
         self.invoke_channels(&action.path, "Failed to request code action", |channel| {
-            channel.request_code_action(action.clone())
+            channel.request_code_action(action.clone(), diagnostics.clone())
         })
     }
 

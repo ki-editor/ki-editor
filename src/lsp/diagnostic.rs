@@ -11,6 +11,7 @@ pub struct Diagnostic {
     pub severity: Option<DiagnosticSeverity>,
     pub related_information: Option<Vec<DiagnosticRelatedInformation>>,
     pub code_description: Option<lsp_types::CodeDescription>,
+    pub original_value: Option<lsp_types::Diagnostic>,
 }
 
 impl Diagnostic {
@@ -21,6 +22,7 @@ impl Diagnostic {
             severity: None,
             related_information: None,
             code_description: None,
+            original_value: None,
         }
     }
     pub fn message(&self) -> String {
@@ -72,10 +74,12 @@ impl TryFrom<lsp_types::Diagnostic> for Diagnostic {
     fn try_from(value: lsp_types::Diagnostic) -> Result<Self, Self::Error> {
         Ok(Self {
             range: Position::from(value.range.start)..Position::from(value.range.end),
-            message: value.message,
+            message: value.message.clone(),
             severity: value.severity,
-            code_description: value.code_description,
-            related_information: if let Some(related_information) = value.related_information {
+            code_description: value.code_description.clone(),
+            related_information: if let Some(related_information) =
+                value.related_information.clone()
+            {
                 Some(
                     related_information
                         .into_iter()
@@ -85,6 +89,7 @@ impl TryFrom<lsp_types::Diagnostic> for Diagnostic {
             } else {
                 None
             },
+            original_value: Some(value),
         })
     }
 }
