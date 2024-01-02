@@ -498,6 +498,9 @@ impl<T: Frontend> App<T> {
                 "Regex",
                 Box::new(|text| Ok(FilterMechanism::Regex(regex::Regex::new(text)?))),
             ),
+            Dispatch::LspExecuteCommand { command, params } => self
+                .lsp_manager
+                .workspace_execute_command(params, command)?,
         }
         Ok(())
     }
@@ -1555,6 +1558,10 @@ pub enum Dispatch {
     OpenOmitRegexPrompt {
         kind: FilterKind,
         target: FilterTarget,
+    },
+    LspExecuteCommand {
+        params: RequestParams,
+        command: crate::lsp::code_action::Command,
     },
 }
 

@@ -164,7 +164,20 @@ impl Component for SuggestiveEditor {
                 }
                 key!("enter") => {
                     if let Some(code_action) = self.menu.borrow_mut().current_item() {
-                        let dispatches = vec![Dispatch::ApplyWorkspaceEdit(code_action.edit)];
+                        let dispatches = code_action
+                            .edit
+                            .map(Dispatch::ApplyWorkspaceEdit)
+                            .into_iter()
+                            // A command this code action executes. If a code action
+                            // provides an edit and a command, first the edit is
+                            // executed and then the command.
+                            // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
+                            .chain(self.editor().get_request_params().and_then(|params| {
+                                code_action
+                                    .command
+                                    .map(|command| Dispatch::LspExecuteCommand { command, params })
+                            }))
+                            .collect();
                         self.menu_opened = false;
                         return Ok(dispatches);
                     }
@@ -405,10 +418,8 @@ mod test_suggestive_editor {
             [CodeAction {
                 title: "".to_string(),
                 kind: None,
-                edit: WorkspaceEdit {
-                    edits: [].to_vec(),
-                    resource_operations: Vec::new(),
-                },
+                edit: None,
+                command: None,
             }]
             .to_vec(),
         );

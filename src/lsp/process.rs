@@ -139,6 +139,10 @@ enum FromEditor {
         old: CanonicalizedPath,
         new: CanonicalizedPath,
     },
+    WorkspaceExecuteCommand {
+        params: RequestParams,
+        command: super::code_action::Command,
+    },
 }
 
 pub struct LspServerProcessChannel {
@@ -328,6 +332,16 @@ impl LspServerProcessChannel {
             FromEditor::WorkspaceDidRenameFiles { old, new },
         ))
     }
+
+    pub(crate) fn workspace_execute_command(
+        &self,
+        params: RequestParams,
+        command: super::code_action::Command,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::WorkspaceExecuteCommand { command, params },
+        ))
+    }
 }
 
 impl LspServerProcess {
@@ -413,6 +427,9 @@ impl LspServerProcess {
                             did_rename: Some(true),
                             ..Default::default()
                         }),
+                        execute_command: Some(DynamicRegistrationClientCapabilities {
+                            dynamic_registration: None,
+                        }),
                         ..WorkspaceClientCapabilities::default()
                     }),
                     text_document: Some(TextDocumentClientCapabilities {
@@ -444,6 +461,7 @@ impl LspServerProcess {
                             code_action_literal_support: Some(CodeActionLiteralSupport {
                                 code_action_kind: CodeActionKindLiteralSupport {
                                     value_set: vec![
+                                        CodeActionKind::EMPTY,
                                         CodeActionKind::QUICKFIX,
                                         CodeActionKind::REFACTOR,
                                         CodeActionKind::REFACTOR_EXTRACT,
@@ -583,6 +601,9 @@ impl LspServerProcess {
                     }
                     FromEditor::WorkspaceDidRenameFiles { old, new } => {
                         self.workspace_did_rename_files(old, new)
+                    }
+                    FromEditor::WorkspaceExecuteCommand { params, command } => {
+                        self.workspace_execute_command(params, command)
                     }
                 },
             }
@@ -874,6 +895,17 @@ impl LspServerProcess {
                             ))
                             .unwrap();
                     }
+                    "workspace/applyEdit" => {
+                        let params: <lsp_request!("workspace/applyEdit") as Request>::Params =
+                            serde_json::from_value(request.params.unwrap())?;
+
+                        self.app_message_sender
+                            .send(AppMessage::LspNotification(LspNotification::WorkspaceEdit(
+                                params.edit.try_into()?,
+                            )))
+                            .unwrap();
+                    }
+
                     _ => log::info!("unhandled Incoming Notification: {}", method),
                 }
             }
@@ -1251,6 +1283,23 @@ impl LspServerProcess {
                 partial_result_params: Default::default(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
                 work_done_progress_params: Default::default(),
+            },
+        )
+    }
+
+    fn workspace_execute_command(
+        &mut self,
+        params: RequestParams,
+        command: super::code_action::Command,
+    ) -> Result<(), anyhow::Error> {
+        self.send_request::<lsp_request!("workspace/executeCommand")>(
+            params.context,
+            ExecuteCommandParams {
+                command: command.command(),
+                arguments: command.arguments(),
+                work_done_progress_params: WorkDoneProgressParams {
+                    work_done_token: None,
+                },
             },
         )
     }

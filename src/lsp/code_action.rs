@@ -1,11 +1,33 @@
 use super::workspace_edit::WorkspaceEdit;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
 pub struct CodeAction {
     pub title: String,
     pub kind: Option<String>,
-    pub edit: WorkspaceEdit,
+    pub edit: Option<WorkspaceEdit>,
+    pub command: Option<Command>,
 }
+
+#[derive(Debug, Clone)]
+pub struct Command(lsp_types::Command);
+impl Command {
+    pub(crate) fn arguments(&self) -> Vec<serde_json::Value> {
+        self.0.arguments.clone().unwrap_or_default()
+    }
+
+    pub(crate) fn command(&self) -> String {
+        self.0.command.clone()
+    }
+}
+
+impl PartialEq for Command {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.command.eq(&other.0.command)
+    }
+}
+
+impl Eq for Command {}
 
 impl CodeAction {
     pub fn title(&self) -> String {
@@ -32,13 +54,11 @@ impl TryFrom<lsp_types::CodeAction> for CodeAction {
         log::info!("CodeAction: {:#?}", value);
 
         let title = value.title;
-        let edit = value
-            .edit
-            .ok_or_else(|| anyhow::anyhow!("CodeAction edit is missing"))?;
         Ok(CodeAction {
             title,
             kind: value.kind.map(|kind| kind.as_str().to_string()),
-            edit: WorkspaceEdit::try_from(edit)?,
+            edit: value.edit.map(WorkspaceEdit::try_from).transpose()?,
+            command: value.command.map(Command),
         })
     }
 }

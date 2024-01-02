@@ -209,4 +209,16 @@ impl LspManager {
                 .unwrap_or_else(|error| log::error!("{:?}", error));
         }
     }
+
+    pub(crate) fn workspace_execute_command(
+        &self,
+        params: RequestParams,
+        command: super::code_action::Command,
+    ) -> Result<(), anyhow::Error> {
+        self.invoke_channels(
+            &params.path.clone(),
+            "Failed to execute command",
+            |channel| channel.workspace_execute_command(params.clone(), command.clone()),
+        )
+    }
 }
