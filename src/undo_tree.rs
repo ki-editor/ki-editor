@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::fmt::Display;
 
 use undo::History;
@@ -117,6 +118,55 @@ impl<T: Applicable> UndoTree<T> {
 
         Ok(())
     }
+
+    pub(crate) fn previous_entries(&self) -> Vec<(usize, &undo::Entry<OldNew<T>>)> {
+        self.get_entries(true)
+    }
+
+    pub(crate) fn next_entries(&self) -> Vec<(usize, &undo::Entry<OldNew<T>>)> {
+        self.get_entries(false)
+    }
+
+    fn get_entries(&self, previous: bool) -> Vec<(usize, &undo::Entry<OldNew<T>>)> {
+        let cmp = if previous {
+            |x: usize, y: usize| x < y
+        } else {
+            |x, y| x > y
+        };
+        self.entries()
+            .enumerate()
+            .filter(|(index, _)| cmp(*index, self.current_entry_index()))
+            .collect()
+    }
+
+    fn entries(&self) -> impl Iterator<Item = &undo::Entry<OldNew<T>>> {
+        self.history.entries()
+    }
+
+    fn current_entry_index(&self) -> usize {
+        self.history.head().index
+    }
+
+    pub(crate) fn go_to_entry(
+        &mut self,
+        target: &mut T::Target,
+        index: usize,
+    ) -> Result<Vec<<T as Applicable>::Output>, anyhow::Error> {
+        println!(
+            "go_to_entry: index = {index} self.history.head() = {:?}",
+            self.history.head()
+        );
+        self.history
+            .go_to(
+                target,
+                undo::At {
+                    root: self.history.head().root,
+                    index,
+                },
+            )
+            .into_iter()
+            .try_collect()
+    }
 }
 
 impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
@@ -128,6 +178,7 @@ impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
     }
 
     fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
+        println!("====UNDO====");
         self.new_to_old.apply(target)
     }
 }

@@ -44,6 +44,9 @@ pub struct Line {
     pub content: String,
 }
 
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct BufferId;
+
 impl Buffer {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {

@@ -6,8 +6,8 @@ use crate::{
     context::{Context, GlobalMode, Search, SearchKind},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, Filters},
-    selection_mode::{self, inside::InsideKind, ByteRange, SelectionModeParams},
+    selection::{Filter, FilterKind, FilterTarget, Filters},
+    selection_mode::{self, inside::InsideKind, ByteRange},
     soft_wrap,
 };
 
@@ -51,7 +51,6 @@ pub enum Mode {
     Insert,
     MultiCursor,
     FindOneChar,
-    ScrollLine,
     Exchange,
     UndoTree,
 }
@@ -799,20 +798,24 @@ impl Editor {
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
 
-    pub fn select_kids(&mut self) -> anyhow::Result<()> {
+    pub fn select_kids(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
-        self.update_selection_set(
+
+        Ok(self.update_selection_set(
             self.selection_set
                 .select_kids(&buffer, &self.cursor_direction)?,
-        );
-        Ok(())
+        ))
     }
 
-    pub fn select_line(&mut self, movement: Movement, context: &Context) -> anyhow::Result<()> {
+    pub fn select_line(
+        &mut self,
+        movement: Movement,
+        context: &Context,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         self.select(SelectionMode::Line, movement, context)
     }
 
-    pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<()> {
+    pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<Vec<Dispatch>> {
         let start = self.buffer.borrow().line_to_char(line)?;
         let selection_set = SelectionSet {
             primary: Selection::new(
@@ -829,8 +832,7 @@ impl Editor {
             mode: SelectionMode::Line,
             filters: Filters::default(),
         };
-        self.update_selection_set(selection_set);
-        Ok(())
+        Ok(self.update_selection_set(selection_set))
     }
 
     fn select_backward(&mut self) {
@@ -847,13 +849,21 @@ impl Editor {
         self.selection_set.escape_highlight_mode();
     }
 
-    fn update_selection_set(&mut self, selection_set: SelectionSet) {
+    pub fn update_selection_set(&mut self, selection_set: SelectionSet) -> Vec<Dispatch> {
         self.selection_set = selection_set.clone();
         self.selection_history.push(selection_set);
-        self.recalculate_scroll_offset()
+        self.recalculate_scroll_offset();
+        self.buffer()
+            .path()
+            .map(|path| Dispatch::PushSelectionSet {
+                selection_set: self.selection_set.clone(),
+                path,
+            })
+            .into_iter()
+            .collect()
     }
 
-    pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<()> {
+    pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<Vec<Dispatch>> {
         let range = (self.buffer().position_to_char(range.start)?
             ..self.buffer().position_to_char(range.end)?)
             .into();
@@ -870,8 +880,7 @@ impl Editor {
             mode,
             filters: Filters::default(),
         };
-        self.update_selection_set(selection_set);
-        Ok(())
+        Ok(self.update_selection_set(selection_set))
     }
 
     fn cursor_row(&self) -> u16 {
@@ -916,7 +925,7 @@ impl Editor {
         selection_mode: SelectionMode,
         movement: Movement,
         context: &Context,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Dispatch>> {
         //  There are a few selection modes where Current make sense.
         let direction = if self.selection_set.mode != selection_mode {
             Movement::Current
@@ -926,8 +935,7 @@ impl Editor {
 
         let selection = self.get_selection_set(&selection_mode, direction, context)?;
 
-        self.update_selection_set(selection);
-        Ok(())
+        Ok(self.update_selection_set(selection))
     }
 
     fn jump_characters() -> Vec<char> {
@@ -1767,7 +1775,6 @@ impl Editor {
                         Mode::Insert => self.handle_insert_mode(context, key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
-                        Mode::ScrollLine => self.handle_scroll_line_mode(context, key_event),
                         Mode::Exchange => self.handle_exchange_mode(context, key_event),
                         Mode::UndoTree => self.handle_undo_tree_mode(context, key_event),
                     }
@@ -1986,7 +1993,7 @@ impl Editor {
         if let Some(global_mode) = &context.mode() {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
-                GlobalMode::FileNavigation => Ok([Dispatch::GotoOpenedEditor(movement)].to_vec()),
+                GlobalMode::NavigationFile => Ok([Dispatch::NavigateFile(movement)].to_vec()),
             }
         } else {
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2110,7 +2117,7 @@ impl Editor {
 
             // j = jump
             key!("k") => return self.kill(context),
-            key!("shift+K") => self.select_kids()?,
+            key!("shift+K") => return self.select_kids(),
             key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
             key!("m") => self.mode = Mode::MultiCursor,
             key!("o") => {
@@ -2132,7 +2139,7 @@ impl Editor {
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u = up
             key!("v") => {
-                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())
+                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::NavigationFile))].to_vec())
             }
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.mode = Mode::Exchange,
@@ -2230,19 +2237,18 @@ impl Editor {
     }
 
     // TODO: handle mouse click
-    pub fn set_cursor_position(&mut self, row: u16, column: u16) -> anyhow::Result<()> {
+    pub fn set_cursor_position(&mut self, row: u16, column: u16) -> anyhow::Result<Vec<Dispatch>> {
         let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
         let primary = self
             .selection_set
             .primary
             .clone()
             .set_range((start..start).into());
-        self.update_selection_set(SelectionSet {
+        Ok(self.update_selection_set(SelectionSet {
             mode: self.selection_set.mode.clone(),
             primary,
             ..self.selection_set.clone()
-        });
-        Ok(())
+        }))
     }
 
     /// Get the selection that preserves the syntactic structure of the current selection.
@@ -2609,8 +2615,12 @@ impl Editor {
         self.buffer.borrow_mut().update(s)
     }
 
-    fn scroll(&mut self, direction: Direction, scroll_height: usize) -> anyhow::Result<()> {
-        self.update_selection_set(self.selection_set.apply(
+    fn scroll(
+        &mut self,
+        direction: Direction,
+        scroll_height: usize,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        let dispatch = self.update_selection_set(self.selection_set.apply(
             self.selection_set.mode.clone(),
             |selection| {
                 let position = selection.extended_range().start.to_position(&self.buffer());
@@ -2626,7 +2636,7 @@ impl Editor {
         )?);
         self.align_cursor_to_center();
 
-        Ok(())
+        Ok(dispatch)
     }
 
     pub fn replace_previous_word(
@@ -2634,6 +2644,7 @@ impl Editor {
         completion: &str,
         context: &Context,
     ) -> anyhow::Result<Vec<Dispatch>> {
+        // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
         let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
         self.update_selection_set(selection);
         self.replace_current_selection_with(|_| Some(Rope::from_str(completion)))?;
@@ -2837,7 +2848,6 @@ impl Editor {
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
             Mode::FindOneChar => "FIND ONE CHAR",
-            Mode::ScrollLine => "SCROLL LINE",
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
         };
@@ -2934,20 +2944,6 @@ impl Editor {
         self.buffer.borrow_mut().set_decorations(decorations)
     }
 
-    fn handle_scroll_line_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
-        match key_event {
-            key!("esc") => self.enter_normal_mode(),
-            key!("n") => self.scroll(todo!(), 1),
-            key!("p") => self.scroll(todo!(), 1),
-            other => return self.handle_normal_mode(context, other),
-        }?;
-        Ok(Vec::new())
-    }
-
     fn half_page_height(&self) -> usize {
         (self.dimension().height / 2) as usize
     }
@@ -3014,31 +3010,36 @@ impl Editor {
         movement: Movement,
         selection_mode: SelectionMode,
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
-        self.select(selection_mode, movement, context)?;
+        let dispatches = self.select(selection_mode, movement, context)?;
         self.current_view_alignment = None;
 
-        if let Some(info) = self
-            .selection_set
-            .map(|selection| selection.info())
+        Ok(dispatches
             .into_iter()
-            .flatten()
-            .reduce(Info::join)
-        {
-            Ok([Dispatch::ShowInfo {
-                title: "INFO".to_string(),
-                info,
-            }]
-            .to_vec())
-        } else {
-            Ok(Vec::new())
-        }
+            .chain(
+                if let Some(info) = self
+                    .selection_set
+                    .map(|selection| selection.info())
+                    .into_iter()
+                    .flatten()
+                    .reduce(Info::join)
+                {
+                    [Dispatch::ShowInfo {
+                        title: "INFO".to_string(),
+                        info,
+                    }]
+                    .to_vec()
+                } else {
+                    Vec::new()
+                },
+            )
+            .collect())
     }
 
-    pub fn scroll_page_down(&mut self) -> Result<(), anyhow::Error> {
+    pub fn scroll_page_down(&mut self) -> Result<Vec<Dispatch>, anyhow::Error> {
         self.scroll(Direction::End, self.half_page_height())
     }
 
-    pub fn scroll_page_up(&mut self) -> Result<(), anyhow::Error> {
+    pub fn scroll_page_up(&mut self) -> Result<Vec<Dispatch>, anyhow::Error> {
         self.scroll(Direction::Start, self.half_page_height())
     }
 

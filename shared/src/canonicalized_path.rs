@@ -143,4 +143,9 @@ impl CanonicalizedPath {
     pub fn join_as_path_buf(&self, other: &str) -> String {
         self.to_path_buf().join(other).to_string_lossy().to_string()
     }
+
+    pub fn try_display_relative(&self) -> String {
+        self.display_relative()
+            .unwrap_or_else(|_| self.display_absolute())
+    }
 }

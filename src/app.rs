@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    buffer::Buffer,
+    buffer::{Buffer, BufferId},
     components::{
         component::{Component, ComponentId, Cursor, GetGridResult},
         editor::{DispatchEditor, Movement},
@@ -39,10 +39,11 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
-    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::VSCODE_LIGHT,
+    undo_tree::{Applicable, UndoTree},
 };
 
 pub struct App<T: Frontend> {
@@ -66,7 +67,44 @@ pub struct App<T: Frontend> {
     frontend: Arc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
+
+    undo_tree: UndoTree<FileSelectionSet>,
 }
+
+#[derive(PartialEq, Clone, Debug)]
+struct FileSelectionSet {
+    path: CanonicalizedPath,
+    selection_set: SelectionSet,
+}
+
+impl std::fmt::Display for FileSelectionSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{}", self.path.try_display_relative()))
+    }
+}
+
+struct Null;
+impl std::fmt::Display for Null {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("NULL")
+    }
+}
+
+impl Applicable for FileSelectionSet {
+    type Target = Layout;
+
+    type Output = Null;
+
+    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
+        println!(
+            "\nFileSelectionSet.Applicable::apply: self.path = {:?}",
+            self.path
+        );
+        target.open_file_with_selection(&self.path, self.selection_set.clone())?;
+        Ok(Null)
+    }
+}
+
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 impl<T: Frontend> App<T> {
     pub fn new(
@@ -102,6 +140,7 @@ impl<T: Frontend> App<T> {
             frontend,
             syntax_highlight_request_sender: None,
             global_title: None,
+            undo_tree: UndoTree::new(),
         };
         Ok(app)
     }
@@ -435,8 +474,8 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::GotoOpenedEditor(direction) => {
-                self.layout.goto_opened_editor(direction);
+            Dispatch::NavigateFile(movement) => {
+                self.navigate_file(movement)?;
                 self.show_navigation_history()
             }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
@@ -501,6 +540,10 @@ impl<T: Frontend> App<T> {
             Dispatch::LspExecuteCommand { command, params } => self
                 .lsp_manager
                 .workspace_execute_command(params, command)?,
+            Dispatch::PushSelectionSet {
+                selection_set,
+                path,
+            } => self.push_selection_set(path, selection_set)?,
         }
         Ok(())
     }
@@ -839,16 +882,16 @@ impl<T: Frontend> App<T> {
 
     pub fn open_file(
         &mut self,
-        entry_path: &CanonicalizedPath,
+        path: &CanonicalizedPath,
         focus_editor: bool,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(entry_path)? {
+        if let Some(matching_editor) = self.layout.open_file(path) {
             return Ok(matching_editor);
         }
 
-        let buffer = Buffer::from_path(entry_path)?;
+        let buffer = Buffer::from_path(path)?;
         let language = buffer.language();
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
@@ -857,6 +900,7 @@ impl<T: Frontend> App<T> {
         let component = Rc::new(RefCell::new(editor));
 
         if focus_editor {
+            self.push_selection_set(path.clone(), SelectionSet::default())?;
             self.layout
                 .add_and_focus_suggestive_editor(component.clone());
         } else {
@@ -868,7 +912,7 @@ impl<T: Frontend> App<T> {
         }
 
         if self.enable_lsp {
-            self.lsp_manager.open_file(entry_path.clone())?;
+            self.lsp_manager.open_file(path.clone())?;
         }
         Ok(component)
     }
@@ -1304,17 +1348,14 @@ impl<T: Frontend> App<T> {
         self.layout
             .open_file(path)
             .unwrap()
-            .map(|matching_editor| matching_editor.borrow().editor().get_selected_texts())
-            .unwrap_or_default()
+            .borrow()
+            .editor()
+            .get_selected_texts()
     }
 
     #[cfg(test)]
     pub fn get_file_content(&mut self, path: &CanonicalizedPath) -> String {
-        self.layout
-            .open_file(path)
-            .unwrap()
-            .map(|matching_editor| matching_editor.borrow().content())
-            .unwrap_or_default()
+        self.layout.open_file(path).unwrap().borrow().content()
     }
 
     #[cfg(test)]
@@ -1396,14 +1437,18 @@ impl<T: Frontend> App<T> {
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        if mode == Some(GlobalMode::FileNavigation) {
+        if mode == Some(GlobalMode::NavigationFile) {
             self.show_navigation_history()
         }
         self.context.set_mode(mode);
     }
 
+    fn display_navigation_history(&self) -> String {
+        self.undo_tree.display().to_string()
+    }
+
     fn show_navigation_history(&mut self) {
-        let tree = self.layout.display_navigation_history();
+        let tree = self.display_navigation_history();
         self.show_info("Navigation History", Info::new(tree));
     }
 
@@ -1436,6 +1481,88 @@ impl<T: Frontend> App<T> {
 
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn push_selection_set(
+        &mut self,
+        path: CanonicalizedPath,
+        selection_set: SelectionSet,
+    ) -> anyhow::Result<()> {
+        let new_to_old = self
+            .layout
+            .current_component()
+            .and_then(|component| {
+                Some(FileSelectionSet {
+                    path: self.get_current_file_path()?,
+                    selection_set: component.borrow().editor().selection_set.clone(),
+                })
+            })
+            .unwrap_or_else(|| FileSelectionSet {
+                path: path.clone(),
+                selection_set: selection_set.clone(),
+            });
+        self.undo_tree.edit(
+            &mut self.layout,
+            crate::undo_tree::OldNew {
+                old_to_new: FileSelectionSet {
+                    path,
+                    selection_set,
+                },
+                new_to_old,
+            },
+        )?;
+        Ok(())
+    }
+
+    pub(crate) fn get_current_selection_set(&self) -> Option<SelectionSet> {
+        Some(
+            self.current_component()?
+                .borrow()
+                .editor()
+                .selection_set
+                .clone(),
+        )
+    }
+
+    fn navigate_file(&mut self, movement: Movement) -> anyhow::Result<()> {
+        match movement {
+            Movement::Next => {
+                let next_entries = self
+                    .undo_tree
+                    .next_entries()
+                    .into_iter()
+                    .filter(|(_, entry)| {
+                        Some(&entry.get().new_to_old.path) != self.get_current_file_path().as_ref()
+                    })
+                    .collect_vec();
+                if let Some((next_entry_index, next_entry)) = next_entries.first() {
+                    let next_file = next_entry.get().old_to_new.path.clone();
+                    let next_entry_index = *next_entry_index;
+                    let index = next_entries
+                        .into_iter()
+                        .take_while(|(_, entry)| entry.get().old_to_new.path == next_file)
+                        .last()
+                        .map(|(index, _)| index)
+                        .unwrap_or(next_entry_index);
+                    self.undo_tree.go_to_entry(&mut self.layout, index)?;
+                }
+            }
+            Movement::Previous => {
+                if let Some((index, _)) =
+                    self.undo_tree
+                        .previous_entries()
+                        .into_iter()
+                        .rfind(|(_, entry)| {
+                            Some(&entry.get().new_to_old.path)
+                                != self.get_current_file_path().as_ref()
+                        })
+                {
+                    self.undo_tree.go_to_entry(&mut self.layout, index)?;
+                }
+            }
+            _ => {}
+        };
+        Ok(())
     }
 }
 
@@ -1511,7 +1638,7 @@ pub enum Dispatch {
     },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
-    GotoOpenedEditor(Movement),
+    NavigateFile(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
     CloseAllExceptMainPanel,
@@ -1562,6 +1689,10 @@ pub enum Dispatch {
     LspExecuteCommand {
         params: RequestParams,
         command: crate::lsp::code_action::Command,
+    },
+    PushSelectionSet {
+        selection_set: SelectionSet,
+        path: CanonicalizedPath,
     },
 }
 
