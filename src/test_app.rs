@@ -582,6 +582,14 @@ src/main.rs 🦀
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
             assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
 
+            // Test Movement::Next to src/foo.rs where no selection has been moved in src/foo.rs
+            println!("{}", app.display_navigation_history());
+            app.handle_dispatch_editors(&[
+                MoveSelection(Movement::Previous),
+                MoveSelection(Movement::Next),
+            ])?;
+            assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
+
             app.handle_dispatches(
                 [
                     // After moving back, open "src/foo.rs" again
@@ -608,6 +616,9 @@ src/main.rs 🦀
             println!("{}", app.display_navigation_history());
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
             assert_eq!(app.get_current_selection_set(), cargo_lock_selection_set);
+
+            app.handle_dispatch(Dispatch::HandleKeyEvent(key!("esc")))?;
+            assert_eq!(app.context().mode(), None);
 
             Ok(())
         })

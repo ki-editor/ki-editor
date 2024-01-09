@@ -2085,7 +2085,10 @@ impl Editor {
             key!("shift+right") => return self.handle_movement(context, Movement::Last),
             key!("esc") => {
                 self.reset();
-                return Ok(vec![Dispatch::CloseAllExceptMainPanel]);
+                return Ok(vec![
+                    Dispatch::CloseAllExceptMainPanel,
+                    Dispatch::SetGlobalMode(None),
+                ]);
             }
             // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,

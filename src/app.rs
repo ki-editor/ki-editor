@@ -1537,7 +1537,7 @@ impl<T: Frontend> App<T> {
                     .next_entries()
                     .into_iter()
                     .filter(|(_, entry)| {
-                        Some(&entry.get().new_to_old.path) != self.get_current_file_path().as_ref()
+                        Some(&entry.get().old_to_new.path) != self.get_current_file_path().as_ref()
                     })
                     .collect_vec();
                 log::info!("next_entries.len() = {}", next_entries.len());
@@ -1574,6 +1574,10 @@ impl<T: Frontend> App<T> {
             _ => {}
         };
         Ok(())
+    }
+
+    pub(crate) fn context(&self) -> &Context {
+        &self.context
     }
 }
 
