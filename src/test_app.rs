@@ -576,16 +576,16 @@ src/main.rs 🦀
             app.handle_dispatches(
                 [SetGlobalMode(Some(GlobalMode::SelectionHistoryFile))].to_vec(),
             )?;
-            println!("{}", app.display_navigation_history());
+            println!("{}", app.display_selection_history());
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
-            println!("{}", app.display_navigation_history());
+            println!("{}", app.display_selection_history());
             assert_eq!(app.get_current_file_path(), Some(file(".gitignore")?));
 
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
             assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
 
             // Test Movement::Next to src/foo.rs where no selection has been moved in src/foo.rs
-            println!("{}", app.display_navigation_history());
+            println!("{}", app.display_selection_history());
             app.handle_dispatch_editors(&[
                 MoveSelection(Movement::Previous),
                 MoveSelection(Movement::Next),
@@ -609,13 +609,13 @@ src/main.rs 🦀
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
             let cargo_lock_selection_set = app.get_current_selection_set();
 
-            println!("{}", app.display_navigation_history());
+            println!("{}", app.display_selection_history());
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
             assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
-            println!("{}", app.display_navigation_history());
+            println!("{}", app.display_selection_history());
 
             app.handle_dispatch_editors(&[MoveSelection(Movement::Next)])?;
-            println!("{}", app.display_navigation_history());
+            println!("{}", app.display_selection_history());
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
             assert_eq!(app.get_current_selection_set(), cargo_lock_selection_set);
 

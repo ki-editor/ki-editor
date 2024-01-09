@@ -481,7 +481,7 @@ impl<T: Frontend> App<T> {
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoSelectionHistoryFile(movement) => {
                 self.goto_selection_history_file(movement)?;
-                self.show_navigation_history()
+                self.show_selection_history()
             }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
@@ -1443,18 +1443,18 @@ impl<T: Frontend> App<T> {
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
         if mode == Some(GlobalMode::SelectionHistoryFile) {
-            self.show_navigation_history()
+            self.show_selection_history()
         }
         self.context.set_mode(mode);
     }
 
-    pub fn display_navigation_history(&self) -> String {
+    pub fn display_selection_history(&self) -> String {
         self.undo_tree.display().to_string()
     }
 
-    fn show_navigation_history(&mut self) {
-        let tree = self.display_navigation_history();
-        self.show_info("Navigation History", Info::new(tree));
+    fn show_selection_history(&mut self) {
+        let tree = self.display_selection_history();
+        self.show_info("Selection History", Info::new(tree));
     }
 
     fn open_omit_prompt(
