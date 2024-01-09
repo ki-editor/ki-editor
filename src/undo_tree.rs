@@ -133,14 +133,25 @@ impl<T: Applicable> UndoTree<T> {
         } else {
             |x, y| x > y
         };
+
         self.entries()
-            .enumerate()
             .filter(|(index, _)| cmp(*index, self.current_entry_index()))
             .collect()
     }
 
-    fn entries(&self) -> impl Iterator<Item = &undo::Entry<OldNew<T>>> {
-        self.history.entries()
+    fn entries(&self) -> impl Iterator<Item = (usize, &undo::Entry<OldNew<T>>)> {
+        log::info!("entries.count = {}", self.history.entries().count());
+        self.history.head();
+        self.history
+            .entries()
+            .enumerate()
+            // We need to add 1 because the `undo::history::History::entries
+            // method does not return the first entry with index 0
+            .map(|(index, entry)| (index + 1, entry))
+            .map(|(index, entry)| {
+                log::info!("[{}]: {}", index, entry.get().old_to_new.to_string());
+                (index, entry)
+            })
     }
 
     fn current_entry_index(&self) -> usize {
@@ -152,7 +163,7 @@ impl<T: Applicable> UndoTree<T> {
         target: &mut T::Target,
         index: usize,
     ) -> Result<Vec<<T as Applicable>::Output>, anyhow::Error> {
-        println!(
+        log::info!(
             "go_to_entry: index = {index} self.history.head() = {:?}",
             self.history.head()
         );
@@ -178,7 +189,7 @@ impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
     }
 
     fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
-        println!("====UNDO====");
+        log::info!("====UNDO====");
         self.new_to_old.apply(target)
     }
 }

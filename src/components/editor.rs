@@ -3012,6 +3012,7 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         let dispatches = self.select(selection_mode, movement, context)?;
         self.current_view_alignment = None;
+        log::info!("dispatches = {:?}", dispatches);
 
         Ok(dispatches
             .into_iter()

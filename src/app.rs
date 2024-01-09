@@ -79,7 +79,11 @@ struct FileSelectionSet {
 
 impl std::fmt::Display for FileSelectionSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{}", self.path.try_display_relative()))
+        f.write_str(&format!(
+            "{}:{}",
+            self.path.try_display_relative(),
+            self.selection_set.primary.extended_range().start.0
+        ))
     }
 }
 
@@ -96,9 +100,10 @@ impl Applicable for FileSelectionSet {
     type Output = Null;
 
     fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        println!(
-            "\nFileSelectionSet.Applicable::apply: self.path = {:?}",
-            self.path
+        log::info!(
+            "\nFileSelectionSet.Applicable::apply: self.path = {:?} self.selection_set.primary.range = {:?}",
+            self.path,
+self.selection_set.primary.range()
         );
         target.open_file_with_selection(&self.path, self.selection_set.clone())?;
         Ok(Null)
@@ -1443,7 +1448,7 @@ impl<T: Frontend> App<T> {
         self.context.set_mode(mode);
     }
 
-    fn display_navigation_history(&self) -> String {
+    pub fn display_navigation_history(&self) -> String {
         self.undo_tree.display().to_string()
     }
 
@@ -1535,6 +1540,11 @@ impl<T: Frontend> App<T> {
                         Some(&entry.get().new_to_old.path) != self.get_current_file_path().as_ref()
                     })
                     .collect_vec();
+                log::info!("next_entries.len() = {}", next_entries.len());
+                log::info!(
+                    "next_entries.last().index = {:?}",
+                    next_entries.last().map(|e| e.0)
+                );
                 if let Some((next_entry_index, next_entry)) = next_entries.first() {
                     let next_file = next_entry.get().old_to_new.path.clone();
                     let next_entry_index = *next_entry_index;
@@ -1548,15 +1558,16 @@ impl<T: Frontend> App<T> {
                 }
             }
             Movement::Previous => {
-                if let Some((index, _)) =
+                if let Some((index, entry)) =
                     self.undo_tree
                         .previous_entries()
                         .into_iter()
                         .rfind(|(_, entry)| {
-                            Some(&entry.get().new_to_old.path)
+                            Some(&entry.get().old_to_new.path)
                                 != self.get_current_file_path().as_ref()
                         })
                 {
+                    log::info!("entry.path = {:?}", entry.get().new_to_old.path);
                     self.undo_tree.go_to_entry(&mut self.layout, index)?;
                 }
             }
