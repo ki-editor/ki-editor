@@ -176,6 +176,7 @@ impl SelectionSet {
     pub fn only(&mut self) {
         self.secondary.clear();
         self.primary.initial_range = None;
+        self.primary.copied_text = None;
     }
 
     pub fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
