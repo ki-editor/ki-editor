@@ -573,7 +573,9 @@ src/main.rs 🦀
             )?;
 
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.toml")?));
-            app.handle_dispatches([SetGlobalMode(Some(GlobalMode::NavigationFile))].to_vec())?;
+            app.handle_dispatches(
+                [SetGlobalMode(Some(GlobalMode::SelectionHistoryFile))].to_vec(),
+            )?;
             println!("{}", app.display_navigation_history());
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
             println!("{}", app.display_navigation_history());
@@ -600,7 +602,7 @@ src/main.rs 🦀
                     // Move some selection to test that the modified selection set is preserved when going to the next FileSelectionSet in the history
                     DispatchEditor(SetSelectionMode(SelectionMode::Line)),
                     DispatchEditor(MoveSelection(Movement::Next)),
-                    SetGlobalMode(Some(GlobalMode::NavigationFile)),
+                    SetGlobalMode(Some(GlobalMode::SelectionHistoryFile)),
                 ]
                 .to_vec(),
             )?;

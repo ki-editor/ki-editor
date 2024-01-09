@@ -479,8 +479,8 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::NavigateFile(movement) => {
-                self.navigate_file(movement)?;
+            Dispatch::GotoSelectionHistoryFile(movement) => {
+                self.goto_selection_history_file(movement)?;
                 self.show_navigation_history()
             }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
@@ -1442,7 +1442,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        if mode == Some(GlobalMode::NavigationFile) {
+        if mode == Some(GlobalMode::SelectionHistoryFile) {
             self.show_navigation_history()
         }
         self.context.set_mode(mode);
@@ -1529,7 +1529,7 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn navigate_file(&mut self, movement: Movement) -> anyhow::Result<()> {
+    fn goto_selection_history_file(&mut self, movement: Movement) -> anyhow::Result<()> {
         match movement {
             Movement::Next => {
                 let next_entries = self
@@ -1653,7 +1653,7 @@ pub enum Dispatch {
     },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
-    NavigateFile(Movement),
+    GotoSelectionHistoryFile(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
     CloseAllExceptMainPanel,

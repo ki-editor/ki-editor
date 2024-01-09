@@ -1993,7 +1993,9 @@ impl Editor {
         if let Some(global_mode) = &context.mode() {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
-                GlobalMode::NavigationFile => Ok([Dispatch::NavigateFile(movement)].to_vec()),
+                GlobalMode::SelectionHistoryFile => {
+                    Ok([Dispatch::GotoSelectionHistoryFile(movement)].to_vec())
+                }
             }
         } else {
             self.move_selection_with_selection_mode_without_global_mode(
@@ -2141,11 +2143,15 @@ impl Editor {
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
             key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
             // u = up
-            key!("v") => {
-                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::NavigationFile))].to_vec())
-            }
+            // TODO: v = view (scroll line, scroll half page, scroll full page)
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.mode = Mode::Exchange,
+            key!("y") => {
+                return Ok([Dispatch::SetGlobalMode(Some(
+                    GlobalMode::SelectionHistoryFile,
+                ))]
+                .to_vec())
+            }
             key!("z") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.x_mode_keymap_legend_config()?,
