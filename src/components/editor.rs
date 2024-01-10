@@ -1642,7 +1642,7 @@ impl Editor {
                 self.add_cursor_to_all_selections(context)?
             }
             DispatchEditor::FilterClear => self.filters_clear(),
-            DispatchEditor::CursorKeepPrimaryOnly => self.only_current_cursor()?,
+            DispatchEditor::CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
         }
         Ok([].to_vec())
     }
@@ -2749,7 +2749,7 @@ impl Editor {
             return Ok(vec![]);
         };
         self.clamp()?;
-        self.only_current_cursor()?;
+        self.cursor_keep_primary_only()?;
         Ok(vec![Dispatch::DocumentDidSave { path }]
             .into_iter()
             .chain(self.get_document_did_change_dispatch())
@@ -2894,7 +2894,7 @@ impl Editor {
             // todo: kill primary cursor does not work as expected, we need another editr cursor mode
             key!("k") => self.kill_primary_cursor(),
             key!("n") => self.add_cursor(context, &Movement::Next),
-            key!("o") => self.only_current_cursor(),
+            key!("o") => self.cursor_keep_primary_only(),
             key!("p") => self.add_cursor(context, &Movement::Previous),
             other => return self.handle_normal_mode(context, other),
         }?;
@@ -2914,7 +2914,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn only_current_cursor(&mut self) -> Result<(), anyhow::Error> {
+    pub fn cursor_keep_primary_only(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set.only();
         self.enter_normal_mode()
     }

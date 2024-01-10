@@ -293,47 +293,6 @@ fn main() {
     }
 
     #[test]
-    fn multi_paste() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }",
-        );
-        let context = Context::default();
-
-        // Select 'let x = S(a)'
-        editor.match_literal(&context, "let x = S(spongebob_squarepants);")?;
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["let x = S(spongebob_squarepants);"]
-        );
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&context, &Movement::Next)?;
-
-        editor.handle_movement(&context, Movement::Down)?;
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["S(spongebob_squarepants)", "S(b)"]
-        );
-
-        let context = Context::default();
-        editor.cut()?;
-        editor.enter_insert_mode(Direction::Start)?;
-
-        editor.insert("Some(")?;
-        editor.paste(&context)?;
-        editor.insert(")")?;
-
-        assert_eq!(
-            editor.text(),
-            "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }"
-        );
-        Ok(())
-    }
-
-    #[test]
     fn toggle_highlight_mode() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let context = Context::default();
@@ -1209,7 +1168,7 @@ fn main() { // too long
         editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
         editor.add_cursor_to_all_selections(&context)?;
         assert_eq!(editor.get_selected_texts(), ["foo", "spam"]);
-        editor.only_current_cursor()?;
+        editor.cursor_keep_primary_only()?;
         assert_eq!(editor.get_selected_texts(), ["spam"]);
 
         // Toggling the bookmark when selecting existing bookmark should

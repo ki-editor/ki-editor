@@ -289,6 +289,60 @@ mod test_app {
     }
 
     #[test]
+    #[serial]
+    fn multi_paste() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            let path_main = temp_dir.join("src/main.rs")?;
+            app.handle_dispatch(OpenFile {
+                path: path_main.clone(),
+            })?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string()),
+                MatchLiteral("let x = S(spongebob_squarepants);".to_owned()),
+                SetSelectionMode(SelectionMode::SyntaxTree),
+                CursorAddToAllSelections,
+                MoveSelection(Movement::Down),
+                MoveSelection(Movement::Next),
+            ])?;
+            assert_eq!(
+                app.get_selected_texts(&path_main),
+                vec!["S(spongebob_squarepants)", "S(b)"]
+            );
+
+            app.handle_dispatch_editors(&[
+                Cut,
+                EnterInsertMode(Direction::Start),
+                Insert("Some(".to_owned()),
+                Paste,
+                Insert(")".to_owned()),
+            ])?;
+
+            assert_eq!(
+                app.get_file_content(&path_main),
+                "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }"
+            );
+
+            app.handle_dispatch_editors(&[CursorKeepPrimaryOnly])?;
+            app.handle_dispatch(SetClipboardContent(".hello".to_owned()))?;
+            app.handle_dispatches(
+                [
+                    DispatchEditor(CursorKeepPrimaryOnly),
+                    SetClipboardContent(".hello".to_owned()),
+                    DispatchEditor(Paste),
+                ]
+                .to_vec(),
+            )?;
+
+            assert_eq!(
+                app.get_file_content(&path_main),
+                "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }"
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn esc_should_close_signature_help() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
             let path_main = temp_dir.join("src/main.rs")?;
