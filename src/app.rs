@@ -14,7 +14,7 @@ use std::{
 };
 
 use crate::{
-    buffer::{Buffer, BufferId},
+    buffer::Buffer,
     components::{
         component::{Component, ComponentId, Cursor, GetGridResult},
         editor::{DispatchEditor, Movement},

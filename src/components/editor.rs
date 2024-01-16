@@ -659,7 +659,6 @@ impl Clone for Editor {
             selection_set: self.selection_set.clone(),
             jumps: None,
             cursor_direction: self.cursor_direction.clone(),
-            selection_history: self.selection_history.clone(),
             scroll_offset: self.scroll_offset,
             rectangle: self.rectangle.clone(),
             buffer: self.buffer.clone(),
@@ -677,9 +676,6 @@ pub struct Editor {
 
     pub jumps: Option<Vec<Jump>>,
     pub cursor_direction: Direction,
-
-    /// TODO: remove this field
-    selection_history: Vec<SelectionSet>,
 
     /// This means the number of lines to be skipped from the top during rendering.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
@@ -752,7 +748,6 @@ impl Editor {
             jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
-            selection_history: Vec::with_capacity(128),
             scroll_offset: 0,
             rectangle: Rectangle::default(),
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
@@ -773,7 +768,6 @@ impl Editor {
             jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
-            selection_history: Vec::with_capacity(128),
             scroll_offset: 0,
             rectangle: Rectangle::default(),
             buffer,
@@ -836,23 +830,12 @@ impl Editor {
         Ok(self.update_selection_set(selection_set))
     }
 
-    fn select_backward(&mut self) {
-        while let Some(selection_set) = self.selection_history.pop() {
-            if selection_set != self.selection_set {
-                self.selection_set = selection_set;
-                self.recalculate_scroll_offset();
-                break;
-            }
-        }
-    }
-
     pub fn reset(&mut self) {
         self.selection_set.escape_highlight_mode();
     }
 
     pub fn update_selection_set(&mut self, selection_set: SelectionSet) -> Vec<Dispatch> {
         let old_selection_set = std::mem::replace(&mut self.selection_set, selection_set.clone());
-        self.selection_history.push(selection_set.clone());
         self.recalculate_scroll_offset();
         self.buffer()
             .path()
@@ -2083,7 +2066,6 @@ impl Editor {
                 .to_vec())
             }
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
-            key!("-") => self.select_backward(),
             key!("*") => self.select_all(context)?,
 
             key!("left") => return self.handle_movement(context, Movement::Previous),
