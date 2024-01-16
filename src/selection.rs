@@ -17,11 +17,12 @@ use crate::{
     selection_mode::{self, inside::InsideKind, SelectionModeParams},
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SelectionSet {
     pub primary: Selection,
     pub secondary: Vec<Selection>,
     pub mode: SelectionMode,
+    /// TODO: filters should be stored globally, not at SelectionSet
     pub filters: Filters,
 }
 
@@ -30,7 +31,7 @@ pub struct SelectionSet {
 /// 1. Push new filter
 /// 2. Pop latest filter
 /// 3. Clear all filters
-#[derive(Clone, Default, Debug, PartialEq)]
+#[derive(Clone, Default, Debug, PartialEq, Eq)]
 pub struct Filters(Vec<Filter>);
 impl Filters {
     /// Returns `Some(item)` if it satisfy this `Filters`.

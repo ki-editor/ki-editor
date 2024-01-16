@@ -11,6 +11,7 @@ use crate::{
     },
     quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
+    selection::SelectionSet,
     undo_tree::{Applicable, OldNew, UndoTree},
 };
 use anyhow::anyhow;
@@ -24,7 +25,6 @@ use std::{cell::RefCell, rc::Rc};
 /// hover text, diagnostics, etc.
 pub struct Layout {
     main_panel: MainPanel,
-    undo_tree: UndoTree<MainPanel>,
     info_panel: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Option<Rc<RefCell<KeymapLegend>>>,
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
@@ -39,7 +39,6 @@ pub struct Layout {
     focused_component_id: Option<ComponentId>,
 
     terminal_dimension: Dimension,
-    navigation_tree: undo::History<Rc<RefCell<SuggestiveEditor>>>,
     working_directory: CanonicalizedPath,
 }
 
@@ -89,24 +88,6 @@ impl std::fmt::Display for MainPanel {
     }
 }
 
-struct Null;
-impl std::fmt::Display for Null {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("NULL")
-    }
-}
-
-impl Applicable for MainPanel {
-    type Target = MainPanel;
-
-    type Output = Null;
-
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        *target = self.clone();
-        Ok(Null)
-    }
-}
-
 impl Layout {
     pub fn new(
         terminal_dimension: Dimension,
@@ -130,8 +111,6 @@ impl Layout {
             borders,
             terminal_dimension,
             file_explorer_open: false,
-            navigation_tree: undo::History::new(),
-            undo_tree: UndoTree::new(),
             working_directory: working_directory.clone(),
         })
     }
@@ -248,25 +227,9 @@ impl Layout {
         self.quickfix_lists = Some(quickfix_lists);
     }
 
-    fn set_main_panel(&mut self, new: MainPanel) -> anyhow::Result<()> {
+    fn set_main_panel(&mut self, new: MainPanel) {
         self.focused_component_id = new.id();
-        let old = self.main_panel.take();
-        self.main_panel = new.clone();
-        let old_new = OldNew {
-            old_to_new: new,
-            new_to_old: self.new_main_panel(old),
-        };
-        self.undo_tree.edit(&mut self.main_panel, old_new)?;
-        Ok(())
-    }
-
-    pub fn goto_opened_editor(&mut self, movement: Movement) -> anyhow::Result<()> {
-        self.undo_tree
-            .apply_movement(&mut self.main_panel, movement)?;
-        if let Some(editor) = &self.main_panel.editor {
-            self.focused_component_id = Some(editor.borrow().id());
-        }
-        Ok(())
+        self.main_panel = new;
     }
 
     pub fn change_view(&mut self) {
@@ -325,10 +288,7 @@ impl Layout {
             });
     }
 
-    pub fn open_file(
-        &mut self,
-        path: &CanonicalizedPath,
-    ) -> anyhow::Result<Option<Rc<RefCell<SuggestiveEditor>>>> {
+    pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         if let Some(matching_editor) =
             self.background_suggestive_editors
                 .iter()
@@ -343,10 +303,10 @@ impl Layout {
                         .unwrap_or(false)
                 })
         {
-            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())))?;
-            Ok(Some(matching_editor))
+            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
+            Some(matching_editor)
         } else {
-            Ok(None)
+            None
         }
     }
 
@@ -500,15 +460,26 @@ impl Layout {
             .map(|info_panel| info_panel.borrow().text())
     }
 
-    pub(crate) fn display_navigation_history(&self) -> String {
-        self.undo_tree.display().to_string()
-    }
-
     pub(crate) fn buffers(&self) -> Vec<Rc<RefCell<Buffer>>> {
         self.background_suggestive_editors
             .iter()
             .map(|editor| editor.borrow().editor().buffer_rc())
             .collect_vec()
+    }
+
+    pub fn open_file_with_selection(
+        &mut self,
+        path: &CanonicalizedPath,
+        selection_set: SelectionSet,
+    ) -> anyhow::Result<()> {
+        self.open_file(path);
+        if let Some(editor) = self.main_panel.editor.clone() {
+            editor
+                .borrow_mut()
+                .editor_mut()
+                .update_selection_set(selection_set);
+        }
+        Ok(())
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

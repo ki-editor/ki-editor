@@ -600,7 +600,43 @@ src/main.rs 🦀
     }
 
     #[test]
-    fn navigation() -> Result<(), anyhow::Error> {
+    fn selection_history_contiguous() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
+                temp_dir.join_as_path_buf(filename).try_into()
+            };
+            let open = |filename: &str| -> anyhow::Result<Dispatch> {
+                Ok(OpenFile {
+                    path: file(filename)?,
+                })
+            };
+
+            app.handle_dispatch(open("src/main.rs")?)?;
+
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line)])?;
+            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["mod foo;"]);
+
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Character)])?;
+            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["m"]);
+
+            app.handle_dispatches(
+                [
+                    SetGlobalMode(Some(GlobalMode::SelectionHistoryContiguous)),
+                    DispatchEditor(MoveSelection(Movement::Previous)),
+                ]
+                .to_vec(),
+            )?;
+            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["mod foo;"]);
+
+            app.handle_dispatches([DispatchEditor(MoveSelection(Movement::Next))].to_vec())?;
+            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["m"]);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn selection_history_file() -> Result<(), anyhow::Error> {
         run_test(|mut app, temp_dir| {
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
                 temp_dir.join_as_path_buf(filename).try_into()
@@ -617,6 +653,9 @@ src/main.rs 🦀
                     open("src/foo.rs")?,
                     open(".gitignore")?,
                     open("Cargo.toml")?,
+                    // Move some selection to test that this movement ignore movement within the same file
+                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(MoveSelection(Movement::Next)),
                     // Open "Cargo.toml" again to test that the navigation tree does not take duplicated entry
                     open("Cargo.toml")?,
                 ]
@@ -624,11 +663,19 @@ src/main.rs 🦀
             )?;
 
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.toml")?));
-            app.handle_dispatches([SetGlobalMode(Some(GlobalMode::FileNavigation))].to_vec())?;
+            app.handle_dispatches(
+                [SetGlobalMode(Some(GlobalMode::SelectionHistoryFile))].to_vec(),
+            )?;
+            app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
+            assert_eq!(app.get_current_file_path(), Some(file(".gitignore")?));
 
+            app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
+            assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
+
+            // Test Movement::Next to src/foo.rs where no selection has been moved in src/foo.rs
             app.handle_dispatch_editors(&[
                 MoveSelection(Movement::Previous),
-                MoveSelection(Movement::Previous),
+                MoveSelection(Movement::Next),
             ])?;
             assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
 
@@ -639,48 +686,24 @@ src/main.rs 🦀
                     // added as a new entry
                     open("src/foo.rs")?,
                     open("Cargo.lock")?,
+                    // Move some selection to test that the modified selection set is preserved when going to the next FileSelectionSet in the history
+                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(MoveSelection(Movement::Next)),
+                    SetGlobalMode(Some(GlobalMode::SelectionHistoryFile)),
                 ]
                 .to_vec(),
             )?;
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
+            let cargo_lock_selection_set = app.get_current_selection_set();
 
             app.handle_dispatch_editors(&[MoveSelection(Movement::Previous)])?;
             assert_eq!(app.get_current_file_path(), Some(file("src/foo.rs")?));
-
             app.handle_dispatch_editors(&[MoveSelection(Movement::Next)])?;
             assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
+            assert_eq!(app.get_current_selection_set(), cargo_lock_selection_set);
 
-            let expected_display = "
-* 1-3 [HEAD] Cargo.lock
-| * 0-4 Cargo.toml
-| * 0-3 .gitignore
-|/
-* 1-2 src/foo.rs
-* 1-1 src/main.rs
-* 1-0 [SAVED]
-"
-            .trim()
-            .to_string();
-            pretty_assertions::assert_eq!(app.get_current_info().unwrap(), expected_display);
-
-            app.handle_dispatch_editors(&[MoveSelection(Movement::Down)])?;
-            assert_eq!(app.get_current_file_path(), Some(file("Cargo.toml")?));
-
-            let expected_display = "
-* 0-4 [HEAD] Cargo.toml
-* 0-3 .gitignore
-| * 1-3 Cargo.lock
-|/
-* 0-2 src/foo.rs
-* 0-1 src/main.rs
-* 0-0 [SAVED]
-"
-            .trim()
-            .to_string();
-            pretty_assertions::assert_eq!(app.get_current_info().unwrap(), expected_display);
-
-            app.handle_dispatch_editors(&[MoveSelection(Movement::Up)])?;
-            assert_eq!(app.get_current_file_path(), Some(file("Cargo.lock")?));
+            app.handle_dispatch(Dispatch::HandleKeyEvent(key!("esc")))?;
+            assert_eq!(app.context().mode(), None);
 
             Ok(())
         })

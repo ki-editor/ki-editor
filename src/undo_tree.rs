@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::fmt::Display;
 
 use undo::History;
@@ -116,6 +117,66 @@ impl<T: Applicable> UndoTree<T> {
         let _output = self.history.go_to(target, at);
 
         Ok(())
+    }
+
+    pub(crate) fn previous_entries(&self) -> Vec<(usize, &undo::Entry<OldNew<T>>)> {
+        self.get_entries(true)
+    }
+
+    pub(crate) fn next_entries(&self) -> Vec<(usize, &undo::Entry<OldNew<T>>)> {
+        self.get_entries(false)
+    }
+
+    fn get_entries(&self, previous: bool) -> Vec<(usize, &undo::Entry<OldNew<T>>)> {
+        let cmp = if previous {
+            |x: usize, y: usize| x < y
+        } else {
+            |x, y| x > y
+        };
+
+        self.entries()
+            .filter(|(index, _)| cmp(*index, self.current_entry_index()))
+            .collect()
+    }
+
+    fn entries(&self) -> impl Iterator<Item = (usize, &undo::Entry<OldNew<T>>)> {
+        log::info!("entries.count = {}", self.history.entries().count());
+        self.history.head();
+        self.history
+            .entries()
+            .enumerate()
+            // We need to add 1 because the `undo::history::History::entries
+            // method does not return the first entry with index 0
+            .map(|(index, entry)| (index + 1, entry))
+            .map(|(index, entry)| {
+                log::info!("[{}]: {}", index, entry.get().old_to_new.to_string());
+                (index, entry)
+            })
+    }
+
+    fn current_entry_index(&self) -> usize {
+        self.history.head().index
+    }
+
+    pub(crate) fn go_to_entry(
+        &mut self,
+        target: &mut T::Target,
+        index: usize,
+    ) -> Result<Vec<<T as Applicable>::Output>, anyhow::Error> {
+        log::info!(
+            "go_to_entry: index = {index} self.history.head() = {:?}",
+            self.history.head()
+        );
+        self.history
+            .go_to(
+                target,
+                undo::At {
+                    root: self.history.head().root,
+                    index,
+                },
+            )
+            .into_iter()
+            .try_collect()
     }
 }
 

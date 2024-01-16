@@ -159,7 +159,6 @@
 - [x] store the runtime grammars file not at helix editor config dir, use 'directories'
 - [x] remove the BUILD_TARGET env value that is needed when building
 - [x] Make language a const struct instead of trait, to reduce boilerplate and enable reuse
-- [] jump should work for multiple selection?
 - [] incorporate first-class refactoring (https://github.com/ThePrimeagen/refactoring.nvim)
 - [] feat(editor): tree rotation, e.g. a + (b - c) => b - (a + c)
 - [] feat(selection): quickfix list item as a type of selection, undo & add selection works across files
@@ -231,6 +230,15 @@
 - [] feat(exchange): exchange with first/last should not be literally exchanging with last or first, but rather move currrent select to first/last position
 - [] feat(editor): press \ to enter pure change selection mode (will not change the current selection)
 - [] feat(omit): not working for quickfix list
+- [] feat(omit): by file name
+- [] feat(omit): should not clear upon selection mode changes
+- [] feat(omit): store history so that user can choose back previous omission
 - [] refactor(test_editor): should use DispatchEditor, not Editor's methods (should be private)
 - [] feat(keybinding): move keys under z to f
 - [] feat(prompt/file): group by parent folder in view
+- [] feat: workspace undo/redo
+- [] feat: combine - with v, so that we can navigate backwards, u/d for navigating between files
+  - seletion-set hierarchy: lowest - contiguous selection, middle (default): non-contiguous selection, highest: last selection of every file
+- [] feat: emulate m mode of Helix, it's good
+- [] feat(quickfix-hierarchy): lowest - items within the current file, middle (default): all quickfix items, highest: first items of every file (use u/d to navigate between hierarchy)
+- [] feat(selection-mode/tabs): default tab is 1, press 2 to go to tab 2, each tab store a selection mode, this is useful if we have a primary selection mode that we want to keep (say quickfix list)
