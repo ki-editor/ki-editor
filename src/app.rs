@@ -100,7 +100,7 @@ impl Applicable for FileSelectionSet {
     type Output = Null;
 
     fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        log::info!(
+        println!(
             "\nFileSelectionSet.Applicable::apply: self.path = {:?} self.selection_set.primary.range = {:?}",
             self.path,
 self.selection_set.primary.range()
@@ -483,6 +483,10 @@ impl<T: Frontend> App<T> {
                 self.goto_selection_history_file(movement)?;
                 self.show_selection_history()
             }
+            Dispatch::GotoSelectionHistoryContiguous(movement) => {
+                self.goto_selection_history_contiguous(movement)?;
+                self.show_selection_history()
+            }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
@@ -546,9 +550,10 @@ impl<T: Frontend> App<T> {
                 .lsp_manager
                 .workspace_execute_command(params, command)?,
             Dispatch::PushSelectionSet {
-                selection_set,
+                new_selection_set,
+                old_selection_set,
                 path,
-            } => self.push_selection_set(path, selection_set)?,
+            } => self.push_selection_set(path, old_selection_set, new_selection_set)?,
         }
         Ok(())
     }
@@ -905,7 +910,11 @@ impl<T: Frontend> App<T> {
         let component = Rc::new(RefCell::new(editor));
 
         if focus_editor {
-            self.push_selection_set(path.clone(), SelectionSet::default())?;
+            self.push_selection_set(
+                path.clone(),
+                SelectionSet::default(),
+                SelectionSet::default(),
+            )?;
             self.layout
                 .add_and_focus_suggestive_editor(component.clone());
         } else {
@@ -1491,27 +1500,33 @@ impl<T: Frontend> App<T> {
     fn push_selection_set(
         &mut self,
         path: CanonicalizedPath,
-        selection_set: SelectionSet,
+        old_selection_set: SelectionSet,
+        new_selection_set: SelectionSet,
     ) -> anyhow::Result<()> {
         let new_to_old = self
             .layout
             .current_component()
             .and_then(|component| {
-                Some(FileSelectionSet {
-                    path: self.get_current_file_path()?,
-                    selection_set: component.borrow().editor().selection_set.clone(),
-                })
+                let current_path = self.get_current_file_path()?;
+                if current_path != path {
+                    Some(FileSelectionSet {
+                        path: current_path,
+                        selection_set: component.borrow().editor().selection_set.clone(),
+                    })
+                } else {
+                    None
+                }
             })
             .unwrap_or_else(|| FileSelectionSet {
                 path: path.clone(),
-                selection_set: selection_set.clone(),
+                selection_set: old_selection_set.clone(),
             });
         self.undo_tree.edit(
             &mut self.layout,
             crate::undo_tree::OldNew {
                 old_to_new: FileSelectionSet {
-                    path,
-                    selection_set,
+                    path: path.clone(),
+                    selection_set: new_selection_set,
                 },
                 new_to_old,
             },
@@ -1527,6 +1542,22 @@ impl<T: Frontend> App<T> {
                 .selection_set
                 .clone(),
         )
+    }
+
+    fn goto_selection_history_contiguous(&mut self, movement: Movement) -> anyhow::Result<()> {
+        match movement {
+            Movement::Next => {
+                self.undo_tree.redo(&mut self.layout)?;
+            }
+            Movement::Previous => {
+                self.undo_tree.undo(&mut self.layout)?;
+            }
+            Movement::Up => {
+                self.set_global_mode(Some(GlobalMode::SelectionHistoryFile));
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     fn goto_selection_history_file(&mut self, movement: Movement) -> anyhow::Result<()> {
@@ -1570,6 +1601,9 @@ impl<T: Frontend> App<T> {
                     log::info!("entry.path = {:?}", entry.get().new_to_old.path);
                     self.undo_tree.go_to_entry(&mut self.layout, index)?;
                 }
+            }
+            Movement::Down => {
+                self.set_global_mode(Some(GlobalMode::SelectionHistoryContiguous));
             }
             _ => {}
         };
@@ -1706,9 +1740,11 @@ pub enum Dispatch {
         command: crate::lsp::code_action::Command,
     },
     PushSelectionSet {
-        selection_set: SelectionSet,
+        new_selection_set: SelectionSet,
+        old_selection_set: SelectionSet,
         path: CanonicalizedPath,
     },
+    GotoSelectionHistoryContiguous(Movement),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -678,6 +678,7 @@ pub struct Editor {
     pub jumps: Option<Vec<Jump>>,
     pub cursor_direction: Direction,
 
+    /// TODO: remove this field
     selection_history: Vec<SelectionSet>,
 
     /// This means the number of lines to be skipped from the top during rendering.
@@ -850,13 +851,14 @@ impl Editor {
     }
 
     pub fn update_selection_set(&mut self, selection_set: SelectionSet) -> Vec<Dispatch> {
-        self.selection_set = selection_set.clone();
-        self.selection_history.push(selection_set);
+        let old_selection_set = std::mem::replace(&mut self.selection_set, selection_set.clone());
+        self.selection_history.push(selection_set.clone());
         self.recalculate_scroll_offset();
         self.buffer()
             .path()
             .map(|path| Dispatch::PushSelectionSet {
-                selection_set: self.selection_set.clone(),
+                new_selection_set: selection_set,
+                old_selection_set,
                 path,
             })
             .into_iter()
@@ -1995,6 +1997,9 @@ impl Editor {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
                 GlobalMode::SelectionHistoryFile => {
                     Ok([Dispatch::GotoSelectionHistoryFile(movement)].to_vec())
+                }
+                GlobalMode::SelectionHistoryContiguous => {
+                    Ok([Dispatch::GotoSelectionHistoryContiguous(movement)].to_vec())
                 }
             }
         } else {
