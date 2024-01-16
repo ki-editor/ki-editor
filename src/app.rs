@@ -100,11 +100,6 @@ impl Applicable for FileSelectionSet {
     type Output = Null;
 
     fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        println!(
-            "\nFileSelectionSet.Applicable::apply: self.path = {:?} self.selection_set.primary.range = {:?}",
-            self.path,
-self.selection_set.primary.range()
-        );
         target.open_file_with_selection(&self.path, self.selection_set.clone())?;
         Ok(Null)
     }

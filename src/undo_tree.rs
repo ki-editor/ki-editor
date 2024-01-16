@@ -189,7 +189,6 @@ impl<T: Applicable + Clone> undo::Edit for OldNew<T> {
     }
 
     fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
-        println!("====UNDO====");
         self.new_to_old.apply(target)
     }
 }

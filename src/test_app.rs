@@ -616,12 +616,9 @@ src/main.rs 🦀
             app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line)])?;
             assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["mod foo;"]);
 
-            println!("\nbye world!\n");
-
             app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Character)])?;
             assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["m"]);
 
-            println!("\nhello world!\n");
             app.handle_dispatches(
                 [
                     SetGlobalMode(Some(GlobalMode::SelectionHistoryContiguous)),
