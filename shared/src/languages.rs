@@ -204,10 +204,7 @@ const fn typescript(tsx: bool) -> Language {
         ))),
         extensions: choice(tsx, &["tsx"], &["ts"]),
         lsp_command: Some(LspCommand {
-            command: Command(
-                "/Users/wongjiahau/.local/share/nvim/mason/bin/typescript-language-server",
-                &["--stdio"],
-            ),
+            command: Command("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
         }),
         tree_sitter_grammar_config: Some(GrammarConfig {
