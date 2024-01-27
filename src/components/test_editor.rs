@@ -59,8 +59,16 @@ mod test_editor {
 
         assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
 
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(&context, Movement::Next)?;
+        editor.apply_dispatches(
+            &context,
+            [
+                SetSelectionMode(SelectionMode::TopNode),
+                SetSelectionMode(SelectionMode::SyntaxTree),
+                Exchange(Movement::Next),
+            ]
+            .to_vec(),
+        )?;
+
         assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
 
         editor.exchange(&context, Movement::Previous)?;
@@ -74,14 +82,28 @@ mod test_editor {
         let context = Context::default();
 
         // Select first statement
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
+        editor.apply_dispatches(
+            &context,
+            [
+                SetSelectionMode(SelectionMode::TopNode),
+                SetSelectionMode(SelectionMode::SyntaxTree),
+            ]
+            .to_vec(),
+        )?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(&context, Movement::Next)?;
+        editor.apply_dispatches(
+            &context,
+            [
+                SetSelectionMode(SelectionMode::SyntaxTree),
+                EnterExchangeMode,
+                MoveSelection(Movement::Next),
+            ]
+            .to_vec(),
+        )?;
+
         assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
-        editor.exchange(&context, Movement::Next)?;
+        editor.apply_dispatches(&context, [MoveSelection(Movement::Next)].to_vec())?;
         assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
         Ok(())
     }
@@ -1388,6 +1410,25 @@ fn main() { // too long
             run_test(case)?;
         }
 
+        Ok(())
+    }
+
+    #[test]
+    fn raise_bottom_node() -> anyhow::Result<()> {
+        let input = "fn main() { x + 1 }";
+        let mut editor = Editor::from_text(language(), input);
+        let context = Context::default();
+        editor.apply_dispatches(
+            &context,
+            [
+                MatchLiteral("x + 1".to_string()),
+                SetSelectionMode(SelectionMode::TopNode),
+                MoveSelection(Movement::Down),
+                Raise,
+            ]
+            .to_vec(),
+        )?;
+        assert_eq!(editor.content(), "fn main() { x }");
         Ok(())
     }
 }

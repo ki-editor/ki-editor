@@ -236,7 +236,7 @@ mod test_app {
             app.handle_dispatch_editors(&[
                 Copy,
                 MatchLiteral("{".to_string()),
-                SetSelectionMode(SelectionMode::SyntaxTree),
+                SetSelectionMode(SelectionMode::TopNode),
             ])?;
 
             assert_eq!(

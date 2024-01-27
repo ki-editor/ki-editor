@@ -33,7 +33,7 @@ impl SelectionMode for SyntaxTree {
         }: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         let byte_range = buffer
-            .get_current_node(current_selection, true)?
+            .get_current_node(current_selection, false)?
             .byte_range();
         let range = buffer.byte_range_to_char_index_range(&byte_range)?;
         Ok(Some(current_selection.clone().set_range(range)))
@@ -116,45 +116,6 @@ mod test_syntax_tree {
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
             &[(20..21, "S"), (21..24, "(a)")],
         );
-    }
-
-    #[test]
-    /// Getting the current node should get the largest node where its start range
-    /// is same as the current selection start range
-    fn current_1() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main(a:A,b:B) {  }");
-        let input_range: CharIndexRange = (CharIndex(8)..CharIndex(12)).into();
-        assert_eq!(buffer.slice(&input_range)?, "a:A,");
-        let selection = SyntaxTree.current(SelectionModeParams {
-            context: &Context::default(),
-            buffer: &buffer,
-            current_selection: &Selection::new(input_range),
-            cursor_direction: &crate::components::editor::Direction::Start,
-            filters: &Filters::default(),
-        });
-
-        let new_range = selection.unwrap().unwrap().range();
-        assert_eq!(buffer.slice(&new_range)?, "a:A");
-        Ok(())
-    }
-
-    #[test]
-    /// Selecting the current node should not select the root node
-    /// when the current selection is at the beginning of the buffer
-    fn current_2() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "use a; use b;");
-        let input_range: CharIndexRange = (CharIndex(0)..CharIndex(1)).into();
-        let selection = SyntaxTree.current(SelectionModeParams {
-            context: &Context::default(),
-            buffer: &buffer,
-            current_selection: &Selection::new(input_range),
-            cursor_direction: &crate::components::editor::Direction::Start,
-            filters: &Filters::default(),
-        });
-
-        let new_range = selection.unwrap().unwrap().range();
-        assert_eq!(buffer.slice(&new_range)?, "use a;");
-        Ok(())
     }
 
     #[test]

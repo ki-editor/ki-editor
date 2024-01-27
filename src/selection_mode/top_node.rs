@@ -1,22 +1,24 @@
-use super::{ByteRange, SelectionMode};
+use super::{ApplyMovementResult, BottomNode, ByteRange, SelectionMode};
 use itertools::Itertools;
 
 pub struct TopNode;
 
 impl SelectionMode for TopNode {
     fn name(&self) -> &'static str {
-        "OUTERMOST NODE"
+        "TOP NODE"
     }
     fn iter<'a>(
         &self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
+        let root_node_id = buffer.tree().root_node().id();
         Ok(Box::new(
             tree_sitter_traversal::traverse(
                 buffer.tree().walk(),
                 tree_sitter_traversal::Order::Pre,
             )
+            .filter(|node| node.id() != root_node_id)
             .group_by(|node| node.byte_range().start)
             .into_iter()
             .map(|(_, group)| {
@@ -31,6 +33,18 @@ impl SelectionMode for TopNode {
             .collect_vec()
             .into_iter(),
         ))
+    }
+
+    fn down(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
+        Ok(BottomNode
+            .current(params)?
+            .map(|selection| ApplyMovementResult {
+                selection,
+                mode: Some(crate::selection::SelectionMode::BottomNode),
+            }))
     }
 }
 

@@ -418,7 +418,7 @@ mod test_suggestive_editor {
             [CodeAction {
                 title: "".to_string(),
                 kind: None,
-                edit: None,
+                edit: Some(WorkspaceEdit::default()),
                 command: None,
             }]
             .to_vec(),
@@ -427,10 +427,7 @@ mod test_suggestive_editor {
         let dispatches = editor.handle_key_event(&context, key!("enter"))?;
         assert_eq!(
             dispatches,
-            [Dispatch::ApplyWorkspaceEdit(WorkspaceEdit {
-                edits: [].to_vec(),
-                resource_operations: [].to_vec(),
-            },),]
+            [Dispatch::ApplyWorkspaceEdit(WorkspaceEdit::default())]
         );
         Ok(())
     }

@@ -5,12 +5,11 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use super::completion::PositionalEdit;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WorkspaceEdit {
     pub edits: Vec<TextDocumentEdit>,
     pub resource_operations: Vec<ResourceOperation>,
 }
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResourceOperation {
     Create(String),
