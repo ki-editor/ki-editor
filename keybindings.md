@@ -59,7 +59,7 @@ The following keybindings work regardless of any mode.
 - `r`: Raise current selection(s) (Replace parent node with current node)
 - `shift+R`: Replace the current selection with copied content, and copy the replaced content
 - `s`: Set selection mode to **s**yntax tree
-- `t`: Set selection mode to **t**oken
+- `t`: Set selection mode to **t**op node
 - `u`: Move **u**p
 - `v`: Enter buffer na**v**igation mode
 - `w`: Set selection mode to **w**ord

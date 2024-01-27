@@ -918,9 +918,9 @@ impl Editor {
             movement
         };
 
-        let selection = self.get_selection_set(&selection_mode, direction, context)?;
+        let selection_set = self.get_selection_set(&selection_mode, direction, context)?;
 
-        Ok(self.update_selection_set(selection))
+        Ok(self.update_selection_set(selection_set))
     }
 
     fn jump_characters() -> Vec<char> {
@@ -1052,7 +1052,8 @@ impl Editor {
                         &self.cursor_direction,
                         context,
                         &self.selection_set.filters,
-                    )?;
+                    )?
+                    .selection;
 
                     let next_range = next_selection.extended_range();
 
@@ -1628,6 +1629,9 @@ impl Editor {
             }
             DispatchEditor::FilterClear => self.filters_clear(),
             DispatchEditor::CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
+            DispatchEditor::Raise => return self.raise(context),
+            DispatchEditor::Exchange(movement) => return self.exchange(&context, movement),
+            DispatchEditor::EnterExchangeMode => self.enter_exchange_mode(),
         }
         Ok([].to_vec())
     }
@@ -2128,11 +2132,11 @@ impl Editor {
             key!("r") => return self.raise(context),
             key!("shift+R") => return self.replace(context),
             key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
-            key!("t") => return self.set_selection_mode(context, SelectionMode::Token),
+            key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
             // u = up
             // TODO: v = view (scroll line, scroll half page, scroll full page)
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
-            key!("x") => self.mode = Mode::Exchange,
+            key!("x") => self.enter_exchange_mode(),
             key!("y") => {
                 return Ok([Dispatch::SetGlobalMode(Some(
                     GlobalMode::SelectionHistoryFile,
@@ -2274,7 +2278,8 @@ impl Editor {
             &self.cursor_direction,
             context,
             &self.selection_set.filters,
-        )?;
+        )?
+        .selection;
 
         if next_selection.eq(&current_selection) {
             return Ok(Either::Left(current_selection));
@@ -2332,7 +2337,8 @@ impl Editor {
                 &self.cursor_direction,
                 context,
                 &self.selection_set.filters,
-            )?;
+            )?
+            .selection;
 
             if next_selection.eq(&new_selection) {
                 return Ok(Either::Left(current_selection));
@@ -2512,11 +2518,11 @@ impl Editor {
                             &self.selection_set.filters,
                         )
                     };
-                    let current_word = get_word(Movement::Current)?;
+                    let current_word = get_word(Movement::Current)?.selection;
                     if current_word.extended_range().start <= start {
                         current_word
                     } else {
-                        get_word(Movement::Previous)?
+                        get_word(Movement::Previous)?.selection
                     }
                 };
 
@@ -3242,6 +3248,10 @@ impl Editor {
     fn find_local_submenu_title(arg: &str) -> String {
         format!("Find (this file): {arg}")
     }
+
+    fn enter_exchange_mode(&mut self) {
+        self.mode = Mode::Exchange
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3270,6 +3280,7 @@ pub enum DispatchEditor {
     AlignViewBottom,
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
+    Exchange(Movement),
     FindOneChar,
     MoveSelection(Movement),
     Copy,
@@ -3287,8 +3298,10 @@ pub enum DispatchEditor {
     ToggleBookmark,
     EnterInsideMode(InsideKind),
     EnterNormalMode,
+    EnterExchangeMode,
     FilterPush(Filter),
     FilterClear,
     CursorAddToAllSelections,
     CursorKeepPrimaryOnly,
+    Raise,
 }

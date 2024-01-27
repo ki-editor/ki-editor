@@ -1,5 +1,6 @@
 pub mod ast_grep;
 pub mod bookmark;
+pub mod bottom_node;
 pub mod column;
 pub mod custom;
 pub mod diagnostic;
@@ -10,10 +11,11 @@ pub mod local_quickfix;
 pub mod regex;
 pub mod small_word;
 pub mod syntax_tree;
-pub mod token;
+pub mod top_node;
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use bookmark::Bookmark;
+pub use bottom_node::BottomNode;
 pub use column::Column;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
@@ -25,7 +27,7 @@ pub use local_quickfix::LocalQuickfix;
 pub use small_word::SmallWord;
 use std::ops::Range;
 pub use syntax_tree::SyntaxTree;
-pub use token::Token;
+pub use top_node::TopNode;
 
 use crate::{
     buffer::Buffer,
@@ -118,6 +120,20 @@ impl<'a> SelectionModeParams<'a> {
     }
 }
 
+pub struct ApplyMovementResult {
+    pub selection: Selection,
+    pub mode: Option<crate::selection::SelectionMode>,
+}
+
+impl ApplyMovementResult {
+    pub fn from_selection(selection: Selection) -> Self {
+        Self {
+            selection,
+            mode: None,
+        }
+    }
+}
+
 pub trait SelectionMode {
     fn name(&self) -> &'static str;
     /// NOTE: this method should not be used directly,
@@ -133,11 +149,7 @@ pub trait SelectionMode {
         params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-            context,
-            filters,
+            buffer, filters, ..
         } = params;
 
         Ok(Box::new(
@@ -150,26 +162,33 @@ pub trait SelectionMode {
         &self,
         params: SelectionModeParams,
         movement: Movement,
-    ) -> anyhow::Result<Option<Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        fn convert(
+            result: anyhow::Result<Option<Selection>>,
+        ) -> anyhow::Result<Option<ApplyMovementResult>> {
+            Ok(result?.map(|result| result.into()))
+        }
         match movement {
-            Movement::Next => self.next(params),
+            Movement::Next => convert(self.next(params)),
 
-            Movement::Previous => self.previous(params),
-            Movement::Last => self.last(params),
-            Movement::Current => self.current(params),
-            Movement::First => self.first(params),
-            Movement::Index(index) => self.to_index(params, index),
-            Movement::Jump(range) => Ok(Some(params.current_selection.clone().set_range(range))),
+            Movement::Previous => convert(self.previous(params)),
+            Movement::Last => convert(self.last(params)),
+            Movement::Current => convert(self.current(params)),
+            Movement::First => convert(self.first(params)),
+            Movement::Index(index) => convert(self.to_index(params, index)),
+            Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
+                params.current_selection.clone().set_range(range),
+            ))),
             Movement::Up => self.up(params),
             Movement::Down => self.down(params),
         }
     }
 
-    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, std::cmp::Ordering::Less)
     }
 
-    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, std::cmp::Ordering::Greater)
     }
 
@@ -177,7 +196,7 @@ pub trait SelectionMode {
         &self,
         params: SelectionModeParams,
         ordering: std::cmp::Ordering,
-    ) -> anyhow::Result<Option<Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let SelectionModeParams {
             buffer,
             current_selection,
@@ -186,7 +205,8 @@ pub trait SelectionMode {
         let start = current_selection.range().start;
         let current_position = buffer.char_to_position(start)?;
         let current_line = buffer.char_to_line(start)?;
-        self.iter_filtered(params)?
+        let selection = self
+            .iter_filtered(params)?
             .filter_map(|range| {
                 let position = buffer.byte_to_position(range.range.start).ok()?;
                 Some((position, range))
@@ -200,7 +220,11 @@ pub trait SelectionMode {
             })
             .next()
             .map(|(_, range)| range.to_selection(buffer, current_selection))
-            .transpose()
+            .transpose()?;
+        Ok(selection.map(|selection| ApplyMovementResult {
+            selection,
+            mode: None,
+        }))
     }
 
     fn selections_in_line_number_range(
@@ -432,7 +456,7 @@ pub trait SelectionMode {
                         movement,
                     );
 
-                    let parent_range = selection.unwrap().unwrap().range();
+                    let parent_range = selection.unwrap().unwrap().selection.range();
                     results.push(buffer.slice(&parent_range)?.to_string());
                     Ok((parent_range, results))
                 },
@@ -496,7 +520,9 @@ mod test_selection_mode {
             .apply_movement(params, movement)
             .unwrap()
             .unwrap()
+            .selection
             .range();
+
         let expected: CharIndexRange = (CharIndex(expected_selection_byte_range.start)
             ..CharIndex(expected_selection_byte_range.end))
             .into();
@@ -578,7 +604,8 @@ mod test_selection_mode {
             let actual = Dummy
                 .apply_movement(params.clone(), movement)
                 .unwrap()
-                .unwrap();
+                .unwrap()
+                .selection;
             let expected_range: CharIndexRange = (CharIndex(1)..CharIndex(2)).into();
             assert_eq!(expected_range, actual.range());
             let expected_info = Info::new(expected_info.to_string());
@@ -609,6 +636,7 @@ mod test_selection_mode {
             .apply_movement(params, Movement::Next)
             .unwrap()
             .unwrap()
+            .selection
             .range();
         let expected: CharIndexRange = (CharIndex(3)..CharIndex(4)).into();
 
@@ -632,6 +660,7 @@ mod test_selection_mode {
             .apply_movement(params, Movement::Current)
             .unwrap()
             .unwrap()
+            .selection
             .range();
         let expected: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
 

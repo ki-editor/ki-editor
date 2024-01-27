@@ -14,7 +14,7 @@ use crate::{
     },
     context::{Context, Search, SearchKind},
     position::Position,
-    selection_mode::{self, inside::InsideKind, SelectionModeParams},
+    selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -291,16 +291,34 @@ impl SelectionSet {
         cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<SelectionSet> {
-        self.apply(mode.clone(), |selection| {
-            Selection::get_selection_(
-                buffer,
+        let result = self
+            .map(|selection| {
+                Selection::get_selection_(
+                    buffer,
+                    selection,
+                    mode,
+                    direction,
+                    cursor_direction,
+                    context,
+                    &self.filters,
+                )
+            })
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+        let (
+            ApplyMovementResult {
                 selection,
-                mode,
-                direction,
-                cursor_direction,
-                context,
-                &self.filters,
-            )
+                mode: new_mode,
+            },
+            tail,
+        ) = result
+            .split_first()
+            .expect("We should refactor `SelectionSet::map` to return NonEmpty instead of Vec.");
+        Ok(SelectionSet {
+            primary: selection.to_owned(),
+            secondary: tail.into_iter().map(|it| it.selection.to_owned()).collect(),
+            mode: new_mode.clone().unwrap_or_else(|| mode.clone()),
+            filters: self.filters.clone(),
         })
     }
 
@@ -321,7 +339,8 @@ impl SelectionSet {
             cursor_direction,
             context,
             &self.filters,
-        )?;
+        )?
+        .selection;
 
         let matching_index =
             self.secondary.iter().enumerate().find(|(_, selection)| {
@@ -358,6 +377,7 @@ impl SelectionSet {
                         &self.filters,
                     )
                     .ok()?;
+
                 let iter = object
                     .iter_filtered(SelectionModeParams {
                         buffer,
@@ -457,7 +477,7 @@ pub enum SelectionMode {
     Find { search: Search },
 
     // Syntax-tree
-    Token,
+    BottomNode,
     SyntaxTree,
 
     // LSP
@@ -472,6 +492,7 @@ pub enum SelectionMode {
     // Bookmark
     Bookmark,
     Inside(InsideKind),
+    TopNode,
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -490,7 +511,7 @@ impl SelectionMode {
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::Token => "TOKEN".to_string(),
+            SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {:?} {:?}", search.kind, search.search)
@@ -506,6 +527,7 @@ impl SelectionMode {
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
             SelectionMode::Inside(kind) => format!("INSIDE {}", kind.to_string()),
+            SelectionMode::TopNode => "TOP NODE".to_string(),
         }
     }
 
@@ -565,7 +587,8 @@ impl SelectionMode {
                     true,
                 )?),
             },
-            SelectionMode::Token => Box::new(selection_mode::Token),
+            SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
+            SelectionMode::TopNode => Box::new(selection_mode::TopNode),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
@@ -587,10 +610,17 @@ impl SelectionMode {
             SelectionMode::Word
             | SelectionMode::Line
             | SelectionMode::Character
-            | SelectionMode::Token
+            | SelectionMode::BottomNode
+            | SelectionMode::TopNode
             | SelectionMode::SyntaxTree => true,
             _ => false,
         }
+    }
+}
+
+impl Into<ApplyMovementResult> for Selection {
+    fn into(self) -> ApplyMovementResult {
+        ApplyMovementResult::from_selection(self)
     }
 }
 
@@ -675,7 +705,7 @@ impl Selection {
         cursor_direction: &Direction,
         context: &Context,
         filters: &Filters,
-    ) -> anyhow::Result<Selection> {
+    ) -> anyhow::Result<ApplyMovementResult> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
         let _cursor_char_index = {
             let index = current_selection.to_char_index(cursor_direction);
@@ -703,7 +733,7 @@ impl Selection {
 
         Ok(selection_mode
             .apply_movement(params, *direction)?
-            .unwrap_or_else(|| current_selection.clone()))
+            .unwrap_or_else(|| ApplyMovementResult::from_selection(current_selection.clone())))
     }
     pub fn escape_highlight_mode(&mut self) {
         log::info!("escape highlight mode");

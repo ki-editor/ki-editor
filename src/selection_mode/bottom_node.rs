@@ -1,10 +1,10 @@
-pub struct Token;
+pub struct BottomNode;
 
 use crate::selection_mode::SelectionMode;
 
-use super::ByteRange;
+use super::{ApplyMovementResult, ByteRange, TopNode};
 
-impl SelectionMode for Token {
+impl SelectionMode for BottomNode {
     fn name(&self) -> &'static str {
         "TOKEN"
     }
@@ -22,6 +22,18 @@ impl SelectionMode for Token {
             .map(|node| ByteRange::new(node.byte_range())),
         ))
     }
+
+    fn up(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
+        Ok(TopNode
+            .current(params)?
+            .map(|selection| ApplyMovementResult {
+                selection,
+                mode: Some(crate::selection::SelectionMode::TopNode),
+            }))
+    }
 }
 
 #[cfg(test)]
@@ -33,7 +45,7 @@ mod test_token {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() {}");
-        Token.assert_all_selections(
+        BottomNode.assert_all_selections(
             &buffer,
             Selection::default(),
             &[

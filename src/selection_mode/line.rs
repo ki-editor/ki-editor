@@ -1,4 +1,4 @@
-use super::{ByteRange, SelectionMode};
+use super::{ApplyMovementResult, ByteRange, SelectionMode};
 
 pub struct Line;
 
@@ -47,9 +47,9 @@ impl SelectionMode for Line {
             current_selection,
             ..
         }: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
-        buffer
+        Ok(buffer
             .get_parent_lines(current_line)?
             .into_iter()
             .filter(|line| line.line < current_line)
@@ -63,7 +63,8 @@ impl SelectionMode for Line {
                 }
                 .to_selection(buffer, current_selection)
             })
-            .transpose()
+            .transpose()?
+            .map(ApplyMovementResult::from_selection))
     }
 }
 
@@ -144,7 +145,8 @@ fn f() {
                     filters: &Filters::default(),
                 })
                 .unwrap()
-                .unwrap();
+                .unwrap()
+                .selection;
 
             let actual = buffer.slice(&result.extended_range()).unwrap();
             assert_eq!(actual, expected);
