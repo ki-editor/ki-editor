@@ -1,10 +1,10 @@
-pub struct Token;
+pub struct BottomNode;
 
 use crate::selection_mode::SelectionMode;
 
 use super::ByteRange;
 
-impl SelectionMode for Token {
+impl SelectionMode for BottomNode {
     fn name(&self) -> &'static str {
         "TOKEN"
     }
@@ -33,7 +33,7 @@ mod test_token {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() {}");
-        Token.assert_all_selections(
+        BottomNode.assert_all_selections(
             &buffer,
             Selection::default(),
             &[

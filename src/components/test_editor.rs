@@ -74,7 +74,7 @@ mod test_editor {
         let context = Context::default();
 
         // Select first statement
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
         editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
         assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
 
@@ -297,7 +297,7 @@ fn main() {
         let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
         let context = Context::default();
 
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
         editor.toggle_highlight_mode();
         editor.handle_movement(&context, Movement::Next)?;
         editor.handle_movement(&context, Movement::Next)?;
@@ -446,7 +446,7 @@ fn f() {
         let context = Context::default();
 
         // Select the first token
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
 
         // Enter insert mode
         editor.enter_insert_mode(Direction::End)?;
@@ -464,7 +464,7 @@ fn f() {
         let mut editor = Editor::from_text(language(), "fn main() {}");
         let context = Context::default();
         // Select first token
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
         editor.toggle_highlight_mode();
         editor.handle_movement(&context, Movement::Next)?;
 
@@ -481,7 +481,7 @@ fn f() {
         let context = Context::default();
 
         // Select first token
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
 
         // Delete
         editor.kill(&context)?;
@@ -520,7 +520,7 @@ fn f() {
         let context = Context::default();
 
         // Select last token
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
         editor.handle_movement(&context, Movement::Last)?;
 
         // Delete
@@ -675,7 +675,7 @@ fn f() {
         let context = Context::default();
 
         // Go to the middle of the file
-        editor.set_selection_mode(&context, SelectionMode::Token)?;
+        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
         editor.handle_movement(&context, Movement::Index(3))?;
 
         assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);

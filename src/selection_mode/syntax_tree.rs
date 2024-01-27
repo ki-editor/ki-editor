@@ -1,4 +1,4 @@
-use super::{ByteRange, SelectionMode};
+use super::{ApplyMovementResult, ByteRange, SelectionMode};
 
 pub struct SyntaxTree;
 
@@ -41,13 +41,13 @@ impl SelectionMode for SyntaxTree {
     fn up(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, true)
     }
     fn down(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, false)
     }
 }
@@ -57,7 +57,7 @@ impl SyntaxTree {
         &self,
         params: super::SelectionModeParams,
         go_up: bool,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let mut node = params
             .buffer
             .get_current_node(params.current_selection, false)?;
@@ -67,6 +67,7 @@ impl SyntaxTree {
             if some_node.range() != node.range() {
                 return ByteRange::new(some_node.byte_range())
                     .to_selection(params.buffer, params.current_selection)
+                    .map(ApplyMovementResult::from_selection)
                     .map(Some);
             }
             node = some_node;
@@ -173,7 +174,7 @@ mod test_syntax_tree {
             filters: &Filters::default(),
         });
 
-        let parent_range = selection.unwrap().unwrap().range();
+        let parent_range = selection.unwrap().unwrap().selection.range();
         assert_eq!(parent_range, (CharIndex(22)..CharIndex(31)).into());
 
         let selection = SyntaxTree.down(SelectionModeParams {
@@ -184,7 +185,7 @@ mod test_syntax_tree {
             filters: &Filters::default(),
         });
 
-        let child_range = selection.unwrap().unwrap().range();
+        let child_range = selection.unwrap().unwrap().selection.range();
         assert_eq!(child_range, child_range);
     }
 }
