@@ -64,14 +64,14 @@ The following keybindings work regardless of any mode.
 - `v`: Enter buffer na**v**igation mode
 - `w`: Set selection mode to **w**ord
 - `x`: Enter e**x**change mode
-- `y`: (unassigned)
+- `y`: Enter selection histor**y** mode
 - `z`: (unassigned)
 - `0`: Jump to specific index of the current selection mode (Useful for going to specific line number)
 - `:`: Enter command mode
 - `,`: Go to the first selection (resembles `<` on keyboard)
 - `.`: Go to the last selection (resembles `>` on keyboard)
-- `-`: Change to the previous selection(s)
-- `*`: Select the whole file
+- `-`: Go to parent line
+- `*`: Shortcut for `< h >`
 - `%`: Toggle cursor position to start/end of selection
 - `'`: Open List menu
 - `(`/`{`/`[`/`<`: Enclose current selection(s) with `()`/`{}`/`[]`/`<>`
@@ -93,13 +93,24 @@ For example, in Character mode, `u` means go to the character of the same column
 > [!NOTE]
 > This table only shows selection modes where next/previous/up/down/first/last has special meanings.
 
-| Selection mode          | Next         | Previous         | Up                                | Down                          | First/Last                        |
-| ----------------------- | ------------ | ---------------- | --------------------------------- | ----------------------------- | --------------------------------- |
-| Line                    |              |                  | Move to nearest parent line       |                               |                                   |
-| Quickfix                |              |                  | \*First quickfix of previous file | \*First quickfix of next file |                                   |
-| Syntax tree             | Next sibling | Previous sibling | Select parent                     | Select first child            |                                   |
-| Undo/Navigation History | Redo         | Undo             | Go to next branch                 | Go to previous branch         |                                   |
-| Column                  |              |                  |                                   |                               | First/Last column of current line |
+| Selection mode | Next         | Previous         | Up                                | Down                          | First/Last                        |
+| -------------- | ------------ | ---------------- | --------------------------------- | ----------------------------- | --------------------------------- |
+| Quickfix       |              |                  | \*First quickfix of previous file | \*First quickfix of next file |                                   |
+| Syntax tree    | Next sibling | Previous sibling | Select parent                     | Select first child            |                                   |
+| Undo           | Redo         | Undo             | Go to next branch                 | Go to previous branch         |                                   |
+| Column         |              |                  |                                   |                               | First/Last column of current line |
+
+## Selection mode hierarchy
+
+Some of the selection modes belongs to a hierarchy, in other words, using the `up/down` movement changes the selection mode.
+
+Legend: `A -> B` means that A is hierarchically lower than B, meaning when the selection mode is A, using `up` changes the selection mode to B.
+
+| Name              | Hierarchy                   |
+| ----------------- | --------------------------- |
+| Line              | Line(Trimmed) -> Line(Full) |
+| Node              | Bottom Node -> Top Node     |
+| Selection history | Contiguous -> File          |
 
 ## Exchange mode
 
@@ -125,7 +136,7 @@ Global = find in current repository.
 
 There are 3 categories of keybindings under the Find menu:
 
-1. Text search
+1. Text **s**earch
 
 - `a`: [Search by **A**ST-Grep](https://ast-grep.github.io/guide/pattern-syntax.html)
 - `c`: Search **c**urrent primary selection
@@ -133,7 +144,7 @@ There are 3 categories of keybindings under the Find menu:
 - `i`: Literal (**i**gnore case)
 - `x`: [Rege**x**](https://ast-grep.github.io/guide/pattern-syntax.html) (Rust-flavor)
 
-2. LSP Objects
+2. **L**SP Objects
 
 - `d`: **D**efinition(s)
 - `shift+D`: **D**eclaration(s)

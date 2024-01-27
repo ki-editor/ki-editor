@@ -719,6 +719,7 @@ pub enum Movement {
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
+    ToParentLine,
 }
 
 impl Editor {
@@ -762,7 +763,7 @@ impl Editor {
             selection_set: SelectionSet {
                 primary: Selection::default(),
                 secondary: vec![],
-                mode: SelectionMode::Line,
+                mode: SelectionMode::LineTrimmed,
                 filters: Filters::default(),
             },
             jumps: None,
@@ -807,7 +808,7 @@ impl Editor {
         movement: Movement,
         context: &Context,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        self.select(SelectionMode::Line, movement, context)
+        self.select(SelectionMode::LineTrimmed, movement, context)
     }
 
     pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<Vec<Dispatch>> {
@@ -824,7 +825,7 @@ impl Editor {
                     .into(),
             ),
             secondary: vec![],
-            mode: SelectionMode::Line,
+            mode: SelectionMode::LineTrimmed,
             filters: Filters::default(),
         };
         Ok(self.update_selection_set(selection_set))
@@ -2047,6 +2048,7 @@ impl Editor {
             key!("u") => move_selection(Movement::Up),
             key!(".") => move_selection(Movement::Last),
             key!(",") => move_selection(Movement::First),
+            key!("-") => move_selection(Movement::ToParentLine),
             _ => Ok(None),
         }
     }
@@ -2114,7 +2116,7 @@ impl Editor {
             // j = jump
             key!("k") => return self.kill(context),
             key!("shift+K") => return self.select_kids(),
-            key!("l") => return self.set_selection_mode(context, SelectionMode::Line),
+            key!("l") => return self.set_selection_mode(context, SelectionMode::LineTrimmed),
             key!("m") => self.mode = Mode::MultiCursor,
             key!("o") => {
                 return Ok([Dispatch::ShowKeymapLegend(
