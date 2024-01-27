@@ -2902,7 +2902,6 @@ impl Editor {
     pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
-
         self.recalculate_scroll_offset();
         self.enter_normal_mode()?;
         Ok(())
