@@ -918,16 +918,6 @@ impl Editor {
             movement
         };
 
-        match (&selection_mode, movement) {
-            (SelectionMode::TopNode, Movement::Down) => {
-                return self.set_selection_mode(context, SelectionMode::BottomNode)
-            }
-            (SelectionMode::BottomNode, Movement::Up) => {
-                return self.set_selection_mode(context, SelectionMode::TopNode)
-            }
-            _ => {}
-        };
-
         let selection_set = self.get_selection_set(&selection_mode, direction, context)?;
 
         Ok(self.update_selection_set(selection_set))
