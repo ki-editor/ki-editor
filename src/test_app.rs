@@ -51,13 +51,21 @@ mod test_app {
             app.open_file(&path_main, true)?;
 
             // Copy the entire file
-            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line), SelectAll, Copy])?;
+            app.handle_dispatch_editors(&[
+                SetSelectionMode(SelectionMode::LineTrimmed),
+                SelectAll,
+                Copy,
+            ])?;
 
             // Open foo.rs
             app.open_file(&path_foo, true)?;
 
             // Copy the entire file
-            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line), SelectAll, Copy])?;
+            app.handle_dispatch_editors(&[
+                SetSelectionMode(SelectionMode::LineTrimmed),
+                SelectAll,
+                Copy,
+            ])?;
 
             // Open main.rs
             app.open_file(&path_main, true)?;
@@ -398,7 +406,7 @@ mod test_app {
                     OpenFile {
                         path: path_main.clone(),
                     },
-                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(SetSelectionMode(SelectionMode::LineTrimmed)),
                     DispatchEditor(Kill),
                     // Insert a comment at the first line of foo.rs
                     OpenFile {
@@ -524,7 +532,7 @@ mod test_app {
                 .to_vec(),
             )?;
             app.handle_dispatch_editors(&[
-                SetSelectionMode(SelectionMode::Line),
+                SetSelectionMode(SelectionMode::LineTrimmed),
                 SelectAll,
                 Kill,
                 Insert(
@@ -615,7 +623,7 @@ src/main.rs 🦀
 
             app.handle_dispatch(open("src/main.rs")?)?;
 
-            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Line)])?;
+            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::LineTrimmed)])?;
             assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["mod foo;"]);
 
             app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Character)])?;
@@ -656,7 +664,7 @@ src/main.rs 🦀
                     open(".gitignore")?,
                     open("Cargo.toml")?,
                     // Move some selection to test that this movement ignore movement within the same file
-                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(SetSelectionMode(SelectionMode::LineTrimmed)),
                     DispatchEditor(MoveSelection(Movement::Next)),
                     // Open "Cargo.toml" again to test that the navigation tree does not take duplicated entry
                     open("Cargo.toml")?,
@@ -689,7 +697,7 @@ src/main.rs 🦀
                     open("src/foo.rs")?,
                     open("Cargo.lock")?,
                     // Move some selection to test that the modified selection set is preserved when going to the next FileSelectionSet in the history
-                    DispatchEditor(SetSelectionMode(SelectionMode::Line)),
+                    DispatchEditor(SetSelectionMode(SelectionMode::LineTrimmed)),
                     DispatchEditor(MoveSelection(Movement::Next)),
                     SetGlobalMode(Some(GlobalMode::SelectionHistoryFile)),
                 ]

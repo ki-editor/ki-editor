@@ -157,7 +157,7 @@ impl Default for SelectionSet {
         Self {
             primary: Selection::default(),
             secondary: vec![],
-            mode: SelectionMode::Line,
+            mode: SelectionMode::LineTrimmed,
             filters: Filters::default(),
         }
     }
@@ -471,7 +471,7 @@ pub enum SelectionMode {
     // Regex
     EmptyLine,
     Word,
-    Line,
+    LineTrimmed,
     Character,
     Custom,
     Find { search: Search },
@@ -493,6 +493,7 @@ pub enum SelectionMode {
     Bookmark,
     Inside(InsideKind),
     TopNode,
+    LineFull,
 }
 impl SelectionMode {
     pub fn similar_to(&self, other: &SelectionMode) -> bool {
@@ -508,7 +509,8 @@ impl SelectionMode {
         match self {
             SelectionMode::Word => "WORD".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
-            SelectionMode::Line => "LINE".to_string(),
+            SelectionMode::LineTrimmed => "LINE(TRIMMED)".to_string(),
+            SelectionMode::LineFull => "LINE(FULL)".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
@@ -548,7 +550,8 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Word => Box::new(selection_mode::SmallWord::new(buffer)?),
-            SelectionMode::Line => Box::new(selection_mode::Line),
+            SelectionMode::LineTrimmed => Box::new(selection_mode::LineTrimmed),
+            SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Character => {
                 let current_column = buffer
                     .char_to_position(current_selection.to_char_index(cursor_direction))?
@@ -608,7 +611,8 @@ impl SelectionMode {
     pub(crate) fn is_contiguous(&self) -> bool {
         match self {
             SelectionMode::Word
-            | SelectionMode::Line
+            | SelectionMode::LineTrimmed
+            | SelectionMode::LineFull
             | SelectionMode::Character
             | SelectionMode::BottomNode
             | SelectionMode::TopNode

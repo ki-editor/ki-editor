@@ -6,7 +6,8 @@ pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
 pub mod inside;
-pub mod line;
+pub mod line_full;
+pub mod line_trimmed;
 pub mod local_quickfix;
 pub mod regex;
 pub mod small_word;
@@ -22,7 +23,8 @@ pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
 pub use inside::Inside;
 use itertools::Itertools;
-pub use line::Line;
+pub use line_full::LineFull;
+pub use line_trimmed::LineTrimmed;
 pub use local_quickfix::LocalQuickfix;
 pub use small_word::SmallWord;
 use std::ops::Range;
@@ -181,7 +183,40 @@ pub trait SelectionMode {
             ))),
             Movement::Up => self.up(params),
             Movement::Down => self.down(params),
+            Movement::ToParentLine => convert(self.to_parent_line(params)),
         }
+    }
+
+    fn to_parent_line(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        let SelectionModeParams {
+            buffer,
+            current_selection,
+            cursor_direction,
+            context,
+            filters,
+        } = params;
+        let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
+        Ok(buffer
+            .get_parent_lines(current_line)?
+            .into_iter()
+            .filter(|line| line.line < current_line)
+            .next_back()
+            .map(|line| {
+                let byte_range = buffer.line_to_byte_range(line.line)?;
+                let start =
+                    line_trimmed::trim_leading_spaces(byte_range.range.start, &line.content);
+                let char_index_range =
+                    buffer.byte_range_to_char_index_range(&(start..start + 1))?;
+                self.current(SelectionModeParams {
+                    buffer,
+                    cursor_direction,
+                    current_selection: &current_selection.clone().set_range(char_index_range),
+                    context,
+                    filters,
+                })
+            })
+            .transpose()?
+            .flatten())
     }
 
     fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -478,7 +513,7 @@ mod test_selection_mode {
         },
         context::Context,
         selection::{CharIndex, Filters, Selection},
-        selection_mode::Line,
+        selection_mode::LineTrimmed,
     };
 
     use super::{ByteRange, SelectionMode, SelectionModeParams};
@@ -656,7 +691,7 @@ mod test_selection_mode {
             context: &Context::default(),
             filters: &Filters::default(),
         };
-        let actual = Line
+        let actual = LineTrimmed
             .apply_movement(params, Movement::Current)
             .unwrap()
             .unwrap()
@@ -665,5 +700,44 @@ mod test_selection_mode {
         let expected: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn to_parent_line() {
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "
+fn f() {
+    fn g() {
+        let a = 1;
+        let b = 2;
+        let c = 3;
+        let d = 4;
+    }
+
+}"
+            .trim(),
+        );
+
+        let test = |selected_line: usize, expected: &str| {
+            let start = buffer.line_to_char(selected_line).unwrap();
+            let result = LineTrimmed
+                .to_parent_line(SelectionModeParams {
+                    buffer: &buffer,
+                    current_selection: &Selection::new((start..start + 1).into()),
+                    cursor_direction: &Direction::default(),
+                    context: &Context::default(),
+                    filters: &Filters::default(),
+                })
+                .unwrap()
+                .unwrap();
+
+            let actual = buffer.slice(&result.extended_range()).unwrap();
+            assert_eq!(actual, expected);
+        };
+
+        test(4, "fn g() {");
+
+        test(1, "fn f() {");
     }
 }

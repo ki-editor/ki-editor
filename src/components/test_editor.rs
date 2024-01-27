@@ -675,7 +675,7 @@ fn f() {
         let context = Context::default();
 
         // Go to the end of the file
-        editor.set_selection_mode(&context, SelectionMode::Line)?;
+        editor.set_selection_mode(&context, SelectionMode::LineTrimmed)?;
         editor.enter_insert_mode(Direction::End)?;
 
         // Delete
@@ -1323,7 +1323,7 @@ fn main() { // too long
             &context,
             [
                 CursorKeepPrimaryOnly,
-                SetSelectionMode(SelectionMode::Line),
+                SetSelectionMode(SelectionMode::LineTrimmed),
                 SetSelectionMode(SelectionMode::Word),
                 CursorAddToAllSelections,
             ]
@@ -1429,6 +1429,20 @@ fn main() { // too long
             .to_vec(),
         )?;
         assert_eq!(editor.content(), "fn main() { x }");
+        Ok(())
+    }
+
+    #[test]
+    fn hierarchy_of_line() -> anyhow::Result<()> {
+        let input = "  hello  \n ";
+        let mut editor = Editor::from_text(language(), input);
+        let context = Context::default();
+        editor.apply_dispatch(&context, SetSelectionMode(SelectionMode::LineTrimmed))?;
+        assert_eq!(editor.get_selected_texts(), ["hello  "]);
+        editor.apply_dispatch(&context, MoveSelection(Movement::Up))?;
+        assert_eq!(editor.get_selected_texts(), ["  hello  \n"]);
+        editor.apply_dispatch(&context, MoveSelection(Movement::Down))?;
+        assert_eq!(editor.get_selected_texts(), ["hello  "]);
         Ok(())
     }
 }
