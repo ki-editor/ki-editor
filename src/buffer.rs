@@ -698,19 +698,69 @@ impl Buffer {
 
     /// Get an `EditTransaction` by getting the line diffs between the content of this buffer and the given `new` string
     fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
-        let edits: Vec<Edit> = Hunk::get(&self.rope.to_string(), new)
-            .into_iter()
-            .map(|hunk| -> anyhow::Result<_> {
-                let old_line_range = hunk.old_line_range();
-                Ok(Edit {
-                    range: self.position_range_to_char_index_range(
-                        &(Position::new(old_line_range.start, 0)
-                            ..Position::new(old_line_range.end, 0)),
-                    )?,
-                    new: Rope::from_str(&hunk.new_content()),
-                })
-            })
-            .try_collect()?;
+        let old = self.rope.to_string();
+        let diffs = diff::lines(&old, &new);
+        let mut old_line_index = 0;
+        let mut new_line_index = 0;
+        let mut edits = vec![];
+        let mut replacement = vec![];
+        let mut current_range_start = None;
+        let mut current_range_end = 0;
+
+        for diff in diffs {
+            match diff {
+                diff::Result::Left(_) => {
+                    if current_range_start.is_none() {
+                        current_range_start = Some(old_line_index);
+                    }
+                    current_range_end = old_line_index + 1;
+                    old_line_index += 1;
+                }
+                diff::Result::Both(_, _) => {
+                    if let Some(start) = current_range_start {
+                        let replacement = std::mem::replace(&mut replacement, Vec::new());
+
+                        edits.push(Edit {
+                            range: self.position_range_to_char_index_range(
+                                &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                            )?,
+                            new: Rope::from_str(&replacement.join("")),
+                        });
+                        current_range_start = None;
+                    }
+                    old_line_index += 1;
+                    new_line_index += 1;
+                }
+                diff::Result::Right(content) => {
+                    match current_range_start {
+                        Some(_) => {}
+                        None => {
+                            current_range_start = Some(old_line_index);
+                            current_range_end = old_line_index;
+                        }
+                    };
+                    let content = if new_line_index < new.lines().count().saturating_sub(1) {
+                        format!("{content}\n")
+                    } else {
+                        content.to_owned()
+                    };
+                    replacement.push(content);
+                    new_line_index += 1;
+                }
+            }
+        }
+
+        if let Some(start) = current_range_start {
+            let replacement = std::mem::replace(&mut replacement, Vec::new());
+
+            edits.push(Edit {
+                range: self.position_range_to_char_index_range(
+                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                )?,
+                new: Rope::from_str(&replacement.join("")),
+            });
+        }
+
         Ok(EditTransaction::from_action_groups(
             edits
                 .into_iter()
@@ -1046,7 +1096,7 @@ fn f(
     }
 
     #[test]
-    fn patch_edits() -> anyhow::Result<()> {
+    fn patch_edits_1() -> anyhow::Result<()> {
         let old = r#"
             let x = "1";
             let y = "2";
@@ -1078,6 +1128,42 @@ fn f(
 
         // Expect there are 3 edits
         assert_eq!(edit_transaction.edits().len(), 3);
+
+        // Apply the edit transaction
+        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
+
+        // Expect the content to be the same as the 2nd files
+        pretty_assertions::assert_eq!(buffer.content(), new);
+        Ok(())
+    }
+
+    #[test]
+    fn patch_edits_2() -> anyhow::Result<()> {
+        let old = r#"
+fn main() {
+    let x = x;
+    
+let z = z;
+
+    let y = y;
+}
+"#
+        .trim();
+
+        let new = r#"
+fn main() {
+    let x = x;
+
+    let z = z;
+
+    let y = y;
+}
+"#
+        .trim();
+
+        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+
+        let edit_transaction = buffer.get_edit_transaction(new)?;
 
         // Apply the edit transaction
         buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
