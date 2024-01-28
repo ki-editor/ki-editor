@@ -2,7 +2,6 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    git::hunk::Hunk,
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::ByteRange,
@@ -699,67 +698,71 @@ impl Buffer {
     /// Get an `EditTransaction` by getting the line diffs between the content of this buffer and the given `new` string
     fn get_edit_transaction(&self, new: &str) -> anyhow::Result<EditTransaction> {
         let old = self.rope.to_string();
-        let diffs = diff::lines(&old, &new);
-        let mut old_line_index = 0;
-        let mut new_line_index = 0;
-        let mut edits = vec![];
-        let mut replacement = vec![];
-        let mut current_range_start = None;
-        let mut current_range_end = 0;
+        let new = new.to_string();
+        let edits = {
+            let diff_from_lines = similar::TextDiff::from_lines(&old, &new);
+            let changes = diff_from_lines.iter_all_changes();
+            let mut old_line_index = 0;
+            let mut edits = vec![];
+            let mut replacement = vec![];
+            let mut current_range_start = None;
+            let mut current_range_end = 0;
 
-        for diff in diffs {
-            match diff {
-                diff::Result::Left(_) => {
-                    if current_range_start.is_none() {
-                        current_range_start = Some(old_line_index);
-                    }
-                    current_range_end = old_line_index + 1;
-                    old_line_index += 1;
-                }
-                diff::Result::Both(_, _) => {
-                    if let Some(start) = current_range_start {
-                        let replacement = std::mem::replace(&mut replacement, Vec::new());
-
-                        edits.push(Edit {
-                            range: self.position_range_to_char_index_range(
-                                &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                            )?,
-                            new: Rope::from_str(&replacement.join("")),
-                        });
-                        current_range_start = None;
-                    }
-                    old_line_index += 1;
-                    new_line_index += 1;
-                }
-                diff::Result::Right(content) => {
-                    match current_range_start {
-                        Some(_) => {}
-                        None => {
+            for change in changes {
+                match change.tag() {
+                    similar::ChangeTag::Delete => {
+                        if current_range_start.is_none() {
                             current_range_start = Some(old_line_index);
-                            current_range_end = old_line_index;
                         }
-                    };
-                    let content = if new_line_index < new.lines().count().saturating_sub(1) {
-                        format!("{content}\n")
-                    } else {
-                        content.to_owned()
-                    };
-                    replacement.push(content);
-                    new_line_index += 1;
+                        current_range_end = old_line_index + 1;
+                        old_line_index += 1;
+                    }
+                    similar::ChangeTag::Equal => {
+                        if let Some(start) = current_range_start {
+                            let replacement = std::mem::replace(&mut replacement, Vec::new());
+
+                            edits.push(Edit {
+                                range: self.position_range_to_char_index_range(
+                                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                                )?,
+                                new: Rope::from_str(&replacement.join("")),
+                            });
+                            current_range_start = None;
+                        }
+                        old_line_index += 1;
+                    }
+                    similar::ChangeTag::Insert => {
+                        match current_range_start {
+                            Some(_) => {}
+                            None => {
+                                current_range_start = Some(old_line_index);
+                                current_range_end = old_line_index;
+                            }
+                        };
+
+                        let content = change.to_string();
+                        let content = if change.missing_newline() && content.ends_with("\n") {
+                            content.trim_end_matches("\n").to_owned()
+                        } else {
+                            content
+                        };
+                        replacement.push(content);
+                    }
                 }
             }
-        }
 
-        if let Some(start) = current_range_start {
-            let replacement = std::mem::replace(&mut replacement, Vec::new());
+            if let Some(start) = current_range_start {
+                let replacement = std::mem::replace(&mut replacement, Vec::new());
 
-            edits.push(Edit {
-                range: self.position_range_to_char_index_range(
-                    &(Position::new(start, 0)..Position::new(current_range_end, 0)),
-                )?,
-                new: Rope::from_str(&replacement.join("")),
-            });
-        }
+                edits.push(Edit {
+                    range: self.position_range_to_char_index_range(
+                        &(Position::new(start, 0)..Position::new(current_range_end, 0)),
+                    )?,
+                    new: Rope::from_str(&replacement.join("")),
+                });
+            };
+            edits
+        };
 
         Ok(EditTransaction::from_action_groups(
             edits
@@ -1124,12 +1127,14 @@ fn f(
 
         let mut buffer = Buffer::new(tree_sitter_md::language(), old);
 
+        assert!(!new.ends_with("\n"));
         let edit_transaction = buffer.get_edit_transaction(new)?;
 
         // Expect there are 3 edits
         assert_eq!(edit_transaction.edits().len(), 3);
 
         // Apply the edit transaction
+
         buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
 
         // Expect the content to be the same as the 2nd files
