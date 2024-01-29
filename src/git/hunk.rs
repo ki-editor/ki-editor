@@ -33,7 +33,7 @@ impl Hunk {
             .grouped_ops(context_len)
             .iter()
             .filter_map(|group| {
-                // I'm going to assume each group only has one change (i.e. Delete/Insert/Replace)
+                // I'm going to assume each group only has one change (i.e. Delete/Insert/Replace), while the other diff_ops are Equal
                 let (old_line_range, new_line_range) =
                     group.iter().find_map(|diff_op| match diff_op {
                         similar::DiffOp::Equal { .. } => None,
