@@ -1068,39 +1068,47 @@ fn f(
         }
     }
 
-    #[test]
-    fn patch_edits_empty_line_removal() -> anyhow::Result<()> {
-        let old = r#"
+    mod patch_edit {
+        use crate::edit::EditTransaction;
+
+        use super::*;
+        fn run_test(old: &str, new: &str) -> anyhow::Result<EditTransaction> {
+            let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+
+            let edit_transaction = buffer.get_edit_transaction(new)?;
+
+            // Apply the edit transaction
+            buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
+
+            // Expect the content to be the same as the 2nd files
+            pretty_assertions::assert_eq!(buffer.content(), new);
+
+            Ok(edit_transaction)
+        }
+        #[test]
+        fn empty_line_removal() -> anyhow::Result<()> {
+            let old = r#"
             let y = "2";
             let z = 3;
 
             let a = 4;
             "#
-        .trim();
+            .trim();
 
-        let new = r#"
+            let new = r#"
             let y = "2";
             let z = 3;
             let a = 4;
             "#
-        .trim();
+            .trim();
 
-        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+            run_test(old, new)?;
+            Ok(())
+        }
 
-        let edit_transaction = buffer.get_edit_transaction(new)?;
-
-        // Apply the edit transaction
-        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
-
-        // Expect the content to be the same as the 2nd files
-        pretty_assertions::assert_eq!(buffer.content(), new);
-
-        Ok(())
-    }
-
-    #[test]
-    fn patch_edits_1() -> anyhow::Result<()> {
-        let old = r#"
+        #[test]
+        fn all_kinds_of_edits() -> anyhow::Result<()> {
+            let old = r#"
             let x = "1";
             let y = "2";
             let z = 3;
@@ -1108,13 +1116,13 @@ fn f(
             let b = 4;
             // This line will be removed
                 "#
-        .trim();
+            .trim();
 
-        // Suppose the new content has all kinds of changes:
-        // 1. Replacement (line 1)
-        // 2. Insertion (line 3)
-        // 3. Deletion (last line)
-        let new = r#"
+            // Suppose the new content has all kinds of changes:
+            // 1. Replacement (line 1)
+            // 2. Insertion (line 3)
+            // 3. Deletion (last line)
+            let new = r#"
             let x = "this line is replaced
                      with multiline content"
             let y = "2";
@@ -1123,28 +1131,20 @@ fn f(
             let a = 4;
             let b = 4;
                             "#
-        .trim();
+            .trim();
 
-        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+            let edit_transaction = run_test(old, new)?;
 
-        assert!(!new.ends_with("\n"));
-        let edit_transaction = buffer.get_edit_transaction(new)?;
+            // Expect there are 3 edits
+            assert_eq!(edit_transaction.edits().len(), 3);
 
-        // Expect there are 3 edits
-        assert_eq!(edit_transaction.edits().len(), 3);
+            Ok(())
+        }
 
-        // Apply the edit transaction
-
-        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
-
-        // Expect the content to be the same as the 2nd files
-        pretty_assertions::assert_eq!(buffer.content(), new);
-        Ok(())
-    }
-
-    #[test]
-    fn patch_edits_2() -> anyhow::Result<()> {
-        let old = r#"
+        #[test]
+        fn empty_line_with_whitespaces() -> anyhow::Result<()> {
+            // The line after `let x = x;` has multiple whitespaces in it
+            let old = r#"
 fn main() {
     let x = x;
     
@@ -1153,9 +1153,9 @@ let z = z;
     let y = y;
 }
 "#
-        .trim();
+            .trim();
 
-        let new = r#"
+            let new = r#"
 fn main() {
     let x = x;
 
@@ -1164,18 +1164,23 @@ fn main() {
     let y = y;
 }
 "#
-        .trim();
+            .trim();
 
-        let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+            run_test(old, new)?;
+            Ok(())
+        }
 
-        let edit_transaction = buffer.get_edit_transaction(new)?;
+        #[test]
+        fn newline_insertion() -> anyhow::Result<()> {
+            run_test("", "\n")?;
+            Ok(())
+        }
 
-        // Apply the edit transaction
-        buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
-
-        // Expect the content to be the same as the 2nd files
-        pretty_assertions::assert_eq!(buffer.content(), new);
-        Ok(())
+        #[test]
+        fn newline_removal() -> anyhow::Result<()> {
+            run_test("\n", "")?;
+            Ok(())
+        }
     }
 }
 
