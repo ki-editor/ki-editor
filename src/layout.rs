@@ -26,7 +26,7 @@ use std::{cell::RefCell, rc::Rc};
 pub struct Layout {
     main_panel: MainPanel,
     info_panel: Option<Rc<RefCell<Editor>>>,
-    keymap_legend: Option<Rc<RefCell<KeymapLegend>>>,
+    keymap_legend: Vec<Rc<RefCell<KeymapLegend>>>,
     quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
@@ -101,7 +101,7 @@ impl Layout {
                 working_directory: working_directory.clone(),
             },
             info_panel: None,
-            keymap_legend: None,
+            keymap_legend: vec![],
             quickfix_lists: None,
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
@@ -196,7 +196,7 @@ impl Layout {
                     .or_else(|| self.background_suggestive_editors.last().cloned()),
             );
 
-            self.keymap_legend = self.keymap_legend.take().filter(|c| c.borrow().id() != id);
+            self.keymap_legend.retain(|c| c.borrow().id() != id);
 
             self.info_panel = self.info_panel.take().filter(|c| c.borrow().id() != id);
 
@@ -368,12 +368,13 @@ impl Layout {
     pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
         let keymap_legend = KeymapLegend::new(keymap_legend_config);
         self.focused_component_id = Some(keymap_legend.id());
-        self.keymap_legend = Some(Rc::new(RefCell::new(keymap_legend)));
+        self.keymap_legend
+            .push(Rc::new(RefCell::new(keymap_legend)));
     }
 
     pub fn close_all_except_main_panel(&mut self) {
         self.info_panel = None;
-        self.keymap_legend = None;
+        self.keymap_legend = vec![];
         self.quickfix_lists = None;
         self.prompts = vec![];
         if self.focused_component_id.is_none() {
