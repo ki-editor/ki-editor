@@ -13,15 +13,25 @@ pub struct Match {
     pub line_number: u64,
 }
 
-pub fn run(
-    pattern: &str,
-    path: PathBuf,
-    escape: bool,
-    case_sensitive: bool,
-) -> anyhow::Result<Vec<Location>> {
-    let pattern = get_regex(pattern, escape, case_sensitive)?
-        .as_str()
-        .to_string();
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub struct GrepConfig {
+    pub escaped: bool,
+    pub case_sensitive: bool,
+    pub match_whole_word: bool,
+}
+
+impl Default for GrepConfig {
+    fn default() -> Self {
+        Self {
+            escaped: true,
+            case_sensitive: false,
+            match_whole_word: false,
+        }
+    }
+}
+
+pub fn run(pattern: &str, path: PathBuf, config: GrepConfig) -> anyhow::Result<Vec<Location>> {
+    let pattern = get_regex(pattern, config)?.as_str().to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
     let searcher = SearcherBuilder::new().build();

@@ -50,13 +50,13 @@ impl KeymapLegendConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Keymap {
     key: &'static str,
-    description: &'static str,
+    description: String,
     event: KeyEvent,
     dispatch: Dispatch,
 }
 
 impl Keymap {
-    pub fn new(key: &'static str, description: &'static str, dispatch: Dispatch) -> Keymap {
+    pub fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
             description,
@@ -163,7 +163,7 @@ mod test_keymap_legend {
             title: "Test".to_string(),
             keymaps: vec![Keymap::new(
                 "s",
-                "test",
+                "test".to_string(),
                 Dispatch::Custom("Spongebob".to_string()),
             )],
             owner_id,

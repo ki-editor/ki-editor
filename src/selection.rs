@@ -13,6 +13,7 @@ use crate::{
         suggestive_editor::Info,
     },
     context::{Context, Search, SearchKind},
+    list::grep::GrepConfig,
     position::Position,
     selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
 };
@@ -568,27 +569,47 @@ impl SelectionMode {
                 SearchKind::Literal => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
-                    true,
-                    false,
+                    GrepConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    },
                 )?),
                 SearchKind::LiteralCaseSensitive => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
-                    true,
-                    true,
+                    GrepConfig {
+                        escaped: true,
+                        case_sensitive: true,
+                        match_whole_word: false,
+                    },
                 )?),
                 SearchKind::Regex => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
-                    false,
-                    false,
+                    GrepConfig {
+                        escaped: false,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    },
                 )?),
                 SearchKind::RegexCaseSensitive => Box::new(selection_mode::Regex::new(
                     buffer,
                     &search.search,
-                    false,
-                    true,
+                    GrepConfig {
+                        escaped: false,
+                        case_sensitive: true,
+                        match_whole_word: false,
+                    },
                 )?),
+                SearchKind::Custom { mode } => match mode {
+                    crate::context::SearchConfigMode::Regex(regex) => {
+                        Box::new(selection_mode::Regex::new(buffer, &search.search, regex)?)
+                    }
+                    crate::context::SearchConfigMode::AstGrep => {
+                        Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
+                    }
+                },
             },
             SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
             SelectionMode::TopNode => Box::new(selection_mode::TopNode),

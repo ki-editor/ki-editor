@@ -1,0 +1,16 @@
+Inputs
+s    Search: hello world
+r    Replacement: lol
+i    Include files:
+e    Exclude files:
+  
+Modes
+l    [x] Literal 
+x    [ ] Regex  
+a    [ ] AST Grep
+w    [ ] Match whole word
+c    [ ] Case-sensitive
+
+Actions
+R        Replace
+enter    Search

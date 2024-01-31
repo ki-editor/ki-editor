@@ -1,12 +1,15 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
+    app::SearchConfigUpdate,
     clipboard::Clipboard,
+    list::grep::GrepConfig,
     lsp::diagnostic::Diagnostic,
     quickfix_list::{QuickfixListItem, QuickfixLists},
-    syntax_highlight::{Highlight, HighlightConfigs},
+    syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
 
@@ -20,6 +23,7 @@ pub struct Context {
 
     highlight_configs: HighlightConfigs,
     current_working_directory: Option<CanonicalizedPath>,
+    search_config: SearchConfig,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -51,16 +55,18 @@ pub enum SearchKind {
     LiteralCaseSensitive,
     Regex,
     RegexCaseSensitive,
+    Custom { mode: SearchConfigMode },
 }
 
 impl SearchKind {
-    pub fn display(&self) -> &'static str {
+    pub fn display(&self) -> String {
         match self {
-            SearchKind::AstGrep => "AST Grep",
-            SearchKind::Literal => "Literal",
-            SearchKind::LiteralCaseSensitive => "Literal (Case-sensitive)",
-            SearchKind::Regex => "Regex",
-            SearchKind::RegexCaseSensitive => "Regex (Case-sensitive)",
+            SearchKind::AstGrep => "AST Grep".to_string(),
+            SearchKind::Literal => "Literal".to_string(),
+            SearchKind::LiteralCaseSensitive => "Literal (Case-sensitive)".to_string(),
+            SearchKind::Regex => "Regex".to_string(),
+            SearchKind::RegexCaseSensitive => "Regex (Case-sensitive)".to_string(),
+            SearchKind::Custom { mode } => mode.display(),
         }
     }
 }
@@ -76,6 +82,7 @@ impl Default for Context {
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
             highlight_configs: HighlightConfigs::new(),
             current_working_directory: None,
+            search_config: SearchConfig::default(),
         }
     }
 }
@@ -97,7 +104,8 @@ impl Context {
     }
 
     pub fn set_search(&mut self, search: Search) {
-        self.previous_searches.push(search)
+        self.search_config.set_search(search.search.clone());
+        self.previous_searches.push(search);
     }
 
     pub fn previous_searches(&self) -> Vec<Search> {
@@ -177,5 +185,78 @@ impl Context {
 
     pub(crate) fn current_working_directory(&self) -> Option<&CanonicalizedPath> {
         self.current_working_directory.as_ref()
+    }
+
+    pub(crate) fn search_config(&self) -> &SearchConfig {
+        &self.search_config
+    }
+
+    pub(crate) fn update_search_config(&mut self, update: SearchConfigUpdate) {
+        self.search_config.update(update)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum SearchConfigMode {
+    Regex(GrepConfig),
+    AstGrep,
+}
+impl SearchConfigMode {
+    fn display(&self) -> String {
+        match self {
+            SearchConfigMode::Regex(regex) => regex.display(),
+
+            SearchConfigMode::AstGrep => "AST Grep".to_string(),
+        }
+    }
+}
+
+impl Default for SearchConfigMode {
+    fn default() -> Self {
+        Self::Regex(Default::default())
+    }
+}
+
+impl GrepConfig {
+    fn display(&self) -> String {
+        format!(
+            "{}{}",
+            if self.escaped { "Literal" } else { "Regex" },
+            parenthesize(
+                [
+                    self.case_sensitive.then_some("Case-sensitive".to_string()),
+                    self.match_whole_word
+                        .then_some("Match whole word".to_string()),
+                ]
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+            ),
+        )
+    }
+}
+
+fn parenthesize(values: Vec<String>) -> String {
+    if values.is_empty() {
+        "".to_string()
+    } else {
+        format!("({})", values.join(", "))
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct SearchConfig {
+    pub mode: SearchConfigMode,
+    pub search: String,
+}
+impl SearchConfig {
+    fn update(&mut self, update: SearchConfigUpdate) {
+        match update {
+            SearchConfigUpdate::SetMode(mode) => self.mode = mode,
+        }
+    }
+
+    fn set_search(&mut self, search: String) {
+        self.search = search
     }
 }

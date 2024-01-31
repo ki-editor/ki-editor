@@ -40,7 +40,7 @@ use crate::{
     },
     context::Context,
     edit::is_overlapping,
-    selection::{Filter, FilterTarget, Filters, Selection},
+    selection::{Filters, Selection},
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]

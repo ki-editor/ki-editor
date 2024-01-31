@@ -144,11 +144,16 @@ impl Component for Prompt {
                 } else {
                     self.text = current_text.clone();
 
-                    if let Some(owner) = self.owner.clone() {
-                        (self.on_text_change)(&current_text, owner.clone())?;
-                    }
+                    let text_change_dispatches = if let Some(owner) = self.owner.clone() {
+                        (self.on_text_change)(&current_text, owner.clone())?
+                    } else {
+                        Default::default()
+                    };
 
-                    dispatches.into_iter().chain(vec![]).collect_vec()
+                    dispatches
+                        .into_iter()
+                        .chain(text_change_dispatches)
+                        .collect_vec()
                 };
                 Ok(result)
             }

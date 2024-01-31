@@ -1,4 +1,4 @@
-use crate::buffer::Buffer;
+use crate::{buffer::Buffer, list::grep::GrepConfig};
 
 use super::{ByteRange, SelectionMode};
 
@@ -6,17 +6,18 @@ pub struct Regex {
     regex: regex::Regex,
     content: String,
 }
-pub fn get_regex(
-    pattern: &str,
-    escape: bool,
-    case_sensitive: bool,
-) -> anyhow::Result<regex::Regex> {
-    let pattern = if escape {
+pub fn get_regex(pattern: &str, config: GrepConfig) -> anyhow::Result<regex::Regex> {
+    let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
         pattern.to_string()
     };
-    let pattern = if case_sensitive {
+    let pattern = if config.match_whole_word {
+        format!("\\b{}\\b", pattern)
+    } else {
+        pattern
+    };
+    let pattern = if config.case_sensitive {
         pattern
     } else {
         format!("(?i){}", pattern)
@@ -25,13 +26,8 @@ pub fn get_regex(
 }
 
 impl Regex {
-    pub fn new(
-        buffer: &Buffer,
-        pattern: &str,
-        escape: bool,
-        case_sensitive: bool,
-    ) -> anyhow::Result<Self> {
-        let regex = get_regex(pattern, escape, case_sensitive)?;
+    pub fn new(buffer: &Buffer, pattern: &str, config: GrepConfig) -> anyhow::Result<Self> {
+        let regex = get_regex(pattern, config)?;
         Ok(Self {
             regex,
             content: buffer.rope().to_string(),
@@ -39,7 +35,14 @@ impl Regex {
     }
 
     pub fn regex(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
-        let regex = get_regex(pattern, false, false)?;
+        let regex = get_regex(
+            pattern,
+            GrepConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
+        )?;
         Ok(Self {
             regex,
             content: buffer.rope().to_string(),
@@ -71,32 +74,75 @@ mod test_regex {
     #[test]
     fn escaped() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(&buffer, "m.in", true, false)
-            .unwrap()
-            .assert_all_selections(&buffer, Selection::default(), &[(20..24, "m.in")]);
+        crate::selection_mode::Regex::new(
+            &buffer,
+            "m.in",
+            GrepConfig {
+                escaped: true,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
+        )
+        .unwrap()
+        .assert_all_selections(&buffer, Selection::default(), &[(20..24, "m.in")]);
     }
 
     #[test]
     fn unescaped() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(&buffer, "m.in", false, false)
-            .unwrap()
-            .assert_all_selections(
-                &buffer,
-                Selection::default(),
-                &[(3..7, "main"), (20..24, "m.in")],
-            );
+        crate::selection_mode::Regex::new(
+            &buffer,
+            "m.in",
+            GrepConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
+        )
+        .unwrap()
+        .assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(3..7, "main"), (20..24, "m.in")],
+        );
     }
 
     #[test]
     fn ignore_case() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn Main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(&buffer, "m.in", false, false)
-            .unwrap()
-            .assert_all_selections(
-                &buffer,
-                Selection::default(),
-                &[(3..7, "Main"), (20..24, "m.in")],
-            );
+        crate::selection_mode::Regex::new(
+            &buffer,
+            "m.in",
+            GrepConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
+        )
+        .unwrap()
+        .assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(3..7, "Main"), (20..24, "m.in")],
+        );
+    }
+
+    #[test]
+    fn match_whole_word() {
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "fn Main() { let x = main_war; }",
+        );
+        crate::selection_mode::Regex::new(
+            &buffer,
+            "m.in",
+            GrepConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: true,
+            },
+        )
+        .unwrap()
+        .assert_all_selections(&buffer, Selection::default(), &[(3..7, "Main")]);
     }
 }

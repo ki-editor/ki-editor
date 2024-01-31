@@ -1289,7 +1289,7 @@ impl Editor {
     fn search_keymap(&self, scope: Scope) -> Keymap {
         Keymap::new(
             "s",
-            "Search",
+            "Search".to_string(),
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                 title: Self::find_submenu_title("Search", scope),
                 keymaps: [
@@ -1309,14 +1309,18 @@ impl Editor {
                 ]
                 .into_iter()
                 .map(|(key, description, kind)| {
-                    Keymap::new(key, description, Dispatch::OpenSearchPrompt(kind, scope))
+                    Keymap::new(
+                        key,
+                        description.to_string(),
+                        Dispatch::OpenSearchPrompt(kind, scope),
+                    )
                 })
                 .chain(
                     self.current_selection()
                         .map(|search| {
                             Keymap::new(
                                 "c",
-                                "Current selection",
+                                "Current selection".to_string(),
                                 Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                                     SelectionMode::Find {
                                         search: Search {
@@ -1342,14 +1346,14 @@ impl Editor {
             keymaps: [
                 Keymap::new(
                     "e",
-                    "Empty line",
+                    "Empty line".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::EmptyLine,
                     )),
                 ),
                 Keymap::new(
                     "n",
-                    "Number",
+                    "Number".to_string(),
                     Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                         title: "Find number".to_string(),
                         owner_id: self.id(),
@@ -1371,14 +1375,14 @@ impl Editor {
                             let dispatch = Dispatch::DispatchEditor(
                                 DispatchEditor::SetSelectionMode(SelectionMode::Find { search }),
                             );
-                            Keymap::new(key, description, dispatch)
+                            Keymap::new(key, description.to_string(), dispatch)
                         })
                         .collect_vec(),
                     }),
                 ),
                 Keymap::new(
                     "o",
-                    "One character",
+                    "One character".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
                 ),
             ]
@@ -1400,7 +1404,7 @@ impl Editor {
         .map(|(char, description, severity)| {
             Keymap::new(
                 char,
-                description,
+                description.to_string(),
                 match scope {
                     Scope::Local => Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::Diagnostic(severity),
@@ -1414,7 +1418,7 @@ impl Editor {
         .collect_vec();
         Keymap::new(
             "d",
-            "Diagnostics",
+            "Diagnostics".to_string(),
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                 title: Self::find_submenu_title("Diagnostic", scope),
                 keymaps,
@@ -1435,26 +1439,33 @@ impl Editor {
             keymaps: [
                 Keymap::new(
                     "b",
-                    "Bookmark",
+                    "Bookmark".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::Bookmark,
                     )),
                 ),
                 Keymap::new(
                     "g",
-                    "Git hunk",
+                    "Git hunk".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::GitHunk,
                     )),
                 ),
                 Keymap::new(
                     "q",
-                    "Quickfix list (current)",
+                    "Quickfix list (current)".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::LocalQuickfix {
                             title: "LOCAL QUICKFIX".to_string(),
                         },
                     )),
+                ),
+                Keymap::new(
+                    "z",
+                    "Search Panel".to_string(),
+                    Dispatch::ShowSearchConfig {
+                        owner_id: self.id(),
+                    },
                 ),
             ]
             .into_iter()
@@ -1464,7 +1475,7 @@ impl Editor {
             .chain(context.last_search().map(|search| {
                 Keymap::new(
                     "f",
-                    "Enter Find Mode (using previous search)",
+                    "Enter Find Mode (using previous search)".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                         SelectionMode::Find { search },
                     )),
@@ -1486,12 +1497,12 @@ impl Editor {
                             [
                                 Keymap::new(
                                     "e",
-                                    "Explorer",
+                                    "Explorer".to_string(),
                                     Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                                         title: "Space: Explorer".to_string(),
                                         keymaps: [Keymap::new(
                                             "r",
-                                            "Reveal in Explorer",
+                                            "Reveal in Explorer".to_string(),
                                             Dispatch::RevealInExplorer(params.path.clone()),
                                         )]
                                         .to_vec(),
@@ -1500,23 +1511,23 @@ impl Editor {
                                 ),
                                 Keymap::new(
                                     "l",
-                                    "LSP",
+                                    "LSP".to_string(),
                                     Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                                         title: "Space: LSP".to_string(),
                                         keymaps: [
                                             Keymap::new(
                                                 "h",
-                                                "Hover",
+                                                "Hover".to_string(),
                                                 Dispatch::RequestHover(params.clone()),
                                             ),
                                             Keymap::new(
                                                 "r",
-                                                "Rename",
+                                                "Rename".to_string(),
                                                 Dispatch::PrepareRename(params.clone()),
                                             ),
                                             Keymap::new(
                                                 "a",
-                                                "Code Actions",
+                                                "Code Actions".to_string(),
                                                 Dispatch::RequestCodeAction {
                                                     params,
                                                     diagnostics: context
@@ -1541,14 +1552,14 @@ impl Editor {
                                 ),
                                 Keymap::new(
                                     "t",
-                                    "Transform",
+                                    "Transform".to_string(),
                                     Dispatch::ShowKeymapLegend(
                                         self.transform_keymap_legend_config(),
                                     ),
                                 ),
                                 Keymap::new(
                                     "z",
-                                    "Undo Tree",
+                                    "Undo Tree".to_string(),
                                     Dispatch::DispatchEditor(DispatchEditor::EnterUndoTreeMode),
                                 ),
                             ]
@@ -1580,7 +1591,7 @@ impl Editor {
             .map(|(key, description, case)| {
                 Keymap::new(
                     key,
-                    description,
+                    description.to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::Transform(case)),
                 )
             })
@@ -1648,7 +1659,7 @@ impl Editor {
             ]
             .into_iter()
             .map(|(key, description, kind)| {
-                Keymap::new(key, description, Dispatch::OpenFilePicker(kind))
+                Keymap::new(key, description.to_string(), Dispatch::OpenFilePicker(kind))
             })
             .collect_vec(),
         }
@@ -1662,26 +1673,26 @@ impl Editor {
                 [
                     Keymap::new(
                         "c",
-                        "Declarations",
+                        "Declarations".to_string(),
                         Dispatch::RequestDeclarations(
                             params.clone().set_description("Declarations"),
                         ),
                     ),
                     Keymap::new(
                         "d",
-                        "Definitions",
+                        "Definitions".to_string(),
                         Dispatch::RequestDefinitions(params.clone().set_description("Definitions")),
                     ),
                     Keymap::new(
                         "i",
-                        "Implementations",
+                        "Implementations".to_string(),
                         Dispatch::RequestImplementations(
                             params.clone().set_description("Implementations"),
                         ),
                     ),
                     Keymap::new(
                         "r",
-                        "References",
+                        "References".to_string(),
                         Dispatch::RequestReferences {
                             params: params.clone().set_description("References"),
                             include_declaration: false,
@@ -1689,7 +1700,7 @@ impl Editor {
                     ),
                     Keymap::new(
                         "shift+R",
-                        "References (include declaration)",
+                        "References (include declaration)".to_string(),
                         Dispatch::RequestReferences {
                             params: params
                                 .clone()
@@ -1699,14 +1710,14 @@ impl Editor {
                     ),
                     Keymap::new(
                         "t",
-                        "Type Definitions",
+                        "Type Definitions".to_string(),
                         Dispatch::RequestTypeDefinitions(
                             params.clone().set_description("Type Definitions"),
                         ),
                     ),
                     Keymap::new(
                         "s",
-                        "Symbols",
+                        "Symbols".to_string(),
                         Dispatch::RequestDocumentSymbols(params.set_description("Symbols")),
                     ),
                 ]
@@ -1717,7 +1728,7 @@ impl Editor {
 
         Keymap::new(
             "l",
-            "LSP",
+            "LSP".to_string(),
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                 title: Self::find_submenu_title("LSP", scope),
                 keymaps,
@@ -1738,12 +1749,12 @@ impl Editor {
                 .chain(Some(self.lsp_keymap(scope)))
                 .chain(Some(Keymap::new(
                     "g",
-                    "Git Hunk",
+                    "Git Hunk".to_string(),
                     Dispatch::GetRepoGitHunks,
                 )))
                 .chain(Some(Keymap::new(
                     "b",
-                    "Bookmark",
+                    "Bookmark".to_string(),
                     Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
                 )))
                 .collect_vec(),
@@ -3133,13 +3144,13 @@ impl Editor {
             .map(|(key, description, inside_kind)| {
                 Keymap::new(
                     key,
-                    description,
+                    description.to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(inside_kind)),
                 )
             })
             .chain(Some(Keymap::new(
                 "o",
-                "Other",
+                "Other".to_string(),
                 Dispatch::OpenInsideOtherPromptOpen,
             )))
             .collect(),
@@ -3169,10 +3180,14 @@ impl Editor {
                 keymaps: [
                     Keymap::new(
                         "l",
-                        "Literal",
+                        "Literal".to_string(),
                         Dispatch::OpenOmitLiteralPrompt { kind, target },
                     ),
-                    Keymap::new("r", "Regex", Dispatch::OpenOmitRegexPrompt { kind, target }),
+                    Keymap::new(
+                        "r",
+                        "Regex".to_string(),
+                        Dispatch::OpenOmitRegexPrompt { kind, target },
+                    ),
                 ]
                 .to_vec(),
             })
@@ -3184,12 +3199,12 @@ impl Editor {
                 keymaps: [
                     Keymap::new(
                         "c",
-                        "Content",
+                        "Content".to_string(),
                         filter_mechanism_keymaps(kind, FilterTarget::Content),
                     ),
                     Keymap::new(
                         "i",
-                        "Info",
+                        "Info".to_string(),
                         filter_mechanism_keymaps(kind, FilterTarget::Info),
                     ),
                 ]
@@ -3202,11 +3217,19 @@ impl Editor {
             keymaps: [
                 Keymap::new(
                     "c",
-                    "Clear",
+                    "Clear".to_string(),
                     Dispatch::DispatchEditor(DispatchEditor::FilterClear),
                 ),
-                Keymap::new("k", "keep", filter_target_keymaps(FilterKind::Keep)),
-                Keymap::new("r", "remove", filter_target_keymaps(FilterKind::Remove)),
+                Keymap::new(
+                    "k",
+                    "keep".to_string(),
+                    filter_target_keymaps(FilterKind::Keep),
+                ),
+                Keymap::new(
+                    "r",
+                    "remove".to_string(),
+                    filter_target_keymaps(FilterKind::Remove),
+                ),
             ]
             .to_vec(),
         }

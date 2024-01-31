@@ -22,12 +22,12 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
     },
-    context::{Context, GlobalMode, Search, SearchKind},
+    context::{Context, GlobalMode, Search, SearchConfigMode, SearchKind},
     frontend::frontend::Frontend,
     git,
     grid::Grid,
     layout::Layout,
-    list,
+    list::{self, grep::GrepConfig},
     lsp::{
         completion::CompletionItem,
         diagnostic::Diagnostic,
@@ -399,7 +399,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
             }
-            Dispatch::SetSearch(search) => self.set_search(search),
+            Dispatch::SetSearch(search, owner_id) => self.set_search(search, owner_id)?,
             Dispatch::OpenSearchPrompt(search_kind, scope) => match scope {
                 Scope::Local => self.open_local_search_prompt(search_kind),
                 Scope::Global => self.open_global_search_prompt(search_kind),
@@ -549,6 +549,10 @@ impl<T: Frontend> App<T> {
                 old_selection_set,
                 path,
             } => self.push_selection_set(path, old_selection_set, new_selection_set)?,
+            Dispatch::ShowSearchConfig { owner_id } => self.show_search_config(owner_id),
+            Dispatch::UpdateSearchConfig { update, owner_id } => {
+                self.update_search_config(update, owner_id)?
+            }
         }
         Ok(())
     }
@@ -561,8 +565,18 @@ impl<T: Frontend> App<T> {
         self.layout.close_current_window(change_focused_to)
     }
 
-    fn set_search(&mut self, search: Search) {
-        self.context.set_search(search);
+    fn set_search(&mut self, search: Search, owner_id: Option<ComponentId>) -> anyhow::Result<()> {
+        self.context.set_search(search.clone());
+        if !search.search.is_empty() {
+            self.handle_dispatch_editor_custom(
+                DispatchEditor::SetSelectionMode(SelectionMode::Find { search }),
+                owner_id
+                    .and_then(|owner_id| self.get_component_by_id(owner_id))
+                    .or_else(|| self.current_component()),
+            )?;
+        }
+
+        Ok(())
     }
 
     fn resize(&mut self, dimension: Dimension) {
@@ -643,6 +657,9 @@ impl<T: Frontend> App<T> {
 
     fn open_local_search_prompt(&mut self, kind: SearchKind) {
         let current_component = self.current_component().clone();
+        let owner_id = current_component
+            .as_ref()
+            .map(|component| component.borrow().id());
         let prompt = Prompt::new(PromptConfig {
             title: format!("Search ({})", kind.display()),
             initial_text: None,
@@ -659,20 +676,20 @@ impl<T: Frontend> App<T> {
                     search: text.to_string(),
                 };
 
-                Ok([
-                    Dispatch::SetSearch(search.clone()),
-                    Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                        crate::selection::SelectionMode::Find { search },
-                    )),
-                ]
-                .to_vec())
+                Ok([Dispatch::SetSearch(search.clone(), owner_id)].to_vec())
             }),
-            on_text_change: Box::new(|_current_text, _owner| {
-                // owner
-                //     .borrow_mut()
-                //     .editor_mut()
-                //     .select_match(Direction::Forward, &Some(current_text.to_string()));
-                Ok(vec![])
+            on_text_change: Box::new(move |text, _owner| {
+                // The following is not working as expected yet
+                // After one character is input into the prompt, the propmt will lose focus
+                // Ok([Dispatch::SetSearch(
+                //     Search {
+                //         kind,
+                //         search: text.to_string(),
+                //     },
+                //     owner_id,
+                // )]
+                // .to_vec())
+                Ok(Default::default())
             }),
             items: current_component
                 .map(|current_component| {
@@ -1210,31 +1227,49 @@ impl<T: Frontend> App<T> {
 
     fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
+        let path = working_directory.clone().into();
         let locations = match search.kind {
-            SearchKind::AstGrep => {
-                list::ast_grep::run(&search.search, working_directory.clone().into())
-            }
+            SearchKind::AstGrep => list::ast_grep::run(&search.search, path),
             SearchKind::Literal => list::grep::run(
                 &search.search,
-                working_directory.clone().into(),
-                true,
-                false,
+                path,
+                list::grep::GrepConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                },
             ),
-            SearchKind::LiteralCaseSensitive => {
-                list::grep::run(&search.search, working_directory.clone().into(), true, true)
-            }
+            SearchKind::LiteralCaseSensitive => list::grep::run(
+                &search.search,
+                path,
+                list::grep::GrepConfig {
+                    escaped: true,
+                    case_sensitive: true,
+                    match_whole_word: false,
+                },
+            ),
             SearchKind::Regex => list::grep::run(
                 &search.search,
-                working_directory.clone().into(),
-                false,
-                false,
+                path,
+                list::grep::GrepConfig {
+                    escaped: false,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                },
             ),
             SearchKind::RegexCaseSensitive => list::grep::run(
                 &search.search,
-                working_directory.clone().into(),
-                false,
-                true,
+                path,
+                list::grep::GrepConfig {
+                    escaped: false,
+                    case_sensitive: true,
+                    match_whole_word: false,
+                },
             ),
+            SearchKind::Custom { mode } => match mode {
+                SearchConfigMode::Regex(regex) => list::grep::run(&search.search, path, regex),
+                SearchConfigMode::AstGrep => list::ast_grep::run(&search.search, path),
+            },
         }?;
         self.set_quickfix_list(
             ResponseContext::default().set_description("Global search"),
@@ -1277,8 +1312,8 @@ impl<T: Frontend> App<T> {
             title: prompt.title,
             owner_id: prompt.owner_id,
             keymaps: [
-                Keymap::new("y", "Yes", *prompt.yes),
-                Keymap::new("n", "No", Dispatch::Null),
+                Keymap::new("y", "Yes".to_string(), *prompt.yes),
+                Keymap::new("n", "No".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         }))
@@ -1379,7 +1414,15 @@ impl<T: Frontend> App<T> {
     }
 
     fn handle_dispatch_editor(&mut self, dispatch_editor: DispatchEditor) -> anyhow::Result<()> {
-        if let Some(component) = self.current_component() {
+        self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
+    }
+
+    fn handle_dispatch_editor_custom(
+        &mut self,
+        dispatch_editor: DispatchEditor,
+        component: Option<Rc<RefCell<dyn Component>>>,
+    ) -> anyhow::Result<()> {
+        if let Some(component) = component {
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
@@ -1608,6 +1651,120 @@ impl<T: Frontend> App<T> {
     pub(crate) fn context(&self) -> &Context {
         &self.context
     }
+
+    fn show_search_config(&mut self, owner_id: ComponentId) {
+        fn show_checkbox(title: &str, checked: bool) -> String {
+            format!("[{}] {title}", if checked { "X" } else { " " })
+        }
+        let config = self.context.search_config();
+        let update_keymap =
+            |key: &'static str, description: String, update: SearchConfigUpdate| -> Keymap {
+                Keymap::new(
+                    key,
+                    description,
+                    Dispatch::UpdateSearchConfig { update, owner_id },
+                )
+            };
+        let update_mode_keymap =
+            |key: &'static str, name: String, mode: SearchConfigMode, checked: bool| -> Keymap {
+                let description = show_checkbox(&name, checked);
+                update_keymap(key, description, SearchConfigUpdate::SetMode(mode))
+            };
+        let regex = match config.mode {
+            SearchConfigMode::Regex(regex) => Some(regex),
+            SearchConfigMode::AstGrep => None,
+        };
+        self.show_keymap_legend(KeymapLegendConfig {
+            title: "Search Config (Local)".to_string(),
+            keymaps: [
+                update_mode_keymap(
+                    "l",
+                    "Literal".to_string(),
+                    SearchConfigMode::Regex(GrepConfig {
+                        escaped: true,
+                        ..regex.unwrap_or_default()
+                    }),
+                    regex.map(|regex| regex.escaped).unwrap_or(false),
+                ),
+                update_mode_keymap(
+                    "x",
+                    "Regex".to_string(),
+                    SearchConfigMode::Regex(GrepConfig {
+                        escaped: false,
+                        ..regex.unwrap_or_default()
+                    }),
+                    regex.map(|regex| !regex.escaped).unwrap_or(false),
+                ),
+                update_mode_keymap(
+                    "a",
+                    "AST Grep".to_string(),
+                    SearchConfigMode::AstGrep,
+                    config.mode == SearchConfigMode::AstGrep,
+                ),
+                Keymap::new(
+                    "s",
+                    format!("Set search: {}", config.search),
+                    Dispatch::OpenSearchPrompt(
+                        SearchKind::Custom { mode: config.mode },
+                        Scope::Local,
+                    ),
+                ),
+            ]
+            .into_iter()
+            .chain(if let Some(regex) = regex {
+                [
+                    update_mode_keymap(
+                        "c",
+                        "Case-sensitive".to_string(),
+                        SearchConfigMode::Regex(GrepConfig {
+                            case_sensitive: !regex.case_sensitive,
+                            ..regex
+                        }),
+                        regex.case_sensitive,
+                    ),
+                    update_mode_keymap(
+                        "w",
+                        "Match whole word".to_string(),
+                        SearchConfigMode::Regex(GrepConfig {
+                            match_whole_word: !regex.match_whole_word,
+                            ..regex
+                        }),
+                        regex.match_whole_word,
+                    ),
+                ]
+                .to_vec()
+            } else {
+                Vec::new()
+            })
+            .collect(),
+            owner_id,
+        })
+    }
+
+    fn update_search_config(
+        &mut self,
+        update: SearchConfigUpdate,
+        owner_id: ComponentId,
+    ) -> Result<(), anyhow::Error> {
+        self.context.update_search_config(update);
+        self.set_search(
+            Search {
+                kind: SearchKind::Custom {
+                    mode: self.context.search_config().mode,
+                },
+                search: self.context.search_config().search.to_string(),
+            },
+            Some(owner_id),
+        )?;
+        self.show_search_config(owner_id);
+        Ok(())
+    }
+
+    fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
+        self.components()
+            .into_iter()
+            .find(|component| component.borrow().id() == id)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1641,7 +1798,7 @@ pub enum Dispatch {
     CloseCurrentWindow {
         change_focused_to: Option<ComponentId>,
     },
-    SetSearch(Search),
+    SetSearch(Search, Option<ComponentId>),
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt(SearchKind, Scope),
     OpenFile {
@@ -1740,6 +1897,18 @@ pub enum Dispatch {
         path: CanonicalizedPath,
     },
     GotoSelectionHistoryContiguous(Movement),
+    ShowSearchConfig {
+        owner_id: ComponentId,
+    },
+    UpdateSearchConfig {
+        owner_id: ComponentId,
+        update: SearchConfigUpdate,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SearchConfigUpdate {
+    SetMode(SearchConfigMode),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

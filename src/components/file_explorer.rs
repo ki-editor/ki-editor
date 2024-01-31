@@ -357,12 +357,12 @@ impl Component for FileExplorer {
                                 [
                                     Keymap::new(
                                         "a",
-                                        "Add file (or postfix with / for folder)",
+                                        "Add file (or postfix with / for folder)".to_string(),
                                         Dispatch::OpenAddPathPrompt(node.path.clone()),
                                     ),
                                     Keymap::new(
                                         "d",
-                                        "Delete path",
+                                        "Delete path".to_string(),
                                         Dispatch::OpenYesNoPrompt(YesNoPrompt {
                                             owner_id: self.id(),
                                             title: format!(
@@ -374,10 +374,14 @@ impl Component for FileExplorer {
                                     ),
                                     Keymap::new(
                                         "m",
-                                        "Move file",
+                                        "Move file".to_string(),
                                         Dispatch::OpenMoveFilePrompt(node.path.clone()),
                                     ),
-                                    Keymap::new("r", "Refresh", Dispatch::RefreshFileExplorer),
+                                    Keymap::new(
+                                        "r",
+                                        "Refresh".to_string(),
+                                        Dispatch::RefreshFileExplorer,
+                                    ),
                                 ]
                                 .to_vec()
                             })
