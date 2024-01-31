@@ -517,7 +517,7 @@ impl SelectionMode {
             SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
-                format!("FIND {:?} {:?}", search.kind, search.search)
+                format!("FIND {} {:?}", search.kind.display(), search.search)
             }
             SelectionMode::Diagnostic(severity) => {
                 let severity = severity

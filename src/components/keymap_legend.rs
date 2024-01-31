@@ -17,13 +17,22 @@ pub struct KeymapLegend {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeymapLegendConfig {
     pub title: String,
-    pub keymaps: Vec<Keymap>,
+    pub body: KeymapLegendBody,
     pub owner_id: ComponentId,
 }
-impl KeymapLegendConfig {
-    fn display(&self) -> String {
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeymapLegendBody {
+    SingleSection { keymaps: Keymaps },
+    MultipleSections { sections: Vec<KeymapLegendSection> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Keymaps(Vec<Keymap>);
+impl Keymaps {
+    fn display(&self, indent: usize) -> String {
         let width = self
-            .keymaps
+            .0
             .iter()
             .map(|keymap| keymap.key.len())
             .max()
@@ -32,18 +41,67 @@ impl KeymapLegendConfig {
         let margin = 2;
 
         // Align the keys columns and the dispatch columns
-        self.keymaps
+        self.0
             .iter()
             .sorted_by_key(|keymap| keymap.key)
             .map(|keymap| {
                 format!(
-                    "{:<width$} {}",
+                    "{}{:<width$} {}",
+                    " ".repeat(indent),
                     keymap.key,
                     keymap.description,
                     width = width + margin
                 )
             })
             .join("\n")
+    }
+
+    pub fn new(keymaps: &[Keymap]) -> Self {
+        Self(keymaps.to_vec())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeymapLegendSection {
+    pub title: String,
+    pub keymaps: Keymaps,
+}
+
+impl KeymapLegendSection {
+    fn display(&self) -> String {
+        format!("{}\n{}", self.title, self.keymaps.display(2))
+    }
+}
+
+impl KeymapLegendBody {
+    fn display(&self) -> String {
+        match self {
+            KeymapLegendBody::SingleSection { keymaps } => keymaps.display(0),
+            KeymapLegendBody::MultipleSections { sections } => sections
+                .iter()
+                .map(|section| section.display())
+                .join("\n\n"),
+        }
+    }
+
+    fn keymaps(&self) -> Vec<&Keymap> {
+        match self {
+            KeymapLegendBody::SingleSection { keymaps } => keymaps.0.iter().collect_vec(),
+            KeymapLegendBody::MultipleSections { sections } => sections
+                .iter()
+                .flat_map(|section| section.keymaps.0.iter())
+                .collect_vec(),
+        }
+    }
+}
+
+impl KeymapLegendConfig {
+    fn display(&self) -> String {
+        self.body.display()
+    }
+
+    fn keymaps(&self) -> Vec<&Keymap> {
+        self.body.keymaps()
     }
 }
 
@@ -70,8 +128,8 @@ impl KeymapLegend {
     pub fn new(config: KeymapLegendConfig) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
-            .keymaps
-            .iter()
+            .keymaps()
+            .into_iter()
             .duplicates_by(|keymap| keymap.key)
             .collect_vec();
 
@@ -122,7 +180,7 @@ impl Component for KeymapLegend {
                 key_event => {
                     if let Some(keymap) = self
                         .config
-                        .keymaps
+                        .keymaps()
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
@@ -161,11 +219,13 @@ mod test_keymap_legend {
         let owner_id = ComponentId::new();
         let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
             title: "Test".to_string(),
-            keymaps: vec![Keymap::new(
-                "s",
-                "test".to_string(),
-                Dispatch::Custom("Spongebob".to_string()),
-            )],
+            body: KeymapLegendBody::SingleSection {
+                keymaps: Keymaps::new(&[Keymap::new(
+                    "s",
+                    "test".to_string(),
+                    Dispatch::Custom("Spongebob".to_string()),
+                )]),
+            },
             owner_id,
         });
 

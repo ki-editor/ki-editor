@@ -18,7 +18,9 @@ use crate::{
     components::{
         component::{Component, ComponentId, Cursor, GetGridResult},
         editor::{DispatchEditor, Movement},
-        keymap_legend::{Keymap, KeymapLegendConfig},
+        keymap_legend::{
+            Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
+        },
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
     },
@@ -1309,13 +1311,18 @@ impl<T: Frontend> App<T> {
 
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-            title: prompt.title,
+            title: "Prompt".to_string(),
             owner_id: prompt.owner_id,
-            keymaps: [
-                Keymap::new("y", "Yes".to_string(), *prompt.yes),
-                Keymap::new("n", "No".to_string(), Dispatch::Null),
-            ]
-            .to_vec(),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [KeymapLegendSection {
+                    title: prompt.title,
+                    keymaps: Keymaps::new(&[
+                        Keymap::new("y", "Yes".to_string(), *prompt.yes),
+                        Keymap::new("n", "No".to_string(), Dispatch::Null),
+                    ]),
+                }]
+                .to_vec(),
+            },
         }))
     }
 
@@ -1676,67 +1683,79 @@ impl<T: Frontend> App<T> {
         };
         self.show_keymap_legend(KeymapLegendConfig {
             title: "Search Config (Local)".to_string(),
-            keymaps: [
-                update_mode_keymap(
-                    "l",
-                    "Literal".to_string(),
-                    SearchConfigMode::Regex(GrepConfig {
-                        escaped: true,
-                        ..regex.unwrap_or_default()
-                    }),
-                    regex.map(|regex| regex.escaped).unwrap_or(false),
-                ),
-                update_mode_keymap(
-                    "x",
-                    "Regex".to_string(),
-                    SearchConfigMode::Regex(GrepConfig {
-                        escaped: false,
-                        ..regex.unwrap_or_default()
-                    }),
-                    regex.map(|regex| !regex.escaped).unwrap_or(false),
-                ),
-                update_mode_keymap(
-                    "a",
-                    "AST Grep".to_string(),
-                    SearchConfigMode::AstGrep,
-                    config.mode == SearchConfigMode::AstGrep,
-                ),
-                Keymap::new(
-                    "s",
-                    format!("Set search: {}", config.search),
-                    Dispatch::OpenSearchPrompt(
-                        SearchKind::Custom { mode: config.mode },
-                        Scope::Local,
-                    ),
-                ),
-            ]
-            .into_iter()
-            .chain(if let Some(regex) = regex {
-                [
-                    update_mode_keymap(
-                        "c",
-                        "Case-sensitive".to_string(),
-                        SearchConfigMode::Regex(GrepConfig {
-                            case_sensitive: !regex.case_sensitive,
-                            ..regex
-                        }),
-                        regex.case_sensitive,
-                    ),
-                    update_mode_keymap(
-                        "w",
-                        "Match whole word".to_string(),
-                        SearchConfigMode::Regex(GrepConfig {
-                            match_whole_word: !regex.match_whole_word,
-                            ..regex
-                        }),
-                        regex.match_whole_word,
-                    ),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [
+                    KeymapLegendSection {
+                        title: "Inputs".to_string(),
+                        keymaps: Keymaps::new(&[Keymap::new(
+                            "s",
+                            format!("Search: {}", config.search),
+                            Dispatch::OpenSearchPrompt(
+                                SearchKind::Custom { mode: config.mode },
+                                Scope::Local,
+                            ),
+                        )]),
+                    },
+                    KeymapLegendSection {
+                        title: "Mode".to_string(),
+                        keymaps: Keymaps::new(&[
+                            update_mode_keymap(
+                                "l",
+                                "Literal".to_string(),
+                                SearchConfigMode::Regex(GrepConfig {
+                                    escaped: true,
+                                    ..regex.unwrap_or_default()
+                                }),
+                                regex.map(|regex| regex.escaped).unwrap_or(false),
+                            ),
+                            update_mode_keymap(
+                                "x",
+                                "Regex".to_string(),
+                                SearchConfigMode::Regex(GrepConfig {
+                                    escaped: false,
+                                    ..regex.unwrap_or_default()
+                                }),
+                                regex.map(|regex| !regex.escaped).unwrap_or(false),
+                            ),
+                            update_mode_keymap(
+                                "a",
+                                "AST Grep".to_string(),
+                                SearchConfigMode::AstGrep,
+                                config.mode == SearchConfigMode::AstGrep,
+                            ),
+                        ]),
+                    },
                 ]
-                .to_vec()
-            } else {
-                Vec::new()
-            })
-            .collect(),
+                .into_iter()
+                .chain(if let Some(regex) = regex {
+                    Some(KeymapLegendSection {
+                        title: "Options".to_string(),
+                        keymaps: Keymaps::new(&[
+                            update_mode_keymap(
+                                "c",
+                                "Case-sensitive".to_string(),
+                                SearchConfigMode::Regex(GrepConfig {
+                                    case_sensitive: !regex.case_sensitive,
+                                    ..regex
+                                }),
+                                regex.case_sensitive,
+                            ),
+                            update_mode_keymap(
+                                "w",
+                                "Match whole word".to_string(),
+                                SearchConfigMode::Regex(GrepConfig {
+                                    match_whole_word: !regex.match_whole_word,
+                                    ..regex
+                                }),
+                                regex.match_whole_word,
+                            ),
+                        ]),
+                    })
+                } else {
+                    None
+                })
+                .collect(),
+            },
             owner_id,
         })
     }
