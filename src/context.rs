@@ -4,7 +4,7 @@ use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::SearchConfigUpdate,
+    app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::Clipboard,
     list::grep::GrepConfig,
     lsp::diagnostic::Diagnostic,
@@ -23,7 +23,8 @@ pub struct Context {
 
     highlight_configs: HighlightConfigs,
     current_working_directory: Option<CanonicalizedPath>,
-    search_config: SearchConfig,
+    local_search_config: LocalSearchConfig,
+    global_search_config: GlobalSearchConfig,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -55,7 +56,7 @@ pub enum SearchKind {
     LiteralCaseSensitive,
     Regex,
     RegexCaseSensitive,
-    Custom { mode: SearchConfigMode },
+    Custom { mode: LocalSearchConfigMode },
 }
 
 impl SearchKind {
@@ -82,7 +83,8 @@ impl Default for Context {
             quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
             highlight_configs: HighlightConfigs::new(),
             current_working_directory: None,
-            search_config: SearchConfig::default(),
+            local_search_config: LocalSearchConfig::default(),
+            global_search_config: GlobalSearchConfig::default(),
         }
     }
 }
@@ -104,7 +106,7 @@ impl Context {
     }
 
     pub fn set_search(&mut self, search: Search) {
-        self.search_config.set_search(search.search.clone());
+        self.local_search_config.set_search(search.search.clone());
         self.previous_searches.push(search);
     }
 
@@ -187,31 +189,82 @@ impl Context {
         self.current_working_directory.as_ref()
     }
 
-    pub(crate) fn search_config(&self) -> &SearchConfig {
-        &self.search_config
+    pub(crate) fn local_search_config(&self) -> &LocalSearchConfig {
+        &self.local_search_config
     }
 
-    pub(crate) fn update_search_config(&mut self, update: SearchConfigUpdate) {
-        self.search_config.update(update)
+    pub(crate) fn global_search_config(&self) -> &GlobalSearchConfig {
+        &self.global_search_config
+    }
+
+    pub(crate) fn update_local_search_config(
+        &mut self,
+        update: LocalSearchConfigUpdate,
+        scope: Scope,
+    ) {
+        match scope {
+            Scope::Local => &mut self.local_search_config,
+            Scope::Global => &mut self.global_search_config.local_config,
+        }
+        .update(update)
+    }
+
+    pub(crate) fn update_global_search_config(
+        &mut self,
+        update: GlobalSearchConfigUpdate,
+    ) -> anyhow::Result<()> {
+        match update {
+            GlobalSearchConfigUpdate::SetGlob(which, glob) => {
+                match which {
+                    GlobalSearchFilterGlob::Include => {
+                        self.global_search_config.include = if glob.is_empty() {
+                            None
+                        } else {
+                            Some(glob::Pattern::new(&glob)?)
+                        }
+                    }
+                    GlobalSearchFilterGlob::Exclude => {
+                        self.global_search_config.exclude = if glob.is_empty() {
+                            None
+                        } else {
+                            Some(glob::Pattern::new(&glob)?)
+                        }
+                    }
+                };
+            }
+        };
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct GlobalSearchConfig {
+    pub include: Option<glob::Pattern>,
+    pub exclude: Option<glob::Pattern>,
+    pub local_config: LocalSearchConfig,
+}
+impl GlobalSearchConfig {
+    pub(crate) fn local_config(&self) -> &LocalSearchConfig {
+        &self.local_config
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum SearchConfigMode {
+pub enum LocalSearchConfigMode {
     Regex(GrepConfig),
     AstGrep,
 }
-impl SearchConfigMode {
+impl LocalSearchConfigMode {
     fn display(&self) -> String {
         match self {
-            SearchConfigMode::Regex(regex) => regex.display(),
+            LocalSearchConfigMode::Regex(regex) => regex.display(),
 
-            SearchConfigMode::AstGrep => "AST Grep".to_string(),
+            LocalSearchConfigMode::AstGrep => "AST Grep".to_string(),
         }
     }
 }
 
-impl Default for SearchConfigMode {
+impl Default for LocalSearchConfigMode {
     fn default() -> Self {
         Self::Regex(Default::default())
     }
@@ -245,14 +298,15 @@ fn parenthesize(values: Vec<String>) -> String {
 }
 
 #[derive(Default, Clone)]
-pub struct SearchConfig {
-    pub mode: SearchConfigMode,
+pub struct LocalSearchConfig {
+    pub mode: LocalSearchConfigMode,
     pub search: String,
 }
-impl SearchConfig {
-    fn update(&mut self, update: SearchConfigUpdate) {
+
+impl LocalSearchConfig {
+    fn update(&mut self, update: LocalSearchConfigUpdate) {
         match update {
-            SearchConfigUpdate::SetMode(mode) => self.mode = mode,
+            LocalSearchConfigUpdate::SetMode(mode) => self.mode = mode,
         }
     }
 

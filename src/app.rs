@@ -24,12 +24,12 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
     },
-    context::{Context, GlobalMode, Search, SearchConfigMode, SearchKind},
+    context::{Context, GlobalMode, LocalSearchConfigMode, Search, SearchKind},
     frontend::frontend::Frontend,
     git,
     grid::Grid,
     layout::Layout,
-    list::{self, grep::GrepConfig},
+    list::{self, grep::GrepConfig, WalkBuilderConfig},
     lsp::{
         completion::CompletionItem,
         diagnostic::Diagnostic,
@@ -551,9 +551,20 @@ impl<T: Frontend> App<T> {
                 old_selection_set,
                 path,
             } => self.push_selection_set(path, old_selection_set, new_selection_set)?,
-            Dispatch::ShowSearchConfig { owner_id } => self.show_search_config(owner_id),
-            Dispatch::UpdateSearchConfig { update, owner_id } => {
-                self.update_search_config(update, owner_id)?
+            Dispatch::UpdateLocalSearchConfig {
+                update,
+                owner_id,
+                scope,
+            } => self.update_local_search_config(update, owner_id, scope)?,
+            Dispatch::UpdateGlobalSearchConfig { owner_id, update } => {
+                self.update_global_search_config(owner_id, update)
+            }
+            Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                owner_id,
+                filter_glob,
+            } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob),
+            Dispatch::ShowSearchConfig { owner_id, scope } => {
+                self.show_search_config(owner_id, scope)
             }
         }
         Ok(())
@@ -1229,12 +1240,17 @@ impl<T: Frontend> App<T> {
 
     fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
-        let path = working_directory.clone().into();
+        let global_search_config = self.context.global_search_config();
+        let walk_builder_config = WalkBuilderConfig {
+            root: working_directory.clone().into(),
+            include: global_search_config.include.clone(),
+            exclude: global_search_config.exclude.clone(),
+        };
         let locations = match search.kind {
-            SearchKind::AstGrep => list::ast_grep::run(&search.search, path),
+            SearchKind::AstGrep => list::ast_grep::run(search.search, walk_builder_config),
             SearchKind::Literal => list::grep::run(
                 &search.search,
-                path,
+                walk_builder_config,
                 list::grep::GrepConfig {
                     escaped: true,
                     case_sensitive: false,
@@ -1243,7 +1259,7 @@ impl<T: Frontend> App<T> {
             ),
             SearchKind::LiteralCaseSensitive => list::grep::run(
                 &search.search,
-                path,
+                walk_builder_config,
                 list::grep::GrepConfig {
                     escaped: true,
                     case_sensitive: true,
@@ -1252,7 +1268,7 @@ impl<T: Frontend> App<T> {
             ),
             SearchKind::Regex => list::grep::run(
                 &search.search,
-                path,
+                walk_builder_config,
                 list::grep::GrepConfig {
                     escaped: false,
                     case_sensitive: false,
@@ -1261,7 +1277,7 @@ impl<T: Frontend> App<T> {
             ),
             SearchKind::RegexCaseSensitive => list::grep::run(
                 &search.search,
-                path,
+                walk_builder_config,
                 list::grep::GrepConfig {
                     escaped: false,
                     case_sensitive: true,
@@ -1269,8 +1285,12 @@ impl<T: Frontend> App<T> {
                 },
             ),
             SearchKind::Custom { mode } => match mode {
-                SearchConfigMode::Regex(regex) => list::grep::run(&search.search, path, regex),
-                SearchConfigMode::AstGrep => list::ast_grep::run(&search.search, path),
+                LocalSearchConfigMode::Regex(regex) => {
+                    list::grep::run(&search.search, walk_builder_config, regex)
+                }
+                LocalSearchConfigMode::AstGrep => {
+                    list::ast_grep::run(search.search, walk_builder_config)
+                }
             },
         }?;
         self.set_quickfix_list(
@@ -1659,27 +1679,107 @@ impl<T: Frontend> App<T> {
         &self.context
     }
 
-    fn show_search_config(&mut self, owner_id: ComponentId) {
+    fn update_local_search_config(
+        &mut self,
+        update: LocalSearchConfigUpdate,
+        owner_id: ComponentId,
+        scope: Scope,
+    ) -> Result<(), anyhow::Error> {
+        self.context.update_local_search_config(update, scope);
+        self.set_search(
+            Search {
+                kind: SearchKind::Custom {
+                    mode: self.context.local_search_config().mode,
+                },
+                search: self.context.local_search_config().search.to_string(),
+            },
+            Some(owner_id),
+        )?;
+        self.show_search_config(owner_id, scope);
+        Ok(())
+    }
+
+    fn update_global_search_config(
+        &mut self,
+        owner_id: ComponentId,
+        update: GlobalSearchConfigUpdate,
+    ) {
+        self.context.update_global_search_config(update);
+        self.show_search_config(owner_id, Scope::Global);
+    }
+
+    fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
+        self.components()
+            .into_iter()
+            .find(|component| component.borrow().id() == id)
+    }
+
+    fn open_set_global_search_filter_glob_prompt(
+        &mut self,
+        owner_id: ComponentId,
+        filter_glob: GlobalSearchFilterGlob,
+    ) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: format!("Set global search {:?} files glob", filter_glob),
+            history: Vec::new(),
+            initial_text: self
+                .context
+                .global_search_config()
+                .include
+                .clone()
+                .map(|glob| glob.to_string()),
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::UpdateGlobalSearchConfig {
+                    owner_id,
+                    update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
+                }]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+            enter_selects_first_matching_item: false,
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("[{}] {title}", if checked { "X" } else { " " })
         }
-        let config = self.context.search_config();
+        let global_search_confing = match scope {
+            Scope::Local => None,
+            Scope::Global => Some(self.context.global_search_config()),
+        };
+        let local_search_config = global_search_confing
+            .map(|config| config.local_config())
+            .unwrap_or_else(|| self.context.local_search_config());
         let update_keymap =
-            |key: &'static str, description: String, update: SearchConfigUpdate| -> Keymap {
+            |key: &'static str, description: String, update: LocalSearchConfigUpdate| -> Keymap {
                 Keymap::new(
                     key,
                     description,
-                    Dispatch::UpdateSearchConfig { update, owner_id },
+                    Dispatch::UpdateLocalSearchConfig {
+                        update,
+                        owner_id,
+                        scope,
+                    },
                 )
             };
-        let update_mode_keymap =
-            |key: &'static str, name: String, mode: SearchConfigMode, checked: bool| -> Keymap {
-                let description = show_checkbox(&name, checked);
-                update_keymap(key, description, SearchConfigUpdate::SetMode(mode))
-            };
-        let regex = match config.mode {
-            SearchConfigMode::Regex(regex) => Some(regex),
-            SearchConfigMode::AstGrep => None,
+        let update_mode_keymap = |key: &'static str,
+                                  name: String,
+                                  mode: LocalSearchConfigMode,
+                                  checked: bool|
+         -> Keymap {
+            let description = show_checkbox(&name, checked);
+            update_keymap(key, description, LocalSearchConfigUpdate::SetMode(mode))
+        };
+        let regex = match local_search_config.mode {
+            LocalSearchConfigMode::Regex(regex) => Some(regex),
+            LocalSearchConfigMode::AstGrep => None,
         };
         self.show_keymap_legend(KeymapLegendConfig {
             title: "Search Config (Local)".to_string(),
@@ -1687,14 +1787,59 @@ impl<T: Frontend> App<T> {
                 sections: [
                     KeymapLegendSection {
                         title: "Inputs".to_string(),
-                        keymaps: Keymaps::new(&[Keymap::new(
-                            "s",
-                            format!("Search: {}", config.search),
-                            Dispatch::OpenSearchPrompt(
-                                SearchKind::Custom { mode: config.mode },
-                                Scope::Local,
-                            ),
-                        )]),
+                        keymaps: Keymaps::new(
+                            &[Keymap::new(
+                                "s",
+                                format!("Search = {}", local_search_config.search),
+                                Dispatch::OpenSearchPrompt(
+                                    SearchKind::Custom {
+                                        mode: local_search_config.mode,
+                                    },
+                                    scope,
+                                ),
+                            )]
+                            .into_iter()
+                            .chain(
+                                global_search_confing
+                                    .map(|config| {
+                                        [
+                                            Keymap::new(
+                                                "i",
+                                                format!(
+                                                    "Include files (glob) = {}",
+                                                    config
+                                                        .include
+                                                        .as_ref()
+                                                        .map(|glob| glob.to_string())
+                                                        .unwrap_or_default()
+                                                ),
+                                                Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                                                    owner_id,
+                                                    filter_glob: GlobalSearchFilterGlob::Include,
+                                                },
+                                            ),
+                                            Keymap::new(
+                                                "e",
+                                                format!(
+                                                    "Exclude files (glob) = {}",
+                                                    config
+                                                        .exclude
+                                                        .as_ref()
+                                                        .map(|glob| glob.to_string())
+                                                        .unwrap_or_default()
+                                                ),
+                                                Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                                                    owner_id,
+                                                    filter_glob: GlobalSearchFilterGlob::Exclude,
+                                                },
+                                            ),
+                                        ]
+                                        .to_vec()
+                                    })
+                                    .unwrap_or_default(),
+                            )
+                            .collect_vec(),
+                        ),
                     },
                     KeymapLegendSection {
                         title: "Mode".to_string(),
@@ -1702,7 +1847,7 @@ impl<T: Frontend> App<T> {
                             update_mode_keymap(
                                 "l",
                                 "Literal".to_string(),
-                                SearchConfigMode::Regex(GrepConfig {
+                                LocalSearchConfigMode::Regex(GrepConfig {
                                     escaped: true,
                                     ..regex.unwrap_or_default()
                                 }),
@@ -1711,7 +1856,7 @@ impl<T: Frontend> App<T> {
                             update_mode_keymap(
                                 "x",
                                 "Regex".to_string(),
-                                SearchConfigMode::Regex(GrepConfig {
+                                LocalSearchConfigMode::Regex(GrepConfig {
                                     escaped: false,
                                     ..regex.unwrap_or_default()
                                 }),
@@ -1720,69 +1865,46 @@ impl<T: Frontend> App<T> {
                             update_mode_keymap(
                                 "a",
                                 "AST Grep".to_string(),
-                                SearchConfigMode::AstGrep,
-                                config.mode == SearchConfigMode::AstGrep,
+                                LocalSearchConfigMode::AstGrep,
+                                local_search_config.mode == LocalSearchConfigMode::AstGrep,
                             ),
                         ]),
                     },
                 ]
                 .into_iter()
-                .chain(if let Some(regex) = regex {
-                    Some(KeymapLegendSection {
+                .chain(regex.map(|regex| {
+                    KeymapLegendSection {
                         title: "Options".to_string(),
-                        keymaps: Keymaps::new(&[
-                            update_mode_keymap(
-                                "c",
-                                "Case-sensitive".to_string(),
-                                SearchConfigMode::Regex(GrepConfig {
-                                    case_sensitive: !regex.case_sensitive,
-                                    ..regex
-                                }),
-                                regex.case_sensitive,
-                            ),
-                            update_mode_keymap(
-                                "w",
-                                "Match whole word".to_string(),
-                                SearchConfigMode::Regex(GrepConfig {
-                                    match_whole_word: !regex.match_whole_word,
-                                    ..regex
-                                }),
-                                regex.match_whole_word,
-                            ),
-                        ]),
-                    })
-                } else {
-                    None
-                })
+                        keymaps: Keymaps::new(
+                            &[
+                                update_mode_keymap(
+                                    "c",
+                                    "Case-sensitive".to_string(),
+                                    LocalSearchConfigMode::Regex(GrepConfig {
+                                        case_sensitive: !regex.case_sensitive,
+                                        ..regex
+                                    }),
+                                    regex.case_sensitive,
+                                ),
+                                update_mode_keymap(
+                                    "w",
+                                    "Match whole word".to_string(),
+                                    LocalSearchConfigMode::Regex(GrepConfig {
+                                        match_whole_word: !regex.match_whole_word,
+                                        ..regex
+                                    }),
+                                    regex.match_whole_word,
+                                ),
+                            ]
+                            .into_iter()
+                            .collect_vec(),
+                        ),
+                    }
+                }))
                 .collect(),
             },
             owner_id,
         })
-    }
-
-    fn update_search_config(
-        &mut self,
-        update: SearchConfigUpdate,
-        owner_id: ComponentId,
-    ) -> Result<(), anyhow::Error> {
-        self.context.update_search_config(update);
-        self.set_search(
-            Search {
-                kind: SearchKind::Custom {
-                    mode: self.context.search_config().mode,
-                },
-                search: self.context.search_config().search.to_string(),
-            },
-            Some(owner_id),
-        )?;
-        self.show_search_config(owner_id);
-        Ok(())
-    }
-
-    fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
-        self.components()
-            .into_iter()
-            .find(|component| component.borrow().id() == id)
     }
 }
 
@@ -1916,18 +2038,39 @@ pub enum Dispatch {
         path: CanonicalizedPath,
     },
     GotoSelectionHistoryContiguous(Movement),
+    UpdateLocalSearchConfig {
+        owner_id: ComponentId,
+        update: LocalSearchConfigUpdate,
+        scope: Scope,
+    },
+    UpdateGlobalSearchConfig {
+        owner_id: ComponentId,
+        update: GlobalSearchConfigUpdate,
+    },
+    OpenSetGlobalSearchFilterGlobPrompt {
+        owner_id: ComponentId,
+        filter_glob: GlobalSearchFilterGlob,
+    },
     ShowSearchConfig {
         owner_id: ComponentId,
-    },
-    UpdateSearchConfig {
-        owner_id: ComponentId,
-        update: SearchConfigUpdate,
+        scope: Scope,
     },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SearchConfigUpdate {
-    SetMode(SearchConfigMode),
+pub enum GlobalSearchConfigUpdate {
+    SetGlob(GlobalSearchFilterGlob, String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub enum GlobalSearchFilterGlob {
+    Include,
+    Exclude,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LocalSearchConfigUpdate {
+    SetMode(LocalSearchConfigMode),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

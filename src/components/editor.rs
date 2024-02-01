@@ -1686,7 +1686,7 @@ impl Editor {
             }
             key!("g") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.find_global_keymap_legend_config(),
+                    self.find_global_keymap_legend_config(context),
                 )])
             }
             key!("h") => self.toggle_highlight_mode(),

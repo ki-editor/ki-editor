@@ -3,8 +3,10 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    app::{Dispatch, FilePickerKind, RequestParams, Scope},
-    context::{Context, Search, SearchKind},
+    app::{Dispatch, FilePickerKind, LocalSearchConfigUpdate, RequestParams, Scope},
+    components::keymap_legend::KeymapLegendSection,
+    context::{Context, LocalSearchConfigMode, Search, SearchKind},
+    list::grep::GrepConfig,
     quickfix_list::QuickfixListType,
     selection::{FilterKind, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
@@ -290,6 +292,7 @@ impl Editor {
                             "Search Panel".to_string(),
                             Dispatch::ShowSearchConfig {
                                 owner_id: self.id(),
+                                scope: Scope::Local,
                             },
                         ),
                     ]
@@ -388,7 +391,7 @@ impl Editor {
         )
     }
 
-    pub fn find_global_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub fn find_global_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         let scope = Scope::Global;
         KeymapLegendConfig {
             title: Self::find_submenu_title("", scope),
@@ -408,6 +411,14 @@ impl Editor {
                             "b",
                             "Bookmark".to_string(),
                             Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
+                        )))
+                        .chain(Some(Keymap::new(
+                            "z",
+                            "Search Panel".to_string(),
+                            Dispatch::ShowSearchConfig {
+                                owner_id: self.id(),
+                                scope: Scope::Global,
+                            },
                         )))
                         .collect_vec(),
                 ),

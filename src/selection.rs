@@ -603,10 +603,10 @@ impl SelectionMode {
                     },
                 )?),
                 SearchKind::Custom { mode } => match mode {
-                    crate::context::SearchConfigMode::Regex(regex) => {
+                    crate::context::LocalSearchConfigMode::Regex(regex) => {
                         Box::new(selection_mode::Regex::new(buffer, &search.search, regex)?)
                     }
-                    crate::context::SearchConfigMode::AstGrep => {
+                    crate::context::LocalSearchConfigMode::AstGrep => {
                         Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                     }
                 },
