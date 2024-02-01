@@ -45,31 +45,8 @@ impl GlobalMode {
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Search {
-    pub kind: SearchKind,
+    pub mode: LocalSearchConfigMode,
     pub search: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum SearchKind {
-    AstGrep,
-    Literal,
-    LiteralCaseSensitive,
-    Regex,
-    RegexCaseSensitive,
-    Custom { mode: LocalSearchConfigMode },
-}
-
-impl SearchKind {
-    pub fn display(&self) -> String {
-        match self {
-            SearchKind::AstGrep => "AST Grep".to_string(),
-            SearchKind::Literal => "Literal".to_string(),
-            SearchKind::LiteralCaseSensitive => "Literal (Case-sensitive)".to_string(),
-            SearchKind::Regex => "Regex".to_string(),
-            SearchKind::RegexCaseSensitive => "Regex (Case-sensitive)".to_string(),
-            SearchKind::Custom { mode } => mode.display(),
-        }
-    }
 }
 
 impl Default for Context {
@@ -255,7 +232,7 @@ pub enum LocalSearchConfigMode {
     AstGrep,
 }
 impl LocalSearchConfigMode {
-    fn display(&self) -> String {
+    pub fn display(&self) -> String {
         match self {
             LocalSearchConfigMode::Regex(regex) => regex.display(),
 

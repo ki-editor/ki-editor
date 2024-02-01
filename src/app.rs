@@ -24,7 +24,7 @@ use crate::{
         prompt::{Prompt, PromptConfig},
         suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
     },
-    context::{Context, GlobalMode, LocalSearchConfigMode, Search, SearchKind},
+    context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     frontend::frontend::Frontend,
     git,
     grid::Grid,
@@ -641,7 +641,7 @@ impl<T: Frontend> App<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_global_search_prompt(&mut self, search_kind: SearchKind) {
+    fn open_global_search_prompt(&mut self, search_kind: LocalSearchConfigMode) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: format!("Global search ({})", search_kind.display()),
@@ -657,7 +657,7 @@ impl<T: Frontend> App<T> {
             on_text_change: Box::new(|_, _| Ok(vec![])),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::GlobalSearch(Search {
-                    kind: search_kind,
+                    mode: search_kind,
                     search: text.to_string(),
                 })]
                 .to_vec())
@@ -668,7 +668,7 @@ impl<T: Frontend> App<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_local_search_prompt(&mut self, kind: SearchKind) {
+    fn open_local_search_prompt(&mut self, kind: LocalSearchConfigMode) {
         let current_component = self.current_component().clone();
         let owner_id = current_component
             .as_ref()
@@ -685,7 +685,7 @@ impl<T: Frontend> App<T> {
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 let search = Search {
-                    kind,
+                    mode: kind,
                     search: text.to_string(),
                 };
 
@@ -1246,52 +1246,13 @@ impl<T: Frontend> App<T> {
             include: global_search_config.include.clone(),
             exclude: global_search_config.exclude.clone(),
         };
-        let locations = match search.kind {
-            SearchKind::AstGrep => list::ast_grep::run(search.search, walk_builder_config),
-            SearchKind::Literal => list::grep::run(
-                &search.search,
-                walk_builder_config,
-                list::grep::GrepConfig {
-                    escaped: true,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                },
-            ),
-            SearchKind::LiteralCaseSensitive => list::grep::run(
-                &search.search,
-                walk_builder_config,
-                list::grep::GrepConfig {
-                    escaped: true,
-                    case_sensitive: true,
-                    match_whole_word: false,
-                },
-            ),
-            SearchKind::Regex => list::grep::run(
-                &search.search,
-                walk_builder_config,
-                list::grep::GrepConfig {
-                    escaped: false,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                },
-            ),
-            SearchKind::RegexCaseSensitive => list::grep::run(
-                &search.search,
-                walk_builder_config,
-                list::grep::GrepConfig {
-                    escaped: false,
-                    case_sensitive: true,
-                    match_whole_word: false,
-                },
-            ),
-            SearchKind::Custom { mode } => match mode {
-                LocalSearchConfigMode::Regex(regex) => {
-                    list::grep::run(&search.search, walk_builder_config, regex)
-                }
-                LocalSearchConfigMode::AstGrep => {
-                    list::ast_grep::run(search.search, walk_builder_config)
-                }
-            },
+        let locations = match search.mode {
+            LocalSearchConfigMode::Regex(regex) => {
+                list::grep::run(&search.search, walk_builder_config, regex)
+            }
+            LocalSearchConfigMode::AstGrep => {
+                list::ast_grep::run(search.search, walk_builder_config)
+            }
         }?;
         self.set_quickfix_list(
             ResponseContext::default().set_description("Global search"),
@@ -1688,9 +1649,7 @@ impl<T: Frontend> App<T> {
         self.context.update_local_search_config(update, scope);
         self.set_search(
             Search {
-                kind: SearchKind::Custom {
-                    mode: self.context.local_search_config().mode,
-                },
+                mode: self.context.local_search_config().mode,
                 search: self.context.local_search_config().search.to_string(),
             },
             Some(owner_id),
@@ -1791,12 +1750,7 @@ impl<T: Frontend> App<T> {
                             &[Keymap::new(
                                 "s",
                                 format!("Search = {}", local_search_config.search),
-                                Dispatch::OpenSearchPrompt(
-                                    SearchKind::Custom {
-                                        mode: local_search_config.mode,
-                                    },
-                                    scope,
-                                ),
+                                Dispatch::OpenSearchPrompt(local_search_config.mode, scope),
                             )]
                             .into_iter()
                             .chain(
@@ -1941,7 +1895,7 @@ pub enum Dispatch {
     },
     SetSearch(Search, Option<ComponentId>),
     OpenFilePicker(FilePickerKind),
-    OpenSearchPrompt(SearchKind, Scope),
+    OpenSearchPrompt(LocalSearchConfigMode, Scope),
     OpenFile {
         path: CanonicalizedPath,
     },

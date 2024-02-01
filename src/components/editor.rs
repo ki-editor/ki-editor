@@ -3,7 +3,7 @@ use crate::{
     buffer::Line,
     char_index_range::CharIndexRange,
     components::component::Cursor,
-    context::{Context, GlobalMode, Search, SearchKind},
+    context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
     selection::{Filter, FilterKind, FilterTarget, Filters},
@@ -1686,7 +1686,7 @@ impl Editor {
             }
             key!("g") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.find_global_keymap_legend_config(context),
+                    self.find_global_keymap_legend_config(),
                 )])
             }
             key!("h") => self.toggle_highlight_mode(),
@@ -2517,7 +2517,13 @@ impl Editor {
                     SelectionMode::Find {
                         search: Search {
                             search: c.to_string(),
-                            kind: SearchKind::LiteralCaseSensitive,
+                            mode: crate::context::LocalSearchConfigMode::Regex(
+                                crate::list::grep::GrepConfig {
+                                    escaped: true,
+                                    case_sensitive: true,
+                                    match_whole_word: false,
+                                },
+                            ),
                         },
                     },
                 )
@@ -2547,7 +2553,11 @@ impl Editor {
             context,
             SelectionMode::Find {
                 search: Search {
-                    kind: SearchKind::LiteralCaseSensitive,
+                    mode: LocalSearchConfigMode::Regex(crate::list::grep::GrepConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    }),
                     search: search.to_string(),
                 },
             },

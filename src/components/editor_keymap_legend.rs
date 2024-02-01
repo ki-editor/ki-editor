@@ -5,7 +5,7 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     app::{Dispatch, FilePickerKind, LocalSearchConfigUpdate, RequestParams, Scope},
     components::keymap_legend::KeymapLegendSection,
-    context::{Context, LocalSearchConfigMode, Search, SearchKind},
+    context::{Context, LocalSearchConfigMode, Search},
     list::grep::GrepConfig,
     quickfix_list::QuickfixListType,
     selection::{FilterKind, FilterTarget, SelectionMode},
@@ -125,63 +125,6 @@ impl Editor {
         }
     }
 
-    fn search_keymap(&self, scope: Scope) -> Keymap {
-        Keymap::new(
-            "s",
-            "Search".to_string(),
-            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: Self::find_submenu_title("Search", scope),
-                body: KeymapLegendBody::SingleSection {
-                    keymaps: Keymaps::new(
-                        &[
-                            ("a", "Ast Grep", SearchKind::AstGrep),
-                            ("l", "Literal", SearchKind::Literal),
-                            (
-                                "shift+L",
-                                "Literal (Case-sensitive)",
-                                SearchKind::LiteralCaseSensitive,
-                            ),
-                            ("r", "Regex", SearchKind::Regex),
-                            (
-                                "shift+R",
-                                "Regex (Case-sensitive)",
-                                SearchKind::RegexCaseSensitive,
-                            ),
-                        ]
-                        .into_iter()
-                        .map(|(key, description, kind)| {
-                            Keymap::new(
-                                key,
-                                description.to_string(),
-                                Dispatch::OpenSearchPrompt(kind, scope),
-                            )
-                        })
-                        .chain(
-                            self.current_selection()
-                                .map(|search| {
-                                    Keymap::new(
-                                        "c",
-                                        "Current selection".to_string(),
-                                        Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                            SelectionMode::Find {
-                                                search: Search {
-                                                    kind: SearchKind::RegexCaseSensitive,
-                                                    search: format!("\\b{search}\\b"),
-                                                },
-                                            },
-                                        )),
-                                    )
-                                })
-                                .ok(),
-                        )
-                        .collect_vec(),
-                    ),
-                },
-                owner_id: self.id(),
-            }),
-        )
-    }
-
     pub fn x_mode_keymap_legend_config(&self) -> anyhow::Result<KeymapLegendConfig> {
         Ok(KeymapLegendConfig {
             title: "X (Regex/Bracket/Quote)".to_string(),
@@ -288,8 +231,8 @@ impl Editor {
                             )),
                         ),
                         Keymap::new(
-                            "z",
-                            "Search Panel".to_string(),
+                            "s",
+                            "Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 owner_id: self.id(),
                                 scope: Scope::Local,
@@ -297,7 +240,6 @@ impl Editor {
                         ),
                     ]
                     .into_iter()
-                    .chain(Some(self.search_keymap(scope)))
                     .chain(Some(self.diagnostics_keymap(scope)))
                     .chain(Some(self.lsp_keymap(scope)))
                     .chain(context.last_search().map(|search| {
@@ -391,7 +333,7 @@ impl Editor {
         )
     }
 
-    pub fn find_global_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub fn find_global_keymap_legend_config(&self) -> KeymapLegendConfig {
         let scope = Scope::Global;
         KeymapLegendConfig {
             title: Self::find_submenu_title("", scope),
@@ -399,7 +341,6 @@ impl Editor {
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     &[].into_iter()
-                        .chain(Some(self.search_keymap(scope)))
                         .chain(Some(self.diagnostics_keymap(scope)))
                         .chain(Some(self.lsp_keymap(scope)))
                         .chain(Some(Keymap::new(
@@ -413,8 +354,8 @@ impl Editor {
                             Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
                         )))
                         .chain(Some(Keymap::new(
-                            "z",
-                            "Search Panel".to_string(),
+                            "s",
+                            "Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 owner_id: self.id(),
                                 scope: Scope::Global,
@@ -554,7 +495,11 @@ impl Editor {
                     .map(|(key, description, regex)| {
                         let search = Search {
                             search: regex.to_string(),
-                            kind: SearchKind::Regex,
+                            mode: LocalSearchConfigMode::Regex(GrepConfig {
+                                escaped: false,
+                                match_whole_word: false,
+                                case_sensitive: false,
+                            }),
                         };
                         let dispatch = Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                             SelectionMode::Find { search },

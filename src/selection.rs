@@ -12,7 +12,7 @@ use crate::{
         editor::{Direction, Movement},
         suggestive_editor::Info,
     },
-    context::{Context, Search, SearchKind},
+    context::{Context, LocalSearchConfigMode, Search},
     list::grep::GrepConfig,
     position::Position,
     selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
@@ -517,7 +517,7 @@ impl SelectionMode {
             SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
-                format!("FIND {} {:?}", search.kind.display(), search.search)
+                format!("FIND {} {:?}", search.mode.display(), search.search)
             }
             SelectionMode::Diagnostic(severity) => {
                 let severity = severity
@@ -562,54 +562,13 @@ impl SelectionMode {
             SelectionMode::Custom => {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
-            SelectionMode::Find { search } => match search.kind {
-                SearchKind::AstGrep => {
+            SelectionMode::Find { search } => match search.mode {
+                LocalSearchConfigMode::Regex(regex) => {
+                    Box::new(selection_mode::Regex::new(buffer, &search.search, regex)?)
+                }
+                LocalSearchConfigMode::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
-                SearchKind::Literal => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    GrepConfig {
-                        escaped: true,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    },
-                )?),
-                SearchKind::LiteralCaseSensitive => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    GrepConfig {
-                        escaped: true,
-                        case_sensitive: true,
-                        match_whole_word: false,
-                    },
-                )?),
-                SearchKind::Regex => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    GrepConfig {
-                        escaped: false,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    },
-                )?),
-                SearchKind::RegexCaseSensitive => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    GrepConfig {
-                        escaped: false,
-                        case_sensitive: true,
-                        match_whole_word: false,
-                    },
-                )?),
-                SearchKind::Custom { mode } => match mode {
-                    crate::context::LocalSearchConfigMode::Regex(regex) => {
-                        Box::new(selection_mode::Regex::new(buffer, &search.search, regex)?)
-                    }
-                    crate::context::LocalSearchConfigMode::AstGrep => {
-                        Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
-                    }
-                },
             },
             SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
             SelectionMode::TopNode => Box::new(selection_mode::TopNode),
