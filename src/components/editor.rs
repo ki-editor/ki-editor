@@ -1,12 +1,12 @@
 use crate::{
-    app::{FilePickerKind, RequestParams, Scope},
+    app::{RequestParams, Scope},
     buffer::Line,
     char_index_range::CharIndexRange,
     components::component::Cursor,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
-    selection::{Filter, FilterKind, FilterTarget, Filters},
+    selection::{Filter, Filters},
     selection_mode::{self, inside::InsideKind, ByteRange},
     soft_wrap,
 };
@@ -34,14 +34,12 @@ use crate::{
     grid::Grid,
     lsp::completion::PositionalEdit,
     position::Position,
-    quickfix_list::QuickfixListType,
     rectangle::Rectangle,
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
 use super::{
     component::{ComponentId, GetGridResult},
-    keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps},
     suggestive_editor::Info,
 };
 
