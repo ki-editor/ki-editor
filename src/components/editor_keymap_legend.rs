@@ -83,7 +83,7 @@ impl Editor {
                         ("c", "camelCase", Case::Camel),
                         ("l", "lowercase", Case::Lower),
                         ("k", "kebab-case", Case::Kebab),
-                        ("shift+K", "Upper-Kebab", Case::UpperKebab),
+                        ("K", "Upper-Kebab", Case::UpperKebab),
                         ("p", "PascalCase", Case::Pascal),
                         ("s", "snake_case", Case::Snake),
                         ("m", "MARCO_CASE", Case::UpperSnake),
@@ -157,12 +157,12 @@ impl Editor {
         })
     }
 
-    fn diagnostics_keymap(&self, scope: Scope) -> Keymap {
+    fn diagnostics_keymap(&self, scope: Scope) -> KeymapLegendSection {
         let keymaps = [
             ("a", "Any", None),
             ("e", "Error", Some(DiagnosticSeverity::ERROR)),
             ("h", "Hint", Some(DiagnosticSeverity::HINT)),
-            ("i", "Information", Some(DiagnosticSeverity::INFORMATION)),
+            ("I", "Information", Some(DiagnosticSeverity::INFORMATION)),
             ("w", "Warning", Some(DiagnosticSeverity::WARNING)),
         ]
         .into_iter()
@@ -182,17 +182,10 @@ impl Editor {
             )
         })
         .collect_vec();
-        Keymap::new(
-            "d",
-            "Diagnostics".to_string(),
-            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: Self::find_submenu_title("Diagnostic", scope),
-                body: KeymapLegendBody::SingleSection {
-                    keymaps: Keymaps::new(&keymaps),
-                },
-                owner_id: self.id(),
-            }),
-        )
+        KeymapLegendSection {
+            title: "Diagnostics".to_string(),
+            keymaps: Keymaps::new(&keymaps),
+        }
     }
 
     pub fn find_local_keymap_legend_config(
@@ -204,60 +197,73 @@ impl Editor {
         Ok(KeymapLegendConfig {
             title: Self::find_submenu_title("", scope),
             owner_id,
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &[
-                        Keymap::new(
-                            "b",
-                            "Bookmark".to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                SelectionMode::Bookmark,
-                            )),
-                        ),
-                        Keymap::new(
-                            "g",
-                            "Git hunk".to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                SelectionMode::GitHunk,
-                            )),
-                        ),
-                        Keymap::new(
-                            "q",
-                            "Quickfix list (current)".to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                SelectionMode::LocalQuickfix {
-                                    title: "LOCAL QUICKFIX".to_string(),
-                                },
-                            )),
-                        ),
-                        Keymap::new(
-                            "s",
-                            "Search".to_string(),
-                            Dispatch::ShowSearchConfig {
-                                owner_id: self.id(),
-                                scope: Scope::Local,
+            body: KeymapLegendBody::MultipleSections {
+                sections: Some(KeymapLegendSection {
+                    title: "Misc".to_string(),
+                    keymaps: Keymaps::new(
+                        &[
+                            Keymap::new(
+                                "b",
+                                "Bookmark".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                    SelectionMode::Bookmark,
+                                )),
+                            ),
+                            Keymap::new(
+                                "g",
+                                "Git hunk".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                    SelectionMode::GitHunk,
+                                )),
+                            ),
+                            Keymap::new(
+                                "q",
+                                "Quickfix list (current)".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                    SelectionMode::LocalQuickfix {
+                                        title: "LOCAL QUICKFIX".to_string(),
+                                    },
+                                )),
+                            ),
+                            {
+                                let mode = context.local_search_config().mode.clone();
+                                Keymap::new(
+                                    "f",
+                                    format!("Search ({})", mode.display()),
+                                    Dispatch::OpenSearchPrompt(mode, Scope::Local),
+                                )
                             },
-                        ),
-                    ]
-                    .into_iter()
-                    .chain(Some(self.diagnostics_keymap(scope)))
-                    .chain(Some(self.lsp_keymap(scope)))
-                    .chain(context.last_search().map(|search| {
-                        Keymap::new(
-                            "f",
-                            "Enter Find Mode (using previous search)".to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                SelectionMode::Find { search },
-                            )),
-                        )
-                    }))
-                    .collect_vec(),
-                ),
+                            Keymap::new(
+                                "F",
+                                "Search Config".to_string(),
+                                Dispatch::ShowSearchConfig {
+                                    owner_id: self.id(),
+                                    scope: Scope::Local,
+                                },
+                            ),
+                        ]
+                        .into_iter()
+                        .chain(context.last_search().map(|search| {
+                            Keymap::new(
+                                "f",
+                                "Enter Find Mode (using previous search)".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                    SelectionMode::Find { search },
+                                )),
+                            )
+                        }))
+                        .collect_vec(),
+                    ),
+                })
+                .into_iter()
+                .chain(Some(self.diagnostics_keymap(scope)))
+                .chain(Some(self.lsp_keymap(scope)))
+                .collect_vec(),
             },
         })
     }
 
-    fn lsp_keymap(&self, scope: Scope) -> Keymap {
+    fn lsp_keymap(&self, scope: Scope) -> KeymapLegendSection {
         let keymaps = Keymaps::new(
             &self
                 .get_request_params()
@@ -294,7 +300,7 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            "shift+R",
+                            "R",
                             "References (include declaration)".to_string(),
                             Dispatch::RequestReferences {
                                 params: params
@@ -322,47 +328,49 @@ impl Editor {
                 .unwrap_or_default(),
         );
 
-        Keymap::new(
-            "l",
-            "LSP".to_string(),
-            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: Self::find_submenu_title("LSP", scope),
-                body: KeymapLegendBody::SingleSection { keymaps },
-                owner_id: self.id(),
-            }),
-        )
+        KeymapLegendSection {
+            title: "LSP".to_string(),
+            keymaps,
+        }
     }
 
-    pub fn find_global_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub fn find_global_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         let scope = Scope::Global;
         KeymapLegendConfig {
             title: Self::find_submenu_title("", scope),
             owner_id: self.id(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &[].into_iter()
-                        .chain(Some(self.diagnostics_keymap(scope)))
-                        .chain(Some(self.lsp_keymap(scope)))
-                        .chain(Some(Keymap::new(
-                            "g",
-                            "Git Hunk".to_string(),
-                            Dispatch::GetRepoGitHunks,
-                        )))
-                        .chain(Some(Keymap::new(
-                            "b",
-                            "Bookmark".to_string(),
-                            Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
-                        )))
-                        .chain(Some(Keymap::new(
-                            "s",
-                            "Search".to_string(),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [KeymapLegendSection {
+                    title: "Misc".to_string(),
+                    keymaps: Keymaps::new(&[
+                        {
+                            let mode = context.local_search_config().mode;
+                            Keymap::new(
+                                "f",
+                                format!("Search ({})", mode.display()),
+                                Dispatch::OpenSearchPrompt(mode, Scope::Global),
+                            )
+                        },
+                        Keymap::new(
+                            "F",
+                            "Search Config".to_string(),
                             Dispatch::ShowSearchConfig {
                                 owner_id: self.id(),
                                 scope: Scope::Global,
                             },
-                        )))
-                        .collect_vec(),
-                ),
+                        ),
+                        Keymap::new("g", "Git Hunk".to_string(), Dispatch::GetRepoGitHunks),
+                        Keymap::new(
+                            "b",
+                            "Bookmark".to_string(),
+                            Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
+                        ),
+                    ]),
+                }]
+                .into_iter()
+                .chain(Some(self.diagnostics_keymap(scope)))
+                .chain(Some(self.lsp_keymap(scope)))
+                .collect_vec(),
             },
         }
     }

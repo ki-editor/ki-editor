@@ -43,7 +43,7 @@ impl Keymaps {
         // Align the keys columns and the dispatch columns
         self.0
             .iter()
-            .sorted_by_key(|keymap| keymap.key)
+            .sorted_by_key(|keymap| keymap.key.to_lowercase())
             .map(|keymap| {
                 format!(
                     "{}{:<width$} {}",

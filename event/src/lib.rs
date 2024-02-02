@@ -23,14 +23,20 @@ pub fn parse_key_event(input: &str) -> Result<KeyEvent, ParseError> {
 impl Token {
     fn to_key_event(self) -> Result<KeyEvent, ParseError> {
         match self.0.split('+').collect::<Vec<_>>().split_last() {
-            Some((key, modifiers)) => Ok(KeyEvent::new(
-                Token::parse_key_code(key)?,
-                Token::parse_modifiers(modifiers)?,
-            )),
-            _ => Ok(KeyEvent::new(
-                Token::parse_key_code(&self.0)?,
-                KeyModifiers::None,
-            )),
+            Some((key, modifiers)) => {
+                let result = Token::parse_key_code(key)?;
+                Ok(KeyEvent::new(
+                    result.key_code,
+                    Token::parse_modifiers(modifiers)?.add_shift(result.shift),
+                ))
+            }
+            _ => {
+                let result = Token::parse_key_code(&self.0)?;
+                Ok(KeyEvent::new(
+                    result.key_code,
+                    KeyModifiers::None.add_shift(result.shift),
+                ))
+            }
         }
     }
 
@@ -52,26 +58,46 @@ impl Token {
         }
     }
 
-    fn parse_key_code(s: &str) -> Result<KeyCode, ParseError> {
+    fn parse_key_code(s: &str) -> Result<ParseKeyCodeResult, ParseError> {
         match s {
-            "enter" => Ok(KeyCode::Enter),
-            "esc" => Ok(KeyCode::Esc),
-            "backspace" => Ok(KeyCode::Backspace),
-            "left" => Ok(KeyCode::Left),
-            "right" => Ok(KeyCode::Right),
-            "up" => Ok(KeyCode::Up),
-            "down" => Ok(KeyCode::Down),
-            "home" => Ok(KeyCode::Home),
-            "end" => Ok(KeyCode::End),
-            "pageup" => Ok(KeyCode::PageUp),
-            "pagedown" => Ok(KeyCode::PageDown),
-            "tab" => Ok(KeyCode::Tab),
-            "backtab" => Ok(KeyCode::BackTab),
-            "delete" => Ok(KeyCode::Delete),
-            "insert" => Ok(KeyCode::Insert),
-            "space" => Ok(KeyCode::Char(' ')),
-            _ if s.len() == 1 => Ok(KeyCode::Char(s.chars().next().unwrap())),
+            "enter" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Enter)),
+            "esc" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Esc)),
+            "backspace" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Backspace)),
+            "left" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Left)),
+            "right" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Right)),
+            "up" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Up)),
+            "down" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Down)),
+            "home" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Home)),
+            "end" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::End)),
+            "pageup" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::PageUp)),
+            "pagedown" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::PageDown)),
+            "tab" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Tab)),
+            "backtab" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::BackTab)),
+            "delete" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Delete)),
+            "insert" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Insert)),
+            "space" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Char(' '))),
+            _ if s.len() == 1 => {
+                let c = s.chars().next().unwrap();
+                Ok(ParseKeyCodeResult {
+                    key_code: KeyCode::Char(c),
+                    shift: c.is_uppercase(),
+                })
+            }
             _ => Err(ParseError::UnknownKeyCode(s.to_string())),
+        }
+    }
+}
+
+struct ParseKeyCodeResult {
+    key_code: KeyCode,
+    shift: bool,
+}
+
+impl ParseKeyCodeResult {
+    fn from_key_code(key_code: KeyCode) -> Self {
+        Self {
+            key_code,
+            shift: false,
         }
     }
 }
@@ -105,6 +131,14 @@ mod test_key_event {
             parse_key_events("a").unwrap(),
             vec![KeyEvent::new(KeyCode::Char('a'), KeyModifiers::None)]
         );
+    }
+
+    #[test]
+    fn uppercase_char_should_have_shift() {
+        assert_eq!(
+            parse_key_events("A").unwrap(),
+            vec![KeyEvent::new(KeyCode::Char('A'), KeyModifiers::Shift)]
+        )
     }
 
     #[test]

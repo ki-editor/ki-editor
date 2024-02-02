@@ -69,6 +69,22 @@ pub enum KeyModifiers {
     CtrlAltShift,
     Unknown,
 }
+impl KeyModifiers {
+    pub(crate) fn add_shift(self, shift: bool) -> KeyModifiers {
+        use KeyModifiers::*;
+        if !shift {
+            return self;
+        }
+        match self {
+            None => Shift,
+            Ctrl => CtrlShift,
+            Alt => AltShift,
+            CtrlAlt => CtrlAltShift,
+            Unknown => Shift,
+            _ => self,
+        }
+    }
+}
 
 impl From<crossterm::event::KeyModifiers> for KeyModifiers {
     fn from(value: crossterm::event::KeyModifiers) -> Self {
