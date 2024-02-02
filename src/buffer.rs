@@ -1,10 +1,11 @@
 use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
+    context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
-    selection_mode::ByteRange,
+    selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlighedSpan, HighlighedSpans},
     themes::Theme,
     undo_tree::{Applicable, OldNew, UndoTree},
@@ -849,6 +850,49 @@ impl Buffer {
 
         pairs
     }
+
+    pub fn replace(
+        &mut self,
+        config: LocalSearchConfig,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<SelectionSet> {
+        let original = self.rope.to_string();
+        let edit_transaction = match config.mode {
+            LocalSearchConfigMode::Regex(regex_config) => {
+                let regex = regex_config.to_regex(&config.search)?;
+                let replaced = regex
+                    .replace_all(&original, config.replace.clone())
+                    .to_string();
+                self.get_edit_transaction(&replaced)?
+            }
+            LocalSearchConfigMode::AstGrep => {
+                let edits = AstGrep::replace(
+                    self.treesitter_language(),
+                    &original,
+                    &config.search,
+                    &config.replace,
+                )?;
+                EditTransaction::from_action_groups(
+                    edits
+                        .into_iter()
+                        .map(|edit| -> anyhow::Result<ActionGroup> {
+                            let start = self.byte_to_char(edit.position)?;
+                            let end = start + edit.deleted_length;
+
+                            Ok(ActionGroup::new(
+                                [Action::Edit(Edit {
+                                    range: (start..end).into(),
+                                    new: String::from_utf8(edit.inserted_text)?.into(),
+                                })]
+                                .to_vec(),
+                            ))
+                        })
+                        .try_collect()?,
+                )
+            }
+        };
+        self.apply_edit_transaction(&edit_transaction, current_selection_set)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -953,6 +997,78 @@ fn f(
 
         // Should return unique words
         assert_eq!(words, vec!["bar", "baz"]);
+    }
+
+    mod replace {
+        use grammar::grammar::get_language;
+
+        use crate::{
+            context::{
+                LocalSearchConfig,
+                LocalSearchConfigMode::{AstGrep, Regex},
+            },
+            list::grep::RegexConfig,
+        };
+
+        use super::*;
+        fn test(input: &str, config: LocalSearchConfig, expected: &str) -> anyhow::Result<()> {
+            let mut buffer = Buffer::new(
+                shared::language::from_extension("rs")
+                    .unwrap()
+                    .tree_sitter_language()
+                    .unwrap(),
+                input,
+            );
+            buffer.replace(config, SelectionSet::default())?;
+            assert_eq!(buffer.content(), expected);
+            Ok(())
+        }
+        #[test]
+        fn literal_1() -> anyhow::Result<()> {
+            test(
+                "hel. help hel.o",
+                LocalSearchConfig {
+                    mode: Regex(RegexConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    }),
+                    search: "hel.".to_string(),
+                    replace: "wow".to_string(),
+                },
+                "wow help wowo",
+            )
+        }
+
+        #[test]
+        fn regex_capture_group() -> anyhow::Result<()> {
+            test(
+                "123x456",
+                LocalSearchConfig {
+                    mode: Regex(RegexConfig {
+                        escaped: false,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    }),
+                    search: r"(\d+)".to_string(),
+                    replace: r"($1)".to_string(),
+                },
+                "(123)x(456)",
+            )
+        }
+
+        #[test]
+        fn ast_group_1() -> anyhow::Result<()> {
+            test(
+                "fn main() { replace(x + 1, f(2)); replace(a,b) }",
+                LocalSearchConfig {
+                    mode: AstGrep,
+                    search: r"replace($X,$Y)".to_string(),
+                    replace: r"replace($Y,$X)".to_string(),
+                },
+                "fn main() { replace(f(2),x + 1); replace(b,a) }",
+            )
+        }
     }
 
     mod auto_format {

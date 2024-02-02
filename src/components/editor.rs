@@ -1308,7 +1308,7 @@ impl Editor {
             DispatchEditor::Paste => return self.paste(context),
             DispatchEditor::SelectAll => self.select_all(context)?,
             DispatchEditor::SetContent(content) => self.update_buffer(&content),
-            DispatchEditor::Replace => return self.replace(context),
+            DispatchEditor::ReplaceSelectionWithCopiedText => return self.replace(context),
             DispatchEditor::Cut => return self.cut(),
             DispatchEditor::ToggleHighlightMode => self.toggle_highlight_mode(),
             DispatchEditor::EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
@@ -1330,6 +1330,12 @@ impl Editor {
             DispatchEditor::Raise => return self.raise(context),
             DispatchEditor::Exchange(movement) => return self.exchange(&context, movement),
             DispatchEditor::EnterExchangeMode => self.enter_exchange_mode(),
+            DispatchEditor::Replace { config } => {
+                let selection_set = self.selection_set.clone();
+                let selection_set = self.buffer_mut().replace(config, selection_set)?;
+                self.update_selection_set(selection_set);
+                return Ok(self.get_document_did_change_dispatch());
+            }
         }
         Ok([].to_vec())
     }
@@ -2516,7 +2522,7 @@ impl Editor {
                         search: Search {
                             search: c.to_string(),
                             mode: crate::context::LocalSearchConfigMode::Regex(
-                                crate::list::grep::GrepConfig {
+                                crate::list::grep::RegexConfig {
                                     escaped: true,
                                     case_sensitive: true,
                                     match_whole_word: false,
@@ -2551,7 +2557,7 @@ impl Editor {
             context,
             SelectionMode::Find {
                 search: Search {
-                    mode: LocalSearchConfigMode::Regex(crate::list::grep::GrepConfig {
+                    mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
                         escaped: true,
                         case_sensitive: false,
                         match_whole_word: false,
@@ -2801,7 +2807,7 @@ pub enum DispatchEditor {
     MoveSelection(Movement),
     Copy,
     Cut,
-    Replace,
+    ReplaceSelectionWithCopiedText,
     Paste,
     SelectAll,
     SetContent(String),
@@ -2820,4 +2826,7 @@ pub enum DispatchEditor {
     CursorAddToAllSelections,
     CursorKeepPrimaryOnly,
     Raise,
+    Replace {
+        config: crate::context::LocalSearchConfig,
+    },
 }

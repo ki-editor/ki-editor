@@ -1,14 +1,16 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+use ast_grep_core::language::TSLanguage;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::Clipboard,
-    list::grep::GrepConfig,
+    list::grep::RegexConfig,
     lsp::diagnostic::Diagnostic,
     quickfix_list::{QuickfixListItem, QuickfixLists},
+    selection_mode::AstGrep,
     syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
@@ -212,6 +214,13 @@ impl Context {
         };
         Ok(())
     }
+
+    pub(crate) fn get_local_search_config(&self, scope: Scope) -> &LocalSearchConfig {
+        match scope {
+            Scope::Local => &self.local_search_config,
+            Scope::Global => &self.global_search_config.local_config,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -228,7 +237,7 @@ impl GlobalSearchConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub enum LocalSearchConfigMode {
-    Regex(GrepConfig),
+    Regex(RegexConfig),
     AstGrep,
 }
 impl LocalSearchConfigMode {
@@ -247,7 +256,7 @@ impl Default for LocalSearchConfigMode {
     }
 }
 
-impl GrepConfig {
+impl RegexConfig {
     fn display(&self) -> String {
         format!(
             "{}{}",
@@ -274,16 +283,19 @@ fn parenthesize(values: Vec<String>) -> String {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct LocalSearchConfig {
     pub mode: LocalSearchConfigMode,
     pub search: String,
+    pub replace: String,
 }
 
 impl LocalSearchConfig {
     fn update(&mut self, update: LocalSearchConfigUpdate) {
         match update {
             LocalSearchConfigUpdate::SetMode(mode) => self.mode = mode,
+            LocalSearchConfigUpdate::SetReplace(replace) => self.replace = replace,
+            LocalSearchConfigUpdate::SetSearch(search) => self.set_search(search),
         }
     }
 

@@ -29,7 +29,7 @@ use crate::{
     git,
     grid::Grid,
     layout::Layout,
-    list::{self, grep::GrepConfig, WalkBuilderConfig},
+    list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
         completion::CompletionItem,
         diagnostic::Diagnostic,
@@ -566,6 +566,18 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowSearchConfig { owner_id, scope } => {
                 self.show_search_config(owner_id, scope)
             }
+            Dispatch::OpenUpdateSearchReplacePrompt { owner_id, scope } => {
+                self.open_update_search_replace_prompt(owner_id, scope)
+            }
+            Dispatch::OpenUpdateSearchPrompt { owner_id, scope } => {
+                self.open_update_search_prompt(owner_id, scope)
+            }
+            Dispatch::Replace { owner_id, scope } => match scope {
+                Scope::Local => self.handle_dispatch_editor(DispatchEditor::Replace {
+                    config: self.context.local_search_config().clone(),
+                })?,
+                Scope::Global => todo!(),
+            },
         }
         Ok(())
     }
@@ -704,18 +716,7 @@ impl<T: Frontend> App<T> {
                 // .to_vec())
                 Ok(Default::default())
             }),
-            items: current_component
-                .map(|current_component| {
-                    current_component
-                        .borrow()
-                        .editor()
-                        .buffer()
-                        .words()
-                        .into_iter()
-                        .map(CompletionItem::from_label)
-                        .collect_vec()
-                })
-                .unwrap_or_default(),
+            items: self.words(),
             enter_selects_first_matching_item: false,
         });
 
@@ -1707,7 +1708,7 @@ impl<T: Frontend> App<T> {
 
     fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
         fn show_checkbox(title: &str, checked: bool) -> String {
-            format!("[{}] {title}", if checked { "X" } else { " " })
+            format!("{title} [{}]", if checked { "X" } else { " " })
         }
         let global_search_confing = match scope {
             Scope::Local => None,
@@ -1741,17 +1742,30 @@ impl<T: Frontend> App<T> {
             LocalSearchConfigMode::AstGrep => None,
         };
         self.show_keymap_legend(KeymapLegendConfig {
-            title: "Search Config (Local)".to_string(),
+            title: format!("Search Config ({:?})", scope),
             body: KeymapLegendBody::MultipleSections {
                 sections: [
                     KeymapLegendSection {
                         title: "Inputs".to_string(),
                         keymaps: Keymaps::new(
-                            &[Keymap::new(
-                                "s",
-                                format!("Search = {}", local_search_config.search),
-                                Dispatch::OpenSearchPrompt(local_search_config.mode, scope),
-                            )]
+                            &[
+                                Keymap::new(
+                                    "s",
+                                    format!("Search = {}", local_search_config.search),
+                                    Dispatch::OpenUpdateSearchPrompt {
+                                        owner_id,
+                                        scope: Scope::Local,
+                                    },
+                                ),
+                                Keymap::new(
+                                    "r",
+                                    format!("Replace = {}", local_search_config.replace),
+                                    Dispatch::OpenUpdateSearchReplacePrompt {
+                                        owner_id,
+                                        scope: Scope::Local,
+                                    },
+                                ),
+                            ]
                             .into_iter()
                             .chain(
                                 global_search_confing
@@ -1801,7 +1815,7 @@ impl<T: Frontend> App<T> {
                             update_mode_keymap(
                                 "l",
                                 "Literal".to_string(),
-                                LocalSearchConfigMode::Regex(GrepConfig {
+                                LocalSearchConfigMode::Regex(RegexConfig {
                                     escaped: true,
                                     ..regex.unwrap_or_default()
                                 }),
@@ -1810,7 +1824,7 @@ impl<T: Frontend> App<T> {
                             update_mode_keymap(
                                 "x",
                                 "Regex".to_string(),
-                                LocalSearchConfigMode::Regex(GrepConfig {
+                                LocalSearchConfigMode::Regex(RegexConfig {
                                     escaped: false,
                                     ..regex.unwrap_or_default()
                                 }),
@@ -1824,6 +1838,14 @@ impl<T: Frontend> App<T> {
                             ),
                         ]),
                     },
+                    KeymapLegendSection {
+                        title: "Actions".to_string(),
+                        keymaps: Keymaps::new(&[Keymap::new(
+                            "R",
+                            "Replace all".to_string(),
+                            Dispatch::Replace { owner_id, scope },
+                        )]),
+                    },
                 ]
                 .into_iter()
                 .chain(regex.map(|regex| {
@@ -1834,7 +1856,7 @@ impl<T: Frontend> App<T> {
                                 update_mode_keymap(
                                     "c",
                                     "Case-sensitive".to_string(),
-                                    LocalSearchConfigMode::Regex(GrepConfig {
+                                    LocalSearchConfigMode::Regex(RegexConfig {
                                         case_sensitive: !regex.case_sensitive,
                                         ..regex
                                     }),
@@ -1843,7 +1865,7 @@ impl<T: Frontend> App<T> {
                                 update_mode_keymap(
                                     "w",
                                     "Match whole word".to_string(),
-                                    LocalSearchConfigMode::Regex(GrepConfig {
+                                    LocalSearchConfigMode::Regex(RegexConfig {
                                         match_whole_word: !regex.match_whole_word,
                                         ..regex
                                     }),
@@ -1859,6 +1881,69 @@ impl<T: Frontend> App<T> {
             },
             owner_id,
         })
+    }
+
+    fn open_update_search_replace_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: format!("Set Replace ({:?})", scope),
+            history: Vec::new(),
+            initial_text: Some(self.context.get_local_search_config(scope).replace.clone()),
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::UpdateLocalSearchConfig {
+                    owner_id,
+                    scope,
+                    update: LocalSearchConfigUpdate::SetReplace(text.to_owned()),
+                }]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: Vec::new(),
+            enter_selects_first_matching_item: false,
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn open_update_search_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(PromptConfig {
+            title: format!("Set Search ({:?})", scope),
+            history: Vec::new(),
+            initial_text: Some(self.context.get_local_search_config(scope).replace.clone()),
+            owner: current_component.clone(),
+            on_enter: Box::new(move |text, _| {
+                Ok([Dispatch::UpdateLocalSearchConfig {
+                    owner_id,
+                    scope,
+                    update: LocalSearchConfigUpdate::SetSearch(text.to_owned()),
+                }]
+                .to_vec())
+            }),
+            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            items: self.words(),
+            enter_selects_first_matching_item: false,
+        });
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+    }
+
+    fn words(&self) -> Vec<CompletionItem> {
+        self.current_component()
+            .map(|current_component| {
+                current_component
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .words()
+                    .into_iter()
+                    .map(CompletionItem::from_label)
+                    .collect_vec()
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -2009,6 +2094,18 @@ pub enum Dispatch {
         owner_id: ComponentId,
         scope: Scope,
     },
+    OpenUpdateSearchReplacePrompt {
+        owner_id: ComponentId,
+        scope: Scope,
+    },
+    OpenUpdateSearchPrompt {
+        owner_id: ComponentId,
+        scope: Scope,
+    },
+    Replace {
+        owner_id: ComponentId,
+        scope: Scope,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2025,6 +2122,8 @@ pub enum GlobalSearchFilterGlob {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LocalSearchConfigUpdate {
     SetMode(LocalSearchConfigMode),
+    SetReplace(String),
+    SetSearch(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

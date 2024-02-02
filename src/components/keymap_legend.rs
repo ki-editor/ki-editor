@@ -47,7 +47,12 @@ impl Keymaps {
 
         let key_description_gap = 2;
         let column_gap = key_description_gap * 2;
-        let column_width = max_key_width + key_description_gap + max_description_width + column_gap;
+        let key_surrounding_width = 2;
+        let column_width = max_key_width
+            + key_description_gap
+            + key_surrounding_width
+            + max_description_width
+            + column_gap;
 
         let column_count = width / column_width;
 
@@ -59,12 +64,12 @@ impl Keymaps {
                 format!(
                     "{}{:<width$}{}",
                     " ".repeat(indent),
-                    keymap.key,
+                    format!("({})", keymap.key),
                     keymap.description,
-                    width = (max_key_width + key_description_gap)
+                    width = (max_key_width + key_description_gap + key_surrounding_width - 1)
                 )
             })
-            .chunks(column_count)
+            .chunks(column_count.max(1)) // At least 1, otherwise `chunks` will panic
             .into_iter()
             .map(|chunks| {
                 chunks
@@ -258,11 +263,10 @@ mod test_keymap_legend {
         );
         let actual = keymaps.display(0, 16 * 4).trim().to_string();
         let expected = "
-a  Aloha          b  Bomb           c  Caterpillar    
-d  D              e  Elephant       f  Fis            
-g  Gogagg         
-"
-        .trim();
+(a) Aloha           (b) Bomb            (c) Caterpillar     
+(d) D               (e) Elephant        (f) Fis             
+(g) Gogagg"
+            .trim();
         assert_eq!(actual, expected)
     }
 

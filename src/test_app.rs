@@ -93,12 +93,12 @@ mod test_app {
                 SetSelectionMode(SelectionMode::BottomNode),
                 Copy,
                 MoveSelection(Movement::Next),
-                Replace,
+                ReplaceSelectionWithCopiedText,
             ])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn fn() { let x = 1; }");
 
-            app.handle_dispatch_editors(&[Replace])?;
+            app.handle_dispatch_editors(&[ReplaceSelectionWithCopiedText])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn main() { let x = 1; }");
             assert_eq!(app.get_selected_texts(&path_main), vec!["main"]);
@@ -252,7 +252,7 @@ mod test_app {
                 vec!["{ let x = S(a); let y = S(b); }"]
             );
 
-            app.handle_dispatch_editors(&[Replace])?;
+            app.handle_dispatch_editors(&[ReplaceSelectionWithCopiedText])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn f()fn f()");
 

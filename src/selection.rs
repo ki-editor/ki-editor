@@ -13,7 +13,7 @@ use crate::{
         suggestive_editor::Info,
     },
     context::{Context, LocalSearchConfigMode, Search},
-    list::grep::GrepConfig,
+    list::grep::RegexConfig,
     position::Position,
     selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
 };

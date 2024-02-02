@@ -16,13 +16,18 @@ pub struct Match {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub struct GrepConfig {
+pub struct RegexConfig {
     pub escaped: bool,
     pub case_sensitive: bool,
     pub match_whole_word: bool,
 }
+impl RegexConfig {
+    pub(crate) fn to_regex(&self, pattern: &str) -> Result<Regex, anyhow::Error> {
+        get_regex(pattern, &self)
+    }
+}
 
-impl Default for GrepConfig {
+impl Default for RegexConfig {
     fn default() -> Self {
         Self {
             escaped: true,
@@ -35,13 +40,12 @@ impl Default for GrepConfig {
 pub fn run(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
-    grep_config: GrepConfig,
+    grep_config: RegexConfig,
 ) -> anyhow::Result<Vec<Location>> {
-    let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
+    let pattern = get_regex(pattern, &grep_config)?.as_str().to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 
-    let start_time = std::time::Instant::now();
     Ok(walk_builder_config
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;

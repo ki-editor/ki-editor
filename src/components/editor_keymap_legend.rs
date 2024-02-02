@@ -6,7 +6,7 @@ use crate::{
     app::{Dispatch, FilePickerKind, LocalSearchConfigUpdate, RequestParams, Scope},
     components::keymap_legend::KeymapLegendSection,
     context::{Context, LocalSearchConfigMode, Search},
-    list::grep::GrepConfig,
+    list::grep::RegexConfig,
     quickfix_list::QuickfixListType,
     selection::{FilterKind, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
@@ -503,7 +503,7 @@ impl Editor {
                     .map(|(key, description, regex)| {
                         let search = Search {
                             search: regex.to_string(),
-                            mode: LocalSearchConfigMode::Regex(GrepConfig {
+                            mode: LocalSearchConfigMode::Regex(RegexConfig {
                                 escaped: false,
                                 match_whole_word: false,
                                 case_sensitive: false,

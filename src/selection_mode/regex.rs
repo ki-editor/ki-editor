@@ -1,4 +1,4 @@
-use crate::{buffer::Buffer, list::grep::GrepConfig};
+use crate::{buffer::Buffer, list::grep::RegexConfig};
 
 use super::{ByteRange, SelectionMode};
 
@@ -6,7 +6,7 @@ pub struct Regex {
     regex: regex::Regex,
     content: String,
 }
-pub fn get_regex(pattern: &str, config: GrepConfig) -> anyhow::Result<regex::Regex> {
+pub fn get_regex(pattern: &str, config: &RegexConfig) -> anyhow::Result<regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
@@ -26,8 +26,8 @@ pub fn get_regex(pattern: &str, config: GrepConfig) -> anyhow::Result<regex::Reg
 }
 
 impl Regex {
-    pub fn new(buffer: &Buffer, pattern: &str, config: GrepConfig) -> anyhow::Result<Self> {
-        let regex = get_regex(pattern, config)?;
+    pub fn new(buffer: &Buffer, pattern: &str, config: RegexConfig) -> anyhow::Result<Self> {
+        let regex = get_regex(pattern, &config)?;
         Ok(Self {
             regex,
             content: buffer.rope().to_string(),
@@ -37,7 +37,7 @@ impl Regex {
     pub fn regex(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
         let regex = get_regex(
             pattern,
-            GrepConfig {
+            &RegexConfig {
                 escaped: false,
                 case_sensitive: false,
                 match_whole_word: false,
@@ -77,7 +77,7 @@ mod test_regex {
         crate::selection_mode::Regex::new(
             &buffer,
             "m.in",
-            GrepConfig {
+            RegexConfig {
                 escaped: true,
                 case_sensitive: false,
                 match_whole_word: false,
@@ -93,7 +93,7 @@ mod test_regex {
         crate::selection_mode::Regex::new(
             &buffer,
             "m.in",
-            GrepConfig {
+            RegexConfig {
                 escaped: false,
                 case_sensitive: false,
                 match_whole_word: false,
@@ -113,7 +113,7 @@ mod test_regex {
         crate::selection_mode::Regex::new(
             &buffer,
             "m.in",
-            GrepConfig {
+            RegexConfig {
                 escaped: false,
                 case_sensitive: false,
                 match_whole_word: false,
@@ -136,7 +136,7 @@ mod test_regex {
         crate::selection_mode::Regex::new(
             &buffer,
             "m.in",
-            GrepConfig {
+            RegexConfig {
                 escaped: false,
                 case_sensitive: false,
                 match_whole_word: true,
