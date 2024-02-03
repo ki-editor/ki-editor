@@ -557,7 +557,7 @@ impl<T: Frontend> App<T> {
                 scope,
             } => self.update_local_search_config(update, owner_id, scope)?,
             Dispatch::UpdateGlobalSearchConfig { owner_id, update } => {
-                self.update_global_search_config(owner_id, update)
+                self.update_global_search_config(owner_id, update)?;
             }
             Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                 owner_id,
@@ -572,17 +572,17 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenUpdateSearchPrompt { owner_id, scope } => {
                 self.open_update_search_prompt(owner_id, scope)
             }
-            Dispatch::Replace { owner_id, scope } => match scope {
+            Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(DispatchEditor::Replace {
                     config: self.context.local_search_config().clone(),
                 })?,
-                Scope::Global => todo!(),
+                Scope::Global => self.global_replace()?,
             },
         }
         Ok(())
     }
 
-    fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
+    pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_component()
     }
 
@@ -1239,8 +1239,35 @@ impl<T: Frontend> App<T> {
         self.layout.show_keymap_legend(keymap_legend_config)
     }
 
-    fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
+    fn global_replace(&mut self) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
+        let global_search_config = self.context.global_search_config();
+        let walk_builder_config = WalkBuilderConfig {
+            root: working_directory.clone().into(),
+            include: global_search_config.include.clone(),
+            exclude: global_search_config.exclude.clone(),
+        };
+        let config = self.context.global_search_config().local_config.clone();
+        match config.mode {
+            LocalSearchConfigMode::Regex(_) => {
+                let affected_paths = list::grep::replace(walk_builder_config, config)?;
+                self.layout.reload_buffers(affected_paths)?;
+
+                Ok(())
+            }
+            LocalSearchConfigMode::AstGrep => {
+                todo!()
+            }
+        }
+    }
+
+    fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
+        self.context.update_local_search_config(
+            LocalSearchConfigUpdate::SetSearch(search.search.clone()),
+            Scope::Global,
+        );
+        let working_directory = self.working_directory.clone();
+
         let global_search_config = self.context.global_search_config();
         let walk_builder_config = WalkBuilderConfig {
             root: working_directory.clone().into(),
@@ -1663,9 +1690,10 @@ impl<T: Frontend> App<T> {
         &mut self,
         owner_id: ComponentId,
         update: GlobalSearchConfigUpdate,
-    ) {
-        self.context.update_global_search_config(update);
+    ) -> anyhow::Result<()> {
+        self.context.update_global_search_config(update)?;
         self.show_search_config(owner_id, Scope::Global);
+        Ok(())
     }
 
     fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
@@ -1752,18 +1780,12 @@ impl<T: Frontend> App<T> {
                                 Keymap::new(
                                     "s",
                                     format!("Search = {}", local_search_config.search),
-                                    Dispatch::OpenUpdateSearchPrompt {
-                                        owner_id,
-                                        scope: Scope::Local,
-                                    },
+                                    Dispatch::OpenUpdateSearchPrompt { owner_id, scope },
                                 ),
                                 Keymap::new(
                                     "r",
                                     format!("Replace = {}", local_search_config.replace),
-                                    Dispatch::OpenUpdateSearchReplacePrompt {
-                                        owner_id,
-                                        scope: Scope::Local,
-                                    },
+                                    Dispatch::OpenUpdateSearchReplacePrompt { owner_id, scope },
                                 ),
                             ]
                             .into_iter()
@@ -1843,7 +1865,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(&[Keymap::new(
                             "R",
                             "Replace all".to_string(),
-                            Dispatch::Replace { owner_id, scope },
+                            Dispatch::Replace { scope },
                         )]),
                     },
                 ]
@@ -2103,7 +2125,6 @@ pub enum Dispatch {
         scope: Scope,
     },
     Replace {
-        owner_id: ComponentId,
         scope: Scope,
     },
 }

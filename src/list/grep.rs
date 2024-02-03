@@ -3,7 +3,10 @@ use grep_searcher::{sinks, SearcherBuilder};
 use ignore::{WalkBuilder, WalkState};
 use regex::Regex;
 
-use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::regex::get_regex};
+use crate::{
+    buffer::Buffer, context::LocalSearchConfig, quickfix_list::Location,
+    selection_mode::regex::get_regex,
+};
 use shared::canonicalized_path::CanonicalizedPath;
 use std::path::PathBuf;
 
@@ -35,6 +38,29 @@ impl Default for RegexConfig {
             match_whole_word: false,
         }
     }
+}
+
+/// Returns list of affected files
+pub fn replace(
+    walk_builder_config: WalkBuilderConfig,
+    local_search_config: LocalSearchConfig,
+) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    Ok(walk_builder_config
+        .run(Box::new(move |path, sender| {
+            let path = path.try_into()?;
+            let mut buffer = Buffer::from_path(&path)?;
+            let (modified, _) = buffer.replace(local_search_config.clone(), Default::default())?;
+            if modified {
+                buffer.save_without_formatting()?;
+                sender
+                    .send(path)
+                    .map_err(|err| log::info!("Error = {:?}", err))
+                    .unwrap_or_default();
+            }
+            Ok(())
+        }))?
+        .into_iter()
+        .collect())
 }
 
 pub fn run(

@@ -482,6 +482,24 @@ impl Layout {
         }
         Ok(())
     }
+
+    pub(crate) fn reload_buffers(
+        &self,
+        affected_paths: Vec<CanonicalizedPath>,
+    ) -> anyhow::Result<()> {
+        for buffer in self.buffers() {
+            let mut buffer = buffer.borrow_mut();
+            if let Some(path) = buffer.path() {
+                if affected_paths
+                    .iter()
+                    .any(|affected_path| affected_path == &path)
+                {
+                    buffer.reload()?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;

@@ -15,14 +15,16 @@ mod test_app {
     use shared::canonicalized_path::CanonicalizedPath;
 
     use crate::{
-        app::{App, Dimension, Dispatch},
+        app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, Scope},
         components::{
+            component::ComponentId,
             editor::{Direction, DispatchEditor, Movement},
             suggestive_editor::Info,
         },
-        context::GlobalMode,
+        context::{GlobalMode, LocalSearchConfigMode},
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
+        list::grep::RegexConfig,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
@@ -762,6 +764,70 @@ src/main.rs 🦀
                     ),
                 ],
             );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn global_search_and_replace() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
+                temp_dir.join_as_path_buf(filename).try_into()
+            };
+            let owner_id = ComponentId::new();
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    owner_id,
+                    update,
+                    scope: Scope::Global,
+                }
+            };
+            let main_rs = file("src/main.rs")?;
+            let foo_rs = file("src/foo.rs")?;
+            let main_rs_initial_content = main_rs.read()?;
+            // Initiall, expect main.rs and foo.rs to contain the word "foo"
+            assert!(main_rs_initial_content.contains("foo"));
+            assert!(foo_rs.read()?.contains("foo"));
+
+            // Replace "foo" with "kolimaha" globally
+            app.handle_dispatches(
+                [
+                    OpenFile {
+                        path: main_rs.clone(),
+                    },
+                    new_dispatch(LocalSearchConfigUpdate::SetMode(
+                        LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: true,
+                            case_sensitive: false,
+                            match_whole_word: false,
+                        }),
+                    )),
+                    new_dispatch(LocalSearchConfigUpdate::SetSearch("foo".to_string())),
+                    new_dispatch(LocalSearchConfigUpdate::SetReplace("kolimaha".to_string())),
+                    Dispatch::Replace {
+                        scope: Scope::Global,
+                    },
+                ]
+                .to_vec(),
+            )?;
+
+            // Expect main.rs and foo.rs to not contain the word "foo"
+            assert!(!main_rs.read()?.contains("foo"));
+            assert!(!foo_rs.read()?.contains("foo"));
+
+            // Expect main.rs and foo.rs to contain the word "kolimaha"
+            assert!(main_rs.read()?.contains("kolimaha"));
+            assert!(foo_rs.read()?.contains("kolimaha"));
+
+            // Expect the main.rs buffer to be updated as well
+            assert_eq!(app.get_file_content(&main_rs), main_rs.read()?);
+
+            // Apply undo to main_rs
+            app.handle_dispatch_editors(&[DispatchEditor::Undo])?;
+
+            // Expect the content of the main.rs buffer to be reverted
+            assert_eq!(app.get_file_content(&main_rs), main_rs_initial_content);
 
             Ok(())
         })

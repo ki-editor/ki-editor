@@ -1332,10 +1332,11 @@ impl Editor {
             DispatchEditor::EnterExchangeMode => self.enter_exchange_mode(),
             DispatchEditor::Replace { config } => {
                 let selection_set = self.selection_set.clone();
-                let selection_set = self.buffer_mut().replace(config, selection_set)?;
+                let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
                 self.update_selection_set(selection_set);
                 return Ok(self.get_document_did_change_dispatch());
             }
+            DispatchEditor::Undo => return self.undo(),
         }
         Ok([].to_vec())
     }
@@ -2829,4 +2830,5 @@ pub enum DispatchEditor {
     Replace {
         config: crate::context::LocalSearchConfig,
     },
+    Undo,
 }

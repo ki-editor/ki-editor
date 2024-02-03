@@ -63,6 +63,14 @@ impl Buffer {
             undo_tree: UndoTree::new(),
         }
     }
+    pub fn reload(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.path() {
+            let updated_content = path.read()?;
+
+            self.update_content(&updated_content, SelectionSet::default())?;
+        }
+        Ok(())
+    }
     pub fn content(&self) -> String {
         self.rope.to_string()
     }
@@ -561,31 +569,35 @@ impl Buffer {
         None
     }
 
-    pub fn save(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
-        let before = self.rope.to_string();
-
-        let content = if let Some(formatted_content) = self.get_formatted_content() {
-            if let Ok(edit_transaction) = self.get_edit_transaction(&formatted_content) {
-                self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
-                formatted_content
-            } else {
-                before
-            }
-        } else {
-            before
-        };
-
+    pub fn save_without_formatting(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
         if let Some(path) = &self.path.clone() {
-            path.write(&content)?;
+            path.write(&self.content())?;
 
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
             Ok(None)
         }
+    }
+
+    pub fn save(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+        if let Some(formatted_content) = self.get_formatted_content() {
+            self.update_content(&formatted_content, current_selection_set)?;
+        }
+
+        self.save_without_formatting()
+    }
+
+    fn update_content(
+        &mut self,
+        new_content: &str,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<SelectionSet> {
+        let edit_transaction = self.get_edit_transaction(&new_content)?;
+        self.apply_edit_transaction(&edit_transaction, current_selection_set)
     }
 
     pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
@@ -851,24 +863,25 @@ impl Buffer {
         pairs
     }
 
+    /// The boolean returned indicates whether the replacement causes any modification
     pub fn replace(
         &mut self,
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
-    ) -> anyhow::Result<SelectionSet> {
-        let original = self.rope.to_string();
+    ) -> anyhow::Result<(bool, SelectionSet)> {
+        let before = self.rope.to_string();
         let edit_transaction = match config.mode {
             LocalSearchConfigMode::Regex(regex_config) => {
                 let regex = regex_config.to_regex(&config.search)?;
                 let replaced = regex
-                    .replace_all(&original, config.replace.clone())
+                    .replace_all(&before, config.replace.clone())
                     .to_string();
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::AstGrep => {
                 let edits = AstGrep::replace(
                     self.treesitter_language(),
-                    &original,
+                    &before,
                     &config.search,
                     &config.replace,
                 )?;
@@ -891,7 +904,11 @@ impl Buffer {
                 )
             }
         };
-        self.apply_edit_transaction(&edit_transaction, current_selection_set)
+        let selection_set =
+            self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
+        let after = self.content();
+        let modified = before != after;
+        Ok((modified, selection_set))
     }
 }
 
@@ -1000,7 +1017,6 @@ fn f(
     }
 
     mod replace {
-        use grammar::grammar::get_language;
 
         use crate::{
             context::{
