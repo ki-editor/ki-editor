@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crossbeam::channel::Sender;
 use ignore::{WalkBuilder, WalkParallel, WalkState};
+use shared::canonicalized_path::CanonicalizedPath;
 
 pub mod ast_grep;
 
@@ -26,19 +27,22 @@ impl WalkBuilderConfig {
         let (sender, receiver) = crossbeam::channel::unbounded::<T>();
         WalkBuilder::new(root)
             .filter_entry(move |entry| {
-                let file_name = entry.file_name().to_string_lossy().to_string();
+                let path = CanonicalizedPath::try_from(entry.path())
+                    .map(|path| path.display_absolute())
+                    .unwrap_or_else(|_| entry.path().display().to_string());
+
                 entry
                     .file_type()
                     .map(|file_type| !file_type.is_file())
                     .unwrap_or(false)
-                    || include
+                    || (include
                         .as_ref()
-                        .map(|pattern| pattern.matches(&file_name))
+                        .map(|pattern| pattern.matches(&path))
                         .unwrap_or(true)
                         && exclude
                             .as_ref()
-                            .map(|pattern| !pattern.matches(&file_name))
-                            .unwrap_or(true)
+                            .map(|pattern| !pattern.matches(&path))
+                            .unwrap_or(true))
             })
             .build_parallel()
             .run(|| {
@@ -100,7 +104,7 @@ mod test_walk_builder_config {
     fn test_include() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
             root: "./tests/mock_repos/rust1".into(),
-            include: Some(glob::Pattern::new("*.rs")?),
+            include: Some(glob::Pattern::new("**/src/*.rs")?),
             exclude: None,
         };
         let paths = config.run(Box::new(|path, sender| {
