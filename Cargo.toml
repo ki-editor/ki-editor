@@ -79,6 +79,7 @@ undo = "0.51.0"
 rayon = "1.8.0"
 similar = {version = "2.4.0", features = ["unicode", "inline"]}
 glob = "0.3.1"
+indexmap = "2.2.2"
 [dev-dependencies]
 serial_test = "2.0.0"
 tempfile = "3.6.0"

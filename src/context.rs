@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use ast_grep_core::language::TSLanguage;
+use indexmap::IndexSet;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -208,21 +209,37 @@ impl Context {
 
 #[derive(Default)]
 pub struct GlobalSearchConfig {
-    pub include_globs: Vec<glob::Pattern>,
-    pub exclude_globs: Vec<glob::Pattern>,
-    pub local_config: LocalSearchConfig,
+    include_globs: IndexSet<glob::Pattern>,
+    exclude_globs: IndexSet<glob::Pattern>,
+    local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
     pub(crate) fn local_config(&self) -> &LocalSearchConfig {
         &self.local_config
     }
 
+    pub(crate) fn include_globs(&self) -> Vec<String> {
+        self.include_globs
+            .iter()
+            .map(|glob| glob.to_string())
+            .collect()
+    }
+
+    pub(crate) fn exclude_globs(&self) -> Vec<String> {
+        self.exclude_globs
+            .iter()
+            .map(|glob| glob.to_string())
+            .collect()
+    }
+
     fn set_exclude_glob(&mut self, glob: glob::Pattern) {
-        self.exclude_globs.push(glob)
+        self.exclude_globs.shift_remove(&glob);
+        self.exclude_globs.insert(glob);
     }
 
     fn set_include_glob(&mut self, glob: glob::Pattern) {
-        self.include_globs.push(glob)
+        self.include_globs.shift_remove(&glob);
+        self.include_globs.insert(glob);
     }
 
     pub(crate) fn include_glob(&self) -> Option<glob::Pattern> {
@@ -285,8 +302,8 @@ fn parenthesize(values: Vec<String>) -> String {
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct LocalSearchConfig {
     pub mode: LocalSearchConfigMode,
-    searches: Vec<String>,
-    replacements: Vec<String>,
+    searches: IndexSet<String>,
+    replacements: IndexSet<String>,
 }
 
 impl LocalSearchConfig {
@@ -311,7 +328,8 @@ impl LocalSearchConfig {
     }
 
     pub fn set_search(&mut self, search: String) -> &mut Self {
-        self.searches.push(search);
+        self.searches.shift_remove(&search);
+        self.searches.insert(search);
         self
     }
 
@@ -320,7 +338,8 @@ impl LocalSearchConfig {
     }
 
     pub(crate) fn set_replacment(&mut self, replacement: String) -> &mut Self {
-        self.replacements.push(replacement);
+        self.replacements.shift_remove(&replacement);
+        self.replacements.insert(replacement);
         self
     }
 
@@ -332,7 +351,7 @@ impl LocalSearchConfig {
     }
 
     pub(crate) fn searches(&self) -> Vec<String> {
-        self.searches.clone()
+        self.searches.clone().into_iter().collect()
     }
 
     pub(crate) fn replacement(&self) -> String {
@@ -340,6 +359,6 @@ impl LocalSearchConfig {
     }
 
     pub(crate) fn replacements(&self) -> Vec<String> {
-        self.replacements.clone()
+        self.replacements.clone().into_iter().collect()
     }
 }

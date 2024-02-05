@@ -15,7 +15,10 @@ mod test_app {
     use shared::canonicalized_path::CanonicalizedPath;
 
     use crate::{
-        app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, Scope},
+        app::{
+            App, Dimension, Dispatch, GlobalSearchConfigUpdate, GlobalSearchFilterGlob,
+            LocalSearchConfigUpdate, Scope,
+        },
         components::{
             component::ComponentId,
             editor::{Direction, DispatchEditor, Movement},
@@ -770,6 +773,70 @@ src/main.rs 🦀
     }
 
     #[test]
+    fn search_config_history() -> Result<(), anyhow::Error> {
+        run_test(|mut app, _| {
+            let owner_id = ComponentId::new();
+            let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    owner_id,
+                    update,
+                    scope,
+                    show_legend: true,
+                }
+            };
+            let update_global = |update: GlobalSearchConfigUpdate| -> Dispatch {
+                UpdateGlobalSearchConfig { owner_id, update }
+            };
+            use GlobalSearchConfigUpdate::*;
+            use GlobalSearchFilterGlob::*;
+            use LocalSearchConfigUpdate::*;
+            use Scope::*;
+            app.handle_dispatches(
+                [
+                    update(Local, SetSearch("L-Search1".to_string())),
+                    update(Local, SetSearch("L-Search2".to_string())),
+                    update(Local, SetSearch("L-Search1".to_string())),
+                    update(Local, SetReplacement("L-Replacement1".to_string())),
+                    update(Local, SetReplacement("L-Replacement2".to_string())),
+                    update(Local, SetReplacement("L-Replacement1".to_string())),
+                    update(Global, SetSearch("G-Search1".to_string())),
+                    update(Global, SetSearch("G-Search2".to_string())),
+                    update(Global, SetSearch("G-Search1".to_string())),
+                    update(Global, SetReplacement("G-Replacement1".to_string())),
+                    update(Global, SetReplacement("G-Replacement2".to_string())),
+                    update(Global, SetReplacement("G-Replacement1".to_string())),
+                    update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
+                    update_global(SetGlob(Exclude, "ExcludeGlob2".to_string())),
+                    update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
+                    update_global(SetGlob(Include, "IncludeGlob1".to_string())),
+                    update_global(SetGlob(Include, "IncludeGlob2".to_string())),
+                    update_global(SetGlob(Include, "IncludeGlob1".to_string())),
+                ]
+                .to_vec(),
+            )?;
+
+            // Expect the histories are stored, where:
+            // 1. There's no duplication
+            // 2. The insertion order is up-to-date
+            let context = app.context();
+            let local = context.local_search_config();
+            let global = context.global_search_config().local_config();
+            assert_eq!(local.searches(), ["L-Search2", "L-Search1"]);
+            assert_eq!(local.replacements(), ["L-Replacement2", "L-Replacement1"]);
+            assert_eq!(global.searches(), ["G-Search2", "G-Search1"]);
+            assert_eq!(global.replacements(), ["G-Replacement2", "G-Replacement1"]);
+
+            let global = context.global_search_config();
+            assert_eq!(global.include_globs(), ["IncludeGlob2", "IncludeGlob1"]);
+            assert_eq!(global.include_globs(), ["IncludeGlob2", "IncludeGlob1"]);
+            assert_eq!(global.exclude_globs(), ["ExcludeGlob2", "ExcludeGlob1"]);
+            assert_eq!(global.exclude_globs(), ["ExcludeGlob2", "ExcludeGlob1"]);
+
+            Ok(())
+        })
+    }
+
+    #[test]
     fn global_search_and_replace() -> Result<(), anyhow::Error> {
         run_test(|mut app, temp_dir| {
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
@@ -829,14 +896,6 @@ src/main.rs 🦀
 
             // Expect the content of the main.rs buffer to be reverted
             assert_eq!(app.get_file_content(&main_rs), main_rs_initial_content);
-
-            assert_eq!(
-                app.context()
-                    .global_search_config()
-                    .local_config()
-                    .searches(),
-                ["foo"]
-            );
 
             Ok(())
         })

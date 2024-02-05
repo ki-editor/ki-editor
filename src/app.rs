@@ -1204,18 +1204,9 @@ impl<T: Frontend> App<T> {
             include: global_search_config.include_glob(),
             exclude: global_search_config.exclude_glob(),
         };
-        let config = self.context.global_search_config().local_config.clone();
-        match config.mode {
-            LocalSearchConfigMode::Regex(_) => {
-                let affected_paths = list::grep::replace(walk_builder_config, config)?;
-                self.layout.reload_buffers(affected_paths)?;
-
-                Ok(())
-            }
-            LocalSearchConfigMode::AstGrep => {
-                todo!()
-            }
-        }
+        let config = self.context.global_search_config().local_config();
+        let affected_paths = list::grep::replace(walk_builder_config, config.clone())?;
+        self.layout.reload_buffers(affected_paths)
     }
 
     fn global_search(&mut self) -> anyhow::Result<()> {
@@ -1666,14 +1657,13 @@ impl<T: Frontend> App<T> {
     ) {
         let current_component = self.current_component().clone();
         let config = self.context.global_search_config();
-        let initial_text = match filter_glob {
-            GlobalSearchFilterGlob::Include => config.include_glob(),
-            GlobalSearchFilterGlob::Exclude => config.exclude_glob(),
-        }
-        .map(|glob| glob.to_string());
+        let history = match filter_glob {
+            GlobalSearchFilterGlob::Include => config.include_globs(),
+            GlobalSearchFilterGlob::Exclude => config.exclude_globs(),
+        };
         let prompt = Prompt::new(PromptConfig {
             title: format!("Set global search {:?} files glob", filter_glob),
-            history: initial_text.into_iter().collect_vec(),
+            history,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::UpdateGlobalSearchConfig {
