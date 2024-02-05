@@ -40,7 +40,6 @@ type OnTextChange = Box<
 >;
 
 pub struct PromptConfig {
-    pub initial_text: Option<String>,
     pub history: Vec<String>,
     pub owner: Option<Rc<RefCell<dyn Component>>>,
     pub on_enter: OnEnter,
@@ -59,12 +58,13 @@ impl Prompt {
             history.reverse();
             format!("\n{}", history.join("\n"))
         };
+        log::info!("Prompt.text = {text}");
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), text))),
             SuggestiveEditorFilter::CurrentLine,
         );
-        editor.set_content(&config.initial_text.unwrap_or_default());
-        editor.enter_insert_mode();
+        editor.enter_insert_mode().unwrap_or_default();
+        // TODO: set cursor to last line
         editor.set_title(config.title);
         editor.set_completion(Completion {
             items: config.items,
@@ -191,7 +191,6 @@ mod test_prompt {
         ) {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
-                initial_text: None,
                 owner: None,
                 on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),
@@ -223,7 +222,6 @@ mod test_prompt {
     fn tab_replace_current_content_with_first_highlighted_suggestion() -> anyhow::Result<()> {
         let mut prompt = Prompt::new(super::PromptConfig {
             history: vec![],
-            initial_text: None,
             owner: None,
             on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
             on_text_change: Box::new(|_, _| Ok(vec![])),
@@ -249,7 +247,6 @@ mod test_prompt {
         fn run_test(owner: Option<Rc<RefCell<dyn Component>>>) {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
-                initial_text: None,
                 owner,
                 on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha".to_string())])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),

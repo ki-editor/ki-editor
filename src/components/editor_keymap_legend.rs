@@ -194,6 +194,8 @@ impl Editor {
     ) -> anyhow::Result<KeymapLegendConfig> {
         let owner_id = self.id();
         let scope = Scope::Local;
+        let config = context.local_search_config();
+        let mode = config.mode.clone();
         Ok(KeymapLegendConfig {
             title: Self::find_submenu_title("", scope),
             owner_id,
@@ -225,17 +227,18 @@ impl Editor {
                                     },
                                 )),
                             ),
-                            {
-                                let mode = context.local_search_config().mode.clone();
-                                Keymap::new(
-                                    "f",
-                                    format!("Search ({})", mode.display()),
-                                    Dispatch::OpenSearchPrompt(mode, Scope::Local),
-                                )
-                            },
                             Keymap::new(
-                                "F",
-                                "Search Config".to_string(),
+                                "f",
+                                format!("Search ({})", mode.display()),
+                                Dispatch::OpenSearchPrompt {
+                                    mode,
+                                    scope: Scope::Local,
+                                    owner_id: self.id(),
+                                },
+                            ),
+                            Keymap::new(
+                                "c",
+                                "Configure Search".to_string(),
                                 Dispatch::ShowSearchConfig {
                                     owner_id: self.id(),
                                     scope: Scope::Local,
@@ -243,10 +246,10 @@ impl Editor {
                             ),
                         ]
                         .into_iter()
-                        .chain(context.last_search().map(|search| {
+                        .chain(config.last_search().map(|search| {
                             Keymap::new(
-                                "f",
-                                "Enter Find Mode (using previous search)".to_string(),
+                                "p",
+                                "Search (using previous search)".to_string(),
                                 Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                                     SelectionMode::Find { search },
                                 )),
@@ -271,17 +274,17 @@ impl Editor {
                     let params = params.set_kind(Some(scope));
                     [
                         Keymap::new(
-                            "c",
-                            "Declarations".to_string(),
-                            Dispatch::RequestDeclarations(
-                                params.clone().set_description("Declarations"),
-                            ),
-                        ),
-                        Keymap::new(
                             "d",
                             "Definitions".to_string(),
                             Dispatch::RequestDefinitions(
                                 params.clone().set_description("Definitions"),
+                            ),
+                        ),
+                        Keymap::new(
+                            "D",
+                            "Declarations".to_string(),
+                            Dispatch::RequestDeclarations(
+                                params.clone().set_description("Declarations"),
                             ),
                         ),
                         Keymap::new(
@@ -348,12 +351,16 @@ impl Editor {
                             Keymap::new(
                                 "f",
                                 format!("Search ({})", mode.display()),
-                                Dispatch::OpenSearchPrompt(mode, Scope::Global),
+                                Dispatch::OpenSearchPrompt {
+                                    mode,
+                                    scope: Scope::Global,
+                                    owner_id: self.id(),
+                                },
                             )
                         },
                         Keymap::new(
-                            "F",
-                            "Search Config".to_string(),
+                            "c",
+                            "Configure Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 owner_id: self.id(),
                                 scope: Scope::Global,

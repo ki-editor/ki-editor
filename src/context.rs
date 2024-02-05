@@ -16,7 +16,6 @@ use crate::{
 };
 
 pub struct Context {
-    previous_searches: Vec<Search>,
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
     diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
@@ -54,7 +53,6 @@ pub struct Search {
 impl Default for Context {
     fn default() -> Self {
         Self {
-            previous_searches: Vec::new(),
             clipboard: Clipboard::new(),
             theme: Box::<Theme>::default(),
             diagnostics: Default::default(),
@@ -78,19 +76,6 @@ impl Context {
 
     pub fn quickfix_lists(&self) -> Rc<RefCell<QuickfixLists>> {
         self.quickfix_lists.clone()
-    }
-
-    pub fn last_search(&self) -> Option<Search> {
-        self.previous_searches.last().cloned()
-    }
-
-    pub fn set_search(&mut self, search: Search) {
-        self.local_search_config.set_search(search.search.clone());
-        self.previous_searches.push(search);
-    }
-
-    pub fn previous_searches(&self) -> Vec<Search> {
-        self.previous_searches.clone()
     }
 
     pub fn get_clipboard_content(&self) -> Option<String> {
@@ -196,17 +181,15 @@ impl Context {
             GlobalSearchConfigUpdate::SetGlob(which, glob) => {
                 match which {
                     GlobalSearchFilterGlob::Include => {
-                        self.global_search_config.include = if glob.is_empty() {
-                            None
-                        } else {
-                            Some(glob::Pattern::new(&glob)?)
+                        if !glob.is_empty() {
+                            self.global_search_config
+                                .set_include_glob(glob::Pattern::new(&glob)?)
                         }
                     }
                     GlobalSearchFilterGlob::Exclude => {
-                        self.global_search_config.exclude = if glob.is_empty() {
-                            None
-                        } else {
-                            Some(glob::Pattern::new(&glob)?)
+                        if !glob.is_empty() {
+                            self.global_search_config
+                                .set_exclude_glob(glob::Pattern::new(&glob)?)
                         }
                     }
                 };
@@ -225,13 +208,29 @@ impl Context {
 
 #[derive(Default)]
 pub struct GlobalSearchConfig {
-    pub include: Option<glob::Pattern>,
-    pub exclude: Option<glob::Pattern>,
+    pub include_globs: Vec<glob::Pattern>,
+    pub exclude_globs: Vec<glob::Pattern>,
     pub local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
     pub(crate) fn local_config(&self) -> &LocalSearchConfig {
         &self.local_config
+    }
+
+    fn set_exclude_glob(&mut self, glob: glob::Pattern) {
+        self.exclude_globs.push(glob)
+    }
+
+    fn set_include_glob(&mut self, glob: glob::Pattern) {
+        self.include_globs.push(glob)
+    }
+
+    pub(crate) fn include_glob(&self) -> Option<glob::Pattern> {
+        self.include_globs.last().cloned()
+    }
+
+    pub(crate) fn exclude_glob(&self) -> Option<glob::Pattern> {
+        self.exclude_globs.last().cloned()
     }
 }
 
@@ -286,20 +285,61 @@ fn parenthesize(values: Vec<String>) -> String {
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct LocalSearchConfig {
     pub mode: LocalSearchConfigMode,
-    pub search: String,
-    pub replace: String,
+    searches: Vec<String>,
+    replacements: Vec<String>,
 }
 
 impl LocalSearchConfig {
-    fn update(&mut self, update: LocalSearchConfigUpdate) {
-        match update {
-            LocalSearchConfigUpdate::SetMode(mode) => self.mode = mode,
-            LocalSearchConfigUpdate::SetReplace(replace) => self.replace = replace,
-            LocalSearchConfigUpdate::SetSearch(search) => self.set_search(search),
+    pub fn new(mode: LocalSearchConfigMode) -> Self {
+        Self {
+            mode,
+            searches: Default::default(),
+            replacements: Default::default(),
         }
     }
 
-    fn set_search(&mut self, search: String) {
-        self.search = search
+    fn update(&mut self, update: LocalSearchConfigUpdate) {
+        match update {
+            LocalSearchConfigUpdate::SetMode(mode) => self.mode = mode,
+            LocalSearchConfigUpdate::SetReplacement(replacement) => {
+                self.set_replacment(replacement);
+            }
+            LocalSearchConfigUpdate::SetSearch(search) => {
+                self.set_search(search);
+            }
+        }
+    }
+
+    pub fn set_search(&mut self, search: String) -> &mut Self {
+        self.searches.push(search);
+        self
+    }
+
+    pub(crate) fn search(&self) -> String {
+        self.searches.last().cloned().unwrap_or_default()
+    }
+
+    pub(crate) fn set_replacment(&mut self, replacement: String) -> &mut Self {
+        self.replacements.push(replacement);
+        self
+    }
+
+    pub(crate) fn last_search(&self) -> Option<Search> {
+        self.searches.last().cloned().map(|search| Search {
+            search,
+            mode: self.mode.clone(),
+        })
+    }
+
+    pub(crate) fn searches(&self) -> Vec<String> {
+        self.searches.clone()
+    }
+
+    pub(crate) fn replacement(&self) -> String {
+        self.replacements.last().cloned().unwrap_or_default()
+    }
+
+    pub(crate) fn replacements(&self) -> Vec<String> {
+        self.replacements.clone()
     }
 }

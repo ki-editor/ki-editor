@@ -872,18 +872,16 @@ impl Buffer {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
             LocalSearchConfigMode::Regex(regex_config) => {
-                let regex = regex_config.to_regex(&config.search)?;
-                let replaced = regex
-                    .replace_all(&before, config.replace.clone())
-                    .to_string();
+                let regex = regex_config.to_regex(&config.search())?;
+                let replaced = regex.replace_all(&before, config.replacement()).to_string();
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::AstGrep => {
                 let edits = AstGrep::replace(
                     self.treesitter_language(),
                     &before,
-                    &config.search,
-                    &config.replace,
+                    &config.search(),
+                    &config.replacement(),
                 )?;
                 EditTransaction::from_action_groups(
                     edits
@@ -1043,15 +1041,14 @@ fn f(
         fn literal_1() -> anyhow::Result<()> {
             test(
                 "hel. help hel.o",
-                LocalSearchConfig {
-                    mode: Regex(RegexConfig {
-                        escaped: true,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    }),
-                    search: "hel.".to_string(),
-                    replace: "wow".to_string(),
-                },
+                LocalSearchConfig::new(Regex(RegexConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }))
+                .set_search("hel.".to_string())
+                .set_replacment("wow".to_string())
+                .to_owned(),
                 "wow help wowo",
             )
         }
@@ -1060,15 +1057,14 @@ fn f(
         fn regex_capture_group() -> anyhow::Result<()> {
             test(
                 "123x456",
-                LocalSearchConfig {
-                    mode: Regex(RegexConfig {
-                        escaped: false,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    }),
-                    search: r"(\d+)".to_string(),
-                    replace: r"($1)".to_string(),
-                },
+                LocalSearchConfig::new(Regex(RegexConfig {
+                    escaped: false,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }))
+                .set_search(r"(\d+)".to_string())
+                .set_replacment(r"($1)".to_string())
+                .to_owned(),
                 "(123)x(456)",
             )
         }
@@ -1077,11 +1073,10 @@ fn f(
         fn ast_group_1() -> anyhow::Result<()> {
             test(
                 "fn main() { replace(x + 1, f(2)); replace(a,b) }",
-                LocalSearchConfig {
-                    mode: AstGrep,
-                    search: r"replace($X,$Y)".to_string(),
-                    replace: r"replace($Y,$X)".to_string(),
-                },
+                LocalSearchConfig::new(AstGrep)
+                    .set_search(r"replace($X,$Y)".to_string())
+                    .set_replacment(r"replace($Y,$X)".to_string())
+                    .to_owned(),
                 "fn main() { replace(f(2),x + 1); replace(b,a) }",
             )
         }

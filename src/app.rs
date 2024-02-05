@@ -401,11 +401,11 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
             }
-            Dispatch::SetSearch(search, owner_id) => self.set_search(search, owner_id)?,
-            Dispatch::OpenSearchPrompt(search_kind, scope) => match scope {
-                Scope::Local => self.open_local_search_prompt(search_kind),
-                Scope::Global => self.open_global_search_prompt(search_kind),
-            },
+            Dispatch::OpenSearchPrompt {
+                mode,
+                scope,
+                owner_id,
+            } => self.open_search_prompt(mode, scope, owner_id),
             Dispatch::OpenFile { path } => {
                 self.open_file(&path, true)?;
             }
@@ -498,7 +498,7 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch_editor(dispatch_editor)?
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
-            Dispatch::GlobalSearch(search) => self.global_search(search)?,
+            Dispatch::GlobalSearch => self.global_search()?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt(),
             Dispatch::RunCommand(command) => self.run_command(command)?,
             Dispatch::QuitAll => self.quit_all()?,
@@ -555,7 +555,8 @@ impl<T: Frontend> App<T> {
                 update,
                 owner_id,
                 scope,
-            } => self.update_local_search_config(update, owner_id, scope)?,
+                show_legend,
+            } => self.update_local_search_config(update, owner_id, scope, show_legend)?,
             Dispatch::UpdateGlobalSearchConfig { owner_id, update } => {
                 self.update_global_search_config(owner_id, update)?;
             }
@@ -566,8 +567,8 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowSearchConfig { owner_id, scope } => {
                 self.show_search_config(owner_id, scope)
             }
-            Dispatch::OpenUpdateSearchReplacePrompt { owner_id, scope } => {
-                self.open_update_search_replace_prompt(owner_id, scope)
+            Dispatch::OpenUpdateReplacementPrompt { owner_id, scope } => {
+                self.open_update_replacement_prompt(owner_id, scope)
             }
             Dispatch::OpenUpdateSearchPrompt { owner_id, scope } => {
                 self.open_update_search_prompt(owner_id, scope)
@@ -590,11 +591,17 @@ impl<T: Frontend> App<T> {
         self.layout.close_current_window(change_focused_to)
     }
 
-    fn set_search(&mut self, search: Search, owner_id: Option<ComponentId>) -> anyhow::Result<()> {
-        self.context.set_search(search.clone());
-        if !search.search.is_empty() {
+    fn local_search(&mut self, owner_id: Option<ComponentId>) -> anyhow::Result<()> {
+        let config = self.context.local_search_config();
+        let search = config.search();
+        if !search.is_empty() {
             self.handle_dispatch_editor_custom(
-                DispatchEditor::SetSelectionMode(SelectionMode::Find { search }),
+                DispatchEditor::SetSelectionMode(SelectionMode::Find {
+                    search: Search {
+                        mode: config.mode,
+                        search,
+                    },
+                }),
                 owner_id
                     .and_then(|owner_id| self.get_component_by_id(owner_id))
                     .or_else(|| self.current_component()),
@@ -614,7 +621,6 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Move to index".to_string(),
             history: vec![],
-            initial_text: None,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 let index = text.parse::<usize>()?.saturating_sub(1);
@@ -635,8 +641,7 @@ impl<T: Frontend> App<T> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Rename".to_string(),
-            initial_text: current_name,
-            history: vec![],
+            history: current_name.into_iter().collect_vec(),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok(vec![Dispatch::RenameSymbol {
@@ -653,73 +658,32 @@ impl<T: Frontend> App<T> {
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 
-    fn open_global_search_prompt(&mut self, search_kind: LocalSearchConfigMode) {
+    fn open_search_prompt(
+        &mut self,
+        mode: LocalSearchConfigMode,
+        scope: Scope,
+        owner_id: ComponentId,
+    ) {
         let current_component = self.current_component().clone();
+        let config = self.context.get_local_search_config(scope);
+        log::info!("config.searches = {:#?}", config.searches());
         let prompt = Prompt::new(PromptConfig {
-            title: format!("Global search ({})", search_kind.display()),
-            initial_text: None,
-            history: self
-                .context
-                .previous_searches()
-                .iter()
-                .map(|search| search.search.clone())
-                .collect_vec(),
+            title: format!("{:?} search ({})", scope, mode.display()),
+            history: config.searches(),
             owner: current_component.clone(),
-            items: vec![],
+            items: self.words(),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::GlobalSearch(Search {
-                    mode: search_kind,
-                    search: text.to_string(),
-                })]
+                Ok([Dispatch::UpdateLocalSearchConfig {
+                    owner_id,
+                    update: LocalSearchConfigUpdate::SetSearch(text.to_string()),
+                    scope,
+                    show_legend: false,
+                }]
                 .to_vec())
             }),
             enter_selects_first_matching_item: false,
         });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
-    }
-
-    fn open_local_search_prompt(&mut self, kind: LocalSearchConfigMode) {
-        let current_component = self.current_component().clone();
-        let owner_id = current_component
-            .as_ref()
-            .map(|component| component.borrow().id());
-        let prompt = Prompt::new(PromptConfig {
-            title: format!("Search ({})", kind.display()),
-            initial_text: None,
-            history: self
-                .context
-                .previous_searches()
-                .into_iter()
-                .map(|search| search.search)
-                .collect_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                let search = Search {
-                    mode: kind,
-                    search: text.to_string(),
-                };
-
-                Ok([Dispatch::SetSearch(search.clone(), owner_id)].to_vec())
-            }),
-            on_text_change: Box::new(move |text, _owner| {
-                // The following is not working as expected yet
-                // After one character is input into the prompt, the propmt will lose focus
-                // Ok([Dispatch::SetSearch(
-                //     Search {
-                //         kind,
-                //         search: text.to_string(),
-                //     },
-                //     owner_id,
-                // )]
-                // .to_vec())
-                Ok(Default::default())
-            }),
-            items: self.words(),
-            enter_selects_first_matching_item: false,
-        });
-
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
@@ -729,7 +693,6 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Inside (other): Open".to_string(),
             history: Vec::new(),
-            initial_text: None,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::OpenInsideOtherPromptClose {
@@ -751,7 +714,6 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: format!("Inside (other, open = '{}'): Close", open),
             history: Vec::new(),
-            initial_text: None,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(
@@ -775,8 +737,7 @@ impl<T: Frontend> App<T> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Add path".to_string(),
-            history: Vec::new(),
-            initial_text: Some(path.display_absolute()),
+            history: [path.display_absolute()].to_vec(),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
             on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
@@ -792,8 +753,7 @@ impl<T: Frontend> App<T> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: "Move file".to_string(),
-            history: Vec::new(),
-            initial_text: Some(path.display_absolute()),
+            history: [path.display_absolute()].to_vec(),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::MoveFile {
@@ -827,7 +787,6 @@ impl<T: Frontend> App<T> {
             Prompt::new(PromptConfig {
                 title: "Symbols".to_string(),
                 history: vec![],
-                initial_text: None,
                 owner: current_component,
                 on_text_change: Box::new(|_, _| Ok(vec![])),
                 items: symbols
@@ -862,7 +821,6 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: "Command".to_string(),
             history: vec![],
-            initial_text: None,
             owner: current_component,
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::RunCommand(text.to_string())]
@@ -887,7 +845,6 @@ impl<T: Frontend> App<T> {
         let prompt = Prompt::new(PromptConfig {
             title: format!("Open file: {}", kind.display()),
             history: vec![],
-            initial_text: None,
             owner: current_component,
             on_enter: Box::new(move |current_item, _| {
                 let path = working_directory.join(current_item)?;
@@ -1244,8 +1201,8 @@ impl<T: Frontend> App<T> {
         let global_search_config = self.context.global_search_config();
         let walk_builder_config = WalkBuilderConfig {
             root: working_directory.clone().into(),
-            include: global_search_config.include.clone(),
-            exclude: global_search_config.exclude.clone(),
+            include: global_search_config.include_glob(),
+            exclude: global_search_config.exclude_glob(),
         };
         let config = self.context.global_search_config().local_config.clone();
         match config.mode {
@@ -1261,25 +1218,22 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn global_search(&mut self, search: Search) -> anyhow::Result<()> {
-        self.context.update_local_search_config(
-            LocalSearchConfigUpdate::SetSearch(search.search.clone()),
-            Scope::Global,
-        );
+    fn global_search(&mut self) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
 
         let global_search_config = self.context.global_search_config();
         let walk_builder_config = WalkBuilderConfig {
             root: working_directory.clone().into(),
-            include: global_search_config.include.clone(),
-            exclude: global_search_config.exclude.clone(),
+            include: global_search_config.include_glob(),
+            exclude: global_search_config.exclude_glob(),
         };
-        let locations = match search.mode {
+        let config = global_search_config.local_config();
+        let locations = match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
-                list::grep::run(&search.search, walk_builder_config, regex)
+                list::grep::run(&config.search(), walk_builder_config, regex)
             }
             LocalSearchConfigMode::AstGrep => {
-                list::ast_grep::run(search.search, walk_builder_config)
+                list::ast_grep::run(config.search().clone(), walk_builder_config)
             }
         }?;
         self.set_quickfix_list(
@@ -1534,7 +1488,6 @@ impl<T: Frontend> App<T> {
                 kind, target, mechanism
             ),
             history: Vec::new(),
-            initial_text: None,
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
@@ -1673,16 +1626,19 @@ impl<T: Frontend> App<T> {
         update: LocalSearchConfigUpdate,
         owner_id: ComponentId,
         scope: Scope,
+        show_legend: bool,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
-        self.set_search(
-            Search {
-                mode: self.context.local_search_config().mode,
-                search: self.context.local_search_config().search.to_string(),
-            },
-            Some(owner_id),
-        )?;
-        self.show_search_config(owner_id, scope);
+        match scope {
+            Scope::Local => self.local_search(Some(owner_id))?,
+            Scope::Global => {
+                self.global_search()?;
+            }
+        }
+
+        if show_legend {
+            self.show_search_config(owner_id, scope);
+        }
         Ok(())
     }
 
@@ -1692,6 +1648,7 @@ impl<T: Frontend> App<T> {
         update: GlobalSearchConfigUpdate,
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
+        self.global_search()?;
         self.show_search_config(owner_id, Scope::Global);
         Ok(())
     }
@@ -1708,15 +1665,15 @@ impl<T: Frontend> App<T> {
         filter_glob: GlobalSearchFilterGlob,
     ) {
         let current_component = self.current_component().clone();
+        let config = self.context.global_search_config();
+        let initial_text = match filter_glob {
+            GlobalSearchFilterGlob::Include => config.include_glob(),
+            GlobalSearchFilterGlob::Exclude => config.exclude_glob(),
+        }
+        .map(|glob| glob.to_string());
         let prompt = Prompt::new(PromptConfig {
             title: format!("Set global search {:?} files glob", filter_glob),
-            history: Vec::new(),
-            initial_text: self
-                .context
-                .global_search_config()
-                .include
-                .clone()
-                .map(|glob| glob.to_string()),
+            history: initial_text.into_iter().collect_vec(),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::UpdateGlobalSearchConfig {
@@ -1754,6 +1711,7 @@ impl<T: Frontend> App<T> {
                         update,
                         owner_id,
                         scope,
+                        show_legend: true,
                     },
                 )
             };
@@ -1770,7 +1728,7 @@ impl<T: Frontend> App<T> {
             LocalSearchConfigMode::AstGrep => None,
         };
         self.show_keymap_legend(KeymapLegendConfig {
-            title: format!("Search Config ({:?})", scope),
+            title: format!("Configure Search ({:?})", scope),
             body: KeymapLegendBody::MultipleSections {
                 sections: [
                     KeymapLegendSection {
@@ -1779,13 +1737,13 @@ impl<T: Frontend> App<T> {
                             &[
                                 Keymap::new(
                                     "s",
-                                    format!("Search = {}", local_search_config.search),
+                                    format!("Search = {}", local_search_config.search()),
                                     Dispatch::OpenUpdateSearchPrompt { owner_id, scope },
                                 ),
                                 Keymap::new(
                                     "r",
-                                    format!("Replace = {}", local_search_config.replace),
-                                    Dispatch::OpenUpdateSearchReplacePrompt { owner_id, scope },
+                                    format!("Replacement = {}", local_search_config.replacement()),
+                                    Dispatch::OpenUpdateReplacementPrompt { owner_id, scope },
                                 ),
                             ]
                             .into_iter()
@@ -1798,8 +1756,7 @@ impl<T: Frontend> App<T> {
                                                 format!(
                                                     "Include files (glob) = {}",
                                                     config
-                                                        .include
-                                                        .as_ref()
+                                                        .include_glob()
                                                         .map(|glob| glob.to_string())
                                                         .unwrap_or_default()
                                                 ),
@@ -1813,8 +1770,7 @@ impl<T: Frontend> App<T> {
                                                 format!(
                                                     "Exclude files (glob) = {}",
                                                     config
-                                                        .exclude
-                                                        .as_ref()
+                                                        .exclude_glob()
                                                         .map(|glob| glob.to_string())
                                                         .unwrap_or_default()
                                                 ),
@@ -1905,18 +1861,18 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_update_search_replace_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
+    fn open_update_replacement_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: format!("Set Replace ({:?})", scope),
-            history: Vec::new(),
-            initial_text: Some(self.context.get_local_search_config(scope).replace.clone()),
+            history: self.context.get_local_search_config(scope).replacements(),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::UpdateLocalSearchConfig {
                     owner_id,
                     scope,
-                    update: LocalSearchConfigUpdate::SetReplace(text.to_owned()),
+                    update: LocalSearchConfigUpdate::SetReplacement(text.to_owned()),
+                    show_legend: true,
                 }]
                 .to_vec())
             }),
@@ -1933,14 +1889,14 @@ impl<T: Frontend> App<T> {
         let current_component = self.current_component().clone();
         let prompt = Prompt::new(PromptConfig {
             title: format!("Set Search ({:?})", scope),
-            history: Vec::new(),
-            initial_text: Some(self.context.get_local_search_config(scope).replace.clone()),
+            history: self.context.get_local_search_config(scope).replacements(),
             owner: current_component.clone(),
             on_enter: Box::new(move |text, _| {
                 Ok([Dispatch::UpdateLocalSearchConfig {
                     owner_id,
                     scope,
                     update: LocalSearchConfigUpdate::SetSearch(text.to_owned()),
+                    show_legend: true,
                 }]
                 .to_vec())
             }),
@@ -2000,9 +1956,12 @@ pub enum Dispatch {
     CloseCurrentWindow {
         change_focused_to: Option<ComponentId>,
     },
-    SetSearch(Search, Option<ComponentId>),
     OpenFilePicker(FilePickerKind),
-    OpenSearchPrompt(LocalSearchConfigMode, Scope),
+    OpenSearchPrompt {
+        mode: LocalSearchConfigMode,
+        scope: Scope,
+        owner_id: ComponentId,
+    },
     OpenFile {
         path: CanonicalizedPath,
     },
@@ -2052,7 +2011,7 @@ pub enum Dispatch {
     DispatchEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),
-    GlobalSearch(Search),
+    GlobalSearch,
     OpenMoveToIndexPrompt,
     RunCommand(String),
     QuitAll,
@@ -2103,6 +2062,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
         update: LocalSearchConfigUpdate,
         scope: Scope,
+        show_legend: bool,
     },
     UpdateGlobalSearchConfig {
         owner_id: ComponentId,
@@ -2116,7 +2076,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
         scope: Scope,
     },
-    OpenUpdateSearchReplacePrompt {
+    OpenUpdateReplacementPrompt {
         owner_id: ComponentId,
         scope: Scope,
     },
@@ -2143,7 +2103,7 @@ pub enum GlobalSearchFilterGlob {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LocalSearchConfigUpdate {
     SetMode(LocalSearchConfigMode),
-    SetReplace(String),
+    SetReplacement(String),
     SetSearch(String),
 }
 

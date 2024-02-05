@@ -781,6 +781,7 @@ src/main.rs 🦀
                     owner_id,
                     update,
                     scope: Scope::Global,
+                    show_legend: true,
                 }
             };
             let main_rs = file("src/main.rs")?;
@@ -790,7 +791,7 @@ src/main.rs 🦀
             assert!(main_rs_initial_content.contains("foo"));
             assert!(foo_rs.read()?.contains("foo"));
 
-            // Replace "foo" with "kolimaha" globally
+            // Replace "foo" with "haha" globally
             app.handle_dispatches(
                 [
                     OpenFile {
@@ -804,7 +805,7 @@ src/main.rs 🦀
                         }),
                     )),
                     new_dispatch(LocalSearchConfigUpdate::SetSearch("foo".to_string())),
-                    new_dispatch(LocalSearchConfigUpdate::SetReplace("kolimaha".to_string())),
+                    new_dispatch(LocalSearchConfigUpdate::SetReplacement("haha".to_string())),
                     Dispatch::Replace {
                         scope: Scope::Global,
                     },
@@ -816,9 +817,9 @@ src/main.rs 🦀
             assert!(!main_rs.read()?.contains("foo"));
             assert!(!foo_rs.read()?.contains("foo"));
 
-            // Expect main.rs and foo.rs to contain the word "kolimaha"
-            assert!(main_rs.read()?.contains("kolimaha"));
-            assert!(foo_rs.read()?.contains("kolimaha"));
+            // Expect main.rs and foo.rs to contain the word "haha"
+            assert!(main_rs.read()?.contains("haha"));
+            assert!(foo_rs.read()?.contains("haha"));
 
             // Expect the main.rs buffer to be updated as well
             assert_eq!(app.get_file_content(&main_rs), main_rs.read()?);
@@ -828,6 +829,14 @@ src/main.rs 🦀
 
             // Expect the content of the main.rs buffer to be reverted
             assert_eq!(app.get_file_content(&main_rs), main_rs_initial_content);
+
+            assert_eq!(
+                app.context()
+                    .global_search_config()
+                    .local_config()
+                    .searches(),
+                ["foo"]
+            );
 
             Ok(())
         })
