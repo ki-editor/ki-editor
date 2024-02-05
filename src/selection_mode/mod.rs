@@ -442,7 +442,7 @@ pub trait SelectionMode {
 
         let actual = self
             .iter(SelectionModeParams {
-                buffer: &buffer,
+                buffer,
                 current_selection: &current_selection,
                 cursor_direction: &Direction::default(),
                 context: &Context::default(),
@@ -471,14 +471,13 @@ pub trait SelectionMode {
         initial_range: CharIndexRange,
     ) -> anyhow::Result<Vec<String>> {
         let params = SelectionModeParams {
-            buffer: &buffer,
+            buffer,
             current_selection: &Selection::default(),
             cursor_direction: &Direction::default(),
             context: &Context::default(),
             filters: &Filters::default(),
         };
         Ok((0..up_to)
-            .into_iter()
             .fold(
                 Ok((initial_range, Vec::new())),
                 |result, _| -> anyhow::Result<_> {

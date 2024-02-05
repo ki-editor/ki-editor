@@ -1,6 +1,6 @@
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
-use ignore::{WalkBuilder, WalkState};
+
 use regex::Regex;
 
 use crate::{
@@ -26,7 +26,7 @@ pub struct RegexConfig {
 }
 impl RegexConfig {
     pub(crate) fn to_regex(&self, pattern: &str) -> Result<Regex, anyhow::Error> {
-        get_regex(pattern, &self)
+        get_regex(pattern, self)
     }
 }
 

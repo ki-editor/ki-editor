@@ -1328,7 +1328,7 @@ impl Editor {
             DispatchEditor::FilterClear => self.filters_clear(),
             DispatchEditor::CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
             DispatchEditor::Raise => return self.raise(context),
-            DispatchEditor::Exchange(movement) => return self.exchange(&context, movement),
+            DispatchEditor::Exchange(movement) => return self.exchange(context, movement),
             DispatchEditor::EnterExchangeMode => self.enter_exchange_mode(),
             DispatchEditor::Replace { config } => {
                 let selection_set = self.selection_set.clone();
@@ -2740,7 +2740,7 @@ impl Editor {
     ) -> Result<Vec<Dispatch>, anyhow::Error> {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set);
-        self.handle_movement(&context, Movement::Current)
+        self.handle_movement(context, Movement::Current)
     }
 
     #[cfg(test)]

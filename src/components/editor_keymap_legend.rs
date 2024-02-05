@@ -3,7 +3,7 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    app::{Dispatch, FilePickerKind, LocalSearchConfigUpdate, RequestParams, Scope},
+    app::{Dispatch, FilePickerKind, RequestParams, Scope},
     components::keymap_legend::KeymapLegendSection,
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
@@ -166,7 +166,6 @@ impl Editor {
             ("w", "Warning", Some(DiagnosticSeverity::WARNING)),
         ]
         .into_iter()
-        .into_iter()
         .map(|(char, description, severity)| {
             Keymap::new(
                 char,
@@ -195,7 +194,7 @@ impl Editor {
         let owner_id = self.id();
         let scope = Scope::Local;
         let config = context.local_search_config();
-        let mode = config.mode.clone();
+        let mode = config.mode;
         Ok(KeymapLegendConfig {
             title: Self::find_submenu_title("", scope),
             owner_id,
@@ -423,7 +422,7 @@ impl Editor {
                 owner_id: self.id(),
                 body: KeymapLegendBody::SingleSection {
                     keymaps: Keymaps::new(
-                        &[
+                        [
                             Keymap::new(
                                 "l",
                                 "Literal".to_string(),
@@ -435,7 +434,7 @@ impl Editor {
                                 Dispatch::OpenOmitRegexPrompt { kind, target },
                             ),
                         ]
-                        .to_vec(),
+                        .as_ref(),
                     ),
                 },
             })
@@ -446,7 +445,7 @@ impl Editor {
                 owner_id: self.id(),
                 body: KeymapLegendBody::SingleSection {
                     keymaps: Keymaps::new(
-                        &[
+                        [
                             Keymap::new(
                                 "c",
                                 "Content".to_string(),
@@ -458,7 +457,7 @@ impl Editor {
                                 filter_mechanism_keymaps(kind, FilterTarget::Info),
                             ),
                         ]
-                        .to_vec(),
+                        .as_ref(),
                     ),
                 },
             })
@@ -468,7 +467,7 @@ impl Editor {
             owner_id: self.id(),
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
-                    &[
+                    [
                         Keymap::new(
                             "c",
                             "Clear".to_string(),
@@ -485,7 +484,7 @@ impl Editor {
                             filter_target_keymaps(FilterKind::Remove),
                         ),
                     ]
-                    .to_vec(),
+                    .as_ref(),
                 ),
             },
         }
@@ -532,12 +531,12 @@ impl Editor {
             title: "Space: Explorer".to_string(),
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
-                    &[Keymap::new(
+                    [Keymap::new(
                         "r",
                         "Reveal in Explorer".to_string(),
                         Dispatch::RevealInExplorer(params.path.clone()),
                     )]
-                    .to_vec(),
+                    .as_ref(),
                 ),
             },
             owner_id: self.id(),
@@ -553,7 +552,7 @@ impl Editor {
             title: "Space: LSP".to_string(),
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
-                    &[
+                    [
                         Keymap::new(
                             "h",
                             "Hover".to_string(),
@@ -586,7 +585,7 @@ impl Editor {
                             },
                         ),
                     ]
-                    .to_vec(),
+                    .as_ref(),
                 ),
             },
             owner_id: self.id(),

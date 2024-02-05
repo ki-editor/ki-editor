@@ -1,6 +1,5 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use ast_grep_core::language::TSLanguage;
 use indexmap::IndexSet;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
@@ -11,7 +10,6 @@ use crate::{
     list::grep::RegexConfig,
     lsp::diagnostic::Diagnostic,
     quickfix_list::{QuickfixListItem, QuickfixLists},
-    selection_mode::AstGrep,
     syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
@@ -346,7 +344,7 @@ impl LocalSearchConfig {
     pub(crate) fn last_search(&self) -> Option<Search> {
         self.searches.last().cloned().map(|search| Search {
             search,
-            mode: self.mode.clone(),
+            mode: self.mode,
         })
     }
 

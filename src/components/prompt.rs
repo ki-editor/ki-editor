@@ -98,7 +98,7 @@ impl Component for Prompt {
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
-                return Ok(vec![Dispatch::CloseCurrentWindow {
+                Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
                 }])
             }
@@ -127,12 +127,12 @@ impl Component for Prompt {
 
                 let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
 
-                return Ok(vec![Dispatch::CloseCurrentWindow {
+                Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
                 }]
                 .into_iter()
                 .chain(dispatches)
-                .collect_vec());
+                .collect_vec())
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
@@ -204,7 +204,7 @@ mod test_prompt {
                 enter_selects_first_matching_item,
             });
             prompt
-                .handle_events(&event::parse_key_events(&input_text).unwrap())
+                .handle_events(&event::parse_key_events(input_text).unwrap())
                 .unwrap();
 
             let dispatches = prompt.handle_events(keys!("enter")).unwrap();

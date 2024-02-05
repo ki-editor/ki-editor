@@ -13,7 +13,6 @@ use crate::{
         suggestive_editor::Info,
     },
     context::{Context, LocalSearchConfigMode, Search},
-    list::grep::RegexConfig,
     position::Position,
     selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
 };
@@ -317,7 +316,7 @@ impl SelectionSet {
             .expect("We should refactor `SelectionSet::map` to return NonEmpty instead of Vec.");
         Ok(SelectionSet {
             primary: selection.to_owned(),
-            secondary: tail.into_iter().map(|it| it.selection.to_owned()).collect(),
+            secondary: tail.iter().map(|it| it.selection.to_owned()).collect(),
             mode: new_mode.clone().unwrap_or_else(|| mode.clone()),
             filters: self.filters.clone(),
         })
@@ -602,9 +601,9 @@ impl SelectionMode {
     }
 }
 
-impl Into<ApplyMovementResult> for Selection {
-    fn into(self) -> ApplyMovementResult {
-        ApplyMovementResult::from_selection(self)
+impl From<Selection> for ApplyMovementResult {
+    fn from(val: Selection) -> Self {
+        ApplyMovementResult::from_selection(val)
     }
 }
 

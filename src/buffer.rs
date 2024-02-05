@@ -596,7 +596,7 @@ impl Buffer {
         new_content: &str,
         current_selection_set: SelectionSet,
     ) -> anyhow::Result<SelectionSet> {
-        let edit_transaction = self.get_edit_transaction(&new_content)?;
+        let edit_transaction = self.get_edit_transaction(new_content)?;
         self.apply_edit_transaction(&edit_transaction, current_selection_set)
     }
 
@@ -732,7 +732,7 @@ impl Buffer {
                     }
                     similar::ChangeTag::Equal => {
                         if let Some(start) = current_range_start {
-                            let replacement = std::mem::replace(&mut replacement, Vec::new());
+                            let replacement = std::mem::take(&mut replacement);
 
                             edits.push(Edit {
                                 range: self.position_range_to_char_index_range(
@@ -754,8 +754,8 @@ impl Buffer {
                         };
 
                         let content = change.to_string();
-                        let content = if change.missing_newline() && content.ends_with("\n") {
-                            content.trim_end_matches("\n").to_owned()
+                        let content = if change.missing_newline() && content.ends_with('\n') {
+                            content.trim_end_matches('\n').to_owned()
                         } else {
                             content
                         };
@@ -765,7 +765,7 @@ impl Buffer {
             }
 
             if let Some(start) = current_range_start {
-                let replacement = std::mem::replace(&mut replacement, Vec::new());
+                let replacement = std::mem::take(&mut replacement);
 
                 edits.push(Edit {
                     range: self.position_range_to_char_index_range(

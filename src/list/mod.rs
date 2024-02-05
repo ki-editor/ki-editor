@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crossbeam::channel::Sender;
-use ignore::{WalkBuilder, WalkParallel, WalkState};
+use ignore::{WalkBuilder, WalkState};
 use shared::canonicalized_path::CanonicalizedPath;
 
 pub mod ast_grep;

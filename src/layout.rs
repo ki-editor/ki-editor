@@ -3,7 +3,7 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        editor::{Editor, Movement},
+        editor::Editor,
         file_explorer::FileExplorer,
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
@@ -12,7 +12,6 @@ use crate::{
     quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
-    undo_tree::{Applicable, OldNew, UndoTree},
 };
 use anyhow::anyhow;
 use itertools::Itertools;
