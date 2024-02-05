@@ -185,7 +185,6 @@
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
 
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
-- [] feat(g): 'ggh' for global git hunks
 - [] feat(space-f): for file mode, r = rename, d = delete, a = add, s = save
 - [] feat(doc): add motto about having no shift keys for key bindings;
   spammable key like n/p will not hide under layers, but action like "Change
