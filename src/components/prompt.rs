@@ -40,7 +40,6 @@ type OnTextChange = Box<
 >;
 
 pub struct PromptConfig {
-    pub initial_text: Option<String>,
     pub history: Vec<String>,
     pub owner: Option<Rc<RefCell<dyn Component>>>,
     pub on_enter: OnEnter,
@@ -59,12 +58,13 @@ impl Prompt {
             history.reverse();
             format!("\n{}", history.join("\n"))
         };
+        log::info!("Prompt.text = {text}");
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), text))),
             SuggestiveEditorFilter::CurrentLine,
         );
-        editor.set_content(&config.initial_text.unwrap_or_default());
-        editor.enter_insert_mode();
+        editor.enter_insert_mode().unwrap_or_default();
+        // TODO: set cursor to last line
         editor.set_title(config.title);
         editor.set_completion(Completion {
             items: config.items,
@@ -98,7 +98,7 @@ impl Component for Prompt {
     ) -> anyhow::Result<Vec<Dispatch>> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
-                return Ok(vec![Dispatch::CloseCurrentWindow {
+                Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
                 }])
             }
@@ -127,12 +127,12 @@ impl Component for Prompt {
 
                 let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
 
-                return Ok(vec![Dispatch::CloseCurrentWindow {
+                Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
                 }]
                 .into_iter()
                 .chain(dispatches)
-                .collect_vec());
+                .collect_vec())
             }
             _ => {
                 let dispatches = self.editor.handle_key_event(context, event)?;
@@ -144,11 +144,16 @@ impl Component for Prompt {
                 } else {
                     self.text = current_text.clone();
 
-                    if let Some(owner) = self.owner.clone() {
-                        (self.on_text_change)(&current_text, owner.clone())?;
-                    }
+                    let text_change_dispatches = if let Some(owner) = self.owner.clone() {
+                        (self.on_text_change)(&current_text, owner.clone())?
+                    } else {
+                        Default::default()
+                    };
 
-                    dispatches.into_iter().chain(vec![]).collect_vec()
+                    dispatches
+                        .into_iter()
+                        .chain(text_change_dispatches)
+                        .collect_vec()
                 };
                 Ok(result)
             }
@@ -186,7 +191,6 @@ mod test_prompt {
         ) {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
-                initial_text: None,
                 owner: None,
                 on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),
@@ -200,7 +204,7 @@ mod test_prompt {
                 enter_selects_first_matching_item,
             });
             prompt
-                .handle_events(&event::parse_key_events(&input_text).unwrap())
+                .handle_events(&event::parse_key_events(input_text).unwrap())
                 .unwrap();
 
             let dispatches = prompt.handle_events(keys!("enter")).unwrap();
@@ -218,7 +222,6 @@ mod test_prompt {
     fn tab_replace_current_content_with_first_highlighted_suggestion() -> anyhow::Result<()> {
         let mut prompt = Prompt::new(super::PromptConfig {
             history: vec![],
-            initial_text: None,
             owner: None,
             on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
             on_text_change: Box::new(|_, _| Ok(vec![])),
@@ -244,7 +247,6 @@ mod test_prompt {
         fn run_test(owner: Option<Rc<RefCell<dyn Component>>>) {
             let mut prompt = Prompt::new(super::PromptConfig {
                 history: vec![],
-                initial_text: None,
                 owner,
                 on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha".to_string())])),
                 on_text_change: Box::new(|_, _| Ok(vec![])),

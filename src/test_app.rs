@@ -15,14 +15,19 @@ mod test_app {
     use shared::canonicalized_path::CanonicalizedPath;
 
     use crate::{
-        app::{App, Dimension, Dispatch},
+        app::{
+            App, Dimension, Dispatch, GlobalSearchConfigUpdate, GlobalSearchFilterGlob,
+            LocalSearchConfigUpdate, Scope,
+        },
         components::{
+            component::ComponentId,
             editor::{Direction, DispatchEditor, Movement},
             suggestive_editor::Info,
         },
-        context::GlobalMode,
+        context::{GlobalMode, LocalSearchConfigMode},
         frontend::mock::MockFrontend,
         integration_test::integration_test::TestRunner,
+        list::grep::RegexConfig,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
@@ -93,12 +98,12 @@ mod test_app {
                 SetSelectionMode(SelectionMode::BottomNode),
                 Copy,
                 MoveSelection(Movement::Next),
-                Replace,
+                ReplaceSelectionWithCopiedText,
             ])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn fn() { let x = 1; }");
 
-            app.handle_dispatch_editors(&[Replace])?;
+            app.handle_dispatch_editors(&[ReplaceSelectionWithCopiedText])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn main() { let x = 1; }");
             assert_eq!(app.get_selected_texts(&path_main), vec!["main"]);
@@ -252,7 +257,7 @@ mod test_app {
                 vec!["{ let x = S(a); let y = S(b); }"]
             );
 
-            app.handle_dispatch_editors(&[Replace])?;
+            app.handle_dispatch_editors(&[ReplaceSelectionWithCopiedText])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn f()fn f()");
 
@@ -762,6 +767,135 @@ src/main.rs 🦀
                     ),
                 ],
             );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn search_config_history() -> Result<(), anyhow::Error> {
+        run_test(|mut app, _| {
+            let owner_id = ComponentId::new();
+            let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    owner_id,
+                    update,
+                    scope,
+                    show_legend: true,
+                }
+            };
+            let update_global = |update: GlobalSearchConfigUpdate| -> Dispatch {
+                UpdateGlobalSearchConfig { owner_id, update }
+            };
+            use GlobalSearchConfigUpdate::*;
+            use GlobalSearchFilterGlob::*;
+            use LocalSearchConfigUpdate::*;
+            use Scope::*;
+            app.handle_dispatches(
+                [
+                    update(Local, SetSearch("L-Search1".to_string())),
+                    update(Local, SetSearch("L-Search2".to_string())),
+                    update(Local, SetSearch("L-Search1".to_string())),
+                    update(Local, SetReplacement("L-Replacement1".to_string())),
+                    update(Local, SetReplacement("L-Replacement2".to_string())),
+                    update(Local, SetReplacement("L-Replacement1".to_string())),
+                    update(Global, SetSearch("G-Search1".to_string())),
+                    update(Global, SetSearch("G-Search2".to_string())),
+                    update(Global, SetSearch("G-Search1".to_string())),
+                    update(Global, SetReplacement("G-Replacement1".to_string())),
+                    update(Global, SetReplacement("G-Replacement2".to_string())),
+                    update(Global, SetReplacement("G-Replacement1".to_string())),
+                    update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
+                    update_global(SetGlob(Exclude, "ExcludeGlob2".to_string())),
+                    update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
+                    update_global(SetGlob(Include, "IncludeGlob1".to_string())),
+                    update_global(SetGlob(Include, "IncludeGlob2".to_string())),
+                    update_global(SetGlob(Include, "IncludeGlob1".to_string())),
+                ]
+                .to_vec(),
+            )?;
+
+            // Expect the histories are stored, where:
+            // 1. There's no duplication
+            // 2. The insertion order is up-to-date
+            let context = app.context();
+            let local = context.local_search_config();
+            let global = context.global_search_config().local_config();
+            assert_eq!(local.searches(), ["L-Search2", "L-Search1"]);
+            assert_eq!(local.replacements(), ["L-Replacement2", "L-Replacement1"]);
+            assert_eq!(global.searches(), ["G-Search2", "G-Search1"]);
+            assert_eq!(global.replacements(), ["G-Replacement2", "G-Replacement1"]);
+
+            let global = context.global_search_config();
+            assert_eq!(global.include_globs(), ["IncludeGlob2", "IncludeGlob1"]);
+            assert_eq!(global.include_globs(), ["IncludeGlob2", "IncludeGlob1"]);
+            assert_eq!(global.exclude_globs(), ["ExcludeGlob2", "ExcludeGlob1"]);
+            assert_eq!(global.exclude_globs(), ["ExcludeGlob2", "ExcludeGlob1"]);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn global_search_and_replace() -> Result<(), anyhow::Error> {
+        run_test(|mut app, temp_dir| {
+            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
+                temp_dir.join_as_path_buf(filename).try_into()
+            };
+            let owner_id = ComponentId::new();
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    owner_id,
+                    update,
+                    scope: Scope::Global,
+                    show_legend: true,
+                }
+            };
+            let main_rs = file("src/main.rs")?;
+            let foo_rs = file("src/foo.rs")?;
+            let main_rs_initial_content = main_rs.read()?;
+            // Initiall, expect main.rs and foo.rs to contain the word "foo"
+            assert!(main_rs_initial_content.contains("foo"));
+            assert!(foo_rs.read()?.contains("foo"));
+
+            // Replace "foo" with "haha" globally
+            app.handle_dispatches(
+                [
+                    OpenFile {
+                        path: main_rs.clone(),
+                    },
+                    new_dispatch(LocalSearchConfigUpdate::SetMode(
+                        LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: true,
+                            case_sensitive: false,
+                            match_whole_word: false,
+                        }),
+                    )),
+                    new_dispatch(LocalSearchConfigUpdate::SetSearch("foo".to_string())),
+                    new_dispatch(LocalSearchConfigUpdate::SetReplacement("haha".to_string())),
+                    Dispatch::Replace {
+                        scope: Scope::Global,
+                    },
+                ]
+                .to_vec(),
+            )?;
+
+            // Expect main.rs and foo.rs to not contain the word "foo"
+            assert!(!main_rs.read()?.contains("foo"));
+            assert!(!foo_rs.read()?.contains("foo"));
+
+            // Expect main.rs and foo.rs to contain the word "haha"
+            assert!(main_rs.read()?.contains("haha"));
+            assert!(foo_rs.read()?.contains("haha"));
+
+            // Expect the main.rs buffer to be updated as well
+            assert_eq!(app.get_file_content(&main_rs), main_rs.read()?);
+
+            // Apply undo to main_rs
+            app.handle_dispatch_editors(&[DispatchEditor::Undo])?;
+
+            // Expect the content of the main.rs buffer to be reverted
+            assert_eq!(app.get_file_content(&main_rs), main_rs_initial_content);
 
             Ok(())
         })

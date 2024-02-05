@@ -1,4 +1,4 @@
-use super::{ApplyMovementResult, ByteRange, LineFull, SelectionMode};
+use super::{ApplyMovementResult, LineFull, SelectionMode};
 
 pub struct LineTrimmed;
 
@@ -68,13 +68,7 @@ pub fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
 
 #[cfg(test)]
 mod test_line {
-    use crate::{
-        buffer::Buffer,
-        components::editor::Direction,
-        context::Context,
-        selection::{Filters, Selection},
-        selection_mode::SelectionModeParams,
-    };
+    use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
 

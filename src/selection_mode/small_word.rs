@@ -7,8 +7,11 @@ impl SmallWord {
         super::Regex::new(
             buffer,
             r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*))_*)|([^\w\s]|_)+|[0-9]+",
-            false,
-            true,
+            crate::list::grep::RegexConfig {
+                escaped: false,
+                case_sensitive: true,
+                match_whole_word: false,
+            },
         )
     }
 }

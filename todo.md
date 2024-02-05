@@ -185,7 +185,6 @@
 - [] feat(completion): Github Copilot! (contact AlexanderDickie from https://github.com/helix-editor/helix/pull/6865 when Tim is matured enough to accept contributors)
 
 - [] each selection mode to have action(s), for example for git hunk, actions are stage-hunk/discard-hunk.
-- [] feat(g): 'ggh' for global git hunks
 - [] feat(space-f): for file mode, r = rename, d = delete, a = add, s = save
 - [] feat(doc): add motto about having no shift keys for key bindings;
   spammable key like n/p will not hide under layers, but action like "Change
@@ -237,10 +236,7 @@
 - [] feat(keybinding): move keys under z to f
 - [] feat(prompt/file): group by parent folder in view
 - [] feat: workspace undo/redo
-- [] feat: combine - with v, so that we can navigate backwards, u/d for navigating between files
-  - seletion-set hierarchy: lowest - contiguous selection, middle (default): non-contiguous selection, highest: last selection of every file
 - [] feat: emulate m mode of Helix, it's good
 - [] feat(quickfix-hierarchy): lowest - items within the current file, middle (default): all quickfix items, highest: first items of every file (use u/d to navigate between hierarchy)
 - [] feat(selection-mode/tabs): default tab is 1, press 2 to go to tab 2, each tab store a selection mode, this is useful if we have a primary selection mode that we want to keep (say quickfix list)
 - [] refactor: use nonempty for SelectionSet
-- [] Change `lu` to `-`

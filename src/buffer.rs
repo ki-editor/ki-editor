@@ -1,10 +1,11 @@
 use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
+    context::{LocalSearchConfig, LocalSearchConfigMode},
     edit::{Action, ActionGroup, Edit, EditTransaction},
     position::Position,
     selection::{CharIndex, Selection, SelectionSet},
-    selection_mode::ByteRange,
+    selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlighedSpan, HighlighedSpans},
     themes::Theme,
     undo_tree::{Applicable, OldNew, UndoTree},
@@ -61,6 +62,14 @@ impl Buffer {
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
         }
+    }
+    pub fn reload(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.path() {
+            let updated_content = path.read()?;
+
+            self.update_content(&updated_content, SelectionSet::default())?;
+        }
+        Ok(())
     }
     pub fn content(&self) -> String {
         self.rope.to_string()
@@ -560,31 +569,35 @@ impl Buffer {
         None
     }
 
-    pub fn save(
-        &mut self,
-        current_selection_set: SelectionSet,
-    ) -> anyhow::Result<Option<CanonicalizedPath>> {
-        let before = self.rope.to_string();
-
-        let content = if let Some(formatted_content) = self.get_formatted_content() {
-            if let Ok(edit_transaction) = self.get_edit_transaction(&formatted_content) {
-                self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
-                formatted_content
-            } else {
-                before
-            }
-        } else {
-            before
-        };
-
+    pub fn save_without_formatting(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
         if let Some(path) = &self.path.clone() {
-            path.write(&content)?;
+            path.write(&self.content())?;
 
             Ok(Some(path.clone()))
         } else {
             log::info!("Buffer has no path");
             Ok(None)
         }
+    }
+
+    pub fn save(
+        &mut self,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<Option<CanonicalizedPath>> {
+        if let Some(formatted_content) = self.get_formatted_content() {
+            self.update_content(&formatted_content, current_selection_set)?;
+        }
+
+        self.save_without_formatting()
+    }
+
+    fn update_content(
+        &mut self,
+        new_content: &str,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<SelectionSet> {
+        let edit_transaction = self.get_edit_transaction(new_content)?;
+        self.apply_edit_transaction(&edit_transaction, current_selection_set)
     }
 
     pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
@@ -719,7 +732,7 @@ impl Buffer {
                     }
                     similar::ChangeTag::Equal => {
                         if let Some(start) = current_range_start {
-                            let replacement = std::mem::replace(&mut replacement, Vec::new());
+                            let replacement = std::mem::take(&mut replacement);
 
                             edits.push(Edit {
                                 range: self.position_range_to_char_index_range(
@@ -741,8 +754,8 @@ impl Buffer {
                         };
 
                         let content = change.to_string();
-                        let content = if change.missing_newline() && content.ends_with("\n") {
-                            content.trim_end_matches("\n").to_owned()
+                        let content = if change.missing_newline() && content.ends_with('\n') {
+                            content.trim_end_matches('\n').to_owned()
                         } else {
                             content
                         };
@@ -752,7 +765,7 @@ impl Buffer {
             }
 
             if let Some(start) = current_range_start {
-                let replacement = std::mem::replace(&mut replacement, Vec::new());
+                let replacement = std::mem::take(&mut replacement);
 
                 edits.push(Edit {
                     range: self.position_range_to_char_index_range(
@@ -848,6 +861,52 @@ impl Buffer {
         }
 
         pairs
+    }
+
+    /// The boolean returned indicates whether the replacement causes any modification
+    pub fn replace(
+        &mut self,
+        config: LocalSearchConfig,
+        current_selection_set: SelectionSet,
+    ) -> anyhow::Result<(bool, SelectionSet)> {
+        let before = self.rope.to_string();
+        let edit_transaction = match config.mode {
+            LocalSearchConfigMode::Regex(regex_config) => {
+                let regex = regex_config.to_regex(&config.search())?;
+                let replaced = regex.replace_all(&before, config.replacement()).to_string();
+                self.get_edit_transaction(&replaced)?
+            }
+            LocalSearchConfigMode::AstGrep => {
+                let edits = AstGrep::replace(
+                    self.treesitter_language(),
+                    &before,
+                    &config.search(),
+                    &config.replacement(),
+                )?;
+                EditTransaction::from_action_groups(
+                    edits
+                        .into_iter()
+                        .map(|edit| -> anyhow::Result<ActionGroup> {
+                            let start = self.byte_to_char(edit.position)?;
+                            let end = start + edit.deleted_length;
+
+                            Ok(ActionGroup::new(
+                                [Action::Edit(Edit {
+                                    range: (start..end).into(),
+                                    new: String::from_utf8(edit.inserted_text)?.into(),
+                                })]
+                                .to_vec(),
+                            ))
+                        })
+                        .try_collect()?,
+                )
+            }
+        };
+        let selection_set =
+            self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
+        let after = self.content();
+        let modified = before != after;
+        Ok((modified, selection_set))
     }
 }
 
@@ -953,6 +1012,74 @@ fn f(
 
         // Should return unique words
         assert_eq!(words, vec!["bar", "baz"]);
+    }
+
+    mod replace {
+
+        use crate::{
+            context::{
+                LocalSearchConfig,
+                LocalSearchConfigMode::{AstGrep, Regex},
+            },
+            list::grep::RegexConfig,
+        };
+
+        use super::*;
+        fn test(input: &str, config: LocalSearchConfig, expected: &str) -> anyhow::Result<()> {
+            let mut buffer = Buffer::new(
+                shared::language::from_extension("rs")
+                    .unwrap()
+                    .tree_sitter_language()
+                    .unwrap(),
+                input,
+            );
+            buffer.replace(config, SelectionSet::default())?;
+            assert_eq!(buffer.content(), expected);
+            Ok(())
+        }
+        #[test]
+        fn literal_1() -> anyhow::Result<()> {
+            test(
+                "hel. help hel.o",
+                LocalSearchConfig::new(Regex(RegexConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }))
+                .set_search("hel.".to_string())
+                .set_replacment("wow".to_string())
+                .to_owned(),
+                "wow help wowo",
+            )
+        }
+
+        #[test]
+        fn regex_capture_group() -> anyhow::Result<()> {
+            test(
+                "123x456",
+                LocalSearchConfig::new(Regex(RegexConfig {
+                    escaped: false,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }))
+                .set_search(r"(\d+)".to_string())
+                .set_replacment(r"($1)".to_string())
+                .to_owned(),
+                "(123)x(456)",
+            )
+        }
+
+        #[test]
+        fn ast_group_1() -> anyhow::Result<()> {
+            test(
+                "fn main() { replace(x + 1, f(2)); replace(a,b) }",
+                LocalSearchConfig::new(AstGrep)
+                    .set_search(r"replace($X,$Y)".to_string())
+                    .set_replacment(r"replace($Y,$X)".to_string())
+                    .to_owned(),
+                "fn main() { replace(f(2),x + 1); replace(b,a) }",
+            )
+        }
     }
 
     mod auto_format {

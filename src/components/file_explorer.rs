@@ -4,7 +4,11 @@ use my_proc_macros::key;
 use crate::app::{Dispatch, YesNoPrompt};
 use shared::canonicalized_path::CanonicalizedPath;
 
-use super::{component::Component, editor::Editor, keymap_legend::Keymap};
+use super::{
+    component::Component,
+    editor::Editor,
+    keymap_legend::{Keymap, KeymapLegendBody, Keymaps},
+};
 
 pub struct FileExplorer {
     editor: Editor,
@@ -352,36 +356,47 @@ impl Component for FileExplorer {
                     super::keymap_legend::KeymapLegendConfig {
                         owner_id: self.id(),
                         title: "File Explorer Actions".to_string(),
-                        keymaps: current_node
-                            .map(|node| {
-                                [
-                                    Keymap::new(
-                                        "a",
-                                        "Add file (or postfix with / for folder)",
-                                        Dispatch::OpenAddPathPrompt(node.path.clone()),
-                                    ),
-                                    Keymap::new(
-                                        "d",
-                                        "Delete path",
-                                        Dispatch::OpenYesNoPrompt(YesNoPrompt {
-                                            owner_id: self.id(),
-                                            title: format!(
-                                                "Delete \"{}\"?",
-                                                node.path.display_absolute()
+                        body: KeymapLegendBody::SingleSection {
+                            keymaps: Keymaps::new(
+                                &current_node
+                                    .map(|node| {
+                                        [
+                                            Keymap::new(
+                                                "a",
+                                                "Add file (or postfix with / for folder)"
+                                                    .to_string(),
+                                                Dispatch::OpenAddPathPrompt(node.path.clone()),
                                             ),
-                                            yes: Box::new(Dispatch::DeletePath(node.path.clone())),
-                                        }),
-                                    ),
-                                    Keymap::new(
-                                        "m",
-                                        "Move file",
-                                        Dispatch::OpenMoveFilePrompt(node.path.clone()),
-                                    ),
-                                    Keymap::new("r", "Refresh", Dispatch::RefreshFileExplorer),
-                                ]
-                                .to_vec()
-                            })
-                            .unwrap_or_default(),
+                                            Keymap::new(
+                                                "d",
+                                                "Delete path".to_string(),
+                                                Dispatch::OpenYesNoPrompt(YesNoPrompt {
+                                                    owner_id: self.id(),
+                                                    title: format!(
+                                                        "Delete \"{}\"?",
+                                                        node.path.display_absolute()
+                                                    ),
+                                                    yes: Box::new(Dispatch::DeletePath(
+                                                        node.path.clone(),
+                                                    )),
+                                                }),
+                                            ),
+                                            Keymap::new(
+                                                "m",
+                                                "Move file".to_string(),
+                                                Dispatch::OpenMoveFilePrompt(node.path.clone()),
+                                            ),
+                                            Keymap::new(
+                                                "r",
+                                                "Refresh".to_string(),
+                                                Dispatch::RefreshFileExplorer,
+                                            ),
+                                        ]
+                                        .to_vec()
+                                    })
+                                    .unwrap_or_default(),
+                            ),
+                        },
                     },
                 )]
                 .to_vec())

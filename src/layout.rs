@@ -3,7 +3,7 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        editor::{Editor, Movement},
+        editor::Editor,
         file_explorer::FileExplorer,
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
@@ -12,7 +12,6 @@ use crate::{
     quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
-    undo_tree::{Applicable, OldNew, UndoTree},
 };
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -479,6 +478,24 @@ impl Layout {
                 .borrow_mut()
                 .editor_mut()
                 .update_selection_set(selection_set);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn reload_buffers(
+        &self,
+        affected_paths: Vec<CanonicalizedPath>,
+    ) -> anyhow::Result<()> {
+        for buffer in self.buffers() {
+            let mut buffer = buffer.borrow_mut();
+            if let Some(path) = buffer.path() {
+                if affected_paths
+                    .iter()
+                    .any(|affected_path| affected_path == &path)
+                {
+                    buffer.reload()?;
+                }
+            }
         }
         Ok(())
     }

@@ -87,7 +87,6 @@ fn get_node(node: tree_sitter::Node, go_up: bool) -> Option<tree_sitter::Node> {
 mod test_syntax_tree {
     use crate::{
         buffer::Buffer,
-        char_index_range::CharIndexRange,
         context::Context,
         selection::{CharIndex, Filters, Selection},
         selection_mode::SelectionModeParams,

@@ -12,7 +12,7 @@ use crate::{
         editor::{Direction, Movement},
         suggestive_editor::Info,
     },
-    context::{Context, Search, SearchKind},
+    context::{Context, LocalSearchConfigMode, Search},
     position::Position,
     selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
 };
@@ -316,7 +316,7 @@ impl SelectionSet {
             .expect("We should refactor `SelectionSet::map` to return NonEmpty instead of Vec.");
         Ok(SelectionSet {
             primary: selection.to_owned(),
-            secondary: tail.into_iter().map(|it| it.selection.to_owned()).collect(),
+            secondary: tail.iter().map(|it| it.selection.to_owned()).collect(),
             mode: new_mode.clone().unwrap_or_else(|| mode.clone()),
             filters: self.filters.clone(),
         })
@@ -516,7 +516,7 @@ impl SelectionMode {
             SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
             SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
             SelectionMode::Find { search } => {
-                format!("FIND {:?} {:?}", search.kind, search.search)
+                format!("FIND {} {:?}", search.mode.display(), search.search)
             }
             SelectionMode::Diagnostic(severity) => {
                 let severity = severity
@@ -561,34 +561,13 @@ impl SelectionMode {
             SelectionMode::Custom => {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
-            SelectionMode::Find { search } => match search.kind {
-                SearchKind::AstGrep => {
+            SelectionMode::Find { search } => match search.mode {
+                LocalSearchConfigMode::Regex(regex) => {
+                    Box::new(selection_mode::Regex::new(buffer, &search.search, regex)?)
+                }
+                LocalSearchConfigMode::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
-                SearchKind::Literal => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    true,
-                    false,
-                )?),
-                SearchKind::LiteralCaseSensitive => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    true,
-                    true,
-                )?),
-                SearchKind::Regex => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    false,
-                    false,
-                )?),
-                SearchKind::RegexCaseSensitive => Box::new(selection_mode::Regex::new(
-                    buffer,
-                    &search.search,
-                    false,
-                    true,
-                )?),
             },
             SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
             SelectionMode::TopNode => Box::new(selection_mode::TopNode),
@@ -622,9 +601,9 @@ impl SelectionMode {
     }
 }
 
-impl Into<ApplyMovementResult> for Selection {
-    fn into(self) -> ApplyMovementResult {
-        ApplyMovementResult::from_selection(self)
+impl From<Selection> for ApplyMovementResult {
+    fn from(val: Selection) -> Self {
+        ApplyMovementResult::from_selection(val)
     }
 }
 
