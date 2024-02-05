@@ -77,6 +77,8 @@ impl WalkBuilderConfig {
 mod test_walk_builder_config {
     use std::path::PathBuf;
 
+    use itertools::Itertools;
+
     use super::WalkBuilderConfig;
 
     #[test]
@@ -91,7 +93,7 @@ mod test_walk_builder_config {
             Ok(())
         }))?;
         assert_eq!(
-            paths,
+            paths.into_iter().sorted().collect_vec(),
             [
                 PathBuf::from("./tests/mock_repos/rust1/Cargo.lock"),
                 PathBuf::from("./tests/mock_repos/rust1/Cargo.toml")
@@ -112,10 +114,10 @@ mod test_walk_builder_config {
             Ok(())
         }))?;
         assert_eq!(
-            paths,
+            paths.into_iter().sorted().collect_vec(),
             [
-                PathBuf::from("./tests/mock_repos/rust1/src/main.rs"),
-                PathBuf::from("./tests/mock_repos/rust1/src/foo.rs")
+                PathBuf::from("./tests/mock_repos/rust1/src/foo.rs"),
+                PathBuf::from("./tests/mock_repos/rust1/src/main.rs")
             ]
         );
         Ok(())
