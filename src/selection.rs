@@ -772,6 +772,13 @@ impl Selection {
             .chain(self.initial_range)
             .collect_vec()
     }
+
+    pub(crate) fn get_anchor(&self, cursor_direction: &Direction) -> CharIndex {
+        match cursor_direction {
+            Direction::Start => self.extended_range().start,
+            Direction::End => self.extended_range().end,
+        }
+    }
 }
 
 // TODO: this works, but the result is not satisfactory,

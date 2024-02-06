@@ -1445,4 +1445,68 @@ fn main() { // too long
         assert_eq!(editor.get_selected_texts(), ["hello  "]);
         Ok(())
     }
+
+    #[test]
+    fn kill_line_to_end() -> anyhow::Result<()> {
+        let input = "lala\nfoo bar spam\nyoyo";
+        let mut editor = Editor::from_text(language(), input);
+        let context = Context::default();
+        // Killing to the end of line WITH trailing newline character
+        editor.apply_dispatches(
+            &context,
+            [
+                MatchLiteral("bar".to_string()),
+                KillLine(Direction::End),
+                Insert("sparta".to_string()),
+            ]
+            .to_vec(),
+        )?;
+        assert_eq!(editor.content(), "lala\nfoo sparta\nyoyo");
+        assert!(editor.mode == Mode::Insert);
+        assert_eq!(editor.get_selected_texts(), [""]);
+
+        // Remove newline character if the character after cursor is a newline character
+        editor.apply_dispatch(&context, KillLine(Direction::End))?;
+        assert_eq!(editor.content(), "lala\nfoo spartayoyo");
+
+        // Killing to the end of line WITHOUT trailing newline character
+        editor.apply_dispatch(&context, KillLine(Direction::End))?;
+        assert_eq!(editor.content(), "lala\nfoo sparta");
+        Ok(())
+    }
+
+    #[test]
+    fn kill_line_to_start() -> anyhow::Result<()> {
+        let input = "lala\nfoo bar spam\nyoyo";
+        let mut editor = Editor::from_text(language(), input);
+        let context = Context::default();
+        // Killing to the start of line WITH leading newline character
+        editor.apply_dispatches(
+            &context,
+            [
+                MatchLiteral("bar".to_string()),
+                KillLine(Direction::Start),
+                Insert("sparta".to_string()),
+            ]
+            .to_vec(),
+        )?;
+        assert_eq!(editor.content(), "lala\nspartabar spam\nyoyo");
+        assert!(editor.mode == Mode::Insert);
+
+        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
+        assert_eq!(editor.content(), "lala\nbar spam\nyoyo");
+
+        // Remove newline character if the character before cursor is a newline character
+        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
+        assert_eq!(editor.content(), "lalabar spam\nyoyo");
+        assert_eq!(
+            editor.get_cursor_position()?,
+            Position { line: 0, column: 4 }
+        );
+
+        // Killing to the start of line WITHOUT leading newline character
+        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
+        assert_eq!(editor.content(), "bar spam\nyoyo");
+        Ok(())
+    }
 }

@@ -93,6 +93,14 @@ impl CharIndexRange {
     fn to_range(&self) -> Range<CharIndex> {
         self.start..self.end
     }
+
+    pub(crate) fn end(&self) -> CharIndex {
+        self.end
+    }
+
+    pub(crate) fn start(&self) -> CharIndex {
+        self.start
+    }
 }
 
 pub struct CharIndexRangeIter {

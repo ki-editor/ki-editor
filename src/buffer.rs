@@ -244,6 +244,16 @@ impl Buffer {
             .into())
     }
 
+    pub fn get_line_range_by_char_index(
+        &self,
+        char_index: CharIndex,
+    ) -> anyhow::Result<CharIndexRange> {
+        let line = self.get_line_by_char_index(char_index)?.to_string();
+        let line_start = self.line_to_char(self.char_to_line(char_index)?)?;
+        let line_end = line_start + line.chars().count();
+        Ok((line_start..line_end).into())
+    }
+
     pub fn get_word_before_char_index(&self, char_index: CharIndex) -> anyhow::Result<String> {
         let cursor_byte = self.char_to_byte(char_index)?;
         let regex = Regex::new(r"\b\w+").unwrap();

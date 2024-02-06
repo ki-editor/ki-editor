@@ -1337,6 +1337,7 @@ impl Editor {
                 return Ok(self.get_document_did_change_dispatch());
             }
             DispatchEditor::Undo => return self.undo(),
+            DispatchEditor::KillLine(direction) => return self.kill_line(direction),
         }
         Ok([].to_vec())
     }
@@ -1383,10 +1384,7 @@ impl Editor {
                 let dispatches = self.copy(context)?;
                 Ok(HandleEventResult::Handled(dispatches))
             }
-            key!("ctrl+d") => {
-                self.scroll_page_down()?;
-                Ok(HandleEventResult::Handled(vec![]))
-            }
+
             key!("ctrl+l") => {
                 self.switch_view_alignment();
                 Ok(HandleEventResult::Handled(vec![]))
@@ -1395,10 +1393,6 @@ impl Editor {
                 let dispatches = self.save()?;
                 self.mode = Mode::Normal;
                 Ok(HandleEventResult::Handled(dispatches))
-            }
-            key!("ctrl+u") => {
-                self.scroll_page_up()?;
-                Ok(HandleEventResult::Handled(vec![]))
             }
             key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
             key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context)?)),
@@ -1520,10 +1514,20 @@ impl Editor {
             key!("ctrl+a") | key!("home") => self.home(context)?,
             key!("ctrl+e") | key!("end") => self.end(context)?,
             key!("alt+backspace") => return self.delete_word_backward(context),
+            key!("ctrl+k") => {
+                return Ok([Dispatch::DispatchEditor(DispatchEditor::KillLine(
+                    Direction::End,
+                ))]
+                .to_vec())
+            }
+            key!("ctrl+u") => {
+                return Ok([Dispatch::DispatchEditor(DispatchEditor::KillLine(
+                    Direction::Start,
+                ))]
+                .to_vec())
+            }
             // key!("alt+left") => self.move_word_backward(),
             // key!("alt+right") => self.move_word_forward(),
-            // key!("ctrl+u") => return self.delete_to_start_of_line(),
-            // key!("ctrl+k") => return self.delete_to_end_of_line(),
             event => match event.code {
                 KeyCode::Char(c) => return self.insert(&c.to_string()),
                 _ => {}
@@ -1664,6 +1668,12 @@ impl Editor {
             }
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!("*") => self.select_all(context)?,
+            key!("ctrl+d") => {
+                self.scroll_page_down()?;
+            }
+            key!("ctrl+u") => {
+                self.scroll_page_up()?;
+            }
 
             key!("left") => return self.handle_movement(context, Movement::Previous),
             key!("shift+left") => return self.handle_movement(context, Movement::First),
@@ -2775,6 +2785,57 @@ impl Editor {
     fn enter_exchange_mode(&mut self) {
         self.mode = Mode::Exchange
     }
+
+    fn kill_line(&mut self, direction: Direction) -> Result<Vec<Dispatch>, anyhow::Error> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let cursor = selection.get_anchor(&self.cursor_direction);
+                    let line_range = buffer.get_line_range_by_char_index(cursor)?;
+                    let (delete_range, cursor_start) = match direction {
+                        Direction::Start => {
+                            let start = line_range.start();
+                            let range = (start..cursor).into();
+                            let slice = buffer.slice(&range)?.to_string();
+                            let start = if slice.is_empty() { start - 1 } else { start };
+                            let range = (start..cursor).into();
+                            (range, start)
+                        }
+                        Direction::End => {
+                            let range = (cursor..line_range.end()).into();
+                            let slice = buffer.slice(&range)?.to_string();
+                            let range = if slice == "\n" || range.end.0 == buffer.len_chars() {
+                                range
+                            } else {
+                                (cursor..(line_range.end() - 1)).into()
+                            };
+                            (range, cursor)
+                        }
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: delete_range,
+                                new: Rope::new(),
+                            }),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((cursor_start..cursor_start).into()),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        let dispatches = self.apply_edit_transaction(edit_transaction)?;
+        self.enter_insert_mode(Direction::Start)?;
+        Ok(dispatches)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2831,4 +2892,5 @@ pub enum DispatchEditor {
         config: crate::context::LocalSearchConfig,
     },
     Undo,
+    KillLine(Direction),
 }

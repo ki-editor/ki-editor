@@ -21,10 +21,8 @@
 The following keybindings work regardless of any mode.
 
 - `ctrl+c`: **C**opy current selection(s)
-- `ctrl+d`: Scroll page **d**own [from Vim]
 - `ctrl+l`: Toggle view a**l**ignment (top, center, bottom) [from Emacs]
 - `ctrl+s`: **S**ave current file
-- `ctrl+u`: Scroll page **u**p [from Vim]
 - `ctrl+w`: Cycle to next **w**indow
 - `ctrl+v`: Paste (overrides current selection, like GUI editor)
 - `ctrl+x`: Cut current selection(s)
@@ -35,6 +33,8 @@ The following keybindings work regardless of any mode.
 
 - `ctrl+a`/`home`: Move cursor(s) to the beginning of the line
 - `ctrl+e`/`end`: Move cursor(s) to the **e**nd of line
+- `ctrl+k`: **K**ill line content after cursor
+- `ctrl+u`: Kill line content before cursor
 - `alt+backspace`: Delete word backward
 
 ## Normal mode
@@ -76,6 +76,8 @@ The following keybindings work regardless of any mode.
 - `'`: Open List menu
 - `(`/`{`/`[`/`<`: Enclose current selection(s) with `()`/`{}`/`[]`/`<>`
 - `space`: Open context menu
+- `ctrl+d`: Scroll page **d**own [from Vim]
+- `ctrl+u`: Scroll page **u**p [from Vim]
 
 ## Movements and selection modes
 
