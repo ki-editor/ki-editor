@@ -141,20 +141,6 @@ mod test_editor {
     }
 
     #[test]
-    /// Example: from "hello" -> hello
-    fn raise_inside() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { (a, b) }");
-        let context = Context::default();
-        editor.match_literal(&context, "b")?;
-
-        editor.set_selection_mode(&context, SelectionMode::Inside(InsideKind::Parentheses))?;
-        assert_eq!(editor.get_selected_texts(), &["a, b"]);
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { a, b }");
-        Ok(())
-    }
-
-    #[test]
     fn exchange_line() -> anyhow::Result<()> {
         // Multiline source code
         let mut editor = Editor::from_text(
@@ -311,36 +297,6 @@ fn main() {
 
         editor.exchange(&context, Movement::Previous)?;
         assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        Ok(())
-    }
-
-    #[test]
-    fn toggle_highlight_mode() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.toggle_highlight_mode();
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f("]);
-
-        // Toggle the second time should inverse the initial_range
-        editor.toggle_highlight_mode();
-
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["f("]);
-
-        editor.reset();
-
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["("]);
-
         Ok(())
     }
 

@@ -240,3 +240,6 @@
 - [] feat(quickfix-hierarchy): lowest - items within the current file, middle (default): all quickfix items, highest: first items of every file (use u/d to navigate between hierarchy)
 - [] feat(selection-mode/tabs): default tab is 1, press 2 to go to tab 2, each tab store a selection mode, this is useful if we have a primary selection mode that we want to keep (say quickfix list)
 - [] refactor: use nonempty for SelectionSet
+- [] bug: cannot clear include glob or exclude glob
+- [] fix(selection_mode/word): should not group symbols together as a word
+- [] feat(jump): default can be small word jump, as that cover most cases

@@ -833,21 +833,27 @@ impl Editor {
         self.selection_set.escape_highlight_mode();
     }
 
-    pub fn update_selection_set(&mut self, selection_set: SelectionSet) -> Vec<Dispatch> {
-        let old_selection_set = std::mem::replace(&mut self.selection_set, selection_set.clone());
-        self.recalculate_scroll_offset();
+    /// WARNING: this method should only be called by `app.rs`, not by this file    
+    pub fn __update_selection_set_for_real(&mut self, selection_set: SelectionSet) {
+        self.selection_set = selection_set;
+        self.recalculate_scroll_offset()
+    }
+
+    pub fn update_selection_set(&self, selection_set: SelectionSet) -> Vec<Dispatch> {
         self.buffer()
             .path()
-            .map(|path| Dispatch::PushSelectionSet {
-                new_selection_set: selection_set,
-                old_selection_set,
+            .map(|path| Dispatch::UpdateSelectionSet {
+                selection_set,
                 path,
             })
             .into_iter()
             .collect()
     }
 
-    pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn position_range_to_selection_set(
+        &self,
+        range: Range<Position>,
+    ) -> anyhow::Result<SelectionSet> {
         let range = (self.buffer().position_to_char(range.start)?
             ..self.buffer().position_to_char(range.end)?)
             .into();
@@ -858,12 +864,16 @@ impl Editor {
             SelectionMode::Custom
         };
         let primary = self.selection_set.primary.clone().set_range(range);
-        let selection_set = SelectionSet {
+        Ok(SelectionSet {
             primary,
             secondary: vec![],
             mode,
             filters: Filters::default(),
-        };
+        })
+    }
+
+    pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<Vec<Dispatch>> {
+        let selection_set = self.position_range_to_selection_set(range)?;
         Ok(self.update_selection_set(selection_set))
     }
 
@@ -1338,6 +1348,7 @@ impl Editor {
             }
             DispatchEditor::Undo => return self.undo(),
             DispatchEditor::KillLine(direction) => return self.kill_line(direction),
+            DispatchEditor::Reset => self.reset(),
         }
         Ok([].to_vec())
     }
@@ -1550,6 +1561,7 @@ impl Editor {
         })
     }
 
+    #[must_use]
     pub fn set_selection_mode(
         &mut self,
         context: &Context,
@@ -1669,10 +1681,10 @@ impl Editor {
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!("*") => self.select_all(context)?,
             key!("ctrl+d") => {
-                self.scroll_page_down()?;
+                return self.scroll_page_down();
             }
             key!("ctrl+u") => {
-                self.scroll_page_up()?;
+                return self.scroll_page_up();
             }
 
             key!("left") => return self.handle_movement(context, Movement::Previous),
@@ -1760,6 +1772,14 @@ impl Editor {
             key!("enter") => return self.open_new_line(),
             key!("%") => self.change_cursor_direction(),
             key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
+            key!("{") => {
+                return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
+            }
+            key!("}") => {
+                return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
+            }
+            key!("[") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
+            key!("]") => return Ok([Dispatch::GoToNextSelection].to_vec()),
             key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
             key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
             key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
@@ -2037,7 +2057,6 @@ impl Editor {
         Ok(())
     }
 
-    #[cfg(test)]
     pub fn get_selected_texts(&self) -> Vec<String> {
         let buffer = self.buffer.borrow();
         let mut selections = self
@@ -2893,4 +2912,5 @@ pub enum DispatchEditor {
     },
     Undo,
     KillLine(Direction),
+    Reset,
 }

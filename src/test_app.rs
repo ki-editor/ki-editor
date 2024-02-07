@@ -11,6 +11,8 @@ mod test_app {
     use std::sync::{Arc, Mutex};
     use Dispatch::*;
     use DispatchEditor::*;
+    use Movement::*;
+    use SelectionMode::*;
 
     use shared::canonicalized_path::CanonicalizedPath;
 
@@ -32,6 +34,7 @@ mod test_app {
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
         selection::SelectionMode,
+        selection_mode::inside::InsideKind,
     };
 
     fn run_test(
@@ -627,24 +630,35 @@ src/main.rs 🦀
             };
 
             app.handle_dispatch(open("src/main.rs")?)?;
+            let main_rs = &file("src/main.rs")?;
 
             app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::LineTrimmed)])?;
-            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["mod foo;"]);
+            assert_eq!(app.get_selected_texts(main_rs), ["mod foo;"]);
 
             app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Character)])?;
-            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["m"]);
+            assert_eq!(app.get_selected_texts(main_rs), ["m"]);
 
-            app.handle_dispatches(
-                [
-                    SetGlobalMode(Some(GlobalMode::SelectionHistoryContiguous)),
-                    DispatchEditor(MoveSelection(Movement::Previous)),
-                ]
-                .to_vec(),
-            )?;
-            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["mod foo;"]);
+            app.handle_dispatch(Dispatch::GoToPreviousSelection)?;
+            assert_eq!(app.get_selected_texts(main_rs), ["mod foo;"]);
 
-            app.handle_dispatches([DispatchEditor(MoveSelection(Movement::Next))].to_vec())?;
-            assert_eq!(app.get_selected_texts(&file("src/main.rs")?), ["m"]);
+            app.handle_dispatch(Dispatch::GoToNextSelection)?;
+            assert_eq!(app.get_selected_texts(main_rs), ["m"]);
+
+            let foo_rs = file("src/foo.rs")?;
+            app.handle_dispatch(Dispatch::GotoLocation(Location {
+                path: foo_rs.clone(),
+                range: Position::new(0, 0)..Position::new(0, 4),
+            }))?;
+            assert_eq!(
+                app.get_current_selected_texts(),
+                (foo_rs, ["pub ".to_string()].to_vec())
+            );
+
+            app.handle_dispatch(Dispatch::GoToPreviousSelection)?;
+            assert_eq!(
+                app.get_current_selected_texts(),
+                (main_rs.clone(), ["m".to_string()].to_vec())
+            );
 
             Ok(())
         })
@@ -896,6 +910,57 @@ src/main.rs 🦀
 
             // Expect the content of the main.rs buffer to be reverted
             assert_eq!(app.get_file_content(&main_rs), main_rs_initial_content);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    /// Example: from "hello" -> hello
+    fn raise_inside() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile {
+                path: temp_dir.join("src/main.rs")?,
+            })?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn main() { (a, b) }".to_string()),
+                MatchLiteral("b".to_string()),
+                SetSelectionMode(SelectionMode::Inside(InsideKind::Parentheses)),
+            ])?;
+            assert_eq!(app.get_current_selected_texts().1, &["a, b"]);
+            app.handle_dispatch_editors(&[Raise])?;
+
+            assert_eq!(app.get_current_file_content(), "fn main() { a, b }");
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn toggle_highlight_mode() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile {
+                path: temp_dir.join("src/main.rs")?,
+            })?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
+                SetSelectionMode(BottomNode),
+                ToggleHighlightMode,
+                MoveSelection(Next),
+                MoveSelection(Next),
+            ])?;
+            assert_eq!(app.get_current_selected_texts().1, vec!["fn f("]);
+
+            // Toggle the second time should inverse the initial_range
+            app.handle_dispatch_editors(&[ToggleHighlightMode, MoveSelection(Next)])?;
+            assert_eq!(app.get_current_selected_texts().1, vec!["f("]);
+
+            app.handle_dispatch_editors(&[Reset])?;
+
+            assert_eq!(app.get_current_selected_texts().1, vec!["f"]);
+
+            app.handle_dispatch_editors(&[MoveSelection(Next)])?;
+
+            assert_eq!(app.get_current_selected_texts().1, vec!["("]);
 
             Ok(())
         })

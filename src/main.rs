@@ -18,6 +18,7 @@ mod lsp;
 mod position;
 
 mod app;
+pub mod history;
 mod quickfix_list;
 mod rectangle;
 mod selection;

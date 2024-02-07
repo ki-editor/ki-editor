@@ -477,7 +477,7 @@ impl Layout {
             editor
                 .borrow_mut()
                 .editor_mut()
-                .update_selection_set(selection_set);
+                .__update_selection_set_for_real(selection_set);
         }
         Ok(())
     }

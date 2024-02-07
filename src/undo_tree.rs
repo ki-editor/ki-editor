@@ -5,12 +5,11 @@ use undo::History;
 
 use crate::components::editor::{Direction, Movement};
 
-#[derive(Clone, PartialEq)]
-pub struct OldNew<T: Clone + PartialEq> {
+#[derive(Clone, PartialEq, Debug)]
+pub struct OldNew<T> {
     pub old_to_new: T,
     pub new_to_old: T,
 }
-
 pub trait Applicable: Clone + Display + PartialEq {
     type Target;
     type Output: Display;
