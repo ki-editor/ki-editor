@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crossbeam::channel::Sender;
+use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -10,8 +11,8 @@ pub mod grep;
 
 pub struct WalkBuilderConfig {
     pub root: PathBuf,
-    pub include: Option<glob::Pattern>,
-    pub exclude: Option<glob::Pattern>,
+    pub include: Option<Glob>,
+    pub exclude: Option<Glob>,
 }
 
 impl WalkBuilderConfig {
@@ -37,11 +38,11 @@ impl WalkBuilderConfig {
                     .unwrap_or(false)
                     || (include
                         .as_ref()
-                        .map(|pattern| pattern.matches(&path))
+                        .map(|pattern| pattern.compile_matcher().is_match(&path))
                         .unwrap_or(true)
                         && exclude
                             .as_ref()
-                            .map(|pattern| !pattern.matches(&path))
+                            .map(|pattern| !pattern.compile_matcher().is_match(&path))
                             .unwrap_or(true))
             })
             .build_parallel()
@@ -75,6 +76,7 @@ impl WalkBuilderConfig {
 
 #[cfg(test)]
 mod test_walk_builder_config {
+    use globset::Glob;
     use std::path::PathBuf;
 
     use itertools::Itertools;
@@ -86,7 +88,7 @@ mod test_walk_builder_config {
         let config = WalkBuilderConfig {
             root: "./tests/mock_repos/rust1".into(),
             include: None,
-            exclude: Some(glob::Pattern::new("*.rs")?),
+            exclude: Some(Glob::new("*.rs")?),
         };
         let paths = config.run(Box::new(|path, sender| {
             sender.send(path).unwrap();
@@ -106,7 +108,7 @@ mod test_walk_builder_config {
     fn test_include() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
             root: "./tests/mock_repos/rust1".into(),
-            include: Some(glob::Pattern::new("**/src/*.rs")?),
+            include: Some(Glob::new("**/src/*.rs")?),
             exclude: None,
         };
         let paths = config.run(Box::new(|path, sender| {
@@ -120,6 +122,21 @@ mod test_walk_builder_config {
                 PathBuf::from("./tests/mock_repos/rust1/src/main.rs")
             ]
         );
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test_glob {
+    use globset::Glob;
+    #[test]
+    fn alternatives() -> anyhow::Result<()> {
+        let glob = Glob::new("{*.toml,foo/*}")?.compile_matcher();
+
+        assert!(glob.is_match("foo/bar.js"));
+        assert!(glob.is_match("foo/bar.rs"));
+        assert!(glob.is_match("Cargo.toml"));
+        assert!(!glob.is_match("Cargo.lock"));
         Ok(())
     }
 }

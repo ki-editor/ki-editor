@@ -1,3 +1,4 @@
+use globset::Glob;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use indexmap::IndexSet;
@@ -182,13 +183,13 @@ impl Context {
                     GlobalSearchFilterGlob::Include => {
                         if !glob.is_empty() {
                             self.global_search_config
-                                .set_include_glob(glob::Pattern::new(&glob)?)
+                                .set_include_glob(Glob::new(&glob)?)
                         }
                     }
                     GlobalSearchFilterGlob::Exclude => {
                         if !glob.is_empty() {
                             self.global_search_config
-                                .set_exclude_glob(glob::Pattern::new(&glob)?)
+                                .set_exclude_glob(Glob::new(&glob)?)
                         }
                     }
                 };
@@ -207,8 +208,8 @@ impl Context {
 
 #[derive(Default)]
 pub struct GlobalSearchConfig {
-    include_globs: IndexSet<glob::Pattern>,
-    exclude_globs: IndexSet<glob::Pattern>,
+    include_globs: IndexSet<Glob>,
+    exclude_globs: IndexSet<Glob>,
     local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
@@ -230,21 +231,21 @@ impl GlobalSearchConfig {
             .collect()
     }
 
-    fn set_exclude_glob(&mut self, glob: glob::Pattern) {
+    fn set_exclude_glob(&mut self, glob: Glob) {
         self.exclude_globs.shift_remove(&glob);
         self.exclude_globs.insert(glob);
     }
 
-    fn set_include_glob(&mut self, glob: glob::Pattern) {
+    fn set_include_glob(&mut self, glob: Glob) {
         self.include_globs.shift_remove(&glob);
         self.include_globs.insert(glob);
     }
 
-    pub(crate) fn include_glob(&self) -> Option<glob::Pattern> {
+    pub(crate) fn include_glob(&self) -> Option<Glob> {
         self.include_globs.last().cloned()
     }
 
-    pub(crate) fn exclude_glob(&self) -> Option<glob::Pattern> {
+    pub(crate) fn exclude_glob(&self) -> Option<Glob> {
         self.exclude_globs.last().cloned()
     }
 }
