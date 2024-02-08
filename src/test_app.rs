@@ -965,4 +965,91 @@ src/main.rs 🦀
             Ok(())
         })
     }
+
+    #[test]
+    /// Kill means delete until the next selection
+    fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile {
+                path: temp_dir.join("src/main.rs")?,
+            })?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn main() {}".to_string()),
+                SetSelectionMode(BottomNode),
+                Kill,
+            ])?;
+
+            // Expect the text to be 'main() {}'
+            assert_eq!(app.get_current_file_content(), "main() {}");
+
+            // Expect the current selection is 'main'
+            assert_eq!(app.get_current_selected_texts().1, vec!["main"]);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    /// No gap between current and next selection
+    fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatches(
+                [OpenFile {
+                    path: temp_dir.join("src/main.rs")?,
+                }]
+                .to_vec(),
+            )?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn main() {}".to_string()),
+                SetSelectionMode(Character),
+                Kill,
+            ])?;
+            assert_eq!(app.get_current_file_content(), "n main() {}");
+
+            // Expect the current selection is 'n'
+            assert_eq!(app.get_current_selected_texts().1, vec!["n"]);
+            Ok(())
+        })
+    }
+
+    #[test]
+    /// No next selection
+    fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile {
+                path: temp_dir.join("src/main.rs")?,
+            })?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn main() {}".to_string()),
+                SetSelectionMode(BottomNode),
+                MoveSelection(Last),
+                Kill,
+            ])?;
+            assert_eq!(app.get_current_file_content(), "fn main() {");
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    /// The selection mode is contiguous
+    fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile {
+                path: temp_dir.join("src/main.rs")?,
+            })?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn main(a:A,b:B) {}".to_string()),
+                MatchLiteral("a:A".to_string()),
+                SetSelectionMode(SyntaxTree),
+                Kill,
+            ])?;
+            assert_eq!(app.get_current_file_content(), "fn main(b:B) {}");
+
+            // Expect the current selection is 'b:B'
+            assert_eq!(app.get_current_selected_texts().1, vec!["b:B"]);
+
+            Ok(())
+        })
+    }
 }
