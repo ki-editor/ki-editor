@@ -1316,7 +1316,7 @@ impl Editor {
             }
             DispatchEditor::Copy => return self.copy(context),
             DispatchEditor::Paste => return self.paste(context),
-            DispatchEditor::SelectAll => self.select_all(context)?,
+            DispatchEditor::SelectAll => return Ok(self.select_all(context)),
             DispatchEditor::SetContent(content) => self.update_buffer(&content),
             DispatchEditor::ReplaceSelectionWithCopiedText => return self.replace(context),
             DispatchEditor::Cut => return self.cut(),
@@ -1349,6 +1349,7 @@ impl Editor {
             DispatchEditor::Undo => return self.undo(),
             DispatchEditor::KillLine(direction) => return self.kill_line(direction),
             DispatchEditor::Reset => self.reset(),
+            DispatchEditor::DeleteWordBackward => return self.delete_word_backward(context),
         }
         Ok([].to_vec())
     }
@@ -1679,7 +1680,7 @@ impl Editor {
                 .to_vec())
             }
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
-            key!("*") => self.select_all(context)?,
+            key!("*") => return Ok(self.select_all(context)),
             key!("ctrl+d") => {
                 return self.scroll_page_down();
             }
@@ -2623,19 +2624,13 @@ impl Editor {
         self.enter_insert_mode(Direction::End)
     }
 
-    fn select_all(&mut self, context: &Context) -> anyhow::Result<()> {
-        self.move_selection_with_selection_mode_without_global_mode(
-            context,
-            Movement::First,
-            self.selection_set.mode.clone(),
-        )?;
-        self.toggle_highlight_mode();
-        self.move_selection_with_selection_mode_without_global_mode(
-            context,
-            Movement::Last,
-            self.selection_set.mode.clone(),
-        )?;
-        Ok(())
+    fn select_all(&mut self, context: &Context) -> Vec<Dispatch> {
+        [
+            Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
+            Dispatch::DispatchEditor(DispatchEditor::ToggleHighlightMode),
+            Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Last)),
+        ]
+        .to_vec()
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
@@ -2913,4 +2908,5 @@ pub enum DispatchEditor {
     Undo,
     KillLine(Direction),
     Reset,
+    DeleteWordBackward,
 }

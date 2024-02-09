@@ -410,7 +410,7 @@ impl<T: Frontend> App<T> {
                 scope,
                 owner_id,
             } => self.open_search_prompt(mode, scope, owner_id),
-            Dispatch::OpenFile { path } => {
+            Dispatch::OpenFile(path) => {
                 self.open_file(&path, true)?;
             }
 
@@ -856,7 +856,7 @@ impl<T: Frontend> App<T> {
             owner: current_component,
             on_enter: Box::new(move |current_item, _| {
                 let path = working_directory.join(current_item)?;
-                Ok(vec![Dispatch::OpenFile { path }])
+                Ok(vec![Dispatch::OpenFile(path)])
             }),
             on_text_change: Box::new(|_, _| Ok(vec![])),
             items: {
@@ -1405,7 +1405,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_dispatch_editor(&mut self, dispatch_editor: DispatchEditor) -> anyhow::Result<()> {
+    pub fn handle_dispatch_editor(
+        &mut self,
+        dispatch_editor: DispatchEditor,
+    ) -> anyhow::Result<()> {
         self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
     }
 
@@ -2027,9 +2030,7 @@ pub enum Dispatch {
         scope: Scope,
         owner_id: ComponentId,
     },
-    OpenFile {
-        path: CanonicalizedPath,
-    },
+    OpenFile(CanonicalizedPath),
     ShowInfo {
         title: String,
         info: Info,

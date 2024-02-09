@@ -453,25 +453,6 @@ fn f() {
     }
 
     #[test]
-    fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn maima() {}");
-        let context = Context::default();
-
-        // Select first token
-        editor.match_literal(&context, "ma")?;
-
-        // Delete
-        editor.kill(&context)?;
-
-        // Expect the text to be 'fn ima() {}'
-        assert_eq!(editor.text(), "fn ima() {}");
-
-        // Expect the current selection is the character after "ma"
-        assert_eq!(editor.get_selected_texts(), vec!["i"]);
-        Ok(())
-    }
-
-    #[test]
     fn enclose_left_bracket() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
         let context = Context::default();
@@ -544,65 +525,6 @@ fn f() {
         editor.enter_insert_mode(Direction::End)?;
         editor.enter_normal_mode()?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
-        Ok(())
-    }
-
-    #[test]
-    fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn snake_case(camelCase: String) {}");
-        let context = Context::default();
-
-        // Go to the end of the file
-        editor.set_selection_mode(&context, SelectionMode::LineTrimmed)?;
-        editor.enter_insert_mode(Direction::End)?;
-
-        // Delete
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase: String) ");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase: String");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase: ");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn snake_case(camelCase: String) {}");
-        let context = Context::default();
-
-        // Go to the middle of the file
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.handle_movement(&context, Movement::Index(3))?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
-
-        editor.enter_insert_mode(Direction::End)?;
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camel: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn : String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), ": String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), ": String) {}");
-
         Ok(())
     }
 
@@ -1054,29 +976,6 @@ fn main() { // too long
             .trim()
         );
         assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 2));
-        Ok(())
-    }
-
-    #[test]
-    fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "foo bar spam");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.toggle_bookmarks();
-        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
-        editor.toggle_bookmarks();
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        editor.add_cursor_to_all_selections(&context)?;
-        assert_eq!(editor.get_selected_texts(), ["foo", "spam"]);
-        editor.cursor_keep_primary_only()?;
-        assert_eq!(editor.get_selected_texts(), ["spam"]);
-
-        // Toggling the bookmark when selecting existing bookmark should
-        // cause it to be removed from the bookmark lists
-        editor.toggle_bookmarks();
-        editor.handle_movement(&context, Movement::Current)?;
-        editor.add_cursor_to_all_selections(&context)?;
-        assert_eq!(editor.get_selected_texts(), ["foo"]);
         Ok(())
     }
 

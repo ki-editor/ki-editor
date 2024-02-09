@@ -335,10 +335,7 @@ impl Component for FileExplorer {
             key!("enter") => {
                 if let Some(node) = self.get_current_node()? {
                     match node.kind {
-                        NodeKind::File => Ok([Dispatch::OpenFile {
-                            path: node.path.clone(),
-                        }]
-                        .to_vec()),
+                        NodeKind::File => Ok([Dispatch::OpenFile(node.path.clone())].to_vec()),
                         NodeKind::Directory { .. } => {
                             let tree = std::mem::take(&mut self.tree);
                             self.tree = tree.toggle(&node.path, |open| !open);

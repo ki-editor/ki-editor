@@ -37,6 +37,59 @@ mod test_app {
         selection_mode::inside::InsideKind,
     };
 
+    #[derive(Clone)]
+    enum Step {
+        App(Dispatch),
+        Expect(ExpectKind),
+        Editor(DispatchEditor),
+    }
+
+    #[derive(Clone)]
+    enum ExpectKind {
+        CurrentFileContent(&'static str),
+        FileContentEqual(CanonicalizedPath, CanonicalizedPath),
+    }
+
+    use ExpectKind::*;
+    use Step::*;
+    struct State {
+        main_rs: CanonicalizedPath,
+        foo_rs: CanonicalizedPath,
+    }
+    impl State {
+        fn main_rs(&self) -> CanonicalizedPath {
+            self.main_rs.clone()
+        }
+
+        fn foo_rs(&self) -> CanonicalizedPath {
+            self.foo_rs.clone()
+        }
+    }
+
+    fn execute_test(callback: impl Fn(State) -> Vec<Step>) -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            let steps = callback(State {
+                main_rs: temp_dir.join("src/main.rs").unwrap(),
+                foo_rs: temp_dir.join("src/foo.rs").unwrap(),
+            });
+            for step in steps {
+                match step {
+                    Step::App(dispatch) => app.handle_dispatch(dispatch.to_owned())?,
+                    Step::Expect(expect) => match expect {
+                        CurrentFileContent(expected_content) => {
+                            assert_eq!(app.get_current_file_content(), expected_content.to_owned())
+                        }
+                        FileContentEqual(left, right) => {
+                            assert_eq!(app.get_file_content(&left), app.get_file_content(&right))
+                        }
+                    },
+                    Editor(dispatch) => app.handle_dispatch_editor(dispatch)?,
+                }
+            }
+            Ok(())
+        })
+    }
+
     fn run_test(
         callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
     ) -> anyhow::Result<()> {
@@ -51,58 +104,45 @@ mod test_app {
     #[test]
     #[serial]
     fn copy_paste_from_different_file() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            let path_foo = temp_dir.join("src/foo.rs")?;
-
-            // Open main.rs
-            app.open_file(&path_main, true)?;
-
-            // Copy the entire file
-            app.handle_dispatch_editors(&[
-                SetSelectionMode(SelectionMode::LineTrimmed),
-                SelectAll,
-                Copy,
-            ])?;
-
-            // Open foo.rs
-            app.open_file(&path_foo, true)?;
-
-            // Copy the entire file
-            app.handle_dispatch_editors(&[
-                SetSelectionMode(SelectionMode::LineTrimmed),
-                SelectAll,
-                Copy,
-            ])?;
-
-            // Open main.rs
-            app.open_file(&path_main, true)?;
-
-            // Select the entire file and paste
-            app.handle_dispatch_editors(&[SelectAll, Paste])?;
-
-            // Expect the content of main.rs to be that of foo.rs
-            let content_main = app.get_file_content(&path_main);
-            let content_foo = app.get_file_content(&path_foo);
-            assert_eq!(content_main, content_foo);
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.foo_rs())),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(SelectAll),
+                Editor(Copy),
+                App(OpenFile(s.foo_rs())),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(SelectAll),
+                Editor(Copy),
+                App(OpenFile(s.main_rs())),
+                Editor(SelectAll),
+                Editor(Paste),
+                Expect(FileContentEqual(s.main_rs, s.foo_rs)),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     #[serial]
     fn copy_replace() -> anyhow::Result<()> {
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(Copy),
+                Editor(MoveSelection(Movement::Next)),
+                Editor(ReplaceSelectionWithCopiedText),
+            ]
+            .to_vec()
+        });
         run_test(|mut app, temp_dir| {
             let path_main = temp_dir.join("src/main.rs")?;
             app.open_file(&path_main, true)?;
 
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                Copy,
-                MoveSelection(Movement::Next),
-                ReplaceSelectionWithCopiedText,
-            ])?;
+            app.handle_dispatch_editors(&[])?;
 
             assert_eq!(app.get_file_content(&path_main), "fn fn() { let x = 1; }");
 
@@ -309,9 +349,7 @@ mod test_app {
     fn multi_paste() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
             let path_main = temp_dir.join("src/main.rs")?;
-            app.handle_dispatch(OpenFile {
-                path: path_main.clone(),
-            })?;
+            app.handle_dispatch(OpenFile(path_main.clone()))?;
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string()),
                 MatchLiteral("let x = S(spongebob_squarepants);".to_owned()),
@@ -411,15 +449,11 @@ mod test_app {
             app.handle_dispatches(
                 [
                     // Delete the first line of main.rs
-                    OpenFile {
-                        path: path_main.clone(),
-                    },
+                    OpenFile(path_main.clone()),
                     DispatchEditor(SetSelectionMode(SelectionMode::LineTrimmed)),
                     DispatchEditor(Kill),
                     // Insert a comment at the first line of foo.rs
-                    OpenFile {
-                        path: path_foo.clone(),
-                    },
+                    OpenFile(path_foo.clone()),
                     DispatchEditor(Insert("// Hello".to_string())),
                     // Save the files,
                     SaveAll,
@@ -485,9 +519,7 @@ mod test_app {
             app.handle_dispatches(
                 [
                     // Ignore *.txt files
-                    OpenFile {
-                        path: path_git_ignore.clone(),
-                    },
+                    OpenFile(path_git_ignore.clone()),
                     DispatchEditor(Insert("*.txt\n".to_string())),
                     SaveAll,
                     // Add new txt file
@@ -529,9 +561,7 @@ mod test_app {
             app.handle_dispatches(
                 [
                     Dispatch::SetGlobalTitle("[GLOBAL TITLE]".to_string()),
-                    OpenFile {
-                        path: path_main.try_into()?,
-                    },
+                    OpenFile(path_main.try_into()?),
                     TerminalDimensionChanged(Dimension {
                         width: 200,
                         height: 6,
@@ -623,11 +653,8 @@ src/main.rs 🦀
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
                 temp_dir.join_as_path_buf(filename).try_into()
             };
-            let open = |filename: &str| -> anyhow::Result<Dispatch> {
-                Ok(OpenFile {
-                    path: file(filename)?,
-                })
-            };
+            let open =
+                |filename: &str| -> anyhow::Result<Dispatch> { Ok(OpenFile(file(filename)?)) };
 
             app.handle_dispatch(open("src/main.rs")?)?;
             let main_rs = &file("src/main.rs")?;
@@ -670,11 +697,8 @@ src/main.rs 🦀
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
                 temp_dir.join_as_path_buf(filename).try_into()
             };
-            let open = |filename: &str| -> anyhow::Result<Dispatch> {
-                Ok(OpenFile {
-                    path: file(filename)?,
-                })
-            };
+            let open =
+                |filename: &str| -> anyhow::Result<Dispatch> { Ok(OpenFile(file(filename)?)) };
 
             app.handle_dispatches(
                 [
@@ -744,11 +768,8 @@ src/main.rs 🦀
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
                 temp_dir.join_as_path_buf(filename).try_into()
             };
-            let open = |filename: &str| -> anyhow::Result<Dispatch> {
-                Ok(OpenFile {
-                    path: file(filename)?,
-                })
-            };
+            let open =
+                |filename: &str| -> anyhow::Result<Dispatch> { Ok(OpenFile(file(filename)?)) };
 
             app.handle_dispatches(
                 [
@@ -875,9 +896,7 @@ src/main.rs 🦀
             // Replace "foo" with "haha" globally
             app.handle_dispatches(
                 [
-                    OpenFile {
-                        path: main_rs.clone(),
-                    },
+                    OpenFile(main_rs.clone()),
                     new_dispatch(LocalSearchConfigUpdate::SetMode(
                         LocalSearchConfigMode::Regex(RegexConfig {
                             escaped: true,
@@ -919,9 +938,7 @@ src/main.rs 🦀
     /// Example: from "hello" -> hello
     fn raise_inside() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile {
-                path: temp_dir.join("src/main.rs")?,
-            })?;
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
             app.handle_dispatch_editors(&[
                 SetContent("fn main() { (a, b) }".to_string()),
                 MatchLiteral("b".to_string()),
@@ -938,9 +955,7 @@ src/main.rs 🦀
     #[test]
     fn toggle_highlight_mode() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile {
-                path: temp_dir.join("src/main.rs")?,
-            })?;
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
             app.handle_dispatch_editors(&[
                 SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
                 SetSelectionMode(BottomNode),
@@ -970,9 +985,7 @@ src/main.rs 🦀
     /// Kill means delete until the next selection
     fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile {
-                path: temp_dir.join("src/main.rs")?,
-            })?;
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
             app.handle_dispatch_editors(&[
                 SetContent("fn main() {}".to_string()),
                 SetSelectionMode(BottomNode),
@@ -993,12 +1006,7 @@ src/main.rs 🦀
     /// No gap between current and next selection
     fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            app.handle_dispatches(
-                [OpenFile {
-                    path: temp_dir.join("src/main.rs")?,
-                }]
-                .to_vec(),
-            )?;
+            app.handle_dispatches([OpenFile(temp_dir.join("src/main.rs")?)].to_vec())?;
             app.handle_dispatch_editors(&[
                 SetContent("fn main() {}".to_string()),
                 SetSelectionMode(Character),
@@ -1016,9 +1024,7 @@ src/main.rs 🦀
     /// No next selection
     fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile {
-                path: temp_dir.join("src/main.rs")?,
-            })?;
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
             app.handle_dispatch_editors(&[
                 SetContent("fn main() {}".to_string()),
                 SetSelectionMode(BottomNode),
@@ -1035,9 +1041,7 @@ src/main.rs 🦀
     /// The selection mode is contiguous
     fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile {
-                path: temp_dir.join("src/main.rs")?,
-            })?;
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
             app.handle_dispatch_editors(&[
                 SetContent("fn main(a:A,b:B) {}".to_string()),
                 MatchLiteral("a:A".to_string()),
@@ -1048,6 +1052,123 @@ src/main.rs 🦀
 
             // Expect the current selection is 'b:B'
             assert_eq!(app.get_current_selected_texts().1, vec!["b:B"]);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn maima() {}".to_string()),
+                MatchLiteral("ma".to_string()),
+                Kill,
+            ])?;
+            // Expect the text to be 'fn ima() {}'
+            assert_eq!(app.get_current_file_content(), "fn ima() {}");
+
+            // Expect the current selection is the character after "ma"
+            assert_eq!(app.get_current_selected_texts().1, vec!["i"]);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
+            app.handle_dispatch_editors(&[
+                SetContent("foo bar spam".to_string()),
+                SetSelectionMode(Word),
+                ToggleBookmark,
+                MoveSelection(Next),
+                MoveSelection(Next),
+                ToggleBookmark,
+                SetSelectionMode(Bookmark),
+                CursorAddToAllSelections,
+            ])?;
+            assert_eq!(app.get_current_selected_texts().1, ["foo", "spam"]);
+            app.handle_dispatch_editors(&[CursorKeepPrimaryOnly])?;
+            assert_eq!(app.get_current_selected_texts().1, ["spam"]);
+
+            // Toggling the bookmark when selecting existing bookmark should
+            app.handle_dispatch_editors(&[
+                ToggleBookmark,
+                MoveSelection(Current),
+                CursorAddToAllSelections,
+            ])?;
+            assert_eq!(app.get_current_selected_texts().1, ["foo"]);
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn snake_case(camelCase: String) {}".to_string()),
+                SetSelectionMode(LineTrimmed),
+                // Go to the end of the file
+                EnterInsertMode(Direction::End),
+                DeleteWordBackward,
+            ])?;
+            assert_eq!(
+                app.get_current_file_content(),
+                "fn snake_case(camelCase: String) "
+            );
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(
+                app.get_current_file_content(),
+                "fn snake_case(camelCase: String"
+            );
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), "fn snake_case(camelCase: ");
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
+        run_test(|mut app, temp_dir| {
+            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
+            app.handle_dispatch_editors(&[
+                SetContent("fn snake_case(camelCase: String) {}".to_string()),
+                SetSelectionMode(BottomNode),
+                // Go to the middle of the file
+                MoveSelection(Index(3)),
+            ])?;
+            assert_eq!(app.get_current_selected_texts().1, vec!["camelCase"]);
+
+            app.handle_dispatch_editors(&[EnterInsertMode(Direction::End), DeleteWordBackward])?;
+
+            assert_eq!(
+                app.get_current_file_content(),
+                "fn snake_case(camel: String) {}"
+            );
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), "fn snake_case(: String) {}");
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), "fn snake_case: String) {}");
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), "fn snake_: String) {}");
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), "fn : String) {}");
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), ": String) {}");
+
+            app.handle_dispatch_editors(&[DeleteWordBackward])?;
+            assert_eq!(app.get_current_file_content(), ": String) {}");
 
             Ok(())
         })
