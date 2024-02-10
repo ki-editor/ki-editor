@@ -48,6 +48,7 @@ mod test_app {
     enum ExpectKind {
         CurrentFileContent(&'static str),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
+        CurrentSelectedTexts(&'static [&'static str]),
     }
 
     use ExpectKind::*;
@@ -81,6 +82,9 @@ mod test_app {
                         }
                         FileContentEqual(left, right) => {
                             assert_eq!(app.get_file_content(&left), app.get_file_content(&right))
+                        }
+                        CurrentSelectedTexts(selected_texts) => {
+                            assert_eq!(app.get_current_selected_texts().1, selected_texts)
                         }
                     },
                     Editor(dispatch) => app.handle_dispatch_editor(dispatch)?,
@@ -135,212 +139,153 @@ mod test_app {
                 Editor(Copy),
                 Editor(MoveSelection(Movement::Next)),
                 Editor(ReplaceSelectionWithCopiedText),
+                Expect(CurrentFileContent("fn fn() { let x = 1; }")),
+                Editor(ReplaceSelectionWithCopiedText),
+                Expect(CurrentSelectedTexts(&["main"])),
             ]
             .to_vec()
-        });
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[])?;
-
-            assert_eq!(app.get_file_content(&path_main), "fn fn() { let x = 1; }");
-
-            app.handle_dispatch_editors(&[ReplaceSelectionWithCopiedText])?;
-
-            assert_eq!(app.get_file_content(&path_main), "fn main() { let x = 1; }");
-            assert_eq!(app.get_selected_texts(&path_main), vec!["main"]);
-
-            Ok(())
         })
     }
 
     #[test]
     #[serial]
     fn copy_paste() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                Copy,
-                MoveSelection(Movement::Next),
-                Paste,
-            ])?;
-
-            assert_eq!(app.get_file_content(&path_main), "fn fn() { let x = 1; }");
-            assert_eq!(app.get_selected_texts(&path_main), vec![""]);
-
-            app.handle_dispatch_editors(&[MoveSelection(Movement::Next), Paste])?;
-
-            assert_eq!(app.get_file_content(&path_main), "fn fn(fn { let x = 1; }");
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(Copy),
+                Editor(MoveSelection(Movement::Next)),
+                Editor(Paste),
+                Expect(CurrentFileContent("fn fn() { let x = 1; }")),
+                Expect(CurrentSelectedTexts(&[""])),
+                Editor(MoveSelection(Next)),
+                Editor(Paste),
+                Expect(CurrentFileContent("fn fn(fn { let x = 1; }")),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     #[serial]
     fn cut_paste() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() { let x = 1; }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                Cut,
-                EnterNormalMode,
-            ])?;
-
-            assert_eq!(app.get_file_content(&path_main), " main() { let x = 1; }");
-
-            app.handle_dispatch_editors(&[MoveSelection(Movement::Current)])?;
-
-            assert_eq!(app.get_selected_texts(&path_main), vec!["main"]);
-
-            app.handle_dispatch_editors(&[Paste])?;
-
-            assert_eq!(app.get_file_content(&path_main), " fn() { let x = 1; }");
-
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(Cut),
+                Editor(EnterNormalMode),
+                Expect(CurrentFileContent(" main() { let x = 1; }")),
+                Editor(MoveSelection(Current)),
+                Expect(CurrentSelectedTexts(&["main"])),
+                Editor(Paste),
+                Expect(CurrentFileContent(" fn() { let x = 1; }")),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     #[serial]
     fn highlight_mode_cut() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                ToggleHighlightMode,
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-            ])?;
-
-            assert_eq!(app.get_selected_texts(&path_main), vec!["fn f()"]);
-
-            app.handle_dispatch_editors(&[Cut])?;
-
-            assert_eq!(
-                app.get_file_content(&path_main),
-                "{ let x = S(a); let y = S(b); }"
-            );
-
-            app.handle_dispatch_editors(&[Paste])?;
-
-            assert_eq!(
-                app.get_file_content(&path_main),
-                "fn f(){ let x = S(a); let y = S(b); }"
-            );
-
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["fn f()"])),
+                Editor(Cut),
+                Expect(CurrentFileContent("{ let x = S(a); let y = S(b); }")),
+                Editor(Paste),
+                Expect(CurrentFileContent("fn f(){ let x = S(a); let y = S(b); }")),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     #[serial]
     fn highlight_mode_copy() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                ToggleHighlightMode,
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-            ])?;
-            assert_eq!(app.get_selected_texts(&path_main), vec!["fn f()"]);
-            app.handle_dispatch_editors(&[Copy, MoveSelection(Movement::Next)])?;
-            assert_eq!(app.get_selected_texts(&path_main), vec!["{"]);
-            app.handle_dispatch_editors(&[Paste])?;
-            assert_eq!(
-                app.get_file_content(&path_main),
-                "fn f()fn f() let x = S(a); let y = S(b); }"
-            );
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["fn f()"])),
+                Editor(Copy),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["{"])),
+                Editor(Paste),
+                Expect(CurrentFileContent(
+                    "fn f()fn f() let x = S(a); let y = S(b); }",
+                )),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     #[serial]
     fn highlight_mode_replace() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                ToggleHighlightMode,
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-            ])?;
-
-            assert_eq!(app.get_selected_texts(&path_main), vec!["fn f()"]);
-
-            app.handle_dispatch_editors(&[
-                Copy,
-                MatchLiteral("{".to_string()),
-                SetSelectionMode(SelectionMode::TopNode),
-            ])?;
-
-            assert_eq!(
-                app.get_selected_texts(&path_main),
-                vec!["{ let x = S(a); let y = S(b); }"]
-            );
-
-            app.handle_dispatch_editors(&[ReplaceSelectionWithCopiedText])?;
-
-            assert_eq!(app.get_file_content(&path_main), "fn f()fn f()");
-
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Next)),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["fn f()"])),
+                Editor(Copy),
+                Editor(MatchLiteral("{".to_string())),
+                Editor(SetSelectionMode(SelectionMode::TopNode)),
+                Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
+                Editor(ReplaceSelectionWithCopiedText),
+                Expect(CurrentFileContent("fn f()fn f()")),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     #[serial]
     fn highlight_mode_paste() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                ToggleHighlightMode,
-                Copy,
-            ])?;
-
-            assert_eq!(app.get_selected_texts(&path_main), vec!["fn"]);
-
-            app.handle_dispatch_editors(&[
-                ToggleHighlightMode,
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-                MoveSelection(Movement::Next),
-            ])?;
-
-            assert_eq!(app.get_selected_texts(&path_main), vec!["fn f()"]);
-
-            app.handle_dispatch_editors(&[Paste])?;
-
-            assert_eq!(
-                app.get_file_content(&path_main),
-                "fn{ let x = S(a); let y = S(b); }"
-            );
-
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(Copy),
+                Expect(CurrentSelectedTexts(&["fn"])),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["fn f()"])),
+                Editor(Paste),
+                Expect(CurrentFileContent("fn{ let x = S(a); let y = S(b); }")),
+            ]
+            .to_vec()
         })
     }
 
