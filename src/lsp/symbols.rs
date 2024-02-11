@@ -1,7 +1,7 @@
 use crate::quickfix_list::Location;
 use lsp_types::{DocumentSymbolResponse, SymbolKind};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbols {
     pub symbols: Vec<Symbol>,
 }
@@ -39,7 +39,7 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbol {
     pub name: String,
     pub kind: SymbolKind,

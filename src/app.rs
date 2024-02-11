@@ -587,6 +587,9 @@ impl<T: Frontend> App<T> {
             },
             Dispatch::GoToPreviousSelection => self.go_to_previous_selection()?,
             Dispatch::GoToNextSelection => self.go_to_next_selection()?,
+            Dispatch::HandleLspNotification(notification) => {
+                self.handle_lsp_notification(notification)?
+            }
         }
         Ok(())
     }
@@ -2154,6 +2157,7 @@ pub enum Dispatch {
     },
     GoToPreviousSelection,
     GoToNextSelection,
+    HandleLspNotification(LspNotification),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

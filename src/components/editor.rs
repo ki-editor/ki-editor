@@ -2619,6 +2619,11 @@ impl Editor {
     }
 
     pub fn end(&mut self, context: &Context) -> anyhow::Result<()> {
+        // TODO
+        [
+            DispatchEditor::SetSelectionMode(SelectionMode::LineTrimmed),
+            DispatchEditor::EnterInsertMode(Direction::End),
+        ];
         self.select_line(Movement::Current, context)?;
         self.handle_movement(context, Movement::Last)?;
         self.enter_insert_mode(Direction::End)

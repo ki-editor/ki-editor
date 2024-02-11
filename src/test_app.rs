@@ -40,6 +40,7 @@ mod test_app {
     #[derive(Clone)]
     enum Step {
         App(Dispatch),
+        WithApp(Arc<Mutex<dyn Fn(&App<MockFrontend>) -> Dispatch>>),
         Expect(ExpectKind),
         Editor(DispatchEditor),
     }
@@ -49,6 +50,7 @@ mod test_app {
         CurrentFileContent(&'static str),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
         CurrentSelectedTexts(&'static [&'static str]),
+        ComponentsLength(usize),
     }
 
     use ExpectKind::*;
@@ -69,10 +71,12 @@ mod test_app {
 
     fn execute_test(callback: impl Fn(State) -> Vec<Step>) -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
-            let steps = callback(State {
-                main_rs: temp_dir.join("src/main.rs").unwrap(),
-                foo_rs: temp_dir.join("src/foo.rs").unwrap(),
-            });
+            let steps = {
+                callback(State {
+                    main_rs: temp_dir.join("src/main.rs").unwrap(),
+                    foo_rs: temp_dir.join("src/foo.rs").unwrap(),
+                })
+            };
             for step in steps {
                 match step {
                     Step::App(dispatch) => app.handle_dispatch(dispatch.to_owned())?,
@@ -84,11 +88,16 @@ mod test_app {
                             assert_eq!(app.get_file_content(&left), app.get_file_content(&right))
                         }
                         CurrentSelectedTexts(selected_texts) => {
-                            assert_eq!(app.get_current_selected_texts().1, selected_texts)
+                            assert_eq!(app.get_current_selected_texts().1, selected_texts.to_vec())
                         }
+                        ComponentsLength(length) => assert_eq!(app.components().len(), length),
                     },
-                    Editor(dispatch) => app.handle_dispatch_editor(dispatch)?,
-                }
+                    Editor(dispatch) => app.handle_dispatch_editor(dispatch.to_owned())?,
+                    WithApp(f) => {
+                        let dispatch = f.lock().unwrap()(&app);
+                        app.handle_dispatch(dispatch)?
+                    }
+                };
             }
             Ok(())
         })
@@ -292,95 +301,72 @@ mod test_app {
     #[test]
     #[serial]
     fn multi_paste() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.handle_dispatch(OpenFile(path_main.clone()))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string()),
-                MatchLiteral("let x = S(spongebob_squarepants);".to_owned()),
-                SetSelectionMode(SelectionMode::SyntaxTree),
-            ])?;
-            app.handle_dispatch_editors(&[
-                CursorAddToAllSelections,
-                MoveSelection(Movement::Down),
-                MoveSelection(Movement::Next),
-            ])?;
-            assert_eq!(
-                app.get_selected_texts(&path_main),
-                vec!["S(spongebob_squarepants)", "S(b)"]
-            );
-
-            app.handle_dispatch_editors(&[
-                Cut,
-                EnterInsertMode(Direction::Start),
-                Insert("Some(".to_owned()),
-                Paste,
-                Insert(")".to_owned()),
-            ])?;
-
-            assert_eq!(
-                app.get_file_content(&path_main),
-                "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }"
-            );
-
-            app.handle_dispatch_editors(&[CursorKeepPrimaryOnly])?;
-            app.handle_dispatch(SetClipboardContent(".hello".to_owned()))?;
-            app.handle_dispatches(
-                [
-                    DispatchEditor(CursorKeepPrimaryOnly),
-                    SetClipboardContent(".hello".to_owned()),
-                    DispatchEditor(Paste),
-                ]
-                .to_vec(),
-            )?;
-
-            assert_eq!(
-                app.get_file_content(&path_main),
-                "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }"
-            );
-
-            Ok(())
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
+                )),
+                Editor(MatchLiteral("let x = S(spongebob_squarepants);".to_owned())),
+                Editor(SetSelectionMode(SelectionMode::SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Editor(MoveSelection(Movement::Down)),
+                Editor(MoveSelection(Movement::Next)),
+                Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
+                Editor(Cut),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("Some(".to_owned())),
+                Editor(Paste),
+                Editor(Insert(")".to_owned())),
+                Expect(CurrentFileContent(
+                    "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
+                )),
+                Editor(CursorKeepPrimaryOnly),
+                App(SetClipboardContent(".hello".to_owned())),
+                Editor(Paste),
+                Expect(CurrentFileContent(
+                    "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }",
+                )),
+            ]
+            .to_vec()
         })
     }
 
     #[test]
     fn esc_should_close_signature_help() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            app.open_file(&path_main, true)?;
-
-            assert_eq!(app.components().len(), 1);
-
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(SelectionMode::BottomNode),
-                EnterInsertMode(Direction::End),
-            ])?;
-
-            let component_id = app.components()[0].borrow().id();
-            app.handle_lsp_notification(LspNotification::SignatureHelp(
-                crate::lsp::process::ResponseContext {
-                    component_id,
-                    scope: None,
-                    description: None,
-                },
-                Some(crate::lsp::signature_help::SignatureHelp {
-                    signatures: [SignatureInformation {
-                        label: "Signature Help".to_string(),
-                        documentation: Some(crate::lsp::documentation::Documentation {
-                            content: "spongebob".to_string(),
+        execute_test(|s| {
+            [
+                App(OpenFile(s.main_rs())),
+                Expect(ComponentsLength(1)),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(EnterInsertMode(Direction::End)),
+                WithApp(Arc::new(Mutex::new(|app: &App<MockFrontend>| {
+                    HandleLspNotification(LspNotification::SignatureHelp(
+                        crate::lsp::process::ResponseContext {
+                            component_id: app.components()[0].borrow().id(),
+                            scope: None,
+                            description: None,
+                        },
+                        Some(crate::lsp::signature_help::SignatureHelp {
+                            signatures: [SignatureInformation {
+                                label: "Signature Help".to_string(),
+                                documentation: Some(crate::lsp::documentation::Documentation {
+                                    content: "spongebob".to_string(),
+                                }),
+                                active_parameter_byte_range: None,
+                            }]
+                            .to_vec(),
                         }),
-                        active_parameter_byte_range: None,
-                    }]
-                    .to_vec(),
-                }),
-            ))?;
-            assert_eq!(app.components().len(), 2);
-
-            app.handle_dispatch(HandleKeyEvent(key!("esc")))?;
-            assert_eq!(app.components().len(), 1);
-
-            Ok(())
+                    ))
+                }))),
+                Expect(ComponentsLength(2)),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(ComponentsLength(1)),
+            ]
+            .to_vec()
         })
     }
 
