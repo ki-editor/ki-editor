@@ -243,3 +243,5 @@
 - [] bug: cannot clear include glob or exclude glob
 - [] fix(selection_mode/word): should not group symbols together as a word
 - [] feat(jump): default can be small word jump, as that cover most cases
+- [] feat(selection/movement): after killing the current, pressing next/previous will skip the next/previous selection into the 2nd nearest selection
+- [] feat(autocomplete): should filter completion items based on word before the cursor, so that user can insert new method easily in the middle of a method call chain

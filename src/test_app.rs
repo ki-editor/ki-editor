@@ -8,7 +8,10 @@ mod test_app {
     use pretty_assertions::assert_eq;
     use serial_test::serial;
 
-    use std::sync::{Arc, Mutex};
+    use std::{
+        path::PathBuf,
+        sync::{Arc, Mutex},
+    };
     use Dispatch::*;
     use DispatchEditor::*;
     use Movement::*;
@@ -37,27 +40,66 @@ mod test_app {
         selection_mode::inside::InsideKind,
     };
 
-    #[derive(Clone)]
     enum Step {
         App(Dispatch),
-        WithApp(Arc<Mutex<dyn Fn(&App<MockFrontend>) -> Dispatch>>),
+        WithApp(Box<dyn Fn(&App<MockFrontend>) -> Dispatch>),
         Expect(ExpectKind),
         Editor(DispatchEditor),
+        ExpectLater(Box<dyn Fn() -> ExpectKind>),
     }
 
-    #[derive(Clone)]
     enum ExpectKind {
         CurrentFileContent(&'static str),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
         CurrentSelectedTexts(&'static [&'static str]),
         ComponentsLength(usize),
+        Quickfixes(Box<[QuickfixListItem]>),
+        Custom(Box<dyn Fn()>),
+        Grid(&'static str),
+        CurrentPath(CanonicalizedPath),
+    }
+    impl ExpectKind {
+        fn run(&self, app: &mut App<MockFrontend>) -> anyhow::Result<()> {
+            match self {
+                CurrentFileContent(expected_content) => {
+                    assert_eq!(app.get_current_file_content(), expected_content.to_owned())
+                }
+                FileContentEqual(left, right) => {
+                    assert_eq!(app.get_file_content(&left), app.get_file_content(&right))
+                }
+                CurrentSelectedTexts(selected_texts) => {
+                    assert_eq!(app.get_current_selected_texts().1, selected_texts.to_vec())
+                }
+                ComponentsLength(length) => assert_eq!(app.components().len(), *length),
+                Quickfixes(expected_quickfixes) => assert_eq!(
+                    app.get_quickfixes()
+                        .into_iter()
+                        .map(|quickfix| {
+                            let info = quickfix
+                                .info()
+                                .as_ref()
+                                .map(|info| info.clone().set_decorations(Vec::new()));
+                            quickfix.set_info(info)
+                        })
+                        .collect_vec()
+                        .into_boxed_slice(),
+                    *expected_quickfixes
+                ),
+                ExpectKind::Custom(f) => f(),
+                Grid(grid) => assert_eq!(app.get_grid()?.to_string(), *grid),
+                CurrentPath(path) => assert_eq!(app.get_current_file_path().unwrap(), *path),
+            }
+            Ok(())
+        }
     }
 
     use ExpectKind::*;
     use Step::*;
     struct State {
+        temp_dir: CanonicalizedPath,
         main_rs: CanonicalizedPath,
         foo_rs: CanonicalizedPath,
+        git_ignore: CanonicalizedPath,
     }
     impl State {
         fn main_rs(&self) -> CanonicalizedPath {
@@ -67,34 +109,39 @@ mod test_app {
         fn foo_rs(&self) -> CanonicalizedPath {
             self.foo_rs.clone()
         }
+
+        fn new_path(&self, path: &str) -> PathBuf {
+            self.temp_dir.to_path_buf().join(path)
+        }
+
+        fn gitignore(&self) -> CanonicalizedPath {
+            self.git_ignore.clone()
+        }
+
+        fn temp_dir(&self) -> CanonicalizedPath {
+            self.temp_dir.clone()
+        }
     }
 
-    fn execute_test(callback: impl Fn(State) -> Vec<Step>) -> anyhow::Result<()> {
+    fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
         run_test(|mut app, temp_dir| {
             let steps = {
                 callback(State {
                     main_rs: temp_dir.join("src/main.rs").unwrap(),
                     foo_rs: temp_dir.join("src/foo.rs").unwrap(),
+                    git_ignore: temp_dir.join(".gitignore").unwrap(),
+                    temp_dir,
                 })
             };
-            for step in steps {
-                match step {
+
+            for step in steps.into_iter() {
+                match step.to_owned() {
                     Step::App(dispatch) => app.handle_dispatch(dispatch.to_owned())?,
-                    Step::Expect(expect) => match expect {
-                        CurrentFileContent(expected_content) => {
-                            assert_eq!(app.get_current_file_content(), expected_content.to_owned())
-                        }
-                        FileContentEqual(left, right) => {
-                            assert_eq!(app.get_file_content(&left), app.get_file_content(&right))
-                        }
-                        CurrentSelectedTexts(selected_texts) => {
-                            assert_eq!(app.get_current_selected_texts().1, selected_texts.to_vec())
-                        }
-                        ComponentsLength(length) => assert_eq!(app.components().len(), length),
-                    },
+                    Step::Expect(expect_kind) => expect_kind.run(&mut app)?,
+                    ExpectLater(f) => f().run(&mut app)?,
                     Editor(dispatch) => app.handle_dispatch_editor(dispatch.to_owned())?,
                     WithApp(f) => {
-                        let dispatch = f.lock().unwrap()(&app);
+                        let dispatch = f(&app);
                         app.handle_dispatch(dispatch)?
                     }
                 };
@@ -118,7 +165,7 @@ mod test_app {
     #[serial]
     fn copy_paste_from_different_file() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 App(OpenFile(s.foo_rs())),
                 Editor(SetSelectionMode(LineTrimmed)),
@@ -132,8 +179,7 @@ mod test_app {
                 Editor(SelectAll),
                 Editor(Paste),
                 Expect(FileContentEqual(s.main_rs, s.foo_rs)),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -141,7 +187,7 @@ mod test_app {
     #[serial]
     fn copy_replace() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("fn main() { let x = 1; }".to_string())),
                 Editor(SetSelectionMode(SelectionMode::BottomNode)),
@@ -151,8 +197,7 @@ mod test_app {
                 Expect(CurrentFileContent("fn fn() { let x = 1; }")),
                 Editor(ReplaceSelectionWithCopiedText),
                 Expect(CurrentSelectedTexts(&["main"])),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -160,7 +205,7 @@ mod test_app {
     #[serial]
     fn copy_paste() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("fn main() { let x = 1; }".to_string())),
                 Editor(SetSelectionMode(SelectionMode::BottomNode)),
@@ -172,8 +217,7 @@ mod test_app {
                 Editor(MoveSelection(Next)),
                 Editor(Paste),
                 Expect(CurrentFileContent("fn fn(fn { let x = 1; }")),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -181,7 +225,7 @@ mod test_app {
     #[serial]
     fn cut_paste() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("fn main() { let x = 1; }".to_string())),
                 Editor(SetSelectionMode(BottomNode)),
@@ -192,8 +236,7 @@ mod test_app {
                 Expect(CurrentSelectedTexts(&["main"])),
                 Editor(Paste),
                 Expect(CurrentFileContent(" fn() { let x = 1; }")),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -201,7 +244,7 @@ mod test_app {
     #[serial]
     fn highlight_mode_cut() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(
                     "fn f(){ let x = S(a); let y = S(b); }".to_string(),
@@ -216,8 +259,7 @@ mod test_app {
                 Expect(CurrentFileContent("{ let x = S(a); let y = S(b); }")),
                 Editor(Paste),
                 Expect(CurrentFileContent("fn f(){ let x = S(a); let y = S(b); }")),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -225,7 +267,7 @@ mod test_app {
     #[serial]
     fn highlight_mode_copy() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(
                     "fn f(){ let x = S(a); let y = S(b); }".to_string(),
@@ -243,8 +285,7 @@ mod test_app {
                 Expect(CurrentFileContent(
                     "fn f()fn f() let x = S(a); let y = S(b); }",
                 )),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -252,7 +293,7 @@ mod test_app {
     #[serial]
     fn highlight_mode_replace() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(
                     "fn f(){ let x = S(a); let y = S(b); }".to_string(),
@@ -269,8 +310,7 @@ mod test_app {
                 Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
                 Editor(ReplaceSelectionWithCopiedText),
                 Expect(CurrentFileContent("fn f()fn f()")),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -278,7 +318,7 @@ mod test_app {
     #[serial]
     fn highlight_mode_paste() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(
                     "fn f(){ let x = S(a); let y = S(b); }".to_string(),
@@ -293,8 +333,7 @@ mod test_app {
                 Expect(CurrentSelectedTexts(&["fn f()"])),
                 Editor(Paste),
                 Expect(CurrentFileContent("fn{ let x = S(a); let y = S(b); }")),
-            ]
-            .to_vec()
+            ])
         })
     }
 
@@ -302,7 +341,7 @@ mod test_app {
     #[serial]
     fn multi_paste() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(
                     "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
@@ -327,15 +366,14 @@ mod test_app {
                 Expect(CurrentFileContent(
                     "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }",
                 )),
-            ]
-            .to_vec()
+            ])
         })
     }
 
     #[test]
     fn esc_should_close_signature_help() -> anyhow::Result<()> {
         execute_test(|s| {
-            [
+            Box::new([
                 App(OpenFile(s.main_rs())),
                 Expect(ComponentsLength(1)),
                 Editor(SetContent(
@@ -343,7 +381,7 @@ mod test_app {
                 )),
                 Editor(SetSelectionMode(SelectionMode::BottomNode)),
                 Editor(EnterInsertMode(Direction::End)),
-                WithApp(Arc::new(Mutex::new(|app: &App<MockFrontend>| {
+                WithApp(Box::new(|app: &App<MockFrontend>| {
                     HandleLspNotification(LspNotification::SignatureHelp(
                         crate::lsp::process::ResponseContext {
                             component_id: app.components()[0].borrow().id(),
@@ -361,150 +399,130 @@ mod test_app {
                             .to_vec(),
                         }),
                     ))
-                }))),
+                })),
                 Expect(ComponentsLength(2)),
                 App(HandleKeyEvent(key!("esc"))),
                 Expect(ComponentsLength(1)),
-            ]
-            .to_vec()
+            ])
         })
     }
 
     #[test]
     pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join("src/main.rs")?;
-            let path_foo = temp_dir.join("src/foo.rs")?;
-            let path_new_file = temp_dir.join_as_path_buf("new_file.md");
-
-            app.handle_dispatches(
-                [
-                    // Delete the first line of main.rs
-                    OpenFile(path_main.clone()),
-                    DispatchEditor(SetSelectionMode(SelectionMode::LineTrimmed)),
-                    DispatchEditor(Kill),
-                    // Insert a comment at the first line of foo.rs
-                    OpenFile(path_foo.clone()),
-                    DispatchEditor(Insert("// Hello".to_string())),
-                    // Save the files,
-                    SaveAll,
-                    // Add a new file
-                    AddPath(path_new_file.clone()),
-                    // Get the repo hunks
-                    GetRepoGitHunks,
-                ]
-                .to_vec(),
-            )?;
-
+        execute_test(|s| {
+            let path_new_file = s.new_path("new_file.md");
             fn strs_to_strings(strs: &[&str]) -> Option<Info> {
                 Some(Info::new(
                     strs.iter().map(|s| s.to_string()).join("\n").to_string(),
                 ))
             }
 
-            let expected_quickfixes = [
-                QuickfixListItem::new(
-                    Location {
-                        path: path_new_file.try_into()?,
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
-                    },
-                    strs_to_strings(&["[This file is untracked by Git]"]),
-                ),
-                QuickfixListItem::new(
-                    Location {
-                        path: path_foo,
-                        range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
-                    },
-                    strs_to_strings(&["pub struct Foo {", "// Hellopub struct Foo {"]),
-                ),
-                QuickfixListItem::new(
-                    Location {
-                        path: path_main,
-                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
-                    },
-                    strs_to_strings(&["mod foo;"]),
-                ),
-            ];
-            let actual_quickfixes = app
-                .get_quickfixes()
-                .into_iter()
-                .map(|quickfix| {
-                    let info = quickfix
-                        .info()
-                        .as_ref()
-                        .map(|info| info.clone().set_decorations(Vec::new()));
-                    quickfix.set_info(info)
-                })
-                .collect_vec();
-            assert_eq!(actual_quickfixes, expected_quickfixes);
-
-            Ok(())
+            Box::new([
+                // Delete the first line of main.rs
+                App(OpenFile(s.main_rs().clone())),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(Kill),
+                // Insert a comment at the first line of foo.rs
+                App(OpenFile(s.foo_rs().clone())),
+                Editor(Insert("// Hello".to_string())),
+                // Save the files,
+                App(SaveAll),
+                // Add a new file
+                App(AddPath(path_new_file.display().to_string())),
+                // Get the repo hunks
+                App(GetRepoGitHunks),
+                Step::ExpectLater(Box::new(move || {
+                    Quickfixes(Box::new([
+                        QuickfixListItem::new(
+                            Location {
+                                path: path_new_file.clone().try_into().unwrap(),
+                                range: Position { line: 0, column: 0 }..Position {
+                                    line: 0,
+                                    column: 0,
+                                },
+                            },
+                            strs_to_strings(&["[This file is untracked by Git]"]),
+                        ),
+                        QuickfixListItem::new(
+                            Location {
+                                path: s.foo_rs(),
+                                range: Position { line: 0, column: 0 }..Position {
+                                    line: 1,
+                                    column: 0,
+                                },
+                            },
+                            strs_to_strings(&["pub struct Foo {", "// Hellopub struct Foo {"]),
+                        ),
+                        QuickfixListItem::new(
+                            Location {
+                                path: s.main_rs(),
+                                range: Position { line: 0, column: 0 }..Position {
+                                    line: 0,
+                                    column: 0,
+                                },
+                            },
+                            strs_to_strings(&["mod foo;"]),
+                        ),
+                    ]))
+                })),
+            ])
         })
     }
 
     #[test]
     pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
-        run_test(|mut app, temp_dir| {
-            let path_git_ignore = temp_dir.join(".gitignore")?;
+        execute_test(|s| {
+            let temp_dir = s.temp_dir();
+            Box::new([
+                // Ignore *.txt files
+                App(OpenFile(s.gitignore())),
+                Editor(Insert("*.txt\n".to_string())),
+                App(SaveAll),
+                // Add new txt file
+                App(AddPath(s.new_path("temp.txt").display().to_string())),
+                // Add a new Rust file
+                App(AddPath(s.new_path("src/rust.rs").display().to_string())),
+                Expect(ExpectKind::Custom(Box::new(move || {
+                    let paths = crate::git::GitRepo::try_from(&temp_dir)
+                        .unwrap()
+                        .non_git_ignored_files()
+                        .unwrap();
 
-            app.handle_dispatches(
-                [
-                    // Ignore *.txt files
-                    OpenFile(path_git_ignore.clone()),
-                    DispatchEditor(Insert("*.txt\n".to_string())),
-                    SaveAll,
-                    // Add new txt file
-                    AddPath(temp_dir.join_as_path_buf("temp.txt")),
-                    // Add a new Rust file
-                    AddPath(temp_dir.join_as_path_buf("src/rust.rs")),
-                ]
-                .to_vec(),
-            )?;
+                    // Expect all the paths are files, not directory for example
+                    assert!(paths.iter().all(|file| file.is_file()));
 
-            let paths = crate::git::GitRepo::try_from(&temp_dir)?.non_git_ignored_files()?;
+                    let paths = paths
+                        .into_iter()
+                        .flat_map(|path| path.display_relative_to(&s.temp_dir()))
+                        .collect_vec();
 
-            // Expect all the paths are files, not directory for example
-            assert!(paths.iter().all(|file| file.is_file()));
+                    // Expect "temp.txt" is not in the list, since it is git-ignored
+                    assert!(!paths.contains(&"temp.txt".to_string()));
 
-            let paths = paths
-                .into_iter()
-                .flat_map(|path| path.display_relative_to(&temp_dir))
-                .collect_vec();
+                    // Expect the unstaged file "src/rust.rs" is in the list
+                    assert!(paths.contains(&"src/rust.rs".to_string()));
 
-            // Expect "temp.txt" is not in the list, since it is git-ignored
-            assert!(!paths.contains(&"temp.txt".to_string()));
-
-            // Expect the unstaged file "src/rust.rs" is in the list
-            assert!(paths.contains(&"src/rust.rs".to_string()));
-
-            // Expect the staged file "main.rs" is in the list
-            assert!(paths.contains(&"src/main.rs".to_string()));
-
-            Ok(())
+                    // Expect the staged file "main.rs" is in the list
+                    assert!(paths.contains(&"src/main.rs".to_string()));
+                }))),
+            ])
         })
     }
 
     #[test]
     fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            let path_main = temp_dir.join_as_path_buf("src/main.rs");
-
-            app.handle_dispatches(
-                [
-                    Dispatch::SetGlobalTitle("[GLOBAL TITLE]".to_string()),
-                    OpenFile(path_main.try_into()?),
-                    TerminalDimensionChanged(Dimension {
-                        width: 200,
-                        height: 6,
-                    }),
-                ]
-                .to_vec(),
-            )?;
-            app.handle_dispatch_editors(&[
-                SetSelectionMode(SelectionMode::LineTrimmed),
-                SelectAll,
-                Kill,
-                Insert(
+        execute_test(|s| {
+            Box::new([
+                App(SetGlobalTitle("[GLOBAL TITLE]".to_string())),
+                App(OpenFile(s.main_rs())),
+                App(TerminalDimensionChanged(Dimension {
+                    width: 200,
+                    height: 6,
+                })),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(SelectAll),
+                Editor(Kill),
+                Editor(Insert(
                     "
 fn first () {
   second();
@@ -514,15 +532,11 @@ fn first () {
 }"
                     .trim()
                     .to_string(),
-                ),
-                DispatchEditor::MatchLiteral("fifth()".to_string()),
-                AlignViewTop,
-            ])?;
-
-            let result = app.get_grid()?;
-            assert_eq!(
-                result.to_string(),
-                "
+                )),
+                Editor(DispatchEditor::MatchLiteral("fifth()".to_string())),
+                Editor(AlignViewTop),
+                Expect(ExpectKind::Grid(
+                    "
 src/main.rs 🦀
 1│fn first () {
 5│  █ifth();
@@ -530,15 +544,11 @@ src/main.rs 🦀
 
 [GLOBAL TITLE]
 "
-                .trim()
-            );
-
-            app.handle_dispatch_editors(&[AlignViewBottom])?;
-
-            let result = app.get_grid()?;
-            assert_eq!(
-                result.to_string(),
-                "
+                    .trim(),
+                )),
+                Editor(AlignViewBottom),
+                Expect(Grid(
+                    "
 src/main.rs 🦀
 1│fn first () {
 3│  third();
@@ -546,25 +556,16 @@ src/main.rs 🦀
 5│  █ifth();
 [GLOBAL TITLE]
 "
-                .trim()
-            );
-
-            // Resize the terminal dimension sucht that the fourth line will be wrapped
-            app.handle_dispatches(
-                [
-                    TerminalDimensionChanged(Dimension {
-                        width: 20,
-                        height: 6,
-                    }),
-                    DispatchEditor(AlignViewBottom),
-                ]
-                .to_vec(),
-            )?;
-
-            let result = app.get_grid()?;
-            assert_eq!(
-                result.to_string(),
-                "
+                    .trim(),
+                )),
+                // Resize the terminal dimension sucht that the fourth line will be wrapped
+                App(TerminalDimensionChanged(Dimension {
+                    width: 20,
+                    height: 6,
+                })),
+                Editor(AlignViewBottom),
+                Expect(Grid(
+                    "
 src/main.rs 🦀
 1│fn first () {
 4│  fourth(); //
@@ -572,57 +573,43 @@ src/main.rs 🦀
 5│  █ifth();
 [GLOBAL TITLE]
 "
-                .trim()
-            );
-            Ok(())
+                    .trim(),
+                )),
+            ])
         })
     }
 
     #[test]
     fn selection_history_contiguous() -> Result<(), anyhow::Error> {
-        run_test(|mut app, temp_dir| {
-            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
-                temp_dir.join_as_path_buf(filename).try_into()
-            };
-            let open =
-                |filename: &str| -> anyhow::Result<Dispatch> { Ok(OpenFile(file(filename)?)) };
-
-            app.handle_dispatch(open("src/main.rs")?)?;
-            let main_rs = &file("src/main.rs")?;
-
-            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::LineTrimmed)])?;
-            assert_eq!(app.get_selected_texts(main_rs), ["mod foo;"]);
-
-            app.handle_dispatch_editors(&[SetSelectionMode(SelectionMode::Character)])?;
-            assert_eq!(app.get_selected_texts(main_rs), ["m"]);
-
-            app.handle_dispatch(Dispatch::GoToPreviousSelection)?;
-            assert_eq!(app.get_selected_texts(main_rs), ["mod foo;"]);
-
-            app.handle_dispatch(Dispatch::GoToNextSelection)?;
-            assert_eq!(app.get_selected_texts(main_rs), ["m"]);
-
-            let foo_rs = file("src/foo.rs")?;
-            app.handle_dispatch(Dispatch::GotoLocation(Location {
-                path: foo_rs.clone(),
-                range: Position::new(0, 0)..Position::new(0, 4),
-            }))?;
-            assert_eq!(
-                app.get_current_selected_texts(),
-                (foo_rs, ["pub ".to_string()].to_vec())
-            );
-
-            app.handle_dispatch(Dispatch::GoToPreviousSelection)?;
-            assert_eq!(
-                app.get_current_selected_texts(),
-                (main_rs.clone(), ["m".to_string()].to_vec())
-            );
-
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Expect(CurrentSelectedTexts(&["mod foo;"])),
+                Editor(SetSelectionMode(Character)),
+                Expect(CurrentSelectedTexts(&["m"])),
+                App(GoToPreviousSelection),
+                Expect(CurrentSelectedTexts(&["mod foo;"])),
+                App(GoToNextSelection),
+                Expect(CurrentSelectedTexts(&["m"])),
+                App(GotoLocation(Location {
+                    path: s.foo_rs(),
+                    range: Position::new(0, 0)..Position::new(0, 4),
+                })),
+                Expect(ExpectKind::CurrentPath(s.foo_rs())),
+                Expect(CurrentSelectedTexts(&["pub "])),
+                App(GoToPreviousSelection),
+                Expect(CurrentPath(s.main_rs())),
+                Expect(CurrentSelectedTexts(&["m"])),
+                App(GoToNextSelection),
+                Expect(ExpectKind::CurrentPath(s.foo_rs())),
+                Expect(CurrentSelectedTexts(&["pub "])),
+            ])
         })
     }
 
     #[test]
+    /// TODO: might need to remove this test case
     fn selection_history_file() -> Result<(), anyhow::Error> {
         run_test(|mut app, temp_dir| {
             let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
@@ -695,46 +682,34 @@ src/main.rs 🦀
 
     #[test]
     fn global_bookmarks() -> Result<(), anyhow::Error> {
-        run_test(|mut app, temp_dir| {
-            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
-                temp_dir.join_as_path_buf(filename).try_into()
-            };
-            let open =
-                |filename: &str| -> anyhow::Result<Dispatch> { Ok(OpenFile(file(filename)?)) };
-
-            app.handle_dispatches(
-                [
-                    open("src/main.rs")?,
-                    DispatchEditor(SetSelectionMode(SelectionMode::Word)),
-                    DispatchEditor(ToggleBookmark),
-                    open("src/foo.rs")?,
-                    DispatchEditor(SetSelectionMode(SelectionMode::Word)),
-                    DispatchEditor(ToggleBookmark),
-                    SetQuickfixList(crate::quickfix_list::QuickfixListType::Bookmark),
-                ]
-                .to_vec(),
-            )?;
-            assert_eq!(
-                app.get_quickfixes(),
-                [
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetSelectionMode(Word)),
+                Editor(ToggleBookmark),
+                App(OpenFile(s.foo_rs())),
+                Editor(SetSelectionMode(Word)),
+                Editor(ToggleBookmark),
+                App(SetQuickfixList(
+                    crate::quickfix_list::QuickfixListType::Bookmark,
+                )),
+                Expect(Quickfixes(Box::new([
                     QuickfixListItem::new(
                         Location {
-                            path: file("src/foo.rs")?,
+                            path: s.foo_rs(),
                             range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
                         },
                         None,
                     ),
                     QuickfixListItem::new(
                         Location {
-                            path: file("src/main.rs")?,
+                            path: s.main_rs(),
                             range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
                         },
                         None,
                     ),
-                ],
-            );
-
-            Ok(())
+                ]))),
+            ])
         })
     }
 

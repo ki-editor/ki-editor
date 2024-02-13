@@ -1380,11 +1380,11 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_current_selected_texts(&mut self) -> (CanonicalizedPath, Vec<String>) {
+    pub fn get_current_selected_texts(&self) -> (CanonicalizedPath, Vec<String>) {
         let path = self.current_component().unwrap().borrow().path().unwrap();
         let selected_texts = self
             .layout
-            .open_file(&path)
+            .get_existing_editor(&path)
             .unwrap()
             .borrow()
             .editor()
@@ -1393,8 +1393,12 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_file_content(&mut self, path: &CanonicalizedPath) -> String {
-        self.layout.open_file(path).unwrap().borrow().content()
+    pub fn get_file_content(&self, path: &CanonicalizedPath) -> String {
+        self.layout
+            .get_existing_editor(path)
+            .unwrap()
+            .borrow()
+            .content()
     }
 
     #[cfg(test)]

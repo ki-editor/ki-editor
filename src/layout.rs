@@ -287,21 +287,26 @@ impl Layout {
             });
     }
 
+    pub fn get_existing_editor(
+        &self,
+        path: &CanonicalizedPath,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.background_suggestive_editors
+            .iter()
+            .cloned()
+            .find(|component| {
+                component
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .path()
+                    .map(|p| &p == path)
+                    .unwrap_or(false)
+            })
+    }
+
     pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
-        if let Some(matching_editor) =
-            self.background_suggestive_editors
-                .iter()
-                .cloned()
-                .find(|component| {
-                    component
-                        .borrow()
-                        .editor()
-                        .buffer()
-                        .path()
-                        .map(|p| &p == path)
-                        .unwrap_or(false)
-                })
-        {
+        if let Some(matching_editor) = self.get_existing_editor(path) {
             self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
             Some(matching_editor)
         } else {
