@@ -46,32 +46,60 @@ mod test_app {
         Expect(ExpectKind),
         Editor(DispatchEditor),
         ExpectLater(Box<dyn Fn() -> ExpectKind>),
+        ExpectCustom(Box<dyn Fn()>),
     }
 
+    #[derive(Debug)]
     enum ExpectKind {
+        Not(Box<ExpectKind>),
         CurrentFileContent(&'static str),
+        FileContent(CanonicalizedPath, String),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
         CurrentSelectedTexts(&'static [&'static str]),
         ComponentsLength(usize),
         Quickfixes(Box<[QuickfixListItem]>),
-        Custom(Box<dyn Fn()>),
         Grid(&'static str),
         CurrentPath(CanonicalizedPath),
+        LocalSearchConfigSearches(&'static [&'static str]),
+        LocalSearchConfigReplacements(&'static [&'static str]),
+        GlobalSearchConfigSearches(&'static [&'static str]),
+        GlobalSearchConfigReplacements(&'static [&'static str]),
+        GlobalSearchConfigIncludeGlobs(&'static [&'static str]),
+        GlobalSearchConfigExcludeGlobs(&'static [&'static str]),
+        FileContentContains(CanonicalizedPath, &'static str),
+    }
+    fn log<T: std::fmt::Debug>(s: T) {
+        println!("===========\n{s:?}",);
     }
     impl ExpectKind {
-        fn run(&self, app: &mut App<MockFrontend>) -> anyhow::Result<()> {
-            match self {
+        fn run(&self, app: &mut App<MockFrontend>) {
+            log(self);
+            let (result, context) = self.get_result(app).unwrap();
+            assert!(result, "{context}",)
+        }
+        fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
+            let context = app.context();
+            fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
+                (a == b, format!("{a:?} == {b:?}",))
+            }
+            fn to_vec(strs: &[&str]) -> Vec<String> {
+                strs.into_iter().map(|t| t.to_string()).collect()
+            }
+            Ok(match self {
                 CurrentFileContent(expected_content) => {
-                    assert_eq!(app.get_current_file_content(), expected_content.to_owned())
+                    contextualize(app.get_current_file_content(), expected_content.to_string())
+                }
+                FileContent(path, expected_content) => {
+                    contextualize(app.get_file_content(path), expected_content.clone())
                 }
                 FileContentEqual(left, right) => {
-                    assert_eq!(app.get_file_content(&left), app.get_file_content(&right))
+                    contextualize(app.get_file_content(&left), app.get_file_content(&right))
                 }
                 CurrentSelectedTexts(selected_texts) => {
-                    assert_eq!(app.get_current_selected_texts().1, selected_texts.to_vec())
+                    contextualize(app.get_current_selected_texts().1, to_vec(selected_texts))
                 }
-                ComponentsLength(length) => assert_eq!(app.components().len(), *length),
-                Quickfixes(expected_quickfixes) => assert_eq!(
+                ComponentsLength(length) => contextualize(app.components().len(), *length),
+                Quickfixes(expected_quickfixes) => contextualize(
                     app.get_quickfixes()
                         .into_iter()
                         .map(|quickfix| {
@@ -83,13 +111,50 @@ mod test_app {
                         })
                         .collect_vec()
                         .into_boxed_slice(),
-                    *expected_quickfixes
+                    expected_quickfixes.clone(),
                 ),
-                ExpectKind::Custom(f) => f(),
-                Grid(grid) => assert_eq!(app.get_grid()?.to_string(), *grid),
-                CurrentPath(path) => assert_eq!(app.get_current_file_path().unwrap(), *path),
-            }
-            Ok(())
+
+                Grid(grid) => contextualize(app.get_grid()?.to_string(), grid.to_string()),
+                CurrentPath(path) => {
+                    contextualize(app.get_current_file_path().unwrap(), path.clone())
+                }
+                LocalSearchConfigSearches(searches) => {
+                    contextualize(context.local_search_config().searches(), to_vec(searches))
+                }
+                LocalSearchConfigReplacements(replacements) => contextualize(
+                    context.local_search_config().replacements(),
+                    to_vec(replacements),
+                ),
+                GlobalSearchConfigSearches(searches) => contextualize(
+                    context.get_local_search_config(Scope::Global).searches(),
+                    to_vec(searches),
+                ),
+                GlobalSearchConfigReplacements(replacements) => contextualize(
+                    context
+                        .get_local_search_config(Scope::Global)
+                        .replacements(),
+                    to_vec(replacements),
+                ),
+                GlobalSearchConfigIncludeGlobs(include_globs) => contextualize(
+                    context.global_search_config().include_globs(),
+                    to_vec(include_globs),
+                ),
+                GlobalSearchConfigExcludeGlobs(exclude_globs) => contextualize(
+                    context.global_search_config().exclude_globs(),
+                    to_vec(exclude_globs),
+                ),
+                FileContentContains(path, substring) => {
+                    let left = app.get_file_content(path);
+                    (
+                        left.contains(substring),
+                        format!("{left:?} contains {substring:?}"),
+                    )
+                }
+                Not(expect_kind) => {
+                    let (result, context) = expect_kind.get_result(app)?;
+                    (!result, format!("NOT ({context})"))
+                }
+            })
         }
     }
 
@@ -136,13 +201,22 @@ mod test_app {
 
             for step in steps.into_iter() {
                 match step.to_owned() {
-                    Step::App(dispatch) => app.handle_dispatch(dispatch.to_owned())?,
-                    Step::Expect(expect_kind) => expect_kind.run(&mut app)?,
-                    ExpectLater(f) => f().run(&mut app)?,
-                    Editor(dispatch) => app.handle_dispatch_editor(dispatch.to_owned())?,
+                    Step::App(dispatch) => {
+                        log(dispatch);
+                        app.handle_dispatch(dispatch.to_owned())?
+                    }
+                    Step::Expect(expect_kind) => expect_kind.run(&mut app),
+                    ExpectLater(f) => f().run(&mut app),
+                    Editor(dispatch) => {
+                        log(dispatch);
+                        app.handle_dispatch_editor(dispatch.to_owned())?
+                    }
                     WithApp(f) => {
                         let dispatch = f(&app);
                         app.handle_dispatch(dispatch)?
+                    }
+                    ExpectCustom(f) => {
+                        f();
                     }
                 };
             }
@@ -482,7 +556,7 @@ mod test_app {
                 App(AddPath(s.new_path("temp.txt").display().to_string())),
                 // Add a new Rust file
                 App(AddPath(s.new_path("src/rust.rs").display().to_string())),
-                Expect(ExpectKind::Custom(Box::new(move || {
+                ExpectCustom(Box::new(move || {
                     let paths = crate::git::GitRepo::try_from(&temp_dir)
                         .unwrap()
                         .non_git_ignored_files()
@@ -504,7 +578,7 @@ mod test_app {
 
                     // Expect the staged file "main.rs" is in the list
                     assert!(paths.contains(&"src/main.rs".to_string()));
-                }))),
+                })),
             ])
         })
     }
@@ -715,74 +789,70 @@ src/main.rs 🦀
 
     #[test]
     fn search_config_history() -> Result<(), anyhow::Error> {
-        run_test(|mut app, _| {
-            let owner_id = ComponentId::new();
-            let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Dispatch {
-                UpdateLocalSearchConfig {
-                    owner_id,
-                    update,
-                    scope,
-                    show_legend: true,
-                }
-            };
-            let update_global = |update: GlobalSearchConfigUpdate| -> Dispatch {
-                UpdateGlobalSearchConfig { owner_id, update }
-            };
-            use GlobalSearchConfigUpdate::*;
-            use GlobalSearchFilterGlob::*;
-            use LocalSearchConfigUpdate::*;
-            use Scope::*;
-            app.handle_dispatches(
-                [
-                    update(Local, SetSearch("L-Search1".to_string())),
-                    update(Local, SetSearch("L-Search2".to_string())),
-                    update(Local, SetSearch("L-Search1".to_string())),
-                    update(Local, SetReplacement("L-Replacement1".to_string())),
-                    update(Local, SetReplacement("L-Replacement2".to_string())),
-                    update(Local, SetReplacement("L-Replacement1".to_string())),
-                    update(Global, SetSearch("G-Search1".to_string())),
-                    update(Global, SetSearch("G-Search2".to_string())),
-                    update(Global, SetSearch("G-Search1".to_string())),
-                    update(Global, SetReplacement("G-Replacement1".to_string())),
-                    update(Global, SetReplacement("G-Replacement2".to_string())),
-                    update(Global, SetReplacement("G-Replacement1".to_string())),
-                    update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
-                    update_global(SetGlob(Exclude, "ExcludeGlob2".to_string())),
-                    update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
-                    update_global(SetGlob(Include, "IncludeGlob1".to_string())),
-                    update_global(SetGlob(Include, "IncludeGlob2".to_string())),
-                    update_global(SetGlob(Include, "IncludeGlob1".to_string())),
-                ]
-                .to_vec(),
-            )?;
-
-            // Expect the histories are stored, where:
-            // 1. There's no duplication
-            // 2. The insertion order is up-to-date
-            let context = app.context();
-            let local = context.local_search_config();
-            let global = context.global_search_config().local_config();
-            assert_eq!(local.searches(), ["L-Search2", "L-Search1"]);
-            assert_eq!(local.replacements(), ["L-Replacement2", "L-Replacement1"]);
-            assert_eq!(global.searches(), ["G-Search2", "G-Search1"]);
-            assert_eq!(global.replacements(), ["G-Replacement2", "G-Replacement1"]);
-
-            let global = context.global_search_config();
-            assert_eq!(global.include_globs(), ["IncludeGlob2", "IncludeGlob1"]);
-            assert_eq!(global.include_globs(), ["IncludeGlob2", "IncludeGlob1"]);
-            assert_eq!(global.exclude_globs(), ["ExcludeGlob2", "ExcludeGlob1"]);
-            assert_eq!(global.exclude_globs(), ["ExcludeGlob2", "ExcludeGlob1"]);
-
-            Ok(())
+        let owner_id = ComponentId::new();
+        let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Step {
+            App(UpdateLocalSearchConfig {
+                owner_id,
+                update,
+                scope,
+                show_legend: true,
+            })
+        };
+        let update_global = |update: GlobalSearchConfigUpdate| -> Step {
+            App(UpdateGlobalSearchConfig { owner_id, update })
+        };
+        use GlobalSearchConfigUpdate::*;
+        use GlobalSearchFilterGlob::*;
+        use LocalSearchConfigUpdate::*;
+        use Scope::*;
+        execute_test(|_| {
+            Box::new([
+                update(Local, SetSearch("L-Search1".to_string())),
+                update(Local, SetSearch("L-Search2".to_string())),
+                update(Local, SetSearch("L-Search1".to_string())),
+                update(Local, SetReplacement("L-Replacement1".to_string())),
+                update(Local, SetReplacement("L-Replacement2".to_string())),
+                update(Local, SetReplacement("L-Replacement1".to_string())),
+                update(Global, SetSearch("G-Search1".to_string())),
+                update(Global, SetSearch("G-Search2".to_string())),
+                update(Global, SetSearch("G-Search1".to_string())),
+                update(Global, SetReplacement("G-Replacement1".to_string())),
+                update(Global, SetReplacement("G-Replacement2".to_string())),
+                update(Global, SetReplacement("G-Replacement1".to_string())),
+                update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
+                update_global(SetGlob(Exclude, "ExcludeGlob2".to_string())),
+                update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
+                update_global(SetGlob(Include, "IncludeGlob1".to_string())),
+                update_global(SetGlob(Include, "IncludeGlob2".to_string())),
+                update_global(SetGlob(Include, "IncludeGlob1".to_string())),
+                // Expect the histories are stored, where:
+                // 1. There's no duplication
+                // 2. The insertion order is up-to-date
+                Expect(LocalSearchConfigSearches(&["L-Search2", "L-Search1"])),
+                Expect(LocalSearchConfigReplacements(&[
+                    "L-Replacement2",
+                    "L-Replacement1",
+                ])),
+                Expect(GlobalSearchConfigSearches(&["G-Search2", "G-Search1"])),
+                Expect(GlobalSearchConfigReplacements(&[
+                    "G-Replacement2",
+                    "G-Replacement1",
+                ])),
+                Expect(GlobalSearchConfigIncludeGlobs(&[
+                    "IncludeGlob2",
+                    "IncludeGlob1",
+                ])),
+                Expect(GlobalSearchConfigExcludeGlobs(&[
+                    "ExcludeGlob2",
+                    "ExcludeGlob1",
+                ])),
+            ])
         })
     }
 
     #[test]
     fn global_search_and_replace() -> Result<(), anyhow::Error> {
-        run_test(|mut app, temp_dir| {
-            let file = |filename: &str| -> anyhow::Result<CanonicalizedPath> {
-                temp_dir.join_as_path_buf(filename).try_into()
-            };
+        execute_test(|s| {
             let owner_id = ComponentId::new();
             let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
                 UpdateLocalSearchConfig {
@@ -792,291 +862,242 @@ src/main.rs 🦀
                     show_legend: true,
                 }
             };
-            let main_rs = file("src/main.rs")?;
-            let foo_rs = file("src/foo.rs")?;
-            let main_rs_initial_content = main_rs.read()?;
-            // Initiall, expect main.rs and foo.rs to contain the word "foo"
-            assert!(main_rs_initial_content.contains("foo"));
-            assert!(foo_rs.read()?.contains("foo"));
-
-            // Replace "foo" with "haha" globally
-            app.handle_dispatches(
-                [
-                    OpenFile(main_rs.clone()),
-                    new_dispatch(LocalSearchConfigUpdate::SetMode(
-                        LocalSearchConfigMode::Regex(RegexConfig {
-                            escaped: true,
-                            case_sensitive: false,
-                            match_whole_word: false,
-                        }),
-                    )),
-                    new_dispatch(LocalSearchConfigUpdate::SetSearch("foo".to_string())),
-                    new_dispatch(LocalSearchConfigUpdate::SetReplacement("haha".to_string())),
-                    Dispatch::Replace {
-                        scope: Scope::Global,
-                    },
-                ]
-                .to_vec(),
-            )?;
-
-            // Expect main.rs and foo.rs to not contain the word "foo"
-            assert!(!main_rs.read()?.contains("foo"));
-            assert!(!foo_rs.read()?.contains("foo"));
-
-            // Expect main.rs and foo.rs to contain the word "haha"
-            assert!(main_rs.read()?.contains("haha"));
-            assert!(foo_rs.read()?.contains("haha"));
-
-            // Expect the main.rs buffer to be updated as well
-            assert_eq!(app.get_file_content(&main_rs), main_rs.read()?);
-
-            // Apply undo to main_rs
-            app.handle_dispatch_editors(&[DispatchEditor::Undo])?;
-
-            // Expect the content of the main.rs buffer to be reverted
-            assert_eq!(app.get_file_content(&main_rs), main_rs_initial_content);
-
-            Ok(())
+            let main_rs = s.main_rs();
+            let main_rs_initial_content = main_rs.read().unwrap();
+            Box::new([
+                App(OpenFile(s.foo_rs())),
+                App(OpenFile(s.main_rs())),
+                // Initiall, expect main.rs and foo.rs to contain the word "foo"
+                Expect(FileContentContains(s.main_rs(), "foo")),
+                Expect(FileContentContains(s.foo_rs(), "foo")),
+                App(new_dispatch(LocalSearchConfigUpdate::SetMode(
+                    LocalSearchConfigMode::Regex(RegexConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    }),
+                ))),
+                // Replace "foo" with "haha" globally
+                App(new_dispatch(LocalSearchConfigUpdate::SetSearch(
+                    "foo".to_string(),
+                ))),
+                App(new_dispatch(LocalSearchConfigUpdate::SetReplacement(
+                    "haha".to_string(),
+                ))),
+                App(Dispatch::Replace {
+                    scope: Scope::Global,
+                }),
+                // Expect main.rs and foo.rs to not contain the word "foo"
+                Expect(Not(Box::new(FileContentContains(s.main_rs(), "foo")))),
+                Expect(Not(Box::new(FileContentContains(s.foo_rs(), "foo")))),
+                // Expect main.rs and foo.rs to contain the word "haha"
+                Expect(FileContentContains(s.main_rs(), "haha")),
+                Expect(FileContentContains(s.foo_rs(), "haha")),
+                // Expect the main.rs buffer to be updated as well
+                ExpectLater(Box::new(move || {
+                    FileContent(main_rs.clone(), main_rs.read().unwrap())
+                })),
+                // Apply undo to main_rs
+                App(OpenFile(s.main_rs())),
+                Editor(Undo),
+                // Expect the content of the main.rs buffer to be reverted
+                Expect(FileContent(s.main_rs(), main_rs_initial_content)),
+            ])
         })
     }
 
     #[test]
     /// Example: from "hello" -> hello
     fn raise_inside() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() { (a, b) }".to_string()),
-                MatchLiteral("b".to_string()),
-                SetSelectionMode(SelectionMode::Inside(InsideKind::Parentheses)),
-            ])?;
-            assert_eq!(app.get_current_selected_texts().1, &["a, b"]);
-            app.handle_dispatch_editors(&[Raise])?;
-
-            assert_eq!(app.get_current_file_content(), "fn main() { a, b }");
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { (a, b) }".to_string())),
+                Editor(MatchLiteral("b".to_string())),
+                Editor(SetSelectionMode(Inside(InsideKind::Parentheses))),
+                Expect(CurrentSelectedTexts(&["a, b"])),
+                Editor(Raise),
+                Expect(CurrentFileContent("fn main() { a, b }")),
+            ])
         })
     }
 
     #[test]
     fn toggle_highlight_mode() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn f(){ let x = S(a); let y = S(b); }".to_string()),
-                SetSelectionMode(BottomNode),
-                ToggleHighlightMode,
-                MoveSelection(Next),
-                MoveSelection(Next),
-            ])?;
-            assert_eq!(app.get_current_selected_texts().1, vec!["fn f("]);
-
-            // Toggle the second time should inverse the initial_range
-            app.handle_dispatch_editors(&[ToggleHighlightMode, MoveSelection(Next)])?;
-            assert_eq!(app.get_current_selected_texts().1, vec!["f("]);
-
-            app.handle_dispatch_editors(&[Reset])?;
-
-            assert_eq!(app.get_current_selected_texts().1, vec!["f"]);
-
-            app.handle_dispatch_editors(&[MoveSelection(Next)])?;
-
-            assert_eq!(app.get_current_selected_texts().1, vec!["("]);
-
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["fn f("])),
+                // Toggle the second time should inverse the initial_range
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["f("])),
+                Editor(Reset),
+                Expect(CurrentSelectedTexts(&["f"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["("])),
+            ])
         })
     }
 
     #[test]
     /// Kill means delete until the next selection
     fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() {}".to_string()),
-                SetSelectionMode(BottomNode),
-                Kill,
-            ])?;
-
-            // Expect the text to be 'main() {}'
-            assert_eq!(app.get_current_file_content(), "main() {}");
-
-            // Expect the current selection is 'main'
-            assert_eq!(app.get_current_selected_texts().1, vec!["main"]);
-
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(Kill),
+                Expect(CurrentFileContent("main() {}")),
+                Expect(CurrentSelectedTexts(&["main"])),
+            ])
         })
     }
 
     #[test]
     /// No gap between current and next selection
     fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatches([OpenFile(temp_dir.join("src/main.rs")?)].to_vec())?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() {}".to_string()),
-                SetSelectionMode(Character),
-                Kill,
-            ])?;
-            assert_eq!(app.get_current_file_content(), "n main() {}");
-
-            // Expect the current selection is 'n'
-            assert_eq!(app.get_current_selected_texts().1, vec!["n"]);
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(Character)),
+                Editor(Kill),
+                Expect(CurrentFileContent("n main() {}")),
+                Expect(CurrentSelectedTexts(&["n"])),
+            ])
         })
     }
 
     #[test]
     /// No next selection
     fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn main() {}".to_string()),
-                SetSelectionMode(BottomNode),
-                MoveSelection(Last),
-                Kill,
-            ])?;
-            assert_eq!(app.get_current_file_content(), "fn main() {");
-
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(MoveSelection(Last)),
+                Editor(Kill),
+                Expect(CurrentFileContent("fn main() {")),
+            ])
         })
     }
 
     #[test]
     /// The selection mode is contiguous
     fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn main(a:A,b:B) {}".to_string()),
-                MatchLiteral("a:A".to_string()),
-                SetSelectionMode(SyntaxTree),
-                Kill,
-            ])?;
-            assert_eq!(app.get_current_file_content(), "fn main(b:B) {}");
-
-            // Expect the current selection is 'b:B'
-            assert_eq!(app.get_current_selected_texts().1, vec!["b:B"]);
-
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
+                Editor(MatchLiteral("a:A".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Kill),
+                Expect(CurrentFileContent("fn main(b:B) {}")),
+                Expect(CurrentSelectedTexts(&["b:B"])),
+            ])
         })
     }
 
     #[test]
     fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn maima() {}".to_string()),
-                MatchLiteral("ma".to_string()),
-                Kill,
-            ])?;
-            // Expect the text to be 'fn ima() {}'
-            assert_eq!(app.get_current_file_content(), "fn ima() {}");
-
-            // Expect the current selection is the character after "ma"
-            assert_eq!(app.get_current_selected_texts().1, vec!["i"]);
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn maima() {}".to_string())),
+                Editor(MatchLiteral("ma".to_string())),
+                Editor(Kill),
+                Expect(CurrentFileContent("fn ima() {}")),
+                // Expect the current selection is the character after "ma"
+                Expect(CurrentSelectedTexts(&["i"])),
+            ])
         })
     }
 
     #[test]
     fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("foo bar spam".to_string()),
-                SetSelectionMode(Word),
-                ToggleBookmark,
-                MoveSelection(Next),
-                MoveSelection(Next),
-                ToggleBookmark,
-                SetSelectionMode(Bookmark),
-                CursorAddToAllSelections,
-            ])?;
-            assert_eq!(app.get_current_selected_texts().1, ["foo", "spam"]);
-            app.handle_dispatch_editors(&[CursorKeepPrimaryOnly])?;
-            assert_eq!(app.get_current_selected_texts().1, ["spam"]);
-
-            // Toggling the bookmark when selecting existing bookmark should
-            app.handle_dispatch_editors(&[
-                ToggleBookmark,
-                MoveSelection(Current),
-                CursorAddToAllSelections,
-            ])?;
-            assert_eq!(app.get_current_selected_texts().1, ["foo"]);
-            Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(ToggleBookmark),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["foo", "spam"])),
+                Editor(CursorKeepPrimaryOnly),
+                Expect(CurrentSelectedTexts(&["spam"])),
+                Editor(ToggleBookmark),
+                Editor(MoveSelection(Current)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["foo"])),
+            ])
         })
     }
 
     #[test]
     fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn snake_case(camelCase: String) {}".to_string()),
-                SetSelectionMode(LineTrimmed),
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn snake_case(camelCase: String) {}".to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
                 // Go to the end of the file
-                EnterInsertMode(Direction::End),
-                DeleteWordBackward,
-            ])?;
-            assert_eq!(
-                app.get_current_file_content(),
-                "fn snake_case(camelCase: String) "
-            );
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(
-                app.get_current_file_content(),
-                "fn snake_case(camelCase: String"
-            );
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), "fn snake_case(camelCase: ");
-
-            Ok(())
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_case(camelCase: String) ")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_case(camelCase: String")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_case(camelCase: ")),
+                Editor(DeleteWordBackward),
+            ])
         })
     }
 
     #[test]
     fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
-        run_test(|mut app, temp_dir| {
-            app.handle_dispatch(OpenFile(temp_dir.join("src/main.rs")?))?;
-            app.handle_dispatch_editors(&[
-                SetContent("fn snake_case(camelCase: String) {}".to_string()),
-                SetSelectionMode(BottomNode),
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn snake_case(camelCase: String) {}".to_string(),
+                )),
+                Editor(SetSelectionMode(BottomNode)),
                 // Go to the middle of the file
-                MoveSelection(Index(3)),
-            ])?;
-            assert_eq!(app.get_current_selected_texts().1, vec!["camelCase"]);
-
-            app.handle_dispatch_editors(&[EnterInsertMode(Direction::End), DeleteWordBackward])?;
-
-            assert_eq!(
-                app.get_current_file_content(),
-                "fn snake_case(camel: String) {}"
-            );
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), "fn snake_case(: String) {}");
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), "fn snake_case: String) {}");
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), "fn snake_: String) {}");
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), "fn : String) {}");
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), ": String) {}");
-
-            app.handle_dispatch_editors(&[DeleteWordBackward])?;
-            assert_eq!(app.get_current_file_content(), ": String) {}");
-
-            Ok(())
+                Editor(MoveSelection(Index(3))),
+                Expect(CurrentSelectedTexts(&["camelCase"])),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_case(camel: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_case(: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_case: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn snake_: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent("fn : String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent(": String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentFileContent(": String) {}")),
+                Editor(DeleteWordBackward),
+            ])
         })
     }
 }
