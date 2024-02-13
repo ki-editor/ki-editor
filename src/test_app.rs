@@ -25,8 +25,8 @@ mod test_app {
             LocalSearchConfigUpdate, Scope,
         },
         components::{
-            component::ComponentId,
-            editor::{Direction, DispatchEditor, Movement},
+            component::{Component, ComponentId},
+            editor::{Direction, DispatchEditor, Mode, Movement},
             suggestive_editor::Info,
         },
         context::{GlobalMode, LocalSearchConfigMode},
@@ -53,6 +53,8 @@ mod test_app {
     enum ExpectKind {
         Not(Box<ExpectKind>),
         CurrentFileContent(&'static str),
+        CursorPosition(Position),
+        CurrentMode(Mode),
         FileContent(CanonicalizedPath, String),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
         CurrentSelectedTexts(&'static [&'static str]),
@@ -85,6 +87,7 @@ mod test_app {
             fn to_vec(strs: &[&str]) -> Vec<String> {
                 strs.into_iter().map(|t| t.to_string()).collect()
             }
+            let component = app.current_component().unwrap();
             Ok(match self {
                 CurrentFileContent(expected_content) => {
                     contextualize(app.get_current_file_content(), expected_content.to_string())
@@ -154,6 +157,11 @@ mod test_app {
                     let (result, context) = expect_kind.get_result(app)?;
                     (!result, format!("NOT ({context})"))
                 }
+                CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
+                CursorPosition(position) => contextualize(
+                    &component.borrow().editor().get_cursor_position().unwrap(),
+                    position,
+                ),
             })
         }
     }
@@ -1097,6 +1105,148 @@ src/main.rs 🦀
                 Editor(DeleteWordBackward),
                 Expect(CurrentFileContent(": String) {}")),
                 Editor(DeleteWordBackward),
+            ])
+        })
+    }
+
+    #[test]
+    fn kill_line_to_end() -> anyhow::Result<()> {
+        let input = "lala\nfoo bar spam\nyoyo";
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(input.to_string())),
+                // Killing to the end of line WITH trailing newline character
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(KillLine(Direction::End)),
+                Editor(Insert("sparta".to_string())),
+                Expect(CurrentFileContent("lala\nfoo sparta\nyoyo")),
+                Expect(CurrentMode(Mode::Insert)),
+                Expect(CurrentSelectedTexts(&[""])),
+                // Remove newline character if the character after cursor is a newline character
+                Editor(KillLine(Direction::End)),
+                Expect(CurrentFileContent("lala\nfoo spartayoyo")),
+                // Killing to the end of line WITHOUT trailing newline character
+                Editor(KillLine(Direction::End)),
+                Expect(CurrentFileContent("lala\nfoo sparta")),
+            ])
+        })
+    }
+
+    #[test]
+    fn kill_line_to_start() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("lala\nfoo bar spam\nyoyo".to_string())),
+                // Killing to the start of line WITH leading newline character
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(KillLine(Direction::Start)),
+                Editor(Insert("sparta".to_string())),
+                Expect(CurrentFileContent("lala\nspartabar spam\nyoyo")),
+                Expect(CurrentMode(Mode::Insert)),
+                Editor(KillLine(Direction::Start)),
+                Expect(CurrentFileContent("lala\nbar spam\nyoyo")),
+                // Remove newline character if the character before cursor is a newline character
+                Editor(KillLine(Direction::Start)),
+                Expect(CurrentFileContent("lalabar spam\nyoyo")),
+                Expect(CursorPosition(Position { line: 0, column: 4 })),
+                // Killing to the start of line WITHOUT leading newline character
+                Editor(KillLine(Direction::Start)),
+                Expect(CurrentFileContent("bar spam\nyoyo")),
+            ])
+        })
+    }
+
+    #[test]
+    fn undo_tree() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("\n".to_string())),
+                Editor(Insert("a".to_string())),
+                Editor(Insert("bc".to_string())),
+                Editor(EnterUndoTreeMode),
+                // Previous = undo
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentFileContent("a\n")),
+                // Next = redo
+                Editor(MoveSelection(Next)),
+                Expect(CurrentFileContent("abc\n")),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentFileContent("a\n")),
+                Editor(Insert("de".to_string())),
+                Editor(EnterUndoTreeMode),
+                // Down = go to previous history branch
+                Editor(MoveSelection(Down)),
+                // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
+                Expect(CurrentFileContent("abc\n")),
+                // Up = go to next history branch
+                Editor(MoveSelection(Up)),
+                Expect(CurrentFileContent("ade\n")),
+            ])
+        })
+    }
+
+    #[test]
+    fn multi_exchange_sibling() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn f(x:a,y:b){} fn g(x:a,y:b){}".to_string())),
+                Editor(MatchLiteral("fn f(x:a,y:b){}".to_string())),
+                Expect(CurrentSelectedTexts(&["fn f(x:a,y:b){}"])),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&[
+                    "fn f(x:a,y:b){}",
+                    "fn g(x:a,y:b){}",
+                ])),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(EnterExchangeMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentFileContent("fn f(y:b,x:a){} fn g(y:b,x:a){}")),
+                Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentFileContent("fn f(x:a,y:b){} fn g(x:a,y:b){}")),
+            ])
+        })
+    }
+
+    #[test]
+    fn update_bookmark_position() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spim".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Previous)),
+                Editor(MoveSelection(Previous)),
+                // Kill "foo"
+                Editor(Kill),
+                Expect(CurrentFileContent("bar spim")),
+                Editor(SetSelectionMode(Bookmark)),
+                // Expect bookmark position is updated, and still selects "spim"
+                Expect(CurrentSelectedTexts(&["spim"])),
+                // Remove "m" from "spim"
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Backspace),
+                Expect(CurrentFileContent("bar spi")),
+                Editor(EnterNormalMode),
+                Editor(SetSelectionMode(Bookmark)),
+                // Expect the "spim" bookmark is removed
+                // By the fact that "spi" is not selected
+                Expect(CurrentSelectedTexts(&["i"])),
             ])
         })
     }

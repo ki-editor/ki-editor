@@ -269,38 +269,6 @@ fn main() {
     }
 
     #[test]
-    fn multi_exchange_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        let context = Context::default();
-
-        // Select 'fn f(x:a,y:b){}'
-        editor.match_literal(&context, "fn f(x:a,y:b){}")?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&context, &Movement::Next)?;
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
-        );
-
-        editor.handle_movement(&context, Movement::Down)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Down)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(&context, Movement::Next)?;
-        assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
-        assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
-
-        editor.exchange(&context, Movement::Previous)?;
-        assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        Ok(())
-    }
-
-    #[test]
     fn open_new_line() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(
             language(),
@@ -707,55 +675,6 @@ fn f() {
     }
 
     #[test]
-    fn undo_tree() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), &"".split("").collect_vec().join("\n"));
-        let context = Context::default();
-        editor.insert("a")?;
-        editor.insert("bc")?;
-        editor.enter_undo_tree_mode();
-
-        // Previous = undo
-        editor.handle_movement(&context, Movement::Previous)?;
-        assert_eq!(editor.content(), "a\n");
-
-        // Next = redo
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.content(), "abc\n");
-        editor.handle_movement(&context, Movement::Previous)?;
-
-        assert_eq!(editor.content(), "a\n");
-        editor.insert("de")?;
-
-        let dispatches = editor.enter_undo_tree_mode();
-
-        let expected = [Dispatch::ShowInfo {
-            title: "Undo Tree History".to_string(),
-            info: Info::new(
-                " 
-* 1-2 [HEAD] 
-| * 0-2 
-|/
-* 1-1 
-* 1-0 [SAVED]"
-                    .trim()
-                    .to_string(),
-            ),
-        }];
-        assert_eq!(dispatches, expected);
-
-        // Down = go to previous history branch
-        editor.handle_movement(&context, Movement::Down)?;
-        // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
-        assert_eq!(editor.content(), "abc\n");
-
-        // Up = go to next history branch
-        editor.handle_movement(&context, Movement::Up)?;
-        assert_eq!(editor.content(), "ade\n");
-        Ok(())
-    }
-
-    #[test]
     fn get_grid_parent_line() -> anyhow::Result<()> {
         let content = "
 // hello
@@ -980,39 +899,6 @@ fn main() { // too long
     }
 
     #[test]
-    fn update_bookmark_position() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "foo bar spim");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
-        editor.toggle_bookmarks();
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
-        // Kill "foo"
-        editor.kill(&context)?;
-        assert_eq!(editor.content(), "bar spim");
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        // Expect bookmark position is updated, and still selects "spim"
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-
-        // Remove "m" from "spim"
-        editor.enter_insert_mode(Direction::End)?;
-        editor.backspace()?;
-
-        assert_eq!(editor.content(), "bar spi");
-        editor.enter_normal_mode()?;
-
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        // Expect the "spim" bookmark is removed
-        // By the fact that "spi" is not selected
-        assert_eq!(editor.get_selected_texts(), ["i"]);
-
-        Ok(())
-    }
-
-    #[test]
     fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
         let mut editor = Editor::from_text(language(), "foo bar spim");
         let context = Context::default();
@@ -1220,70 +1106,6 @@ fn main() { // too long
         assert_eq!(editor.get_selected_texts(), ["  hello  \n"]);
         editor.apply_dispatch(&context, MoveSelection(Movement::Down))?;
         assert_eq!(editor.get_selected_texts(), ["hello  "]);
-        Ok(())
-    }
-
-    #[test]
-    fn kill_line_to_end() -> anyhow::Result<()> {
-        let input = "lala\nfoo bar spam\nyoyo";
-        let mut editor = Editor::from_text(language(), input);
-        let context = Context::default();
-        // Killing to the end of line WITH trailing newline character
-        editor.apply_dispatches(
-            &context,
-            [
-                MatchLiteral("bar".to_string()),
-                KillLine(Direction::End),
-                Insert("sparta".to_string()),
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.content(), "lala\nfoo sparta\nyoyo");
-        assert!(editor.mode == Mode::Insert);
-        assert_eq!(editor.get_selected_texts(), [""]);
-
-        // Remove newline character if the character after cursor is a newline character
-        editor.apply_dispatch(&context, KillLine(Direction::End))?;
-        assert_eq!(editor.content(), "lala\nfoo spartayoyo");
-
-        // Killing to the end of line WITHOUT trailing newline character
-        editor.apply_dispatch(&context, KillLine(Direction::End))?;
-        assert_eq!(editor.content(), "lala\nfoo sparta");
-        Ok(())
-    }
-
-    #[test]
-    fn kill_line_to_start() -> anyhow::Result<()> {
-        let input = "lala\nfoo bar spam\nyoyo";
-        let mut editor = Editor::from_text(language(), input);
-        let context = Context::default();
-        // Killing to the start of line WITH leading newline character
-        editor.apply_dispatches(
-            &context,
-            [
-                MatchLiteral("bar".to_string()),
-                KillLine(Direction::Start),
-                Insert("sparta".to_string()),
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.content(), "lala\nspartabar spam\nyoyo");
-        assert!(editor.mode == Mode::Insert);
-
-        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
-        assert_eq!(editor.content(), "lala\nbar spam\nyoyo");
-
-        // Remove newline character if the character before cursor is a newline character
-        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
-        assert_eq!(editor.content(), "lalabar spam\nyoyo");
-        assert_eq!(
-            editor.get_cursor_position()?,
-            Position { line: 0, column: 4 }
-        );
-
-        // Killing to the start of line WITHOUT leading newline character
-        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
-        assert_eq!(editor.content(), "bar spam\nyoyo");
         Ok(())
     }
 }

@@ -1246,19 +1246,11 @@ impl Editor {
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        let selection_set = self.buffer.borrow_mut().undo()?;
-        if let Some(selection_set) = selection_set {
-            self.update_selection_set(selection_set);
-        }
-        Ok(self.get_document_did_change_dispatch())
+        self.navigate_undo_tree(Movement::Previous)
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        let selection_set = self.buffer.borrow_mut().redo()?;
-        if let Some(selection_set) = selection_set {
-            self.update_selection_set(selection_set);
-        }
-        Ok(self.get_document_did_change_dispatch())
+        self.navigate_undo_tree(Movement::Next)
     }
 
     fn change_cursor_direction(&mut self) {
@@ -1350,6 +1342,7 @@ impl Editor {
             DispatchEditor::KillLine(direction) => return self.kill_line(direction),
             DispatchEditor::Reset => self.reset(),
             DispatchEditor::DeleteWordBackward => return self.delete_word_backward(context),
+            DispatchEditor::Backspace => return self.backspace(),
         }
         Ok([].to_vec())
     }
@@ -2711,10 +2704,13 @@ impl Editor {
 
     fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Vec<Dispatch>, anyhow::Error> {
         let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
-        if let Some(selection_set) = selection_set {
-            self.update_selection_set(selection_set);
-        }
-        Ok(self.get_document_did_change_dispatch())
+
+        Ok(selection_set
+            .map(|selection_set| self.update_selection_set(selection_set))
+            .unwrap_or_default()
+            .into_iter()
+            .chain(self.get_document_did_change_dispatch())
+            .collect())
     }
 
     pub fn set_scroll_offset(&mut self, scroll_offset: u16) {
@@ -2895,6 +2891,7 @@ pub enum DispatchEditor {
     ToggleHighlightMode,
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
+    Backspace,
     Kill,
     Insert(String),
     MatchLiteral(String),
