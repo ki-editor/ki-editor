@@ -246,3 +246,6 @@
 - [] feat(selection/movement): after killing the current, pressing next/previous will skip the next/previous selection into the 2nd nearest selection
 - [] feat(autocomplete): should filter completion items based on word before the cursor, so that user can insert new method easily in the middle of a method call chain
 - [] feat(kill-line-to-start): should not delete leading whitespace together with words
+- [] feat(syntax-tree): shift+S for sibling including anonymous nodes
+- [] feat(syntax-tree): should select top node (I miss this behaviour a lot)
+- [] feat(editor): up down movement (sticky vertical column)

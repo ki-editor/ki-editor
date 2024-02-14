@@ -107,7 +107,7 @@ impl Component for Prompt {
                     if let Some(item) = self.editor.current_item() {
                         self.text = item.label();
                         self.editor.set_content(&self.text)?;
-                        self.editor_mut().end(context)?;
+                        self.editor_mut().move_to_line_end(context)?;
                     }
                     Ok(Vec::new())
                 } else {

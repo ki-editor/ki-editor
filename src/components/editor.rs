@@ -38,6 +38,9 @@ use crate::{
     selection::{CharIndex, Selection, SelectionMode, SelectionSet},
 };
 
+use DispatchEditor::*;
+use SelectionMode::*;
+
 use super::{
     component::{ComponentId, GetGridResult},
     suggestive_editor::Info,
@@ -1293,56 +1296,57 @@ impl Editor {
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
-            DispatchEditor::AlignViewTop => self.align_cursor_to_top(),
-            DispatchEditor::AlignViewCenter => self.align_cursor_to_center(),
-            DispatchEditor::AlignViewBottom => self.align_cursor_to_bottom(),
-            DispatchEditor::Transform(case) => return self.transform_selection(case),
-            DispatchEditor::SetSelectionMode(selection_mode) => {
+            AlignViewTop => self.align_cursor_to_top(),
+            AlignViewCenter => self.align_cursor_to_center(),
+            AlignViewBottom => self.align_cursor_to_bottom(),
+            Transform(case) => return self.transform_selection(case),
+            SetSelectionMode(selection_mode) => {
                 return self.set_selection_mode(context, selection_mode);
             }
 
-            DispatchEditor::FindOneChar => self.enter_single_character_mode(),
+            FindOneChar => self.enter_single_character_mode(),
 
-            DispatchEditor::MoveSelection(direction) => {
-                return self.handle_movement(context, direction)
-            }
-            DispatchEditor::Copy => return self.copy(context),
-            DispatchEditor::Paste => return self.paste(context),
-            DispatchEditor::SelectAll => return Ok(self.select_all(context)),
-            DispatchEditor::SetContent(content) => self.update_buffer(&content),
-            DispatchEditor::ReplaceSelectionWithCopiedText => return self.replace(context),
-            DispatchEditor::Cut => return self.cut(),
-            DispatchEditor::ToggleHighlightMode => self.toggle_highlight_mode(),
-            DispatchEditor::EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
-            DispatchEditor::EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
-            DispatchEditor::Kill => return self.kill(context),
-            DispatchEditor::Insert(string) => return self.insert(&string),
-            DispatchEditor::MatchLiteral(literal) => return self.match_literal(context, &literal),
-            DispatchEditor::ToggleBookmark => self.toggle_bookmarks(),
-            DispatchEditor::EnterInsideMode(kind) => {
+            MoveSelection(direction) => return self.handle_movement(context, direction),
+            Copy => return self.copy(context),
+            Paste => return self.paste(context),
+            SelectAll => return Ok(self.select_all(context)),
+            SetContent(content) => self.update_buffer(&content),
+            ReplaceSelectionWithCopiedText => return self.replace(context),
+            Cut => return self.cut(),
+            ToggleHighlightMode => self.toggle_highlight_mode(),
+            EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
+            EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
+            Kill => return self.kill(context),
+            Insert(string) => return self.insert(&string),
+            MatchLiteral(literal) => return self.match_literal(context, &literal),
+            ToggleBookmark => self.toggle_bookmarks(),
+            EnterInsideMode(kind) => {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
-            DispatchEditor::EnterNormalMode => self.enter_normal_mode()?,
-            DispatchEditor::FilterPush(filter) => return self.filters_push(context, filter),
-            DispatchEditor::CursorAddToAllSelections => {
-                self.add_cursor_to_all_selections(context)?
-            }
-            DispatchEditor::FilterClear => self.filters_clear(),
-            DispatchEditor::CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
-            DispatchEditor::Raise => return self.raise(context),
-            DispatchEditor::Exchange(movement) => return self.exchange(context, movement),
-            DispatchEditor::EnterExchangeMode => self.enter_exchange_mode(),
-            DispatchEditor::Replace { config } => {
+            EnterNormalMode => self.enter_normal_mode()?,
+            FilterPush(filter) => return self.filters_push(context, filter),
+            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
+            FilterClear => self.filters_clear(),
+            CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
+            Raise => return self.raise(context),
+            Exchange(movement) => return self.exchange(context, movement),
+            EnterExchangeMode => self.enter_exchange_mode(),
+            Replace { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
                 self.update_selection_set(selection_set);
                 return Ok(self.get_document_did_change_dispatch());
             }
-            DispatchEditor::Undo => return self.undo(),
-            DispatchEditor::KillLine(direction) => return self.kill_line(direction),
-            DispatchEditor::Reset => self.reset(),
-            DispatchEditor::DeleteWordBackward => return self.delete_word_backward(context),
-            DispatchEditor::Backspace => return self.backspace(),
+            Undo => return self.undo(),
+            KillLine(direction) => return self.kill_line(direction),
+            Reset => self.reset(),
+            DeleteWordBackward => return self.delete_word_backward(context),
+            Backspace => return self.backspace(),
+            MoveToLineStart => return self.move_to_line_start(context),
+            MoveToLineEnd => return self.move_to_line_end(context),
+            SelectLine(movement) => return self.select_line(movement, context),
+            SelectKids => return self.select_kids(),
+            Redo => return self.redo(),
         }
         Ok([].to_vec())
     }
@@ -1516,8 +1520,8 @@ impl Editor {
             key!("backspace") => return self.backspace(),
             key!("enter") => return self.insert("\n"),
             key!("tab") => return self.insert("\t"),
-            key!("ctrl+a") | key!("home") => self.home(context)?,
-            key!("ctrl+e") | key!("end") => self.end(context)?,
+            key!("ctrl+a") | key!("home") => return self.move_to_line_start(context),
+            key!("ctrl+e") | key!("end") => return self.move_to_line_end(context),
             key!("alt+backspace") => return self.delete_word_backward(context),
             key!("ctrl+k") => {
                 return Ok([Dispatch::DispatchEditor(DispatchEditor::KillLine(
@@ -2606,20 +2610,20 @@ impl Editor {
         }
     }
 
-    pub fn home(&mut self, context: &Context) -> anyhow::Result<()> {
-        self.select_line(Movement::Current, context)?;
-        self.enter_insert_mode(Direction::Start)
+    pub fn move_to_line_start(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+        Ok([
+            Dispatch::DispatchEditor(SelectLine(Movement::Current)),
+            Dispatch::DispatchEditor(EnterInsertMode(Direction::Start)),
+        ]
+        .to_vec())
     }
 
-    pub fn end(&mut self, context: &Context) -> anyhow::Result<()> {
-        // TODO
-        [
-            DispatchEditor::SetSelectionMode(SelectionMode::LineTrimmed),
-            DispatchEditor::EnterInsertMode(Direction::End),
-        ];
-        self.select_line(Movement::Current, context)?;
-        self.handle_movement(context, Movement::Last)?;
-        self.enter_insert_mode(Direction::End)
+    pub fn move_to_line_end(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+        Ok([
+            Dispatch::DispatchEditor(SelectLine(Movement::Current)),
+            Dispatch::DispatchEditor(EnterInsertMode(Direction::End)),
+        ]
+        .to_vec())
     }
 
     fn select_all(&mut self, context: &Context) -> Vec<Dispatch> {
@@ -2882,6 +2886,7 @@ pub enum DispatchEditor {
     Exchange(Movement),
     FindOneChar,
     MoveSelection(Movement),
+    SelectKids,
     Copy,
     Cut,
     ReplaceSelectionWithCopiedText,
@@ -2891,9 +2896,12 @@ pub enum DispatchEditor {
     ToggleHighlightMode,
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
+    SelectLine(Movement),
     Backspace,
     Kill,
     Insert(String),
+    MoveToLineStart,
+    MoveToLineEnd,
     MatchLiteral(String),
     ToggleBookmark,
     EnterInsideMode(InsideKind),
@@ -2908,6 +2916,7 @@ pub enum DispatchEditor {
         config: crate::context::LocalSearchConfig,
     },
     Undo,
+    Redo,
     KillLine(Direction),
     Reset,
     DeleteWordBackward,

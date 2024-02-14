@@ -23,124 +23,6 @@ mod test_editor {
     use tree_sitter_rust::language;
 
     #[test]
-    fn select_character() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.handle_movement(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["n"]);
-
-        editor.handle_movement(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        Ok(())
-    }
-
-    #[test]
-    fn select_kids() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let context = Context::default();
-
-        editor.match_literal(&context, "x")?;
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
-
-        editor.select_kids()?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize, y: Vec<A>"]);
-        Ok(())
-    }
-
-    #[test]
-    fn exchange_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let context = Context::default();
-        editor.match_literal(&context, "x: usize")?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::TopNode),
-                SetSelectionMode(SelectionMode::SyntaxTree),
-                Exchange(Movement::Next),
-            ]
-            .to_vec(),
-        )?;
-
-        assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
-
-        editor.exchange(&context, Movement::Previous)?;
-        assert_eq!(editor.text(), "fn main(x: usize, y: Vec<A>) {}");
-        Ok(())
-    }
-
-    #[test]
-    fn exchange_sibling_2() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "use a;\nuse b;\nuse c;");
-        let context = Context::default();
-
-        // Select first statement
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::TopNode),
-                SetSelectionMode(SelectionMode::SyntaxTree),
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
-
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::SyntaxTree),
-                EnterExchangeMode,
-                MoveSelection(Movement::Next),
-            ]
-            .to_vec(),
-        )?;
-
-        assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
-        editor.apply_dispatches(&context, [MoveSelection(Movement::Next)].to_vec())?;
-        assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
-        Ok(())
-    }
-
-    #[test]
-    fn raise() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
-        let context = Context::default();
-        // Move selection to "c()"
-        editor.match_literal(&context, "c()")?;
-        assert_eq!(editor.get_selected_texts(), vec!["c()"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { let x = c(); }");
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { c() }");
-        Ok(())
-    }
-
-    #[test]
-    /// After raise the node kind should be the same
-    /// Raising `(a).into()` in `Some((a).into())`
-    /// should result in `(a).into()`
-    /// not `Some(a).into()`
-    fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { Some((a).b()) }");
-        let context = Context::default();
-        editor.match_literal(&context, "(a).b()")?;
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { (a).b() }");
-        Ok(())
-    }
-
-    #[test]
     fn exchange_line() -> anyhow::Result<()> {
         // Multiline source code
         let mut editor = Editor::from_text(
@@ -218,53 +100,6 @@ fn main() {
 
         assert_eq!(editor.text(), "struct A(pubusize, pubchar)");
         assert_eq!(editor.get_selected_texts(), vec!["", ""]);
-        Ok(())
-    }
-
-    #[test]
-    fn multi_raise() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-
-        // Select 'let x = S(a);'
-        editor.match_literal(&context, "let x = S(a);")?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&context, &Movement::Next)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["let x = S(a);", "let y = S(b);"]
-        );
-
-        editor.handle_movements(
-            &context,
-            &[
-                Movement::Down,
-                Movement::Next,
-                Movement::Down,
-                Movement::Next,
-                Movement::Down,
-                Movement::Next,
-            ],
-        )?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
-
-        editor.raise(&context)?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
-
-        editor.undo()?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
-        assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
-
-        editor.redo()?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
-        assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
         Ok(())
     }
 
@@ -493,24 +328,6 @@ fn f() {
         editor.enter_insert_mode(Direction::End)?;
         editor.enter_normal_mode()?;
         assert_eq!(editor.get_selected_texts(), vec![")"]);
-        Ok(())
-    }
-
-    #[test]
-    fn home_end() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "hello\n");
-        let context = Context::default();
-
-        editor.enter_insert_mode(Direction::Start)?;
-
-        editor.end(&context)?;
-        editor.insert(" world")?;
-        assert_eq!(editor.text(), "hello world\n");
-
-        editor.home(&context)?;
-        editor.insert("hey ")?;
-        assert_eq!(editor.text(), "hey hello world\n");
-
         Ok(())
     }
 

@@ -1250,4 +1250,153 @@ src/main.rs 🦀
             ])
         })
     }
+
+    #[test]
+    fn move_to_line_start_end() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(MoveToLineEnd),
+                Editor(Insert(" world".to_string())),
+                Expect(CurrentFileContent("hello world\n")),
+                Editor(MoveToLineStart),
+                Editor(Insert("hey ".to_string())),
+                Expect(CurrentFileContent("hey hello world\n")),
+            ])
+        })
+    }
+
+    #[test]
+    fn exchange_sibling() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
+                // Select first statement
+                Editor(MatchLiteral("x: usize".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(EnterExchangeMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentFileContent("fn main(y: Vec<A>, x: usize) {}")),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentFileContent("fn main(x: usize, y: Vec<A>) {}")),
+            ])
+        })
+    }
+
+    #[test]
+    fn exchange_sibling_2() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("use a;\nuse b;\nuse c;".to_string())),
+                // Select first statement
+                Editor(SetSelectionMode(TopNode)),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Expect(CurrentSelectedTexts(&["use a;"])),
+                Editor(EnterExchangeMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentFileContent("use b;\nuse a;\nuse c;")),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentFileContent("use b;\nuse c;\nuse a;")),
+            ])
+        })
+    }
+
+    #[test]
+    fn select_character() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(Character)),
+                Expect(CurrentSelectedTexts(&["f"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["n"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["f"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn raise() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
+                Editor(MatchLiteral("c()".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Raise),
+                Expect(CurrentFileContent("fn main() { let x = c(); }")),
+                Editor(Raise),
+                Expect(CurrentFileContent("fn main() { c() }")),
+            ])
+        })
+    }
+
+    #[test]
+    fn select_kids() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
+                Editor(MatchLiteral("x".to_string())),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["x"])),
+                Editor(SelectKids),
+                Expect(CurrentSelectedTexts(&["x: usize, y: Vec<A>"])),
+            ])
+        })
+    }
+
+    #[test]
+    /// After raise the node kind should be the same
+    /// Raising `(a).into()` in `Some((a).into())`
+    /// should result in `(a).into()`
+    /// not `Some(a).into()`
+    fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
+                Editor(MatchLiteral("(a).b()".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Raise),
+                Expect(CurrentFileContent("fn main() { (a).b() }")),
+            ])
+        })
+    }
+
+    #[test]
+    fn multi_raise() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(MatchLiteral("let x = S(a);".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["a", "b"])),
+                Editor(Raise),
+                Expect(CurrentFileContent("fn f(){ let x = a; let y = b; }")),
+                Editor(Undo),
+                Expect(CurrentFileContent("fn f(){ let x = S(a); let y = S(b); }")),
+                Expect(CurrentSelectedTexts(&["a", "b"])),
+                Editor(Redo),
+                Expect(CurrentFileContent("fn f(){ let x = a; let y = b; }")),
+                Expect(CurrentSelectedTexts(&["a", "b"])),
+            ])
+        })
+    }
 }
