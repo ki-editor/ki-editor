@@ -254,3 +254,6 @@
 - [] feat(find-mode): 'c' = search current selection
 - [] feat(exchange): x = exchange forward, X = exchange backward, \x = enter exchange mode
 - [] feat(kill): k = kill forward, K = kill backward, \k = enter kill mode
+- [] feat(wrapped_lines): single word too long should be wrapped forcefully, not trimmed
+- [] feat(switch-cursor-direction): current not working when cursor direction at end, also when changing selection mode, cursor direction should always be reset to start
+- [] feat(duplicate): one key to duplicate current selection, instead of ctrl+c ctrl+v

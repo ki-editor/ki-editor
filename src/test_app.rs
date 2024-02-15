@@ -32,7 +32,7 @@ mod test_app {
         },
         context::{GlobalMode, LocalSearchConfigMode},
         frontend::mock::MockFrontend,
-        grid::Style,
+        grid::{Style, StyleKey},
         integration_test::integration_test::TestRunner,
         list::grep::RegexConfig,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
@@ -60,7 +60,8 @@ mod test_app {
         CurrentLine(&'static str),
         Not(Box<ExpectKind>),
         CurrentFileContent(&'static str),
-        CursorPosition(Position),
+        EditorCursorPosition(Position),
+        EditorGridCursorPosition(Position),
         CurrentMode(Mode),
         FileContent(CanonicalizedPath, String),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
@@ -78,11 +79,12 @@ mod test_app {
         GlobalSearchConfigIncludeGlobs(&'static [&'static str]),
         GlobalSearchConfigExcludeGlobs(&'static [&'static str]),
         FileContentContains(CanonicalizedPath, &'static str),
-        GridCell(
+        GridCellBackground(
             /*Row*/ usize,
             /*Column*/ usize,
             /*Background color*/ Color,
         ),
+        GridCellStyleKey(Position, Option<StyleKey>),
     }
     fn log<T: std::fmt::Debug>(s: T) {
         println!("===========\n{s:?}",);
@@ -96,7 +98,7 @@ mod test_app {
         fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
             let mut context = app.context();
             fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
-                (a == b, format!("{a:?} == {b:?}",))
+                (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
             }
             fn to_vec(strs: &[&str]) -> Vec<String> {
                 strs.into_iter().map(|t| t.to_string()).collect()
@@ -131,12 +133,7 @@ mod test_app {
                     expected_quickfixes.clone(),
                 ),
                 EditorGrid(grid) => contextualize(
-                    component
-                        .borrow()
-                        .editor()
-                        .get_grid(context)
-                        .grid
-                        .to_string(),
+                    component.borrow().editor().get_grid(context).to_string(),
                     grid.to_string(),
                 ),
                 AppGrid(grid) => contextualize(app.get_grid()?.to_string(), grid.to_string()),
@@ -181,8 +178,18 @@ mod test_app {
                     (!result, format!("NOT ({context})"))
                 }
                 CurrentMode(mode) => contextualize(&component.borrow().editor().mode, mode),
-                CursorPosition(position) => contextualize(
+                EditorCursorPosition(position) => contextualize(
                     &component.borrow().editor().get_cursor_position().unwrap(),
+                    position,
+                ),
+                EditorGridCursorPosition(position) => contextualize(
+                    component
+                        .borrow()
+                        .editor()
+                        .get_grid(context)
+                        .cursor
+                        .unwrap()
+                        .position(),
                     position,
                 ),
                 CurrentLine(line) => contextualize(
@@ -196,11 +203,17 @@ mod test_app {
                     component.borrow().editor().current_view_alignment(),
                     view_alignment.clone(),
                 ),
-                GridCell(row_index, column_index, background_color) => contextualize(
+                GridCellBackground(row_index, column_index, background_color) => contextualize(
                     component.borrow().editor().get_grid(&mut context).grid.rows[*row_index]
                         [*column_index]
                         .background_color,
                     *background_color,
+                ),
+                GridCellStyleKey(position, style_key) => contextualize(
+                    component.borrow().editor().get_grid(&mut context).grid.rows[position.line]
+                        [position.column]
+                        .source,
+                    style_key.clone(),
                 ),
             })
         }
@@ -1195,7 +1208,7 @@ src/main.rs 🦀
                 // Remove newline character if the character before cursor is a newline character
                 Editor(KillLine(Direction::Start)),
                 Expect(CurrentFileContent("lalabar spam\nyoyo")),
-                Expect(CursorPosition(Position { line: 0, column: 4 })),
+                Expect(EditorCursorPosition(Position { line: 0, column: 4 })),
                 // Killing to the start of line WITHOUT leading newline character
                 Editor(KillLine(Direction::Start)),
                 Expect(CurrentFileContent("bar spam\nyoyo")),
@@ -1551,6 +1564,7 @@ fn main() {
         })
     }
 
+    #[serial]
     #[test]
     fn paste_from_clipboard() -> anyhow::Result<()> {
         execute_test(|s| {
@@ -1879,7 +1893,7 @@ src/main.rs 🦀
 4│  let y = 2;
 5│  for a in b {
 6│    let z = 4;
-7│    print()
+7│    █rint()
 "
                     .trim(),
                 )),
@@ -1893,7 +1907,11 @@ src/main.rs 🦀
                         .into_iter()
                         .flat_map(|row_index| {
                             [0, width - 1].into_iter().map(move |column_index| {
-                                GridCell(row_index, column_index as usize, parent_lines_background)
+                                GridCellBackground(
+                                    row_index,
+                                    column_index as usize,
+                                    parent_lines_background,
+                                )
                             })
                         })
                         .collect(),
@@ -1903,7 +1921,7 @@ src/main.rs 🦀
                     [0, width - 1]
                         .into_iter()
                         .map(|column_index| {
-                            Not(Box::new(GridCell(
+                            Not(Box::new(GridCellBackground(
                                 5,
                                 column_index as usize,
                                 parent_lines_background,
@@ -1924,7 +1942,7 @@ src/main.rs 🦀
 4│  let y = 2;
 5│  for a in b {
 6│    let z = 4;
-7│    print()
+7│    █rint()
 "
                     .trim(),
                 )),
@@ -1934,13 +1952,222 @@ src/main.rs 🦀
                     [2, 3]
                         .into_iter()
                         .map(|column_index| {
-                            GridCell(1, column_index as usize, bookmark_background_color)
+                            GridCellBackground(1, column_index as usize, bookmark_background_color)
                         })
                         .collect(),
                 ),
                 // Expect the bookmarks of inbound lines are rendered properly
                 // In this case, we want to check that the bookmark on "z" is rendered
-                Expect(GridCell(4, 10, bookmark_background_color)),
+                Expect(GridCellBackground(4, 10, bookmark_background_color)),
+            ])
+        })
+    }
+
+    #[test]
+    fn test_wrapped_lines() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+// hello world\n hey
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 13,
+                    height: 4,
+                })),
+                Editor(MatchLiteral("world".to_string())),
+                Editor(EnterInsertMode(Direction::End)),
+                Expect(EditorGrid(
+                    "
+src/main.rs
+1│// hello
+↪│world█
+2│ hey
+"
+                    .trim(),
+                )),
+                // Expect the cursor is after 'd'
+                Expect(EditorGridCursorPosition(Position { line: 2, column: 7 })),
+            ])
+        })
+    }
+
+    #[test]
+    fn syntax_highlighting() -> anyhow::Result<()> {
+        execute_test(|s| {
+            let theme = Theme::default();
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(SetTheme(theme.clone())),
+                Editor(SetContent(
+                    "
+fn main() { // too long
+  let foo = 1;
+  let bar = baba; let wrapped = coco;
+}
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 13,
+                    height: 4,
+                })),
+                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(DispatchEditor::ApplySyntaxHighlight),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 20,
+                    height: 4,
+                })),
+                Editor(SwitchViewAlignment),
+                // The "long" of "too long" is not shown, because it exceeded the view width
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+1│fn main() { // too
+3│  let █ar = baba;
+↪│let wrapped = coco
+"
+                    .trim(),
+                )),
+                ExpectMulti(
+                    [
+                        //
+                        // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
+                        Position::new(1, 2),
+                        Position::new(1, 3),
+                        //
+                        // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
+                        Position::new(2, 4),
+                        Position::new(2, 5),
+                        Position::new(2, 6),
+                        //
+                        // Expect the `let` keyword of line 3 (which is inbound but wrapped) is highlighted properly
+                        Position::new(3, 2),
+                        Position::new(3, 3),
+                        Position::new(3, 4),
+                    ]
+                    .into_iter()
+                    .map(|position| {
+                        ExpectKind::GridCellStyleKey(position, Some(StyleKey::SyntaxKeyword))
+                    })
+                    .collect(),
+                ),
+                // Expect decorations overrides syntax highlighting
+                Editor(MatchLiteral("fn".to_string())),
+                Editor(ToggleBookmark),
+                // Move cursor to next line, so that "fn" is not selected,
+                //  so that we can test the style applied to "fn" ,
+                // otherwise the style of primary selection anchors will override the bookmark style
+                Editor(MatchLiteral("let".to_string())),
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+1│fn main() { // too
+↪│ long
+2│  █et foo = 1;
+"
+                    .trim(),
+                )),
+                ExpectMulti(
+                    [Position::new(1, 2), Position::new(1, 3)]
+                        .into_iter()
+                        .map(|position| {
+                            ExpectKind::GridCellStyleKey(position, Some(StyleKey::UiBookmark))
+                        })
+                        .collect(),
+                ),
+            ])
+        })
+    }
+
+    #[test]
+    fn empty_content_should_have_one_line() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 20,
+                    height: 2,
+                })),
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+1│█
+"
+                    .trim(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spim".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Previous)),
+                Editor(MoveSelection(Previous)),
+                // Kill "foo"
+                Editor(Kill),
+                Expect(CurrentFileContent("bar spim")),
+                // Expect bookmark position is updated (still selects "spim")
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(Undo),
+                Expect(CurrentFileContent("foo bar spim")),
+                // Expect bookmark position is updated (still selects "spim")
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(Redo),
+                // Expect bookmark position is updated (still selects "spim")
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Result<()> {
+        let input = "// foo bar spim\n    fn foo() {}\n";
+
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(input.to_string())),
+                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(Save),
+                // Expect the content is formatted (second line dedented)
+                Expect(CurrentFileContent("// foo bar spim\nfn foo() {}\n")),
+                Editor(SetSelectionMode(Character)),
+                Expect(CurrentSelectedTexts(&["b"])),
+                // Expect the bookmark on "bar" is not destroyed
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["bar"])),
             ])
         })
     }

@@ -1292,7 +1292,7 @@ impl Editor {
 
     pub fn apply_dispatch(
         &mut self,
-        context: &Context,
+        context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
@@ -1355,6 +1355,9 @@ impl Editor {
             DispatchEditor::Jump => self.jump(context)?,
             SwitchViewAlignment => self.switch_view_alignment(),
             SetScrollOffset(n) => self.set_scroll_offset(n),
+            SetLanguage(language) => self.set_language(language)?,
+            ApplySyntaxHighlight => self.apply_syntax_highlighting(context)?,
+            Save => return self.save(),
         }
         Ok([].to_vec())
     }
@@ -2787,7 +2790,7 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn apply_dispatches(
         &mut self,
-        context: &Context,
+        context: &mut Context,
         dispatches: Vec<DispatchEditor>,
     ) -> anyhow::Result<()> {
         for dispatch in dispatches {
@@ -2899,6 +2902,7 @@ pub enum DispatchEditor {
     AlignViewBottom,
     Transform(convert_case::Case),
     SetSelectionMode(SelectionMode),
+    Save,
     Exchange(Movement),
     FindOneChar,
     MoveSelection(Movement),
@@ -2940,4 +2944,6 @@ pub enum DispatchEditor {
     KillLine(Direction),
     Reset,
     DeleteWordBackward,
+    SetLanguage(shared::language::Language),
+    ApplySyntaxHighlight,
 }
