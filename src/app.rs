@@ -46,7 +46,7 @@ use crate::{
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
-    themes::VSCODE_LIGHT,
+    themes::{Theme, VSCODE_LIGHT},
     undo_tree::{Applicable, UndoTree},
 };
 
@@ -589,6 +589,10 @@ impl<T: Frontend> App<T> {
             Dispatch::GoToNextSelection => self.go_to_next_selection()?,
             Dispatch::HandleLspNotification(notification) => {
                 self.handle_lsp_notification(notification)?
+            }
+            Dispatch::SetTheme(theme) => {
+                let context = std::mem::take(&mut self.context);
+                self.context = context.set_theme(theme);
             }
         }
         Ok(())
@@ -2028,6 +2032,7 @@ impl Dimension {
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
+    SetTheme(Theme),
     CloseCurrentWindow {
         change_focused_to: Option<ComponentId>,
     },

@@ -99,7 +99,7 @@ impl Component for Editor {
         self.title = Some(title);
     }
 
-    fn get_grid(&self, context: &mut Context) -> GetGridResult {
+    fn get_grid(&self, context: &Context) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.render_area();
         let buffer = editor.buffer();
@@ -1347,6 +1347,14 @@ impl Editor {
             SelectLine(movement) => return self.select_line(movement, context),
             SelectKids => return self.select_kids(),
             Redo => return self.redo(),
+            OpenNewLine => return self.open_new_line(),
+            Change => return self.change(),
+            SetRectangle(rectangle) => self.set_rectangle(rectangle),
+            ScrollPageDown => return self.scroll_page_down(),
+            ScrollPageUp => return self.scroll_page_up(),
+            DispatchEditor::Jump => self.jump(context)?,
+            SwitchViewAlignment => self.switch_view_alignment(),
+            SetScrollOffset(n) => self.set_scroll_offset(n),
         }
         Ok([].to_vec())
     }
@@ -2675,6 +2683,10 @@ impl Editor {
         self.scroll(Direction::Start, self.half_page_height())
     }
 
+    pub fn current_view_alignment(&self) -> Option<ViewAlignment> {
+        self.current_view_alignment.clone()
+    }
+
     pub fn switch_view_alignment(&mut self) {
         self.current_view_alignment = Some(match self.current_view_alignment {
             Some(ViewAlignment::Top) => {
@@ -2878,6 +2890,10 @@ pub enum HandleEventResult {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DispatchEditor {
+    SetScrollOffset(u16),
+    Jump,
+    ScrollPageDown,
+    ScrollPageUp,
     AlignViewTop,
     AlignViewCenter,
     AlignViewBottom,
@@ -2886,6 +2902,7 @@ pub enum DispatchEditor {
     Exchange(Movement),
     FindOneChar,
     MoveSelection(Movement),
+    SwitchViewAlignment,
     SelectKids,
     Copy,
     Cut,
@@ -2893,7 +2910,9 @@ pub enum DispatchEditor {
     Paste,
     SelectAll,
     SetContent(String),
+    SetRectangle(Rectangle),
     ToggleHighlightMode,
+    Change,
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
     SelectLine(Movement),
@@ -2903,6 +2922,7 @@ pub enum DispatchEditor {
     MoveToLineStart,
     MoveToLineEnd,
     MatchLiteral(String),
+    OpenNewLine,
     ToggleBookmark,
     EnterInsideMode(InsideKind),
     EnterNormalMode,

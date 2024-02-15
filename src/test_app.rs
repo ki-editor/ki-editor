@@ -4,11 +4,12 @@
 #[cfg(test)]
 mod test_app {
     use itertools::Itertools;
-    use my_proc_macros::key;
+    use my_proc_macros::{hex, key};
     use pretty_assertions::assert_eq;
     use serial_test::serial;
 
     use std::{
+        ops::Range,
         path::PathBuf,
         sync::{Arc, Mutex},
     };
@@ -26,23 +27,27 @@ mod test_app {
         },
         components::{
             component::{Component, ComponentId},
-            editor::{Direction, DispatchEditor, Mode, Movement},
+            editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
             suggestive_editor::Info,
         },
         context::{GlobalMode, LocalSearchConfigMode},
         frontend::mock::MockFrontend,
+        grid::Style,
         integration_test::integration_test::TestRunner,
         list::grep::RegexConfig,
         lsp::{process::LspNotification, signature_help::SignatureInformation},
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
+        rectangle::Rectangle,
         selection::SelectionMode,
         selection_mode::inside::InsideKind,
+        themes::{Color, Theme},
     };
 
     enum Step {
         App(Dispatch),
         WithApp(Box<dyn Fn(&App<MockFrontend>) -> Dispatch>),
+        ExpectMulti(Vec<ExpectKind>),
         Expect(ExpectKind),
         Editor(DispatchEditor),
         ExpectLater(Box<dyn Fn() -> ExpectKind>),
@@ -51,6 +56,8 @@ mod test_app {
 
     #[derive(Debug)]
     enum ExpectKind {
+        JumpChars(&'static [char]),
+        CurrentLine(&'static str),
         Not(Box<ExpectKind>),
         CurrentFileContent(&'static str),
         CursorPosition(Position),
@@ -58,9 +65,11 @@ mod test_app {
         FileContent(CanonicalizedPath, String),
         FileContentEqual(CanonicalizedPath, CanonicalizedPath),
         CurrentSelectedTexts(&'static [&'static str]),
+        CurrentViewAlignment(Option<ViewAlignment>),
         ComponentsLength(usize),
         Quickfixes(Box<[QuickfixListItem]>),
-        Grid(&'static str),
+        AppGrid(&'static str),
+        EditorGrid(&'static str),
         CurrentPath(CanonicalizedPath),
         LocalSearchConfigSearches(&'static [&'static str]),
         LocalSearchConfigReplacements(&'static [&'static str]),
@@ -69,6 +78,11 @@ mod test_app {
         GlobalSearchConfigIncludeGlobs(&'static [&'static str]),
         GlobalSearchConfigExcludeGlobs(&'static [&'static str]),
         FileContentContains(CanonicalizedPath, &'static str),
+        GridCell(
+            /*Row*/ usize,
+            /*Column*/ usize,
+            /*Background color*/ Color,
+        ),
     }
     fn log<T: std::fmt::Debug>(s: T) {
         println!("===========\n{s:?}",);
@@ -80,7 +94,7 @@ mod test_app {
             assert!(result, "{context}",)
         }
         fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
-            let context = app.context();
+            let mut context = app.context();
             fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
                 (a == b, format!("{a:?} == {b:?}",))
             }
@@ -116,8 +130,16 @@ mod test_app {
                         .into_boxed_slice(),
                     expected_quickfixes.clone(),
                 ),
-
-                Grid(grid) => contextualize(app.get_grid()?.to_string(), grid.to_string()),
+                EditorGrid(grid) => contextualize(
+                    component
+                        .borrow()
+                        .editor()
+                        .get_grid(context)
+                        .grid
+                        .to_string(),
+                    grid.to_string(),
+                ),
+                AppGrid(grid) => contextualize(app.get_grid()?.to_string(), grid.to_string()),
                 CurrentPath(path) => {
                     contextualize(app.get_current_file_path().unwrap(), path.clone())
                 }
@@ -132,6 +154,7 @@ mod test_app {
                     context.get_local_search_config(Scope::Global).searches(),
                     to_vec(searches),
                 ),
+
                 GlobalSearchConfigReplacements(replacements) => contextualize(
                     context
                         .get_local_search_config(Scope::Global)
@@ -161,6 +184,23 @@ mod test_app {
                 CursorPosition(position) => contextualize(
                     &component.borrow().editor().get_cursor_position().unwrap(),
                     position,
+                ),
+                CurrentLine(line) => contextualize(
+                    component.borrow().editor().current_line().unwrap(),
+                    line.to_string(),
+                ),
+                JumpChars(chars) => {
+                    contextualize(component.borrow().editor().jump_chars(), chars.to_vec())
+                }
+                CurrentViewAlignment(view_alignment) => contextualize(
+                    component.borrow().editor().current_view_alignment(),
+                    view_alignment.clone(),
+                ),
+                GridCell(row_index, column_index, background_color) => contextualize(
+                    component.borrow().editor().get_grid(&mut context).grid.rows[*row_index]
+                        [*column_index]
+                        .background_color,
+                    *background_color,
                 ),
             })
         }
@@ -225,6 +265,11 @@ mod test_app {
                     }
                     ExpectCustom(f) => {
                         f();
+                    }
+                    ExpectMulti(expect_kinds) => {
+                        for expect_kind in expect_kinds.into_iter() {
+                            expect_kind.run(&mut app)
+                        }
                     }
                 };
             }
@@ -617,7 +662,7 @@ fn first () {
                 )),
                 Editor(DispatchEditor::MatchLiteral("fifth()".to_string())),
                 Editor(AlignViewTop),
-                Expect(ExpectKind::Grid(
+                Expect(ExpectKind::AppGrid(
                     "
 src/main.rs 🦀
 1│fn first () {
@@ -629,7 +674,7 @@ src/main.rs 🦀
                     .trim(),
                 )),
                 Editor(AlignViewBottom),
-                Expect(Grid(
+                Expect(AppGrid(
                     "
 src/main.rs 🦀
 1│fn first () {
@@ -646,7 +691,7 @@ src/main.rs 🦀
                     height: 6,
                 })),
                 Editor(AlignViewBottom),
-                Expect(Grid(
+                Expect(AppGrid(
                     "
 src/main.rs 🦀
 1│fn first () {
@@ -1396,6 +1441,506 @@ src/main.rs 🦀
                 Editor(Redo),
                 Expect(CurrentFileContent("fn f(){ let x = a; let y = b; }")),
                 Expect(CurrentSelectedTexts(&["a", "b"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn open_new_line() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+fn f() {
+    let x = S(a);
+}
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("let x = ".to_string())),
+                Editor(OpenNewLine),
+                Editor(Insert("let y = S(b);".to_string())),
+                Expect(CurrentFileContent(
+                    "
+fn f() {
+    let x = S(a);
+    let y = S(b);
+}"
+                    .trim(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn exchange_line() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    // Multiline source code
+                    "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(Exchange(Next)),
+                Expect(CurrentFileContent(
+                    "
+let x = 1;
+    fn main() {
+    let y = 2;
+}"
+                    .trim(),
+                )),
+                Editor(Exchange(Previous)),
+                Expect(CurrentFileContent(
+                    "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+                    .trim(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn exchange_character() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(Character)),
+                Editor(Exchange(Next)),
+                Expect(CurrentFileContent("nf main() { let x = 1; }")),
+                Editor(Exchange(Next)),
+                Expect(CurrentFileContent("n fmain() { let x = 1; }")),
+                Editor(Exchange(Previous)),
+                Expect(CurrentFileContent("nf main() { let x = 1; }")),
+                Editor(Exchange(Previous)),
+                Expect(CurrentFileContent("fn main() { let x = 1; }")),
+            ])
+        })
+    }
+
+    #[test]
+    fn multi_insert() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("struct A(usize, char)".to_string())),
+                Editor(MatchLiteral("usize".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["usize", "char"])),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("pub ".to_string())),
+                Expect(CurrentFileContent("struct A(pub usize, pub char)")),
+                Editor(Backspace),
+                Expect(CurrentFileContent("struct A(pubusize, pubchar)")),
+                Expect(CurrentSelectedTexts(&["", ""])),
+            ])
+        })
+    }
+
+    #[test]
+    fn paste_from_clipboard() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                App(SetClipboardContent("let z = S(c);".to_string())),
+                Editor(Paste),
+                Expect(CurrentFileContent(
+                    "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn enter_newline() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("hello".to_string())),
+                App(HandleKeyEvent(key!("enter"))),
+                Editor(Insert("world".to_string())),
+                Expect(CurrentFileContent("hello\nworld")),
+                App(HandleKeyEvent(key!("left"))),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(CurrentFileContent("hello\nworl\nd")),
+            ])
+        })
+    }
+
+    #[test]
+    fn insert_mode_start() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("hello".to_string())),
+                Expect(CurrentFileContent("hellofn main() {}")),
+            ])
+        })
+    }
+
+    #[test]
+    fn insert_mode_end() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Insert("hello".to_string())),
+                Expect(CurrentFileContent("fnhello main() {}")),
+            ])
+        })
+    }
+
+    #[test]
+    fn highlight_kill() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["fn main"])),
+                Editor(Kill),
+                Expect(CurrentSelectedTexts(&["("])),
+            ])
+        })
+    }
+
+    #[test]
+    fn multicursor_add_all() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "mod m { fn a(j:J){} fn b(k:K,l:L){} fn c(m:M,n:N,o:O){} }".to_string(),
+                )),
+                Editor(MatchLiteral("fn a".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Expect(CurrentSelectedTexts(&["fn a(j:J){}"])),
+                Editor(CursorAddToAllSelections),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&["j:J", "k:K", "m:M"])),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&[
+                    "j:J", "k:K", "l:L", "m:M", "n:N", "o:O",
+                ])),
+            ])
+        })
+    }
+
+    #[test]
+    fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn\nmain()\n{ x.y(); x.y(); x.y(); }".to_string(),
+                )),
+                Editor(MatchLiteral("x.y()".to_string())),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(EnterNormalMode),
+                Expect(CurrentSelectedTexts(&[")"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn highlight_change() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello world yo".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["hello world"])),
+                Editor(Change),
+                Editor(Insert("wow".to_string())),
+                Expect(CurrentSelectedTexts(&[""])),
+                Expect(CurrentFileContent("wow yo")),
+            ])
+        })
+    }
+
+    #[test]
+    fn scroll_page() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("1\n2 hey\n3".to_string())),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 3,
+                })),
+                Editor(ScrollPageDown),
+                Expect(CurrentLine("2 hey")),
+                Editor(ScrollPageDown),
+                Editor(MatchLiteral("hey".to_string())),
+                Expect(CurrentSelectedTexts(&["hey"])),
+                Editor(ScrollPageDown),
+                Expect(CurrentLine("3")),
+                Editor(ScrollPageDown),
+                Expect(CurrentLine("3")),
+                Editor(ScrollPageUp),
+                Expect(CurrentLine("2 hey")),
+                Editor(ScrollPageUp),
+                Expect(CurrentLine("1")),
+                Editor(ScrollPageUp),
+                Expect(CurrentLine("1")),
+            ])
+        })
+    }
+
+    #[test]
+    fn jump() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "Who lives on sea shore?\n yonky donkey".to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 1,
+                })),
+                // In jump mode, the first stage labels each selection using their starting character,
+                // On subsequent stages, the labels are random alphabets
+                Expect(JumpChars(&[])),
+                Editor(SetSelectionMode(Word)),
+                Editor(DispatchEditor::Jump),
+                // Expect the jump to be the first character of each word
+                // Note 'y' and 'd' are excluded because they are out of view,
+                // since the viewbox has only height of 1
+                Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
+                App(HandleKeyEvent(key!("s"))),
+                Expect(JumpChars(&['a', 'b'])),
+                App(HandleKeyEvent(key!("a"))),
+                Expect(JumpChars(&[])),
+                Expect(CurrentSelectedTexts(&["sea"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn highlight_and_jump() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "Who lives on sea shore?\n yonky donkey".to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 1,
+                })),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleHighlightMode),
+                Editor(DispatchEditor::Jump),
+                // Expect the jump to be the first character of each word
+                // Note 'y' and 'd' are excluded because they are out of view,
+                // since the viewbox has only height of 1
+                Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
+                App(HandleKeyEvent(key!("s"))),
+                App(HandleKeyEvent(key!("b"))),
+                Expect(CurrentSelectedTexts(&["lives on sea shore"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("who who who who".to_string())),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 1,
+                })),
+                Editor(SetSelectionMode(Word)),
+                Editor(DispatchEditor::Jump),
+                // Expect the jump to NOT be the first character of each word
+                // Since, the first character of each selection are the same, which is 'w'
+                Expect(JumpChars(&['a', 'b', 'c', 'd'])),
+            ])
+        })
+    }
+
+    #[test]
+    fn switch_view_alignment() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "abcde"
+                        .split("")
+                        .collect_vec()
+                        .join("\n")
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 4,
+                })),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["c"])),
+                Expect(CurrentViewAlignment(None)),
+                Editor(SwitchViewAlignment),
+                Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
+                Editor(SwitchViewAlignment),
+                Expect(CurrentViewAlignment(Some(ViewAlignment::Center))),
+                Editor(SwitchViewAlignment),
+                Expect(CurrentViewAlignment(Some(ViewAlignment::Bottom))),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentViewAlignment(None)),
+            ])
+        })
+    }
+
+    #[test]
+    fn get_grid_parent_line() -> anyhow::Result<()> {
+        let parent_lines_background = hex!("#badbad");
+        let bookmark_background_color = hex!("#cebceb");
+        let theme = {
+            let mut theme = Theme::default();
+            theme.ui.parent_lines_background = parent_lines_background;
+            theme.ui.bookmark = Style::default().background_color(bookmark_background_color);
+            theme
+        };
+        let width = 20;
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+// hello
+fn main() {
+  let x = 1;
+  let y = 2;
+  for a in b {
+    let z = 4;
+    print()
+  }
+}
+"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width,
+                    height: 6,
+                })),
+                App(SetTheme(theme.clone())),
+                // Go to "print()" and skip the first 3 lines for rendering
+                Editor(MatchLiteral("print()".to_string())),
+                Editor(SetScrollOffset(3)),
+                // Expect `fn main()` is visible although it is out of view,
+                // because it is amongst the parent lines of the current selection
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+2│fn main() {
+4│  let y = 2;
+5│  for a in b {
+6│    let z = 4;
+7│    print()
+"
+                    .trim(),
+                )),
+                // Bookmart "z"
+                Editor(MatchLiteral("z".to_string())),
+                Editor(ToggleBookmark),
+                // Expect the parent lines of the current selections are highlighted with parent_lines_background,
+                // regardless of whether the parent lines are inbound or outbound
+                ExpectMulti(
+                    [1, 3]
+                        .into_iter()
+                        .flat_map(|row_index| {
+                            [0, width - 1].into_iter().map(move |column_index| {
+                                GridCell(row_index, column_index as usize, parent_lines_background)
+                            })
+                        })
+                        .collect(),
+                ),
+                // Expect the current line is not treated as parent line
+                ExpectMulti(
+                    [0, width - 1]
+                        .into_iter()
+                        .map(|column_index| {
+                            Not(Box::new(GridCell(
+                                5,
+                                column_index as usize,
+                                parent_lines_background,
+                            )))
+                        })
+                        .collect(),
+                ),
+                // Bookmark the "fn" token
+                Editor(MatchLiteral("fn".to_string())),
+                Editor(ToggleBookmark),
+                // Go to "print()" and skip the first 3 lines for rendering
+                Editor(MatchLiteral("print()".to_string())),
+                Editor(SetScrollOffset(3)),
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+2│fn main() {
+4│  let y = 2;
+5│  for a in b {
+6│    let z = 4;
+7│    print()
+"
+                    .trim(),
+                )),
+                // Expect the bookmarks of outbound parent lines are rendered properly
+                // In this case, the outbound parent line is "fn main() {"
+                ExpectMulti(
+                    [2, 3]
+                        .into_iter()
+                        .map(|column_index| {
+                            GridCell(1, column_index as usize, bookmark_background_color)
+                        })
+                        .collect(),
+                ),
+                // Expect the bookmarks of inbound lines are rendered properly
+                // In this case, we want to check that the bookmark on "z" is rendered
+                Expect(GridCell(4, 10, bookmark_background_color)),
             ])
         })
     }

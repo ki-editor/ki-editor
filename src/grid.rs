@@ -486,7 +486,7 @@ pub enum StyleKey {
     SyntaxDefault,
 }
 
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub struct Style {
     pub foreground_color: Option<Color>,
     pub background_color: Option<Color>,

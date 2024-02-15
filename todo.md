@@ -249,3 +249,8 @@
 - [] feat(syntax-tree): shift+S for sibling including anonymous nodes
 - [] feat(syntax-tree): should select top node (I miss this behaviour a lot)
 - [] feat(editor): up down movement (sticky vertical column)
+- [] feat(movement): topmost/bottommost selection in the screen (similar to H/L in Vim)
+- [] feat(selection-set-history): should also store the ViewAlignment (so that it is less disorienting)
+- [] feat(find-mode): 'c' = search current selection
+- [] feat(exchange): x = exchange forward, X = exchange backward, \x = enter exchange mode
+- [] feat(kill): k = kill forward, K = kill backward, \k = enter kill mode

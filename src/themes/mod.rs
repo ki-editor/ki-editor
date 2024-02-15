@@ -3,7 +3,7 @@ pub use vscode_light::VSCODE_LIGHT;
 
 use crate::grid::{Style, StyleKey};
 
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Theme {
     pub name: &'static str,
     pub syntax: SyntaxStyles,
@@ -62,7 +62,7 @@ impl Default for Theme {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct DiagnosticStyles {
     pub error: Style,
     pub warning: Style,
@@ -71,7 +71,7 @@ pub struct DiagnosticStyles {
     pub default: Style,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub struct UiStyles {
     pub global_title: Style,
     pub window_title: Style,
@@ -92,7 +92,7 @@ pub struct UiStyles {
     pub bookmark: Style,
 }
 
-#[derive(Default, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SyntaxStyles {
     pub function: Style,
     pub keyword: Style,
