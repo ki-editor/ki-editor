@@ -1309,7 +1309,7 @@ impl Editor {
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy => return self.copy(context),
             Paste => return self.paste(context),
-            SelectAll => return Ok(self.select_all(context)),
+            SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
             ReplaceSelectionWithCopiedText => return self.replace(context),
             Cut => return self.cut(),
@@ -1324,9 +1324,9 @@ impl Editor {
                 return self.set_selection_mode(context, SelectionMode::Inside(kind))
             }
             EnterNormalMode => self.enter_normal_mode()?,
-            FilterPush(filter) => return self.filters_push(context, filter),
+            FilterPush(filter) => return Ok(self.filters_push(context, filter)),
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
-            FilterClear => self.filters_clear(),
+            FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
             Raise => return self.raise(context),
             Exchange(movement) => return self.exchange(context, movement),
@@ -1342,8 +1342,8 @@ impl Editor {
             Reset => self.reset(),
             DeleteWordBackward => return self.delete_word_backward(context),
             Backspace => return self.backspace(),
-            MoveToLineStart => return self.move_to_line_start(context),
-            MoveToLineEnd => return self.move_to_line_end(context),
+            MoveToLineStart => return self.move_to_line_start(),
+            MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement, context),
             SelectKids => return self.select_kids(),
             Redo => return self.redo(),
@@ -1531,8 +1531,8 @@ impl Editor {
             key!("backspace") => return self.backspace(),
             key!("enter") => return self.insert("\n"),
             key!("tab") => return self.insert("\t"),
-            key!("ctrl+a") | key!("home") => return self.move_to_line_start(context),
-            key!("ctrl+e") | key!("end") => return self.move_to_line_end(context),
+            key!("ctrl+a") | key!("home") => return self.move_to_line_start(),
+            key!("ctrl+e") | key!("end") => return self.move_to_line_end(),
             key!("alt+backspace") => return self.delete_word_backward(context),
             key!("ctrl+k") => {
                 return Ok([Dispatch::DispatchEditor(DispatchEditor::KillLine(
@@ -1576,7 +1576,6 @@ impl Editor {
         context: &Context,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        self.filters_clear();
         self.move_selection_with_selection_mode_without_global_mode(
             context,
             Movement::Current,
@@ -1688,7 +1687,7 @@ impl Editor {
                 .to_vec())
             }
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
-            key!("*") => return Ok(self.select_all(context)),
+            key!("*") => return Ok(self.select_all()),
             key!("ctrl+d") => {
                 return self.scroll_page_down();
             }
@@ -1781,14 +1780,14 @@ impl Editor {
             key!("enter") => return self.open_new_line(),
             key!("%") => self.change_cursor_direction(),
             key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
-            key!("{") => {
-                return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
-            }
-            key!("}") => {
-                return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
-            }
-            key!("[") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
-            key!("]") => return Ok([Dispatch::GoToNextSelection].to_vec()),
+            // key!("{") => {
+            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
+            // }
+            // key!("}") => {
+            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
+            // }
+            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
+            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
             key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
             key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
             key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
@@ -2621,7 +2620,7 @@ impl Editor {
         }
     }
 
-    pub fn move_to_line_start(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn move_to_line_start(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         Ok([
             Dispatch::DispatchEditor(SelectLine(Movement::Current)),
             Dispatch::DispatchEditor(EnterInsertMode(Direction::Start)),
@@ -2629,7 +2628,7 @@ impl Editor {
         .to_vec())
     }
 
-    pub fn move_to_line_end(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn move_to_line_end(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         Ok([
             Dispatch::DispatchEditor(SelectLine(Movement::Current)),
             Dispatch::DispatchEditor(EnterInsertMode(Direction::End)),
@@ -2637,7 +2636,7 @@ impl Editor {
         .to_vec())
     }
 
-    fn select_all(&mut self, context: &Context) -> Vec<Dispatch> {
+    fn select_all(&mut self) -> Vec<Dispatch> {
         [
             Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
             Dispatch::DispatchEditor(DispatchEditor::ToggleHighlightMode),
@@ -2777,14 +2776,14 @@ impl Editor {
         self.buffer().get_formatted_content()
     }
 
-    fn filters_push(
-        &mut self,
-        context: &Context,
-        filter: Filter,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    fn filters_push(&mut self, context: &Context, filter: Filter) -> Vec<Dispatch> {
         let selection_set = self.selection_set.clone().filter_push(filter);
-        self.update_selection_set(selection_set);
-        self.handle_movement(context, Movement::Current)
+        self.update_selection_set(selection_set)
+            .into_iter()
+            .chain(Some(Dispatch::DispatchEditor(MoveSelection(
+                Movement::Current,
+            ))))
+            .collect()
     }
 
     #[cfg(test)]
@@ -2799,9 +2798,9 @@ impl Editor {
         Ok(())
     }
 
-    fn filters_clear(&mut self) {
+    fn filters_clear(&mut self) -> Vec<Dispatch> {
         let selection_set = self.selection_set.clone().filter_clear();
-        self.update_selection_set(selection_set);
+        self.update_selection_set(selection_set)
     }
 
     pub fn find_submenu_title(title: &str, scope: Scope) -> String {

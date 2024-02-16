@@ -594,6 +594,7 @@ impl<T: Frontend> App<T> {
                 let context = std::mem::take(&mut self.context);
                 self.context = context.set_theme(theme);
             }
+            Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
         }
         Ok(())
     }
@@ -2002,6 +2003,13 @@ impl<T: Frontend> App<T> {
             .editor()
             .content()
     }
+
+    fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
+        for key_event in key_events.into_iter() {
+            self.handle_event(Event::Key(key_event.to_owned()))?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2110,6 +2118,7 @@ pub enum Dispatch {
     SetClipboardContent(String),
     SetGlobalMode(Option<GlobalMode>),
     HandleKeyEvent(event::KeyEvent),
+    HandleKeyEvents(Vec<event::KeyEvent>),
     GetRepoGitHunks,
     SaveAll,
     TerminalDimensionChanged(Dimension),
