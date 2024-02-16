@@ -2,6 +2,7 @@ use crate::app::Dispatch;
 use crate::components::component::Component;
 use crate::components::editor::Movement;
 use crate::context::Context;
+use crate::lsp::completion::CompletionItem;
 
 use itertools::Itertools;
 use std::cell::RefCell;
@@ -42,16 +43,19 @@ impl DropdownItem for String {
 }
 
 pub struct Dropdown<T: DropdownItem> {
+    open: bool,
     editor: Editor,
     filter: String,
     items: Vec<T>,
     filtered_items: Vec<T>,
     current_item_index: usize,
     info_panel: Option<Rc<RefCell<Editor>>>,
+    owner_id: Option<ComponentId>,
 }
 
 pub struct DropdownConfig {
     pub title: String,
+    pub owner_id: Option<ComponentId>,
 }
 
 impl<T: DropdownItem> Dropdown<T> {
@@ -59,20 +63,52 @@ impl<T: DropdownItem> Dropdown<T> {
         let mut editor = Editor::from_text(tree_sitter_quickfix::language(), "");
         editor.set_title(config.title);
         let mut dropdown = Self {
+            open: false,
             editor,
             filter: String::new(),
             items: vec![],
             filtered_items: vec![],
             current_item_index: 0,
             info_panel: None,
+            owner_id: config.owner_id,
         };
         dropdown.update_editor();
         dropdown
     }
 
-    pub fn change_index(&mut self, index: usize) -> Option<T> {
+    pub fn owner_id(&self) -> Option<ComponentId> {
+        self.owner_id.clone()
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+
+    pub fn handle_dispatch(
+        &mut self,
+        dispatch: DispatchDropdown<T>,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match dispatch {
+            DispatchDropdown::SetOpen(open) => {
+                self.open = open;
+                Ok(Vec::new())
+            }
+            DispatchDropdown::SetItems(items) => self.set_items(items),
+            DispatchDropdown::SetFilter(filter) => self.set_filter(&filter),
+            DispatchDropdown::PreviousItem => Ok(self
+                .previous_item()
+                .map(|(_, dispatches)| dispatches)
+                .unwrap_or_default()),
+            DispatchDropdown::NextItem => Ok(self
+                .next_item()
+                .map(|(_, dispatches)| dispatches)
+                .unwrap_or_default()),
+        }
+    }
+
+    pub fn change_index(&mut self, index: usize) -> Option<(T, Vec<Dispatch>)> {
         if !(0..self.items.len()).contains(&index) {
-            return self.current_item();
+            return self.current_item().map(|item| (item, Vec::new()));
         }
         self.current_item_index = index;
         let group_title_size = T::group().map(|_| 1).unwrap_or(0);
@@ -80,23 +116,24 @@ impl<T: DropdownItem> Dropdown<T> {
         let result = self.current_item_index
             + self.get_current_item_group_index().unwrap_or(0) * group_title_size
             + group_title_size;
-        self.editor.select_line_at(result).ok()?;
-        self.show_current_item()
+        let dispatches = self.editor.select_line_at(result).ok().unwrap_or_default();
+        let item = self.show_current_item();
+        item.map(|item| (item, dispatches))
     }
 
-    pub fn next_item(&mut self) -> Option<T> {
+    pub fn next_item(&mut self) -> Option<(T, Vec<Dispatch>)> {
         self.change_index(self.current_item_index + 1)
     }
 
-    pub fn previous_item(&mut self) -> Option<T> {
+    pub fn previous_item(&mut self) -> Option<(T, Vec<Dispatch>)> {
         self.change_index(self.current_item_index.saturating_sub(1))
     }
 
-    fn last_item(&mut self) -> Option<T> {
+    fn last_item(&mut self) -> Option<(T, Vec<Dispatch>)> {
         self.change_index(self.items.len().saturating_sub(1))
     }
 
-    fn first_item(&mut self) -> Option<T> {
+    fn first_item(&mut self) -> Option<(T, Vec<Dispatch>)> {
         self.change_index(0)
     }
 
@@ -120,7 +157,7 @@ impl<T: DropdownItem> Dropdown<T> {
         Some(current_group_index)
     }
 
-    fn change_group_index(&mut self, increment: bool) -> Option<T> {
+    fn change_group_index(&mut self, increment: bool) -> Option<(T, Vec<Dispatch>)> {
         let groups = self.groups()?;
         let get_group = T::group()?;
         let current_group_index = self.get_current_item_group_index()?;
@@ -137,11 +174,11 @@ impl<T: DropdownItem> Dropdown<T> {
         self.change_index(new_item_index)
     }
 
-    fn next_group(&mut self) -> Option<T> {
+    fn next_group(&mut self) -> Option<(T, Vec<Dispatch>)> {
         self.change_group_index(true)
     }
 
-    fn previous_group(&mut self) -> Option<T> {
+    fn previous_group(&mut self) -> Option<(T, Vec<Dispatch>)> {
         self.change_group_index(false)
     }
 
@@ -160,11 +197,11 @@ impl<T: DropdownItem> Dropdown<T> {
         self.filtered_items.get(self.current_item_index).cloned()
     }
 
-    pub fn set_items(&mut self, items: Vec<T>) {
+    pub fn set_items(&mut self, items: Vec<T>) -> Result<Vec<Dispatch>, anyhow::Error> {
         self.items = items;
         self.current_item_index = 0;
         self.compute_filtered_items();
-        self.update_editor();
+        self.update_editor()
     }
 
     fn compute_filtered_items(&mut self) {
@@ -189,14 +226,14 @@ impl<T: DropdownItem> Dropdown<T> {
         self.show_current_item();
     }
 
-    pub fn set_filter(&mut self, filter: &str) -> anyhow::Result<()> {
+    pub fn set_filter(&mut self, filter: &str) -> anyhow::Result<Vec<Dispatch>> {
         self.filter = filter.to_string();
         self.current_item_index = 0;
         self.compute_filtered_items();
         self.update_editor()
     }
 
-    fn update_editor(&mut self) -> anyhow::Result<()> {
+    fn update_editor(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         self.editor.set_content(
             &self
                 .filtered_items
@@ -233,8 +270,7 @@ impl<T: DropdownItem> Dropdown<T> {
         self.editor.select_line_at(match T::group() {
             Some(_) => 1,
             None => 0,
-        })?;
-        Ok(())
+        })
     }
 
     fn show_info(&mut self, info: Option<Info>) -> anyhow::Result<()> {
@@ -258,13 +294,13 @@ impl<T: DropdownItem> Dropdown<T> {
 
     pub fn get_item(&mut self, movement: Movement) -> Option<T> {
         match movement {
-            Movement::Next => self.next_item(),
+            Movement::Next => Some(self.next_item()?.0),
             Movement::Current => self.current_item(),
-            Movement::Previous => self.previous_item(),
-            Movement::Last => self.last_item(),
-            Movement::First => self.first_item(),
-            Movement::Up => self.previous_group(),
-            Movement::Down => self.next_group(),
+            Movement::Previous => Some(self.previous_item()?.0),
+            Movement::Last => Some(self.last_item()?.0),
+            Movement::First => Some(self.first_item()?.0),
+            Movement::Up => Some(self.previous_group()?.0),
+            Movement::Down => Some(self.next_group()?.0),
             _ => None,
         }
     }
@@ -277,6 +313,10 @@ impl<T: DropdownItem> Dropdown<T> {
     fn assert_current_label(&self, label: &str, current_selected_text: &str) {
         assert_eq!(self.current_item().unwrap().label(), label);
         assert_eq!(self.editor.get_selected_texts(), &[current_selected_text]);
+    }
+
+    pub(crate) fn open(&mut self, open: bool) {
+        self.open = open;
     }
 }
 
@@ -368,6 +408,7 @@ mod test_dropdown {
     fn test_next_prev_group() {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            owner_id: None,
         });
         dropdown.set_items(
             [
@@ -410,6 +451,7 @@ mod test_dropdown {
     fn test_dropdown_without_group() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            owner_id: None,
         });
         dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         assert_eq!(dropdown.editor.buffer().rope().to_string(), "a\nb\nc");
@@ -463,6 +505,7 @@ mod test_dropdown {
     fn filter_should_work_regardless_of_case() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            owner_id: None,
         });
         dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
         dropdown.set_filter("A")?;
@@ -474,6 +517,7 @@ mod test_dropdown {
     fn setting_filter_should_show_info_of_the_new_first_item() -> anyhow::Result<()> {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
+            owner_id: None,
         });
         dropdown.set_items(vec![
             Item::new("a", "info a", ""),
@@ -496,4 +540,13 @@ mod test_dropdown {
         );
         Ok(())
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DispatchDropdown<T> {
+    SetOpen(bool),
+    SetItems(Vec<T>),
+    SetFilter(String),
+    PreviousItem,
+    NextItem,
 }

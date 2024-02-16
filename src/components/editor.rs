@@ -842,6 +842,7 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
+    #[must_use]
     pub fn update_selection_set(&self, selection_set: SelectionSet) -> Vec<Dispatch> {
         self.buffer()
             .path()
@@ -1334,8 +1335,11 @@ impl Editor {
             Replace { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
-                self.update_selection_set(selection_set);
-                return Ok(self.get_document_did_change_dispatch());
+                return Ok(self
+                    .update_selection_set(selection_set)
+                    .into_iter()
+                    .chain(self.get_document_did_change_dispatch())
+                    .collect());
             }
             Undo => return self.undo(),
             KillLine(direction) => return self.kill_line(direction),
@@ -1358,6 +1362,9 @@ impl Editor {
             SetLanguage(language) => self.set_language(language)?,
             ApplySyntaxHighlight => self.apply_syntax_highlighting(context)?,
             Save => return self.save(),
+            ReplaceCurrentSelectionWith(string) => {
+                return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
+            }
         }
         Ok([].to_vec())
     }
@@ -2278,9 +2285,13 @@ impl Editor {
     ) -> anyhow::Result<Vec<Dispatch>> {
         // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
         let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
-        self.update_selection_set(selection);
-        self.replace_current_selection_with(|_| Some(Rope::from_str(completion)))?;
-        Ok(self.get_document_did_change_dispatch())
+        Ok(self
+            .update_selection_set(selection)
+            .into_iter()
+            .chain(Some(Dispatch::DispatchEditor(ReplaceCurrentSelectionWith(
+                completion.to_string(),
+            ))))
+            .collect())
     }
 
     pub fn open_new_line(&mut self) -> anyhow::Result<Vec<Dispatch>> {
@@ -2945,4 +2956,5 @@ pub enum DispatchEditor {
     DeleteWordBackward,
     SetLanguage(shared::language::Language),
     ApplySyntaxHighlight,
+    ReplaceCurrentSelectionWith(String),
 }

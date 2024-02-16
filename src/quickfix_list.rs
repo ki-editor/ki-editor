@@ -100,6 +100,7 @@ impl QuickfixLists {
             lists: vec![],
             dropdown: Dropdown::new(DropdownConfig {
                 title: "Quickfix".to_string(),
+                owner_id: None,
             }),
         }
     }
@@ -123,6 +124,12 @@ impl QuickfixLists {
 
     pub fn get_items(&self) -> Option<&Vec<QuickfixListItem>> {
         self.lists.last().map(|list| &list.items)
+    }
+}
+
+impl Default for QuickfixLists {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

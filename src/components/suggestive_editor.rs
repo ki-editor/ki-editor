@@ -17,6 +17,7 @@ use shared::icons::get_icon_config;
 use std::{cell::RefCell, rc::Rc};
 
 use super::component::ComponentId;
+use super::dropdown::DispatchDropdown;
 use super::{
     component::Component,
     dropdown::{Dropdown, DropdownConfig, DropdownItem},
@@ -31,12 +32,11 @@ pub struct SuggestiveEditor {
     menu: Rc<RefCell<Dropdown<CodeAction>>>,
     menu_opened: bool,
 
-    dropdown: Rc<RefCell<Dropdown<CompletionItem>>>,
-    dropdown_opened: bool,
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
 }
 
+#[derive(Clone)]
 pub enum SuggestiveEditorFilter {
     CurrentWord,
     CurrentLine,
@@ -113,36 +113,24 @@ impl Component for SuggestiveEditor {
             self.editor.enter_normal_mode()?;
             return Ok(vec![]);
         }
-        let dispatches = if self.editor.mode == Mode::Insert && self.dropdown_opened() {
+        let dispatches = if self.editor.mode == Mode::Insert {
             match event {
                 key!("ctrl+n") | key!("down") => {
-                    if self.dropdown_opened() {
-                        self.dropdown.borrow_mut().next_item();
-                    }
-                    return Ok(vec![]);
+                    return Ok([Dispatch::DispatchCompletionDropdown {
+                        owner_id: self.id(),
+                        dispatch: DispatchDropdown::NextItem,
+                    }]
+                    .to_vec());
                 }
                 key!("ctrl+p") | key!("up") => {
-                    self.dropdown.borrow_mut().previous_item();
-                    return Ok(vec![]);
+                    return Ok([Dispatch::DispatchCompletionDropdown {
+                        owner_id: self.id(),
+                        dispatch: DispatchDropdown::PreviousItem,
+                    }]
+                    .to_vec());
                 }
                 key!("tab") => {
-                    if let Some(completion) = self.dropdown.borrow_mut().current_item() {
-                        let dispatches = match completion.edit {
-                            None => self
-                                .editor
-                                .replace_previous_word(&completion.label(), context),
-                            Some(edit) => match edit {
-                                CompletionItemEdit::PositionalEdit(edit) => {
-                                    self.editor.apply_positional_edit(edit)
-                                }
-                            },
-                        }?;
-                        self.dropdown_opened = false;
-                        self.menu_opened = false;
-                        self.info_panel = None;
-                        return Ok(dispatches);
-                    }
-                    return Ok(vec![]);
+                    return Ok([Dispatch::InsertCurrentCompletionItem].to_vec());
                 }
                 key!("ctrl+enter") => self.editor.open_new_line()?,
 
@@ -195,10 +183,6 @@ impl Component for SuggestiveEditor {
         } else {
             let dispatches = self.editor.handle_key_event(context, event)?;
 
-            if self.editor.mode == Mode::Insert {
-                self.dropdown_opened = true;
-            }
-
             dispatches
         };
 
@@ -225,10 +209,12 @@ impl Component for SuggestiveEditor {
             SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
         };
 
-        self.dropdown.borrow_mut().set_filter(&filter)?;
-
         let dispatches = dispatches
             .into_iter()
+            .chain(Some(Dispatch::DispatchCompletionDropdown {
+                owner_id: self.id(),
+                dispatch: DispatchDropdown::SetFilter(filter),
+            }))
             .chain(if self.editor.mode == Mode::Insert {
                 self.editor
                     .get_request_params()
@@ -249,11 +235,6 @@ impl Component for SuggestiveEditor {
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         vec![
-            if self.dropdown_opened() {
-                Some(self.dropdown.clone() as Rc<RefCell<dyn Component>>)
-            } else {
-                None
-            },
             if self.menu_opened() {
                 Some(self.menu.clone() as Rc<RefCell<dyn Component>>)
             } else {
@@ -266,9 +247,6 @@ impl Component for SuggestiveEditor {
     }
 
     fn remove_child(&mut self, component_id: ComponentId) {
-        if self.dropdown.borrow().id() == component_id {
-            self.dropdown_opened = false
-        }
         if self.menu.borrow().id() == component_id {
             self.menu_opened = false
         }
@@ -279,6 +257,8 @@ impl Component for SuggestiveEditor {
     }
 }
 
+use DispatchDropdown::*;
+
 impl SuggestiveEditor {
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
@@ -286,14 +266,11 @@ impl SuggestiveEditor {
             info_panel: None,
             menu: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
                 title: "Menu".to_string(),
+                owner_id: None,
             }))),
             menu_opened: false,
-            dropdown: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
-                title: "Completion".to_string(),
-            }))),
             trigger_characters: vec![],
             filter,
-            dropdown_opened: false,
         }
     }
 
@@ -324,14 +301,37 @@ impl SuggestiveEditor {
         self.menu.borrow_mut().set_items(code_actions);
     }
 
-    pub fn set_completion(&mut self, completion: Completion) {
-        if self.editor.mode != Mode::Insert {
-            return;
+    pub fn handle_dispatch(
+        &mut self,
+        context: &Context,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        match dispatch {
+            DispatchSuggestiveEditor::SetFilter(filter) => {
+                self.filter = filter;
+                Ok([].to_vec())
+            }
+            DispatchSuggestiveEditor::SetCompletion(completion) => {
+                Ok([Dispatch::DispatchCompletionDropdown {
+                    owner_id: self.id(),
+                    dispatch: SetItems(completion.items),
+                }]
+                .to_vec())
+            }
         }
+    }
 
-        self.dropdown_opened = true;
-        self.dropdown.borrow_mut().set_items(completion.items);
-        self.trigger_characters = completion.trigger_characters;
+    pub fn set_completion(
+        &mut self,
+        completion: Completion,
+    ) -> anyhow::Result<Box<[DispatchDropdown<CompletionItem>]>> {
+        if self.editor.mode != Mode::Insert {
+            return Ok(Box::new([]));
+        }
+        return Ok(Box::new([
+            DispatchDropdown::SetOpen(true),
+            DispatchDropdown::SetItems(completion.items),
+        ]));
     }
 
     pub fn enter_insert_mode(&mut self) -> Result<(), anyhow::Error> {
@@ -340,23 +340,16 @@ impl SuggestiveEditor {
     }
 
     pub fn current_item(&mut self) -> Option<CompletionItem> {
-        self.dropdown.borrow_mut().current_item()
+        todo!("remove this method")
     }
 
     pub fn dropdown_opened(&self) -> bool {
-        self.dropdown_opened
-            && !self.dropdown.borrow().filtered_items().is_empty()
-            && self.editor.mode == Mode::Insert
+        todo!("remove this method")
     }
 
     #[cfg(test)]
     pub fn filtered_dropdown_items(&self) -> Vec<String> {
-        self.dropdown
-            .borrow()
-            .filtered_items()
-            .iter()
-            .map(|item| item.label())
-            .collect()
+        todo!("remove this method")
     }
 
     fn menu_opened(&self) -> bool {
@@ -365,9 +358,14 @@ impl SuggestiveEditor {
 
     fn close_all_subcomponents(&mut self) {
         self.info_panel = None;
-        self.dropdown_opened = false;
         self.menu_opened = false;
     }
+}
+
+#[derive(Clone)]
+pub enum DispatchSuggestiveEditor {
+    SetFilter(SuggestiveEditorFilter),
+    SetCompletion(Completion),
 }
 
 #[cfg(test)]
@@ -533,37 +531,6 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    fn completion_without_edit() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Type in 'pa'
-        editor.handle_events(keys!("p a")).unwrap();
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be filtered
-        assert!(editor.dropdown_opened());
-        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
-
-        // Press enter
-        editor.handle_events(keys!("tab")).unwrap();
-
-        // Expect the completion dropdown to be closed
-        assert!(!editor.dropdown_opened());
-
-        // Expect the buffer to contain the selected item
-        assert_eq!(editor.editor().text(), "Patrick");
-    }
-
-    #[test]
     fn completion_with_emoji() -> anyhow::Result<()> {
         let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
 
@@ -589,8 +556,8 @@ mod test_suggestive_editor {
         });
 
         // Expect the dropdown to contains emoji
-        let dropdown_content = editor.dropdown.borrow().content();
-        assert_eq!(dropdown_content, "ƒ Spongebob");
+        // let dropdown_content = editor.dropdown.borrow().content();
+        // assert_eq!(dropdown_content, "ƒ Spongebob");
 
         // Press enter
         editor.handle_events(keys!("tab"))?;
@@ -775,37 +742,37 @@ mod test_suggestive_editor {
         assert!(!editor.dropdown_opened());
     }
 
-    #[test]
-    fn dropdown_should_be_excluded_from_descendants_by_dropdown_opened() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Expect the completion dropdown to be opened
-        assert!(editor.dropdown_opened());
-
-        // Expect the dropdown to be included in descendants
-        assert!(editor
-            .descendants()
-            .iter()
-            .any(|d| d.borrow().id() == editor.dropdown.borrow().id()));
-
-        // Set the dropdown to be closed
-        editor.dropdown_opened = false;
-
-        // Expect the dropdown to be excluded from descendants
-        assert!(!editor
-            .descendants()
-            .iter()
-            .any(|d| d.borrow().id() == editor.dropdown.borrow().id()));
-    }
+    //    #[test]
+    //    fn dropdown_should_be_excluded_from_descendants_by_dropdown_opened() {
+    //        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+    //
+    //        // Enter insert mode
+    //        editor
+    //            .editor_mut()
+    //            .enter_insert_mode(Direction::Start)
+    //            .unwrap();
+    //
+    //        // Pretend that the LSP server returned a completion
+    //        editor.set_completion(dummy_completion());
+    //
+    //        // Expect the completion dropdown to be opened
+    //        assert!(editor.dropdown_opened());
+    //
+    //        // Expect the dropdown to be included in descendants
+    //        assert!(editor
+    //            .descendants()
+    //            .iter()
+    //            .any(|d| d.borrow().id() == editor.dropdown.borrow().id()));
+    //
+    //        // Set the dropdown to be closed
+    //        editor.dropdown_opened = false;
+    //
+    //        // Expect the dropdown to be excluded from descendants
+    //        assert!(!editor
+    //            .descendants()
+    //            .iter()
+    //            .any(|d| d.borrow().id() == editor.dropdown.borrow().id()));
+    //    }
 
     #[test]
     fn typing_in_insert_mode_should_request_completion() {

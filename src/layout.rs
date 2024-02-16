@@ -1,8 +1,11 @@
+use crate::components::dropdown::DropdownConfig;
+use crate::lsp::completion::CompletionItem;
 use crate::{
     app::Dimension,
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
+        dropdown::Dropdown,
         editor::Editor,
         file_explorer::FileExplorer,
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
@@ -30,6 +33,7 @@ pub struct Layout {
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
     file_explorer: Rc<RefCell<FileExplorer>>,
+    completion_dropdowns: Vec<Rc<RefCell<Dropdown<CompletionItem>>>>,
     file_explorer_open: bool,
 
     rectangles: Vec<Rectangle>,
@@ -111,6 +115,7 @@ impl Layout {
             terminal_dimension,
             file_explorer_open: false,
             working_directory: working_directory.clone(),
+            completion_dropdowns: Vec::new(),
         })
     }
 
@@ -131,6 +136,11 @@ impl Layout {
                 }
                 .iter()
                 .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.completion_dropdowns
+                    .iter()
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
                 self.keymap_legend
@@ -165,6 +175,15 @@ impl Layout {
     pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.focused_component_id
             .and_then(|id| self.get_component(id))
+    }
+
+    pub(crate) fn get_current_suggestive_editor(&self) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.focused_component_id.and_then(|id| {
+            self.background_suggestive_editors
+                .iter()
+                .find(|editor| editor.borrow().id() == id)
+                .cloned()
+        })
     }
 
     fn get_component(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
@@ -503,6 +522,49 @@ impl Layout {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn completion_dropdown_is_open(&self) -> bool {
+        self.completion_dropdowns
+            .iter()
+            .any(|dropdown| dropdown.borrow().is_open())
+    }
+
+    pub(crate) fn current_completion_dropdown(
+        &self,
+    ) -> Option<Rc<RefCell<Dropdown<CompletionItem>>>> {
+        self.completion_dropdowns
+            .iter()
+            .find(|dropdown| dropdown.borrow().is_open())
+            .cloned()
+    }
+
+    pub(crate) fn get_completion_dropdown(
+        &self,
+        owner_id: ComponentId,
+    ) -> Option<Rc<RefCell<Dropdown<CompletionItem>>>> {
+        self.completion_dropdowns
+            .iter()
+            .find(|dropdown| dropdown.borrow().owner_id() == Some(owner_id))
+            .cloned()
+    }
+
+    pub(crate) fn open_completion_dropdown(
+        &mut self,
+        owner_id: ComponentId,
+    ) -> Rc<RefCell<Dropdown<CompletionItem>>> {
+        if let Some(dropdown) = self.get_completion_dropdown(owner_id) {
+            dropdown
+        } else {
+            let mut dropdown = Dropdown::new(DropdownConfig {
+                title: "Completion".to_string(),
+                owner_id: Some(owner_id),
+            });
+            dropdown.open(true);
+            let dropdown = Rc::new(RefCell::new(dropdown));
+            self.completion_dropdowns.push(dropdown.clone());
+            dropdown
+        }
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

@@ -15,6 +15,7 @@ mod test_app {
     };
     use Dispatch::*;
     use DispatchEditor::*;
+    use DispatchSuggestiveEditor::*;
     use Movement::*;
     use SelectionMode::*;
 
@@ -28,14 +29,18 @@ mod test_app {
         components::{
             component::{Component, ComponentId},
             editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
-            suggestive_editor::Info,
+            suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
         },
         context::{GlobalMode, LocalSearchConfigMode},
         frontend::mock::MockFrontend,
         grid::{Style, StyleKey},
         integration_test::integration_test::TestRunner,
         list::grep::RegexConfig,
-        lsp::{process::LspNotification, signature_help::SignatureInformation},
+        lsp::{
+            completion::{Completion, CompletionItem},
+            process::LspNotification,
+            signature_help::SignatureInformation,
+        },
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
         rectangle::Rectangle,
@@ -50,12 +55,15 @@ mod test_app {
         ExpectMulti(Vec<ExpectKind>),
         Expect(ExpectKind),
         Editor(DispatchEditor),
+        SuggestiveEditor(DispatchSuggestiveEditor),
         ExpectLater(Box<dyn Fn() -> ExpectKind>),
         ExpectCustom(Box<dyn Fn()>),
     }
 
     #[derive(Debug)]
     enum ExpectKind {
+        CompletionDropdownContent(&'static str),
+        CompletionDropdownIsOpen(bool),
         JumpChars(&'static [char]),
         CurrentLine(&'static str),
         Not(Box<ExpectKind>),
@@ -215,6 +223,17 @@ mod test_app {
                         .source,
                     style_key.clone(),
                 ),
+                CompletionDropdownIsOpen(is_open) => {
+                    contextualize(app.completion_dropdown_is_open(), *is_open)
+                }
+                CompletionDropdownContent(content) => contextualize(
+                    app.current_completion_dropdown()
+                        .unwrap()
+                        .borrow()
+                        .editor()
+                        .content(),
+                    content.to_string(),
+                ),
             })
         }
     }
@@ -283,6 +302,9 @@ mod test_app {
                         for expect_kind in expect_kinds.into_iter() {
                             expect_kind.run(&mut app)
                         }
+                    }
+                    SuggestiveEditor(dispatch) => {
+                        app.handle_dispatch_suggestive_editor(dispatch.to_owned())?
                     }
                 };
             }
@@ -2270,6 +2292,43 @@ src/main.rs 🦀
                 App(HandleKeyEvents(keys!(") } ] >").to_vec())),
                 Expect(CurrentFileContent("fn main() { <[{(x.y())}]> }")),
                 Expect(CurrentSelectedTexts(&["<[{(x.y())}]>"])),
+            ])
+        })
+    }
+
+    fn dummy_completion() -> Completion {
+        Completion {
+            trigger_characters: vec![".".to_string()],
+            items: vec![
+                CompletionItem::from_label("Spongebob".to_string()),
+                CompletionItem::from_label("Patrick".to_string()),
+                CompletionItem::from_label("Squidward".to_string()),
+            ],
+        }
+    }
+
+    #[test]
+    fn completion_without_edit() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                // Expect the completion dropdown to be open,
+                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                // Type in 'pa'
+                App(HandleKeyEvents(keys!("p a").to_vec())),
+                // Expect the dropdown items to be filtered
+                Expect(CompletionDropdownIsOpen(true)),
+                Expect(CompletionDropdownContent("Patrick")),
+                // Press tab
+                App(HandleKeyEvent(key!("tab"))),
+                // Expect the buffer to contain the selected item
+                Expect(CurrentFileContent("Patrick")),
+                Expect(CompletionDropdownIsOpen(false)),
             ])
         })
     }

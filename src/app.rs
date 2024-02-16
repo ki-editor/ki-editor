@@ -18,12 +18,15 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId, Cursor, GetGridResult},
+        dropdown::{DispatchDropdown, Dropdown},
         editor::{DispatchEditor, Movement},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
         prompt::{Prompt, PromptConfig},
-        suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
+        suggestive_editor::{
+            DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
+        },
     },
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     frontend::frontend::Frontend,
@@ -33,7 +36,7 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
-        completion::CompletionItem,
+        completion::{CompletionItem, CompletionItemEdit},
         diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
@@ -595,6 +598,13 @@ impl<T: Frontend> App<T> {
                 self.context = context.set_theme(theme);
             }
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
+            Dispatch::DispatchCompletionDropdown { dispatch, owner_id } => {
+                self.handle_dispatch_completion_dropdown(owner_id, dispatch)?
+            }
+            Dispatch::InsertCurrentCompletionItem => {
+                let dispatches = self.insert_current_completion_item()?;
+                self.handle_dispatches(dispatches)?
+            }
         }
         Ok(())
     }
@@ -2010,6 +2020,67 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    pub(crate) fn handle_dispatch_suggestive_editor(
+        &mut self,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<()> {
+        if let Some(component) = self.layout.get_current_suggestive_editor() {
+            let dispatches = component
+                .borrow_mut()
+                .handle_dispatch(&self.context, dispatch)?;
+
+            self.handle_dispatches(dispatches)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn completion_dropdown_is_open(&self) -> bool {
+        self.layout.completion_dropdown_is_open()
+    }
+
+    pub(crate) fn current_completion_dropdown(
+        &self,
+    ) -> Option<Rc<RefCell<Dropdown<CompletionItem>>>> {
+        self.layout.current_completion_dropdown()
+    }
+
+    fn handle_dispatch_completion_dropdown(
+        &mut self,
+        owner_id: ComponentId,
+        dispatch: DispatchDropdown<CompletionItem>,
+    ) -> anyhow::Result<()> {
+        let dropdown = self.layout.open_completion_dropdown(owner_id);
+        let dispatches = dropdown.borrow_mut().handle_dispatch(dispatch)?;
+        self.handle_dispatches(dispatches)?;
+        Ok(())
+    }
+
+    fn insert_current_completion_item(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+        if let Some(component) = self.current_component() {
+            let mut component = component.borrow_mut();
+            if let Some(dropdown) = self.layout.get_completion_dropdown(component.id()) {
+                let current_item = dropdown.borrow_mut().current_item();
+                if let Some(completion) = current_item {
+                    let dispatches = match completion.edit {
+                        None => component
+                            .editor_mut()
+                            .replace_previous_word(&completion.label(), &self.context),
+                        Some(edit) => match edit {
+                            CompletionItemEdit::PositionalEdit(edit) => {
+                                component.editor_mut().apply_positional_edit(edit)
+                            }
+                        },
+                    }?;
+                    dropdown.borrow_mut().open(false);
+                    return Ok(dispatches);
+                    // self.menu_opened = false;
+                    // self.info_panel = None;
+                }
+            }
+        }
+        Ok(Vec::new())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2176,6 +2247,11 @@ pub enum Dispatch {
     GoToPreviousSelection,
     GoToNextSelection,
     HandleLspNotification(LspNotification),
+    DispatchCompletionDropdown {
+        dispatch: DispatchDropdown<CompletionItem>,
+        owner_id: ComponentId,
+    },
+    InsertCurrentCompletionItem,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
