@@ -20,7 +20,7 @@ use super::component::ComponentId;
 use super::dropdown::DispatchDropdown;
 use super::{
     component::Component,
-    dropdown::{Dropdown, DropdownConfig, DropdownItem},
+    dropdown::DropdownItem,
     editor::{Editor, Mode},
 };
 
@@ -29,14 +29,13 @@ pub struct SuggestiveEditor {
     editor: Editor,
     info_panel: Option<Rc<RefCell<Editor>>>,
 
-    menu: Rc<RefCell<Dropdown<CodeAction>>>,
-    menu_opened: bool,
+    code_action_menu_opened: bool,
 
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SuggestiveEditorFilter {
     CurrentWord,
     CurrentLine,
@@ -138,42 +137,36 @@ impl Component for SuggestiveEditor {
                 // relevant completions.
                 event => self.editor.handle_key_event(context, event)?,
             }
-        } else if self.editor.mode == Mode::Normal && self.menu_opened() {
+        } else if self.editor.mode == Mode::Normal && self.code_action_menu_opened {
             match event {
                 key!("ctrl+n") | key!("down") => {
-                    if self.menu_opened() {
-                        self.menu.borrow_mut().next_item();
-                    }
-                    return Ok(vec![]);
+                    return Ok([Dispatch::DispatchCodeActionDropdown {
+                        owner_id: self.id(),
+                        dispatch: DispatchDropdown::NextItem,
+                    }]
+                    .to_vec());
                 }
                 key!("ctrl+p") | key!("up") => {
-                    self.menu.borrow_mut().previous_item();
-                    return Ok(vec![]);
+                    return Ok([Dispatch::DispatchCodeActionDropdown {
+                        owner_id: self.id(),
+                        dispatch: DispatchDropdown::PreviousItem,
+                    }]
+                    .to_vec());
                 }
                 key!("enter") => {
-                    if let Some(code_action) = self.menu.borrow_mut().current_item() {
-                        let dispatches = code_action
-                            .edit
-                            .map(Dispatch::ApplyWorkspaceEdit)
-                            .into_iter()
-                            // A command this code action executes. If a code action
-                            // provides an edit and a command, first the edit is
-                            // executed and then the command.
-                            // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-                            .chain(self.editor().get_request_params().and_then(|params| {
-                                code_action
-                                    .command
-                                    .map(|command| Dispatch::LspExecuteCommand { command, params })
-                            }))
-                            .collect();
-                        self.menu_opened = false;
-                        return Ok(dispatches);
-                    }
-                    return Ok(vec![]);
+                    self.code_action_menu_opened = false;
+                    return Ok([Dispatch::SelectCurrentCodeAction(
+                        self.editor().get_request_params(),
+                    )]
+                    .to_vec());
                 }
                 key!("esc") => {
-                    self.menu_opened = false;
-                    return Ok(vec![]);
+                    self.code_action_menu_opened = false;
+                    return Ok([Dispatch::DispatchCodeActionDropdown {
+                        owner_id: self.id(),
+                        dispatch: SetOpen(false),
+                    }]
+                    .to_vec());
                 }
 
                 // Every other character typed in Insert mode should update the dropdown to show
@@ -234,22 +227,13 @@ impl Component for SuggestiveEditor {
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        vec![
-            if self.menu_opened() {
-                Some(self.menu.clone() as Rc<RefCell<dyn Component>>)
-            } else {
-                None
-            },
-            self.info_panel
-                .clone()
-                .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>),
-        ]
+        vec![self
+            .info_panel
+            .clone()
+            .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>)]
     }
 
     fn remove_child(&mut self, component_id: ComponentId) {
-        if self.menu.borrow().id() == component_id {
-            self.menu_opened = false
-        }
         if matches!(&self.info_panel, Some(info_panel) if info_panel.borrow().id() == component_id)
         {
             self.info_panel = None;
@@ -264,11 +248,7 @@ impl SuggestiveEditor {
         Self {
             editor: Editor::from_buffer(buffer),
             info_panel: None,
-            menu: Rc::new(RefCell::new(Dropdown::new(DropdownConfig {
-                title: "Menu".to_string(),
-                owner_id: None,
-            }))),
-            menu_opened: false,
+            code_action_menu_opened: false,
             trigger_characters: vec![],
             filter,
         }
@@ -292,15 +272,6 @@ impl SuggestiveEditor {
         self.info_panel = Some(Rc::new(RefCell::new(editor)));
     }
 
-    pub fn set_code_actions(&mut self, code_actions: Vec<CodeAction>) {
-        if self.editor.mode != Mode::Normal || code_actions.is_empty() {
-            return;
-        }
-
-        self.menu_opened = true;
-        self.menu.borrow_mut().set_items(code_actions);
-    }
-
     pub fn handle_dispatch(
         &mut self,
         context: &Context,
@@ -318,20 +289,19 @@ impl SuggestiveEditor {
                 }]
                 .to_vec())
             }
-        }
-    }
+            DispatchSuggestiveEditor::SetCodeActions(code_actions) => {
+                if self.editor.mode != Mode::Normal || code_actions.is_empty() {
+                    return Ok(Vec::new());
+                }
 
-    pub fn set_completion(
-        &mut self,
-        completion: Completion,
-    ) -> anyhow::Result<Box<[DispatchDropdown<CompletionItem>]>> {
-        if self.editor.mode != Mode::Insert {
-            return Ok(Box::new([]));
+                self.code_action_menu_opened = true;
+                Ok([Dispatch::DispatchCodeActionDropdown {
+                    owner_id: self.id(),
+                    dispatch: SetItems(code_actions),
+                }]
+                .to_vec())
+            }
         }
-        return Ok(Box::new([
-            DispatchDropdown::SetOpen(true),
-            DispatchDropdown::SetItems(completion.items),
-        ]));
     }
 
     pub fn enter_insert_mode(&mut self) -> Result<(), anyhow::Error> {
@@ -353,19 +323,24 @@ impl SuggestiveEditor {
     }
 
     fn menu_opened(&self) -> bool {
-        self.menu_opened
+        self.code_action_menu_opened
     }
 
     fn close_all_subcomponents(&mut self) {
         self.info_panel = None;
-        self.menu_opened = false;
+        self.code_action_menu_opened = false;
+    }
+
+    fn set_completion(&self, dummy_completion: Completion) {
+        todo!()
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispatchSuggestiveEditor {
     SetFilter(SuggestiveEditorFilter),
     SetCompletion(Completion),
+    SetCodeActions(Vec<CodeAction>),
 }
 
 #[cfg(test)]
@@ -407,27 +382,6 @@ mod test_suggestive_editor {
             Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), ""))),
             filter,
         )
-    }
-
-    #[test]
-    fn code_action() -> anyhow::Result<()> {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-        editor.set_code_actions(
-            [CodeAction {
-                title: "".to_string(),
-                kind: None,
-                edit: Some(WorkspaceEdit::default()),
-                command: None,
-            }]
-            .to_vec(),
-        );
-        let context = Context::default();
-        let dispatches = editor.handle_key_event(&context, key!("enter"))?;
-        assert_eq!(
-            dispatches,
-            [Dispatch::ApplyWorkspaceEdit(WorkspaceEdit::default())]
-        );
-        Ok(())
     }
 
     #[test]
@@ -566,47 +520,6 @@ mod test_suggestive_editor {
         // resulting in 'Spongebob', and does not contain emoji
         assert_eq!(editor.editor().text(), "Spongebob");
 
-        Ok(())
-    }
-
-    #[test]
-    fn completion_with_edit() -> anyhow::Result<()> {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor.editor_mut().enter_insert_mode(Direction::Start)?;
-
-        // Enter a word 'sponge'
-        editor.handle_events(keys!("s p o n g e")).unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(Completion {
-            trigger_characters: vec![".".to_string()],
-            items: vec![CompletionItem {
-                label: "Spongebob".to_string(),
-                edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
-                    range: Position::new(0, 0)..Position::new(0, 6),
-                    new_text: "Spongebob".to_string(),
-                })),
-                documentation: None,
-                sort_text: None,
-                kind: None,
-                detail: None,
-            }],
-        });
-
-        // Press enter
-        editor.handle_events(keys!("tab")).unwrap();
-
-        // Expect the content of the buffer to be applied with the new edit,
-        // resulting in 'Spongebob'
-        assert_eq!(editor.editor().text(), "Spongebob");
-
-        // Type in 'end'
-        editor.handle_events(keys!("e n d")).unwrap();
-
-        // Expect the content of the buffer to be 'Spongebobend'
-        assert_eq!(editor.editor().text(), "Spongebobend");
         Ok(())
     }
 

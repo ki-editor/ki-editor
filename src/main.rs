@@ -65,11 +65,12 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     let sender = app.sender();
 
     let crossterm_join_handle = std::thread::spawn(move || loop {
-        if let Err(_) = crossterm::event::read()
+        match crossterm::event::read()
             .map_err(|error| anyhow::anyhow!("{:?}", error))
             .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
         {
-            break;
+            Err(_) => break,
+            _ => (),
         }
     });
 

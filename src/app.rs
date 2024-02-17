@@ -36,6 +36,7 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
+        code_action::CodeAction,
         completion::{CompletionItem, CompletionItemEdit},
         diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse,
@@ -598,12 +599,22 @@ impl<T: Frontend> App<T> {
                 self.context = context.set_theme(theme);
             }
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
-            Dispatch::DispatchCompletionDropdown { dispatch, owner_id } => {
-                self.handle_dispatch_completion_dropdown(owner_id, dispatch)?
-            }
             Dispatch::InsertCurrentCompletionItem => {
                 let dispatches = self.insert_current_completion_item()?;
                 self.handle_dispatches(dispatches)?
+            }
+            Dispatch::DispatchCodeActionDropdown { owner_id, dispatch } => {
+                self.handle_dispatch_code_action_dropdown(owner_id, dispatch)?
+            }
+            Dispatch::DispatchCompletionDropdown { dispatch, owner_id } => {
+                self.handle_dispatch_completion_dropdown(owner_id, dispatch)?
+            }
+            Dispatch::SelectCurrentCodeAction(params) => {
+                let dispatches = self.select_current_code_action(params)?;
+                self.handle_dispatches(dispatches)?;
+            }
+            Dispatch::DispatchSuggestiveEditor(dispatch) => {
+                self.handle_dispatch_suggestive_editor(dispatch)?
             }
         }
         Ok(())
@@ -997,9 +1008,10 @@ impl<T: Frontend> App<T> {
                 QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
             ),
             LspNotification::Completion(context, completion) => {
-                self.get_suggestive_editor(context.component_id)?
-                    .borrow_mut()
-                    .set_completion(completion);
+                self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::SetCompletion(
+                    completion,
+                ))?;
+
                 Ok(())
             }
             LspNotification::Initialized(language) => {
@@ -1075,7 +1087,9 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::CodeAction(context, code_actions) => {
                 let editor = self.get_suggestive_editor(context.component_id)?;
-                editor.borrow_mut().set_code_actions(code_actions);
+                self.handle_dispatch(Dispatch::DispatchSuggestiveEditor(
+                    DispatchSuggestiveEditor::SetCodeActions(code_actions),
+                ))?;
                 Ok(())
             }
             LspNotification::SignatureHelp(context, signature_help) => {
@@ -2045,6 +2059,17 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
+    fn handle_dispatch_code_action_dropdown(
+        &mut self,
+        owner_id: ComponentId,
+        dispatch: DispatchDropdown<CodeAction>,
+    ) -> anyhow::Result<()> {
+        let dropdown = self.layout.open_code_action_dropdown(owner_id);
+        let dispatches = dropdown.borrow_mut().handle_dispatch(dispatch)?;
+        self.handle_dispatches(dispatches)?;
+        Ok(())
+    }
+
     fn handle_dispatch_completion_dropdown(
         &mut self,
         owner_id: ComponentId,
@@ -2080,6 +2105,39 @@ impl<T: Frontend> App<T> {
             }
         }
         Ok(Vec::new())
+    }
+
+    fn select_current_code_action(
+        &self,
+        params: Option<RequestParams>,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        if let Some(component) = self.current_component() {
+            let mut component = component.borrow_mut();
+            if let Some(dropdown) = self.layout.get_code_action_dropdown(component.id()) {
+                let current_item = dropdown.borrow_mut().current_item();
+                if let Some(code_action) = current_item {
+                    let dispatches = code_action
+                        .edit
+                        .map(Dispatch::ApplyWorkspaceEdit)
+                        .into_iter()
+                        // A command this code action executes. If a code action
+                        // provides an edit and a command, first the edit is
+                        // executed and then the command.
+                        // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
+                        .chain(params.and_then(|params| {
+                            code_action
+                                .command
+                                .map(|command| Dispatch::LspExecuteCommand { command, params })
+                        }))
+                        .collect();
+                    dropdown.borrow_mut().open(false);
+                    return Ok(dispatches);
+                    // self.menu_opened = false;
+                    // self.info_panel = None;
+                }
+            }
+        };
+        return Ok(Vec::new());
     }
 }
 
@@ -2252,6 +2310,12 @@ pub enum Dispatch {
         owner_id: ComponentId,
     },
     InsertCurrentCompletionItem,
+    DispatchCodeActionDropdown {
+        owner_id: ComponentId,
+        dispatch: DispatchDropdown<CodeAction>,
+    },
+    SelectCurrentCodeAction(Option<RequestParams>),
+    DispatchSuggestiveEditor(DispatchSuggestiveEditor),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

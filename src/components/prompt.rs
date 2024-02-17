@@ -66,10 +66,10 @@ impl Prompt {
         editor.enter_insert_mode().unwrap_or_default();
         // TODO: set cursor to last line
         editor.set_title(config.title);
-        editor.set_completion(Completion {
-            items: config.items,
-            trigger_characters: vec![" ".to_string()],
-        });
+        // editor.set_completion(Completion {
+        // items: config.items,
+        // trigger_characters: vec![" ".to_string()],
+        // });
         Prompt {
             editor,
             text: "".to_string(),

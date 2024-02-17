@@ -37,9 +37,11 @@ mod test_app {
         integration_test::integration_test::TestRunner,
         list::grep::RegexConfig,
         lsp::{
-            completion::{Completion, CompletionItem},
+            code_action::CodeAction,
+            completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
             process::LspNotification,
             signature_help::SignatureInformation,
+            workspace_edit::{TextDocumentEdit, WorkspaceEdit},
         },
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
@@ -2329,6 +2331,71 @@ src/main.rs 🦀
                 // Expect the buffer to contain the selected item
                 Expect(CurrentFileContent("Patrick")),
                 Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    fn completion_with_edit() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetFilter(SuggestiveEditorFilter::CurrentWord)),
+                App(HandleKeyEvents(keys!("s p o n g e").to_vec())),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(SetCompletion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![CompletionItem {
+                        label: "Spongebob".to_string(),
+                        edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                            range: Position::new(0, 0)..Position::new(0, 6),
+                            new_text: "Spongebob".to_string(),
+                        })),
+                        documentation: None,
+                        sort_text: None,
+                        kind: None,
+                        detail: None,
+                    }],
+                })),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentFileContent("Spongebob")),
+                App(HandleKeyEvents(keys!("e n d").to_vec())),
+                Expect(CurrentFileContent("Spongebobend")),
+            ])
+        })
+    }
+
+    #[test]
+    fn code_action() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("a.to_s".to_string())),
+                SuggestiveEditor(SetFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(SetCodeActions(
+                    [CodeAction {
+                        title: "".to_string(),
+                        kind: None,
+                        edit: Some(WorkspaceEdit {
+                            edits: [TextDocumentEdit {
+                                path: s.main_rs(),
+                                edits: [PositionalEdit {
+                                    range: Position::new(0, 2)..Position::new(0, 6),
+                                    new_text: "to_string".to_string(),
+                                }]
+                                .to_vec(),
+                            }]
+                            .to_vec(),
+                            resource_operations: Vec::new(),
+                        }),
+                        command: None,
+                    }]
+                    .to_vec(),
+                )),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(CurrentFileContent("a.to_string")),
             ])
         })
     }

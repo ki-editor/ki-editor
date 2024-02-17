@@ -1,4 +1,5 @@
 use crate::components::dropdown::DropdownConfig;
+use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItem;
 use crate::{
     app::Dimension,
@@ -34,6 +35,7 @@ pub struct Layout {
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
     file_explorer: Rc<RefCell<FileExplorer>>,
     completion_dropdowns: Vec<Rc<RefCell<Dropdown<CompletionItem>>>>,
+    code_action_dropdowns: Vec<Rc<RefCell<Dropdown<CodeAction>>>>,
     file_explorer_open: bool,
 
     rectangles: Vec<Rectangle>,
@@ -116,6 +118,7 @@ impl Layout {
             file_explorer_open: false,
             working_directory: working_directory.clone(),
             completion_dropdowns: Vec::new(),
+            code_action_dropdowns: Vec::new(),
         })
     }
 
@@ -138,8 +141,15 @@ impl Layout {
                 .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
+                self.code_action_dropdowns
+                    .iter()
+                    .filter(|c| c.borrow().is_open())
+                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
                 self.completion_dropdowns
                     .iter()
+                    .filter(|c| c.borrow().is_open())
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
@@ -222,6 +232,12 @@ impl Layout {
 
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
+
+            self.code_action_dropdowns
+                .retain(|c| c.borrow().owner_id() != Some(id) && c.borrow().id() != id);
+
+            self.completion_dropdowns
+                .retain(|c| c.borrow().owner_id() != Some(id) && c.borrow().id() != id);
 
             if self.file_explorer.borrow().id() == id {
                 self.file_explorer_open = false
@@ -539,6 +555,16 @@ impl Layout {
             .cloned()
     }
 
+    pub(crate) fn get_code_action_dropdown(
+        &self,
+        owner_id: ComponentId,
+    ) -> Option<Rc<RefCell<Dropdown<CodeAction>>>> {
+        self.code_action_dropdowns
+            .iter()
+            .find(|dropdown| dropdown.borrow().owner_id() == Some(owner_id))
+            .cloned()
+    }
+
     pub(crate) fn get_completion_dropdown(
         &self,
         owner_id: ComponentId,
@@ -549,11 +575,31 @@ impl Layout {
             .cloned()
     }
 
+    pub(crate) fn open_code_action_dropdown(
+        &mut self,
+        owner_id: ComponentId,
+    ) -> Rc<RefCell<Dropdown<CodeAction>>> {
+        if let Some(dropdown) = self.get_code_action_dropdown(owner_id) {
+            dropdown.borrow_mut().open(true);
+            dropdown
+        } else {
+            let mut dropdown = Dropdown::new(DropdownConfig {
+                title: "Code Action".to_string(),
+                owner_id: Some(owner_id),
+            });
+            dropdown.open(true);
+            let dropdown = Rc::new(RefCell::new(dropdown));
+            self.code_action_dropdowns.push(dropdown.clone());
+            dropdown
+        }
+    }
+
     pub(crate) fn open_completion_dropdown(
         &mut self,
         owner_id: ComponentId,
     ) -> Rc<RefCell<Dropdown<CompletionItem>>> {
         if let Some(dropdown) = self.get_completion_dropdown(owner_id) {
+            dropdown.borrow_mut().open(true);
             dropdown
         } else {
             let mut dropdown = Dropdown::new(DropdownConfig {
