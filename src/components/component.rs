@@ -167,19 +167,21 @@ impl<T: Component> AnyComponent for T {
     }
 }
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn increment_counter() -> usize {
+    COUNTER.fetch_add(1, Ordering::SeqCst)
+}
+
 /// Why do I use UUID instead of a simple u64?
 /// Because with UUID I don't need a global state to keep track of the next ID.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
 pub struct ComponentId(usize);
 impl ComponentId {
     pub fn new() -> ComponentId {
-        // Current epoch
-        ComponentId({
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let start = SystemTime::now();
-            let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap();
-            since_the_epoch.as_millis() as usize
-        })
+        ComponentId(increment_counter())
     }
 }
 

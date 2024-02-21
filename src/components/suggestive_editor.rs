@@ -17,7 +17,8 @@ use shared::icons::get_icon_config;
 use std::{cell::RefCell, rc::Rc};
 
 use super::component::ComponentId;
-use super::dropdown::DispatchDropdown;
+use super::dropdown::{Dropdown, DropdownConfig};
+use super::editor::DispatchEditor;
 use super::{
     component::Component,
     dropdown::DropdownItem,
@@ -29,7 +30,8 @@ pub struct SuggestiveEditor {
     editor: Editor,
     info_panel: Option<Rc<RefCell<Editor>>>,
 
-    code_action_menu_opened: bool,
+    code_action_dropdown: Dropdown<CodeAction>,
+    completion_dropdown: Dropdown<CompletionItem>,
 
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
@@ -112,72 +114,110 @@ impl Component for SuggestiveEditor {
             self.editor.enter_normal_mode()?;
             return Ok(vec![]);
         }
-        let dispatches = if self.editor.mode == Mode::Insert {
+        if self.editor.mode == Mode::Insert && self.completion_dropdown.current_item().is_some() {
             match event {
                 key!("ctrl+n") | key!("down") => {
-                    return Ok([Dispatch::DispatchCompletionDropdown {
+                    self.completion_dropdown.next_item();
+                    return Ok([Dispatch::RenderDropdown {
                         owner_id: self.id(),
-                        dispatch: DispatchDropdown::NextItem,
+                        render: self.completion_dropdown.render(),
                     }]
                     .to_vec());
                 }
                 key!("ctrl+p") | key!("up") => {
-                    return Ok([Dispatch::DispatchCompletionDropdown {
+                    self.completion_dropdown.previous_item();
+                    return Ok([Dispatch::RenderDropdown {
                         owner_id: self.id(),
-                        dispatch: DispatchDropdown::PreviousItem,
+                        render: self.completion_dropdown.render(),
                     }]
                     .to_vec());
                 }
                 key!("tab") => {
-                    return Ok([Dispatch::InsertCurrentCompletionItem].to_vec());
+                    let current_item = self.completion_dropdown.current_item();
+                    if let Some(completion) = current_item {
+                        let edit_dispatch = match completion.edit {
+                            None => Dispatch::DispatchEditor(DispatchEditor::ReplacePreviousWord(
+                                completion.label(),
+                            )),
+                            Some(edit) => match edit {
+                                CompletionItemEdit::PositionalEdit(edit) => {
+                                    Dispatch::DispatchEditor(DispatchEditor::ApplyPositionalEdit(
+                                        edit,
+                                    ))
+                                }
+                            },
+                        };
+                        return Ok([
+                            Dispatch::CloseDropdown {
+                                owner_id: self.id(),
+                            },
+                            edit_dispatch,
+                        ]
+                        .to_vec());
+                    }
                 }
-                key!("ctrl+enter") => self.editor.open_new_line()?,
-
-                // Every other character typed in Insert mode should update the dropdown to show
-                // relevant completions.
-                event => self.editor.handle_key_event(context, event)?,
+                _ => {}
             }
-        } else if self.editor.mode == Mode::Normal && self.code_action_menu_opened {
+        }
+        if self.editor.mode == Mode::Normal && self.code_action_dropdown.current_item().is_some() {
             match event {
                 key!("ctrl+n") | key!("down") => {
-                    return Ok([Dispatch::DispatchCodeActionDropdown {
+                    self.code_action_dropdown.next_item();
+                    return Ok([Dispatch::RenderDropdown {
                         owner_id: self.id(),
-                        dispatch: DispatchDropdown::NextItem,
+                        render: self.completion_dropdown.render(),
                     }]
                     .to_vec());
                 }
                 key!("ctrl+p") | key!("up") => {
-                    return Ok([Dispatch::DispatchCodeActionDropdown {
+                    self.code_action_dropdown.previous_item();
+                    return Ok([Dispatch::RenderDropdown {
                         owner_id: self.id(),
-                        dispatch: DispatchDropdown::PreviousItem,
+                        render: self.completion_dropdown.render(),
                     }]
                     .to_vec());
                 }
                 key!("enter") => {
-                    self.code_action_menu_opened = false;
-                    return Ok([Dispatch::SelectCurrentCodeAction(
-                        self.editor().get_request_params(),
-                    )]
-                    .to_vec());
+                    let current_item = self.code_action_dropdown.current_item();
+                    if let Some(code_action) = current_item {
+                        let params = self.editor.get_request_params();
+                        let dispatches = code_action
+                            .edit
+                            .map(Dispatch::ApplyWorkspaceEdit)
+                            .into_iter()
+                            // A command this code action executes. If a code action
+                            // provides an edit and a command, first the edit is
+                            // executed and then the command.
+                            // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
+                            .chain(params.and_then(|params| {
+                                code_action
+                                    .command
+                                    .map(|command| Dispatch::LspExecuteCommand { command, params })
+                            }))
+                            .collect_vec();
+                        return Ok(dispatches
+                            .into_iter()
+                            .chain(Some(Dispatch::CloseDropdown {
+                                owner_id: self.id(),
+                            }))
+                            .collect_vec());
+                        // self.menu_opened = false;
+                        // self.info_panel = None;
+                    }
                 }
                 key!("esc") => {
-                    self.code_action_menu_opened = false;
-                    return Ok([Dispatch::DispatchCodeActionDropdown {
+                    return Ok([Dispatch::CloseDropdown {
                         owner_id: self.id(),
-                        dispatch: SetOpen(false),
                     }]
                     .to_vec());
                 }
 
-                // Every other character typed in Insert mode should update the dropdown to show
-                // relevant completions.
-                event => self.editor.handle_key_event(context, event)?,
+                _ => {}
             }
-        } else {
-            let dispatches = self.editor.handle_key_event(context, event)?;
-
-            dispatches
         };
+        // Every other character typed in Insert mode should update the dropdown to show
+        // relevant completions.
+        let dispatches = self.editor.handle_key_event(context, event)?;
 
         let filter = match self.filter {
             SuggestiveEditorFilter::CurrentWord => {
@@ -202,11 +242,20 @@ impl Component for SuggestiveEditor {
             SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
         };
 
+        self.code_action_dropdown.set_filter(&filter);
+        self.completion_dropdown.set_filter(&filter);
+        let dropdown_render = if self.completion_dropdown.current_item().is_some() {
+            Some(self.completion_dropdown.render())
+        } else if self.code_action_dropdown.current_item().is_some() {
+            Some(self.code_action_dropdown.render())
+        } else {
+            None
+        };
         let dispatches = dispatches
             .into_iter()
-            .chain(Some(Dispatch::DispatchCompletionDropdown {
+            .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
+                render,
                 owner_id: self.id(),
-                dispatch: DispatchDropdown::SetFilter(filter),
             }))
             .chain(if self.editor.mode == Mode::Insert {
                 self.editor
@@ -241,14 +290,17 @@ impl Component for SuggestiveEditor {
     }
 }
 
-use DispatchDropdown::*;
-
 impl SuggestiveEditor {
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             info_panel: None,
-            code_action_menu_opened: false,
+            completion_dropdown: Dropdown::new(DropdownConfig {
+                title: "Completion".to_string(),
+            }),
+            code_action_dropdown: Dropdown::new(DropdownConfig {
+                title: "Code Actions".to_string(),
+            }),
             trigger_characters: vec![],
             filter,
         }
@@ -274,30 +326,34 @@ impl SuggestiveEditor {
 
     pub fn handle_dispatch(
         &mut self,
-        context: &Context,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
-            DispatchSuggestiveEditor::SetFilter(filter) => {
+            DispatchSuggestiveEditor::SetCompletionFilter(filter) => {
                 self.filter = filter;
                 Ok([].to_vec())
             }
             DispatchSuggestiveEditor::SetCompletion(completion) => {
-                Ok([Dispatch::DispatchCompletionDropdown {
-                    owner_id: self.id(),
-                    dispatch: SetItems(completion.items),
-                }]
-                .to_vec())
+                if self.editor.mode == Mode::Insert {
+                    self.set_completion(completion);
+                    Ok([Dispatch::RenderDropdown {
+                        owner_id: self.id(),
+                        render: self.completion_dropdown.render(),
+                    }]
+                    .to_vec())
+                } else {
+                    Ok(Vec::new())
+                }
             }
             DispatchSuggestiveEditor::SetCodeActions(code_actions) => {
                 if self.editor.mode != Mode::Normal || code_actions.is_empty() {
                     return Ok(Vec::new());
                 }
+                self.code_action_dropdown.set_items(code_actions);
 
-                self.code_action_menu_opened = true;
-                Ok([Dispatch::DispatchCodeActionDropdown {
+                Ok([Dispatch::RenderDropdown {
                     owner_id: self.id(),
-                    dispatch: SetItems(code_actions),
+                    render: self.code_action_dropdown.render(),
                 }]
                 .to_vec())
             }
@@ -323,45 +379,48 @@ impl SuggestiveEditor {
     }
 
     fn menu_opened(&self) -> bool {
-        self.code_action_menu_opened
+        self.code_action_dropdown.current_item().is_some()
     }
 
     fn close_all_subcomponents(&mut self) {
         self.info_panel = None;
-        self.code_action_menu_opened = false;
     }
 
-    fn set_completion(&self, dummy_completion: Completion) {
-        todo!()
+    fn set_completion(&mut self, completion: Completion) {
+        self.completion_dropdown.set_items(completion.items);
+        self.trigger_characters = completion.trigger_characters;
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispatchSuggestiveEditor {
-    SetFilter(SuggestiveEditorFilter),
+    SetCompletionFilter(SuggestiveEditorFilter),
     SetCompletion(Completion),
     SetCodeActions(Vec<CodeAction>),
 }
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::context::Context;
+    use crate::components::editor::DispatchEditor::*;
+    use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::lsp::code_action::CodeAction;
-    use crate::lsp::workspace_edit::WorkspaceEdit;
+    use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
+    use crate::lsp::workspace_edit::{TextDocumentEdit, WorkspaceEdit};
+    use crate::position::Position;
     use crate::{
         app::Dispatch,
         buffer::Buffer,
-        components::{
-            component::Component,
-            editor::{Direction, Mode},
-        },
-        lsp::completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
-        position::Position,
+        components::{component::Component, editor::Direction},
+        lsp::completion::{Completion, CompletionItem},
+        test_app::test_app::execute_test,
+        test_app::test_app::ExpectKind::*,
+        test_app::test_app::Step::*,
     };
     use lsp_types::CompletionItemKind;
     use my_proc_macros::{key, keys};
     use shared::canonicalized_path::CanonicalizedPath;
     use std::{cell::RefCell, rc::Rc};
+    use Dispatch::*;
 
     use super::{SuggestiveEditor, SuggestiveEditorFilter};
     use pretty_assertions::assert_eq;
@@ -382,177 +441,6 @@ mod test_suggestive_editor {
             Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), ""))),
             filter,
         )
-    }
-
-    #[test]
-    fn navigate_dropdown() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Expect the completion dropdown to be open
-        assert!(editor.dropdown_opened());
-
-        // Expect the completion dropdown to show all the items
-        assert_eq!(
-            editor.filtered_dropdown_items(),
-            vec!["Patrick", "Spongebob", "Squidward"]
-        );
-
-        // Expect the selected item to be the first item
-        assert_eq!(
-            editor.current_item(),
-            Some(CompletionItem::from_label("Patrick".to_string()))
-        );
-
-        // Go to the next item using the down arrow key
-        editor.handle_events(keys!("down")).unwrap();
-
-        // Expect the selected item to be the second item
-        assert_eq!(
-            editor.current_item(),
-            Some(CompletionItem::from_label("Spongebob".to_string()))
-        );
-
-        // Go to the previous item using the up arrow key
-        editor.handle_events(keys!("up")).unwrap();
-
-        // Expect the selected item to be the first item
-        assert_eq!(
-            editor.current_item(),
-            Some(CompletionItem::from_label("Patrick".to_string()))
-        );
-
-        // Go to the next item using ctrl+n
-        editor.handle_events(keys!("ctrl+n")).unwrap();
-
-        // Expect the selected item to be the second item
-        assert_eq!(
-            editor.current_item(),
-            Some(CompletionItem::from_label("Spongebob".to_string()))
-        );
-
-        // Go to the previous item using ctrl+p
-        editor.handle_events(keys!("ctrl+p")).unwrap();
-
-        // Expect the selected item to be the first item
-        assert_eq!(
-            editor.current_item(),
-            Some(CompletionItem::from_label("Patrick".to_string()))
-        );
-    }
-
-    #[test]
-    fn trigger_characters() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Type in 'pa'
-        editor.handle_events(keys!("p a")).unwrap();
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be filtered
-        assert!(editor.dropdown_opened());
-        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
-
-        // Type in one of the trigger characters, '.'
-        editor.handle_events(keys!(".")).unwrap();
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be unfiltered (showing all items)
-        assert!(editor.dropdown_opened());
-
-        // Expect the completion dropdown to show all the items
-        assert_eq!(
-            editor.filtered_dropdown_items(),
-            vec!["Patrick", "Spongebob", "Squidward"]
-        );
-    }
-
-    #[test]
-    fn completion_with_emoji() -> anyhow::Result<()> {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor.editor_mut().enter_insert_mode(Direction::Start)?;
-
-        // Enter s
-        editor.handle_events(keys!("s"))?;
-
-        // Pretend that the LSP server returned a completion
-        // That is without edit, but contains `kind`, which means it has emoji
-        editor.set_completion(Completion {
-            trigger_characters: vec![".".to_string()],
-            items: [CompletionItem {
-                label: "Spongebob".to_string(),
-                edit: None,
-                documentation: None,
-                sort_text: None,
-                kind: Some(CompletionItemKind::FUNCTION),
-                detail: None,
-            }]
-            .to_vec(),
-        });
-
-        // Expect the dropdown to contains emoji
-        // let dropdown_content = editor.dropdown.borrow().content();
-        // assert_eq!(dropdown_content, "ƒ Spongebob");
-
-        // Press enter
-        editor.handle_events(keys!("tab"))?;
-
-        // Expect the content of the buffer to be applied with the new edit,
-        // resulting in 'Spongebob', and does not contain emoji
-        assert_eq!(editor.editor().text(), "Spongebob");
-
-        Ok(())
-    }
-
-    #[test]
-    fn filter_with_current_word() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Enter insert mode
-        editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Type in 'pa'
-        editor.handle_events(keys!("p a")).unwrap();
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be filtered
-        assert!(editor.dropdown_opened());
-        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
-
-        // Type in space, then 's'
-        editor.handle_events(keys!("space s")).unwrap();
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be filtered by the current word, 's'
-        assert_eq!(
-            editor.filtered_dropdown_items(),
-            vec!["Spongebob", "Squidward"]
-        );
     }
 
     #[test]
@@ -640,21 +528,6 @@ mod test_suggestive_editor {
         Ok(())
     }
 
-    #[test]
-    fn setting_completion_when_not_in_insert_mode() {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-
-        // Expect the editor to not be in insert mode
-        assert_ne!(editor.editor().mode, Mode::Insert);
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Expect the completion dropdown to not be opened,
-        // since the editor is not in insert mode
-        assert!(!editor.dropdown_opened());
-    }
-
     //    #[test]
     //    fn dropdown_should_be_excluded_from_descendants_by_dropdown_opened() {
     //        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
@@ -721,6 +594,210 @@ mod test_suggestive_editor {
         assert!(!dispatches
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
+    }
+
+    #[test]
+    fn completion_without_edit() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                // Expect the completion dropdown to be open,
+                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                // Type in 'pa'
+                App(HandleKeyEvents(keys!("p a").to_vec())),
+                // Expect the dropdown items to be filtered
+                Expect(CompletionDropdownIsOpen(true)),
+                Expect(CompletionDropdownContent("Patrick")),
+                // Press tab
+                App(HandleKeyEvent(key!("tab"))),
+                // Expect the buffer to contain the selected item
+                Expect(CurrentFileContent("Patrick")),
+                Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    fn completion_with_edit() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                App(HandleKeyEvents(keys!("s p o n g e").to_vec())),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(SetCompletion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![CompletionItem {
+                        label: "Spongebob".to_string(),
+                        edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                            range: Position::new(0, 0)..Position::new(0, 6),
+                            new_text: "Spongebob".to_string(),
+                        })),
+                        documentation: None,
+                        sort_text: None,
+                        kind: None,
+                        detail: None,
+                    }],
+                })),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentFileContent("Spongebob")),
+                App(HandleKeyEvents(keys!("e n d").to_vec())),
+                Expect(CurrentFileContent("Spongebobend")),
+            ])
+        })
+    }
+
+    #[test]
+    fn code_action() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("a.to_s".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(SetCodeActions(
+                    [CodeAction {
+                        title: "".to_string(),
+                        kind: None,
+                        edit: Some(WorkspaceEdit {
+                            edits: [TextDocumentEdit {
+                                path: s.main_rs(),
+                                edits: [PositionalEdit {
+                                    range: Position::new(0, 2)..Position::new(0, 6),
+                                    new_text: "to_string".to_string(),
+                                }]
+                                .to_vec(),
+                            }]
+                            .to_vec(),
+                            resource_operations: Vec::new(),
+                        }),
+                        command: None,
+                    }]
+                    .to_vec(),
+                )),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(CurrentFileContent("a.to_string")),
+            ])
+        })
+    }
+
+    #[test]
+    fn navigate_dropdown() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                Expect(CompletionDropdownIsOpen(true)),
+                Expect(CompletionDropdownSelectedItem("Patrick")),
+                App(HandleKeyEvent(key!("down"))),
+                Expect(CompletionDropdownSelectedItem("Spongebob")),
+                App(HandleKeyEvent(key!("up"))),
+                Expect(CompletionDropdownSelectedItem("Patrick")),
+                App(HandleKeyEvent(key!("ctrl+n"))),
+                Expect(CompletionDropdownSelectedItem("Spongebob")),
+                App(HandleKeyEvent(key!("ctrl+p"))),
+                Expect(CompletionDropdownSelectedItem("Patrick")),
+            ])
+        })
+    }
+
+    #[test]
+    fn trigger_characters() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                App(HandleKeyEvents(keys!("p a").to_vec())),
+                Expect(CompletionDropdownIsOpen(true)),
+                Expect(CompletionDropdownContent("Patrick")),
+                // Type in one of the trigger characters, '.'
+                App(HandleKeyEvent(key!("."))),
+                Expect(CompletionDropdownIsOpen(true)),
+                // Expect dropdown items to be unfiltered (showing all items)
+                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+            ])
+        })
+    }
+
+    #[test]
+    fn filter_with_current_word() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                App(HandleKeyEvents(keys!("p a").to_vec())),
+                Expect(CompletionDropdownIsOpen(true)),
+                Expect(CompletionDropdownContent("Patrick")),
+                App(HandleKeyEvents(keys!("space s").to_vec())),
+                // Expect the completion dropdown to be open,
+                // and the dropdown items to be filtered by the current word, 's'
+                Expect(CompletionDropdownContent("Spongebob\nSquidward")),
+            ])
+        })
+    }
+
+    #[test]
+    fn setting_completion_when_not_in_insert_mode() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterNormalMode),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                // Expect the completion dropdown to not be opened,
+                // since the editor is not in insert mode
+                Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    fn completion_with_emoji() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                // Pretend that the LSP server returned a completion
+                // That is without edit, but contains `kind`, which means it has emoji
+                SuggestiveEditor(SetCompletion(Completion {
+                    items: [CompletionItem {
+                        label: "Spongebob".to_string(),
+                        edit: None,
+                        documentation: None,
+                        sort_text: None,
+                        kind: Some(CompletionItemKind::FUNCTION),
+                        detail: None,
+                    }]
+                    .to_vec(),
+                    trigger_characters: Vec::new(),
+                })),
+                App(HandleKeyEvent(key!("s"))),
+                Expect(CompletionDropdownContent("ƒ Spongebob")),
+                App(HandleKeyEvent(key!("tab"))),
+                // Expect the content of the buffer to be applied with the new edit,
+                // resulting in 'Spongebob', and does not contain emoji
+                Expect(CurrentFileContent("Spongebob")),
+            ])
+        })
     }
 }
 

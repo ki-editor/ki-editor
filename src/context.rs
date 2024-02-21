@@ -31,14 +31,12 @@ pub struct Context {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum GlobalMode {
     QuickfixListItem,
-    SelectionHistoryFile,
     SelectionHistoryContiguous,
 }
 impl GlobalMode {
     pub fn display(&self) -> String {
         match self {
             GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
-            GlobalMode::SelectionHistoryFile => "SELECTION HISTORY (FILE)".to_string(),
             GlobalMode::SelectionHistoryContiguous => "SELECTION HISTORY (CONTIGUOUS)".to_string(),
         }
     }

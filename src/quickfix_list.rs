@@ -14,7 +14,7 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
-        editor::Movement,
+        editor::{Editor, Movement},
         suggestive_editor::Info,
     },
     position::Position,
@@ -23,6 +23,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
+    editor: Editor,
     dropdown: Dropdown<QuickfixListItem>,
 }
 
@@ -70,11 +71,11 @@ where
 
 impl Component for QuickfixLists {
     fn editor(&self) -> &crate::components::editor::Editor {
-        self.dropdown.editor()
+        self.editor()
     }
 
     fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
-        self.dropdown.editor_mut()
+        self.editor_mut()
     }
 
     fn handle_key_event(
@@ -82,25 +83,27 @@ impl Component for QuickfixLists {
         context: &crate::context::Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
-        self.dropdown.handle_key_event(context, event)
+        self.editor.handle_key_event(context, event)
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        self.dropdown.children()
+        self.editor.children()
     }
 
     fn remove_child(&mut self, component_id: ComponentId) {
-        self.dropdown.remove_child(component_id)
+        self.editor.remove_child(component_id)
     }
 }
 
 impl QuickfixLists {
     pub fn new() -> QuickfixLists {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), "");
+        editor.set_title("Quickfixes".to_string());
         QuickfixLists {
             lists: vec![],
+            editor,
             dropdown: Dropdown::new(DropdownConfig {
                 title: "Quickfix".to_string(),
-                owner_id: None,
             }),
         }
     }
@@ -119,7 +122,8 @@ impl QuickfixLists {
     }
 
     pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
-        self.dropdown.get_item(movement)
+        self.dropdown.apply_movement(movement);
+        self.dropdown.current_item()
     }
 
     pub fn get_items(&self) -> Option<&Vec<QuickfixListItem>> {

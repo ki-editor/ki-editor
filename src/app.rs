@@ -18,8 +18,8 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId, Cursor, GetGridResult},
-        dropdown::{DispatchDropdown, Dropdown},
-        editor::{DispatchEditor, Movement},
+        dropdown::DropdownRender,
+        editor::{DispatchEditor, Editor, Movement},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
@@ -36,8 +36,7 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
-        code_action::CodeAction,
-        completion::{CompletionItem, CompletionItemEdit},
+        completion::CompletionItem,
         diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
@@ -76,41 +75,25 @@ pub struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
-    undo_tree: UndoTree<FileSelectionSet>,
-    file_selection_set_history: History<FileSelectionSet>,
+    selection_set_history: History<SelectionSetHistory>,
 }
 
 #[derive(PartialEq, Clone, Debug, Eq)]
-struct FileSelectionSet {
-    path: CanonicalizedPath,
+struct SelectionSetHistory {
+    kind: SelectionSetHistoryKind,
     selection_set: SelectionSet,
 }
 
-impl std::fmt::Display for FileSelectionSet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!(
-            "{}:{}",
-            self.path.try_display_relative(),
-            self.selection_set.primary.extended_range().start.0
-        ))
-    }
+#[derive(PartialEq, Clone, Debug, Eq)]
+pub enum SelectionSetHistoryKind {
+    Path(CanonicalizedPath),
+    ComponentId(ComponentId),
 }
 
 struct Null;
 impl std::fmt::Display for Null {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("NULL")
-    }
-}
-
-impl Applicable for FileSelectionSet {
-    type Target = Layout;
-
-    type Output = Null;
-
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        target.open_file_with_selection(&self.path, self.selection_set.clone())?;
-        Ok(Null)
     }
 }
 
@@ -149,8 +132,8 @@ impl<T: Frontend> App<T> {
             frontend,
             syntax_highlight_request_sender: None,
             global_title: None,
-            undo_tree: UndoTree::new(),
-            file_selection_set_history: History::new(),
+
+            selection_set_history: History::new(),
         };
         Ok(app)
     }
@@ -484,13 +467,8 @@ impl<T: Frontend> App<T> {
             Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::GotoSelectionHistoryFile(movement) => {
-                self.goto_selection_history_file(movement)?;
-                self.show_selection_history()
-            }
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
                 self.goto_selection_history_contiguous(movement)?;
-                self.show_selection_history()
             }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
@@ -556,10 +534,12 @@ impl<T: Frontend> App<T> {
                 .workspace_execute_command(params, command)?,
             Dispatch::UpdateSelectionSet {
                 selection_set,
-                path,
+                kind,
+                store_history,
             } => self.update_selection_set(
-                &path,
+                kind,
                 UpdateSelectionSetSource::SelectionSet(selection_set),
+                store_history,
             )?,
             Dispatch::UpdateLocalSearchConfig {
                 update,
@@ -599,22 +579,26 @@ impl<T: Frontend> App<T> {
                 self.context = context.set_theme(theme);
             }
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
-            Dispatch::InsertCurrentCompletionItem => {
-                let dispatches = self.insert_current_completion_item()?;
-                self.handle_dispatches(dispatches)?
-            }
-            Dispatch::DispatchCodeActionDropdown { owner_id, dispatch } => {
-                self.handle_dispatch_code_action_dropdown(owner_id, dispatch)?
-            }
-            Dispatch::DispatchCompletionDropdown { dispatch, owner_id } => {
-                self.handle_dispatch_completion_dropdown(owner_id, dispatch)?
-            }
-            Dispatch::SelectCurrentCodeAction(params) => {
-                let dispatches = self.select_current_code_action(params)?;
-                self.handle_dispatches(dispatches)?;
-            }
             Dispatch::DispatchSuggestiveEditor(dispatch) => {
                 self.handle_dispatch_suggestive_editor(dispatch)?
+            }
+            Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
+            Dispatch::RenderDropdown { owner_id, render } => {
+                let dropdown = self.layout.open_dropdown(owner_id);
+                let dispatches = dropdown.borrow_mut().apply_dispatches(
+                    &mut self.context,
+                    [
+                        DispatchEditor::SetContent(render.content),
+                        DispatchEditor::SelectLineAt(render.highlight_line_index),
+                    ]
+                    .to_vec(),
+                )?;
+                if let Some(info) = render.info {
+                    self.layout.show_dropdown_info(owner_id, info);
+                } else {
+                    self.layout.hide_dropdown_info(owner_id);
+                }
+                self.handle_dispatches(dispatches)?;
             }
         }
         Ok(())
@@ -1126,7 +1110,11 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        self.update_selection_set(path, UpdateSelectionSetSource::PositionRange(range.clone()))
+        self.update_selection_set(
+            SelectionSetHistoryKind::Path(path.clone()),
+            UpdateSelectionSetSource::PositionRange(range.clone()),
+            true,
+        )
     }
 
     fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
@@ -1520,19 +1508,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        if mode == Some(GlobalMode::SelectionHistoryFile) {
-            self.show_selection_history()
-        }
         self.context.set_mode(mode);
-    }
-
-    pub fn display_selection_history(&self) -> String {
-        self.undo_tree.display().to_string()
-    }
-
-    fn show_selection_history(&mut self) {
-        let tree = self.display_selection_history();
-        self.show_info("Selection History", Info::new(tree));
     }
 
     fn open_omit_prompt(
@@ -1567,45 +1543,53 @@ impl<T: Frontend> App<T> {
 
     fn update_selection_set(
         &mut self,
-        path: &CanonicalizedPath,
+        kind: SelectionSetHistoryKind,
         source: UpdateSelectionSetSource,
+        store_history: bool,
     ) -> anyhow::Result<()> {
         let component = self.layout.current_component();
         let new_to_old = component
             .as_ref()
-            .and_then(|component| {
-                let current_path = self.get_current_file_path()?;
-                Some(FileSelectionSet {
-                    path: current_path,
-                    selection_set: component.borrow().editor().selection_set.clone(),
-                })
+            .map(|component| SelectionSetHistory {
+                kind: component
+                    .borrow()
+                    .path()
+                    .map(SelectionSetHistoryKind::Path)
+                    .unwrap_or_else(|| {
+                        SelectionSetHistoryKind::ComponentId(component.borrow().id())
+                    }),
+                selection_set: component.borrow().editor().selection_set.clone(),
             })
-            .unwrap_or_else(|| FileSelectionSet {
-                path: path.clone(),
+            .unwrap_or_else(|| SelectionSetHistory {
+                kind: SelectionSetHistoryKind::ComponentId(Default::default()),
                 selection_set: SelectionSet::default(),
             });
-        let new_component = self.open_file(&path, true)?;
-        let selection_set = match source {
-            UpdateSelectionSetSource::PositionRange(position_range) => new_component
+        if let Some(new_component) = match &kind {
+            SelectionSetHistoryKind::Path(path) => Some(self.open_file(&path, true)?),
+            SelectionSetHistoryKind::ComponentId(id) => self.layout.get_component_by_id(id),
+        } {
+            let selection_set = match source {
+                UpdateSelectionSetSource::PositionRange(position_range) => new_component
+                    .borrow_mut()
+                    .editor_mut()
+                    .position_range_to_selection_set(position_range)?,
+                UpdateSelectionSetSource::SelectionSet(selection_set) => selection_set,
+            };
+            new_component
                 .borrow_mut()
                 .editor_mut()
-                .position_range_to_selection_set(position_range)?,
-            UpdateSelectionSetSource::SelectionSet(selection_set) => selection_set,
-        };
-        new_component
-            .borrow_mut()
-            .editor_mut()
-            .__update_selection_set_for_real(selection_set.clone());
-        let old_new = crate::undo_tree::OldNew {
-            old_to_new: FileSelectionSet {
-                path: path.clone(),
-                selection_set,
-            },
-            new_to_old,
-        };
-        self.file_selection_set_history.push(old_new.clone());
-        return Ok(());
-        self.undo_tree.edit(&mut self.layout, old_new)?;
+                .__update_selection_set_for_real(selection_set.clone());
+            let old_new = crate::undo_tree::OldNew {
+                old_to_new: SelectionSetHistory {
+                    kind: kind.clone(),
+                    selection_set,
+                },
+                new_to_old,
+            };
+            if store_history {
+                self.selection_set_history.push(old_new.clone());
+            }
+        }
         Ok(())
     }
 
@@ -1622,72 +1606,20 @@ impl<T: Frontend> App<T> {
     fn goto_selection_history_contiguous(&mut self, movement: Movement) -> anyhow::Result<()> {
         match movement {
             Movement::Next => {
-                if let Some(file_selection_set) = self.file_selection_set_history.redo() {
-                    self.go_to_file_selection_set(file_selection_set)?;
+                if let Some(go_to_selection_set_history) = self.selection_set_history.redo() {
+                    self.go_to_selection_set_history(go_to_selection_set_history)?;
                 }
                 // self.undo_tree.redo(&mut self.layout)?;
             }
             Movement::Previous => {
-                if let Some(file_selection_set) = self.file_selection_set_history.undo() {
-                    self.go_to_file_selection_set(file_selection_set)?;
+                if let Some(file_selection_set) = self.selection_set_history.undo() {
+                    self.go_to_selection_set_history(file_selection_set)?;
                 }
                 // self.undo_tree.undo(&mut self.layout)?;
             }
-            Movement::Up => {
-                self.set_global_mode(Some(GlobalMode::SelectionHistoryFile));
-            }
+
             _ => {}
         }
-        Ok(())
-    }
-
-    fn goto_selection_history_file(&mut self, movement: Movement) -> anyhow::Result<()> {
-        match movement {
-            Movement::Next => {
-                let next_entries = self
-                    .undo_tree
-                    .next_entries()
-                    .into_iter()
-                    .filter(|(_, entry)| {
-                        Some(&entry.get().old_to_new.path) != self.get_current_file_path().as_ref()
-                    })
-                    .collect_vec();
-                log::info!("next_entries.len() = {}", next_entries.len());
-                log::info!(
-                    "next_entries.last().index = {:?}",
-                    next_entries.last().map(|e| e.0)
-                );
-                if let Some((next_entry_index, next_entry)) = next_entries.first() {
-                    let next_file = next_entry.get().old_to_new.path.clone();
-                    let next_entry_index = *next_entry_index;
-                    let index = next_entries
-                        .into_iter()
-                        .take_while(|(_, entry)| entry.get().old_to_new.path == next_file)
-                        .last()
-                        .map(|(index, _)| index)
-                        .unwrap_or(next_entry_index);
-                    self.undo_tree.go_to_entry(&mut self.layout, index)?;
-                }
-            }
-            Movement::Previous => {
-                if let Some((index, entry)) =
-                    self.undo_tree
-                        .previous_entries()
-                        .into_iter()
-                        .rfind(|(_, entry)| {
-                            Some(&entry.get().old_to_new.path)
-                                != self.get_current_file_path().as_ref()
-                        })
-                {
-                    log::info!("entry.path = {:?}", entry.get().new_to_old.path);
-                    self.undo_tree.go_to_entry(&mut self.layout, index)?;
-                }
-            }
-            Movement::Down => {
-                self.set_global_mode(Some(GlobalMode::SelectionHistoryContiguous));
-            }
-            _ => {}
-        };
         Ok(())
     }
 
@@ -1997,24 +1929,31 @@ impl<T: Frontend> App<T> {
             .unwrap_or_default()
     }
 
-    fn go_to_file_selection_set(
+    fn go_to_selection_set_history(
         &mut self,
-        file_selection_set: FileSelectionSet,
+        selection_set_history: SelectionSetHistory,
     ) -> anyhow::Result<()> {
-        self.layout
-            .open_file_with_selection(&file_selection_set.path, file_selection_set.selection_set)
+        match selection_set_history.kind {
+            SelectionSetHistoryKind::Path(path) => self
+                .layout
+                .open_file_with_selection(&path, selection_set_history.selection_set)?,
+            SelectionSetHistoryKind::ComponentId(id) => self
+                .layout
+                .open_component_with_selection(&id, selection_set_history.selection_set),
+        };
+        Ok(())
     }
 
     fn go_to_previous_selection(&mut self) -> anyhow::Result<()> {
-        if let Some(file_selection_set) = self.file_selection_set_history.undo() {
-            self.go_to_file_selection_set(file_selection_set)?;
+        if let Some(file_selection_set) = self.selection_set_history.undo() {
+            self.go_to_selection_set_history(file_selection_set)?;
         }
         Ok(())
     }
 
     fn go_to_next_selection(&mut self) -> anyhow::Result<()> {
-        if let Some(file_selection_set) = self.file_selection_set_history.redo() {
-            self.go_to_file_selection_set(file_selection_set)?;
+        if let Some(file_selection_set) = self.selection_set_history.redo() {
+            self.go_to_selection_set_history(file_selection_set)?;
         }
         Ok(())
     }
@@ -2040,9 +1979,7 @@ impl<T: Frontend> App<T> {
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
         if let Some(component) = self.layout.get_current_suggestive_editor() {
-            let dispatches = component
-                .borrow_mut()
-                .handle_dispatch(&self.context, dispatch)?;
+            let dispatches = component.borrow_mut().handle_dispatch(dispatch)?;
 
             self.handle_dispatches(dispatches)?;
         }
@@ -2053,91 +1990,8 @@ impl<T: Frontend> App<T> {
         self.layout.completion_dropdown_is_open()
     }
 
-    pub(crate) fn current_completion_dropdown(
-        &self,
-    ) -> Option<Rc<RefCell<Dropdown<CompletionItem>>>> {
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
         self.layout.current_completion_dropdown()
-    }
-
-    fn handle_dispatch_code_action_dropdown(
-        &mut self,
-        owner_id: ComponentId,
-        dispatch: DispatchDropdown<CodeAction>,
-    ) -> anyhow::Result<()> {
-        let dropdown = self.layout.open_code_action_dropdown(owner_id);
-        let dispatches = dropdown.borrow_mut().handle_dispatch(dispatch)?;
-        self.handle_dispatches(dispatches)?;
-        Ok(())
-    }
-
-    fn handle_dispatch_completion_dropdown(
-        &mut self,
-        owner_id: ComponentId,
-        dispatch: DispatchDropdown<CompletionItem>,
-    ) -> anyhow::Result<()> {
-        let dropdown = self.layout.open_completion_dropdown(owner_id);
-        let dispatches = dropdown.borrow_mut().handle_dispatch(dispatch)?;
-        self.handle_dispatches(dispatches)?;
-        Ok(())
-    }
-
-    fn insert_current_completion_item(&mut self) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(component) = self.current_component() {
-            let mut component = component.borrow_mut();
-            if let Some(dropdown) = self.layout.get_completion_dropdown(component.id()) {
-                let current_item = dropdown.borrow_mut().current_item();
-                if let Some(completion) = current_item {
-                    let dispatches = match completion.edit {
-                        None => component
-                            .editor_mut()
-                            .replace_previous_word(&completion.label(), &self.context),
-                        Some(edit) => match edit {
-                            CompletionItemEdit::PositionalEdit(edit) => {
-                                component.editor_mut().apply_positional_edit(edit)
-                            }
-                        },
-                    }?;
-                    dropdown.borrow_mut().open(false);
-                    return Ok(dispatches);
-                    // self.menu_opened = false;
-                    // self.info_panel = None;
-                }
-            }
-        }
-        Ok(Vec::new())
-    }
-
-    fn select_current_code_action(
-        &self,
-        params: Option<RequestParams>,
-    ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(component) = self.current_component() {
-            let mut component = component.borrow_mut();
-            if let Some(dropdown) = self.layout.get_code_action_dropdown(component.id()) {
-                let current_item = dropdown.borrow_mut().current_item();
-                if let Some(code_action) = current_item {
-                    let dispatches = code_action
-                        .edit
-                        .map(Dispatch::ApplyWorkspaceEdit)
-                        .into_iter()
-                        // A command this code action executes. If a code action
-                        // provides an edit and a command, first the edit is
-                        // executed and then the command.
-                        // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-                        .chain(params.and_then(|params| {
-                            code_action
-                                .command
-                                .map(|command| Dispatch::LspExecuteCommand { command, params })
-                        }))
-                        .collect();
-                    dropdown.borrow_mut().open(false);
-                    return Ok(dispatches);
-                    // self.menu_opened = false;
-                    // self.info_panel = None;
-                }
-            }
-        };
-        return Ok(Vec::new());
     }
 }
 
@@ -2215,7 +2069,6 @@ pub enum Dispatch {
     },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
-    GotoSelectionHistoryFile(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
     CloseAllExceptMainPanel,
@@ -2270,7 +2123,8 @@ pub enum Dispatch {
     },
     UpdateSelectionSet {
         selection_set: SelectionSet,
-        path: CanonicalizedPath,
+        kind: SelectionSetHistoryKind,
+        store_history: bool,
     },
     GotoSelectionHistoryContiguous(Movement),
     UpdateLocalSearchConfig {
@@ -2305,17 +2159,14 @@ pub enum Dispatch {
     GoToPreviousSelection,
     GoToNextSelection,
     HandleLspNotification(LspNotification),
-    DispatchCompletionDropdown {
-        dispatch: DispatchDropdown<CompletionItem>,
-        owner_id: ComponentId,
-    },
-    InsertCurrentCompletionItem,
-    DispatchCodeActionDropdown {
-        owner_id: ComponentId,
-        dispatch: DispatchDropdown<CodeAction>,
-    },
-    SelectCurrentCodeAction(Option<RequestParams>),
     DispatchSuggestiveEditor(DispatchSuggestiveEditor),
+    CloseDropdown {
+        owner_id: ComponentId,
+    },
+    RenderDropdown {
+        owner_id: ComponentId,
+        render: DropdownRender,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

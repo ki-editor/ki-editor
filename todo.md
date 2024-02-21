@@ -259,3 +259,7 @@
 - [] feat(duplicate): one key to duplicate current selection, instead of ctrl+c ctrl+v
 - [] feat(selection-set-history): should not store selection due to undo
 - [] feat(dropdown): when focused, pressing enter on the line trigger the action (for example code action dropdown)
+- [] feat(new-movement): fuzzy search by current selection mode (similar to Jump, but with fuzzy search)
+- [] feat(lsp/multiple): use https://github.com/messense/multi-lsp-proxy
+- [] feat(search): search a word regardless of snake_case/camelCase/kebab-case
+- [] feat(selection-mode): press 2 to store current selection mode into secondary selection mode

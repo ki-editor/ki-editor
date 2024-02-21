@@ -1,5 +1,5 @@
 use crate::{
-    app::{RequestParams, Scope},
+    app::{RequestParams, Scope, SelectionSetHistoryKind},
     buffer::Line,
     char_index_range::CharIndexRange,
     components::component::Cursor,
@@ -801,6 +801,7 @@ impl Editor {
         Ok(self.update_selection_set(
             self.selection_set
                 .select_kids(&buffer, &self.cursor_direction)?,
+            true,
         ))
     }
 
@@ -829,7 +830,8 @@ impl Editor {
             mode: SelectionMode::LineTrimmed,
             filters: Filters::default(),
         };
-        Ok(self.update_selection_set(selection_set))
+
+        Ok(self.update_selection_set(selection_set, false))
     }
 
     pub fn reset(&mut self) {
@@ -843,15 +845,21 @@ impl Editor {
     }
 
     #[must_use]
-    pub fn update_selection_set(&self, selection_set: SelectionSet) -> Vec<Dispatch> {
-        self.buffer()
-            .path()
-            .map(|path| Dispatch::UpdateSelectionSet {
-                selection_set,
-                path,
-            })
-            .into_iter()
-            .collect()
+    pub fn update_selection_set(
+        &self,
+        selection_set: SelectionSet,
+        store_history: bool,
+    ) -> Vec<Dispatch> {
+        [Dispatch::UpdateSelectionSet {
+            selection_set,
+            kind: self
+                .buffer()
+                .path()
+                .map(SelectionSetHistoryKind::Path)
+                .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(self.id())),
+            store_history,
+        }]
+        .to_vec()
     }
 
     pub fn position_range_to_selection_set(
@@ -878,7 +886,7 @@ impl Editor {
 
     pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<Vec<Dispatch>> {
         let selection_set = self.position_range_to_selection_set(range)?;
-        Ok(self.update_selection_set(selection_set))
+        Ok(self.update_selection_set(selection_set, true))
     }
 
     fn cursor_row(&self) -> u16 {
@@ -933,7 +941,7 @@ impl Editor {
 
         let selection_set = self.get_selection_set(&selection_mode, direction, context)?;
 
-        Ok(self.update_selection_set(selection_set))
+        Ok(self.update_selection_set(selection_set, true))
     }
 
     fn jump_characters() -> Vec<char> {
@@ -1336,7 +1344,7 @@ impl Editor {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
                 return Ok(self
-                    .update_selection_set(selection_set)
+                    .update_selection_set(selection_set, false)
                     .into_iter()
                     .chain(self.get_document_did_change_dispatch())
                     .collect());
@@ -1365,6 +1373,9 @@ impl Editor {
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
             }
+            ReplacePreviousWord(word) => return self.replace_previous_word(&word, context),
+            ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
+            SelectLineAt(index) => return self.select_line_at(index),
         }
         Ok([].to_vec())
     }
@@ -1605,9 +1616,7 @@ impl Editor {
         if let Some(global_mode) = &context.mode() {
             match global_mode {
                 GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
-                GlobalMode::SelectionHistoryFile => {
-                    Ok([Dispatch::GotoSelectionHistoryFile(movement)].to_vec())
-                }
+
                 GlobalMode::SelectionHistoryContiguous => {
                     Ok([Dispatch::GotoSelectionHistoryContiguous(movement)].to_vec())
                 }
@@ -1767,12 +1776,7 @@ impl Editor {
             // TODO: v = view (scroll line, scroll half page, scroll full page)
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.enter_exchange_mode(),
-            key!("y") => {
-                return Ok([Dispatch::SetGlobalMode(Some(
-                    GlobalMode::SelectionHistoryFile,
-                ))]
-                .to_vec())
-            }
+            key!("y") => return self.copy(context),
             key!("z") => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.x_mode_keymap_legend_config()?,
@@ -1882,11 +1886,14 @@ impl Editor {
             .primary
             .clone()
             .set_range((start..start).into());
-        Ok(self.update_selection_set(SelectionSet {
-            mode: self.selection_set.mode.clone(),
-            primary,
-            ..self.selection_set.clone()
-        }))
+        Ok(self.update_selection_set(
+            SelectionSet {
+                mode: self.selection_set.mode.clone(),
+                primary,
+                ..self.selection_set.clone()
+            },
+            true,
+        ))
     }
 
     /// Get the selection that preserves the syntactic structure of the current selection.
@@ -2259,20 +2266,21 @@ impl Editor {
         direction: Direction,
         scroll_height: usize,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        let dispatch = self.update_selection_set(self.selection_set.apply(
-            self.selection_set.mode.clone(),
-            |selection| {
-                let position = selection.extended_range().start.to_position(&self.buffer());
-                let line = if direction == Direction::End {
-                    position.line.saturating_add(scroll_height)
-                } else {
-                    position.line.saturating_sub(scroll_height)
-                };
-                let position = Position { line, ..position };
-                let start = position.to_char_index(&self.buffer())?;
-                Ok(selection.clone().set_range((start..start).into()))
-            },
-        )?);
+        let dispatch = self.update_selection_set(
+            self.selection_set
+                .apply(self.selection_set.mode.clone(), |selection| {
+                    let position = selection.extended_range().start.to_position(&self.buffer());
+                    let line = if direction == Direction::End {
+                        position.line.saturating_add(scroll_height)
+                    } else {
+                        position.line.saturating_sub(scroll_height)
+                    };
+                    let position = Position { line, ..position };
+                    let start = position.to_char_index(&self.buffer())?;
+                    Ok(selection.clone().set_range((start..start).into()))
+                })?,
+            false,
+        );
         self.align_cursor_to_center();
 
         Ok(dispatch)
@@ -2286,7 +2294,7 @@ impl Editor {
         // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
         let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
         Ok(self
-            .update_selection_set(selection)
+            .update_selection_set(selection, false)
             .into_iter()
             .chain(Some(Dispatch::DispatchEditor(ReplaceCurrentSelectionWith(
                 completion.to_string(),
@@ -2735,7 +2743,7 @@ impl Editor {
         let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
 
         Ok(selection_set
-            .map(|selection_set| self.update_selection_set(selection_set))
+            .map(|selection_set| self.update_selection_set(selection_set, false))
             .unwrap_or_default()
             .into_iter()
             .chain(self.get_document_did_change_dispatch())
@@ -2789,7 +2797,7 @@ impl Editor {
 
     fn filters_push(&mut self, context: &Context, filter: Filter) -> Vec<Dispatch> {
         let selection_set = self.selection_set.clone().filter_push(filter);
-        self.update_selection_set(selection_set)
+        self.update_selection_set(selection_set, true)
             .into_iter()
             .chain(Some(Dispatch::DispatchEditor(MoveSelection(
                 Movement::Current,
@@ -2797,21 +2805,21 @@ impl Editor {
             .collect()
     }
 
-    #[cfg(test)]
     pub(crate) fn apply_dispatches(
         &mut self,
         context: &mut Context,
         dispatches: Vec<DispatchEditor>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        let mut result = Vec::new();
         for dispatch in dispatches {
-            self.apply_dispatch(context, dispatch)?;
+            result.extend(self.apply_dispatch(context, dispatch)?);
         }
-        Ok(())
+        Ok(result)
     }
 
     fn filters_clear(&mut self) -> Vec<Dispatch> {
         let selection_set = self.selection_set.clone().filter_clear();
-        self.update_selection_set(selection_set)
+        self.update_selection_set(selection_set, true)
     }
 
     pub fn find_submenu_title(title: &str, scope: Scope) -> String {
@@ -2957,4 +2965,7 @@ pub enum DispatchEditor {
     SetLanguage(shared::language::Language),
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
+    ReplacePreviousWord(String),
+    ApplyPositionalEdit(crate::lsp::completion::PositionalEdit),
+    SelectLineAt(usize),
 }

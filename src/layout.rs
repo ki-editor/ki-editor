@@ -1,3 +1,4 @@
+use crate::app::Dispatch;
 use crate::components::dropdown::DropdownConfig;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItem;
@@ -18,6 +19,7 @@ use crate::{
     selection::SelectionSet,
 };
 use anyhow::anyhow;
+use indexmap::IndexMap;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cell::RefCell, rc::Rc};
@@ -34,8 +36,9 @@ pub struct Layout {
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
     file_explorer: Rc<RefCell<FileExplorer>>,
-    completion_dropdowns: Vec<Rc<RefCell<Dropdown<CompletionItem>>>>,
-    code_action_dropdowns: Vec<Rc<RefCell<Dropdown<CodeAction>>>>,
+    dropdowns: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
+    dropdown_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
+
     file_explorer_open: bool,
 
     rectangles: Vec<Rectangle>,
@@ -117,8 +120,8 @@ impl Layout {
             terminal_dimension,
             file_explorer_open: false,
             working_directory: working_directory.clone(),
-            completion_dropdowns: Vec::new(),
-            code_action_dropdowns: Vec::new(),
+            dropdowns: IndexMap::new(),
+            dropdown_infos: IndexMap::new(),
         })
     }
 
@@ -141,16 +144,14 @@ impl Layout {
                 .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.code_action_dropdowns
+                self.dropdowns
                     .iter()
-                    .filter(|c| c.borrow().is_open())
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.completion_dropdowns
+                self.dropdown_infos
                     .iter()
-                    .filter(|c| c.borrow().is_open())
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
                 self.keymap_legend
@@ -233,11 +234,8 @@ impl Layout {
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
 
-            self.code_action_dropdowns
-                .retain(|c| c.borrow().owner_id() != Some(id) && c.borrow().id() != id);
-
-            self.completion_dropdowns
-                .retain(|c| c.borrow().owner_id() != Some(id) && c.borrow().id() != id);
+            self.dropdowns.shift_remove(&id);
+            self.dropdown_infos.shift_remove(&id);
 
             if self.file_explorer.borrow().id() == id {
                 self.file_explorer_open = false
@@ -541,75 +539,73 @@ impl Layout {
     }
 
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
-        self.completion_dropdowns
-            .iter()
-            .any(|dropdown| dropdown.borrow().is_open())
+        self.current_completion_dropdown().is_some()
     }
 
-    pub(crate) fn current_completion_dropdown(
-        &self,
-    ) -> Option<Rc<RefCell<Dropdown<CompletionItem>>>> {
-        self.completion_dropdowns
-            .iter()
-            .find(|dropdown| dropdown.borrow().is_open())
-            .cloned()
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.current_component()
+            .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
     }
 
     pub(crate) fn get_code_action_dropdown(
         &self,
         owner_id: ComponentId,
-    ) -> Option<Rc<RefCell<Dropdown<CodeAction>>>> {
-        self.code_action_dropdowns
-            .iter()
-            .find(|dropdown| dropdown.borrow().owner_id() == Some(owner_id))
-            .cloned()
+    ) -> Option<Rc<RefCell<Editor>>> {
+        self.current_component()
+            .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
     }
 
     pub(crate) fn get_completion_dropdown(
         &self,
         owner_id: ComponentId,
-    ) -> Option<Rc<RefCell<Dropdown<CompletionItem>>>> {
-        self.completion_dropdowns
-            .iter()
-            .find(|dropdown| dropdown.borrow().owner_id() == Some(owner_id))
-            .cloned()
+    ) -> Option<Rc<RefCell<Editor>>> {
+        self.dropdowns.get(&owner_id).cloned()
     }
 
-    pub(crate) fn open_code_action_dropdown(
-        &mut self,
-        owner_id: ComponentId,
-    ) -> Rc<RefCell<Dropdown<CodeAction>>> {
-        if let Some(dropdown) = self.get_code_action_dropdown(owner_id) {
-            dropdown.borrow_mut().open(true);
-            dropdown
-        } else {
-            let mut dropdown = Dropdown::new(DropdownConfig {
-                title: "Code Action".to_string(),
-                owner_id: Some(owner_id),
-            });
-            dropdown.open(true);
-            let dropdown = Rc::new(RefCell::new(dropdown));
-            self.code_action_dropdowns.push(dropdown.clone());
-            dropdown
-        }
+    pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Rc<RefCell<Editor>> {
+        let dropdown = Rc::new(RefCell::new(Editor::from_text(
+            tree_sitter_md::language(),
+            "",
+        )));
+        self.dropdowns.insert(owner_id, dropdown.clone());
+        dropdown
     }
 
-    pub(crate) fn open_completion_dropdown(
+    pub(crate) fn close_dropdown(&mut self, owner_id: ComponentId) {
+        self.dropdowns.shift_remove(&owner_id);
+    }
+
+    pub(crate) fn show_dropdown_info(&mut self, owner_id: ComponentId, info: Info) {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), "");
+        editor.show_info(info);
+        self.dropdown_infos
+            .insert(owner_id, Rc::new(RefCell::new(editor)));
+    }
+
+    pub(crate) fn hide_dropdown_info(&mut self, owner_id: ComponentId) {
+        self.dropdown_infos.shift_remove(&owner_id);
+    }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        id: &ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.components()
+            .into_iter()
+            .find(|c| &c.borrow().id() == id)
+    }
+
+    pub(crate) fn open_component_with_selection(
         &mut self,
-        owner_id: ComponentId,
-    ) -> Rc<RefCell<Dropdown<CompletionItem>>> {
-        if let Some(dropdown) = self.get_completion_dropdown(owner_id) {
-            dropdown.borrow_mut().open(true);
-            dropdown
-        } else {
-            let mut dropdown = Dropdown::new(DropdownConfig {
-                title: "Completion".to_string(),
-                owner_id: Some(owner_id),
-            });
-            dropdown.open(true);
-            let dropdown = Rc::new(RefCell::new(dropdown));
-            self.completion_dropdowns.push(dropdown.clone());
-            dropdown
+        id: &ComponentId,
+        selection_set: SelectionSet,
+    ) {
+        if let Some(component) = self.get_component_by_id(id) {
+            component
+                .borrow_mut()
+                .editor_mut()
+                .__update_selection_set_for_real(selection_set);
+            self.focused_component_id = Some(component.borrow().id())
         }
     }
 }
