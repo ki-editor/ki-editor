@@ -393,7 +393,7 @@ impl<T: Frontend> App<T> {
                 self.close_current_window(change_focused_to)
             }
             Dispatch::OpenSearchPrompt { scope, owner_id } => {
-                self.open_search_prompt(scope, owner_id)
+                self.open_search_prompt(scope, owner_id)?
             }
             Dispatch::OpenFile(path) => {
                 self.open_file(&path, true)?;
@@ -483,15 +483,15 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::GlobalSearch => self.global_search()?,
-            Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt(),
+            Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
             Dispatch::RunCommand(command) => self.run_command(command)?,
             Dispatch::QuitAll => self.quit_all()?,
-            Dispatch::OpenCommandPrompt => self.open_command_prompt(),
+            Dispatch::OpenCommandPrompt => self.open_command_prompt()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.layout.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
-            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path),
-            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path),
+            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
+            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
             Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
@@ -511,15 +511,15 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveAll => self.save_all()?,
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
-            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open(),
+            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open()?,
             Dispatch::OpenInsideOtherPromptClose { open } => {
-                self.open_inside_other_prompt_close(open)
+                self.open_inside_other_prompt_close(open)?
             }
             Dispatch::OpenOmitPrompt {
                 kind,
                 target,
                 make_mechanism,
-            } => self.open_omit_prompt(kind, target, make_mechanism),
+            } => self.open_omit_prompt(kind, target, make_mechanism)?,
 
             Dispatch::LspExecuteCommand { command, params } => self
                 .lsp_manager
@@ -547,15 +547,15 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                 owner_id,
                 filter_glob,
-            } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob),
+            } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob)?,
             Dispatch::ShowSearchConfig { owner_id, scope } => {
                 self.show_search_config(owner_id, scope)
             }
             Dispatch::OpenUpdateReplacementPrompt { owner_id, scope } => {
-                self.open_update_replacement_prompt(owner_id, scope)
+                self.open_update_replacement_prompt(owner_id, scope)?
             }
             Dispatch::OpenUpdateSearchPrompt { owner_id, scope } => {
-                self.open_update_search_prompt(owner_id, scope)
+                self.open_update_search_prompt(owner_id, scope)?
             }
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(DispatchEditor::Replace {
@@ -594,7 +594,7 @@ impl<T: Frontend> App<T> {
                 }
                 self.handle_dispatches(dispatches)?;
             }
-            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config),
+            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
         }
         Ok(())
     }
@@ -632,7 +632,7 @@ impl<T: Frontend> App<T> {
             .set_terminal_dimension(dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT));
     }
 
-    fn open_move_to_index_prompt(&mut self) {
+    fn open_move_to_index_prompt(&mut self) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Move to index".to_string(),
             history: vec![],
@@ -642,7 +642,11 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_rename_prompt(&mut self, params: RequestParams, current_name: Option<String>) {
+    fn open_rename_prompt(
+        &mut self,
+        params: RequestParams,
+        current_name: Option<String>,
+    ) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Rename".to_string(),
             history: current_name.into_iter().collect_vec(),
@@ -652,7 +656,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_search_prompt(&mut self, scope: Scope, owner_id: ComponentId) {
+    fn open_search_prompt(&mut self, scope: Scope, owner_id: ComponentId) -> anyhow::Result<()> {
         let config = self.context.get_local_search_config(scope);
         let mode = config.mode;
         self.open_prompt(PromptConfig {
@@ -668,7 +672,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_inside_other_prompt_open(&mut self) {
+    fn open_inside_other_prompt_open(&mut self) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Inside (other): Open".to_string(),
             history: Vec::new(),
@@ -678,7 +682,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_inside_other_prompt_close(&mut self, open: String) {
+    fn open_inside_other_prompt_close(&mut self, open: String) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: format!("Inside (other, open = '{}'): Close", open),
             history: Vec::new(),
@@ -688,7 +692,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) {
+    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Add path".to_string(),
             history: [path.display_absolute()].to_vec(),
@@ -698,7 +702,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) {
+    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Move file".to_string(),
             history: [path.display_absolute()].to_vec(),
@@ -708,7 +712,11 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_symbol_picker(&mut self, component_id: ComponentId, symbols: Symbols) {
+    fn open_symbol_picker(
+        &mut self,
+        component_id: ComponentId,
+        symbols: Symbols,
+    ) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Symbols".to_string(),
             history: vec![],
@@ -722,7 +730,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_command_prompt(&mut self) {
+    fn open_command_prompt(&mut self) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: "Command".to_string(),
             history: vec![],
@@ -737,7 +745,7 @@ impl<T: Frontend> App<T> {
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
-        Ok(self.open_prompt(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Open file: {}", kind.display()),
             history: vec![],
             on_enter: DispatchPrompt::OpenFile { working_directory },
@@ -757,7 +765,7 @@ impl<T: Frontend> App<T> {
                 .collect_vec()
             },
             enter_selects_first_matching_item: true,
-        }))
+        })
     }
 
     /// This is different from `open_file` because it has the additional `update_selection_set` argument.
@@ -1383,7 +1391,7 @@ impl<T: Frontend> App<T> {
         kind: FilterKind,
         target: FilterTarget,
         make_mechanism: MakeFilterMechanism,
-    ) {
+    ) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
             title: format!(
                 "Omit: {:?} selection by {:?} matching {:?}",
@@ -1528,7 +1536,7 @@ impl<T: Frontend> App<T> {
         &mut self,
         owner_id: ComponentId,
         filter_glob: GlobalSearchFilterGlob,
-    ) {
+    ) -> anyhow::Result<()> {
         let current_component = self.current_component().clone();
         let config = self.context.global_search_config();
         let history = match filter_glob {
@@ -1717,7 +1725,11 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_update_replacement_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
+    fn open_update_replacement_prompt(
+        &mut self,
+        owner_id: ComponentId,
+        scope: Scope,
+    ) -> Result<(), anyhow::Error> {
         self.open_prompt(PromptConfig {
             title: format!("Set Replace ({:?})", scope),
             history: self.context.get_local_search_config(scope).replacements(),
@@ -1727,7 +1739,11 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_update_search_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
+    fn open_update_search_prompt(
+        &mut self,
+        owner_id: ComponentId,
+        scope: Scope,
+    ) -> Result<(), anyhow::Error> {
         self.open_prompt(PromptConfig {
             title: format!("Set Search ({:?})", scope),
             history: self.context.get_local_search_config(scope).searches(),
@@ -1821,12 +1837,14 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
-    fn open_prompt(&mut self, prompt_config: PromptConfig) {
+    fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
         let current_component = self.current_component().clone();
-        let prompt = Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
+        let (prompt, dispatches) =
+            Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
 
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        self.handle_dispatches(dispatches)
     }
 }
 
@@ -1855,6 +1873,7 @@ impl Dimension {
     }
 }
 
+#[must_use]
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {

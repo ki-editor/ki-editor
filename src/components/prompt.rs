@@ -33,7 +33,7 @@ pub struct PromptConfig {
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig, owner_id: Option<ComponentId>) -> Self {
+    pub fn new(config: PromptConfig, owner_id: Option<ComponentId>) -> (Self, Vec<Dispatch>) {
         let text = &if config.history.is_empty() {
             "".to_string()
         } else {
@@ -53,12 +53,16 @@ impl Prompt {
             items: config.items,
             trigger_characters: vec![" ".to_string()],
         });
-        Prompt {
-            editor,
-            on_enter: config.on_enter,
-            enter_selects_first_matching_item: config.enter_selects_first_matching_item,
-            owner_id,
-        }
+        let dispatches = editor.render();
+        (
+            Prompt {
+                editor,
+                on_enter: config.on_enter,
+                enter_selects_first_matching_item: config.enter_selects_first_matching_item,
+                owner_id,
+            },
+            dispatches,
+        )
     }
 }
 

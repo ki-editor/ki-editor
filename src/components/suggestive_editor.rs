@@ -386,6 +386,14 @@ impl SuggestiveEditor {
         self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
+
+    pub(crate) fn render(&self) -> Vec<Dispatch> {
+        [Dispatch::RenderDropdown {
+            owner_id: self.id(),
+            render: self.completion_dropdown.render(),
+        }]
+        .to_vec()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

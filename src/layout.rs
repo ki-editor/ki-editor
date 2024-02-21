@@ -144,16 +144,6 @@ impl Layout {
                 .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.dropdowns
-                    .iter()
-                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.dropdown_infos
-                    .iter()
-                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
                 self.keymap_legend
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
@@ -162,6 +152,16 @@ impl Layout {
                 self.prompts
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.dropdowns
+                    .iter()
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.dropdown_infos
+                    .iter()
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
                 self.info_panel
