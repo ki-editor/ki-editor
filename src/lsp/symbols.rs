@@ -45,3 +45,8 @@ pub struct Symbol {
     pub kind: SymbolKind,
     pub location: Location,
 }
+impl Symbol {
+    pub(crate) fn display(&self) -> String {
+        format!("{} ({:?})", self.name, self.kind)
+    }
+}

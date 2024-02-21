@@ -114,7 +114,7 @@ impl Component for SuggestiveEditor {
             self.editor.enter_normal_mode()?;
             return Ok(vec![]);
         }
-        if self.editor.mode == Mode::Insert && self.completion_dropdown.current_item().is_some() {
+        if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             match event {
                 key!("ctrl+n") | key!("down") => {
                     self.completion_dropdown.next_item();
@@ -244,7 +244,7 @@ impl Component for SuggestiveEditor {
 
         self.code_action_dropdown.set_filter(&filter);
         self.completion_dropdown.set_filter(&filter);
-        let dropdown_render = if self.completion_dropdown.current_item().is_some() {
+        let dropdown_render = if self.completion_dropdown_opened() {
             Some(self.completion_dropdown.render())
         } else if self.code_action_dropdown.current_item().is_some() {
             Some(self.code_action_dropdown.render())
@@ -365,12 +365,12 @@ impl SuggestiveEditor {
             .enter_insert_mode(super::editor::Direction::Start)
     }
 
-    pub fn current_item(&mut self) -> Option<CompletionItem> {
-        todo!("remove this method")
+    pub fn completion_dropdown_current_item(&mut self) -> Option<CompletionItem> {
+        self.completion_dropdown.current_item()
     }
 
-    pub fn dropdown_opened(&self) -> bool {
-        todo!("remove this method")
+    pub fn completion_dropdown_opened(&self) -> bool {
+        self.completion_dropdown.current_item().is_some()
     }
 
     #[cfg(test)]
@@ -378,15 +378,11 @@ impl SuggestiveEditor {
         todo!("remove this method")
     }
 
-    fn menu_opened(&self) -> bool {
-        self.code_action_dropdown.current_item().is_some()
-    }
-
     fn close_all_subcomponents(&mut self) {
         self.info_panel = None;
     }
 
-    fn set_completion(&mut self, completion: Completion) {
+    pub fn set_completion(&mut self, completion: Completion) {
         self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
@@ -462,7 +458,7 @@ mod test_suggestive_editor {
 
         // Expect the completion dropdown to be open,
         // and the dropdown items to be filtered
-        assert!(editor.dropdown_opened());
+        assert!(editor.completion_dropdown_opened());
         assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
 
         // Type in space, then 's'
@@ -470,7 +466,7 @@ mod test_suggestive_editor {
 
         // Expect the completion dropdown to be hidden,
         // and the dropdown items to be filtered by the current line, 'pa s'
-        assert!(!editor.dropdown_opened());
+        assert!(!editor.completion_dropdown_opened());
         assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
 
         // Type in enter
@@ -485,7 +481,7 @@ mod test_suggestive_editor {
         // Expect the completion dropdown to be open,
         // and all dropdown items to be shown,
         // because the current line is empty
-        assert!(editor.dropdown_opened());
+        assert!(editor.completion_dropdown_opened());
         assert_eq!(
             editor.filtered_dropdown_items(),
             vec!["Patrick", "Spongebob", "Squidward"]
@@ -520,7 +516,7 @@ mod test_suggestive_editor {
 
         // Expect the completion dropdown to be open,
         // and the dropdown items to be filtered by the current line, 's'
-        assert!(editor.dropdown_opened());
+        assert!(editor.completion_dropdown_opened());
         assert_eq!(
             editor.filtered_dropdown_items(),
             vec!["Spongebob", "Squidward"]
@@ -616,7 +612,7 @@ mod test_suggestive_editor {
                 // Press tab
                 App(HandleKeyEvent(key!("tab"))),
                 // Expect the buffer to contain the selected item
-                Expect(CurrentFileContent("Patrick")),
+                Expect(CurrentComponentContent("Patrick")),
                 Expect(CompletionDropdownIsOpen(false)),
             ])
         })
@@ -647,9 +643,9 @@ mod test_suggestive_editor {
                     }],
                 })),
                 App(HandleKeyEvent(key!("tab"))),
-                Expect(CurrentFileContent("Spongebob")),
+                Expect(CurrentComponentContent("Spongebob")),
                 App(HandleKeyEvents(keys!("e n d").to_vec())),
-                Expect(CurrentFileContent("Spongebobend")),
+                Expect(CurrentComponentContent("Spongebobend")),
             ])
         })
     }
@@ -682,7 +678,7 @@ mod test_suggestive_editor {
                     .to_vec(),
                 )),
                 App(HandleKeyEvent(key!("enter"))),
-                Expect(CurrentFileContent("a.to_string")),
+                Expect(CurrentComponentContent("a.to_string")),
             ])
         })
     }
@@ -795,7 +791,7 @@ mod test_suggestive_editor {
                 App(HandleKeyEvent(key!("tab"))),
                 // Expect the content of the buffer to be applied with the new edit,
                 // resulting in 'Spongebob', and does not contain emoji
-                Expect(CurrentFileContent("Spongebob")),
+                Expect(CurrentComponentContent("Spongebob")),
             ])
         })
     }

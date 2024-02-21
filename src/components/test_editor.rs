@@ -5,9 +5,7 @@ mod test_editor {
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::rectangle::Rectangle;
     use crate::selection_mode::Inside;
-    use crate::test_app::test_app::execute_test;
-    use crate::test_app::test_app::ExpectKind;
-    use crate::{test_app::test_app::ExpectKind::*, test_app::test_app::Step::*};
+    use crate::test_app::test_app::*;
 
     use crate::{
         app::Dispatch,
@@ -23,8 +21,6 @@ mod test_editor {
         selection_mode::inside::InsideKind,
         themes::Theme,
     };
-    use Dispatch::*;
-    use DispatchEditor::*;
 
     use itertools::Itertools;
     use my_proc_macros::{hex, key, keys};
@@ -82,7 +78,7 @@ mod test_editor {
                 ))),
                 Expect(CurrentSelectedTexts(&["a, b"])),
                 Editor(Raise),
-                Expect(CurrentFileContent("fn main() { a, b }")),
+                Expect(CurrentComponentContent("fn main() { a, b }")),
             ])
         })
     }
@@ -121,7 +117,7 @@ mod test_editor {
                 Editor(SetContent("fn main() {}".to_string())),
                 Editor(SetSelectionMode(BottomNode)),
                 Editor(Kill),
-                Expect(CurrentFileContent("main() {}")),
+                Expect(CurrentComponentContent("main() {}")),
                 Expect(CurrentSelectedTexts(&["main"])),
             ])
         })
@@ -136,7 +132,7 @@ mod test_editor {
                 Editor(SetContent("fn main() {}".to_string())),
                 Editor(SetSelectionMode(Character)),
                 Editor(Kill),
-                Expect(CurrentFileContent("n main() {}")),
+                Expect(CurrentComponentContent("n main() {}")),
                 Expect(CurrentSelectedTexts(&["n"])),
             ])
         })
@@ -152,7 +148,7 @@ mod test_editor {
                 Editor(SetSelectionMode(BottomNode)),
                 Editor(MoveSelection(Last)),
                 Editor(Kill),
-                Expect(CurrentFileContent("fn main() {")),
+                Expect(CurrentComponentContent("fn main() {")),
             ])
         })
     }
@@ -167,7 +163,7 @@ mod test_editor {
                 Editor(MatchLiteral("a:A".to_string())),
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(Kill),
-                Expect(CurrentFileContent("fn main(b:B) {}")),
+                Expect(CurrentComponentContent("fn main(b:B) {}")),
                 Expect(CurrentSelectedTexts(&["b:B"])),
             ])
         })
@@ -181,7 +177,7 @@ mod test_editor {
                 Editor(SetContent("fn maima() {}".to_string())),
                 Editor(MatchLiteral("ma".to_string())),
                 Editor(Kill),
-                Expect(CurrentFileContent("fn ima() {}")),
+                Expect(CurrentComponentContent("fn ima() {}")),
                 // Expect the current selection is the character after "ma"
                 Expect(CurrentSelectedTexts(&["i"])),
             ])
@@ -224,11 +220,11 @@ mod test_editor {
                 // Go to the end of the file
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_case(camelCase: String) ")),
+                Expect(CurrentComponentContent("fn snake_case(camelCase: String) ")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_case(camelCase: String")),
+                Expect(CurrentComponentContent("fn snake_case(camelCase: String")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_case(camelCase: ")),
+                Expect(CurrentComponentContent("fn snake_case(camelCase: ")),
                 Editor(DeleteWordBackward),
             ])
         })
@@ -248,19 +244,19 @@ mod test_editor {
                 Expect(CurrentSelectedTexts(&["camelCase"])),
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_case(camel: String) {}")),
+                Expect(CurrentComponentContent("fn snake_case(camel: String) {}")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_case(: String) {}")),
+                Expect(CurrentComponentContent("fn snake_case(: String) {}")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_case: String) {}")),
+                Expect(CurrentComponentContent("fn snake_case: String) {}")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn snake_: String) {}")),
+                Expect(CurrentComponentContent("fn snake_: String) {}")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent("fn : String) {}")),
+                Expect(CurrentComponentContent("fn : String) {}")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent(": String) {}")),
+                Expect(CurrentComponentContent(": String) {}")),
                 Editor(DeleteWordBackward),
-                Expect(CurrentFileContent(": String) {}")),
+                Expect(CurrentComponentContent(": String) {}")),
                 Editor(DeleteWordBackward),
             ])
         })
@@ -277,15 +273,15 @@ mod test_editor {
                 Editor(MatchLiteral("bar".to_string())),
                 Editor(KillLine(Direction::End)),
                 Editor(Insert("sparta".to_string())),
-                Expect(CurrentFileContent("lala\nfoo sparta\nyoyo")),
+                Expect(CurrentComponentContent("lala\nfoo sparta\nyoyo")),
                 Expect(CurrentMode(Mode::Insert)),
                 Expect(CurrentSelectedTexts(&[""])),
                 // Remove newline character if the character after cursor is a newline character
                 Editor(KillLine(Direction::End)),
-                Expect(CurrentFileContent("lala\nfoo spartayoyo")),
+                Expect(CurrentComponentContent("lala\nfoo spartayoyo")),
                 // Killing to the end of line WITHOUT trailing newline character
                 Editor(KillLine(Direction::End)),
-                Expect(CurrentFileContent("lala\nfoo sparta")),
+                Expect(CurrentComponentContent("lala\nfoo sparta")),
             ])
         })
     }
@@ -300,17 +296,17 @@ mod test_editor {
                 Editor(MatchLiteral("bar".to_string())),
                 Editor(KillLine(Direction::Start)),
                 Editor(Insert("sparta".to_string())),
-                Expect(CurrentFileContent("lala\nspartabar spam\nyoyo")),
+                Expect(CurrentComponentContent("lala\nspartabar spam\nyoyo")),
                 Expect(CurrentMode(Mode::Insert)),
                 Editor(KillLine(Direction::Start)),
-                Expect(CurrentFileContent("lala\nbar spam\nyoyo")),
+                Expect(CurrentComponentContent("lala\nbar spam\nyoyo")),
                 // Remove newline character if the character before cursor is a newline character
                 Editor(KillLine(Direction::Start)),
-                Expect(CurrentFileContent("lalabar spam\nyoyo")),
+                Expect(CurrentComponentContent("lalabar spam\nyoyo")),
                 Expect(EditorCursorPosition(Position { line: 0, column: 4 })),
                 // Killing to the start of line WITHOUT leading newline character
                 Editor(KillLine(Direction::Start)),
-                Expect(CurrentFileContent("bar spam\nyoyo")),
+                Expect(CurrentComponentContent("bar spam\nyoyo")),
             ])
         })
     }
@@ -326,21 +322,21 @@ mod test_editor {
                 Editor(EnterUndoTreeMode),
                 // Previous = undo
                 Editor(MoveSelection(Previous)),
-                Expect(CurrentFileContent("a\n")),
+                Expect(CurrentComponentContent("a\n")),
                 // Next = redo
                 Editor(MoveSelection(Next)),
-                Expect(CurrentFileContent("abc\n")),
+                Expect(CurrentComponentContent("abc\n")),
                 Editor(MoveSelection(Previous)),
-                Expect(CurrentFileContent("a\n")),
+                Expect(CurrentComponentContent("a\n")),
                 Editor(Insert("de".to_string())),
                 Editor(EnterUndoTreeMode),
                 // Down = go to previous history branch
                 Editor(MoveSelection(Down)),
                 // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
-                Expect(CurrentFileContent("abc\n")),
+                Expect(CurrentComponentContent("abc\n")),
                 // Up = go to next history branch
                 Editor(MoveSelection(Up)),
-                Expect(CurrentFileContent("ade\n")),
+                Expect(CurrentComponentContent("ade\n")),
             ])
         })
     }
@@ -366,10 +362,10 @@ mod test_editor {
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(EnterExchangeMode),
                 Editor(MoveSelection(Next)),
-                Expect(CurrentFileContent("fn f(y:b,x:a){} fn g(y:b,x:a){}")),
+                Expect(CurrentComponentContent("fn f(y:b,x:a){} fn g(y:b,x:a){}")),
                 Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
                 Editor(MoveSelection(Previous)),
-                Expect(CurrentFileContent("fn f(x:a,y:b){} fn g(x:a,y:b){}")),
+                Expect(CurrentComponentContent("fn f(x:a,y:b){} fn g(x:a,y:b){}")),
             ])
         })
     }
@@ -391,14 +387,14 @@ mod test_editor {
                 Editor(MoveSelection(Previous)),
                 // Kill "foo"
                 Editor(Kill),
-                Expect(CurrentFileContent("bar spim")),
+                Expect(CurrentComponentContent("bar spim")),
                 Editor(SetSelectionMode(Bookmark)),
                 // Expect bookmark position is updated, and still selects "spim"
                 Expect(CurrentSelectedTexts(&["spim"])),
                 // Remove "m" from "spim"
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(Backspace),
-                Expect(CurrentFileContent("bar spi")),
+                Expect(CurrentComponentContent("bar spi")),
                 Editor(EnterNormalMode),
                 Editor(SetSelectionMode(Bookmark)),
                 // Expect the "spim" bookmark is removed
@@ -417,10 +413,10 @@ mod test_editor {
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(MoveToLineEnd),
                 Editor(Insert(" world".to_string())),
-                Expect(CurrentFileContent("hello world\n")),
+                Expect(CurrentComponentContent("hello world\n")),
                 Editor(MoveToLineStart),
                 Editor(Insert("hey ".to_string())),
-                Expect(CurrentFileContent("hey hello world\n")),
+                Expect(CurrentComponentContent("hey hello world\n")),
             ])
         })
     }
@@ -436,9 +432,9 @@ mod test_editor {
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(EnterExchangeMode),
                 Editor(MoveSelection(Next)),
-                Expect(CurrentFileContent("fn main(y: Vec<A>, x: usize) {}")),
+                Expect(CurrentComponentContent("fn main(y: Vec<A>, x: usize) {}")),
                 Editor(MoveSelection(Previous)),
-                Expect(CurrentFileContent("fn main(x: usize, y: Vec<A>) {}")),
+                Expect(CurrentComponentContent("fn main(x: usize, y: Vec<A>) {}")),
             ])
         })
     }
@@ -455,9 +451,9 @@ mod test_editor {
                 Expect(CurrentSelectedTexts(&["use a;"])),
                 Editor(EnterExchangeMode),
                 Editor(MoveSelection(Next)),
-                Expect(CurrentFileContent("use b;\nuse a;\nuse c;")),
+                Expect(CurrentComponentContent("use b;\nuse a;\nuse c;")),
                 Editor(MoveSelection(Next)),
-                Expect(CurrentFileContent("use b;\nuse c;\nuse a;")),
+                Expect(CurrentComponentContent("use b;\nuse c;\nuse a;")),
             ])
         })
     }
@@ -487,9 +483,9 @@ mod test_editor {
                 Editor(MatchLiteral("c()".to_string())),
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(Raise),
-                Expect(CurrentFileContent("fn main() { let x = c(); }")),
+                Expect(CurrentComponentContent("fn main() { let x = c(); }")),
                 Editor(Raise),
-                Expect(CurrentFileContent("fn main() { c() }")),
+                Expect(CurrentComponentContent("fn main() { c() }")),
             ])
         })
     }
@@ -522,7 +518,7 @@ mod test_editor {
                 Editor(MatchLiteral("(a).b()".to_string())),
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(Raise),
-                Expect(CurrentFileContent("fn main() { (a).b() }")),
+                Expect(CurrentComponentContent("fn main() { (a).b() }")),
             ])
         })
     }
@@ -546,12 +542,14 @@ mod test_editor {
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["a", "b"])),
                 Editor(Raise),
-                Expect(CurrentFileContent("fn f(){ let x = a; let y = b; }")),
+                Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
                 Editor(Undo),
-                Expect(CurrentFileContent("fn f(){ let x = S(a); let y = S(b); }")),
+                Expect(CurrentComponentContent(
+                    "fn f(){ let x = S(a); let y = S(b); }",
+                )),
                 Expect(CurrentSelectedTexts(&["a", "b"])),
                 Editor(Redo),
-                Expect(CurrentFileContent("fn f(){ let x = a; let y = b; }")),
+                Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
                 Expect(CurrentSelectedTexts(&["a", "b"])),
             ])
         })
@@ -574,7 +572,7 @@ fn f() {
                 Editor(MatchLiteral("let x = ".to_string())),
                 Editor(OpenNewLine),
                 Editor(Insert("let y = S(b);".to_string())),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "
 fn f() {
     let x = S(a);
@@ -603,7 +601,7 @@ fn main() {
                 )),
                 Editor(SetSelectionMode(LineTrimmed)),
                 Editor(Exchange(Next)),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "
 let x = 1;
     fn main() {
@@ -612,7 +610,7 @@ let x = 1;
                     .trim(),
                 )),
                 Editor(Exchange(Previous)),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "
 fn main() {
     let x = 1;
@@ -632,13 +630,13 @@ fn main() {
                 Editor(SetContent("fn main() { let x = 1; }".to_string())),
                 Editor(SetSelectionMode(Character)),
                 Editor(Exchange(Next)),
-                Expect(CurrentFileContent("nf main() { let x = 1; }")),
+                Expect(CurrentComponentContent("nf main() { let x = 1; }")),
                 Editor(Exchange(Next)),
-                Expect(CurrentFileContent("n fmain() { let x = 1; }")),
+                Expect(CurrentComponentContent("n fmain() { let x = 1; }")),
                 Editor(Exchange(Previous)),
-                Expect(CurrentFileContent("nf main() { let x = 1; }")),
+                Expect(CurrentComponentContent("nf main() { let x = 1; }")),
                 Editor(Exchange(Previous)),
-                Expect(CurrentFileContent("fn main() { let x = 1; }")),
+                Expect(CurrentComponentContent("fn main() { let x = 1; }")),
             ])
         })
     }
@@ -655,9 +653,9 @@ fn main() {
                 Expect(CurrentSelectedTexts(&["usize", "char"])),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(Insert("pub ".to_string())),
-                Expect(CurrentFileContent("struct A(pub usize, pub char)")),
+                Expect(CurrentComponentContent("struct A(pub usize, pub char)")),
                 Editor(Backspace),
-                Expect(CurrentFileContent("struct A(pubusize, pubchar)")),
+                Expect(CurrentComponentContent("struct A(pubusize, pubchar)")),
                 Expect(CurrentSelectedTexts(&["", ""])),
             ])
         })
@@ -674,7 +672,7 @@ fn main() {
                 )),
                 App(SetClipboardContent("let z = S(c);".to_string())),
                 Editor(Paste),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
                 )),
             ])
@@ -691,10 +689,10 @@ fn main() {
                 Editor(Insert("hello".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Editor(Insert("world".to_string())),
-                Expect(CurrentFileContent("hello\nworld")),
+                Expect(CurrentComponentContent("hello\nworld")),
                 App(HandleKeyEvent(key!("left"))),
                 App(HandleKeyEvent(key!("enter"))),
-                Expect(CurrentFileContent("hello\nworl\nd")),
+                Expect(CurrentComponentContent("hello\nworl\nd")),
             ])
         })
     }
@@ -708,7 +706,7 @@ fn main() {
                 Editor(SetSelectionMode(Word)),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(Insert("hello".to_string())),
-                Expect(CurrentFileContent("hellofn main() {}")),
+                Expect(CurrentComponentContent("hellofn main() {}")),
             ])
         })
     }
@@ -722,7 +720,7 @@ fn main() {
                 Editor(SetSelectionMode(Word)),
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(Insert("hello".to_string())),
-                Expect(CurrentFileContent("fnhello main() {}")),
+                Expect(CurrentComponentContent("fnhello main() {}")),
             ])
         })
     }
@@ -796,7 +794,7 @@ fn main() {
                 Editor(Change),
                 Editor(Insert("wow".to_string())),
                 Expect(CurrentSelectedTexts(&[""])),
-                Expect(CurrentFileContent("wow yo")),
+                Expect(CurrentComponentContent("wow yo")),
             ])
         })
     }
@@ -1227,12 +1225,12 @@ src/main.rs 🦀
                 Editor(MoveSelection(Previous)),
                 // Kill "foo"
                 Editor(Kill),
-                Expect(CurrentFileContent("bar spim")),
+                Expect(CurrentComponentContent("bar spim")),
                 // Expect bookmark position is updated (still selects "spim")
                 Editor(SetSelectionMode(Bookmark)),
                 Expect(CurrentSelectedTexts(&["spim"])),
                 Editor(Undo),
-                Expect(CurrentFileContent("foo bar spim")),
+                Expect(CurrentComponentContent("foo bar spim")),
                 // Expect bookmark position is updated (still selects "spim")
                 Editor(SetSelectionMode(Bookmark)),
                 Expect(CurrentSelectedTexts(&["spim"])),
@@ -1261,7 +1259,7 @@ src/main.rs 🦀
                 Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(Save),
                 // Expect the content is formatted (second line dedented)
-                Expect(CurrentFileContent("// foo bar spim\nfn foo() {}\n")),
+                Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
                 Editor(SetSelectionMode(Character)),
                 Expect(CurrentSelectedTexts(&["b"])),
                 // Expect the bookmark on "bar" is not destroyed
@@ -1353,7 +1351,7 @@ src/main.rs 🦀
                 Editor(SetContent("fn main() { x.y() }".to_string())),
                 Editor(MatchLiteral("x.y()".to_string())),
                 App(HandleKeyEvents(keys!("( { [ <").to_vec())),
-                Expect(CurrentFileContent("fn main() { <[{(x.y())}]> }")),
+                Expect(CurrentComponentContent("fn main() { <[{(x.y())}]> }")),
                 Expect(CurrentSelectedTexts(&["<[{(x.y())}]>"])),
             ])
         })
@@ -1367,7 +1365,7 @@ src/main.rs 🦀
                 Editor(SetContent("fn main() { x.y() }".to_string())),
                 Editor(MatchLiteral("x.y()".to_string())),
                 App(HandleKeyEvents(keys!(") } ] >").to_vec())),
-                Expect(CurrentFileContent("fn main() { <[{(x.y())}]> }")),
+                Expect(CurrentComponentContent("fn main() { <[{(x.y())}]> }")),
                 Expect(CurrentSelectedTexts(&["<[{(x.y())}]>"])),
             ])
         })

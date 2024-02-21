@@ -392,17 +392,15 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
             }
-            Dispatch::OpenSearchPrompt {
-                mode,
-                scope,
-                owner_id,
-            } => self.open_search_prompt(mode, scope, owner_id),
+            Dispatch::OpenSearchPrompt { scope, owner_id } => {
+                self.open_search_prompt(scope, owner_id)
+            }
             Dispatch::OpenFile(path) => {
                 self.open_file(&path, true)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
-                self.open_file_picker(kind)?;
+                self.open_file_picker(kind);
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
@@ -517,18 +515,12 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenInsideOtherPromptClose { open } => {
                 self.open_inside_other_prompt_close(open)
             }
-            Dispatch::OpenOmitLiteralPrompt { kind, target } => self.open_omit_prompt(
+            Dispatch::OpenOmitPrompt {
                 kind,
                 target,
-                "Literal",
-                Box::new(|text| Ok(FilterMechanism::Literal(text.to_string()))),
-            ),
-            Dispatch::OpenOmitRegexPrompt { kind, target } => self.open_omit_prompt(
-                kind,
-                target,
-                "Regex",
-                Box::new(|text| Ok(FilterMechanism::Regex(regex::Regex::new(text)?))),
-            ),
+                make_mechanism,
+            } => self.open_omit_prompt(kind, target, make_mechanism),
+
             Dispatch::LspExecuteCommand { command, params } => self
                 .lsp_manager
                 .workspace_execute_command(params, command)?,
@@ -545,8 +537,10 @@ impl<T: Frontend> App<T> {
                 update,
                 owner_id,
                 scope,
-                show_legend,
-            } => self.update_local_search_config(update, owner_id, scope, show_legend)?,
+                show_config_after_enter,
+            } => {
+                self.update_local_search_config(update, owner_id, scope, show_config_after_enter)?
+            }
             Dispatch::UpdateGlobalSearchConfig { owner_id, update } => {
                 self.update_global_search_config(owner_id, update)?;
             }
@@ -600,6 +594,7 @@ impl<T: Frontend> App<T> {
                 }
                 self.handle_dispatches(dispatches)?;
             }
+            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config),
         }
         Ok(())
     }
@@ -638,240 +633,114 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_move_to_index_prompt(&mut self) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: "Move to index".to_string(),
             history: vec![],
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                let index = text.parse::<usize>()?.saturating_sub(1);
-                Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    Movement::Index(index),
-                ))]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::MoveSelectionByIndex,
             items: vec![],
             enter_selects_first_matching_item: false,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_rename_prompt(&mut self, params: RequestParams, current_name: Option<String>) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: "Rename".to_string(),
             history: current_name.into_iter().collect_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok(vec![Dispatch::RenameSymbol {
-                    params: params.clone(),
-                    new_name: text.to_string(),
-                }])
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::RenameSymbol { params },
             items: vec![],
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_search_prompt(
-        &mut self,
-        mode: LocalSearchConfigMode,
-        scope: Scope,
-        owner_id: ComponentId,
-    ) {
-        let current_component = self.current_component().clone();
+    fn open_search_prompt(&mut self, scope: Scope, owner_id: ComponentId) {
         let config = self.context.get_local_search_config(scope);
-        log::info!("config.searches = {:#?}", config.searches());
-        let prompt = Prompt::new(PromptConfig {
+        let mode = config.mode;
+        self.open_prompt(PromptConfig {
             title: format!("{:?} search ({})", scope, mode.display()),
             history: config.searches(),
-            owner: current_component.clone(),
             items: self.words(),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    update: LocalSearchConfigUpdate::SetSearch(text.to_string()),
-                    scope,
-                    show_legend: false,
-                }]
-                .to_vec())
-            }),
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
+                scope,
+                owner_id,
+                show_config_after_enter: false,
+            },
             enter_selects_first_matching_item: false,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_inside_other_prompt_open(&mut self) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: "Inside (other): Open".to_string(),
             history: Vec::new(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::OpenInsideOtherPromptClose {
-                    open: text.to_owned(),
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::OpenInsideOtherPromptClose,
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_inside_other_prompt_close(&mut self, open: String) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Inside (other, open = '{}'): Close", open),
             history: Vec::new(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(
-                    InsideKind::Other {
-                        open: open.clone(),
-                        close: text.to_owned(),
-                    },
-                ))]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::EnterInsideMode { open },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_add_path_prompt(&mut self, path: CanonicalizedPath) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: "Add path".to_string(),
             history: [path.display_absolute()].to_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::AddPath,
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_move_file_prompt(&mut self, path: CanonicalizedPath) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: "Move file".to_string(),
             history: [path.display_absolute()].to_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::MoveFile {
-                    from: path.clone(),
-                    to: text.try_into()?,
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::MovePath { from: path },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_symbol_picker(
-        &mut self,
-        component_id: ComponentId,
-        symbols: Symbols,
-    ) -> anyhow::Result<()> {
-        let current_component = self.current_component();
-        if !current_component
-            .as_ref()
-            .is_some_and(|component| component.borrow().id() == component_id)
-        {
-            return Ok(());
-        }
-        let prompt =
-            Prompt::new(PromptConfig {
-                title: "Symbols".to_string(),
-                history: vec![],
-                owner: current_component,
-                on_text_change: Box::new(|_, _| Ok(vec![])),
-                items: symbols
-                    .symbols
-                    .iter()
-                    .map(|symbol| {
-                        CompletionItem::from_label(format!("{} ({:?})", symbol.name, symbol.kind))
-                    })
-                    .collect_vec(),
-                on_enter: Box::new(move |current_item, _| {
-                    // TODO: make Prompt generic over the item type,
-                    // so that we don't have to do this,
-                    // i.e. we can just return the symbol directly,
-                    // instead of having to find it again.
-                    if let Some(symbol) = symbols.symbols.iter().find(|symbol| {
-                        current_item == &format!("{} ({:?})", symbol.name, symbol.kind)
-                    }) {
-                        Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
-                    } else {
-                        Ok(vec![])
-                    }
-                }),
-                enter_selects_first_matching_item: true,
-            });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
-        Ok(())
+    fn open_symbol_picker(&mut self, component_id: ComponentId, symbols: Symbols) {
+        self.open_prompt(PromptConfig {
+            title: "Symbols".to_string(),
+            history: vec![],
+            items: symbols
+                .symbols
+                .iter()
+                .map(|symbol| CompletionItem::from_label(symbol.display()))
+                .collect_vec(),
+            on_enter: DispatchPrompt::SelectSymbol { symbols },
+            enter_selects_first_matching_item: true,
+        })
     }
 
     fn open_command_prompt(&mut self) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: "Command".to_string(),
             history: vec![],
-            owner: current_component,
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::RunCommand(text.to_string())]
-                    .into_iter()
-                    .collect())
-            }),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
+            on_enter: DispatchPrompt::RunCommand,
             items: crate::command::commands()
                 .iter()
                 .flat_map(|command| command.to_completion_items())
                 .collect(),
             enter_selects_first_matching_item: true,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
-        let current_component = self.current_component().clone();
-
         let working_directory = self.working_directory.clone();
-        let prompt = Prompt::new(PromptConfig {
+        Ok(self.open_prompt(PromptConfig {
             title: format!("Open file: {}", kind.display()),
             history: vec![],
-            owner: current_component,
-            on_enter: Box::new(move |current_item, _| {
-                let path = working_directory.join(current_item)?;
-                Ok(vec![Dispatch::OpenFile(path)])
-            }),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
+            on_enter: DispatchPrompt::OpenFile { working_directory },
             items: {
                 match kind {
                     FilePickerKind::NonGitIgnored => {
@@ -888,10 +757,7 @@ impl<T: Frontend> App<T> {
                 .collect_vec()
             },
             enter_selects_first_matching_item: true,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
-        Ok(())
+        }))
     }
 
     /// This is different from `open_file` because it has the additional `update_selection_set` argument.
@@ -1082,7 +948,8 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::Symbols(context, symbols) => {
-                self.open_symbol_picker(context.component_id, symbols)
+                self.open_symbol_picker(context.component_id, symbols);
+                Ok(())
             }
         }
     }
@@ -1515,30 +1382,22 @@ impl<T: Frontend> App<T> {
         &mut self,
         kind: FilterKind,
         target: FilterTarget,
-        mechanism: &str,
-        make_filter_mechanism: Box<dyn Fn(&str) -> anyhow::Result<FilterMechanism>>,
+        make_mechanism: MakeFilterMechanism,
     ) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!(
-                "Omit: {:?} selection by {:?} matching {}",
-                kind, target, mechanism
+                "Omit: {:?} selection by {:?} matching {:?}",
+                kind, target, make_mechanism
             ),
             history: Vec::new(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
-                    Filter::new(kind, target, make_filter_mechanism(text)?),
-                ))]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::PushFilter {
+                kind,
+                target,
+                make_mechanism,
+            },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn update_selection_set(
@@ -1676,24 +1535,16 @@ impl<T: Frontend> App<T> {
             GlobalSearchFilterGlob::Include => config.include_globs(),
             GlobalSearchFilterGlob::Exclude => config.exclude_globs(),
         };
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Set global search {:?} files glob", filter_glob),
             history,
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateGlobalSearchConfig {
-                    owner_id,
-                    update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::GlobalSearchConfigSetGlob {
+                owner_id,
+                filter_glob,
+            },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
@@ -1716,7 +1567,7 @@ impl<T: Frontend> App<T> {
                         update,
                         owner_id,
                         scope,
-                        show_legend: true,
+                        show_config_after_enter: true,
                     },
                 )
             };
@@ -1867,51 +1718,27 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_update_replacement_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Set Replace ({:?})", scope),
             history: self.context.get_local_search_config(scope).replacements(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    scope,
-                    update: LocalSearchConfigUpdate::SetReplacement(text.to_owned()),
-                    show_legend: true,
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_update_search_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Set Search ({:?})", scope),
             history: self.context.get_local_search_config(scope).searches(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    scope,
-                    update: LocalSearchConfigUpdate::SetSearch(text.to_owned()),
-                    show_legend: true,
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
+                scope,
+                owner_id,
+                show_config_after_enter: true,
+            },
             items: self.words(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn words(&self) -> Vec<CompletionItem> {
@@ -1959,7 +1786,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn get_current_file_content(&self) -> String {
+    pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component()
             .unwrap()
             .borrow()
@@ -1992,6 +1819,14 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
         self.layout.current_completion_dropdown()
+    }
+
+    fn open_prompt(&mut self, prompt_config: PromptConfig) {
+        let current_component = self.current_component().clone();
+        let prompt = Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
     }
 }
 
@@ -2029,7 +1864,6 @@ pub enum Dispatch {
     },
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
-        mode: LocalSearchConfigMode,
         scope: Scope,
         owner_id: ComponentId,
     },
@@ -2109,13 +1943,10 @@ pub enum Dispatch {
     OpenInsideOtherPromptClose {
         open: String,
     },
-    OpenOmitLiteralPrompt {
+    OpenOmitPrompt {
         kind: FilterKind,
         target: FilterTarget,
-    },
-    OpenOmitRegexPrompt {
-        kind: FilterKind,
-        target: FilterTarget,
+        make_mechanism: MakeFilterMechanism,
     },
     LspExecuteCommand {
         params: RequestParams,
@@ -2131,7 +1962,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
         update: LocalSearchConfigUpdate,
         scope: Scope,
-        show_legend: bool,
+        show_config_after_enter: bool,
     },
     UpdateGlobalSearchConfig {
         owner_id: ComponentId,
@@ -2167,6 +1998,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
         render: DropdownRender,
     },
+    OpenPrompt(PromptConfig),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2258,4 +2090,156 @@ pub enum AppMessage {
 enum UpdateSelectionSetSource {
     PositionRange(Range<Position>),
     SelectionSet(SelectionSet),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MakeFilterMechanism {
+    Literal,
+    Regex,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DispatchPrompt {
+    PushFilter {
+        kind: FilterKind,
+        target: FilterTarget,
+        make_mechanism: MakeFilterMechanism,
+    },
+    GlobalSearchConfigSetGlob {
+        owner_id: ComponentId,
+        filter_glob: GlobalSearchFilterGlob,
+    },
+    MoveSelectionByIndex,
+    RenameSymbol {
+        params: RequestParams,
+    },
+    UpdateLocalSearchConfigSearch {
+        scope: Scope,
+        owner_id: ComponentId,
+        show_config_after_enter: bool,
+    },
+    OpenInsideOtherPromptClose,
+    EnterInsideMode {
+        open: String,
+    },
+    AddPath,
+    MovePath {
+        from: CanonicalizedPath,
+    },
+    SelectSymbol {
+        symbols: Symbols,
+    },
+    RunCommand,
+    OpenFile {
+        working_directory: CanonicalizedPath,
+    },
+    UpdateLocalSearchConfigReplacement {
+        owner_id: ComponentId,
+        scope: Scope,
+    },
+    SetContent,
+}
+impl DispatchPrompt {
+    pub fn to_dispatches(&self, text: &str) -> anyhow::Result<Vec<Dispatch>> {
+        match self.clone() {
+            DispatchPrompt::PushFilter {
+                kind,
+                target,
+                make_mechanism: mechanism,
+            } => {
+                let mechanism = match mechanism {
+                    MakeFilterMechanism::Literal => FilterMechanism::Literal(text.to_string()),
+                    MakeFilterMechanism::Regex => FilterMechanism::Regex(regex::Regex::new(text)?),
+                };
+                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
+                    Filter::new(kind, target, mechanism),
+                ))]
+                .to_vec())
+            }
+            DispatchPrompt::GlobalSearchConfigSetGlob {
+                owner_id,
+                filter_glob,
+            } => Ok([Dispatch::UpdateGlobalSearchConfig {
+                owner_id,
+                update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
+            }]
+            .to_vec()),
+            DispatchPrompt::MoveSelectionByIndex => {
+                let index = text.parse::<usize>()?.saturating_sub(1);
+                Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
+                    Movement::Index(index),
+                ))]
+                .to_vec())
+            }
+            DispatchPrompt::RenameSymbol { params } => Ok(vec![Dispatch::RenameSymbol {
+                params: params.clone(),
+                new_name: text.to_string(),
+            }]),
+            DispatchPrompt::UpdateLocalSearchConfigSearch {
+                scope,
+                owner_id,
+                show_config_after_enter,
+            } => Ok([Dispatch::UpdateLocalSearchConfig {
+                owner_id,
+                update: LocalSearchConfigUpdate::SetSearch(text.to_string()),
+                scope,
+                show_config_after_enter,
+            }]
+            .to_vec()),
+            DispatchPrompt::OpenInsideOtherPromptClose => {
+                Ok([Dispatch::OpenInsideOtherPromptClose {
+                    open: text.to_owned(),
+                }]
+                .to_vec())
+            }
+            DispatchPrompt::EnterInsideMode { open } => Ok([Dispatch::DispatchEditor(
+                DispatchEditor::EnterInsideMode(InsideKind::Other {
+                    open: open.clone(),
+                    close: text.to_owned(),
+                }),
+            )]
+            .to_vec()),
+            DispatchPrompt::AddPath => Ok([Dispatch::AddPath(text.into())].to_vec()),
+            DispatchPrompt::MovePath { from } => Ok([Dispatch::MoveFile {
+                from,
+                to: text.try_into()?,
+            }]
+            .to_vec()),
+            DispatchPrompt::SelectSymbol { symbols } => {
+                // TODO: make Prompt generic over the item type,
+                // so that we don't have to do this,
+                // i.e. we can just return the symbol directly,
+                // instead of having to find it again.
+                if let Some(symbol) = symbols
+                    .symbols
+                    .iter()
+                    .find(|symbol| text == &symbol.display())
+                {
+                    Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
+                } else {
+                    Ok(vec![])
+                }
+            }
+            DispatchPrompt::RunCommand => Ok([Dispatch::RunCommand(text.to_string())]
+                .into_iter()
+                .collect()),
+            DispatchPrompt::OpenFile { working_directory } => {
+                let path = working_directory.join(text)?;
+                Ok(vec![Dispatch::OpenFile(path)])
+            }
+            DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope } => {
+                Ok([Dispatch::UpdateLocalSearchConfig {
+                    owner_id,
+                    scope,
+                    update: LocalSearchConfigUpdate::SetReplacement(text.to_owned()),
+                    show_config_after_enter: true,
+                }]
+                .to_vec())
+            }
+            DispatchPrompt::SetContent => Ok([Dispatch::DispatchEditor(
+                DispatchEditor::SetContent(text.to_string()),
+            )]
+            .to_vec()),
+        }
+    }
 }

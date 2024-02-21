@@ -3,7 +3,7 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    app::{Dispatch, FilePickerKind, RequestParams, Scope},
+    app::{Dispatch, FilePickerKind, MakeFilterMechanism, RequestParams, Scope},
     components::keymap_legend::KeymapLegendSection,
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
@@ -230,7 +230,6 @@ impl Editor {
                                 "f",
                                 format!("Search ({})", mode.display()),
                                 Dispatch::OpenSearchPrompt {
-                                    mode,
                                     scope: Scope::Local,
                                     owner_id: self.id(),
                                 },
@@ -351,7 +350,6 @@ impl Editor {
                                 "f",
                                 format!("Search ({})", mode.display()),
                                 Dispatch::OpenSearchPrompt {
-                                    mode,
                                     scope: Scope::Global,
                                     owner_id: self.id(),
                                 },
@@ -426,12 +424,20 @@ impl Editor {
                             Keymap::new(
                                 "l",
                                 "Literal".to_string(),
-                                Dispatch::OpenOmitLiteralPrompt { kind, target },
+                                Dispatch::OpenOmitPrompt {
+                                    kind,
+                                    target,
+                                    make_mechanism: MakeFilterMechanism::Literal,
+                                },
                             ),
                             Keymap::new(
                                 "r",
                                 "Regex".to_string(),
-                                Dispatch::OpenOmitRegexPrompt { kind, target },
+                                Dispatch::OpenOmitPrompt {
+                                    kind,
+                                    target,
+                                    make_mechanism: MakeFilterMechanism::Regex,
+                                },
                             ),
                         ]
                         .as_ref(),

@@ -263,3 +263,4 @@
 - [] feat(lsp/multiple): use https://github.com/messense/multi-lsp-proxy
 - [] feat(search): search a word regardless of snake_case/camelCase/kebab-case
 - [] feat(selection-mode): press 2 to store current selection mode into secondary selection mode
+- [] feat(prompt): if only got one item, should not have new line at the beginning

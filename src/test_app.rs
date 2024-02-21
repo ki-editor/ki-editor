@@ -13,11 +13,11 @@ pub mod test_app {
         path::PathBuf,
         sync::{Arc, Mutex},
     };
-    use Dispatch::*;
-    use DispatchEditor::*;
-    use DispatchSuggestiveEditor::*;
-    use Movement::*;
-    use SelectionMode::*;
+    pub use Dispatch::*;
+    pub use DispatchEditor::*;
+    pub use DispatchSuggestiveEditor::*;
+    pub use Movement::*;
+    pub use SelectionMode::*;
 
     use shared::canonicalized_path::CanonicalizedPath;
 
@@ -70,7 +70,7 @@ pub mod test_app {
         JumpChars(&'static [char]),
         CurrentLine(&'static str),
         Not(Box<ExpectKind>),
-        CurrentFileContent(&'static str),
+        CurrentComponentContent(&'static str),
         EditorCursorPosition(Position),
         EditorGridCursorPosition(Position),
         CurrentMode(Mode),
@@ -116,9 +116,10 @@ pub mod test_app {
             }
             let component = app.current_component().unwrap();
             Ok(match self {
-                CurrentFileContent(expected_content) => {
-                    contextualize(app.get_current_file_content(), expected_content.to_string())
-                }
+                CurrentComponentContent(expected_content) => contextualize(
+                    app.get_current_component_content(),
+                    expected_content.to_string(),
+                ),
                 FileContent(path, expected_content) => {
                     contextualize(app.get_file_content(path), expected_content.clone())
                 }
@@ -248,8 +249,8 @@ pub mod test_app {
         }
     }
 
-    use ExpectKind::*;
-    use Step::*;
+    pub use ExpectKind::*;
+    pub use Step::*;
     pub struct State {
         temp_dir: CanonicalizedPath,
         main_rs: CanonicalizedPath,
@@ -367,7 +368,7 @@ pub mod test_app {
                 Editor(Copy),
                 Editor(MoveSelection(Movement::Next)),
                 Editor(ReplaceSelectionWithCopiedText),
-                Expect(CurrentFileContent("fn fn() { let x = 1; }")),
+                Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
                 Editor(ReplaceSelectionWithCopiedText),
                 Expect(CurrentSelectedTexts(&["main"])),
             ])
@@ -385,11 +386,11 @@ pub mod test_app {
                 Editor(Copy),
                 Editor(MoveSelection(Movement::Next)),
                 Editor(Paste),
-                Expect(CurrentFileContent("fn fn() { let x = 1; }")),
+                Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
                 Expect(CurrentSelectedTexts(&[""])),
                 Editor(MoveSelection(Next)),
                 Editor(Paste),
-                Expect(CurrentFileContent("fn fn(fn { let x = 1; }")),
+                Expect(CurrentComponentContent("fn fn(fn { let x = 1; }")),
             ])
         })
     }
@@ -404,11 +405,11 @@ pub mod test_app {
                 Editor(SetSelectionMode(BottomNode)),
                 Editor(Cut),
                 Editor(EnterNormalMode),
-                Expect(CurrentFileContent(" main() { let x = 1; }")),
+                Expect(CurrentComponentContent(" main() { let x = 1; }")),
                 Editor(MoveSelection(Current)),
                 Expect(CurrentSelectedTexts(&["main"])),
                 Editor(Paste),
-                Expect(CurrentFileContent(" fn() { let x = 1; }")),
+                Expect(CurrentComponentContent(" fn() { let x = 1; }")),
             ])
         })
     }
@@ -429,9 +430,11 @@ pub mod test_app {
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["fn f()"])),
                 Editor(Cut),
-                Expect(CurrentFileContent("{ let x = S(a); let y = S(b); }")),
+                Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
                 Editor(Paste),
-                Expect(CurrentFileContent("fn f(){ let x = S(a); let y = S(b); }")),
+                Expect(CurrentComponentContent(
+                    "fn f(){ let x = S(a); let y = S(b); }",
+                )),
             ])
         })
     }
@@ -455,7 +458,7 @@ pub mod test_app {
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["{"])),
                 Editor(Paste),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "fn f()fn f() let x = S(a); let y = S(b); }",
                 )),
             ])
@@ -482,7 +485,7 @@ pub mod test_app {
                 Editor(SetSelectionMode(SelectionMode::TopNode)),
                 Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
                 Editor(ReplaceSelectionWithCopiedText),
-                Expect(CurrentFileContent("fn f()fn f()")),
+                Expect(CurrentComponentContent("fn f()fn f()")),
             ])
         })
     }
@@ -505,7 +508,7 @@ pub mod test_app {
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["fn f()"])),
                 Editor(Paste),
-                Expect(CurrentFileContent("fn{ let x = S(a); let y = S(b); }")),
+                Expect(CurrentComponentContent("fn{ let x = S(a); let y = S(b); }")),
             ])
         })
     }
@@ -530,13 +533,13 @@ pub mod test_app {
                 Editor(Insert("Some(".to_owned())),
                 Editor(Paste),
                 Editor(Insert(")".to_owned())),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
                 )),
                 Editor(CursorKeepPrimaryOnly),
                 App(SetClipboardContent(".hello".to_owned())),
                 Editor(Paste),
-                Expect(CurrentFileContent(
+                Expect(CurrentComponentContent(
                     "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }",
                 )),
             ])
@@ -822,7 +825,7 @@ src/main.rs 🦀
                 owner_id,
                 update,
                 scope,
-                show_legend: true,
+                show_config_after_enter: true,
             })
         };
         let update_global = |update: GlobalSearchConfigUpdate| -> Step {
@@ -886,7 +889,7 @@ src/main.rs 🦀
                     owner_id,
                     update,
                     scope: Scope::Global,
-                    show_legend: true,
+                    show_config_after_enter: true,
                 }
             };
             let main_rs = s.main_rs();
