@@ -109,11 +109,6 @@ impl Component for SuggestiveEditor {
         context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if self.editor.mode == Mode::Insert && event == key!("esc") {
-            self.close_all_subcomponents();
-            self.editor.enter_normal_mode()?;
-            return Ok(vec![]);
-        }
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             match event {
                 key!("ctrl+n") | key!("down") => {
@@ -156,9 +151,11 @@ impl Component for SuggestiveEditor {
                         .to_vec());
                     }
                 }
+
                 _ => {}
             }
         }
+
         if self.editor.mode == Mode::Normal && self.code_action_dropdown.current_item().is_some() {
             match event {
                 key!("ctrl+n") | key!("down") => {
@@ -217,7 +214,7 @@ impl Component for SuggestiveEditor {
         };
         // Every other character typed in Insert mode should update the dropdown to show
         // relevant completions.
-        let dispatches = self.editor.handle_key_event(context, event)?;
+        let dispatches = self.editor.handle_key_event(context, event.clone())?;
 
         let filter = match self.filter {
             SuggestiveEditorFilter::CurrentWord => {
@@ -253,15 +250,18 @@ impl Component for SuggestiveEditor {
         };
         let dispatches = dispatches
             .into_iter()
-            .chain(if self.editor.mode == Mode::Insert {
-                dropdown_render.map(|render| Dispatch::RenderDropdown {
-                    render,
-                    owner_id: self.id(),
-                })
-            } else {
-                Some(Dispatch::CloseDropdown {
-                    owner_id: self.id(),
-                })
+            .chain(match event {
+                key!("esc") => [
+                    Dispatch::CloseDropdown {
+                        owner_id: self.id(),
+                    },
+                    Dispatch::CloseEditorInfo {
+                        owner_id: self.id(),
+                    },
+                    Dispatch::DispatchEditor(DispatchEditor::EnterNormalMode),
+                ]
+                .to_vec(),
+                _ => [].to_vec(),
             })
             .chain(if self.editor.mode == Mode::Insert {
                 self.editor
@@ -273,6 +273,12 @@ impl Component for SuggestiveEditor {
                         ]
                     })
                     .unwrap_or_default()
+                    .into_iter()
+                    .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
+                        render,
+                        owner_id: self.id(),
+                    }))
+                    .collect_vec()
             } else {
                 vec![]
             })
@@ -310,24 +316,6 @@ impl SuggestiveEditor {
             trigger_characters: vec![],
             filter,
         }
-    }
-
-    pub fn show_signature_help(&mut self, signature_help: Option<SignatureHelp>) {
-        if self.editor.mode != Mode::Insert {
-            return;
-        }
-        if let Some(info) = signature_help.and_then(|s| s.into_info()) {
-            self.show_info("Signature help", info);
-        } else {
-            self.info_panel = None;
-        }
-    }
-
-    pub fn show_info(&mut self, title: &str, info: Info) {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content);
-        editor.set_decorations(info.decorations());
-        editor.set_title(title.into());
-        self.info_panel = Some(Rc::new(RefCell::new(editor)));
     }
 
     pub fn handle_dispatch(
@@ -411,7 +399,7 @@ pub enum DispatchSuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::components::editor::DispatchEditor::*;
+    use crate::components::editor::{DispatchEditor::*, Movement};
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::lsp::code_action::CodeAction;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
@@ -433,7 +421,7 @@ mod test_suggestive_editor {
     use std::{cell::RefCell, rc::Rc};
     use Dispatch::*;
 
-    use super::{SuggestiveEditor, SuggestiveEditorFilter};
+    use super::{Info, SuggestiveEditor, SuggestiveEditorFilter};
     use pretty_assertions::assert_eq;
 
     fn dummy_completion() -> Completion {
@@ -747,13 +735,35 @@ mod test_suggestive_editor {
         execute_test(|s| {
             Box::new([
                 App(OpenFile(s.main_rs())),
-                Editor(SetContent("".to_string())),
                 SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(SetCompletion(dummy_completion())),
                 Expect(CompletionDropdownIsOpen(true)),
-                Editor(EnterNormalMode),
+                Expect(CurrentPath(s.main_rs())),
+                App(HandleKeyEvent(key!("esc"))),
                 Expect(CompletionDropdownIsOpen(false)),
+                App(HandleKeyEvent(key!("n"))),
+                Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    fn enter_normal_mode_should_close_info() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                App(ShowEditorInfo {
+                    title: "".to_string(),
+                    info: Info::default(),
+                }),
+                Expect(EditorInfoOpen(true)),
+                Expect(CurrentPath(s.main_rs())),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(EditorInfoOpen(false)),
             ])
         })
     }
@@ -854,7 +864,7 @@ mod test_suggestive_editor {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct Info {
     content: String,
     decorations: Vec<Decoration>,

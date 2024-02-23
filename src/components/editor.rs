@@ -735,9 +735,9 @@ impl Editor {
             .partition(|line| line.line < self.scroll_offset as usize))
     }
 
-    pub fn show_info(&mut self, info: Info) {
+    pub fn show_info(&mut self, info: Info) -> Result<(), anyhow::Error> {
         self.set_decorations(info.decorations());
-        self.set_content(info.content());
+        self.set_content(info.content())
     }
 
     pub fn render_dropdown(
@@ -1268,7 +1268,7 @@ impl Editor {
     }
 
     pub fn show_undo_tree_dispatch(&self) -> Dispatch {
-        Dispatch::ShowInfo {
+        Dispatch::ShowGlobalInfo {
             title: "Undo Tree History".to_string(),
             info: Info::new(self.buffer().display_history()),
         }
@@ -2701,7 +2701,7 @@ impl Editor {
                     .flatten()
                     .reduce(Info::join)
                 {
-                    [Dispatch::ShowInfo {
+                    [Dispatch::ShowGlobalInfo {
                         title: "INFO".to_string(),
                         info,
                     }]

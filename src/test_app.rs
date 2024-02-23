@@ -56,6 +56,7 @@ pub mod test_app {
 
     #[derive(Debug)]
     pub enum ExpectKind {
+        EditorInfoOpen(bool),
         QuickfixListCurrentLine(&'static str),
         DropdownInfosCount(usize),
         QuickfixListContent(String),
@@ -252,6 +253,7 @@ pub mod test_app {
                     app.quickfix_list().unwrap().borrow().current_line()?,
                     actual.to_string(),
                 ),
+                EditorInfoOpen(actual) => contextualize(app.editor_info_open(), *actual),
             })
         }
     }

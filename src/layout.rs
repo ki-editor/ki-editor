@@ -30,7 +30,7 @@ use std::{cell::RefCell, rc::Rc};
 /// hover text, diagnostics, etc.
 pub struct Layout {
     main_panel: MainPanel,
-    info_panel: Option<Rc<RefCell<Editor>>>,
+    global_info: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Vec<Rc<RefCell<KeymapLegend>>>,
     quickfix_list: Option<Rc<RefCell<Editor>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
@@ -38,6 +38,7 @@ pub struct Layout {
     file_explorer: Rc<RefCell<FileExplorer>>,
     dropdowns: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
     dropdown_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
+    editor_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
 
     file_explorer_open: bool,
 
@@ -108,7 +109,7 @@ impl Layout {
                 editor: None,
                 working_directory: working_directory.clone(),
             },
-            info_panel: None,
+            global_info: None,
             keymap_legend: vec![],
             quickfix_list: None,
             prompts: vec![],
@@ -122,6 +123,7 @@ impl Layout {
             working_directory: working_directory.clone(),
             dropdowns: IndexMap::new(),
             dropdown_infos: IndexMap::new(),
+            editor_infos: IndexMap::new(),
         })
     }
 
@@ -164,7 +166,12 @@ impl Layout {
                     .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.info_panel
+                self.editor_infos
+                    .iter()
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.global_info
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
@@ -227,9 +234,11 @@ impl Layout {
 
             self.keymap_legend.retain(|c| c.borrow().id() != id);
 
-            self.info_panel = self.info_panel.take().filter(|c| c.borrow().id() != id);
+            self.global_info = self.global_info.take().filter(|c| c.borrow().id() != id);
 
             self.quickfix_list = self.quickfix_list.take().filter(|c| c.borrow().id() != id);
+
+            self.editor_infos.shift_remove(&id);
 
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
@@ -384,7 +393,7 @@ impl Layout {
     }
 
     pub fn show_info(&mut self, title: &str, info: Info) -> anyhow::Result<()> {
-        let info_panel = self.info_panel.take().unwrap_or_else(|| {
+        let info_panel = self.global_info.take().unwrap_or_else(|| {
             Rc::new(RefCell::new(Editor::from_text(
                 tree_sitter_md::language(),
                 "",
@@ -392,7 +401,7 @@ impl Layout {
         });
         info_panel.borrow_mut().set_title(title.to_string());
         info_panel.borrow_mut().show_info(info);
-        self.info_panel = Some(info_panel);
+        self.global_info = Some(info_panel);
 
         Ok(())
     }
@@ -405,7 +414,7 @@ impl Layout {
     }
 
     pub fn close_all_except_main_panel(&mut self) {
-        self.info_panel = None;
+        self.global_info = None;
         self.keymap_legend = vec![];
         self.quickfix_list = None;
         self.prompts = vec![];
@@ -480,7 +489,7 @@ impl Layout {
     }
 
     pub(crate) fn get_info(&self) -> Option<String> {
-        self.info_panel
+        self.global_info
             .as_ref()
             .map(|info_panel| info_panel.borrow().text())
     }
@@ -560,7 +569,6 @@ impl Layout {
 
     /// `id` is either the `id` of the dropdown or of its owner
     pub(crate) fn close_dropdown(&mut self, id: ComponentId) {
-        panic!();
         self.dropdowns
             .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
         self.dropdown_infos
@@ -627,6 +635,28 @@ impl Layout {
 
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
         self.dropdown_infos.len()
+    }
+
+    pub(crate) fn show_editor_info(
+        &mut self,
+        owner_id: ComponentId,
+        title: &str,
+        info: Info,
+    ) -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content());
+        editor.set_title(title.to_string());
+        editor.show_info(info)?;
+        self.editor_infos
+            .insert(owner_id, Rc::new(RefCell::new(editor)));
+        Ok(())
+    }
+
+    pub(crate) fn editor_info_open(&self) -> bool {
+        self.editor_infos.len() > 0
+    }
+
+    pub(crate) fn close_editor_info(&mut self, owner_id: ComponentId) {
+        self.editor_infos.shift_remove(&owner_id);
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

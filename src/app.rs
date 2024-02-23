@@ -178,7 +178,7 @@ impl<T: Frontend> App<T> {
                     .map(|_| false),
             }
             .unwrap_or_else(|e| {
-                self.show_info("ERROR", Info::new(e.to_string()));
+                self.show_global_info("ERROR", Info::new(e.to_string()));
                 false
             });
 
@@ -228,7 +228,9 @@ impl<T: Frontend> App<T> {
                 component.map(|component| {
                     let dispatches = component.borrow_mut().handle_event(&self.context, event);
                     self.handle_dispatches_result(dispatches)
-                        .unwrap_or_else(|e| self.show_info("ERROR", Info::new(e.to_string())));
+                        .unwrap_or_else(|e| {
+                            self.show_global_info("ERROR", Info::new(e.to_string()))
+                        });
                 });
             }
         }
@@ -462,7 +464,7 @@ impl<T: Frontend> App<T> {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
+            Dispatch::ShowGlobalInfo { title, info } => self.show_global_info(&title, info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
@@ -582,6 +584,12 @@ impl<T: Frontend> App<T> {
                 self.render_dropdown(Some(owner_id), dropdown, render)?
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
+            Dispatch::ShowEditorInfo { title, info } => {
+                if let Some(component) = self.current_component() {
+                    self.show_editor_info(component.borrow().id(), &title, info)?
+                }
+            }
+            Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
         }
         Ok(())
     }
@@ -820,18 +828,17 @@ impl<T: Frontend> App<T> {
 
     pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::Hover(context, hover) => {
-                self.get_suggestive_editor(context.component_id)?
-                    .borrow_mut()
-                    .show_info("Hover info", Info::new(hover.contents.join("\n\n")));
-                Ok(())
-            }
+            LspNotification::Hover(context, hover) => self.show_editor_info(
+                context.component_id,
+                "Hover Info",
+                Info::new(hover.contents.join("\n\n")),
+            ),
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
-                            self.show_info(
+                            self.show_global_info(
                                 "Goto definition info",
                                 Info::new("No definitions found".to_string()),
                             );
@@ -918,32 +925,32 @@ impl<T: Frontend> App<T> {
                     (params, current_name)
                 };
                 if let Some(params) = params {
-                    self.open_rename_prompt(params, current_name);
+                    self.open_rename_prompt(params, current_name)?;
                 }
 
                 Ok(())
             }
             LspNotification::Error(error) => {
-                self.show_info("LSP error", Info::new(error));
+                self.show_global_info("LSP error", Info::new(error));
                 Ok(())
             }
             LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
             }
             LspNotification::CodeAction(context, code_actions) => {
-                let editor = self.get_suggestive_editor(context.component_id)?;
                 self.handle_dispatch(Dispatch::DispatchSuggestiveEditor(
                     DispatchSuggestiveEditor::SetCodeActions(code_actions),
                 ))?;
                 Ok(())
             }
             LspNotification::SignatureHelp(context, signature_help) => {
-                let editor = self.get_suggestive_editor(context.component_id)?;
-                editor.borrow_mut().show_signature_help(signature_help);
+                if let Some(info) = signature_help.and_then(|s| s.into_info()) {
+                    self.show_editor_info(context.component_id, "Signature Help", info)?;
+                }
                 Ok(())
             }
             LspNotification::Symbols(context, symbols) => {
-                self.open_symbol_picker(context.component_id, symbols);
+                self.open_symbol_picker(context.component_id, symbols)?;
                 Ok(())
             }
         }
@@ -963,7 +970,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_info(&mut self, title: &str, info: Info) {
+    fn show_global_info(&mut self, title: &str, info: Info) {
         self.layout.show_info(title, info).unwrap_or_else(|err| {
             log::error!("Error showing info: {:?}", err);
         });
@@ -1864,6 +1871,19 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn show_editor_info(
+        &mut self,
+        owner_id: ComponentId,
+        title: &str,
+        info: Info,
+    ) -> anyhow::Result<()> {
+        self.layout.show_editor_info(owner_id, title, info)
+    }
+
+    pub(crate) fn editor_info_open(&self) -> bool {
+        self.layout.editor_info_open()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1905,7 +1925,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
     },
     OpenFile(CanonicalizedPath),
-    ShowInfo {
+    ShowGlobalInfo {
         title: String,
         info: Info,
     },
@@ -2036,6 +2056,13 @@ pub enum Dispatch {
         render: DropdownRender,
     },
     OpenPrompt(PromptConfig),
+    ShowEditorInfo {
+        title: String,
+        info: Info,
+    },
+    CloseEditorInfo {
+        owner_id: ComponentId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
