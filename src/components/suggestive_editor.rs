@@ -253,10 +253,16 @@ impl Component for SuggestiveEditor {
         };
         let dispatches = dispatches
             .into_iter()
-            .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
-                render,
-                owner_id: self.id(),
-            }))
+            .chain(if self.editor.mode == Mode::Insert {
+                dropdown_render.map(|render| Dispatch::RenderDropdown {
+                    render,
+                    owner_id: self.id(),
+                })
+            } else {
+                Some(Dispatch::CloseDropdown {
+                    owner_id: self.id(),
+                })
+            })
             .chain(if self.editor.mode == Mode::Insert {
                 self.editor
                     .get_request_params()
@@ -409,6 +415,7 @@ mod test_suggestive_editor {
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::lsp::code_action::CodeAction;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
+    use crate::lsp::documentation::Documentation;
     use crate::lsp::workspace_edit::{TextDocumentEdit, WorkspaceEdit};
     use crate::position::Position;
     use crate::{
@@ -736,6 +743,46 @@ mod test_suggestive_editor {
     }
 
     #[test]
+    fn enter_normal_mode_should_close_completion_dropdown() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(SetCompletion(dummy_completion())),
+                Expect(CompletionDropdownIsOpen(true)),
+                Editor(EnterNormalMode),
+                Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    fn receiving_multiple_completion_should_not_increase_dropdown_infos_count(
+    ) -> Result<(), anyhow::Error> {
+        let completion = Completion {
+            trigger_characters: vec![".".to_string()],
+            items: [CompletionItem::from_label("hello".to_string())
+                .set_documentation(Some(Documentation::new("This is a doc")))]
+            .to_vec(),
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                Editor(EnterInsertMode(Direction::Start)),
+                Expect(DropdownInfosCount(0)),
+                SuggestiveEditor(SetCompletion(completion.clone())),
+                Expect(DropdownInfosCount(1)),
+                SuggestiveEditor(SetCompletion(completion.clone())),
+                Expect(DropdownInfosCount(1)),
+            ])
+        })
+    }
+
+    #[test]
     fn filter_with_current_word() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
@@ -767,6 +814,8 @@ mod test_suggestive_editor {
                 SuggestiveEditor(SetCompletion(dummy_completion())),
                 // Expect the completion dropdown to not be opened,
                 // since the editor is not in insert mode
+                Expect(CompletionDropdownIsOpen(false)),
+                Editor(MoveSelection(crate::components::editor::Movement::Next)),
                 Expect(CompletionDropdownIsOpen(false)),
             ])
         })

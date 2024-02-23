@@ -134,6 +134,7 @@ impl QuickfixList {
             })
             .collect_vec();
         dropdown.set_items(items);
+
         QuickfixList {
             current_index: 0,
             dropdown,

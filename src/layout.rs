@@ -234,10 +234,7 @@ impl Layout {
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
 
-            self.dropdowns
-                .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
-            self.dropdown_infos
-                .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+            self.close_dropdown(id);
 
             if self.file_explorer.borrow().id() == id {
                 self.file_explorer_open = false
@@ -561,15 +558,27 @@ impl Layout {
         dropdown
     }
 
-    pub(crate) fn close_dropdown(&mut self, owner_id: ComponentId) {
-        self.dropdowns.shift_remove(&owner_id);
+    /// `id` is either the `id` of the dropdown or of its owner
+    pub(crate) fn close_dropdown(&mut self, id: ComponentId) {
+        panic!();
+        self.dropdowns
+            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+        self.dropdown_infos
+            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
     }
 
     pub(crate) fn show_dropdown_info(&mut self, owner_id: ComponentId, info: Info) {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), "");
-        editor.show_info(info);
-        self.dropdown_infos
-            .insert(owner_id, Rc::new(RefCell::new(editor)));
+        let editor = self
+            .dropdown_infos
+            .shift_remove(&owner_id)
+            .unwrap_or_else(|| {
+                Rc::new(RefCell::new(Editor::from_text(
+                    tree_sitter_md::language(),
+                    "",
+                )))
+            });
+        editor.borrow_mut().show_info(info);
+        self.dropdown_infos.insert(owner_id, editor);
     }
 
     pub(crate) fn hide_dropdown_info(&mut self, owner_id: ComponentId) {
@@ -614,6 +623,10 @@ impl Layout {
 
     pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
         self.quickfix_list.clone()
+    }
+
+    pub(crate) fn get_dropdown_infos_count(&self) -> usize {
+        self.dropdown_infos.len()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

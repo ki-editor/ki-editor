@@ -579,7 +579,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
             Dispatch::RenderDropdown { owner_id, render } => {
                 let dropdown = self.layout.open_dropdown(owner_id);
-                self.render_dropdown(dropdown, render)?
+                self.render_dropdown(Some(owner_id), dropdown, render)?
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
         }
@@ -957,6 +957,7 @@ impl<T: Frontend> App<T> {
         let item = self.context.goto_quickfix_list_item(movement);
         if let Some(item) = item {
             self.go_to_location(item.location())?;
+            self.render_quickfix_list()?;
         }
 
         Ok(())
@@ -1049,9 +1050,9 @@ impl<T: Frontend> App<T> {
         self.context.set_quickfix_list(quickfix_list);
         match context.scope {
             None | Some(Scope::Global) => {
-                let editor = self.layout.show_quickfix_list();
-                self.render_dropdown(editor, render)?;
-                self.goto_quickfix_list_item(Movement::Next)
+                self.render_quickfix_list()?;
+                self.goto_quickfix_list_item(Movement::Current)?;
+                Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
                 DispatchEditor::SetSelectionMode(SelectionMode::LocalQuickfix {
@@ -1131,7 +1132,8 @@ impl<T: Frontend> App<T> {
                     .map(|location| QuickfixListItem::new(location, None))
                     .collect_vec(),
             ),
-        )
+        )?;
+        Ok(())
     }
 
     pub fn quit_all(&self) -> Result<(), anyhow::Error> {
@@ -1255,16 +1257,13 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_current_selected_texts(&self) -> (CanonicalizedPath, Vec<String>) {
-        let path = self.current_component().unwrap().borrow().path().unwrap();
-        let selected_texts = self
-            .layout
-            .get_existing_editor(&path)
+    pub fn get_current_selected_texts(&self) -> Vec<String> {
+        let content = self.current_component().unwrap().borrow().content();
+        self.current_component()
             .unwrap()
             .borrow()
             .editor()
-            .get_selected_texts();
-        (path, selected_texts)
+            .get_selected_texts()
     }
 
     #[cfg(test)]
@@ -1784,7 +1783,6 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component()
             .unwrap()
@@ -1830,9 +1828,9 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
-    /// Rendere dropdown on the given `editor`
     fn render_dropdown(
         &mut self,
+        owner_id: Option<ComponentId>,
         editor: Rc<RefCell<Editor>>,
         render: DropdownRender,
     ) -> Result<(), anyhow::Error> {
@@ -1841,7 +1839,7 @@ impl<T: Frontend> App<T> {
             .render_dropdown(&mut self.context, &render)?;
         editor.borrow_mut().set_title(render.title);
 
-        let owner_id = editor.borrow().id();
+        let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
         match render.info {
             Some(info) if !info.content().trim().is_empty() => {
                 self.layout.show_dropdown_info(owner_id, info)
@@ -1853,6 +1851,18 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
         self.layout.quickfix_list()
+    }
+
+    pub(crate) fn get_dropdown_infos_count(&self) -> usize {
+        self.layout.get_dropdown_infos_count()
+    }
+
+    fn render_quickfix_list(&mut self) -> anyhow::Result<()> {
+        let editor = self.layout.show_quickfix_list();
+        if let Some(render) = self.context.current_quickfix_list().map(|q| q.render()) {
+            self.render_dropdown(None, editor, render)?;
+        }
+        Ok(())
     }
 }
 

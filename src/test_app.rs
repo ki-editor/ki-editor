@@ -29,26 +29,18 @@ pub mod test_app {
         components::{
             component::{Component, ComponentId},
             editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
-            suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
+            suggestive_editor::{DispatchSuggestiveEditor, Info},
         },
         context::LocalSearchConfigMode,
         frontend::mock::MockFrontend,
-        grid::{Style, StyleKey},
+        grid::StyleKey,
         integration_test::integration_test::TestRunner,
         list::grep::RegexConfig,
-        lsp::{
-            code_action::CodeAction,
-            completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
-            process::LspNotification,
-            signature_help::SignatureInformation,
-            workspace_edit::{TextDocumentEdit, WorkspaceEdit},
-        },
+        lsp::{process::LspNotification, signature_help::SignatureInformation},
         position::Position,
         quickfix_list::{Location, QuickfixListItem},
-        rectangle::Rectangle,
-        selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
-        selection_mode::inside::InsideKind,
-        themes::{Color, Theme},
+        selection::SelectionMode,
+        themes::Color,
     };
 
     pub enum Step {
@@ -64,6 +56,8 @@ pub mod test_app {
 
     #[derive(Debug)]
     pub enum ExpectKind {
+        QuickfixListCurrentLine(&'static str),
+        DropdownInfosCount(usize),
         QuickfixListContent(String),
         CompletionDropdownContent(&'static str),
         CompletionDropdownIsOpen(bool),
@@ -128,7 +122,7 @@ pub mod test_app {
                     contextualize(app.get_file_content(&left), app.get_file_content(&right))
                 }
                 CurrentSelectedTexts(selected_texts) => {
-                    contextualize(app.get_current_selected_texts().1, to_vec(selected_texts))
+                    contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
                 }
                 ComponentsLength(length) => contextualize(app.components().len(), *length),
                 Quickfixes(expected_quickfixes) => contextualize(
@@ -250,6 +244,13 @@ pub mod test_app {
                 QuickfixListContent(content) => contextualize(
                     app.quickfix_list().unwrap().borrow().content(),
                     content.to_string(),
+                ),
+                DropdownInfosCount(actual) => {
+                    contextualize(app.get_dropdown_infos_count(), *actual)
+                }
+                QuickfixListCurrentLine(actual) => contextualize(
+                    app.quickfix_list().unwrap().borrow().current_line()?,
+                    actual.to_string(),
                 ),
             })
         }
@@ -900,21 +901,6 @@ src/main.rs 🦀
             };
             let main_rs = s.main_rs();
             let main_rs_initial_content = main_rs.read().unwrap();
-            let expected_quickfix_content = format!(
-                "
-■┬ {}
- ├ 1: pub struct Foo {{
- ├ 6: pub fn foo() -> Foo {{
- ├ 6: pub fn foo() -> Foo {{
- └ 7: Foo {{ a: (), b: () }}
-■┬ {}
- ├ 1: mod foo;
- ├ 4: foo::foo();
- └ 4: foo::foo();
-",
-                s.foo_rs().display_absolute(),
-                s.main_rs().display_absolute()
-            );
             Box::new([
                 App(OpenFile(s.foo_rs())),
                 App(OpenFile(s.main_rs())),
@@ -932,9 +918,6 @@ src/main.rs 🦀
                 App(new_dispatch(LocalSearchConfigUpdate::SetSearch(
                     "foo".to_string(),
                 ))),
-                Expect(QuickfixListContent(
-                    expected_quickfix_content.trim().to_string(),
-                )),
                 App(new_dispatch(LocalSearchConfigUpdate::SetReplacement(
                     "haha".to_string(),
                 ))),
@@ -956,6 +939,70 @@ src/main.rs 🦀
                 Editor(Undo),
                 // Expect the content of the main.rs buffer to be reverted
                 Expect(FileContent(s.main_rs(), main_rs_initial_content)),
+            ])
+        })
+    }
+
+    #[test]
+    fn quickfix_list() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            let owner_id = ComponentId::new();
+            let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
+                UpdateLocalSearchConfig {
+                    owner_id,
+                    update,
+                    scope: Scope::Global,
+                    show_config_after_enter: false,
+                }
+            };
+            Box::new([
+                App(OpenFile(s.foo_rs())),
+                Editor(SetContent("foo b\nfoo a".to_string())),
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo d\nfoo c".to_string())),
+                App(SaveAll),
+                App(new_dispatch(LocalSearchConfigUpdate::SetSearch(
+                    "foo".to_string(),
+                ))),
+                Expect(QuickfixListContent(
+                    format!(
+                        "
+■┬ {}
+ ├ 1: foo b
+ └ 2: foo a
+■┬ {}
+ ├ 1: foo d
+ └ 2: foo c
+",
+                        s.foo_rs().display_absolute(),
+                        s.main_rs().display_absolute()
+                    )
+                    .trim()
+                    .to_string(),
+                )),
+                Expect(QuickfixListCurrentLine("├ 1: foo b")),
+                Expect(CurrentPath(s.foo_rs())),
+                Expect(CurrentLine("foo b")),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Next)),
+                Expect(QuickfixListCurrentLine("└ 2: foo a")),
+                Expect(CurrentLine("foo a")),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentLine("foo d")),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentLine("foo c")),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentLine("foo d")),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentLine("foo a")),
+                Expect(CurrentSelectedTexts(&["foo"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentLine("foo b")),
+                Expect(CurrentSelectedTexts(&["foo"])),
             ])
         })
     }

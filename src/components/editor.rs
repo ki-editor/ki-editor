@@ -750,6 +750,7 @@ impl Editor {
             [
                 DispatchEditor::SetContent(render.content.clone()),
                 DispatchEditor::SelectLineAt(render.highlight_line_index),
+                DispatchEditor::AlignViewCenter,
             ]
             .to_vec(),
         )
