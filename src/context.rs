@@ -10,7 +10,7 @@ use crate::{
     clipboard::Clipboard,
     list::grep::RegexConfig,
     lsp::diagnostic::Diagnostic,
-    quickfix_list::{QuickfixListItem, QuickfixLists},
+    quickfix_list::{QuickfixList, QuickfixListItem, QuickfixLists},
     syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
@@ -20,7 +20,7 @@ pub struct Context {
     mode: Option<GlobalMode>,
     diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
     theme: Box<Theme>,
-    quickfix_lists: Rc<RefCell<QuickfixLists>>,
+    quickfix_lists: QuickfixLists,
 
     highlight_configs: HighlightConfigs,
     current_working_directory: Option<CanonicalizedPath>,
@@ -55,7 +55,7 @@ impl Default for Context {
             theme: Box::<Theme>::default(),
             diagnostics: Default::default(),
             mode: None,
-            quickfix_lists: Rc::new(RefCell::new(QuickfixLists::new())),
+            quickfix_lists: QuickfixLists::new(),
             highlight_configs: HighlightConfigs::new(),
             current_working_directory: None,
             local_search_config: LocalSearchConfig::default(),
@@ -72,8 +72,8 @@ impl Context {
         }
     }
 
-    pub fn quickfix_lists(&self) -> Rc<RefCell<QuickfixLists>> {
-        self.quickfix_lists.clone()
+    pub fn quickfix_lists(&self) -> &QuickfixLists {
+        &self.quickfix_lists
     }
 
     pub fn get_clipboard_content(&self) -> Option<String> {
@@ -122,7 +122,7 @@ impl Context {
     }
 
     pub fn get_quickfix_items(&self, path: &CanonicalizedPath) -> Option<Vec<QuickfixListItem>> {
-        self.quickfix_lists.borrow().current().map(|list| {
+        self.quickfix_lists.current().map(|list| {
             list.items()
                 .iter()
                 .filter(|item| &item.location().path == path)
@@ -201,6 +201,25 @@ impl Context {
             Scope::Local => &self.local_search_config,
             Scope::Global => &self.global_search_config.local_config,
         }
+    }
+
+    pub(crate) fn set_quickfix_list(&mut self, quickfix_list: crate::quickfix_list::QuickfixList) {
+        self.quickfix_lists.push(quickfix_list)
+    }
+
+    pub(crate) fn get_latest_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
+        self.quickfix_lists.get_items()
+    }
+
+    pub(crate) fn current_quickfix_list(&self) -> std::option::Option<&QuickfixList> {
+        self.quickfix_lists.current()
+    }
+
+    pub(crate) fn goto_quickfix_list_item(
+        &mut self,
+        movement: crate::components::editor::Movement,
+    ) -> Option<QuickfixListItem> {
+        self.quickfix_lists.get_item(movement)
     }
 }
 

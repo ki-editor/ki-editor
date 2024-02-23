@@ -32,7 +32,7 @@ pub struct Layout {
     main_panel: MainPanel,
     info_panel: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Vec<Rc<RefCell<KeymapLegend>>>,
-    quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
+    quickfix_list: Option<Rc<RefCell<Editor>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
     file_explorer: Rc<RefCell<FileExplorer>>,
@@ -110,7 +110,7 @@ impl Layout {
             },
             info_panel: None,
             keymap_legend: vec![],
-            quickfix_lists: None,
+            quickfix_list: None,
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
@@ -169,7 +169,7 @@ impl Layout {
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.quickfix_lists
+                self.quickfix_list
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
@@ -229,13 +229,15 @@ impl Layout {
 
             self.info_panel = self.info_panel.take().filter(|c| c.borrow().id() != id);
 
-            self.quickfix_lists = self.quickfix_lists.take().filter(|c| c.borrow().id() != id);
+            self.quickfix_list = self.quickfix_list.take().filter(|c| c.borrow().id() != id);
 
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
 
-            self.dropdowns.shift_remove(&id);
-            self.dropdown_infos.shift_remove(&id);
+            self.dropdowns
+                .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+            self.dropdown_infos
+                .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
 
             if self.file_explorer.borrow().id() == id {
                 self.file_explorer_open = false
@@ -253,10 +255,6 @@ impl Layout {
         } else {
             true
         }
-    }
-
-    pub fn show_quickfix_lists(&mut self, quickfix_lists: Rc<RefCell<QuickfixLists>>) {
-        self.quickfix_lists = Some(quickfix_lists);
     }
 
     fn set_main_panel(&mut self, new: MainPanel) {
@@ -412,7 +410,7 @@ impl Layout {
     pub fn close_all_except_main_panel(&mut self) {
         self.info_panel = None;
         self.keymap_legend = vec![];
-        self.quickfix_lists = None;
+        self.quickfix_list = None;
         self.prompts = vec![];
         if self.focused_component_id.is_none() {
             self.focused_component_id = self
@@ -462,14 +460,6 @@ impl Layout {
 
     pub fn open_file_explorer(&mut self) {
         self.file_explorer_open = true
-    }
-
-    pub(crate) fn get_quickfixes(&self) -> Option<Vec<crate::quickfix_list::QuickfixListItem>> {
-        if let Some(list) = self.quickfix_lists.as_ref() {
-            list.borrow().get_items().cloned()
-        } else {
-            None
-        }
     }
 
     pub fn update_highlighted_spans(
@@ -607,6 +597,23 @@ impl Layout {
                 .__update_selection_set_for_real(selection_set);
             self.focused_component_id = Some(component.borrow().id())
         }
+    }
+
+    pub(crate) fn show_quickfix_list(&mut self) -> Rc<RefCell<Editor>> {
+        if let Some(quickfix_list) = self.quickfix_list.clone() {
+            quickfix_list.clone()
+        } else {
+            let editor = Rc::new(RefCell::new(Editor::from_text(
+                tree_sitter_md::language(),
+                "",
+            )));
+            self.quickfix_list = Some(editor.clone());
+            editor.clone()
+        }
+    }
+
+    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.quickfix_list.clone()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

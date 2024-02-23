@@ -45,7 +45,7 @@ use crate::{
         workspace_edit::WorkspaceEdit,
     },
     position::Position,
-    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
+    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
@@ -579,20 +579,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
             Dispatch::RenderDropdown { owner_id, render } => {
                 let dropdown = self.layout.open_dropdown(owner_id);
-                let dispatches = dropdown.borrow_mut().apply_dispatches(
-                    &mut self.context,
-                    [
-                        DispatchEditor::SetContent(render.content),
-                        DispatchEditor::SelectLineAt(render.highlight_line_index),
-                    ]
-                    .to_vec(),
-                )?;
-                if let Some(info) = render.info {
-                    self.layout.show_dropdown_info(owner_id, info);
-                } else {
-                    self.layout.hide_dropdown_info(owner_id);
-                }
-                self.handle_dispatches(dispatches)?;
+                self.render_dropdown(dropdown, render)?
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
         }
@@ -967,14 +954,11 @@ impl<T: Frontend> App<T> {
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
-        let item = self
-            .context
-            .quickfix_lists()
-            .borrow_mut()
-            .get_item(movement);
+        let item = self.context.goto_quickfix_list_item(movement);
         if let Some(item) = item {
             self.go_to_location(item.location())?;
         }
+
         Ok(())
     }
 
@@ -1060,14 +1044,13 @@ impl<T: Frontend> App<T> {
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        self.context
-            .quickfix_lists()
-            .borrow_mut()
-            .push(quickfix_list.set_title(context.description.clone()));
+        let quickfix_list = quickfix_list.set_title(context.description.clone());
+        let render = quickfix_list.render();
+        self.context.set_quickfix_list(quickfix_list);
         match context.scope {
             None | Some(Scope::Global) => {
-                self.layout
-                    .show_quickfix_lists(self.context.quickfix_lists().clone());
+                let editor = self.layout.show_quickfix_list();
+                self.render_dropdown(editor, render)?;
                 self.goto_quickfix_list_item(Movement::Next)
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
@@ -1361,8 +1344,8 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    pub(crate) fn get_quickfixes(&self) -> Vec<QuickfixListItem> {
-        self.layout.get_quickfixes().unwrap_or_default()
+    pub(crate) fn get_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
+        self.context.get_latest_quickfixes()
     }
 
     fn set_global_title(&mut self, title: String) {
@@ -1845,6 +1828,31 @@ impl<T: Frontend> App<T> {
         self.layout
             .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
         self.handle_dispatches(dispatches)
+    }
+
+    /// Rendere dropdown on the given `editor`
+    fn render_dropdown(
+        &mut self,
+        editor: Rc<RefCell<Editor>>,
+        render: DropdownRender,
+    ) -> Result<(), anyhow::Error> {
+        let dispatches = editor
+            .borrow_mut()
+            .render_dropdown(&mut self.context, &render)?;
+        editor.borrow_mut().set_title(render.title);
+
+        let owner_id = editor.borrow().id();
+        match render.info {
+            Some(info) if !info.content().trim().is_empty() => {
+                self.layout.show_dropdown_info(owner_id, info)
+            }
+            _ => self.layout.hide_dropdown_info(owner_id),
+        }
+        self.handle_dispatches(dispatches)
+    }
+
+    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.layout.quickfix_list()
     }
 }
 

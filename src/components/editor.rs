@@ -43,6 +43,7 @@ use SelectionMode::*;
 
 use super::{
     component::{ComponentId, GetGridResult},
+    dropdown::DropdownRender,
     suggestive_editor::Info,
 };
 
@@ -737,6 +738,21 @@ impl Editor {
     pub fn show_info(&mut self, info: Info) {
         self.set_decorations(info.decorations());
         self.set_content(info.content());
+    }
+
+    pub fn render_dropdown(
+        &mut self,
+        context: &mut Context,
+        render: &DropdownRender,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        self.apply_dispatches(
+            context,
+            [
+                DispatchEditor::SetContent(render.content.clone()),
+                DispatchEditor::SelectLineAt(render.highlight_line_index),
+            ]
+            .to_vec(),
+        )
     }
 
     pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {

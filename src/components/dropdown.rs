@@ -173,6 +173,7 @@ impl<T: DropdownItem> Dropdown<T> {
 
     pub fn render(&self) -> DropdownRender {
         DropdownRender {
+            title: self.title.clone(),
             content: self.content(),
             highlight_line_index: self.highlight_line_index(),
             info: self.current_item().and_then(|item| item.info()),
@@ -234,6 +235,14 @@ impl<T: DropdownItem> Dropdown<T> {
         let index = render.highlight_line_index;
         let highlighed_content = render.content.lines().into_iter().collect_vec()[index];
         assert_eq!(highlighed_content, label);
+    }
+
+    pub(crate) fn items(&self) -> Vec<T> {
+        self.items.clone()
+    }
+
+    pub(crate) fn set_title(&mut self, title: String) {
+        self.title = title
     }
 }
 
@@ -412,6 +421,7 @@ mod test_dropdown {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DropdownRender {
     pub content: String,
+    pub title: String,
     pub highlight_line_index: usize,
     pub info: Option<Info>,
 }

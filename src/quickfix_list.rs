@@ -23,8 +23,6 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
-    editor: Editor,
-    dropdown: Dropdown<QuickfixListItem>,
 }
 
 impl DropdownItem for QuickfixListItem {
@@ -69,43 +67,11 @@ where
     ))
 }
 
-impl Component for QuickfixLists {
-    fn editor(&self) -> &crate::components::editor::Editor {
-        self.editor()
-    }
-
-    fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
-        self.editor_mut()
-    }
-
-    fn handle_key_event(
-        &mut self,
-        context: &crate::context::Context,
-        event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
-        self.editor.handle_key_event(context, event)
-    }
-
-    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        self.editor.children()
-    }
-
-    fn remove_child(&mut self, component_id: ComponentId) {
-        self.editor.remove_child(component_id)
-    }
-}
-
 impl QuickfixLists {
     pub fn new() -> QuickfixLists {
         let mut editor = Editor::from_text(tree_sitter_md::language(), "");
         editor.set_title("Quickfixes".to_string());
-        QuickfixLists {
-            lists: vec![],
-            editor,
-            dropdown: Dropdown::new(DropdownConfig {
-                title: "Quickfix".to_string(),
-            }),
-        }
+        QuickfixLists { lists: vec![] }
     }
 
     pub fn current(&self) -> Option<&QuickfixList> {
@@ -117,17 +83,21 @@ impl QuickfixLists {
     }
 
     pub fn push(&mut self, quickfix_list: QuickfixList) {
-        self.dropdown.set_items(quickfix_list.items.clone());
         self.lists.push(quickfix_list);
     }
 
-    pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
-        self.dropdown.apply_movement(movement);
-        self.dropdown.current_item()
+    /// Get items from the latest quickfix list
+    pub fn get_items(&self) -> Option<Vec<QuickfixListItem>> {
+        self.lists.last().map(|list| list.items())
     }
 
-    pub fn get_items(&self) -> Option<&Vec<QuickfixListItem>> {
-        self.lists.last().map(|list| &list.items)
+    /// Get the next item of the latest quickfix list based on the given `movement`
+    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+        if let Some(quickfix_list) = self.current_mut() {
+            quickfix_list.get_item(movement)
+        } else {
+            None
+        }
     }
 }
 
@@ -137,46 +107,55 @@ impl Default for QuickfixLists {
     }
 }
 
-#[derive(Clone)]
 pub struct QuickfixList {
     current_index: usize,
-    items: Vec<QuickfixListItem>,
+    dropdown: Dropdown<QuickfixListItem>,
     title: Option<String>,
 }
 
 impl QuickfixList {
     pub fn new(items: Vec<QuickfixListItem>) -> QuickfixList {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "Quickfix".to_string(),
+        });
+        // Merge items of same locations
+        let items = items
+            .into_iter()
+            // Sort the items by location
+            .sorted_by_key(|item| item.location.clone())
+            .group_by(|item| item.location.clone())
+            .into_iter()
+            .map(|(location, items)| QuickfixListItem {
+                location,
+                info: items
+                    .into_iter()
+                    .flat_map(|item| item.info)
+                    .reduce(Info::join),
+            })
+            .collect_vec();
+        dropdown.set_items(items);
         QuickfixList {
             current_index: 0,
-            items: {
-                let items = items;
-
-                // Merge items of same locations
-                items
-                    .into_iter()
-                    // Sort the items by location
-                    .sorted_by_key(|item| item.location.clone())
-                    .group_by(|item| item.location.clone())
-                    .into_iter()
-                    .map(|(location, items)| QuickfixListItem {
-                        location,
-                        info: items
-                            .into_iter()
-                            .flat_map(|item| item.info)
-                            .reduce(Info::join),
-                    })
-                    .collect_vec()
-            },
+            dropdown,
             title: None,
         }
     }
 
-    pub fn items(&self) -> &Vec<QuickfixListItem> {
-        &self.items
+    pub fn items(&self) -> Vec<QuickfixListItem> {
+        self.dropdown.items()
     }
 
     pub fn set_title(self, title: Option<String>) -> QuickfixList {
         Self { title, ..self }
+    }
+
+    pub(crate) fn render(&self) -> crate::components::dropdown::DropdownRender {
+        self.dropdown.render()
+    }
+
+    pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+        self.dropdown.apply_movement(movement);
+        self.dropdown.current_item()
     }
 }
 
@@ -341,7 +320,7 @@ mod test_quickfix_list {
         };
         let quickfix_list = QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()]);
 
-        assert_eq!(quickfix_list.items, vec![spam, foo, bar])
+        assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
     }
 
     #[test]
@@ -367,7 +346,7 @@ mod test_quickfix_list {
         let quickfix_list = QuickfixList::new(items);
 
         assert_eq!(
-            quickfix_list.items,
+            quickfix_list.items(),
             vec![QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),

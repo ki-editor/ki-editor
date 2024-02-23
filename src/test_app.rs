@@ -64,6 +64,7 @@ pub mod test_app {
 
     #[derive(Debug)]
     pub enum ExpectKind {
+        QuickfixListContent(String),
         CompletionDropdownContent(&'static str),
         CompletionDropdownIsOpen(bool),
         CompletionDropdownSelectedItem(&'static str),
@@ -132,6 +133,7 @@ pub mod test_app {
                 ComponentsLength(length) => contextualize(app.components().len(), *length),
                 Quickfixes(expected_quickfixes) => contextualize(
                     app.get_quickfixes()
+                        .unwrap_or_default()
                         .into_iter()
                         .map(|quickfix| {
                             let info = quickfix
@@ -244,6 +246,10 @@ pub mod test_app {
                         .get_selected_texts()[0]
                         .trim(),
                     item,
+                ),
+                QuickfixListContent(content) => contextualize(
+                    app.quickfix_list().unwrap().borrow().content(),
+                    content.to_string(),
                 ),
             })
         }
@@ -894,6 +900,21 @@ src/main.rs 🦀
             };
             let main_rs = s.main_rs();
             let main_rs_initial_content = main_rs.read().unwrap();
+            let expected_quickfix_content = format!(
+                "
+■┬ {}
+ ├ 1: pub struct Foo {{
+ ├ 6: pub fn foo() -> Foo {{
+ ├ 6: pub fn foo() -> Foo {{
+ └ 7: Foo {{ a: (), b: () }}
+■┬ {}
+ ├ 1: mod foo;
+ ├ 4: foo::foo();
+ └ 4: foo::foo();
+",
+                s.foo_rs().display_absolute(),
+                s.main_rs().display_absolute()
+            );
             Box::new([
                 App(OpenFile(s.foo_rs())),
                 App(OpenFile(s.main_rs())),
@@ -911,6 +932,9 @@ src/main.rs 🦀
                 App(new_dispatch(LocalSearchConfigUpdate::SetSearch(
                     "foo".to_string(),
                 ))),
+                Expect(QuickfixListContent(
+                    expected_quickfix_content.trim().to_string(),
+                )),
                 App(new_dispatch(LocalSearchConfigUpdate::SetReplacement(
                     "haha".to_string(),
                 ))),
