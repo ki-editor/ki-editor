@@ -1,5 +1,5 @@
 use globset::Glob;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use indexmap::IndexSet;
 use itertools::Itertools;

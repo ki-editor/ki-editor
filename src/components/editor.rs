@@ -39,7 +39,6 @@ use crate::{
 };
 
 use DispatchEditor::*;
-use SelectionMode::*;
 
 use super::{
     component::{ComponentId, GetGridResult},
@@ -873,7 +872,7 @@ impl Editor {
             .into_iter()
             .flatten()
             .reduce(Info::join)
-            .map(|info| Dispatch::ShowEditorInfo(info));
+            .map(Dispatch::ShowEditorInfo);
         [Dispatch::UpdateSelectionSet {
             selection_set,
             kind: self
@@ -2707,7 +2706,7 @@ impl Editor {
     }
 
     pub fn current_view_alignment(&self) -> Option<ViewAlignment> {
-        self.current_view_alignment.clone()
+        self.current_view_alignment
     }
 
     pub fn switch_view_alignment(&mut self) {
@@ -2797,7 +2796,7 @@ impl Editor {
         self.buffer().get_formatted_content()
     }
 
-    fn filters_push(&mut self, context: &Context, filter: Filter) -> Vec<Dispatch> {
+    fn filters_push(&mut self, _context: &Context, filter: Filter) -> Vec<Dispatch> {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set, true)
             .into_iter()

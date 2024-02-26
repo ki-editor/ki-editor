@@ -105,7 +105,7 @@ pub mod test_app {
             assert!(result, "{context}",)
         }
         fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
-            let mut context = app.context();
+            let context = app.context();
             fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
                 (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
             }
