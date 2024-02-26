@@ -6,7 +6,7 @@ use crate::position::Position;
 
 use super::documentation::Documentation;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Completion {
     pub items: Vec<CompletionItem>,
     pub trigger_characters: Vec<String>,

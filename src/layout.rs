@@ -9,11 +9,11 @@ use crate::{
         prompt::Prompt,
         suggestive_editor::{Info, SuggestiveEditor},
     },
-    quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
 };
 use anyhow::anyhow;
+use indexmap::IndexMap;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{cell::RefCell, rc::Rc};
@@ -24,12 +24,16 @@ use std::{cell::RefCell, rc::Rc};
 /// hover text, diagnostics, etc.
 pub struct Layout {
     main_panel: MainPanel,
-    info_panel: Option<Rc<RefCell<Editor>>>,
+    global_info: Option<Rc<RefCell<Editor>>>,
     keymap_legend: Vec<Rc<RefCell<KeymapLegend>>>,
-    quickfix_lists: Option<Rc<RefCell<QuickfixLists>>>,
+    quickfix_list: Option<Rc<RefCell<Editor>>>,
     prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
     file_explorer: Rc<RefCell<FileExplorer>>,
+    dropdowns: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
+    dropdown_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
+    editor_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
+
     file_explorer_open: bool,
 
     rectangles: Vec<Rectangle>,
@@ -99,9 +103,9 @@ impl Layout {
                 editor: None,
                 working_directory: working_directory.clone(),
             },
-            info_panel: None,
+            global_info: None,
             keymap_legend: vec![],
-            quickfix_lists: None,
+            quickfix_list: None,
             prompts: vec![],
             focused_component_id: Some(ComponentId::new()),
             background_suggestive_editors: vec![],
@@ -111,6 +115,9 @@ impl Layout {
             terminal_dimension,
             file_explorer_open: false,
             working_directory: working_directory.clone(),
+            dropdowns: IndexMap::new(),
+            dropdown_infos: IndexMap::new(),
+            editor_infos: IndexMap::new(),
         })
     }
 
@@ -143,12 +150,27 @@ impl Layout {
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.info_panel
+                self.dropdowns
+                    .iter()
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.dropdown_infos
+                    .iter()
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.editor_infos
+                    .iter()
+                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
+            )
+            .chain(
+                self.global_info
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
             .chain(
-                self.quickfix_lists
+                self.quickfix_list
                     .iter()
                     .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
             )
@@ -165,6 +187,15 @@ impl Layout {
     pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.focused_component_id
             .and_then(|id| self.get_component(id))
+    }
+
+    pub(crate) fn get_current_suggestive_editor(&self) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.focused_component_id.and_then(|id| {
+            self.background_suggestive_editors
+                .iter()
+                .find(|editor| editor.borrow().id() == id)
+                .cloned()
+        })
     }
 
     fn get_component(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
@@ -197,12 +228,15 @@ impl Layout {
 
             self.keymap_legend.retain(|c| c.borrow().id() != id);
 
-            self.info_panel = self.info_panel.take().filter(|c| c.borrow().id() != id);
+            self.global_info = self.global_info.take().filter(|c| c.borrow().id() != id);
 
-            self.quickfix_lists = self.quickfix_lists.take().filter(|c| c.borrow().id() != id);
+            self.quickfix_list = self.quickfix_list.take().filter(|c| c.borrow().id() != id);
 
+            self.close_editor_info(id);
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
+
+            self.close_dropdown(id);
 
             if self.file_explorer.borrow().id() == id {
                 self.file_explorer_open = false
@@ -220,10 +254,6 @@ impl Layout {
         } else {
             true
         }
-    }
-
-    pub fn show_quickfix_lists(&mut self, quickfix_lists: Rc<RefCell<QuickfixLists>>) {
-        self.quickfix_lists = Some(quickfix_lists);
     }
 
     fn set_main_panel(&mut self, new: MainPanel) {
@@ -287,21 +317,26 @@ impl Layout {
             });
     }
 
+    pub fn get_existing_editor(
+        &self,
+        path: &CanonicalizedPath,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+        self.background_suggestive_editors
+            .iter()
+            .cloned()
+            .find(|component| {
+                component
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .path()
+                    .map(|p| &p == path)
+                    .unwrap_or(false)
+            })
+    }
+
     pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
-        if let Some(matching_editor) =
-            self.background_suggestive_editors
-                .iter()
-                .cloned()
-                .find(|component| {
-                    component
-                        .borrow()
-                        .editor()
-                        .buffer()
-                        .path()
-                        .map(|p| &p == path)
-                        .unwrap_or(false)
-                })
-        {
+        if let Some(matching_editor) = self.get_existing_editor(path) {
             self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
             Some(matching_editor)
         } else {
@@ -350,16 +385,15 @@ impl Layout {
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
-    pub fn show_info(&mut self, title: &str, info: Info) -> anyhow::Result<()> {
-        let info_panel = self.info_panel.take().unwrap_or_else(|| {
+    pub fn show_info(&mut self, info: Info) -> anyhow::Result<()> {
+        let info_panel = self.global_info.take().unwrap_or_else(|| {
             Rc::new(RefCell::new(Editor::from_text(
                 tree_sitter_md::language(),
                 "",
             )))
         });
-        info_panel.borrow_mut().set_title(title.to_string());
         info_panel.borrow_mut().show_info(info);
-        self.info_panel = Some(info_panel);
+        self.global_info = Some(info_panel);
 
         Ok(())
     }
@@ -372,11 +406,14 @@ impl Layout {
     }
 
     pub fn close_all_except_main_panel(&mut self) {
-        self.info_panel = None;
+        self.global_info = None;
         self.keymap_legend = vec![];
-        self.quickfix_lists = None;
+        self.quickfix_list = None;
         self.prompts = vec![];
-        if self.focused_component_id.is_none() {
+        if let Some(id) = self.focused_component_id {
+            self.close_dropdown(id);
+            self.close_editor_info(id);
+        } else {
             self.focused_component_id = self
                 .background_suggestive_editors
                 .last()
@@ -426,14 +463,6 @@ impl Layout {
         self.file_explorer_open = true
     }
 
-    pub(crate) fn get_quickfixes(&self) -> Option<Vec<crate::quickfix_list::QuickfixListItem>> {
-        if let Some(list) = self.quickfix_lists.as_ref() {
-            list.borrow().get_items().cloned()
-        } else {
-            None
-        }
-    }
-
     pub fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
@@ -455,7 +484,7 @@ impl Layout {
     }
 
     pub(crate) fn get_info(&self) -> Option<String> {
-        self.info_panel
+        self.global_info
             .as_ref()
             .map(|info_panel| info_panel.borrow().text())
     }
@@ -477,7 +506,7 @@ impl Layout {
             editor
                 .borrow_mut()
                 .editor_mut()
-                .update_selection_set(selection_set);
+                .__update_selection_set_for_real(selection_set);
         }
         Ok(())
     }
@@ -498,6 +527,134 @@ impl Layout {
             }
         }
         Ok(())
+    }
+
+    pub(crate) fn completion_dropdown_is_open(&self) -> bool {
+        self.current_completion_dropdown().is_some()
+    }
+
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.current_component()
+            .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
+    }
+
+    pub(crate) fn get_code_action_dropdown(
+        &self,
+        _owner_id: ComponentId,
+    ) -> Option<Rc<RefCell<Editor>>> {
+        self.current_component()
+            .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
+    }
+
+    pub(crate) fn get_completion_dropdown(
+        &self,
+        owner_id: ComponentId,
+    ) -> Option<Rc<RefCell<Editor>>> {
+        self.dropdowns.get(&owner_id).cloned()
+    }
+
+    pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Rc<RefCell<Editor>> {
+        let dropdown = Rc::new(RefCell::new(Editor::from_text(
+            tree_sitter_md::language(),
+            "",
+        )));
+        self.dropdowns.insert(owner_id, dropdown.clone());
+        dropdown
+    }
+
+    /// `id` is either the `id` of the dropdown or of its owner
+    pub(crate) fn close_dropdown(&mut self, id: ComponentId) {
+        self.dropdowns
+            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+        self.dropdown_infos
+            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+    }
+
+    pub(crate) fn show_dropdown_info(&mut self, owner_id: ComponentId, info: Info) {
+        let editor = self
+            .dropdown_infos
+            .shift_remove(&owner_id)
+            .unwrap_or_else(|| {
+                Rc::new(RefCell::new(Editor::from_text(
+                    tree_sitter_md::language(),
+                    "",
+                )))
+            });
+        editor.borrow_mut().show_info(info);
+        self.dropdown_infos.insert(owner_id, editor);
+    }
+
+    pub(crate) fn hide_dropdown_info(&mut self, owner_id: ComponentId) {
+        self.dropdown_infos.shift_remove(&owner_id);
+    }
+
+    pub(crate) fn get_component_by_id(
+        &self,
+        id: &ComponentId,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.components()
+            .into_iter()
+            .find(|c| &c.borrow().id() == id)
+    }
+
+    pub(crate) fn open_component_with_selection(
+        &mut self,
+        id: &ComponentId,
+        selection_set: SelectionSet,
+    ) {
+        if let Some(component) = self.get_component_by_id(id) {
+            component
+                .borrow_mut()
+                .editor_mut()
+                .__update_selection_set_for_real(selection_set);
+            self.focused_component_id = Some(component.borrow().id())
+        }
+    }
+
+    pub(crate) fn show_quickfix_list(&mut self) -> Rc<RefCell<Editor>> {
+        if let Some(quickfix_list) = self.quickfix_list.clone() {
+            quickfix_list.clone()
+        } else {
+            let editor = Rc::new(RefCell::new(Editor::from_text(
+                tree_sitter_md::language(),
+                "",
+            )));
+            self.quickfix_list = Some(editor.clone());
+            editor.clone()
+        }
+    }
+
+    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.quickfix_list.clone()
+    }
+
+    pub(crate) fn get_dropdown_infos_count(&self) -> usize {
+        self.dropdown_infos.len()
+    }
+
+    pub(crate) fn show_editor_info(
+        &mut self,
+        owner_id: ComponentId,
+        info: Info,
+    ) -> anyhow::Result<()> {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), info.content());
+        editor.show_info(info)?;
+        self.editor_infos
+            .insert(owner_id, Rc::new(RefCell::new(editor)));
+        Ok(())
+    }
+
+    pub(crate) fn editor_info_open(&self) -> bool {
+        !self.editor_infos.is_empty()
+    }
+
+    pub(crate) fn close_editor_info(&mut self, id: ComponentId) {
+        self.editor_infos
+            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+    }
+
+    pub(crate) fn editor_info_content(&self) -> Option<String> {
+        Some(self.editor_infos.first()?.1.borrow().content())
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

@@ -28,6 +28,13 @@ pub mod integration_test {
             self.temp_dir.remove_dir_all().unwrap();
         }
     }
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn increment_counter() -> usize {
+        COUNTER.fetch_add(1, Ordering::SeqCst)
+    }
 
     impl TestRunner {
         pub fn run(
@@ -46,8 +53,12 @@ pub mod integration_test {
                 .duration_since(UNIX_EPOCH)
                 .expect("Time went backwards");
 
-            let random_number = rand::random::<u8>();
-            let temp_dir = format!("../temp_dir/{}_{}", epoch_time.as_secs(), random_number);
+            let _random_number = rand::random::<u8>();
+            let temp_dir = format!(
+                "../temp_dir/{}_{}",
+                epoch_time.as_secs(),
+                increment_counter()
+            );
 
             let path: PathBuf = temp_dir.into();
             std::fs::create_dir_all(path.clone())?;

@@ -7,7 +7,7 @@ use crate::{
 
 use super::{ApplyMovementResult, SelectionMode, SelectionModeParams};
 
-pub struct Inside(InsideKind);
+pub struct Inside(pub InsideKind);
 
 impl Inside {
     pub fn new(kind: InsideKind) -> Self {

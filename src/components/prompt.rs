@@ -4,7 +4,7 @@ use itertools::Itertools;
 use my_proc_macros::key;
 
 use crate::{
-    app::Dispatch,
+    app::{Dispatch, DispatchPrompt},
     buffer::Buffer,
     context::Context,
     lsp::completion::{Completion, CompletionItem},
@@ -18,39 +18,22 @@ use super::{
 
 pub struct Prompt {
     editor: SuggestiveEditor,
-    text: String,
-    owner: Option<Rc<RefCell<dyn Component>>>,
-    on_enter: OnEnter,
-    on_text_change: OnTextChange,
+    owner_id: Option<ComponentId>,
+    on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
 }
 
-type OnEnter = Box<
-    dyn Fn(
-        /* current_suggestion */ &str,
-        /*owner*/ Option<Rc<RefCell<dyn Component>>>,
-    ) -> anyhow::Result<Vec<Dispatch>>,
->;
-
-type OnTextChange = Box<
-    dyn Fn(
-        /* text */ &str,
-        /*owner*/ Rc<RefCell<dyn Component>>,
-    ) -> anyhow::Result<Vec<Dispatch>>,
->;
-
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PromptConfig {
     pub history: Vec<String>,
-    pub owner: Option<Rc<RefCell<dyn Component>>>,
-    pub on_enter: OnEnter,
-    pub on_text_change: OnTextChange,
+    pub on_enter: DispatchPrompt,
     pub items: Vec<CompletionItem>,
     pub title: String,
     pub enter_selects_first_matching_item: bool,
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig) -> Self {
+    pub fn new(config: PromptConfig, owner_id: Option<ComponentId>) -> (Self, Vec<Dispatch>) {
         let text = &if config.history.is_empty() {
             "".to_string()
         } else {
@@ -70,17 +53,16 @@ impl Prompt {
             items: config.items,
             trigger_characters: vec![" ".to_string()],
         });
-        Prompt {
-            editor,
-            text: "".to_string(),
-            owner: config.owner,
-            on_enter: config.on_enter,
-            on_text_change: config.on_text_change,
-            enter_selects_first_matching_item: config.enter_selects_first_matching_item,
-        }
-    }
-    fn text(&self) -> &str {
-        &self.text
+        let dispatches = editor.render();
+        (
+            Prompt {
+                editor,
+                on_enter: config.on_enter,
+                enter_selects_first_matching_item: config.enter_selects_first_matching_item,
+                owner_id,
+            },
+            dispatches,
+        )
     }
 }
 
@@ -99,15 +81,14 @@ impl Component for Prompt {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(vec![Dispatch::CloseCurrentWindow {
-                    change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
+                    change_focused_to: self.owner_id,
                 }])
             }
             key!("tab") => {
-                if self.editor.dropdown_opened() {
-                    if let Some(item) = self.editor.current_item() {
-                        self.text = item.label();
-                        self.editor.set_content(&self.text)?;
-                        self.editor_mut().end(context)?;
+                if self.editor.completion_dropdown_opened() {
+                    if let Some(item) = self.editor.completion_dropdown_current_item() {
+                        self.editor.set_content(&item.label())?;
+                        return self.editor_mut().move_to_line_end();
                     }
                     Ok(Vec::new())
                 } else {
@@ -115,48 +96,27 @@ impl Component for Prompt {
                 }
             }
             key!("enter") => {
-                let current_item =
-                    if self.enter_selects_first_matching_item && self.editor.dropdown_opened() {
-                        self.editor
-                            .current_item()
-                            .map(|item| item.label())
-                            .unwrap_or_default()
-                    } else {
-                        self.text.clone()
-                    };
+                let current_item = if self.enter_selects_first_matching_item
+                    && self.editor.completion_dropdown_opened()
+                {
+                    self.editor
+                        .completion_dropdown_current_item()
+                        .map(|item| item.label())
+                        .unwrap_or_default()
+                } else {
+                    self.editor().current_line()?
+                };
 
-                let dispatches = (self.on_enter)(&current_item, self.owner.clone())?;
+                let dispatches = self.on_enter.to_dispatches(&current_item)?;
 
                 Ok(vec![Dispatch::CloseCurrentWindow {
-                    change_focused_to: self.owner.clone().map(|owner| owner.borrow().id()),
+                    change_focused_to: self.owner_id,
                 }]
                 .into_iter()
                 .chain(dispatches)
                 .collect_vec())
             }
-            _ => {
-                let dispatches = self.editor.handle_key_event(context, event)?;
-
-                let current_text = self.editor().current_line()?;
-
-                let result = if current_text == self.text {
-                    dispatches
-                } else {
-                    self.text = current_text.clone();
-
-                    let text_change_dispatches = if let Some(owner) = self.owner.clone() {
-                        (self.on_text_change)(&current_text, owner.clone())?
-                    } else {
-                        Default::default()
-                    };
-
-                    dispatches
-                        .into_iter()
-                        .chain(text_change_dispatches)
-                        .collect_vec()
-                };
-                Ok(result)
-            }
+            _ => self.editor.handle_key_event(context, event),
         }
     }
 
@@ -171,14 +131,10 @@ impl Component for Prompt {
 
 #[cfg(test)]
 mod test_prompt {
+    use crate::test_app::test_app::*;
     use my_proc_macros::keys;
-    use std::{cell::RefCell, rc::Rc};
 
-    use crate::{
-        app::Dispatch,
-        components::{component::Component, prompt::Prompt},
-        position::Position,
-    };
+    use crate::{app::Dispatch, position::Position};
 
     use super::*;
 
@@ -187,31 +143,32 @@ mod test_prompt {
         fn run_test(
             enter_selects_first_matching_item: bool,
             input_text: &str,
-            expected_invoked_text: &str,
+            expected_invoked_text: &'static str,
         ) {
-            let mut prompt = Prompt::new(super::PromptConfig {
-                history: vec![],
-                owner: None,
-                on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
-                on_text_change: Box::new(|_, _| Ok(vec![])),
-                items: [
-                    CompletionItem::from_label("foo".to_string()),
-                    CompletionItem::from_label("bar".to_string()),
-                ]
-                .to_vec(),
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile(s.main_rs())),
+                    App(OpenPrompt(super::PromptConfig {
+                        history: vec![],
+                        on_enter: DispatchPrompt::SetContent,
+                        items: [
+                            CompletionItem::from_label("foo".to_string()),
+                            CompletionItem::from_label("bar".to_string()),
+                        ]
+                        .to_vec(),
 
-                title: "".to_string(),
-                enter_selects_first_matching_item,
-            });
-            prompt
-                .handle_events(&event::parse_key_events(input_text).unwrap())
-                .unwrap();
-
-            let dispatches = prompt.handle_events(keys!("enter")).unwrap();
-
-            assert!(dispatches
-                .iter()
-                .any(|dispatch| matches!(dispatch, Dispatch::Custom(text) if text == expected_invoked_text)));
+                        title: "".to_string(),
+                        enter_selects_first_matching_item,
+                    })),
+                    Expect(CompletionDropdownIsOpen(true)),
+                    App(HandleKeyEvents(
+                        event::parse_key_events(input_text).unwrap(),
+                    )),
+                    App(HandleKeyEvent(key!("enter"))),
+                    Expect(CurrentComponentContent(expected_invoked_text)),
+                ])
+            })
+            .unwrap()
         }
 
         run_test(true, "f", "foo");
@@ -220,53 +177,20 @@ mod test_prompt {
 
     #[test]
     fn tab_replace_current_content_with_first_highlighted_suggestion() -> anyhow::Result<()> {
-        let mut prompt = Prompt::new(super::PromptConfig {
-            history: vec![],
-            owner: None,
-            on_enter: Box::new(|text, _| Ok(vec![Dispatch::Custom(text.to_string())])),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
-            items: [CompletionItem::from_label("foo_bar".to_string())].to_vec(),
+        execute_test(|_| {
+            Box::new([
+                App(Dispatch::OpenPrompt(super::PromptConfig {
+                    history: vec![],
+                    on_enter: DispatchPrompt::SetContent,
+                    items: [CompletionItem::from_label("foo_bar".to_string())].to_vec(),
 
-            title: "".to_string(),
-            enter_selects_first_matching_item: true,
-        });
-        prompt.handle_events(&event::parse_key_events("f o o _ b")?)?;
-
-        prompt.handle_events(keys!("tab"))?;
-        assert_eq!(prompt.text(), "foo_bar");
-        assert_eq!(prompt.content(), prompt.text());
-        assert_eq!(
-            prompt.editor().get_cursor_position()?,
-            Position { line: 0, column: 7 }
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn should_return_custom_dispatches_regardless_of_owner_id() {
-        fn run_test(owner: Option<Rc<RefCell<dyn Component>>>) {
-            let mut prompt = Prompt::new(super::PromptConfig {
-                history: vec![],
-                owner,
-                on_enter: Box::new(|_, _| Ok(vec![Dispatch::Custom("haha".to_string())])),
-                on_text_change: Box::new(|_, _| Ok(vec![])),
-                items: vec![],
-                title: "".to_string(),
-                enter_selects_first_matching_item: false,
-            });
-
-            let dispatches = prompt.handle_events(keys!("enter")).unwrap();
-
-            assert!(dispatches
-                .iter()
-                .any(|dispatch| matches!(dispatch, Dispatch::Custom(text) if text == "haha")));
-        }
-
-        run_test(None);
-
-        run_test(Some(Rc::new(RefCell::new(Editor::from_text(
-            tree_sitter_md::language(),
-            "",
-        )))))
+                    title: "".to_string(),
+                    enter_selects_first_matching_item: true,
+                })),
+                App(HandleKeyEvents(keys!("f o o _ b tab").to_vec())),
+                Expect(CurrentComponentContent("foo_bar")),
+                Expect(EditorCursorPosition(Position { line: 0, column: 7 })),
+            ])
+        })
     }
 }

@@ -611,7 +611,10 @@ mod test_selection_mode {
             buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
             current_selection: &Selection::default()
                 .set_range((CharIndex(1)..CharIndex(2)).into())
-                .set_info(Some(Info::new("Spongebob".to_string()))),
+                .set_info(Some(Info::new(
+                    "Title".to_string(),
+                    "Spongebob".to_string(),
+                ))),
             cursor_direction: &Direction::default(),
             context: &Context::default(),
             filters: &Filters::default(),
@@ -627,8 +630,14 @@ mod test_selection_mode {
             ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
                 Ok(Box::new(
                     [
-                        ByteRange::with_info(1..2, Info::new("Spongebob".to_string())),
-                        ByteRange::with_info(1..2, Info::new("Squarepants".to_string())),
+                        ByteRange::with_info(
+                            1..2,
+                            Info::new("Title".to_string(), "Spongebob".to_string()),
+                        ),
+                        ByteRange::with_info(
+                            1..2,
+                            Info::new("Title".to_string(), "Squarepants".to_string()),
+                        ),
                     ]
                     .into_iter(),
                 ))
@@ -642,7 +651,7 @@ mod test_selection_mode {
                 .selection;
             let expected_range: CharIndexRange = (CharIndex(1)..CharIndex(2)).into();
             assert_eq!(expected_range, actual.range());
-            let expected_info = Info::new(expected_info.to_string());
+            let expected_info = Info::new("Title".to_string(), expected_info.to_string());
             assert_eq!(expected_info, actual.info().unwrap());
         };
         run_test(Movement::Current, "Spongebob");

@@ -240,3 +240,31 @@
 - [] feat(quickfix-hierarchy): lowest - items within the current file, middle (default): all quickfix items, highest: first items of every file (use u/d to navigate between hierarchy)
 - [] feat(selection-mode/tabs): default tab is 1, press 2 to go to tab 2, each tab store a selection mode, this is useful if we have a primary selection mode that we want to keep (say quickfix list)
 - [] refactor: use nonempty for SelectionSet
+- [] bug: cannot clear include glob or exclude glob
+- [] fix(selection_mode/word): should not group symbols together as a word
+- [] feat(jump): default can be small word jump, as that cover most cases
+- [] feat(selection/movement): after killing the current, pressing next/previous will skip the next/previous selection into the 2nd nearest selection
+- [] feat(autocomplete): should filter completion items based on word before the cursor, so that user can insert new method easily in the middle of a method call chain
+- [] feat(kill-line-to-start): should not delete leading whitespace together with words
+- [] feat(syntax-tree): shift+S for sibling including anonymous nodes
+- [] feat(syntax-tree): should select top node (I miss this behaviour a lot)
+- [] feat(editor): up down movement (sticky vertical column)
+- [] feat(movement): topmost/bottommost selection in the screen (similar to H/L in Vim)
+- [] feat(selection-set-history): should also store the ViewAlignment (so that it is less disorienting)
+- [] feat(find-mode): 'c' = search current selection
+- [] feat(exchange): x = exchange forward, X = exchange backward, \x = enter exchange mode
+- [] feat(kill): k = kill forward, K = kill backward, \k = enter kill mode
+- [] feat(wrapped_lines): single word too long should be wrapped forcefully, not trimmed
+- [] feat(switch-cursor-direction): current not working when cursor direction at end, also when changing selection mode, cursor direction should always be reset to start
+- [] feat(duplicate): one key to duplicate current selection, instead of ctrl+c ctrl+v
+- [] feat(selection-set-history): should not store selection due to undo
+- [] feat(dropdown): when focused, pressing enter on the line trigger the action (for example code action dropdown)
+- [] feat(new-movement): fuzzy search by current selection mode (similar to Jump, but with fuzzy search)
+- [] feat(lsp/multiple): use https://github.com/messense/multi-lsp-proxy
+- [] feat(search): search a word regardless of snake_case/camelCase/kebab-case
+- [] feat(selection-mode): press 2 to store current selection mode into secondary selection mode
+- [] feat(prompt): if only got one item, should not have new line at the beginning
+- [] feat(inside): should depends on only the current cursor position, not the current extended range
+- [] feat: mouse selection
+- [] fix(completion): browsing selections, selection always aligned to top
+- [] feat(editor): select around brackets

@@ -146,7 +146,8 @@ impl Hunk {
     }
 
     pub(crate) fn to_info(&self) -> Option<crate::components::suggestive_editor::Info> {
-        let info = Info::new(self.content.clone()).set_decorations(self.decorations.clone());
+        let info = Info::new("Git Hunk Diff".to_string(), self.content.clone())
+            .set_decorations(self.decorations.clone());
         Some(info)
     }
 

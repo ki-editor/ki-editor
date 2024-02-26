@@ -52,7 +52,7 @@ struct PendingResponseRequest {
     context: ResponseContext,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LspNotification {
     Initialized(Language),
     PublishDiagnostics(PublishDiagnosticsParams),

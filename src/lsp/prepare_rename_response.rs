@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::position::Position;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrepareRenameResponse {
     pub range: Option<Range<Position>>,
     pub placeholder: Option<String>,

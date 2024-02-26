@@ -5,6 +5,7 @@ use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
     collections::HashSet,
+    ops::Range,
     path::PathBuf,
     rc::Rc,
     sync::{
@@ -17,17 +18,21 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId, Cursor, GetGridResult},
-        editor::{DispatchEditor, Movement},
+        dropdown::DropdownRender,
+        editor::{DispatchEditor, Editor, Movement},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
         prompt::{Prompt, PromptConfig},
-        suggestive_editor::{Info, SuggestiveEditor, SuggestiveEditorFilter},
+        suggestive_editor::{
+            DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
+        },
     },
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     frontend::frontend::Frontend,
     git,
     grid::Grid,
+    history::History,
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
@@ -44,8 +49,7 @@ use crate::{
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
-    themes::VSCODE_LIGHT,
-    undo_tree::{Applicable, UndoTree},
+    themes::{Theme, VSCODE_LIGHT},
 };
 
 pub struct App<T: Frontend> {
@@ -70,40 +74,25 @@ pub struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
-    undo_tree: UndoTree<FileSelectionSet>,
+    selection_set_history: History<SelectionSetHistory>,
 }
 
-#[derive(PartialEq, Clone, Debug)]
-struct FileSelectionSet {
-    path: CanonicalizedPath,
+#[derive(PartialEq, Clone, Debug, Eq)]
+struct SelectionSetHistory {
+    kind: SelectionSetHistoryKind,
     selection_set: SelectionSet,
 }
 
-impl std::fmt::Display for FileSelectionSet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!(
-            "{}:{}",
-            self.path.try_display_relative(),
-            self.selection_set.primary.extended_range().start.0
-        ))
-    }
+#[derive(PartialEq, Clone, Debug, Eq)]
+pub enum SelectionSetHistoryKind {
+    Path(CanonicalizedPath),
+    ComponentId(ComponentId),
 }
 
 struct Null;
 impl std::fmt::Display for Null {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("NULL")
-    }
-}
-
-impl Applicable for FileSelectionSet {
-    type Target = Layout;
-
-    type Output = Null;
-
-    fn apply(&self, target: &mut Self::Target) -> anyhow::Result<Self::Output> {
-        target.open_file_with_selection(&self.path, self.selection_set.clone())?;
-        Ok(Null)
     }
 }
 
@@ -142,7 +131,8 @@ impl<T: Frontend> App<T> {
             frontend,
             syntax_highlight_request_sender: None,
             global_title: None,
-            undo_tree: UndoTree::new(),
+
+            selection_set_history: History::new(),
         };
         Ok(app)
     }
@@ -187,7 +177,7 @@ impl<T: Frontend> App<T> {
                     .map(|_| false),
             }
             .unwrap_or_else(|e| {
-                self.show_info("ERROR", Info::new(e.to_string()));
+                self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
 
@@ -237,7 +227,9 @@ impl<T: Frontend> App<T> {
                 component.map(|component| {
                     let dispatches = component.borrow_mut().handle_event(&self.context, event);
                     self.handle_dispatches_result(dispatches)
-                        .unwrap_or_else(|e| self.show_info("ERROR", Info::new(e.to_string())));
+                        .unwrap_or_else(|e| {
+                            self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
+                        });
                 });
             }
         }
@@ -401,17 +393,15 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to)
             }
-            Dispatch::OpenSearchPrompt {
-                mode,
-                scope,
-                owner_id,
-            } => self.open_search_prompt(mode, scope, owner_id),
-            Dispatch::OpenFile { path } => {
+            Dispatch::OpenSearchPrompt { scope, owner_id } => {
+                self.open_search_prompt(scope, owner_id)?
+            }
+            Dispatch::OpenFile(path) => {
                 self.open_file(&path, true)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
-                self.open_file_picker(kind)?;
+                self.open_file_picker(kind);
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
@@ -473,16 +463,11 @@ impl<T: Frontend> App<T> {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowInfo { title, info } => self.show_info(&title, info),
+            Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
-            Dispatch::GotoSelectionHistoryFile(movement) => {
-                self.goto_selection_history_file(movement)?;
-                self.show_selection_history()
-            }
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
                 self.goto_selection_history_contiguous(movement)?;
-                self.show_selection_history()
             }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
@@ -499,15 +484,15 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::GlobalSearch => self.global_search()?,
-            Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt(),
+            Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
             Dispatch::RunCommand(command) => self.run_command(command)?,
             Dispatch::QuitAll => self.quit_all()?,
-            Dispatch::OpenCommandPrompt => self.open_command_prompt(),
+            Dispatch::OpenCommandPrompt => self.open_command_prompt()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.layout.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
-            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path),
-            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path),
+            Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
+            Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
             Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
@@ -527,51 +512,51 @@ impl<T: Frontend> App<T> {
             Dispatch::SaveAll => self.save_all()?,
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
-            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open(),
+            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open()?,
             Dispatch::OpenInsideOtherPromptClose { open } => {
-                self.open_inside_other_prompt_close(open)
+                self.open_inside_other_prompt_close(open)?
             }
-            Dispatch::OpenOmitLiteralPrompt { kind, target } => self.open_omit_prompt(
+            Dispatch::OpenOmitPrompt {
                 kind,
                 target,
-                "Literal",
-                Box::new(|text| Ok(FilterMechanism::Literal(text.to_string()))),
-            ),
-            Dispatch::OpenOmitRegexPrompt { kind, target } => self.open_omit_prompt(
-                kind,
-                target,
-                "Regex",
-                Box::new(|text| Ok(FilterMechanism::Regex(regex::Regex::new(text)?))),
-            ),
+                make_mechanism,
+            } => self.open_omit_prompt(kind, target, make_mechanism)?,
+
             Dispatch::LspExecuteCommand { command, params } => self
                 .lsp_manager
                 .workspace_execute_command(params, command)?,
-            Dispatch::PushSelectionSet {
-                new_selection_set,
-                old_selection_set,
-                path,
-            } => self.push_selection_set(path, old_selection_set, new_selection_set)?,
+            Dispatch::UpdateSelectionSet {
+                selection_set,
+                kind,
+                store_history,
+            } => self.update_selection_set(
+                kind,
+                UpdateSelectionSetSource::SelectionSet(selection_set),
+                store_history,
+            )?,
             Dispatch::UpdateLocalSearchConfig {
                 update,
                 owner_id,
                 scope,
-                show_legend,
-            } => self.update_local_search_config(update, owner_id, scope, show_legend)?,
+                show_config_after_enter,
+            } => {
+                self.update_local_search_config(update, owner_id, scope, show_config_after_enter)?
+            }
             Dispatch::UpdateGlobalSearchConfig { owner_id, update } => {
                 self.update_global_search_config(owner_id, update)?;
             }
             Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                 owner_id,
                 filter_glob,
-            } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob),
+            } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob)?,
             Dispatch::ShowSearchConfig { owner_id, scope } => {
                 self.show_search_config(owner_id, scope)
             }
             Dispatch::OpenUpdateReplacementPrompt { owner_id, scope } => {
-                self.open_update_replacement_prompt(owner_id, scope)
+                self.open_update_replacement_prompt(owner_id, scope)?
             }
             Dispatch::OpenUpdateSearchPrompt { owner_id, scope } => {
-                self.open_update_search_prompt(owner_id, scope)
+                self.open_update_search_prompt(owner_id, scope)?
             }
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(DispatchEditor::Replace {
@@ -579,6 +564,31 @@ impl<T: Frontend> App<T> {
                 })?,
                 Scope::Global => self.global_replace()?,
             },
+            Dispatch::GoToPreviousSelection => self.go_to_previous_selection()?,
+            Dispatch::GoToNextSelection => self.go_to_next_selection()?,
+            Dispatch::HandleLspNotification(notification) => {
+                self.handle_lsp_notification(notification)?
+            }
+            Dispatch::SetTheme(theme) => {
+                let context = std::mem::take(&mut self.context);
+                self.context = context.set_theme(theme);
+            }
+            Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
+            Dispatch::DispatchSuggestiveEditor(dispatch) => {
+                self.handle_dispatch_suggestive_editor(dispatch)?
+            }
+            Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
+            Dispatch::RenderDropdown { owner_id, render } => {
+                let dropdown = self.layout.open_dropdown(owner_id);
+                self.render_dropdown(Some(owner_id), dropdown, render)?
+            }
+            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
+            Dispatch::ShowEditorInfo(info) => {
+                if let Some(component) = self.current_component() {
+                    self.show_editor_info(component.borrow().id(), info)?
+                }
+            }
+            Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
         }
         Ok(())
     }
@@ -616,241 +626,123 @@ impl<T: Frontend> App<T> {
             .set_terminal_dimension(dimension.decrement_height(GLOBAL_TITLE_BAR_HEIGHT));
     }
 
-    fn open_move_to_index_prompt(&mut self) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_move_to_index_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: "Move to index".to_string(),
             history: vec![],
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                let index = text.parse::<usize>()?.saturating_sub(1);
-                Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    Movement::Index(index),
-                ))]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::MoveSelectionByIndex,
             items: vec![],
             enter_selects_first_matching_item: false,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_rename_prompt(&mut self, params: RequestParams, current_name: Option<String>) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_rename_prompt(
+        &mut self,
+        params: RequestParams,
+        current_name: Option<String>,
+    ) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: "Rename".to_string(),
             history: current_name.into_iter().collect_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok(vec![Dispatch::RenameSymbol {
-                    params: params.clone(),
-                    new_name: text.to_string(),
-                }])
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::RenameSymbol { params },
             items: vec![],
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_search_prompt(
-        &mut self,
-        mode: LocalSearchConfigMode,
-        scope: Scope,
-        owner_id: ComponentId,
-    ) {
-        let current_component = self.current_component().clone();
+    fn open_search_prompt(&mut self, scope: Scope, owner_id: ComponentId) -> anyhow::Result<()> {
         let config = self.context.get_local_search_config(scope);
-        log::info!("config.searches = {:#?}", config.searches());
-        let prompt = Prompt::new(PromptConfig {
+        let mode = config.mode;
+        self.open_prompt(PromptConfig {
             title: format!("{:?} search ({})", scope, mode.display()),
             history: config.searches(),
-            owner: current_component.clone(),
             items: self.words(),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    update: LocalSearchConfigUpdate::SetSearch(text.to_string()),
-                    scope,
-                    show_legend: false,
-                }]
-                .to_vec())
-            }),
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
+                scope,
+                owner_id,
+                show_config_after_enter: false,
+            },
             enter_selects_first_matching_item: false,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_inside_other_prompt_open(&mut self) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_inside_other_prompt_open(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: "Inside (other): Open".to_string(),
             history: Vec::new(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::OpenInsideOtherPromptClose {
-                    open: text.to_owned(),
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::OpenInsideOtherPromptClose,
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_inside_other_prompt_close(&mut self, open: String) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_inside_other_prompt_close(&mut self, open: String) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: format!("Inside (other, open = '{}'): Close", open),
             history: Vec::new(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::DispatchEditor(DispatchEditor::EnterInsideMode(
-                    InsideKind::Other {
-                        open: open.clone(),
-                        close: text.to_owned(),
-                    },
-                ))]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::EnterInsideMode { open },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_add_path_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: "Add path".to_string(),
             history: [path.display_absolute()].to_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| Ok([Dispatch::AddPath(text.into())].to_vec())),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::AddPath,
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_move_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: "Move file".to_string(),
             history: [path.display_absolute()].to_vec(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::MoveFile {
-                    from: path.clone(),
-                    to: text.try_into()?,
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::MovePath { from: path },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_symbol_picker(
         &mut self,
-        component_id: ComponentId,
+        _component_id: ComponentId,
         symbols: Symbols,
     ) -> anyhow::Result<()> {
-        let current_component = self.current_component();
-        if !current_component
-            .as_ref()
-            .is_some_and(|component| component.borrow().id() == component_id)
-        {
-            return Ok(());
-        }
-        let prompt =
-            Prompt::new(PromptConfig {
-                title: "Symbols".to_string(),
-                history: vec![],
-                owner: current_component,
-                on_text_change: Box::new(|_, _| Ok(vec![])),
-                items: symbols
-                    .symbols
-                    .iter()
-                    .map(|symbol| {
-                        CompletionItem::from_label(format!("{} ({:?})", symbol.name, symbol.kind))
-                    })
-                    .collect_vec(),
-                on_enter: Box::new(move |current_item, _| {
-                    // TODO: make Prompt generic over the item type,
-                    // so that we don't have to do this,
-                    // i.e. we can just return the symbol directly,
-                    // instead of having to find it again.
-                    if let Some(symbol) = symbols.symbols.iter().find(|symbol| {
-                        current_item == &format!("{} ({:?})", symbol.name, symbol.kind)
-                    }) {
-                        Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
-                    } else {
-                        Ok(vec![])
-                    }
-                }),
-                enter_selects_first_matching_item: true,
-            });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
-        Ok(())
+        self.open_prompt(PromptConfig {
+            title: "Symbols".to_string(),
+            history: vec![],
+            items: symbols
+                .symbols
+                .iter()
+                .map(|symbol| CompletionItem::from_label(symbol.display()))
+                .collect_vec(),
+            on_enter: DispatchPrompt::SelectSymbol { symbols },
+            enter_selects_first_matching_item: true,
+        })
     }
 
-    fn open_command_prompt(&mut self) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_command_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: "Command".to_string(),
             history: vec![],
-            owner: current_component,
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::RunCommand(text.to_string())]
-                    .into_iter()
-                    .collect())
-            }),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
+            on_enter: DispatchPrompt::RunCommand,
             items: crate::command::commands()
                 .iter()
                 .flat_map(|command| command.to_completion_items())
                 .collect(),
             enter_selects_first_matching_item: true,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
-        let current_component = self.current_component().clone();
-
         let working_directory = self.working_directory.clone();
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Open file: {}", kind.display()),
             history: vec![],
-            owner: current_component,
-            on_enter: Box::new(move |current_item, _| {
-                let path = working_directory.join(current_item)?;
-                Ok(vec![Dispatch::OpenFile { path }])
-            }),
-            on_text_change: Box::new(|_, _| Ok(vec![])),
+            on_enter: DispatchPrompt::OpenFile { working_directory },
             items: {
                 match kind {
                     FilePickerKind::NonGitIgnored => {
@@ -867,16 +759,17 @@ impl<T: Frontend> App<T> {
                 .collect_vec()
             },
             enter_selects_first_matching_item: true,
-        });
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
-        Ok(())
+        })
     }
 
-    pub fn open_file(
+    /// This is different from `open_file` because it has the additional `update_selection_set` argument.
+    /// If Rust supports optional arguments, I do not have to do this
+    /// I do this to minimize changes
+    fn open_file_custom(
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
+        position_range: Option<Range<Position>>,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
@@ -889,15 +782,18 @@ impl<T: Frontend> App<T> {
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
+        let _selection_set = position_range
+            .map(|position_range| {
+                editor
+                    .editor()
+                    .position_range_to_selection_set(position_range)
+            })
+            .transpose()?
+            .unwrap_or_default();
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
 
         if focus_editor {
-            self.push_selection_set(
-                path.clone(),
-                SelectionSet::default(),
-                SelectionSet::default(),
-            )?;
             self.layout
                 .add_and_focus_suggestive_editor(component.clone());
         } else {
@@ -914,6 +810,14 @@ impl<T: Frontend> App<T> {
         Ok(component)
     }
 
+    pub fn open_file(
+        &mut self,
+        path: &CanonicalizedPath,
+        focus_editor: bool,
+    ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
+        self.open_file_custom(path, focus_editor, None)
+    }
+
     fn get_suggestive_editor(
         &mut self,
         component_id: ComponentId,
@@ -923,21 +827,19 @@ impl<T: Frontend> App<T> {
 
     pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::Hover(context, hover) => {
-                self.get_suggestive_editor(context.component_id)?
-                    .borrow_mut()
-                    .show_info("Hover info", Info::new(hover.contents.join("\n\n")));
-                Ok(())
-            }
+            LspNotification::Hover(context, hover) => self.show_editor_info(
+                context.component_id,
+                Info::new("Hover Info".to_string(), hover.contents.join("\n\n")),
+            ),
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
-                            self.show_info(
-                                "Goto definition info",
-                                Info::new("No definitions found".to_string()),
-                            );
+                            self.show_global_info(Info::new(
+                                "Goto definition info".to_string(),
+                                "No definitions found".to_string(),
+                            ));
                         } else {
                             self.set_quickfix_list(
                                 context,
@@ -955,10 +857,11 @@ impl<T: Frontend> App<T> {
                 context,
                 QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
             ),
-            LspNotification::Completion(context, completion) => {
-                self.get_suggestive_editor(context.component_id)?
-                    .borrow_mut()
-                    .set_completion(completion);
+            LspNotification::Completion(_context, completion) => {
+                self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::SetCompletion(
+                    completion,
+                ))?;
+
                 Ok(())
             }
             LspNotification::Initialized(language) => {
@@ -1020,30 +923,33 @@ impl<T: Frontend> App<T> {
                     (params, current_name)
                 };
                 if let Some(params) = params {
-                    self.open_rename_prompt(params, current_name);
+                    self.open_rename_prompt(params, current_name)?;
                 }
 
                 Ok(())
             }
             LspNotification::Error(error) => {
-                self.show_info("LSP error", Info::new(error));
+                self.show_global_info(Info::new("LSP Error".to_string(), error));
                 Ok(())
             }
             LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
             }
-            LspNotification::CodeAction(context, code_actions) => {
-                let editor = self.get_suggestive_editor(context.component_id)?;
-                editor.borrow_mut().set_code_actions(code_actions);
+            LspNotification::CodeAction(_context, code_actions) => {
+                self.handle_dispatch(Dispatch::DispatchSuggestiveEditor(
+                    DispatchSuggestiveEditor::SetCodeActions(code_actions),
+                ))?;
                 Ok(())
             }
             LspNotification::SignatureHelp(context, signature_help) => {
-                let editor = self.get_suggestive_editor(context.component_id)?;
-                editor.borrow_mut().show_signature_help(signature_help);
+                if let Some(info) = signature_help.and_then(|s| s.into_info()) {
+                    self.show_editor_info(context.component_id, info)?;
+                }
                 Ok(())
             }
             LspNotification::Symbols(context, symbols) => {
-                self.open_symbol_picker(context.component_id, symbols)
+                self.open_symbol_picker(context.component_id, symbols)?;
+                Ok(())
             }
         }
     }
@@ -1053,30 +959,27 @@ impl<T: Frontend> App<T> {
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
-        let item = self
-            .context
-            .quickfix_lists()
-            .borrow_mut()
-            .get_item(movement);
+        let item = self.context.goto_quickfix_list_item(movement);
         if let Some(item) = item {
             self.go_to_location(item.location())?;
+            self.render_quickfix_list()?;
         }
+
         Ok(())
     }
 
-    fn show_info(&mut self, title: &str, info: Info) {
-        self.layout.show_info(title, info).unwrap_or_else(|err| {
+    fn show_global_info(&mut self, info: Info) {
+        self.layout.show_info(info).unwrap_or_else(|err| {
             log::error!("Error showing info: {:?}", err);
         });
     }
 
-    fn go_to_location(&mut self, location: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(&location.path, true)?;
-        component
-            .borrow_mut()
-            .editor_mut()
-            .set_selection(location.range.clone())?;
-        Ok(())
+    fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
+        self.update_selection_set(
+            SelectionSetHistoryKind::Path(path.clone()),
+            UpdateSelectionSetSource::PositionRange(range.clone()),
+            true,
+        )
     }
 
     fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
@@ -1093,7 +996,7 @@ impl<T: Frontend> App<T> {
                                     path: (*path).clone(),
                                     range: diagnostic.range.clone(),
                                 },
-                                Some(Info::new(diagnostic.message())),
+                                Some(Info::new("Diagnostic".to_string(), diagnostic.message())),
                             )
                         })
                         .collect(),
@@ -1147,15 +1050,14 @@ impl<T: Frontend> App<T> {
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<()> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        self.context
-            .quickfix_lists()
-            .borrow_mut()
-            .push(quickfix_list.set_title(context.description.clone()));
+        let quickfix_list = quickfix_list.set_title(context.description.clone());
+        let _render = quickfix_list.render();
+        self.context.set_quickfix_list(quickfix_list);
         match context.scope {
             None | Some(Scope::Global) => {
-                self.layout
-                    .show_quickfix_lists(self.context.quickfix_lists().clone());
-                self.goto_quickfix_list_item(Movement::Next)
+                self.render_quickfix_list()?;
+                self.goto_quickfix_list_item(Movement::Current)?;
+                Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
                 DispatchEditor::SetSelectionMode(SelectionMode::LocalQuickfix {
@@ -1235,7 +1137,8 @@ impl<T: Frontend> App<T> {
                     .map(|location| QuickfixListItem::new(location, None))
                     .collect_vec(),
             ),
-        )
+        )?;
+        Ok(())
     }
 
     pub fn quit_all(&self) -> Result<(), anyhow::Error> {
@@ -1359,8 +1262,22 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_file_content(&mut self, path: &CanonicalizedPath) -> String {
-        self.layout.open_file(path).unwrap().borrow().content()
+    pub fn get_current_selected_texts(&self) -> Vec<String> {
+        let _content = self.current_component().unwrap().borrow().content();
+        self.current_component()
+            .unwrap()
+            .borrow()
+            .editor()
+            .get_selected_texts()
+    }
+
+    #[cfg(test)]
+    pub fn get_file_content(&self, path: &CanonicalizedPath) -> String {
+        self.layout
+            .get_existing_editor(path)
+            .unwrap()
+            .borrow()
+            .content()
     }
 
     #[cfg(test)]
@@ -1374,7 +1291,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn handle_dispatch_editor(&mut self, dispatch_editor: DispatchEditor) -> anyhow::Result<()> {
+    pub fn handle_dispatch_editor(
+        &mut self,
+        dispatch_editor: DispatchEditor,
+    ) -> anyhow::Result<()> {
         self.handle_dispatch_editor_custom(dispatch_editor, self.current_component())
     }
 
@@ -1428,8 +1348,8 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    pub(crate) fn get_quickfixes(&self) -> Vec<QuickfixListItem> {
-        self.layout.get_quickfixes().unwrap_or_default()
+    pub(crate) fn get_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
+        self.context.get_latest_quickfixes()
     }
 
     fn set_global_title(&mut self, title: String) {
@@ -1450,85 +1370,81 @@ impl<T: Frontend> App<T> {
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
-        if mode == Some(GlobalMode::SelectionHistoryFile) {
-            self.show_selection_history()
-        }
         self.context.set_mode(mode);
-    }
-
-    pub fn display_selection_history(&self) -> String {
-        self.undo_tree.display().to_string()
-    }
-
-    fn show_selection_history(&mut self) {
-        let tree = self.display_selection_history();
-        self.show_info("Selection History", Info::new(tree));
     }
 
     fn open_omit_prompt(
         &mut self,
         kind: FilterKind,
         target: FilterTarget,
-        mechanism: &str,
-        make_filter_mechanism: Box<dyn Fn(&str) -> anyhow::Result<FilterMechanism>>,
-    ) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+        make_mechanism: MakeFilterMechanism,
+    ) -> anyhow::Result<()> {
+        self.open_prompt(PromptConfig {
             title: format!(
-                "Omit: {:?} selection by {:?} matching {}",
-                kind, target, mechanism
+                "Omit: {:?} selection by {:?} matching {:?}",
+                kind, target, make_mechanism
             ),
             history: Vec::new(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
-                    Filter::new(kind, target, make_filter_mechanism(text)?),
-                ))]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::PushFilter {
+                kind,
+                target,
+                make_mechanism,
+            },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn push_selection_set(
+    fn update_selection_set(
         &mut self,
-        path: CanonicalizedPath,
-        old_selection_set: SelectionSet,
-        new_selection_set: SelectionSet,
+        kind: SelectionSetHistoryKind,
+        source: UpdateSelectionSetSource,
+        store_history: bool,
     ) -> anyhow::Result<()> {
-        let new_to_old = self
-            .layout
-            .current_component()
-            .and_then(|component| {
-                let current_path = self.get_current_file_path()?;
-                if current_path != path {
-                    Some(FileSelectionSet {
-                        path: current_path,
-                        selection_set: component.borrow().editor().selection_set.clone(),
-                    })
-                } else {
-                    None
-                }
+        let component = self.layout.current_component();
+
+        let new_to_old = component
+            .as_ref()
+            .map(|component| SelectionSetHistory {
+                kind: component
+                    .borrow()
+                    .path()
+                    .map(SelectionSetHistoryKind::Path)
+                    .unwrap_or_else(|| {
+                        SelectionSetHistoryKind::ComponentId(component.borrow().id())
+                    }),
+                selection_set: component.borrow().editor().selection_set.clone(),
             })
-            .unwrap_or_else(|| FileSelectionSet {
-                path: path.clone(),
-                selection_set: old_selection_set.clone(),
+            .unwrap_or_else(|| SelectionSetHistory {
+                kind: SelectionSetHistoryKind::ComponentId(Default::default()),
+                selection_set: SelectionSet::default(),
             });
-        self.undo_tree.edit(
-            &mut self.layout,
-            crate::undo_tree::OldNew {
-                old_to_new: FileSelectionSet {
-                    path: path.clone(),
-                    selection_set: new_selection_set,
+        if let Some(new_component) = match &kind {
+            SelectionSetHistoryKind::Path(path) => Some(self.open_file(path, true)?),
+            SelectionSetHistoryKind::ComponentId(id) => self.layout.get_component_by_id(id),
+        } {
+            let selection_set = match source {
+                UpdateSelectionSetSource::PositionRange(position_range) => new_component
+                    .borrow_mut()
+                    .editor_mut()
+                    .position_range_to_selection_set(position_range)?,
+                UpdateSelectionSetSource::SelectionSet(selection_set) => selection_set,
+            };
+            new_component
+                .borrow_mut()
+                .editor_mut()
+                .__update_selection_set_for_real(selection_set.clone());
+            let old_new = crate::undo_tree::OldNew {
+                old_to_new: SelectionSetHistory {
+                    kind: kind.clone(),
+                    selection_set,
                 },
                 new_to_old,
-            },
-        )?;
+            };
+            if store_history {
+                self.selection_set_history.push(old_new.clone());
+            }
+        }
         Ok(())
     }
 
@@ -1545,66 +1461,20 @@ impl<T: Frontend> App<T> {
     fn goto_selection_history_contiguous(&mut self, movement: Movement) -> anyhow::Result<()> {
         match movement {
             Movement::Next => {
-                self.undo_tree.redo(&mut self.layout)?;
+                if let Some(go_to_selection_set_history) = self.selection_set_history.redo() {
+                    self.go_to_selection_set_history(go_to_selection_set_history)?;
+                }
+                // self.undo_tree.redo(&mut self.layout)?;
             }
             Movement::Previous => {
-                self.undo_tree.undo(&mut self.layout)?;
+                if let Some(file_selection_set) = self.selection_set_history.undo() {
+                    self.go_to_selection_set_history(file_selection_set)?;
+                }
+                // self.undo_tree.undo(&mut self.layout)?;
             }
-            Movement::Up => {
-                self.set_global_mode(Some(GlobalMode::SelectionHistoryFile));
-            }
+
             _ => {}
         }
-        Ok(())
-    }
-
-    fn goto_selection_history_file(&mut self, movement: Movement) -> anyhow::Result<()> {
-        match movement {
-            Movement::Next => {
-                let next_entries = self
-                    .undo_tree
-                    .next_entries()
-                    .into_iter()
-                    .filter(|(_, entry)| {
-                        Some(&entry.get().old_to_new.path) != self.get_current_file_path().as_ref()
-                    })
-                    .collect_vec();
-                log::info!("next_entries.len() = {}", next_entries.len());
-                log::info!(
-                    "next_entries.last().index = {:?}",
-                    next_entries.last().map(|e| e.0)
-                );
-                if let Some((next_entry_index, next_entry)) = next_entries.first() {
-                    let next_file = next_entry.get().old_to_new.path.clone();
-                    let next_entry_index = *next_entry_index;
-                    let index = next_entries
-                        .into_iter()
-                        .take_while(|(_, entry)| entry.get().old_to_new.path == next_file)
-                        .last()
-                        .map(|(index, _)| index)
-                        .unwrap_or(next_entry_index);
-                    self.undo_tree.go_to_entry(&mut self.layout, index)?;
-                }
-            }
-            Movement::Previous => {
-                if let Some((index, entry)) =
-                    self.undo_tree
-                        .previous_entries()
-                        .into_iter()
-                        .rfind(|(_, entry)| {
-                            Some(&entry.get().old_to_new.path)
-                                != self.get_current_file_path().as_ref()
-                        })
-                {
-                    log::info!("entry.path = {:?}", entry.get().new_to_old.path);
-                    self.undo_tree.go_to_entry(&mut self.layout, index)?;
-                }
-            }
-            Movement::Down => {
-                self.set_global_mode(Some(GlobalMode::SelectionHistoryContiguous));
-            }
-            _ => {}
-        };
         Ok(())
     }
 
@@ -1654,31 +1524,23 @@ impl<T: Frontend> App<T> {
         &mut self,
         owner_id: ComponentId,
         filter_glob: GlobalSearchFilterGlob,
-    ) {
-        let current_component = self.current_component().clone();
+    ) -> anyhow::Result<()> {
+        let _current_component = self.current_component().clone();
         let config = self.context.global_search_config();
         let history = match filter_glob {
             GlobalSearchFilterGlob::Include => config.include_globs(),
             GlobalSearchFilterGlob::Exclude => config.exclude_globs(),
         };
-        let prompt = Prompt::new(PromptConfig {
+        self.open_prompt(PromptConfig {
             title: format!("Set global search {:?} files glob", filter_glob),
             history,
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateGlobalSearchConfig {
-                    owner_id,
-                    update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::GlobalSearchConfigSetGlob {
+                owner_id,
+                filter_glob,
+            },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
@@ -1701,7 +1563,7 @@ impl<T: Frontend> App<T> {
                         update,
                         owner_id,
                         scope,
-                        show_legend: true,
+                        show_config_after_enter: true,
                     },
                 )
             };
@@ -1851,52 +1713,36 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_update_replacement_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_update_replacement_prompt(
+        &mut self,
+        owner_id: ComponentId,
+        scope: Scope,
+    ) -> Result<(), anyhow::Error> {
+        self.open_prompt(PromptConfig {
             title: format!("Set Replace ({:?})", scope),
             history: self.context.get_local_search_config(scope).replacements(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    scope,
-                    update: LocalSearchConfigUpdate::SetReplacement(text.to_owned()),
-                    show_legend: true,
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
-    fn open_update_search_prompt(&mut self, owner_id: ComponentId, scope: Scope) {
-        let current_component = self.current_component().clone();
-        let prompt = Prompt::new(PromptConfig {
+    fn open_update_search_prompt(
+        &mut self,
+        owner_id: ComponentId,
+        scope: Scope,
+    ) -> Result<(), anyhow::Error> {
+        self.open_prompt(PromptConfig {
             title: format!("Set Search ({:?})", scope),
-            history: self.context.get_local_search_config(scope).replacements(),
-            owner: current_component.clone(),
-            on_enter: Box::new(move |text, _| {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    scope,
-                    update: LocalSearchConfigUpdate::SetSearch(text.to_owned()),
-                    show_legend: true,
-                }]
-                .to_vec())
-            }),
-            on_text_change: Box::new(|_current_text, _owner| Ok(vec![])),
+            history: self.context.get_local_search_config(scope).searches(),
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
+                scope,
+                owner_id,
+                show_config_after_enter: true,
+            },
             items: self.words(),
             enter_selects_first_matching_item: false,
-        });
-
-        self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        })
     }
 
     fn words(&self) -> Vec<CompletionItem> {
@@ -1912,6 +1758,129 @@ impl<T: Frontend> App<T> {
                     .collect_vec()
             })
             .unwrap_or_default()
+    }
+
+    fn go_to_selection_set_history(
+        &mut self,
+        selection_set_history: SelectionSetHistory,
+    ) -> anyhow::Result<()> {
+        match selection_set_history.kind {
+            SelectionSetHistoryKind::Path(path) => self
+                .layout
+                .open_file_with_selection(&path, selection_set_history.selection_set)?,
+            SelectionSetHistoryKind::ComponentId(id) => self
+                .layout
+                .open_component_with_selection(&id, selection_set_history.selection_set),
+        };
+        Ok(())
+    }
+
+    fn go_to_previous_selection(&mut self) -> anyhow::Result<()> {
+        if let Some(file_selection_set) = self.selection_set_history.undo() {
+            self.go_to_selection_set_history(file_selection_set)?;
+        }
+        Ok(())
+    }
+
+    fn go_to_next_selection(&mut self) -> anyhow::Result<()> {
+        if let Some(file_selection_set) = self.selection_set_history.redo() {
+            self.go_to_selection_set_history(file_selection_set)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn get_current_component_content(&self) -> String {
+        self.current_component()
+            .unwrap()
+            .borrow()
+            .editor()
+            .content()
+    }
+
+    fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
+        for key_event in key_events.into_iter() {
+            self.handle_event(Event::Key(key_event.to_owned()))?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn handle_dispatch_suggestive_editor(
+        &mut self,
+        dispatch: DispatchSuggestiveEditor,
+    ) -> anyhow::Result<()> {
+        if let Some(component) = self.layout.get_current_suggestive_editor() {
+            let dispatches = component.borrow_mut().handle_dispatch(dispatch)?;
+
+            self.handle_dispatches(dispatches)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn completion_dropdown_is_open(&self) -> bool {
+        self.layout.completion_dropdown_is_open()
+    }
+
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.layout.current_completion_dropdown()
+    }
+
+    fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
+        let current_component = self.current_component().clone();
+        let (prompt, dispatches) =
+            Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
+
+        self.layout
+            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+        self.handle_dispatches(dispatches)
+    }
+
+    fn render_dropdown(
+        &mut self,
+        owner_id: Option<ComponentId>,
+        editor: Rc<RefCell<Editor>>,
+        render: DropdownRender,
+    ) -> Result<(), anyhow::Error> {
+        let dispatches = editor
+            .borrow_mut()
+            .render_dropdown(&mut self.context, &render)?;
+        editor.borrow_mut().set_title(render.title);
+
+        let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
+        match render.info {
+            Some(info) if !info.content().trim().is_empty() => {
+                self.layout.show_dropdown_info(owner_id, info)
+            }
+            _ => self.layout.hide_dropdown_info(owner_id),
+        }
+        self.handle_dispatches(dispatches)
+    }
+
+    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
+        self.layout.quickfix_list()
+    }
+
+    pub(crate) fn get_dropdown_infos_count(&self) -> usize {
+        self.layout.get_dropdown_infos_count()
+    }
+
+    fn render_quickfix_list(&mut self) -> anyhow::Result<()> {
+        let editor = self.layout.show_quickfix_list();
+        if let Some(render) = self.context.current_quickfix_list().map(|q| q.render()) {
+            self.render_dropdown(None, editor, render)?;
+        }
+        Ok(())
+    }
+
+    fn show_editor_info(&mut self, owner_id: ComponentId, info: Info) -> anyhow::Result<()> {
+        self.layout.show_editor_info(owner_id, info)
+    }
+
+    pub(crate) fn editor_info_open(&self) -> bool {
+        self.layout.editor_info_open()
+    }
+
+    pub(crate) fn editor_info_content(&self) -> Option<String> {
+        self.layout.editor_info_content()
     }
 }
 
@@ -1940,25 +1909,21 @@ impl Dimension {
     }
 }
 
+#[must_use]
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
+    SetTheme(Theme),
     CloseCurrentWindow {
         change_focused_to: Option<ComponentId>,
     },
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
-        mode: LocalSearchConfigMode,
         scope: Scope,
         owner_id: ComponentId,
     },
-    OpenFile {
-        path: CanonicalizedPath,
-    },
-    ShowInfo {
-        title: String,
-        info: Info,
-    },
+    OpenFile(CanonicalizedPath),
+    ShowGlobalInfo(Info),
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),
     RequestHover(RequestParams),
@@ -1990,7 +1955,6 @@ pub enum Dispatch {
     },
     SetQuickfixList(QuickfixListType),
     GotoQuickfixListItem(Movement),
-    GotoSelectionHistoryFile(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
     CloseAllExceptMainPanel,
@@ -2022,6 +1986,7 @@ pub enum Dispatch {
     SetClipboardContent(String),
     SetGlobalMode(Option<GlobalMode>),
     HandleKeyEvent(event::KeyEvent),
+    HandleKeyEvents(Vec<event::KeyEvent>),
     GetRepoGitHunks,
     SaveAll,
     TerminalDimensionChanged(Dimension),
@@ -2030,29 +1995,26 @@ pub enum Dispatch {
     OpenInsideOtherPromptClose {
         open: String,
     },
-    OpenOmitLiteralPrompt {
+    OpenOmitPrompt {
         kind: FilterKind,
         target: FilterTarget,
-    },
-    OpenOmitRegexPrompt {
-        kind: FilterKind,
-        target: FilterTarget,
+        make_mechanism: MakeFilterMechanism,
     },
     LspExecuteCommand {
         params: RequestParams,
         command: crate::lsp::code_action::Command,
     },
-    PushSelectionSet {
-        new_selection_set: SelectionSet,
-        old_selection_set: SelectionSet,
-        path: CanonicalizedPath,
+    UpdateSelectionSet {
+        selection_set: SelectionSet,
+        kind: SelectionSetHistoryKind,
+        store_history: bool,
     },
     GotoSelectionHistoryContiguous(Movement),
     UpdateLocalSearchConfig {
         owner_id: ComponentId,
         update: LocalSearchConfigUpdate,
         scope: Scope,
-        show_legend: bool,
+        show_config_after_enter: bool,
     },
     UpdateGlobalSearchConfig {
         owner_id: ComponentId,
@@ -2076,6 +2038,22 @@ pub enum Dispatch {
     },
     Replace {
         scope: Scope,
+    },
+    GoToPreviousSelection,
+    GoToNextSelection,
+    HandleLspNotification(LspNotification),
+    DispatchSuggestiveEditor(DispatchSuggestiveEditor),
+    CloseDropdown {
+        owner_id: ComponentId,
+    },
+    RenderDropdown {
+        owner_id: ComponentId,
+        render: DropdownRender,
+    },
+    OpenPrompt(PromptConfig),
+    ShowEditorInfo(Info),
+    CloseEditorInfo {
+        owner_id: ComponentId,
     },
 }
 
@@ -2163,4 +2141,161 @@ pub enum AppMessage {
         component_id: ComponentId,
         highlighted_spans: HighlighedSpans,
     },
+}
+
+enum UpdateSelectionSetSource {
+    PositionRange(Range<Position>),
+    SelectionSet(SelectionSet),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MakeFilterMechanism {
+    Literal,
+    Regex,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DispatchPrompt {
+    PushFilter {
+        kind: FilterKind,
+        target: FilterTarget,
+        make_mechanism: MakeFilterMechanism,
+    },
+    GlobalSearchConfigSetGlob {
+        owner_id: ComponentId,
+        filter_glob: GlobalSearchFilterGlob,
+    },
+    MoveSelectionByIndex,
+    RenameSymbol {
+        params: RequestParams,
+    },
+    UpdateLocalSearchConfigSearch {
+        scope: Scope,
+        owner_id: ComponentId,
+        show_config_after_enter: bool,
+    },
+    OpenInsideOtherPromptClose,
+    EnterInsideMode {
+        open: String,
+    },
+    AddPath,
+    MovePath {
+        from: CanonicalizedPath,
+    },
+    SelectSymbol {
+        symbols: Symbols,
+    },
+    RunCommand,
+    OpenFile {
+        working_directory: CanonicalizedPath,
+    },
+    UpdateLocalSearchConfigReplacement {
+        owner_id: ComponentId,
+        scope: Scope,
+    },
+    SetContent,
+}
+impl DispatchPrompt {
+    pub fn to_dispatches(&self, text: &str) -> anyhow::Result<Vec<Dispatch>> {
+        match self.clone() {
+            DispatchPrompt::PushFilter {
+                kind,
+                target,
+                make_mechanism: mechanism,
+            } => {
+                let mechanism = match mechanism {
+                    MakeFilterMechanism::Literal => FilterMechanism::Literal(text.to_string()),
+                    MakeFilterMechanism::Regex => FilterMechanism::Regex(regex::Regex::new(text)?),
+                };
+                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
+                    Filter::new(kind, target, mechanism),
+                ))]
+                .to_vec())
+            }
+            DispatchPrompt::GlobalSearchConfigSetGlob {
+                owner_id,
+                filter_glob,
+            } => Ok([Dispatch::UpdateGlobalSearchConfig {
+                owner_id,
+                update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
+            }]
+            .to_vec()),
+            DispatchPrompt::MoveSelectionByIndex => {
+                let index = text.parse::<usize>()?.saturating_sub(1);
+                Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
+                    Movement::Index(index),
+                ))]
+                .to_vec())
+            }
+            DispatchPrompt::RenameSymbol { params } => Ok(vec![Dispatch::RenameSymbol {
+                params: params.clone(),
+                new_name: text.to_string(),
+            }]),
+            DispatchPrompt::UpdateLocalSearchConfigSearch {
+                scope,
+                owner_id,
+                show_config_after_enter,
+            } => Ok([Dispatch::UpdateLocalSearchConfig {
+                owner_id,
+                update: LocalSearchConfigUpdate::SetSearch(text.to_string()),
+                scope,
+                show_config_after_enter,
+            }]
+            .to_vec()),
+            DispatchPrompt::OpenInsideOtherPromptClose => {
+                Ok([Dispatch::OpenInsideOtherPromptClose {
+                    open: text.to_owned(),
+                }]
+                .to_vec())
+            }
+            DispatchPrompt::EnterInsideMode { open } => Ok([Dispatch::DispatchEditor(
+                DispatchEditor::EnterInsideMode(InsideKind::Other {
+                    open: open.clone(),
+                    close: text.to_owned(),
+                }),
+            )]
+            .to_vec()),
+            DispatchPrompt::AddPath => Ok([Dispatch::AddPath(text.into())].to_vec()),
+            DispatchPrompt::MovePath { from } => Ok([Dispatch::MoveFile {
+                from,
+                to: text.try_into()?,
+            }]
+            .to_vec()),
+            DispatchPrompt::SelectSymbol { symbols } => {
+                // TODO: make Prompt generic over the item type,
+                // so that we don't have to do this,
+                // i.e. we can just return the symbol directly,
+                // instead of having to find it again.
+                if let Some(symbol) = symbols
+                    .symbols
+                    .iter()
+                    .find(|symbol| text == &symbol.display())
+                {
+                    Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
+                } else {
+                    Ok(vec![])
+                }
+            }
+            DispatchPrompt::RunCommand => Ok([Dispatch::RunCommand(text.to_string())]
+                .into_iter()
+                .collect()),
+            DispatchPrompt::OpenFile { working_directory } => {
+                let path = working_directory.join(text)?;
+                Ok(vec![Dispatch::OpenFile(path)])
+            }
+            DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope } => {
+                Ok([Dispatch::UpdateLocalSearchConfig {
+                    owner_id,
+                    scope,
+                    update: LocalSearchConfigUpdate::SetReplacement(text.to_owned()),
+                    show_config_after_enter: true,
+                }]
+                .to_vec())
+            }
+            DispatchPrompt::SetContent => Ok([Dispatch::DispatchEditor(
+                DispatchEditor::SetContent(text.to_string()),
+            )]
+            .to_vec()),
+        }
+    }
 }

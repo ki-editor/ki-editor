@@ -1,12 +1,16 @@
 #[cfg(test)]
 mod test_editor {
+    use crate::components::editor::DispatchEditor::*;
+    use crate::components::editor::Movement::*;
+
+    use crate::rectangle::Rectangle;
+
+    use crate::test_app::test_app::*;
 
     use crate::{
-        app::Dispatch,
         components::{
             component::Component,
             editor::{Direction, DispatchEditor, Editor, Mode, Movement, ViewAlignment},
-            suggestive_editor::Info,
         },
         context::Context,
         grid::{Style, StyleKey},
@@ -15,113 +19,471 @@ mod test_editor {
         selection_mode::inside::InsideKind,
         themes::Theme,
     };
-    use DispatchEditor::*;
 
     use itertools::Itertools;
     use my_proc_macros::{hex, key, keys};
     use pretty_assertions::assert_eq;
+    use serial_test::serial;
     use tree_sitter_rust::language;
+    use SelectionMode::*;
 
     #[test]
-    fn select_character() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-        editor.handle_movement(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["n"]);
-
-        editor.handle_movement(&context, Movement::Previous)?;
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
+    fn raise_bottom_node() -> anyhow::Result<()> {
+        let input = "fn main() { x + 1 }";
+        let mut editor = Editor::from_text(language(), input);
+        let mut context = Context::default();
+        editor.apply_dispatches(
+            &mut context,
+            [
+                MatchLiteral("x + 1".to_string()),
+                SetSelectionMode(SelectionMode::TopNode),
+                MoveSelection(Movement::Down),
+                Raise,
+            ]
+            .to_vec(),
+        )?;
+        assert_eq!(editor.content(), "fn main() { x }");
         Ok(())
     }
 
     #[test]
-    fn select_kids() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let context = Context::default();
+    /// Example: from "hello" -> hello
+    fn raise_inside() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { (a, b) }".to_string())),
+                Editor(MatchLiteral("b".to_string())),
+                Editor(SetSelectionMode(SelectionMode::Inside(
+                    InsideKind::Parentheses,
+                ))),
+                Expect(CurrentSelectedTexts(&["a, b"])),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn main() { a, b }")),
+            ])
+        })
+    }
 
-        editor.match_literal(&context, "x")?;
-        editor.handle_movement(&context, Movement::Next)?;
+    #[test]
+    fn toggle_highlight_mode() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["fn f("])),
+                // Toggle the second time should inverse the initial_range
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["f("])),
+                Editor(Reset),
+                Expect(CurrentSelectedTexts(&["f"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["("])),
+            ])
+        })
+    }
 
-        assert_eq!(editor.get_selected_texts(), vec!["x"]);
+    #[test]
+    /// Kill means delete until the next selection
+    fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(Kill),
+                Expect(CurrentComponentContent("main() {}")),
+                Expect(CurrentSelectedTexts(&["main"])),
+            ])
+        })
+    }
 
-        editor.select_kids()?;
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize, y: Vec<A>"]);
-        Ok(())
+    #[test]
+    /// No gap between current and next selection
+    fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(Character)),
+                Editor(Kill),
+                Expect(CurrentComponentContent("n main() {}")),
+                Expect(CurrentSelectedTexts(&["n"])),
+            ])
+        })
+    }
+
+    #[test]
+    /// No next selection
+    fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(MoveSelection(Last)),
+                Editor(Kill),
+                Expect(CurrentComponentContent("fn main() {")),
+            ])
+        })
+    }
+
+    #[test]
+    /// The selection mode is contiguous
+    fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
+                Editor(MatchLiteral("a:A".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Kill),
+                Expect(CurrentComponentContent("fn main(b:B) {}")),
+                Expect(CurrentSelectedTexts(&["b:B"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn maima() {}".to_string())),
+                Editor(MatchLiteral("ma".to_string())),
+                Editor(Kill),
+                Expect(CurrentComponentContent("fn ima() {}")),
+                // Expect the current selection is the character after "ma"
+                Expect(CurrentSelectedTexts(&["i"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(ToggleBookmark),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["foo", "spam"])),
+                Editor(CursorKeepPrimaryOnly),
+                Expect(CurrentSelectedTexts(&["spam"])),
+                Editor(ToggleBookmark),
+                Editor(MoveSelection(Current)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["foo"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn snake_case(camelCase: String) {}".to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                // Go to the end of the file
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_case(camelCase: String) ")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_case(camelCase: String")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_case(camelCase: ")),
+                Editor(DeleteWordBackward),
+            ])
+        })
+    }
+
+    #[test]
+    fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn snake_case(camelCase: String) {}".to_string(),
+                )),
+                Editor(SetSelectionMode(BottomNode)),
+                // Go to the middle of the file
+                Editor(MoveSelection(Index(3))),
+                Expect(CurrentSelectedTexts(&["camelCase"])),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_case(camel: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_case(: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_case: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn snake_: String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent("fn : String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent(": String) {}")),
+                Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent(": String) {}")),
+                Editor(DeleteWordBackward),
+            ])
+        })
+    }
+
+    #[test]
+    fn kill_line_to_end() -> anyhow::Result<()> {
+        let input = "lala\nfoo bar spam\nyoyo";
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(input.to_string())),
+                // Killing to the end of line WITH trailing newline character
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(KillLine(Direction::End)),
+                Editor(Insert("sparta".to_string())),
+                Expect(CurrentComponentContent("lala\nfoo sparta\nyoyo")),
+                Expect(CurrentMode(Mode::Insert)),
+                Expect(CurrentSelectedTexts(&[""])),
+                // Remove newline character if the character after cursor is a newline character
+                Editor(KillLine(Direction::End)),
+                Expect(CurrentComponentContent("lala\nfoo spartayoyo")),
+                // Killing to the end of line WITHOUT trailing newline character
+                Editor(KillLine(Direction::End)),
+                Expect(CurrentComponentContent("lala\nfoo sparta")),
+            ])
+        })
+    }
+
+    #[test]
+    fn kill_line_to_start() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("lala\nfoo bar spam\nyoyo".to_string())),
+                // Killing to the start of line WITH leading newline character
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(KillLine(Direction::Start)),
+                Editor(Insert("sparta".to_string())),
+                Expect(CurrentComponentContent("lala\nspartabar spam\nyoyo")),
+                Expect(CurrentMode(Mode::Insert)),
+                Editor(KillLine(Direction::Start)),
+                Expect(CurrentComponentContent("lala\nbar spam\nyoyo")),
+                // Remove newline character if the character before cursor is a newline character
+                Editor(KillLine(Direction::Start)),
+                Expect(CurrentComponentContent("lalabar spam\nyoyo")),
+                Expect(EditorCursorPosition(Position { line: 0, column: 4 })),
+                // Killing to the start of line WITHOUT leading newline character
+                Editor(KillLine(Direction::Start)),
+                Expect(CurrentComponentContent("bar spam\nyoyo")),
+            ])
+        })
+    }
+
+    #[test]
+    fn undo_tree() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("\n".to_string())),
+                Editor(Insert("a".to_string())),
+                Editor(Insert("bc".to_string())),
+                Editor(EnterUndoTreeMode),
+                // Previous = undo
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentComponentContent("a\n")),
+                // Next = redo
+                Editor(MoveSelection(Next)),
+                Expect(CurrentComponentContent("abc\n")),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentComponentContent("a\n")),
+                Editor(Insert("de".to_string())),
+                Editor(EnterUndoTreeMode),
+                // Down = go to previous history branch
+                Editor(MoveSelection(Down)),
+                // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
+                Expect(CurrentComponentContent("abc\n")),
+                // Up = go to next history branch
+                Editor(MoveSelection(Up)),
+                Expect(CurrentComponentContent("ade\n")),
+            ])
+        })
+    }
+
+    #[test]
+    fn multi_exchange_sibling() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn f(x:a,y:b){} fn g(x:a,y:b){}".to_string())),
+                Editor(MatchLiteral("fn f(x:a,y:b){}".to_string())),
+                Expect(CurrentSelectedTexts(&["fn f(x:a,y:b){}"])),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&[
+                    "fn f(x:a,y:b){}",
+                    "fn g(x:a,y:b){}",
+                ])),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(EnterExchangeMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentComponentContent("fn f(y:b,x:a){} fn g(y:b,x:a){}")),
+                Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentComponentContent("fn f(x:a,y:b){} fn g(x:a,y:b){}")),
+            ])
+        })
+    }
+
+    #[test]
+    fn update_bookmark_position() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spim".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Previous)),
+                Editor(MoveSelection(Previous)),
+                // Kill "foo"
+                Editor(Kill),
+                Expect(CurrentComponentContent("bar spim")),
+                Editor(SetSelectionMode(Bookmark)),
+                // Expect bookmark position is updated, and still selects "spim"
+                Expect(CurrentSelectedTexts(&["spim"])),
+                // Remove "m" from "spim"
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Backspace),
+                Expect(CurrentComponentContent("bar spi")),
+                Editor(EnterNormalMode),
+                Editor(SetSelectionMode(Bookmark)),
+                // Expect the "spim" bookmark is removed
+                // By the fact that "spi" is not selected
+                Expect(CurrentSelectedTexts(&["i"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn move_to_line_start_end() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello\n".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(MoveToLineEnd),
+                Editor(Insert(" world".to_string())),
+                Expect(CurrentComponentContent("hello world\n")),
+                Editor(MoveToLineStart),
+                Editor(Insert("hey ".to_string())),
+                Expect(CurrentComponentContent("hey hello world\n")),
+            ])
+        })
     }
 
     #[test]
     fn exchange_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(x: usize, y: Vec<A>) {}");
-        let context = Context::default();
-        editor.match_literal(&context, "x: usize")?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x: usize"]);
-
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::TopNode),
-                SetSelectionMode(SelectionMode::SyntaxTree),
-                Exchange(Movement::Next),
-            ]
-            .to_vec(),
-        )?;
-
-        assert_eq!(editor.text(), "fn main(y: Vec<A>, x: usize) {}");
-
-        editor.exchange(&context, Movement::Previous)?;
-        assert_eq!(editor.text(), "fn main(x: usize, y: Vec<A>) {}");
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
+                // Select first statement
+                Editor(MatchLiteral("x: usize".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(EnterExchangeMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentComponentContent("fn main(y: Vec<A>, x: usize) {}")),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentComponentContent("fn main(x: usize, y: Vec<A>) {}")),
+            ])
+        })
     }
 
     #[test]
     fn exchange_sibling_2() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "use a;\nuse b;\nuse c;");
-        let context = Context::default();
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("use a;\nuse b;\nuse c;".to_string())),
+                // Select first statement
+                Editor(SetSelectionMode(TopNode)),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Expect(CurrentSelectedTexts(&["use a;"])),
+                Editor(EnterExchangeMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentComponentContent("use b;\nuse a;\nuse c;")),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentComponentContent("use b;\nuse c;\nuse a;")),
+            ])
+        })
+    }
 
-        // Select first statement
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::TopNode),
-                SetSelectionMode(SelectionMode::SyntaxTree),
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.get_selected_texts(), vec!["use a;"]);
-
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::SyntaxTree),
-                EnterExchangeMode,
-                MoveSelection(Movement::Next),
-            ]
-            .to_vec(),
-        )?;
-
-        assert_eq!(editor.text(), "use b;\nuse a;\nuse c;");
-        editor.apply_dispatches(&context, [MoveSelection(Movement::Next)].to_vec())?;
-        assert_eq!(editor.text(), "use b;\nuse c;\nuse a;");
-        Ok(())
+    #[test]
+    fn select_character() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(Character)),
+                Expect(CurrentSelectedTexts(&["f"])),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["n"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["f"])),
+            ])
+        })
     }
 
     #[test]
     fn raise() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = a.b(c()); }");
-        let context = Context::default();
-        // Move selection to "c()"
-        editor.match_literal(&context, "c()")?;
-        assert_eq!(editor.get_selected_texts(), vec!["c()"]);
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
+                Editor(MatchLiteral("c()".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn main() { let x = c(); }")),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn main() { c() }")),
+            ])
+        })
+    }
 
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { let x = c(); }");
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { c() }");
-        Ok(())
+    #[test]
+    fn select_kids() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
+                Editor(MatchLiteral("x".to_string())),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["x"])),
+                Editor(SelectKids),
+                Expect(CurrentSelectedTexts(&["x: usize, y: Vec<A>"])),
+            ])
+        })
     }
 
     #[test]
@@ -130,834 +492,454 @@ mod test_editor {
     /// should result in `(a).into()`
     /// not `Some(a).into()`
     fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { Some((a).b()) }");
-        let context = Context::default();
-        editor.match_literal(&context, "(a).b()")?;
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { (a).b() }");
-        Ok(())
-    }
-
-    #[test]
-    /// Example: from "hello" -> hello
-    fn raise_inside() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { (a, b) }");
-        let context = Context::default();
-        editor.match_literal(&context, "b")?;
-
-        editor.set_selection_mode(&context, SelectionMode::Inside(InsideKind::Parentheses))?;
-        assert_eq!(editor.get_selected_texts(), &["a, b"]);
-        editor.raise(&context)?;
-        assert_eq!(editor.text(), "fn main() { a, b }");
-        Ok(())
-    }
-
-    #[test]
-    fn exchange_line() -> anyhow::Result<()> {
-        // Multiline source code
-        let mut editor = Editor::from_text(
-            language(),
-            "
-fn main() {
-    let x = 1;
-    let y = 2;
-}",
-        );
-
-        let context = Context::default();
-        editor.select_line(Movement::Next, &context)?;
-        editor.select_line(Movement::Next, &context)?;
-
-        editor.exchange(&context, Movement::Next)?;
-        assert_eq!(
-            editor.text(),
-            "
-let x = 1;
-    fn main() {
-    let y = 2;
-}"
-        );
-
-        editor.exchange(&context, Movement::Previous)?;
-        assert_eq!(
-            editor.text(),
-            "
-fn main() {
-    let x = 1;
-    let y = 2;
-}"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn exchange_character() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { let x = 1; }");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-        editor.exchange(&context, Movement::Next)?;
-        assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(&context, Movement::Next)?;
-        assert_eq!(editor.text(), "n fmain() { let x = 1; }");
-
-        editor.exchange(&context, Movement::Previous)?;
-        assert_eq!(editor.text(), "nf main() { let x = 1; }");
-        editor.exchange(&context, Movement::Previous)?;
-
-        assert_eq!(editor.text(), "fn main() { let x = 1; }");
-        Ok(())
-    }
-
-    #[test]
-    fn multi_insert() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "struct A(usize, char)");
-        let context = Context::default();
-
-        // Select 'usize'
-        editor.match_literal(&context, "usize")?;
-        assert_eq!(editor.get_selected_texts(), vec!["usize"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&context, &Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["usize", "char"]);
-        editor.enter_insert_mode(Direction::Start)?;
-        editor.insert("pub ")?;
-
-        assert_eq!(editor.text(), "struct A(pub usize, pub char)");
-
-        editor.backspace()?;
-
-        assert_eq!(editor.text(), "struct A(pubusize, pubchar)");
-        assert_eq!(editor.get_selected_texts(), vec!["", ""]);
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
+                Editor(MatchLiteral("(a).b()".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn main() { (a).b() }")),
+            ])
+        })
     }
 
     #[test]
     fn multi_raise() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-
-        // Select 'let x = S(a);'
-        editor.match_literal(&context, "let x = S(a);")?;
-        assert_eq!(editor.get_selected_texts(), vec!["let x = S(a);"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&context, &Movement::Next)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["let x = S(a);", "let y = S(b);"]
-        );
-
-        editor.handle_movements(
-            &context,
-            &[
-                Movement::Down,
-                Movement::Next,
-                Movement::Down,
-                Movement::Next,
-                Movement::Down,
-                Movement::Next,
-            ],
-        )?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
-
-        editor.raise(&context)?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
-
-        editor.undo()?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = S(a); let y = S(b); }");
-        assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
-
-        editor.redo()?;
-
-        assert_eq!(editor.text(), "fn f(){ let x = a; let y = b; }");
-        assert_eq!(editor.get_selected_texts(), vec!["a", "b"]);
-        Ok(())
-    }
-
-    #[test]
-    fn multi_exchange_sibling() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        let context = Context::default();
-
-        // Select 'fn f(x:a,y:b){}'
-        editor.match_literal(&context, "fn f(x:a,y:b){}")?;
-        assert_eq!(editor.get_selected_texts(), vec!["fn f(x:a,y:b){}"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.add_cursor(&context, &Movement::Next)?;
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["fn f(x:a,y:b){}", "fn g(x:a,y:b){}"]
-        );
-
-        editor.handle_movement(&context, Movement::Down)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Down)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-        editor.exchange(&context, Movement::Next)?;
-        assert_eq!(editor.text(), "fn f(y:b,x:a){} fn g(y:b,x:a){}");
-        assert_eq!(editor.get_selected_texts(), vec!["x:a", "x:a"]);
-
-        editor.exchange(&context, Movement::Previous)?;
-        assert_eq!(editor.text(), "fn f(x:a,y:b){} fn g(x:a,y:b){}");
-        Ok(())
-    }
-
-    #[test]
-    fn toggle_highlight_mode() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let context = Context::default();
-
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.toggle_highlight_mode();
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn f("]);
-
-        // Toggle the second time should inverse the initial_range
-        editor.toggle_highlight_mode();
-
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["f("]);
-
-        editor.reset();
-
-        assert_eq!(editor.get_selected_texts(), vec!["f"]);
-
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["("]);
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                Editor(MatchLiteral("let x = S(a);".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["a", "b"])),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
+                Editor(Undo),
+                Expect(CurrentComponentContent(
+                    "fn f(){ let x = S(a); let y = S(b); }",
+                )),
+                Expect(CurrentSelectedTexts(&["a", "b"])),
+                Editor(Redo),
+                Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
+                Expect(CurrentSelectedTexts(&["a", "b"])),
+            ])
+        })
     }
 
     #[test]
     fn open_new_line() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
 fn f() {
     let x = S(a);
 }
 "
-            .trim(),
-        );
-
-        // Move to the second line
-        editor.select_line_at(1)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["    let x = S(a);\n"]);
-
-        editor.open_new_line()?;
-
-        assert_eq!(editor.mode, Mode::Insert);
-
-        editor.insert("let y = S(b);")?;
-
-        assert_eq!(
-            editor.text(),
-            "
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("let x = ".to_string())),
+                Editor(OpenNewLine),
+                Editor(Insert("let y = S(b);".to_string())),
+                Expect(CurrentComponentContent(
+                    "
 fn f() {
     let x = S(a);
     let y = S(b);
 }"
-            .trim()
-        );
-        Ok(())
+                    .trim(),
+                )),
+            ])
+        })
     }
 
     #[test]
+    fn exchange_line() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    // Multiline source code
+                    "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(Exchange(Next)),
+                Expect(CurrentComponentContent(
+                    "
+let x = 1;
+    fn main() {
+    let y = 2;
+}"
+                    .trim(),
+                )),
+                Editor(Exchange(Previous)),
+                Expect(CurrentComponentContent(
+                    "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+                    .trim(),
+                )),
+            ])
+        })
+    }
+
+    #[test]
+    fn exchange_character() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { let x = 1; }".to_string())),
+                Editor(SetSelectionMode(Character)),
+                Editor(Exchange(Next)),
+                Expect(CurrentComponentContent("nf main() { let x = 1; }")),
+                Editor(Exchange(Next)),
+                Expect(CurrentComponentContent("n fmain() { let x = 1; }")),
+                Editor(Exchange(Previous)),
+                Expect(CurrentComponentContent("nf main() { let x = 1; }")),
+                Editor(Exchange(Previous)),
+                Expect(CurrentComponentContent("fn main() { let x = 1; }")),
+            ])
+        })
+    }
+
+    #[test]
+    fn multi_insert() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("struct A(usize, char)".to_string())),
+                Editor(MatchLiteral("usize".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&["usize", "char"])),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("pub ".to_string())),
+                Expect(CurrentComponentContent("struct A(pub usize, pub char)")),
+                Editor(Backspace),
+                Expect(CurrentComponentContent("struct A(pubusize, pubchar)")),
+                Expect(CurrentSelectedTexts(&["", ""])),
+            ])
+        })
+    }
+
+    #[serial]
+    #[test]
     fn paste_from_clipboard() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn f(){ let x = S(a); let y = S(b); }");
-        let mut context = Context::default();
-
-        context.set_clipboard_content("let z = S(c);".to_string());
-
-        editor.reset();
-
-        editor.paste(&context)?;
-
-        assert_eq!(
-            editor.text(),
-            "let z = S(c);fn f(){ let x = S(a); let y = S(b); }"
-        );
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn f(){ let x = S(a); let y = S(b); }".to_string(),
+                )),
+                App(SetClipboardContent("let z = S(c);".to_string())),
+                Editor(Paste),
+                Expect(CurrentComponentContent(
+                    "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
+                )),
+            ])
+        })
     }
 
     #[test]
     fn enter_newline() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "");
-
-        // Enter insert mode
-        editor.enter_insert_mode(Direction::Start)?;
-        // Type in 'hello'
-        editor.handle_events(keys!("h e l l o"))?;
-
-        // Type in enter
-        editor.handle_events(keys!("enter"))?;
-
-        // Type in 'world'
-        editor.handle_events(keys!("w o r l d"))?;
-
-        // Expect the text to be 'hello\nworld'
-        assert_eq!(editor.text(), "hello\nworld");
-
-        // Move cursor left
-        editor.handle_events(keys!("left"))?;
-
-        // Type in enter
-        editor.handle_events(keys!("enter"))?;
-
-        // Expect the text to be 'hello\nworl\nd'
-        assert_eq!(editor.text(), "hello\nworl\nd");
-        Ok(())
-    }
-
-    #[test]
-    fn set_selection() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-
-        // Select a range which highlights a node
-        editor.set_selection(Position::new(0, 0)..Position::new(0, 2))?;
-
-        assert_eq!(editor.selection_set.mode, SelectionMode::SyntaxTree);
-
-        // Select a range which does not highlights a node
-        editor.set_selection(Position::new(0, 0)..Position::new(0, 1))?;
-
-        assert_eq!(editor.selection_set.mode, SelectionMode::Custom);
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("hello".to_string())),
+                App(HandleKeyEvent(key!("enter"))),
+                Editor(Insert("world".to_string())),
+                Expect(CurrentComponentContent("hello\nworld")),
+                App(HandleKeyEvent(key!("left"))),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(CurrentComponentContent("hello\nworl\nd")),
+            ])
+        })
     }
 
     #[test]
     fn insert_mode_start() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-        let context = Context::default();
-
-        // Select the first word
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-
-        // Enter insert mode
-        editor.enter_insert_mode(Direction::Start)?;
-
-        // Type something
-        editor.insert("hello")?;
-
-        // Expect the text to be 'hellofn main() {}'
-        assert_eq!(editor.text(), "hellofn main() {}");
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("hello".to_string())),
+                Expect(CurrentComponentContent("hellofn main() {}")),
+            ])
+        })
     }
 
     #[test]
     fn insert_mode_end() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-        let context = Context::default();
-
-        // Select the first token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-
-        // Enter insert mode
-        editor.enter_insert_mode(Direction::End)?;
-
-        // Type something
-        editor.insert("hello")?;
-
-        // Expect the text to be 'fnhello main() {}'
-        assert_eq!(editor.text(), "fnhello main() {}");
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Insert("hello".to_string())),
+                Expect(CurrentComponentContent("fnhello main() {}")),
+            ])
+        })
     }
 
     #[test]
     fn highlight_kill() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-        let context = Context::default();
-        // Select first token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.toggle_highlight_mode();
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn main"]);
-        editor.kill(&context)?;
-        assert_eq!(editor.get_selected_texts(), vec!["("]);
-        Ok(())
-    }
-
-    #[test]
-    /// Kill means delete until the next selection
-    fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-        let context = Context::default();
-
-        // Select first token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-
-        // Delete
-        editor.kill(&context)?;
-
-        // Expect the text to be 'main() {}'
-        assert_eq!(editor.text(), "main() {}");
-
-        // Expect the current selection is 'main'
-        assert_eq!(editor.get_selected_texts(), vec!["main"]);
-        Ok(())
-    }
-
-    #[test]
-    /// No gap between current and next selection
-    fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-        let context = Context::default();
-
-        // Select first character
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-
-        // Delete
-        editor.kill(&context)?;
-
-        assert_eq!(editor.text(), "n main() {}");
-
-        // Expect the current selection is 'n'
-        assert_eq!(editor.get_selected_texts(), vec!["n"]);
-        Ok(())
-    }
-
-    #[test]
-    /// No next selection
-    fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-        let context = Context::default();
-
-        // Select last token
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.handle_movement(&context, Movement::Last)?;
-
-        // Delete
-        editor.kill(&context)?;
-
-        assert_eq!(editor.text(), "fn main() {");
-
-        Ok(())
-    }
-
-    #[test]
-    /// The selection mode is contiguous
-    fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main(a:A,b:B) {}");
-        let context = Context::default();
-        editor.match_literal(&context, "a:A")?;
-
-        // Select first character
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-
-        // Delete
-        editor.kill(&context)?;
-
-        assert_eq!(editor.text(), "fn main(b:B) {}");
-
-        // Expect the current selection is 'b:B'
-        assert_eq!(editor.get_selected_texts(), vec!["b:B"]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn maima() {}");
-        let context = Context::default();
-
-        // Select first token
-        editor.match_literal(&context, "ma")?;
-
-        // Delete
-        editor.kill(&context)?;
-
-        // Expect the text to be 'fn ima() {}'
-        assert_eq!(editor.text(), "fn ima() {}");
-
-        // Expect the current selection is the character after "ma"
-        assert_eq!(editor.get_selected_texts(), vec!["i"]);
-        Ok(())
-    }
-
-    #[test]
-    fn enclose_left_bracket() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
-        let context = Context::default();
-
-        // Select 'x.y()'
-        editor.match_literal(&context, "x.y()")?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
-
-        editor.handle_events(keys!("( { [ <")).unwrap();
-
-        assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
-        assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);
-        Ok(())
-    }
-
-    #[test]
-    fn enclose_right_bracket() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() { x.y() }");
-        let context = Context::default();
-
-        // Select 'x.y()'
-        editor.match_literal(&context, "x.y()")?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["x.y()"]);
-
-        editor.handle_events(keys!(") } ] >")).unwrap();
-
-        assert_eq!(editor.text(), "fn main() { <[{(x.y())}]> }");
-        assert_eq!(editor.get_selected_texts(), vec!["<[{(x.y())}]>"]);
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["fn main"])),
+                Editor(Kill),
+                Expect(CurrentSelectedTexts(&["("])),
+            ])
+        })
     }
 
     #[test]
     fn multicursor_add_all() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "mod m { fn a(j:J){} fn b(k:K,l:L){} fn c(m:M,n:N,o:O){} }",
-        );
-
-        let context = Context::default();
-        editor.match_literal(&context, "fn a")?;
-
-        editor.set_selection_mode(&context, SelectionMode::SyntaxTree)?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["fn a(j:J){}"]);
-
-        editor.add_cursor_to_all_selections(&context)?;
-
-        editor.handle_movements(&context, &[Movement::Down, Movement::Next, Movement::Down])?;
-        assert_eq!(editor.get_selected_texts(), vec!["j:J", "k:K", "m:M"]);
-
-        editor.add_cursor_to_all_selections(&context)?;
-
-        assert_eq!(
-            editor.get_selected_texts(),
-            vec!["j:J", "k:K", "l:L", "m:M", "n:N", "o:O"]
-        );
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "mod m { fn a(j:J){} fn b(k:K,l:L){} fn c(m:M,n:N,o:O){} }".to_string(),
+                )),
+                Editor(MatchLiteral("fn a".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Expect(CurrentSelectedTexts(&["fn a(j:J){}"])),
+                Editor(CursorAddToAllSelections),
+                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Down)),
+                Expect(CurrentSelectedTexts(&["j:J", "k:K", "m:M"])),
+                Editor(CursorAddToAllSelections),
+                Expect(CurrentSelectedTexts(&[
+                    "j:J", "k:K", "l:L", "m:M", "n:N", "o:O",
+                ])),
+            ])
+        })
     }
 
     #[test]
     fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn\nmain()\n{ x.y(); x.y(); x.y(); }");
-        let context = Context::default();
-        // Select x.y()
-        editor.match_literal(&context, "x.y()")?;
-
-        editor.enter_insert_mode(Direction::End)?;
-        editor.enter_normal_mode()?;
-        assert_eq!(editor.get_selected_texts(), vec![")"]);
-        Ok(())
-    }
-
-    #[test]
-    fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn snake_case(camelCase: String) {}");
-        let context = Context::default();
-
-        // Go to the end of the file
-        editor.set_selection_mode(&context, SelectionMode::LineTrimmed)?;
-        editor.enter_insert_mode(Direction::End)?;
-
-        // Delete
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase: String) ");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase: String");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camelCase: ");
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn snake_case(camelCase: String) {}");
-        let context = Context::default();
-
-        // Go to the middle of the file
-        editor.set_selection_mode(&context, SelectionMode::BottomNode)?;
-        editor.handle_movement(&context, Movement::Index(3))?;
-
-        assert_eq!(editor.get_selected_texts(), vec!["camelCase"]);
-
-        editor.enter_insert_mode(Direction::End)?;
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(camel: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case(: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_case: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn snake_: String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), "fn : String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), ": String) {}");
-
-        editor.delete_word_backward(&context)?;
-        assert_eq!(editor.text(), ": String) {}");
-
-        Ok(())
-    }
-
-    #[test]
-    fn home_end() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "hello\n");
-        let context = Context::default();
-
-        editor.enter_insert_mode(Direction::Start)?;
-
-        editor.end(&context)?;
-        editor.insert(" world")?;
-        assert_eq!(editor.text(), "hello world\n");
-
-        editor.home(&context)?;
-        editor.insert("hey ")?;
-        assert_eq!(editor.text(), "hey hello world\n");
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "fn\nmain()\n{ x.y(); x.y(); x.y(); }".to_string(),
+                )),
+                Editor(MatchLiteral("x.y()".to_string())),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(EnterNormalMode),
+                Expect(CurrentSelectedTexts(&[")"])),
+            ])
+        })
     }
 
     #[test]
     fn highlight_change() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "hello world yo");
-        let context = Context::default();
-
-        editor.toggle_highlight_mode();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), vec!["hello world"]);
-        editor.change()?;
-        editor.insert("wow")?;
-        assert_eq!(editor.get_selected_texts(), vec![""]);
-        assert_eq!(editor.text(), "wow yo");
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello world yo".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(ToggleHighlightMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["hello world"])),
+                Editor(Change),
+                Editor(Insert("wow".to_string())),
+                Expect(CurrentSelectedTexts(&[""])),
+                Expect(CurrentComponentContent("wow yo")),
+            ])
+        })
     }
+
     #[test]
     fn scroll_page() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "1\n2 hey\n3");
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 100,
-            height: 3,
-        });
-        let context = Context::default();
-        editor.scroll_page_down()?;
-        assert_eq!(editor.current_line()?, "2 hey");
-        editor.scroll_page_down()?;
-        editor.match_literal(&context, "hey")?;
-        assert_eq!(editor.get_selected_texts(), ["hey"]);
-        editor.scroll_page_down()?;
-        assert_eq!(editor.current_line()?, "3");
-        editor.scroll_page_down()?;
-        assert_eq!(editor.current_line()?, "3");
-
-        editor.scroll_page_up()?;
-        assert_eq!(editor.current_line()?, "2 hey");
-        editor.scroll_page_up()?;
-        assert_eq!(editor.current_line()?, "1");
-        editor.scroll_page_up()?;
-        assert_eq!(editor.current_line()?, "1");
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("1\n2 hey\n3".to_string())),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 3,
+                })),
+                Editor(ScrollPageDown),
+                Expect(CurrentLine("2 hey")),
+                Editor(ScrollPageDown),
+                Editor(MatchLiteral("hey".to_string())),
+                Expect(CurrentSelectedTexts(&["hey"])),
+                Editor(ScrollPageDown),
+                Expect(CurrentLine("3")),
+                Editor(ScrollPageDown),
+                Expect(CurrentLine("3")),
+                Editor(ScrollPageUp),
+                Expect(CurrentLine("2 hey")),
+                Editor(ScrollPageUp),
+                Expect(CurrentLine("1")),
+                Editor(ScrollPageUp),
+                Expect(CurrentLine("1")),
+            ])
+        })
     }
 
     #[test]
     fn jump() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "Who lives on sea shore?\n yonky donkey");
-
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 100,
-            height: 1,
-        });
-
-        let context = Context::default();
-
-        // In jump mode, the first stage labels each selection using their starting character,
-        // On subsequent stages, the labels are random alphabets
-        assert!(editor.jumps().is_empty());
-
-        // Set the selection mode as word, and jump
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.jump(&context)?;
-
-        // Expect the jump to be the first character of each word
-        // Note 'y' and 'd' are excluded because they are out of view,
-        // since the viewbox has only height of 1
-        assert_eq!(editor.jump_chars(), &['w', 'l', 'o', 's', 's', '?']);
-
-        // Press 's'
-        editor.handle_key_event(&context, key!('s'))?;
-
-        // Expect the jumps to be 'a' and 'b'
-        assert_eq!(editor.jump_chars(), &['a', 'b']);
-
-        // Press 'a'
-        editor.handle_key_event(&context, key!('a'))?;
-
-        // Expect the jumps to be empty
-        assert!(editor.jump_chars().is_empty());
-
-        // Expect the current selected content is 'sea'
-        assert_eq!(editor.get_selected_texts(), vec!["sea"]);
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "Who lives on sea shore?\n yonky donkey".to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 1,
+                })),
+                // In jump mode, the first stage labels each selection using their starting character,
+                // On subsequent stages, the labels are random alphabets
+                Expect(JumpChars(&[])),
+                Editor(SetSelectionMode(Word)),
+                Editor(DispatchEditor::Jump),
+                // Expect the jump to be the first character of each word
+                // Note 'y' and 'd' are excluded because they are out of view,
+                // since the viewbox has only height of 1
+                Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
+                App(HandleKeyEvent(key!("s"))),
+                Expect(JumpChars(&['a', 'b'])),
+                App(HandleKeyEvent(key!("a"))),
+                Expect(JumpChars(&[])),
+                Expect(CurrentSelectedTexts(&["sea"])),
+            ])
+        })
     }
 
     #[test]
     fn highlight_and_jump() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "who lives on sea shore?\n yonky donkey");
-
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 100,
-            height: 1,
-        });
-
-        let context = Context::default();
-        // Set the selection mode as word
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.toggle_highlight_mode();
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.jump(&context)?;
-        assert_eq!(editor.jump_chars(), &['w', 'l', 'o', 's', 's', '?']);
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "Who lives on sea shore?\n yonky donkey".to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 1,
+                })),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleHighlightMode),
+                Editor(DispatchEditor::Jump),
+                // Expect the jump to be the first character of each word
+                // Note 'y' and 'd' are excluded because they are out of view,
+                // since the viewbox has only height of 1
+                Expect(JumpChars(&['w', 'l', 'o', 's', 's', '?'])),
+                App(HandleKeyEvent(key!("s"))),
+                App(HandleKeyEvent(key!("b"))),
+                Expect(CurrentSelectedTexts(&["lives on sea shore"])),
+            ])
+        })
     }
 
     #[test]
     fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "who who who who");
-
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 100,
-            height: 1,
-        });
-
-        let context = Context::default();
-
-        // Set the selection mode as word, and jump
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.jump(&context)?;
-
-        // Expect the jump to NOT be the first character of each word
-        // Since, the first character of each selection are the same, which is 'w'
-        assert_eq!(editor.jump_chars(), &['a', 'b', 'c', 'd']);
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("who who who who".to_string())),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 1,
+                })),
+                Editor(SetSelectionMode(Word)),
+                Editor(DispatchEditor::Jump),
+                // Expect the jump to NOT be the first character of each word
+                // Since, the first character of each selection are the same, which is 'w'
+                Expect(JumpChars(&['a', 'b', 'c', 'd'])),
+            ])
+        })
     }
 
     #[test]
     fn switch_view_alignment() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(
-            language(),
-            "abcde".split("").collect_vec().join("\n").trim(),
-        );
-        let context = Context::default();
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 100,
-            height: 4,
-        });
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        editor.handle_movement(&context, Movement::Next)?;
-        assert_eq!(editor.get_selected_texts(), ["c"]);
-        assert_eq!(editor.current_view_alignment, None);
-
-        editor.switch_view_alignment();
-        assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Top));
-
-        editor.switch_view_alignment();
-        assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Center));
-
-        editor.switch_view_alignment();
-        assert_eq!(editor.current_view_alignment, Some(ViewAlignment::Bottom));
-        editor.apply_dispatch(&context, MoveSelection(Movement::Previous))?;
-        assert_eq!(editor.current_view_alignment, None);
-
-        Ok(())
-    }
-
-    #[test]
-    fn undo_tree() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), &"".split("").collect_vec().join("\n"));
-        let context = Context::default();
-        editor.insert("a")?;
-        editor.insert("bc")?;
-        editor.enter_undo_tree_mode();
-
-        // Previous = undo
-        editor.handle_movement(&context, Movement::Previous)?;
-        assert_eq!(editor.content(), "a\n");
-
-        // Next = redo
-        editor.handle_movement(&context, Movement::Next)?;
-
-        assert_eq!(editor.content(), "abc\n");
-        editor.handle_movement(&context, Movement::Previous)?;
-
-        assert_eq!(editor.content(), "a\n");
-        editor.insert("de")?;
-
-        let dispatches = editor.enter_undo_tree_mode();
-
-        let expected = [Dispatch::ShowInfo {
-            title: "Undo Tree History".to_string(),
-            info: Info::new(
-                " 
-* 1-2 [HEAD] 
-| * 0-2 
-|/
-* 1-1 
-* 1-0 [SAVED]"
-                    .trim()
-                    .to_string(),
-            ),
-        }];
-        assert_eq!(dispatches, expected);
-
-        // Down = go to previous history branch
-        editor.handle_movement(&context, Movement::Down)?;
-        // We are able to retrive the "bc" insertion, which is otherwise impossible without the undo tree
-        assert_eq!(editor.content(), "abc\n");
-
-        // Up = go to next history branch
-        editor.handle_movement(&context, Movement::Up)?;
-        assert_eq!(editor.content(), "ade\n");
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "abcde"
+                        .split("")
+                        .collect_vec()
+                        .join("\n")
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 100,
+                    height: 4,
+                })),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["c"])),
+                Expect(CurrentViewAlignment(None)),
+                Editor(SwitchViewAlignment),
+                Expect(CurrentViewAlignment(Some(ViewAlignment::Top))),
+                Editor(SwitchViewAlignment),
+                Expect(CurrentViewAlignment(Some(ViewAlignment::Center))),
+                Editor(SwitchViewAlignment),
+                Expect(CurrentViewAlignment(Some(ViewAlignment::Bottom))),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentViewAlignment(None)),
+            ])
+        })
     }
 
     #[test]
     fn get_grid_parent_line() -> anyhow::Result<()> {
-        let content = "
+        let parent_lines_background = hex!("#badbad");
+        let bookmark_background_color = hex!("#cebceb");
+        let theme = {
+            let mut theme = Theme::default();
+            theme.ui.parent_lines_background = parent_lines_background;
+            theme.ui.bookmark = Style::default().background_color(bookmark_background_color);
+            theme
+        };
+        let width = 20;
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
 // hello
 fn main() {
   let x = 1;
@@ -968,370 +950,304 @@ fn main() {
   }
 }
 "
-        .trim();
-        let mut editor = Editor::from_text(language(), content);
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 20,
-            height: 6,
-        });
-
-        let mut theme = Theme::default();
-        let parent_lines_background = hex!("#badbad");
-        theme.ui.parent_lines_background = parent_lines_background;
-        let bookmark_background_color = hex!("#cebceb");
-        theme.ui.bookmark = Style::default().background_color(bookmark_background_color);
-        let mut context = Context::default().set_theme(theme);
-
-        // Go to "print()" and skip the first 3 lines for rendering
-        editor.match_literal(&context, "print()")?;
-        editor.set_scroll_offset(3);
-
-        let result = editor.get_grid(&mut context);
-        // Expect `fn main()` is visible although it is out of view,
-        // because it is amongst the parent lines of the current selection
-        let expected_grid = "
-[No title]
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width,
+                    height: 6,
+                })),
+                App(SetTheme(theme.clone())),
+                // Go to "print()" and skip the first 3 lines for rendering
+                Editor(MatchLiteral("print()".to_string())),
+                Editor(SetScrollOffset(3)),
+                // Expect `fn main()` is visible although it is out of view,
+                // because it is amongst the parent lines of the current selection
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
 2│fn main() {
 4│  let y = 2;
 5│  for a in b {
 6│    let z = 4;
-7│    print()
+7│    █rint()
 "
-        .trim();
-        assert_eq!(result.grid.to_string(), expected_grid);
-
-        // Bookmark "z"
-        editor.match_literal(&context, "z")?;
-        editor.toggle_bookmarks();
-
-        // Expect the parent lines of the current selections are highlighted with parent_lines_background,
-        // regardless of whether the parent lines are inbound or outbound
-        assert!([1, 3].into_iter().all(|row_index| {
-            result.grid.rows[row_index]
-                .iter()
-                .all(|cell| cell.background_color == parent_lines_background)
-        }));
-
-        // Expect the current line is not treated as parent line
-        assert!(!result.grid.rows[5]
-            .iter()
-            .any(|cell| cell.background_color == parent_lines_background));
-
-        // Bookmark the "fn" token
-        editor.match_literal(&context, "fn")?;
-        editor.toggle_bookmarks();
-
-        // Go to "print()" and skip the first 3 lines for rendering
-        editor.match_literal(&context, "print()")?;
-        editor.set_scroll_offset(3);
-
-        let result = editor.get_grid(&mut context);
-        assert_eq!(result.grid.to_string(), expected_grid);
-
-        // Expect the decorations of outbound parent lines are rendered properly
-        // In this case, the outbound parent line is "fn main() {"
-        assert!(result.grid.rows[1][2..4]
-            .iter()
-            .all(|cell| bookmark_background_color == cell.background_color));
-
-        // Expect the decorations of inbound lines are rendered properly
-        // In this case, we want to check that the bookmark on "z" is rendered
-        let z_cell = result.grid.rows[4][10].clone();
-        assert_eq!(z_cell.symbol, "z");
-        assert!(z_cell.background_color == bookmark_background_color);
-
-        Ok(())
+                    .trim(),
+                )),
+                // Bookmart "z"
+                Editor(MatchLiteral("z".to_string())),
+                Editor(ToggleBookmark),
+                // Expect the parent lines of the current selections are highlighted with parent_lines_background,
+                // regardless of whether the parent lines are inbound or outbound
+                ExpectMulti(
+                    [1, 3]
+                        .into_iter()
+                        .flat_map(|row_index| {
+                            [0, width - 1].into_iter().map(move |column_index| {
+                                GridCellBackground(
+                                    row_index,
+                                    column_index as usize,
+                                    parent_lines_background,
+                                )
+                            })
+                        })
+                        .collect(),
+                ),
+                // Expect the current line is not treated as parent line
+                ExpectMulti(
+                    [0, width - 1]
+                        .into_iter()
+                        .map(|column_index| {
+                            Not(Box::new(GridCellBackground(
+                                5,
+                                column_index as usize,
+                                parent_lines_background,
+                            )))
+                        })
+                        .collect(),
+                ),
+                // Bookmark the "fn" token
+                Editor(MatchLiteral("fn".to_string())),
+                Editor(ToggleBookmark),
+                // Go to "print()" and skip the first 3 lines for rendering
+                Editor(MatchLiteral("print()".to_string())),
+                Editor(SetScrollOffset(3)),
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+2│fn main() {
+4│  let y = 2;
+5│  for a in b {
+6│    let z = 4;
+7│    █rint()
+"
+                    .trim(),
+                )),
+                // Expect the bookmarks of outbound parent lines are rendered properly
+                // In this case, the outbound parent line is "fn main() {"
+                ExpectMulti(
+                    [2, 3]
+                        .into_iter()
+                        .map(|column_index| {
+                            GridCellBackground(1, column_index as usize, bookmark_background_color)
+                        })
+                        .collect(),
+                ),
+                // Expect the bookmarks of inbound lines are rendered properly
+                // In this case, we want to check that the bookmark on "z" is rendered
+                Expect(GridCellBackground(4, 10, bookmark_background_color)),
+            ])
+        })
     }
 
     #[test]
     fn test_wrapped_lines() -> anyhow::Result<()> {
-        let content = "
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
 // hello world\n hey
 "
-        .trim();
-        let mut context = Context::default();
-        let mut editor = Editor::from_text(language(), content);
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 13,
-            height: 4,
-        });
-
-        editor.match_literal(&context, "world")?;
-        editor.enter_insert_mode(Direction::End)?;
-        let result = editor.get_grid(&mut context);
-
-        let expected_grid = "
-[No title]
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 13,
+                    height: 4,
+                })),
+                Editor(MatchLiteral("world".to_string())),
+                Editor(EnterInsertMode(Direction::End)),
+                Expect(EditorGrid(
+                    "
+src/main.rs
 1│// hello
-↪│world
+↪│world█
 2│ hey
 "
-        .trim();
-        assert_eq!(result.grid.to_string(), expected_grid);
-
-        // Expect the cursor is after 'd'
-        assert_eq!(
-            result.cursor.unwrap().position(),
-            &Position { line: 2, column: 7 }
-        );
-        Ok(())
+                    .trim(),
+                )),
+                // Expect the cursor is after 'd'
+                Expect(EditorGridCursorPosition(Position { line: 2, column: 7 })),
+            ])
+        })
     }
 
     #[test]
     fn syntax_highlighting() -> anyhow::Result<()> {
-        let theme = Theme::default();
-        let mut context = Context::default().set_theme(theme.clone());
-        let content = "
+        execute_test(|s| {
+            let theme = Theme::default();
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(SetTheme(theme.clone())),
+                Editor(SetContent(
+                    "
 fn main() { // too long
   let foo = 1;
   let bar = baba; let wrapped = coco;
 }
 "
-        .trim();
-        let mut editor = Editor::from_text(language(), content);
-        editor.set_language(shared::language::from_extension("rs").unwrap())?;
-        editor.match_literal(&context, "bar")?;
-        editor.apply_syntax_highlighting(&mut context)?;
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 20,
-            height: 4,
-        });
-        editor.align_cursor_to_top();
-        let result = editor.get_grid(&mut context);
-
-        // The "long" of "too long" is not shown, because it exceeded the view width
-        assert_eq!(
-            result.to_string(),
-            "
-[No title]
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 13,
+                    height: 4,
+                })),
+                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(MatchLiteral("bar".to_string())),
+                Editor(DispatchEditor::ApplySyntaxHighlight),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 20,
+                    height: 4,
+                })),
+                Editor(SwitchViewAlignment),
+                // The "long" of "too long" is not shown, because it exceeded the view width
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
 "
-            .trim()
-        );
-        let ranges = &[
-            //
-            // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
-            Position::new(1, 2)..=Position::new(1, 3),
-            //
-            // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
-            Position::new(2, 4)..=Position::new(2, 6),
-            //
-            // Expect the `let` keyword of line 3 (which is inbound but wrapped) is highlighted properly
-            Position::new(3, 2)..=Position::new(3, 4),
-        ];
-
-        result
-            .grid
-            .assert_ranges(ranges, |cell| cell.source == Some(StyleKey::SyntaxKeyword));
-
-        // Expect decorations overrides syntax highlighting
-        editor.match_literal(&context, "fn")?;
-        editor.toggle_bookmarks();
-        // Move cursor to next line, so that "fn" is not selected,
-        //  so that we can test the style applied to "fn" ,
-        // otherwise the style of primary selection anchors will override the bookmark style
-        editor.match_literal(&context, "let")?;
-        let result = editor.get_grid(&mut context);
-
-        assert_eq!(
-            result.grid.to_string(),
-            "
-[No title]
+                    .trim(),
+                )),
+                ExpectMulti(
+                    [
+                        //
+                        // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
+                        Position::new(1, 2),
+                        Position::new(1, 3),
+                        //
+                        // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
+                        Position::new(2, 4),
+                        Position::new(2, 5),
+                        Position::new(2, 6),
+                        //
+                        // Expect the `let` keyword of line 3 (which is inbound but wrapped) is highlighted properly
+                        Position::new(3, 2),
+                        Position::new(3, 3),
+                        Position::new(3, 4),
+                    ]
+                    .into_iter()
+                    .map(|position| {
+                        ExpectKind::GridCellStyleKey(position, Some(StyleKey::SyntaxKeyword))
+                    })
+                    .collect(),
+                ),
+                // Expect decorations overrides syntax highlighting
+                Editor(MatchLiteral("fn".to_string())),
+                Editor(ToggleBookmark),
+                // Move cursor to next line, so that "fn" is not selected,
+                //  so that we can test the style applied to "fn" ,
+                // otherwise the style of primary selection anchors will override the bookmark style
+                Editor(MatchLiteral("let".to_string())),
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
 1│fn main() { // too
 ↪│ long
-2│  let foo = 1;
+2│  █et foo = 1;
 "
-            .trim()
-        );
-        result
-            .grid
-            .assert_range(&(Position::new(1, 2)..=Position::new(1, 3)), |cell| {
-                cell.source == Some(StyleKey::UiBookmark)
-            });
-
-        Ok(())
+                    .trim(),
+                )),
+                ExpectMulti(
+                    [Position::new(1, 2), Position::new(1, 3)]
+                        .into_iter()
+                        .map(|position| {
+                            ExpectKind::GridCellStyleKey(position, Some(StyleKey::UiBookmark))
+                        })
+                        .collect(),
+                ),
+            ])
+        })
     }
 
     #[test]
     fn empty_content_should_have_one_line() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "");
-        editor.set_rectangle(crate::rectangle::Rectangle {
-            origin: Position::default(),
-            width: 20,
-            height: 2,
-        });
-        let mut context = Context::default();
-        let result = editor.get_grid(&mut context);
-        assert_eq!(
-            result.grid.to_string(),
-            "
-[No title]
-1│
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(SetRectangle(Rectangle {
+                    origin: Position::default(),
+                    width: 20,
+                    height: 2,
+                })),
+                Expect(EditorGrid(
+                    "
+src/main.rs 🦀
+1│█
 "
-            .trim()
-        );
-        assert_eq!(result.cursor.unwrap().position(), &Position::new(1, 2));
-        Ok(())
-    }
-
-    #[test]
-    fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "foo bar spam");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.toggle_bookmarks();
-        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
-        editor.toggle_bookmarks();
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        editor.add_cursor_to_all_selections(&context)?;
-        assert_eq!(editor.get_selected_texts(), ["foo", "spam"]);
-        editor.cursor_keep_primary_only()?;
-        assert_eq!(editor.get_selected_texts(), ["spam"]);
-
-        // Toggling the bookmark when selecting existing bookmark should
-        // cause it to be removed from the bookmark lists
-        editor.toggle_bookmarks();
-        editor.handle_movement(&context, Movement::Current)?;
-        editor.add_cursor_to_all_selections(&context)?;
-        assert_eq!(editor.get_selected_texts(), ["foo"]);
-        Ok(())
-    }
-
-    #[test]
-    fn update_bookmark_position() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "foo bar spim");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
-        editor.toggle_bookmarks();
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
-        // Kill "foo"
-        editor.kill(&context)?;
-        assert_eq!(editor.content(), "bar spim");
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        // Expect bookmark position is updated, and still selects "spim"
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-
-        // Remove "m" from "spim"
-        editor.enter_insert_mode(Direction::End)?;
-        editor.backspace()?;
-
-        assert_eq!(editor.content(), "bar spi");
-        editor.enter_normal_mode()?;
-
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        // Expect the "spim" bookmark is removed
-        // By the fact that "spi" is not selected
-        assert_eq!(editor.get_selected_texts(), ["i"]);
-
-        Ok(())
+                    .trim(),
+                )),
+            ])
+        })
     }
 
     #[test]
     fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "foo bar spim");
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
-        editor.toggle_bookmarks();
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Previous, Movement::Previous])?;
-        // Kill "foo"
-        editor.kill(&context)?;
-
-        assert_eq!(editor.content(), "bar spim");
-
-        // Expect bookmark position is updated, and still selects "spim"
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-
-        // Undo
-        editor.undo()?;
-        assert_eq!(editor.content(), "foo bar spim");
-
-        // Expect bookmark position is updated, and still selects "spim"
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-
-        // Redo
-        editor.redo()?;
-        assert_eq!(editor.content(), "bar spim");
-
-        // Expect bookmark position is updated, and still selects "spim"
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["spim"]);
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spim".to_string())),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Previous)),
+                Editor(MoveSelection(Previous)),
+                // Kill "foo"
+                Editor(Kill),
+                Expect(CurrentComponentContent("bar spim")),
+                // Expect bookmark position is updated (still selects "spim")
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(Undo),
+                Expect(CurrentComponentContent("foo bar spim")),
+                // Expect bookmark position is updated (still selects "spim")
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+                Editor(Redo),
+                // Expect bookmark position is updated (still selects "spim")
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["spim"])),
+            ])
+        })
     }
 
     #[test]
     fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Result<()> {
-        let input = "// foo bar spim\nfn foo() {}\n";
+        let input = "// foo bar spim\n    fn foo() {}\n";
 
-        let mut editor = Editor::from_text(language(), input);
-        editor.set_language(shared::language::from_extension("rs").unwrap())?;
-        let context = Context::default();
-        editor.set_selection_mode(&context, SelectionMode::Word)?;
-        editor.handle_movements(&context, &[Movement::Next, Movement::Next])?;
-        editor.toggle_bookmarks();
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["bar"]);
-
-        // Expect the formatted content is the same as the input
-        let formatted_content = editor.get_formatted_content().unwrap();
-        assert_eq!(formatted_content, input);
-
-        editor.save()?;
-        editor.set_selection_mode(&context, SelectionMode::Character)?;
-        assert_eq!(editor.get_selected_texts(), ["b"]);
-        editor.set_selection_mode(&context, SelectionMode::Bookmark)?;
-        assert_eq!(editor.get_selected_texts(), ["bar"]);
-
-        Ok(())
-    }
-
-    #[test]
-    fn filters_should_be_cleared_after_changing_selection_mode() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "foo bar spam");
-        let context = Context::default();
-        editor.apply_dispatches(
-            &context,
-            [
-                SetSelectionMode(SelectionMode::Word),
-                FilterPush(Filter::new(
-                    FilterKind::Keep,
-                    FilterTarget::Content,
-                    FilterMechanism::Literal("a".to_string()),
-                )),
-                CursorAddToAllSelections,
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.get_selected_texts(), &["bar", "spam"]);
-        editor.apply_dispatches(
-            &context,
-            [
-                CursorKeepPrimaryOnly,
-                SetSelectionMode(SelectionMode::LineTrimmed),
-                SetSelectionMode(SelectionMode::Word),
-                CursorAddToAllSelections,
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.get_selected_texts(), &["foo", "bar", "spam"]);
-
-        Ok(())
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(input.to_string())),
+                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(SetSelectionMode(Word)),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(Save),
+                // Expect the content is formatted (second line dedented)
+                Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
+                Editor(SetSelectionMode(Character)),
+                Expect(CurrentSelectedTexts(&["b"])),
+                // Expect the bookmark on "bar" is not destroyed
+                Editor(SetSelectionMode(Bookmark)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+            ])
+        })
     }
 
     #[test]
@@ -1342,28 +1258,23 @@ fn main() { // too long
                 FilterKind,
                 FilterTarget,
                 FilterMechanism,
-                &[&str],
+                &'static [&'static str],
             ),
         ) -> anyhow::Result<()> {
-            let mut editor = Editor::from_text(language(), input);
-            let context = Context::default();
-            editor.apply_dispatches(
-                &context,
-                [
-                    SetSelectionMode(SelectionMode::Word),
-                    FilterPush(Filter::new(kind, target, mechanism)),
-                    DispatchEditor::CursorAddToAllSelections,
-                ]
-                .to_vec(),
-            )?;
-            // Assert the selection is only "bar" and "spam"
-            assert_eq!(
-                editor.get_selected_texts(),
-                expected_output,
-                "Expected output is {:?}",
-                expected_output
-            );
-            Ok(())
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile(s.main_rs())),
+                    Editor(SetContent(input.to_string())),
+                    Editor(SetSelectionMode(SelectionMode::Word)),
+                    Editor(FilterPush(Filter::new(kind, target, mechanism.clone()))),
+                    Editor(DispatchEditor::CursorAddToAllSelections),
+                    Expect(CurrentSelectedTexts(expected_output)),
+                    Editor(FilterClear),
+                    Editor(CursorKeepPrimaryOnly),
+                    Editor(CursorAddToAllSelections),
+                    Expect(Not(Box::new(CurrentSelectedTexts(expected_output)))),
+                ])
+            })
         }
         use regex::Regex as R;
         use FilterKind::*;
@@ -1414,99 +1325,30 @@ fn main() { // too long
     }
 
     #[test]
-    fn raise_bottom_node() -> anyhow::Result<()> {
-        let input = "fn main() { x + 1 }";
-        let mut editor = Editor::from_text(language(), input);
-        let context = Context::default();
-        editor.apply_dispatches(
-            &context,
-            [
-                MatchLiteral("x + 1".to_string()),
-                SetSelectionMode(SelectionMode::TopNode),
-                MoveSelection(Movement::Down),
-                Raise,
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.content(), "fn main() { x }");
-        Ok(())
+    fn enclose_left_bracket() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { x.y() }".to_string())),
+                Editor(MatchLiteral("x.y()".to_string())),
+                App(HandleKeyEvents(keys!("( { [ <").to_vec())),
+                Expect(CurrentComponentContent("fn main() { <[{(x.y())}]> }")),
+                Expect(CurrentSelectedTexts(&["<[{(x.y())}]>"])),
+            ])
+        })
     }
 
     #[test]
-    fn hierarchy_of_line() -> anyhow::Result<()> {
-        let input = "  hello  \n ";
-        let mut editor = Editor::from_text(language(), input);
-        let context = Context::default();
-        editor.apply_dispatch(&context, SetSelectionMode(SelectionMode::LineTrimmed))?;
-        assert_eq!(editor.get_selected_texts(), ["hello  "]);
-        editor.apply_dispatch(&context, MoveSelection(Movement::Up))?;
-        assert_eq!(editor.get_selected_texts(), ["  hello  \n"]);
-        editor.apply_dispatch(&context, MoveSelection(Movement::Down))?;
-        assert_eq!(editor.get_selected_texts(), ["hello  "]);
-        Ok(())
-    }
-
-    #[test]
-    fn kill_line_to_end() -> anyhow::Result<()> {
-        let input = "lala\nfoo bar spam\nyoyo";
-        let mut editor = Editor::from_text(language(), input);
-        let context = Context::default();
-        // Killing to the end of line WITH trailing newline character
-        editor.apply_dispatches(
-            &context,
-            [
-                MatchLiteral("bar".to_string()),
-                KillLine(Direction::End),
-                Insert("sparta".to_string()),
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.content(), "lala\nfoo sparta\nyoyo");
-        assert!(editor.mode == Mode::Insert);
-        assert_eq!(editor.get_selected_texts(), [""]);
-
-        // Remove newline character if the character after cursor is a newline character
-        editor.apply_dispatch(&context, KillLine(Direction::End))?;
-        assert_eq!(editor.content(), "lala\nfoo spartayoyo");
-
-        // Killing to the end of line WITHOUT trailing newline character
-        editor.apply_dispatch(&context, KillLine(Direction::End))?;
-        assert_eq!(editor.content(), "lala\nfoo sparta");
-        Ok(())
-    }
-
-    #[test]
-    fn kill_line_to_start() -> anyhow::Result<()> {
-        let input = "lala\nfoo bar spam\nyoyo";
-        let mut editor = Editor::from_text(language(), input);
-        let context = Context::default();
-        // Killing to the start of line WITH leading newline character
-        editor.apply_dispatches(
-            &context,
-            [
-                MatchLiteral("bar".to_string()),
-                KillLine(Direction::Start),
-                Insert("sparta".to_string()),
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.content(), "lala\nspartabar spam\nyoyo");
-        assert!(editor.mode == Mode::Insert);
-
-        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
-        assert_eq!(editor.content(), "lala\nbar spam\nyoyo");
-
-        // Remove newline character if the character before cursor is a newline character
-        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
-        assert_eq!(editor.content(), "lalabar spam\nyoyo");
-        assert_eq!(
-            editor.get_cursor_position()?,
-            Position { line: 0, column: 4 }
-        );
-
-        // Killing to the start of line WITHOUT leading newline character
-        editor.apply_dispatch(&context, KillLine(Direction::Start))?;
-        assert_eq!(editor.content(), "bar spam\nyoyo");
-        Ok(())
+    fn enclose_right_bracket() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() { x.y() }".to_string())),
+                Editor(MatchLiteral("x.y()".to_string())),
+                App(HandleKeyEvents(keys!(") } ] >").to_vec())),
+                Expect(CurrentComponentContent("fn main() { <[{(x.y())}]> }")),
+                Expect(CurrentSelectedTexts(&["<[{(x.y())}]>"])),
+            ])
+        })
     }
 }

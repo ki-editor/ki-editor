@@ -1,6 +1,6 @@
 use crate::quickfix_list::Location;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GotoDefinitionResponse {
     Single(Location),
     Multiple(Vec<Location>),
