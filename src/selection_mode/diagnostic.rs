@@ -45,7 +45,7 @@ impl SelectionMode for Diagnostic {
                         buffer
                             .position_range_to_byte_range(&diagnostic.range)
                             .ok()?,
-                        Info::new(diagnostic.message.clone()),
+                        Info::new("Diagnostics".to_string(), diagnostic.message.clone()),
                     ))
                 }),
         ))

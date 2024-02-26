@@ -2,17 +2,15 @@
 mod test_editor {
     use crate::components::editor::DispatchEditor::*;
     use crate::components::editor::Movement::*;
-    use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
+
     use crate::rectangle::Rectangle;
-    use crate::selection_mode::Inside;
+
     use crate::test_app::test_app::*;
 
     use crate::{
-        app::Dispatch,
         components::{
             component::Component,
             editor::{Direction, DispatchEditor, Editor, Mode, Movement, ViewAlignment},
-            suggestive_editor::Info,
         },
         context::Context,
         grid::{Style, StyleKey},
@@ -28,23 +26,6 @@ mod test_editor {
     use serial_test::serial;
     use tree_sitter_rust::language;
     use SelectionMode::*;
-
-    #[test]
-    fn set_selection() -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(language(), "fn main() {}");
-
-        // Select a range which highlights a node
-        editor.set_selection(Position::new(0, 0)..Position::new(0, 2))?;
-
-        assert_eq!(editor.selection_set.mode, SelectionMode::SyntaxTree);
-
-        // Select a range which does not highlights a node
-        editor.set_selection(Position::new(0, 0)..Position::new(0, 1))?;
-
-        assert_eq!(editor.selection_set.mode, SelectionMode::Custom);
-
-        Ok(())
-    }
 
     #[test]
     fn raise_bottom_node() -> anyhow::Result<()> {

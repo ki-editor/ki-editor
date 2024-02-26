@@ -53,7 +53,7 @@ pub mod integration_test {
                 .duration_since(UNIX_EPOCH)
                 .expect("Time went backwards");
 
-            let random_number = rand::random::<u8>();
+            let _random_number = rand::random::<u8>();
             let temp_dir = format!(
                 "../temp_dir/{}_{}",
                 epoch_time.as_secs(),

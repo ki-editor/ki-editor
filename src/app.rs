@@ -45,12 +45,11 @@ use crate::{
         workspace_edit::WorkspaceEdit,
     },
     position::Position,
-    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType, QuickfixLists},
+    quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::{Theme, VSCODE_LIGHT},
-    undo_tree::{Applicable, UndoTree},
 };
 
 pub struct App<T: Frontend> {
@@ -178,7 +177,7 @@ impl<T: Frontend> App<T> {
                     .map(|_| false),
             }
             .unwrap_or_else(|e| {
-                self.show_global_info("ERROR", Info::new(e.to_string()));
+                self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
                 false
             });
 
@@ -229,7 +228,7 @@ impl<T: Frontend> App<T> {
                     let dispatches = component.borrow_mut().handle_event(&self.context, event);
                     self.handle_dispatches_result(dispatches)
                         .unwrap_or_else(|e| {
-                            self.show_global_info("ERROR", Info::new(e.to_string()))
+                            self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
                         });
                 });
             }
@@ -464,7 +463,7 @@ impl<T: Frontend> App<T> {
             Dispatch::DocumentDidSave { path } => {
                 self.lsp_manager.document_did_save(path)?;
             }
-            Dispatch::ShowGlobalInfo { title, info } => self.show_global_info(&title, info),
+            Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
@@ -584,9 +583,9 @@ impl<T: Frontend> App<T> {
                 self.render_dropdown(Some(owner_id), dropdown, render)?
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
-            Dispatch::ShowEditorInfo { title, info } => {
+            Dispatch::ShowEditorInfo(info) => {
                 if let Some(component) = self.current_component() {
-                    self.show_editor_info(component.borrow().id(), &title, info)?
+                    self.show_editor_info(component.borrow().id(), info)?
                 }
             }
             Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
@@ -709,7 +708,7 @@ impl<T: Frontend> App<T> {
 
     fn open_symbol_picker(
         &mut self,
-        component_id: ComponentId,
+        _component_id: ComponentId,
         symbols: Symbols,
     ) -> anyhow::Result<()> {
         self.open_prompt(PromptConfig {
@@ -783,7 +782,7 @@ impl<T: Frontend> App<T> {
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
-        let selection_set = position_range
+        let _selection_set = position_range
             .map(|position_range| {
                 editor
                     .editor()
@@ -830,18 +829,17 @@ impl<T: Frontend> App<T> {
         match notification {
             LspNotification::Hover(context, hover) => self.show_editor_info(
                 context.component_id,
-                "Hover Info",
-                Info::new(hover.contents.join("\n\n")),
+                Info::new("Hover Info".to_string(), hover.contents.join("\n\n")),
             ),
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
                     GotoDefinitionResponse::Multiple(locations) => {
                         if locations.is_empty() {
-                            self.show_global_info(
-                                "Goto definition info",
-                                Info::new("No definitions found".to_string()),
-                            );
+                            self.show_global_info(Info::new(
+                                "Goto definition info".to_string(),
+                                "No definitions found".to_string(),
+                            ));
                         } else {
                             self.set_quickfix_list(
                                 context,
@@ -859,7 +857,7 @@ impl<T: Frontend> App<T> {
                 context,
                 QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
             ),
-            LspNotification::Completion(context, completion) => {
+            LspNotification::Completion(_context, completion) => {
                 self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::SetCompletion(
                     completion,
                 ))?;
@@ -931,13 +929,13 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::Error(error) => {
-                self.show_global_info("LSP error", Info::new(error));
+                self.show_global_info(Info::new("LSP Error".to_string(), error));
                 Ok(())
             }
             LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
             }
-            LspNotification::CodeAction(context, code_actions) => {
+            LspNotification::CodeAction(_context, code_actions) => {
                 self.handle_dispatch(Dispatch::DispatchSuggestiveEditor(
                     DispatchSuggestiveEditor::SetCodeActions(code_actions),
                 ))?;
@@ -945,7 +943,7 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::SignatureHelp(context, signature_help) => {
                 if let Some(info) = signature_help.and_then(|s| s.into_info()) {
-                    self.show_editor_info(context.component_id, "Signature Help", info)?;
+                    self.show_editor_info(context.component_id, info)?;
                 }
                 Ok(())
             }
@@ -970,8 +968,8 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_global_info(&mut self, title: &str, info: Info) {
-        self.layout.show_info(title, info).unwrap_or_else(|err| {
+    fn show_global_info(&mut self, info: Info) {
+        self.layout.show_info(info).unwrap_or_else(|err| {
             log::error!("Error showing info: {:?}", err);
         });
     }
@@ -998,7 +996,7 @@ impl<T: Frontend> App<T> {
                                     path: (*path).clone(),
                                     range: diagnostic.range.clone(),
                                 },
-                                Some(Info::new(diagnostic.message())),
+                                Some(Info::new("Diagnostic".to_string(), diagnostic.message())),
                             )
                         })
                         .collect(),
@@ -1053,7 +1051,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         let quickfix_list = quickfix_list.set_title(context.description.clone());
-        let render = quickfix_list.render();
+        let _render = quickfix_list.render();
         self.context.set_quickfix_list(quickfix_list);
         match context.scope {
             None | Some(Scope::Global) => {
@@ -1265,7 +1263,7 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
-        let content = self.current_component().unwrap().borrow().content();
+        let _content = self.current_component().unwrap().borrow().content();
         self.current_component()
             .unwrap()
             .borrow()
@@ -1404,6 +1402,7 @@ impl<T: Frontend> App<T> {
         store_history: bool,
     ) -> anyhow::Result<()> {
         let component = self.layout.current_component();
+
         let new_to_old = component
             .as_ref()
             .map(|component| SelectionSetHistory {
@@ -1421,7 +1420,7 @@ impl<T: Frontend> App<T> {
                 selection_set: SelectionSet::default(),
             });
         if let Some(new_component) = match &kind {
-            SelectionSetHistoryKind::Path(path) => Some(self.open_file(&path, true)?),
+            SelectionSetHistoryKind::Path(path) => Some(self.open_file(path, true)?),
             SelectionSetHistoryKind::ComponentId(id) => self.layout.get_component_by_id(id),
         } {
             let selection_set = match source {
@@ -1526,7 +1525,7 @@ impl<T: Frontend> App<T> {
         owner_id: ComponentId,
         filter_glob: GlobalSearchFilterGlob,
     ) -> anyhow::Result<()> {
-        let current_component = self.current_component().clone();
+        let _current_component = self.current_component().clone();
         let config = self.context.global_search_config();
         let history = match filter_glob {
             GlobalSearchFilterGlob::Include => config.include_globs(),
@@ -1872,17 +1871,16 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_editor_info(
-        &mut self,
-        owner_id: ComponentId,
-        title: &str,
-        info: Info,
-    ) -> anyhow::Result<()> {
-        self.layout.show_editor_info(owner_id, title, info)
+    fn show_editor_info(&mut self, owner_id: ComponentId, info: Info) -> anyhow::Result<()> {
+        self.layout.show_editor_info(owner_id, info)
     }
 
     pub(crate) fn editor_info_open(&self) -> bool {
         self.layout.editor_info_open()
+    }
+
+    pub(crate) fn editor_info_content(&self) -> Option<String> {
+        self.layout.editor_info_content()
     }
 }
 
@@ -1925,10 +1923,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
     },
     OpenFile(CanonicalizedPath),
-    ShowGlobalInfo {
-        title: String,
-        info: Info,
-    },
+    ShowGlobalInfo(Info),
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),
     RequestHover(RequestParams),
@@ -2056,10 +2051,7 @@ pub enum Dispatch {
         render: DropdownRender,
     },
     OpenPrompt(PromptConfig),
-    ShowEditorInfo {
-        title: String,
-        info: Info,
-    },
+    ShowEditorInfo(Info),
     CloseEditorInfo {
         owner_id: ComponentId,
     },

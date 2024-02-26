@@ -1,10 +1,8 @@
 use std::{
-    cell::RefCell,
     fs::File,
     io::{self, BufRead},
     ops::Range,
     path::Path,
-    rc::Rc,
 };
 
 use itertools::Itertools;
@@ -12,7 +10,7 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     components::{
-        component::{Component, ComponentId},
+        component::Component,
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
         editor::{Editor, Movement},
         suggestive_editor::Info,
@@ -332,14 +330,14 @@ mod test_quickfix_list {
                     path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
-                info: Some(Info::new("spongebob".to_string())),
+                info: Some(Info::new("Title 1".to_string(), "spongebob".to_string())),
             },
             QuickfixListItem {
                 location: Location {
                     path: "readme.md".try_into().unwrap(),
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
-                info: Some(Info::new("squarepants".to_string())),
+                info: Some(Info::new("Title 2".to_string(), "squarepants".to_string())),
             },
         ]
         .to_vec();
@@ -354,6 +352,7 @@ mod test_quickfix_list {
                     range: Position { line: 1, column: 1 }..Position { line: 1, column: 2 },
                 },
                 info: Some(Info::new(
+                    "Title 1".to_string(),
                     ["spongebob", "squarepants"].join("\n==========\n")
                 ))
             }]

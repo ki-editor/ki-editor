@@ -49,7 +49,8 @@ impl SignatureHelp {
                     .map(|selection_range| {
                         Decoration::new(selection_range, StyleKey::UiPrimarySelection)
                     });
-                Info::new(content).set_decorations(decoration.into_iter().collect_vec())
+                Info::new("Signature Help".to_string(), content)
+                    .set_decorations(decoration.into_iter().collect_vec())
             })
             .reduce(Info::join)
     }

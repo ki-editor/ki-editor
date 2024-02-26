@@ -3,7 +3,6 @@ use crate::context::Context;
 use crate::grid::StyleKey;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
-use crate::lsp::signature_help::SignatureHelp;
 
 use crate::selection_range::SelectionRange;
 use crate::{
@@ -81,6 +80,7 @@ impl DropdownItem for CompletionItem {
 
         let documentation = self.documentation().map(|d| d.content);
         Some(Info::new(
+            "Completion Info".to_string(),
             [].into_iter()
                 .chain(kind)
                 .chain(detail)
@@ -399,7 +399,7 @@ pub enum DispatchSuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::components::editor::{DispatchEditor::*, Movement};
+    use crate::components::editor::DispatchEditor::*;
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::lsp::code_action::CodeAction;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
@@ -756,10 +756,7 @@ mod test_suggestive_editor {
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
-                App(ShowEditorInfo {
-                    title: "".to_string(),
-                    info: Info::default(),
-                }),
+                App(ShowEditorInfo(Info::default())),
                 Expect(EditorInfoOpen(true)),
                 Expect(CurrentPath(s.main_rs())),
                 App(HandleKeyEvent(key!("esc"))),
@@ -866,12 +863,14 @@ mod test_suggestive_editor {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct Info {
+    title: String,
     content: String,
     decorations: Vec<Decoration>,
 }
 impl Info {
-    pub(crate) fn new(content: String) -> Info {
+    pub(crate) fn new(title: String, content: String) -> Info {
         Info {
+            title,
             content,
             decorations: Vec::new(),
         }
@@ -885,12 +884,13 @@ impl Info {
         &self.decorations
     }
 
-    pub fn take(self) -> (String, Vec<Decoration>) {
+    pub fn take(self) -> (String, String, Vec<Decoration>) {
         let Self {
             content,
+            title,
             decorations,
         } = self;
-        (content, decorations)
+        (title, content, decorations)
     }
 
     pub fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
@@ -914,9 +914,14 @@ impl Info {
             .chain(other_decorations)
             .collect_vec();
         Info {
+            title: self.title.clone(),
             content,
             decorations,
         }
+    }
+
+    pub(crate) fn title(&self) -> String {
+        self.title.clone()
     }
 }
 

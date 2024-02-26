@@ -1,20 +1,14 @@
-use crate::app::Dispatch;
-use crate::components::dropdown::DropdownConfig;
-use crate::lsp::code_action::CodeAction;
-use crate::lsp::completion::CompletionItem;
 use crate::{
     app::Dimension,
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
-        dropdown::Dropdown,
         editor::Editor,
         file_explorer::FileExplorer,
         keymap_legend::{KeymapLegend, KeymapLegendConfig},
         prompt::Prompt,
         suggestive_editor::{Info, SuggestiveEditor},
     },
-    quickfix_list::QuickfixLists,
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
 };
@@ -238,8 +232,7 @@ impl Layout {
 
             self.quickfix_list = self.quickfix_list.take().filter(|c| c.borrow().id() != id);
 
-            self.editor_infos.shift_remove(&id);
-
+            self.close_editor_info(id);
             self.background_suggestive_editors
                 .retain(|c| c.borrow().id() != id);
 
@@ -392,14 +385,13 @@ impl Layout {
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
-    pub fn show_info(&mut self, title: &str, info: Info) -> anyhow::Result<()> {
+    pub fn show_info(&mut self, info: Info) -> anyhow::Result<()> {
         let info_panel = self.global_info.take().unwrap_or_else(|| {
             Rc::new(RefCell::new(Editor::from_text(
                 tree_sitter_md::language(),
                 "",
             )))
         });
-        info_panel.borrow_mut().set_title(title.to_string());
         info_panel.borrow_mut().show_info(info);
         self.global_info = Some(info_panel);
 
@@ -418,7 +410,10 @@ impl Layout {
         self.keymap_legend = vec![];
         self.quickfix_list = None;
         self.prompts = vec![];
-        if self.focused_component_id.is_none() {
+        if let Some(id) = self.focused_component_id {
+            self.close_dropdown(id);
+            self.close_editor_info(id);
+        } else {
             self.focused_component_id = self
                 .background_suggestive_editors
                 .last()
@@ -545,7 +540,7 @@ impl Layout {
 
     pub(crate) fn get_code_action_dropdown(
         &self,
-        owner_id: ComponentId,
+        _owner_id: ComponentId,
     ) -> Option<Rc<RefCell<Editor>>> {
         self.current_component()
             .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
@@ -640,11 +635,9 @@ impl Layout {
     pub(crate) fn show_editor_info(
         &mut self,
         owner_id: ComponentId,
-        title: &str,
         info: Info,
     ) -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), &info.content());
-        editor.set_title(title.to_string());
+        let mut editor = Editor::from_text(tree_sitter_md::language(), info.content());
         editor.show_info(info)?;
         self.editor_infos
             .insert(owner_id, Rc::new(RefCell::new(editor)));
@@ -652,11 +645,16 @@ impl Layout {
     }
 
     pub(crate) fn editor_info_open(&self) -> bool {
-        self.editor_infos.len() > 0
+        !self.editor_infos.is_empty()
     }
 
-    pub(crate) fn close_editor_info(&mut self, owner_id: ComponentId) {
-        self.editor_infos.shift_remove(&owner_id);
+    pub(crate) fn close_editor_info(&mut self, id: ComponentId) {
+        self.editor_infos
+            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+    }
+
+    pub(crate) fn editor_info_content(&self) -> Option<String> {
+        Some(self.editor_infos.first()?.1.borrow().content())
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

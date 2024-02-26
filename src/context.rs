@@ -1,5 +1,5 @@
 use globset::Glob;
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{collections::HashMap};
 
 use indexmap::IndexSet;
 use itertools::Itertools;

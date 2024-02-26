@@ -736,6 +736,7 @@ impl Editor {
     }
 
     pub fn show_info(&mut self, info: Info) -> Result<(), anyhow::Error> {
+        self.set_title(info.title());
         self.set_decorations(info.decorations());
         self.set_content(info.content())
     }
@@ -867,6 +868,12 @@ impl Editor {
         selection_set: SelectionSet,
         store_history: bool,
     ) -> Vec<Dispatch> {
+        let show_info = selection_set
+            .map(|selection| selection.info())
+            .into_iter()
+            .flatten()
+            .reduce(Info::join)
+            .map(|info| Dispatch::ShowEditorInfo(info));
         [Dispatch::UpdateSelectionSet {
             selection_set,
             kind: self
@@ -876,7 +883,9 @@ impl Editor {
                 .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(self.id())),
             store_history,
         }]
-        .to_vec()
+        .into_iter()
+        .chain(show_info)
+        .collect()
     }
 
     pub fn position_range_to_selection_set(
@@ -899,11 +908,6 @@ impl Editor {
             mode,
             filters: Filters::default(),
         })
-    }
-
-    pub fn set_selection(&mut self, range: Range<Position>) -> anyhow::Result<Vec<Dispatch>> {
-        let selection_set = self.position_range_to_selection_set(range)?;
-        Ok(self.update_selection_set(selection_set, true))
     }
 
     fn cursor_row(&self) -> u16 {
@@ -1268,10 +1272,10 @@ impl Editor {
     }
 
     pub fn show_undo_tree_dispatch(&self) -> Dispatch {
-        Dispatch::ShowGlobalInfo {
-            title: "Undo Tree History".to_string(),
-            info: Info::new(self.buffer().display_history()),
-        }
+        Dispatch::ShowGlobalInfo(Info::new(
+            "Undo Tree History".to_string(),
+            self.buffer().display_history(),
+        ))
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
@@ -2691,26 +2695,7 @@ impl Editor {
         self.current_view_alignment = None;
         log::info!("dispatches = {:?}", dispatches);
 
-        Ok(dispatches
-            .into_iter()
-            .chain(
-                if let Some(info) = self
-                    .selection_set
-                    .map(|selection| selection.info())
-                    .into_iter()
-                    .flatten()
-                    .reduce(Info::join)
-                {
-                    [Dispatch::ShowGlobalInfo {
-                        title: "INFO".to_string(),
-                        info,
-                    }]
-                    .to_vec()
-                } else {
-                    Vec::new()
-                },
-            )
-            .collect())
+        Ok(dispatches)
     }
 
     pub fn scroll_page_down(&mut self) -> Result<Vec<Dispatch>, anyhow::Error> {

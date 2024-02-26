@@ -81,7 +81,7 @@ impl Component for Prompt {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(vec![Dispatch::CloseCurrentWindow {
-                    change_focused_to: self.owner_id.clone(),
+                    change_focused_to: self.owner_id,
                 }])
             }
             key!("tab") => {
@@ -110,7 +110,7 @@ impl Component for Prompt {
                 let dispatches = self.on_enter.to_dispatches(&current_item)?;
 
                 Ok(vec![Dispatch::CloseCurrentWindow {
-                    change_focused_to: self.owner_id.clone(),
+                    change_focused_to: self.owner_id,
                 }]
                 .into_iter()
                 .chain(dispatches)

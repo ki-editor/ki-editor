@@ -265,3 +265,6 @@
 - [] feat(selection-mode): press 2 to store current selection mode into secondary selection mode
 - [] feat(prompt): if only got one item, should not have new line at the beginning
 - [] feat(inside): should depends on only the current cursor position, not the current extended range
+- [] feat: mouse selection
+- [] fix(completion): browsing selections, selection always aligned to top
+- [] feat(editor): select around brackets

@@ -4,9 +4,10 @@
 #[cfg(test)]
 pub mod test_app {
     use itertools::Itertools;
-    use lsp_types::CompletionItemKind;
-    use my_proc_macros::{hex, key, keys};
-    use pretty_assertions::assert_eq;
+
+    use lsp_types::Url;
+    use my_proc_macros::key;
+
     use serial_test::serial;
 
     use std::{
@@ -56,6 +57,7 @@ pub mod test_app {
 
     #[derive(Debug)]
     pub enum ExpectKind {
+        EditorInfoContent(&'static str),
         EditorInfoOpen(bool),
         QuickfixListCurrentLine(&'static str),
         DropdownInfosCount(usize),
@@ -108,7 +110,7 @@ pub mod test_app {
                 (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
             }
             fn to_vec(strs: &[&str]) -> Vec<String> {
-                strs.into_iter().map(|t| t.to_string()).collect()
+                strs.iter().map(|t| t.to_string()).collect()
             }
             let component = app.current_component().unwrap();
             Ok(match self {
@@ -120,7 +122,7 @@ pub mod test_app {
                     contextualize(app.get_file_content(path), expected_content.clone())
                 }
                 FileContentEqual(left, right) => {
-                    contextualize(app.get_file_content(&left), app.get_file_content(&right))
+                    contextualize(app.get_file_content(left), app.get_file_content(right))
                 }
                 CurrentSelectedTexts(selected_texts) => {
                     contextualize(app.get_current_selected_texts(), to_vec(selected_texts))
@@ -210,19 +212,19 @@ pub mod test_app {
                 }
                 CurrentViewAlignment(view_alignment) => contextualize(
                     component.borrow().editor().current_view_alignment(),
-                    view_alignment.clone(),
+                    *view_alignment,
                 ),
                 GridCellBackground(row_index, column_index, background_color) => contextualize(
-                    component.borrow().editor().get_grid(&mut context).grid.rows[*row_index]
+                    component.borrow().editor().get_grid(context).grid.rows[*row_index]
                         [*column_index]
                         .background_color,
                     *background_color,
                 ),
                 GridCellStyleKey(position, style_key) => contextualize(
-                    component.borrow().editor().get_grid(&mut context).grid.rows[position.line]
+                    component.borrow().editor().get_grid(context).grid.rows[position.line]
                         [position.column]
                         .source,
-                    style_key.clone(),
+                    *style_key,
                 ),
                 CompletionDropdownIsOpen(is_open) => {
                     contextualize(app.completion_dropdown_is_open(), *is_open)
@@ -254,6 +256,9 @@ pub mod test_app {
                     actual.to_string(),
                 ),
                 EditorInfoOpen(actual) => contextualize(app.editor_info_open(), *actual),
+                EditorInfoContent(actual) => {
+                    contextualize(app.editor_info_content(), Some(actual.to_string()))
+                }
             })
         }
     }
@@ -299,7 +304,7 @@ pub mod test_app {
                 })
             };
 
-            for step in steps.into_iter() {
+            for step in steps.iter() {
                 match step.to_owned() {
                     Step::App(dispatch) => {
                         log(dispatch);
@@ -319,7 +324,7 @@ pub mod test_app {
                         f();
                     }
                     ExpectMulti(expect_kinds) => {
-                        for expect_kind in expect_kinds.into_iter() {
+                        for expect_kind in expect_kinds.iter() {
                             expect_kind.run(&mut app)
                         }
                     }
@@ -598,6 +603,7 @@ pub mod test_app {
             let path_new_file = s.new_path("new_file.md");
             fn strs_to_strings(strs: &[&str]) -> Option<Info> {
                 Some(Info::new(
+                    "Git Hunk Diff".to_string(),
                     strs.iter().map(|s| s.to_string()).join("\n").to_string(),
                 ))
             }
@@ -1005,6 +1011,32 @@ src/main.rs 🦀
                 Editor(MoveSelection(Previous)),
                 Expect(CurrentLine("foo b")),
                 Expect(CurrentSelectedTexts(&["foo"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn diagnostic_info() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.foo_rs())),
+                App(Dispatch::HandleLspNotification(
+                    LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
+                        uri: Url::from_file_path(s.foo_rs()).unwrap(),
+                        diagnostics: [lsp_types::Diagnostic::new_simple(
+                            lsp_types::Range::new(
+                                lsp_types::Position::new(0, 1),
+                                lsp_types::Position::new(0, 2),
+                            ),
+                            "Hello world".to_string(),
+                        )]
+                        .to_vec(),
+                        version: None,
+                    }),
+                )),
+                Editor(SetSelectionMode(Diagnostic(None))),
+                Expect(EditorInfoOpen(true)),
+                Expect(EditorInfoContent("Hello world")),
             ])
         })
     }

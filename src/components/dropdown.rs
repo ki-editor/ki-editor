@@ -48,14 +48,13 @@ pub struct DropdownConfig {
 
 impl<T: DropdownItem> Dropdown<T> {
     pub fn new(config: DropdownConfig) -> Self {
-        let mut dropdown = Self {
+        Self {
             filter: String::new(),
             items: vec![],
             filtered_items: vec![],
             current_item_index: 0,
             title: config.title,
-        };
-        dropdown
+        }
     }
 
     pub fn change_index(&mut self, index: usize) {
@@ -109,7 +108,7 @@ impl<T: DropdownItem> Dropdown<T> {
     }
 
     fn change_group_index(&mut self, increment: bool) -> Option<()> {
-        let groups = self.groups();
+        let _groups = self.groups();
         let get_group = T::group()?;
         let groups = self.groups()?;
         let current_group_index = self.get_current_item_group_index()?;
@@ -233,7 +232,7 @@ impl<T: DropdownItem> Dropdown<T> {
     fn assert_highlighted_content(&self, label: &str) {
         let render = self.render();
         let index = render.highlight_line_index;
-        let highlighed_content = render.content.lines().into_iter().collect_vec()[index];
+        let highlighed_content = render.content.lines().collect_vec()[index];
         assert_eq!(highlighed_content, label);
     }
 
@@ -274,7 +273,7 @@ mod test_dropdown {
         fn new(label: &str, info: &str, group: &str) -> Self {
             Self {
                 label: label.to_string(),
-                info: Info::new(info.to_string()),
+                info: Info::new("".to_string(), info.to_string()),
                 group: group.to_string(),
             }
         }
