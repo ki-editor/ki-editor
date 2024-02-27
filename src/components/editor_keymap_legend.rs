@@ -125,38 +125,6 @@ impl Editor {
         }
     }
 
-    pub fn x_mode_keymap_legend_config(&self) -> anyhow::Result<KeymapLegendConfig> {
-        Ok(KeymapLegendConfig {
-            title: "X (Regex/Bracket/Quote)".to_string(),
-            owner_id: self.id(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &[
-                        Keymap::new(
-                            "e",
-                            "Empty line".to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
-                                SelectionMode::EmptyLine,
-                            )),
-                        ),
-                        Keymap::new(
-                            "n",
-                            "Number".to_string(),
-                            Dispatch::ShowKeymapLegend(self.show_number_keymap_legend_config()),
-                        ),
-                        Keymap::new(
-                            "o",
-                            "One character".to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
-                        ),
-                    ]
-                    .into_iter()
-                    .collect_vec(),
-                ),
-            },
-        })
-    }
-
     fn diagnostics_keymap(&self, scope: Scope) -> KeymapLegendSection {
         let keymaps = [
             ("a", "Any", None),
@@ -205,7 +173,7 @@ impl Editor {
                         &[
                             Keymap::new(
                                 "b",
-                                "Bookmark".to_string(),
+                                "Mark".to_string(),
                                 Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                                     SelectionMode::Bookmark,
                                 )),
@@ -241,6 +209,23 @@ impl Editor {
                                     owner_id: self.id(),
                                     scope: Scope::Local,
                                 },
+                            ),
+                            Keymap::new(
+                                "space",
+                                "Empty line".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
+                                    SelectionMode::EmptyLine,
+                                )),
+                            ),
+                            Keymap::new(
+                                "n",
+                                "Number".to_string(),
+                                Dispatch::ShowKeymapLegend(self.show_number_keymap_legend_config()),
+                            ),
+                            Keymap::new(
+                                "o",
+                                "One character".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::FindOneChar),
                             ),
                         ]
                         .into_iter()
@@ -386,13 +371,13 @@ impl Editor {
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     &[
-                        ("a", "Angular Bracket <>", InsideKind::AngularBrackets),
-                        ("b", "Back Quote ``", InsideKind::BackQuotes),
-                        ("c", "Curly Brace {}", InsideKind::CurlyBraces),
-                        ("d", "Double Quote \"\"", InsideKind::DoubleQuotes),
-                        ("p", "Parenthesis ()", InsideKind::Parentheses),
-                        ("q", "Single Quote ''", InsideKind::SingleQuotes),
-                        ("s", "Square Bracket []", InsideKind::SquareBrackets),
+                        ("<", "Angular Bracket <>", InsideKind::AngularBrackets),
+                        ("`", "Back Quote ``", InsideKind::BackQuotes),
+                        ("{", "Curly Brace {}", InsideKind::CurlyBraces),
+                        ("\"", "Double Quote \"\"", InsideKind::DoubleQuotes),
+                        ("(", "Parenthesis ()", InsideKind::Parentheses),
+                        ("'", "Single Quote ''", InsideKind::SingleQuotes),
+                        ("[", "Square Bracket []", InsideKind::SquareBrackets),
                     ]
                     .into_iter()
                     .map(|(key, description, inside_kind)| {

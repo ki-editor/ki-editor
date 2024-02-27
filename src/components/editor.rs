@@ -14,6 +14,7 @@ use crate::{
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
     ops::Range,
     rc::Rc,
 };
@@ -39,6 +40,8 @@ use crate::{
 };
 
 use DispatchEditor::*;
+use Movement::*;
+use SelectionMode::*;
 
 use super::{
     component::{ComponentId, GetGridResult},
@@ -721,6 +724,8 @@ pub enum Movement {
     Index(usize),
     Jump(CharIndexRange),
     ToParentLine,
+    Parent,
+    FirstChild,
 }
 
 impl Editor {
@@ -1396,6 +1401,7 @@ impl Editor {
             ReplacePreviousWord(word) => return self.replace_previous_word(&word, context),
             ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
             SelectLineAt(index) => return self.select_line_at(index),
+            EnterMultiCursorMode => self.enter_multicursor_mode(),
         }
         Ok([].to_vec())
     }
@@ -1675,45 +1681,66 @@ impl Editor {
         self.buffer_mut().save_bookmarks(selections)
     }
 
-    fn handle_movement_key(
-        &mut self,
-        key_event: &KeyEvent,
-        context: &Context,
-    ) -> anyhow::Result<Option<Vec<Dispatch>>> {
-        let move_selection = |movement: Movement| {
-            Ok(Some(
-                [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    movement,
-                ))]
-                .to_vec(),
-            ))
-        };
-        match key_event {
-            key!("d") => move_selection(Movement::Down),
-            key!("j") => {
-                self.jump(context)?;
-                Ok(Some(Vec::new()))
-            }
-            key!("n") => move_selection(Movement::Next),
-            key!("p") => move_selection(Movement::Previous),
-            key!("u") => move_selection(Movement::Up),
-            key!(".") => move_selection(Movement::Last),
-            key!(",") => move_selection(Movement::First),
-            key!("-") => move_selection(Movement::ToParentLine),
-            _ => Ok(None),
-        }
-    }
-
     fn handle_normal_mode(
         &mut self,
         context: &Context,
         event: KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(dispatches) = self.handle_movement_key(&event, context)? {
-            return Ok(dispatches);
-        }
-        if self.mode != Mode::Normal {
-            self.mode = Mode::Normal
+        let de = |d: DispatchEditor| [Dispatch::DispatchEditor(d)].to_vec();
+        let ds = |d: Dispatch| [d].to_vec();
+        let map = HashMap::from([
+            (key!("a"), de(EnterInsertMode(Direction::End))),
+            // Between
+            (
+                key!("b"),
+                ds(Dispatch::ShowKeymapLegend(
+                    self.inside_mode_keymap_legend_config(),
+                )),
+            ),
+            (key!("c"), de(Change)),
+            (key!("d"), de(Kill)),
+            (key!("e"), de(SetSelectionMode(LineTrimmed))),
+            (key!("E"), de(SetSelectionMode(LineFull))),
+            (
+                key!("f"),
+                ds(Dispatch::ShowKeymapLegend(
+                    self.find_local_keymap_legend_config(context)?,
+                )),
+            ),
+            (
+                key!("g"),
+                ds(Dispatch::ShowKeymapLegend(
+                    self.find_global_keymap_legend_config(context),
+                )),
+            ),
+            (key!("h"), de(MoveSelection(Previous))),
+            (key!("i"), de(EnterInsertMode(Direction::Start))),
+            (key!("j"), de(MoveSelection(Down))),
+            (key!("k"), de(MoveSelection(Up))),
+            (key!("l"), de(MoveSelection(Next))),
+            (key!("m"), de(ToggleBookmark)),
+            // Top [n]ode
+            (key!("n"), de(SetSelectionMode(TopNode))),
+            (key!("o"), de(DispatchEditor::Jump)),
+            (key!("p"), de(MoveSelection(Parent))),
+            (key!("q"), de(MoveSelection(FirstChild))),
+            (key!("r"), de(Raise)),
+            (key!("s"), de(SetSelectionMode(SyntaxTree))),
+            // [t]oken
+            (key!("t"), de(SetSelectionMode(BottomNode))),
+            // Col[u]mn
+            (key!("u"), de(SetSelectionMode(Character))),
+            (key!("v"), de(ToggleHighlightMode)),
+            (key!("w"), de(SetSelectionMode(Word))),
+            (key!("x"), de(EnterExchangeMode)),
+            (key!("y"), de(Copy)),
+            (key!("z"), de(EnterMultiCursorMode)),
+            (key!(","), de(MoveSelection(First))),
+            (key!("."), de(MoveSelection(Last))),
+            (key!("-"), de(MoveSelection(ToParentLine))),
+        ]);
+        if let Some(dispatches) = map.get(&event) {
+            return Ok(dispatches.to_owned());
         }
         match event {
             key!("'") => {
@@ -1742,24 +1769,11 @@ impl Editor {
                     Dispatch::SetGlobalMode(None),
                 ]);
             }
-            // Objects
             key!("a") => self.enter_insert_mode(Direction::Start)?,
             key!("b") => self.toggle_bookmarks(),
-
             key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
-            // d = down
             key!("e") => self.enter_insert_mode(Direction::End)?,
-            key!("f") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.find_local_keymap_legend_config(context)?,
-                )]
-                .to_vec())
-            }
-            key!("g") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.find_global_keymap_legend_config(context),
-                )])
-            }
+
             key!("h") => self.toggle_highlight_mode(),
             key!("i") => {
                 return Ok([Dispatch::ShowKeymapLegend(
@@ -1797,12 +1811,6 @@ impl Editor {
             key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
             key!("x") => self.enter_exchange_mode(),
             key!("y") => return self.copy(context),
-            key!("z") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.x_mode_keymap_legend_config()?,
-                )]
-                .to_vec())
-            }
             key!("shift+X") => return self.exchange(context, Movement::Previous),
             // y = unused
             key!("backspace") => {
@@ -2250,7 +2258,7 @@ impl Editor {
             self.get_valid_selection(
                 selection,
                 &self.selection_set.mode,
-                &Movement::Up,
+                &Movement::Parent,
                 context,
                 get_edit_transaction,
             )
@@ -2889,6 +2897,10 @@ impl Editor {
         self.enter_insert_mode(Direction::Start)?;
         Ok(dispatches)
     }
+
+    fn enter_multicursor_mode(&mut self) {
+        self.mode = Mode::MultiCursor
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2950,6 +2962,7 @@ pub enum DispatchEditor {
     EnterInsideMode(InsideKind),
     EnterNormalMode,
     EnterExchangeMode,
+    EnterMultiCursorMode,
     FilterPush(Filter),
     FilterClear,
     CursorAddToAllSelections,

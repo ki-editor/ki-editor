@@ -29,21 +29,17 @@ mod test_editor {
 
     #[test]
     fn raise_bottom_node() -> anyhow::Result<()> {
-        let input = "fn main() { x + 1 }";
-        let mut editor = Editor::from_text(language(), input);
-        let mut context = Context::default();
-        editor.apply_dispatches(
-            &mut context,
-            [
-                MatchLiteral("x + 1".to_string()),
-                SetSelectionMode(SelectionMode::TopNode),
-                MoveSelection(Movement::Down),
-                Raise,
-            ]
-            .to_vec(),
-        )?;
-        assert_eq!(editor.content(), "fn main() { x }");
-        Ok(())
+        execute_test(|s| {
+            let input = "fn main() { x + 1 }";
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(input.to_string())),
+                Editor(MatchLiteral("x".to_string())),
+                Editor(SetSelectionMode(SelectionMode::BottomNode)),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn main() { x }")),
+            ])
+        })
     }
 
     #[test]
@@ -340,9 +336,9 @@ mod test_editor {
                     "fn f(x:a,y:b){}",
                     "fn g(x:a,y:b){}",
                 ])),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Editor(MoveSelection(Next)),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(EnterExchangeMode),
@@ -519,11 +515,11 @@ mod test_editor {
                 Editor(MatchLiteral("let x = S(a);".to_string())),
                 Editor(SetSelectionMode(SyntaxTree)),
                 Editor(CursorAddToAllSelections),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Editor(MoveSelection(Next)),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Editor(MoveSelection(Next)),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["a", "b"])),
                 Editor(Raise),
@@ -614,13 +610,15 @@ fn main() {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("fn main() { let x = 1; }".to_string())),
                 Editor(SetSelectionMode(Character)),
-                Editor(Exchange(Next)),
+                Editor(EnterExchangeMode),
+                App(HandleKeyEvent(key!("l"))),
+                // Editor(MoveSelection(Next)),
                 Expect(CurrentComponentContent("nf main() { let x = 1; }")),
-                Editor(Exchange(Next)),
+                Editor(MoveSelection(Next)),
                 Expect(CurrentComponentContent("n fmain() { let x = 1; }")),
-                Editor(Exchange(Previous)),
+                Editor(MoveSelection(Previous)),
                 Expect(CurrentComponentContent("nf main() { let x = 1; }")),
-                Editor(Exchange(Previous)),
+                Editor(MoveSelection(Previous)),
                 Expect(CurrentComponentContent("fn main() { let x = 1; }")),
             ])
         })
@@ -738,9 +736,9 @@ fn main() {
                 Editor(SetSelectionMode(SyntaxTree)),
                 Expect(CurrentSelectedTexts(&["fn a(j:J){}"])),
                 Editor(CursorAddToAllSelections),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Editor(MoveSelection(Next)),
-                Editor(MoveSelection(Down)),
+                Editor(MoveSelection(FirstChild)),
                 Expect(CurrentSelectedTexts(&["j:J", "k:K", "m:M"])),
                 Editor(CursorAddToAllSelections),
                 Expect(CurrentSelectedTexts(&[

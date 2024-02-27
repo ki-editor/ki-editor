@@ -1,4 +1,6 @@
-use super::{ApplyMovementResult, ByteRange, SelectionMode};
+use crate::selection::Selection;
+
+use super::{ByteRange, SelectionMode};
 
 pub struct SyntaxTree;
 
@@ -26,28 +28,17 @@ impl SelectionMode for SyntaxTree {
     }
     fn current(
         &self,
-        super::SelectionModeParams {
-            buffer,
-            current_selection,
-            ..
-        }: super::SelectionModeParams,
+        params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let byte_range = buffer
-            .get_current_node(current_selection, false)?
-            .byte_range();
-        let range = buffer.byte_range_to_char_index_range(&byte_range)?;
-        Ok(Some(current_selection.clone().set_range(range)))
+        super::TopNode.current(params)
     }
-    fn up(
+    fn parent(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.select_vertical(params, true)
     }
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn first_child(&self, params: super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.select_vertical(params, false)
     }
 }
@@ -57,7 +48,7 @@ impl SyntaxTree {
         &self,
         params: super::SelectionModeParams,
         go_up: bool,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    ) -> anyhow::Result<Option<Selection>> {
         let mut node = params
             .buffer
             .get_current_node(params.current_selection, false)?;
@@ -67,7 +58,6 @@ impl SyntaxTree {
             if some_node.range() != node.range() {
                 return ByteRange::new(some_node.byte_range())
                     .to_selection(params.buffer, params.current_selection)
-                    .map(ApplyMovementResult::from_selection)
                     .map(Some);
             }
             node = some_node;
@@ -118,7 +108,7 @@ mod test_syntax_tree {
     }
 
     #[test]
-    fn up() {
+    fn parent() {
         let buffer = Buffer::new(
             tree_sitter_rust::language(),
             "fn main() { let x = X {z,b,c:d} }",
@@ -126,7 +116,7 @@ mod test_syntax_tree {
 
         let child_range = (CharIndex(23)..CharIndex(24)).into();
         let context = Context::default();
-        let selection = SyntaxTree.up(SelectionModeParams {
+        let selection = SyntaxTree.parent(SelectionModeParams {
             context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
@@ -134,10 +124,10 @@ mod test_syntax_tree {
             filters: &Filters::default(),
         });
 
-        let parent_range = selection.unwrap().unwrap().selection.range();
+        let parent_range = selection.unwrap().unwrap().range();
         assert_eq!(parent_range, (CharIndex(22)..CharIndex(31)).into());
 
-        let selection = SyntaxTree.down(SelectionModeParams {
+        let selection = SyntaxTree.first_child(SelectionModeParams {
             context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(parent_range),
@@ -145,7 +135,7 @@ mod test_syntax_tree {
             filters: &Filters::default(),
         });
 
-        let child_range = selection.unwrap().unwrap().selection.range();
+        let child_range = selection.unwrap().unwrap().range();
         assert_eq!(child_range, child_range);
     }
 }

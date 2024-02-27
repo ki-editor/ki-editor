@@ -35,16 +35,11 @@ impl SelectionMode for TopNode {
         ))
     }
 
-    fn down(
+    fn first_child(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        Ok(BottomNode
-            .current(params)?
-            .map(|selection| ApplyMovementResult {
-                selection,
-                mode: Some(crate::selection::SelectionMode::BottomNode),
-            }))
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        BottomNode.current(params)
     }
 }
 

@@ -184,7 +184,17 @@ pub trait SelectionMode {
             Movement::Up => self.up(params),
             Movement::Down => self.down(params),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
+            Movement::Parent => convert(self.parent(params)),
+            Movement::FirstChild => convert(self.first_child(params)),
         }
+    }
+
+    fn parent(&self, _: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(None)
+    }
+
+    fn first_child(&self, _: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(None)
     }
 
     fn to_parent_line(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {

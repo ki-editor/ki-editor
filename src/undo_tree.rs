@@ -89,6 +89,12 @@ impl<T: Applicable> UndoTree<T> {
             Movement::ToParentLine => Err(anyhow::anyhow!(
                 "UndoTree: moving to ParentLine is not supported yet",
             )),
+            Movement::Parent => Err(anyhow::anyhow!(
+                "UndoTree: moving to Parent is not supported yet",
+            )),
+            Movement::FirstChild => Err(anyhow::anyhow!(
+                "UndoTree: moving to FirstChild is not supported yet",
+            )),
         }
     }
 

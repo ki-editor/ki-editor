@@ -1040,7 +1040,7 @@ impl<T: Frontend> App<T> {
                         .collect_vec(),
                 );
                 self.set_quickfix_list(
-                    ResponseContext::default().set_description("Bookmark"),
+                    ResponseContext::default().set_description("Marks"),
                     quickfix_list,
                 )
             }
