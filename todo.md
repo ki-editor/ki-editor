@@ -268,3 +268,5 @@
 - [] feat: mouse selection
 - [] fix(completion): browsing selections, selection always aligned to top
 - [] feat(editor): select around brackets
+- [] feat(surround): put [({< under the transformation keymap
+- [] feat(movement): [ = first selection in previous file, ] = first selection in next file

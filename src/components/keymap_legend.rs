@@ -56,7 +56,7 @@ impl Keymaps {
         let result = self
             .0
             .iter()
-            .sorted_by_key(|keymap| keymap.key.to_lowercase())
+            // .sorted_by_key(|keymap| keymap.key.to_lowercase())
             .map(|keymap| {
                 let formatted = format!(
                     "{: >width$}{}{}",
@@ -88,6 +88,10 @@ impl Keymaps {
 
     pub fn new(keymaps: &[Keymap]) -> Self {
         Self(keymaps.to_vec())
+    }
+
+    pub(crate) fn get(&self, event: &KeyEvent) -> std::option::Option<&Keymap> {
+        self.0.iter().find(|key| &key.event == event)
     }
 }
 
@@ -179,6 +183,10 @@ impl Keymap {
             dispatch,
             event: parse_key_event(key).unwrap(),
         }
+    }
+
+    pub(crate) fn dispatch(&self) -> Dispatch {
+        self.dispatch.clone()
     }
 }
 

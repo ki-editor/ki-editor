@@ -1,4 +1,5 @@
-use super::{ApplyMovementResult, BottomNode, ByteRange, SelectionMode};
+use super::SyntaxTree;
+use super::{BottomNode, ByteRange, SelectionMode};
 use itertools::Itertools;
 
 pub struct TopNode;
@@ -40,6 +41,13 @@ impl SelectionMode for TopNode {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         BottomNode.current(params)
+    }
+
+    fn parent(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        SyntaxTree.parent(params)
     }
 }
 

@@ -1,10 +1,16 @@
+use super::editor::Enclosure;
+use my_proc_macros::key;
+
+use SelectionMode::*;
+
 use convert_case::Case;
+use event::KeyEvent;
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::{Dispatch, FilePickerKind, MakeFilterMechanism, RequestParams, Scope},
-    components::keymap_legend::KeymapLegendSection,
+    components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
     quickfix_list::QuickfixListType,
@@ -14,11 +20,291 @@ use crate::{
 
 use super::{
     component::Component,
-    editor::{DispatchEditor, Editor},
+    editor::{Direction, DispatchEditor, Editor},
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
 };
 
+use DispatchEditor::*;
+use Movement::*;
 impl Editor {
+    pub(crate) fn keymap_movements(&self) -> Vec<Keymap> {
+        [
+            Keymap::new(
+                "h",
+                "Previous".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Movement::Previous)),
+            ),
+            Keymap::new(
+                "j",
+                "Down".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Down)),
+            ),
+            Keymap::new(
+                "k",
+                "Up".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Up)),
+            ),
+            Keymap::new(
+                "l",
+                "Next".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Next)),
+            ),
+            Keymap::new(
+                "o",
+                "Oscillate (Jump)".to_string(),
+                Dispatch::DispatchEditor(DispatchEditor::Jump),
+            ),
+            Keymap::new(
+                "p",
+                "Parent".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Parent)),
+            ),
+            Keymap::new(
+                "q",
+                "First Child".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(FirstChild)),
+            ),
+            Keymap::new(
+                ",",
+                "First".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(First)),
+            ),
+            Keymap::new(
+                ".",
+                "Last".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Last)),
+            ),
+            Keymap::new(
+                "-",
+                "Parent Line".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(ToParentLine)),
+            ),
+        ]
+        .to_vec()
+    }
+
+    pub(crate) fn keymap_selection_modes(&self, context: &Context) -> anyhow::Result<Vec<Keymap>> {
+        Ok([
+            Keymap::new(
+                "b",
+                "Between".to_string(),
+                Dispatch::ShowKeymapLegend(self.inside_mode_keymap_legend_config()),
+            ),
+            Keymap::new(
+                "e",
+                "Line (Trimmed)".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(LineTrimmed)),
+            ),
+            Keymap::new(
+                "E",
+                "Line (Full)".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(LineFull)),
+            ),
+            Keymap::new(
+                "f",
+                "Find (Local)".to_string(),
+                Dispatch::ShowKeymapLegend(self.find_local_keymap_legend_config(context)?),
+            ),
+            Keymap::new(
+                "g",
+                "Find (Global)".to_string(),
+                Dispatch::ShowKeymapLegend(self.find_global_keymap_legend_config(context)),
+            ),
+            Keymap::new(
+                "n",
+                "Bottom Node".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(BottomNode)),
+            ),
+            Keymap::new(
+                "s",
+                "Syntax Tree".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(SyntaxTree)),
+            ),
+            Keymap::new(
+                "t",
+                "Top Node".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(TopNode)),
+            ),
+            Keymap::new(
+                "u",
+                "Character".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(Character)),
+            ),
+            Keymap::new(
+                "w",
+                "Word".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(Word)),
+            ),
+        ]
+        .to_vec())
+    }
+    pub(crate) fn keymap_actions(&self) -> Vec<Keymap> {
+        [
+            Keymap::new("c", "Change".to_string(), Dispatch::DispatchEditor(Change)),
+            Keymap::new("d", "Delete".to_string(), Dispatch::DispatchEditor(Kill)),
+            Keymap::new(
+                "m",
+                "Toggle Mark".to_string(),
+                Dispatch::DispatchEditor(ToggleBookmark),
+            ),
+            Keymap::new("r", "Raise".to_string(), Dispatch::DispatchEditor(Raise)),
+            Keymap::new(
+                "y",
+                "Yank (Copy)".to_string(),
+                Dispatch::DispatchEditor(Copy),
+            ),
+        ]
+        .to_vec()
+    }
+    pub fn keymap_modes(&self) -> Vec<Keymap> {
+        [
+            Keymap::new(
+                "/",
+                "Omit selection".to_string(),
+                Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
+            ),
+            Keymap::new(
+                "a",
+                "Insert after selection".to_string(),
+                Dispatch::DispatchEditor(EnterInsertMode(Direction::End)),
+            ),
+            Keymap::new(
+                "i",
+                "Insert before selection".to_string(),
+                Dispatch::DispatchEditor(EnterInsertMode(Direction::Start)),
+            ),
+            Keymap::new(
+                "v",
+                "Visual (Extend selection)".to_string(),
+                Dispatch::DispatchEditor(ToggleHighlightMode),
+            ),
+            Keymap::new(
+                "x",
+                "Exchange".to_string(),
+                Dispatch::DispatchEditor(EnterExchangeMode),
+            ),
+            Keymap::new(
+                "z",
+                "Multi-cursor".to_string(),
+                Dispatch::DispatchEditor(EnterMultiCursorMode),
+            ),
+        ]
+        .to_vec()
+    }
+    fn normal_mode_keymap_legend_config(
+        &self,
+        context: &Context,
+    ) -> anyhow::Result<KeymapLegendConfig> {
+        Ok(KeymapLegendConfig {
+            title: "Normal mode".to_string(),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [
+                    KeymapLegendSection {
+                        title: "Movement".to_string(),
+                        keymaps: Keymaps::new(&self.keymap_movements()),
+                    },
+                    KeymapLegendSection {
+                        title: "Selection mode".to_string(),
+                        keymaps: Keymaps::new(&self.keymap_selection_modes(context)?),
+                    },
+                    KeymapLegendSection {
+                        title: "Action".to_string(),
+                        keymaps: Keymaps::new(&self.keymap_actions()),
+                    },
+                    KeymapLegendSection {
+                        title: "Mode".to_string(),
+                        keymaps: Keymaps::new(&self.keymap_modes()),
+                    },
+                ]
+                .to_vec(),
+            },
+            owner_id: self.id(),
+        })
+    }
+    fn normal_mode_keymaps(&self, context: &Context) -> anyhow::Result<Keymaps> {
+        Ok(Keymaps::new(
+            &self
+                .keymap_movements()
+                .into_iter()
+                .chain(self.keymap_selection_modes(context)?)
+                .chain(self.keymap_actions())
+                .chain(self.keymap_modes())
+                .collect_vec(),
+        ))
+    }
+    pub fn handle_normal_mode(
+        &mut self,
+        context: &Context,
+        event: KeyEvent,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        if let Some(keymap) = self.normal_mode_keymaps(context)?.get(&event) {
+            return Ok([keymap.dispatch()].to_vec());
+        }
+        match event {
+            key!("?") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.normal_mode_keymap_legend_config(context)?,
+                )]
+                .to_vec())
+            }
+            key!("'") => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.list_mode_keymap_legend_config(),
+                )]
+                .to_vec())
+            }
+            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
+            key!("*") => return Ok(self.select_all()),
+            key!("ctrl+d") => {
+                return self.scroll_page_down();
+            }
+            key!("ctrl+u") => {
+                return self.scroll_page_up();
+            }
+
+            key!("left") => return self.handle_movement(context, Movement::Previous),
+            key!("shift+left") => return self.handle_movement(context, Movement::First),
+            key!("right") => return self.handle_movement(context, Movement::Next),
+            key!("shift+right") => return self.handle_movement(context, Movement::Last),
+            key!("esc") => {
+                self.reset();
+                return Ok(vec![
+                    Dispatch::CloseAllExceptMainPanel,
+                    Dispatch::SetGlobalMode(None),
+                ]);
+            }
+            key!("shift+K") => return self.select_kids(),
+            // r for rotate? more general than swapping/exchange, which does not warp back to first
+            // selection
+            key!("shift+R") => return self.replace(context),
+            // y = unused
+            key!("enter") => return self.open_new_line(),
+            key!("%") => self.change_cursor_direction(),
+            key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
+            // key!("{") => {
+            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
+            // }
+            // key!("}") => {
+            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
+            // }
+            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
+            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
+            key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
+            key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
+            key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
+
+            key!("space") => {
+                return Ok(vec![Dispatch::ShowKeymapLegend(
+                    self.space_mode_keymap_legend_config(context),
+                )])
+            }
+            key!("0") => return Ok([Dispatch::OpenMoveToIndexPrompt].to_vec()),
+            _ => {
+                log::info!("event: {:?}", event);
+            }
+        };
+        Ok(vec![])
+    }
     pub fn space_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
@@ -172,7 +458,7 @@ impl Editor {
                     keymaps: Keymaps::new(
                         &[
                             Keymap::new(
-                                "b",
+                                "m",
                                 "Mark".to_string(),
                                 Dispatch::DispatchEditor(DispatchEditor::SetSelectionMode(
                                     SelectionMode::Bookmark,
@@ -350,9 +636,16 @@ impl Editor {
                         ),
                         Keymap::new("g", "Git Hunk".to_string(), Dispatch::GetRepoGitHunks),
                         Keymap::new(
-                            "b",
-                            "Bookmark".to_string(),
+                            "m",
+                            "Mark".to_string(),
                             Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
+                        ),
+                        Keymap::new(
+                            "q",
+                            "Quickfix".to_string(),
+                            Dispatch::SetGlobalMode(Some(
+                                crate::context::GlobalMode::QuickfixListItem,
+                            )),
                         ),
                     ]),
                 }]

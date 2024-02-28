@@ -11,6 +11,8 @@ use crate::{
     soft_wrap,
 };
 
+use crate::components::keymap_legend::Keymap;
+
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -1290,7 +1292,7 @@ impl Editor {
         self.navigate_undo_tree(Movement::Next)
     }
 
-    fn change_cursor_direction(&mut self) {
+    pub fn change_cursor_direction(&mut self) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
@@ -1679,169 +1681,6 @@ impl Editor {
             .selection_set
             .map(|selection| selection.extended_range());
         self.buffer_mut().save_bookmarks(selections)
-    }
-
-    fn handle_normal_mode(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
-        let de = |d: DispatchEditor| [Dispatch::DispatchEditor(d)].to_vec();
-        let ds = |d: Dispatch| [d].to_vec();
-        let map = HashMap::from([
-            (key!("a"), de(EnterInsertMode(Direction::End))),
-            // Between
-            (
-                key!("b"),
-                ds(Dispatch::ShowKeymapLegend(
-                    self.inside_mode_keymap_legend_config(),
-                )),
-            ),
-            (key!("c"), de(Change)),
-            (key!("d"), de(Kill)),
-            (key!("e"), de(SetSelectionMode(LineTrimmed))),
-            (key!("E"), de(SetSelectionMode(LineFull))),
-            (
-                key!("f"),
-                ds(Dispatch::ShowKeymapLegend(
-                    self.find_local_keymap_legend_config(context)?,
-                )),
-            ),
-            (
-                key!("g"),
-                ds(Dispatch::ShowKeymapLegend(
-                    self.find_global_keymap_legend_config(context),
-                )),
-            ),
-            (key!("h"), de(MoveSelection(Previous))),
-            (key!("i"), de(EnterInsertMode(Direction::Start))),
-            (key!("j"), de(MoveSelection(Down))),
-            (key!("k"), de(MoveSelection(Up))),
-            (key!("l"), de(MoveSelection(Next))),
-            (key!("m"), de(ToggleBookmark)),
-            // Top [n]ode
-            (key!("n"), de(SetSelectionMode(TopNode))),
-            (key!("o"), de(DispatchEditor::Jump)),
-            (key!("p"), de(MoveSelection(Parent))),
-            (key!("q"), de(MoveSelection(FirstChild))),
-            (key!("r"), de(Raise)),
-            (key!("s"), de(SetSelectionMode(SyntaxTree))),
-            // [t]oken
-            (key!("t"), de(SetSelectionMode(BottomNode))),
-            // Col[u]mn
-            (key!("u"), de(SetSelectionMode(Character))),
-            (key!("v"), de(ToggleHighlightMode)),
-            (key!("w"), de(SetSelectionMode(Word))),
-            (key!("x"), de(EnterExchangeMode)),
-            (key!("y"), de(Copy)),
-            (key!("z"), de(EnterMultiCursorMode)),
-            (key!(","), de(MoveSelection(First))),
-            (key!("."), de(MoveSelection(Last))),
-            (key!("-"), de(MoveSelection(ToParentLine))),
-        ]);
-        if let Some(dispatches) = map.get(&event) {
-            return Ok(dispatches.to_owned());
-        }
-        match event {
-            key!("'") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.list_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
-            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
-            key!("*") => return Ok(self.select_all()),
-            key!("ctrl+d") => {
-                return self.scroll_page_down();
-            }
-            key!("ctrl+u") => {
-                return self.scroll_page_up();
-            }
-
-            key!("left") => return self.handle_movement(context, Movement::Previous),
-            key!("shift+left") => return self.handle_movement(context, Movement::First),
-            key!("right") => return self.handle_movement(context, Movement::Next),
-            key!("shift+right") => return self.handle_movement(context, Movement::Last),
-            key!("esc") => {
-                self.reset();
-                return Ok(vec![
-                    Dispatch::CloseAllExceptMainPanel,
-                    Dispatch::SetGlobalMode(None),
-                ]);
-            }
-            key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => self.toggle_bookmarks(),
-            key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
-            key!("e") => self.enter_insert_mode(Direction::End)?,
-
-            key!("h") => self.toggle_highlight_mode(),
-            key!("i") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.inside_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
-
-            // Initial
-
-            // j = jump
-            key!("k") => return self.kill(context),
-            key!("shift+K") => return self.select_kids(),
-            key!("l") => return self.set_selection_mode(context, SelectionMode::LineTrimmed),
-            key!("m") => self.mode = Mode::MultiCursor,
-            key!("o") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.omit_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
-
-            // p = previous
-            key!("q") => {
-                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::QuickfixListItem))].to_vec())
-            }
-            // r for rotate? more general than swapping/exchange, which does not warp back to first
-            // selection
-            key!("r") => return self.raise(context),
-            key!("shift+R") => return self.replace(context),
-            key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
-            key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
-            // u = up
-            // TODO: v = view (scroll line, scroll half page, scroll full page)
-            key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
-            key!("x") => self.enter_exchange_mode(),
-            key!("y") => return self.copy(context),
-            key!("shift+X") => return self.exchange(context, Movement::Previous),
-            // y = unused
-            key!("backspace") => {
-                return self.change();
-            }
-            key!("enter") => return self.open_new_line(),
-            key!("%") => self.change_cursor_direction(),
-            key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
-            // key!("{") => {
-            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
-            // }
-            // key!("}") => {
-            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
-            // }
-            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
-            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
-            key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
-            key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
-            key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
-
-            key!("space") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.space_mode_keymap_legend_config(context),
-                )])
-            }
-            key!("0") => return Ok([Dispatch::OpenMoveToIndexPrompt].to_vec()),
-            _ => {
-                log::info!("event: {:?}", event);
-            }
-        };
-        Ok(vec![])
     }
 
     pub fn path(&self) -> Option<CanonicalizedPath> {
@@ -2437,7 +2276,7 @@ impl Editor {
         Ok(())
     }
 
-    fn enclose(&mut self, enclosure: Enclosure) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn enclose(&mut self, enclosure: Enclosure) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2683,7 +2522,7 @@ impl Editor {
         .to_vec())
     }
 
-    fn select_all(&mut self) -> Vec<Dispatch> {
+    pub fn select_all(&mut self) -> Vec<Dispatch> {
         [
             Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
             Dispatch::DispatchEditor(DispatchEditor::ToggleHighlightMode),
@@ -2910,7 +2749,7 @@ pub enum ViewAlignment {
     Bottom,
 }
 
-enum Enclosure {
+pub enum Enclosure {
     RoundBracket,
     SquareBracket,
     CurlyBracket,
