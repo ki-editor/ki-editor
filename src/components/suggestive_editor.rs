@@ -240,7 +240,6 @@ impl Component for SuggestiveEditor {
             SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
         };
 
-        self.code_action_dropdown.set_filter(&filter);
         self.completion_dropdown.set_filter(&filter);
         let dropdown_render = if self.completion_dropdown_opened() {
             Some(self.completion_dropdown.render())
