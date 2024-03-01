@@ -30,8 +30,13 @@ impl Editor {
     pub(crate) fn keymap_movements(&self) -> Vec<Keymap> {
         [
             Keymap::new(
+                "H",
+                "Highest (First)".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(First)),
+            ),
+            Keymap::new(
                 "h",
-                "Previous".to_string(),
+                "Higher (Previous)".to_string(),
                 Dispatch::DispatchEditor(MoveSelection(Movement::Previous)),
             ),
             Keymap::new(
@@ -46,12 +51,17 @@ impl Editor {
             ),
             Keymap::new(
                 "l",
-                "Next".to_string(),
+                "Lower (Next)".to_string(),
                 Dispatch::DispatchEditor(MoveSelection(Next)),
             ),
             Keymap::new(
-                "o",
-                "Oscillate (Jump)".to_string(),
+                "L",
+                "Lowest (Last)".to_string(),
+                Dispatch::DispatchEditor(MoveSelection(Last)),
+            ),
+            Keymap::new(
+                "s",
+                "Skip (Jump)".to_string(),
                 Dispatch::DispatchEditor(DispatchEditor::Jump),
             ),
             Keymap::new(
@@ -65,20 +75,11 @@ impl Editor {
                 Dispatch::DispatchEditor(MoveSelection(FirstChild)),
             ),
             Keymap::new(
-                ",",
-                "First".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(First)),
-            ),
-            Keymap::new(
-                ".",
-                "Last".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Last)),
-            ),
-            Keymap::new(
                 "-",
                 "Parent Line".to_string(),
                 Dispatch::DispatchEditor(MoveSelection(ToParentLine)),
             ),
+            Keymap::new("0", "To Index".to_string(), Dispatch::OpenMoveToIndexPrompt),
         ]
         .to_vec()
     }
@@ -112,22 +113,17 @@ impl Editor {
             ),
             Keymap::new(
                 "n",
-                "Bottom Node".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(BottomNode)),
-            ),
-            Keymap::new(
-                "s",
-                "Syntax Tree".to_string(),
+                "Node".to_string(),
                 Dispatch::DispatchEditor(SetSelectionMode(SyntaxTree)),
             ),
             Keymap::new(
                 "t",
-                "Top Node".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(TopNode)),
+                "Token".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(BottomNode)),
             ),
             Keymap::new(
                 "u",
-                "Character".to_string(),
+                "Column".to_string(),
                 Dispatch::DispatchEditor(SetSelectionMode(Character)),
             ),
             Keymap::new(
