@@ -1,12 +1,23 @@
 use crate::selection::Selection;
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, SelectionMode, TopNode};
 
 pub struct SyntaxTree;
 
 impl SelectionMode for SyntaxTree {
     fn name(&self) -> &'static str {
         "SYNTAX TREE"
+    }
+    fn jumps(
+        &self,
+        params: super::SelectionModeParams,
+        chars: Vec<char>,
+        line_number_range: std::ops::Range<usize>,
+    ) -> anyhow::Result<Vec<crate::components::editor::Jump>> {
+        // Why do we use TopNode.jumps?
+        // Because I realize I only use TopNode for jumping, and I never use jump in SyntaxTree
+        // With this decision, TopNode selection mode can be removed from user-space, and we get one more keymap space
+        TopNode.jumps(params, chars, line_number_range)
     }
     fn iter<'a>(
         &'a self,
