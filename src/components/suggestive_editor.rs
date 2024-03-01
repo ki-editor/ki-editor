@@ -192,6 +192,7 @@ impl Component for SuggestiveEditor {
                                     .map(|command| Dispatch::LspExecuteCommand { command, params })
                             }))
                             .collect_vec();
+                        self.code_action_dropdown.clear();
                         return Ok(dispatches
                             .into_iter()
                             .chain(Some(Dispatch::CloseDropdown {
@@ -318,6 +319,10 @@ impl SuggestiveEditor {
         }
     }
 
+    pub fn code_actions(&self) -> Vec<CodeAction> {
+        self.code_action_dropdown.items()
+    }
+
     pub fn handle_dispatch(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
@@ -344,10 +349,10 @@ impl SuggestiveEditor {
                     return Ok(Vec::new());
                 }
                 self.code_action_dropdown.set_items(code_actions);
-
+                let render = self.code_action_dropdown.render();
                 Ok([Dispatch::RenderDropdown {
                     owner_id: self.id(),
-                    render: self.code_action_dropdown.render(),
+                    render,
                 }]
                 .to_vec())
             }
@@ -682,6 +687,7 @@ mod test_suggestive_editor {
                 )),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentComponentContent("a.to_string")),
+                Expect(CurrentCodeActions(&[])),
             ])
         })
     }

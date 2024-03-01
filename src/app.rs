@@ -401,7 +401,7 @@ impl<T: Frontend> App<T> {
             }
 
             Dispatch::OpenFilePicker(kind) => {
-                self.open_file_picker(kind);
+                self.open_file_picker(kind)?;
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
@@ -935,10 +935,13 @@ impl<T: Frontend> App<T> {
             LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
             }
-            LspNotification::CodeAction(_context, code_actions) => {
-                self.handle_dispatch(Dispatch::DispatchSuggestiveEditor(
-                    DispatchSuggestiveEditor::SetCodeActions(code_actions),
-                ))?;
+            LspNotification::CodeAction(context, code_actions) => {
+                let component = self.layout.get_suggestive_editor(context.component_id)?;
+                let dispatches = component
+                    .borrow_mut()
+                    .handle_dispatch(DispatchSuggestiveEditor::SetCodeActions(code_actions))?;
+
+                self.handle_dispatches(dispatches)?;
                 Ok(())
             }
             LspNotification::SignatureHelp(context, signature_help) => {
@@ -1881,6 +1884,13 @@ impl<T: Frontend> App<T> {
 
     pub(crate) fn editor_info_content(&self) -> Option<String> {
         self.layout.editor_info_content()
+    }
+
+    pub(crate) fn current_code_actions(&self) -> Vec<crate::lsp::code_action::CodeAction> {
+        self.layout
+            .get_current_suggestive_editor()
+            .map(|c| c.borrow().code_actions())
+            .unwrap_or_default()
     }
 }
 

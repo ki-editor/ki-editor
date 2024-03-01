@@ -243,6 +243,10 @@ impl<T: DropdownItem> Dropdown<T> {
     pub(crate) fn set_title(&mut self, title: String) {
         self.title = title
     }
+
+    pub(crate) fn clear(&mut self) {
+        self.set_items(Vec::new())
+    }
 }
 
 #[cfg(test)]

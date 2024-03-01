@@ -57,6 +57,7 @@ pub mod test_app {
 
     #[derive(Debug)]
     pub enum ExpectKind {
+        CurrentCodeActions(&'static [crate::lsp::code_action::CodeAction]),
         EditorInfoContent(&'static str),
         EditorInfoOpen(bool),
         QuickfixListCurrentLine(&'static str),
@@ -258,6 +259,9 @@ pub mod test_app {
                 EditorInfoOpen(actual) => contextualize(app.editor_info_open(), *actual),
                 EditorInfoContent(actual) => {
                     contextualize(app.editor_info_content(), Some(actual.to_string()))
+                }
+                CurrentCodeActions(code_actions) => {
+                    contextualize(app.current_code_actions(), code_actions.to_vec())
                 }
             })
         }
