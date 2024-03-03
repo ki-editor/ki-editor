@@ -41,12 +41,12 @@ impl Editor {
             ),
             Keymap::new(
                 "j",
-                "Down".to_string(),
+                "Down / First Child".to_string(),
                 Dispatch::DispatchEditor(MoveSelection(Down)),
             ),
             Keymap::new(
                 "k",
-                "Up".to_string(),
+                "Up / Parent".to_string(),
                 Dispatch::DispatchEditor(MoveSelection(Up)),
             ),
             Keymap::new(
@@ -63,16 +63,6 @@ impl Editor {
                 "s",
                 "Skip (Jump)".to_string(),
                 Dispatch::DispatchEditor(DispatchEditor::Jump),
-            ),
-            Keymap::new(
-                "p",
-                "Parent".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Parent)),
-            ),
-            Keymap::new(
-                "q",
-                "First Child".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(FirstChild)),
             ),
             Keymap::new(
                 "-",
