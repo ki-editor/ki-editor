@@ -1,4 +1,3 @@
-use super::editor::Enclosure;
 use my_proc_macros::key;
 
 use SelectionMode::*;
@@ -112,7 +111,7 @@ impl Editor {
                 Dispatch::DispatchEditor(SetSelectionMode(BottomNode)),
             ),
             Keymap::new(
-                "u",
+                "o",
                 "Column".to_string(),
                 Dispatch::DispatchEditor(SetSelectionMode(Character)),
             ),
@@ -135,6 +134,16 @@ impl Editor {
             ),
             Keymap::new("r", "Raise".to_string(), Dispatch::DispatchEditor(Raise)),
             Keymap::new(
+                "R",
+                "Replace".to_string(),
+                Dispatch::DispatchEditor(ReplaceCut),
+            ),
+            Keymap::new(
+                "u",
+                "Update".to_string(),
+                Dispatch::ShowKeymapLegend(self.update_keymap_legend_config()),
+            ),
+            Keymap::new(
                 "y",
                 "Yank (Copy)".to_string(),
                 Dispatch::DispatchEditor(Copy),
@@ -144,11 +153,6 @@ impl Editor {
     }
     pub fn keymap_modes(&self) -> Vec<Keymap> {
         [
-            Keymap::new(
-                "/",
-                "Omit selection".to_string(),
-                Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
-            ),
             Keymap::new(
                 "a",
                 "Insert after selection".to_string(),
@@ -177,7 +181,27 @@ impl Editor {
         ]
         .to_vec()
     }
-    fn normal_mode_keymap_legend_config(
+    pub fn keymap_others(&self) -> anyhow::Result<Vec<Keymap>> {
+        Ok([
+            Keymap::new(
+                "/",
+                "Omit selection".to_string(),
+                Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
+            ),
+            Keymap::new(
+                "p",
+                "Pick".to_string(),
+                Dispatch::ShowKeymapLegend(self.pick_mode_keymap_legend_config()),
+            ),
+            Keymap::new(
+                "?",
+                "Help (Normal mode)".to_string(),
+                Dispatch::DispatchEditor(DispatchEditor::ShowKeymapLegendNormalMode),
+            ),
+        ]
+        .to_vec())
+    }
+    pub fn normal_mode_keymap_legend_config(
         &self,
         context: &Context,
     ) -> anyhow::Result<KeymapLegendConfig> {
@@ -201,6 +225,14 @@ impl Editor {
                         title: "Mode".to_string(),
                         keymaps: Keymaps::new(&self.keymap_modes()),
                     },
+                    KeymapLegendSection {
+                        title: "Surround".to_string(),
+                        keymaps: Keymaps::new(&self.keymap_surround()),
+                    },
+                    KeymapLegendSection {
+                        title: "Others".to_string(),
+                        keymaps: Keymaps::new(&self.keymap_others()?),
+                    },
                 ]
                 .to_vec(),
             },
@@ -215,6 +247,8 @@ impl Editor {
                 .chain(self.keymap_selection_modes(context)?)
                 .chain(self.keymap_actions())
                 .chain(self.keymap_modes())
+                .chain(self.keymap_surround())
+                .chain(self.keymap_others()?)
                 .collect_vec(),
         ))
     }
@@ -227,18 +261,7 @@ impl Editor {
             return Ok([keymap.dispatch()].to_vec());
         }
         match event {
-            key!("?") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.normal_mode_keymap_legend_config(context)?,
-                )]
-                .to_vec())
-            }
-            key!("'") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.list_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
+            // I think command should be nested inside `'` pickers
             key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
             key!("*") => return Ok(self.select_all()),
             key!("ctrl+d") => {
@@ -262,29 +285,18 @@ impl Editor {
             key!("shift+K") => return self.select_kids(),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
             // selection
-            key!("shift+R") => return self.replace(context),
             // y = unused
             key!("enter") => return self.open_new_line(),
             key!("%") => self.change_cursor_direction(),
-            key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
-            // key!("{") => {
-            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
-            // }
-            // key!("}") => {
-            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
-            // }
+
             key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
             key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
-            key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
-            key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
-            key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
 
             key!("space") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.space_mode_keymap_legend_config(context),
                 )])
             }
-            key!("0") => return Ok([Dispatch::OpenMoveToIndexPrompt].to_vec()),
             _ => {
                 log::info!("event: {:?}", event);
             }
@@ -320,13 +332,6 @@ impl Editor {
                                             ),
                                         ),
                                         Keymap::new(
-                                            "t",
-                                            "Transform".to_string(),
-                                            Dispatch::ShowKeymapLegend(
-                                                self.transform_keymap_legend_config(),
-                                            ),
-                                        ),
-                                        Keymap::new(
                                             "z",
                                             "Undo Tree".to_string(),
                                             Dispatch::DispatchEditor(
@@ -344,55 +349,101 @@ impl Editor {
         }
     }
 
-    pub fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub fn update_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
             owner_id: self.id(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &[
-                        ("a", "aLtErNaTiNg CaSe", Case::Toggle),
-                        ("c", "camelCase", Case::Camel),
-                        ("l", "lowercase", Case::Lower),
-                        ("k", "kebab-case", Case::Kebab),
-                        ("K", "Upper-Kebab", Case::UpperKebab),
-                        ("p", "PascalCase", Case::Pascal),
-                        ("s", "snake_case", Case::Snake),
-                        ("m", "MARCO_CASE", Case::UpperSnake),
-                        ("t", "Title Case", Case::Title),
-                        ("u", "UPPERCASE", Case::Upper),
-                    ]
-                    .into_iter()
-                    .map(|(key, description, case)| {
-                        Keymap::new(
-                            key,
-                            description.to_string(),
-                            Dispatch::DispatchEditor(DispatchEditor::Transform(case)),
-                        )
-                    })
-                    .collect_vec(),
-                ),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [KeymapLegendSection {
+                    title: "Letter case".to_string(),
+                    keymaps: Keymaps::new(
+                        &[
+                            ("a", "aLtErNaTiNg CaSe", Case::Toggle),
+                            ("c", "camelCase", Case::Camel),
+                            ("l", "lowercase", Case::Lower),
+                            ("k", "kebab-case", Case::Kebab),
+                            ("K", "Upper-Kebab", Case::UpperKebab),
+                            ("p", "PascalCase", Case::Pascal),
+                            ("s", "snake_case", Case::Snake),
+                            ("S", "UPPER_SNAKE_CASE", Case::UpperSnake),
+                            ("t", "Title Case", Case::Title),
+                            ("u", "UPPERCASE", Case::Upper),
+                        ]
+                        .into_iter()
+                        .map(|(key, description, case)| {
+                            Keymap::new(
+                                key,
+                                description.to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::Transform(case)),
+                            )
+                        })
+                        .collect_vec(),
+                    ),
+                }]
+                .to_vec(),
             },
         }
     }
 
-    pub fn list_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub fn keymap_surround(&self) -> Vec<Keymap> {
+        [
+            ("<", "Angular bracket", "<", ">"),
+            ("(", "Parentheses", "(", ")"),
+            ("[", "Square bracket", "[", "]"),
+            ("{", "Curly bracket", "{", "}"),
+            ("\"", "Double quote", "\"", "\""),
+            ("'", "Single quote", "'", "'"),
+            ("`", "Backtick", "`", "`"),
+        ]
+        .into_iter()
+        .map(|(key, description, open, close)| {
+            Keymap::new(
+                key,
+                description.to_string(),
+                Dispatch::DispatchEditor(DispatchEditor::Surround(
+                    open.to_string(),
+                    close.to_string(),
+                )),
+            )
+        })
+        .collect_vec()
+    }
+
+    pub fn pick_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "List".to_string(),
+            title: "Pick".to_string(),
             owner_id: self.id(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &[
-                        ("g", "Git status", FilePickerKind::GitStatus),
-                        ("n", "Not git ignored files", FilePickerKind::NonGitIgnored),
-                        ("o", "Opened files", FilePickerKind::Opened),
-                    ]
-                    .into_iter()
-                    .map(|(key, description, kind)| {
-                        Keymap::new(key, description.to_string(), Dispatch::OpenFilePicker(kind))
-                    })
-                    .collect_vec(),
-                ),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [KeymapLegendSection {
+                    title: "Files".to_string(),
+                    keymaps: Keymaps::new(
+                        &[
+                            ("g", "Git status", FilePickerKind::GitStatus),
+                            ("n", "Not git ignored files", FilePickerKind::NonGitIgnored),
+                            ("o", "Opened files", FilePickerKind::Opened),
+                        ]
+                        .into_iter()
+                        .map(|(key, description, kind)| {
+                            Keymap::new(
+                                key,
+                                description.to_string(),
+                                Dispatch::OpenFilePicker(kind),
+                            )
+                        })
+                        .collect_vec(),
+                    ),
+                }]
+                .to_vec()
+                .into_iter()
+                .chain(self.get_request_params().map(|params| KeymapLegendSection {
+                    title: "LSP".to_string(),
+                    keymaps: Keymaps::new(&[Keymap::new(
+                        "s",
+                        "Symbols".to_string(),
+                        Dispatch::RequestDocumentSymbols(params.set_description("Symbols")),
+                    )]),
+                }))
+                .collect(),
             },
         }
     }
@@ -460,7 +511,7 @@ impl Editor {
                         },
                     ),
                     Keymap::new(
-                        "f",
+                        "s",
                         "Search".to_string(),
                         Dispatch::OpenSearchPrompt {
                             scope,
@@ -621,11 +672,6 @@ impl Editor {
                                 params.clone().set_description("Type Definitions"),
                             ),
                         ),
-                        Keymap::new(
-                            "s",
-                            "Symbols".to_string(),
-                            Dispatch::RequestDocumentSymbols(params.set_description("Symbols")),
-                        ),
                     ]
                     .into_iter()
                     .collect_vec()
@@ -682,13 +728,13 @@ impl Editor {
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     &[
-                        ("<", "Angular Bracket <>", InsideKind::AngularBrackets),
-                        ("`", "Back Quote ``", InsideKind::BackQuotes),
-                        ("{", "Curly Brace {}", InsideKind::CurlyBraces),
-                        ("\"", "Double Quote \"\"", InsideKind::DoubleQuotes),
-                        ("(", "Parenthesis ()", InsideKind::Parentheses),
-                        ("'", "Single Quote ''", InsideKind::SingleQuotes),
-                        ("[", "Square Bracket []", InsideKind::SquareBrackets),
+                        ("<", "Angular Bracket", InsideKind::AngularBrackets),
+                        ("`", "Back Quote", InsideKind::BackQuotes),
+                        ("{", "Curly Brace", InsideKind::CurlyBraces),
+                        ("\"", "Double Quote", InsideKind::DoubleQuotes),
+                        ("(", "Parenthesis", InsideKind::Parentheses),
+                        ("'", "Single Quote", InsideKind::SingleQuotes),
+                        ("[", "Square Bracket", InsideKind::SquareBrackets),
                     ]
                     .into_iter()
                     .map(|(key, description, inside_kind)| {

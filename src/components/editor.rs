@@ -11,12 +11,9 @@ use crate::{
     soft_wrap,
 };
 
-use crate::components::keymap_legend::Keymap;
-
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::{Ref, RefCell, RefMut},
-    collections::HashMap,
     ops::Range,
     rc::Rc,
 };
@@ -42,8 +39,6 @@ use crate::{
 };
 
 use DispatchEditor::*;
-use Movement::*;
-use SelectionMode::*;
 
 use super::{
     component::{ComponentId, GetGridResult},
@@ -1201,7 +1196,7 @@ impl Editor {
         self.replace_current_selection_with(|selection| selection.copied_text(context))
     }
 
-    pub fn replace(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace_cut(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1347,7 +1342,7 @@ impl Editor {
             Paste => return self.paste(context),
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
-            ReplaceSelectionWithCopiedText => return self.replace(context),
+            ReplaceSelectionWithCopiedText => return self.replace_cut(context),
             Cut => return self.cut(),
             ToggleHighlightMode => self.toggle_highlight_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
@@ -1404,6 +1399,14 @@ impl Editor {
             ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
             SelectLineAt(index) => return self.select_line_at(index),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
+            ReplaceCut => return self.replace_cut(context),
+            Surround(open, close) => return self.enclose(open, close),
+            ShowKeymapLegendNormalMode => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.normal_mode_keymap_legend_config(context)?,
+                )]
+                .to_vec())
+            }
         }
         Ok([].to_vec())
     }
@@ -2276,7 +2279,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn enclose(&mut self, enclosure: Enclosure) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2285,23 +2288,7 @@ impl Editor {
                         [
                             Action::Edit(Edit {
                                 range: selection.extended_range(),
-                                new: format!(
-                                    "{}{}{}",
-                                    match enclosure {
-                                        Enclosure::RoundBracket => "(",
-                                        Enclosure::SquareBracket => "[",
-                                        Enclosure::CurlyBracket => "{",
-                                        Enclosure::AngleBracket => "<",
-                                    },
-                                    old,
-                                    match enclosure {
-                                        Enclosure::RoundBracket => ")",
-                                        Enclosure::SquareBracket => "]",
-                                        Enclosure::CurlyBracket => "}",
-                                        Enclosure::AngleBracket => ">",
-                                    }
-                                )
-                                .into(),
+                                new: format!("{}{}{}", open, old, close).into(),
                             }),
                             Action::Select(
                                 selection.clone().set_range(
@@ -2749,13 +2736,6 @@ pub enum ViewAlignment {
     Bottom,
 }
 
-pub enum Enclosure {
-    RoundBracket,
-    SquareBracket,
-    CurlyBracket,
-    AngleBracket,
-}
-
 pub enum HandleEventResult {
     Handled(Vec<Dispatch>),
     Ignored(KeyEvent),
@@ -2763,6 +2743,7 @@ pub enum HandleEventResult {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DispatchEditor {
+    Surround(String, String),
     SetScrollOffset(u16),
     Jump,
     ScrollPageDown,
@@ -2821,4 +2802,6 @@ pub enum DispatchEditor {
     ReplacePreviousWord(String),
     ApplyPositionalEdit(crate::lsp::completion::PositionalEdit),
     SelectLineAt(usize),
+    ReplaceCut,
+    ShowKeymapLegendNormalMode,
 }
