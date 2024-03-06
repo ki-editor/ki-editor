@@ -162,7 +162,7 @@ impl KeymapLegendConfig {
         self.body.display(width)
     }
 
-    fn keymaps(&self) -> Vec<&Keymap> {
+    pub fn keymaps(&self) -> Vec<&Keymap> {
         self.body.keymaps()
     }
 }

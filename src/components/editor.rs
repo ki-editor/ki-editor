@@ -1403,7 +1403,7 @@ impl Editor {
             Surround(open, close) => return self.enclose(open, close),
             ShowKeymapLegendNormalMode => {
                 return Ok([Dispatch::ShowKeymapLegend(
-                    self.normal_mode_keymap_legend_config(context)?,
+                    self.normal_mode_keymap_legend_config(context),
                 )]
                 .to_vec())
             }
