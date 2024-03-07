@@ -6,7 +6,7 @@ impl SmallWord {
     pub fn new(buffer: &Buffer) -> anyhow::Result<super::Regex> {
         super::Regex::new(
             buffer,
-            r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*))_*)|([^\w\s]|_)+|[0-9]+",
+            r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*))_*)|([^\w\s]|_)|[0-9]+",
             crate::list::grep::RegexConfig {
                 escaped: false,
                 case_sensitive: true,
@@ -40,9 +40,14 @@ mod test_small_word {
                 (27..31, "Case"),
                 (32..38, "UPPER_"),
                 (38..43, "SNAKE"),
-                (44..48, "->()"),
+                (44..45, "-"),
+                (45..46, ">"),
+                (46..47, "("),
+                (47..48, ")"),
                 (49..52, "123"),
-                (53..56, "<_>"),
+                (53..54, "<"),
+                (54..55, "_"),
+                (55..56, ">"),
             ],
         );
     }

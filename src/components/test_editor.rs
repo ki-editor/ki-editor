@@ -201,6 +201,10 @@ mod test_editor {
                 // Go to the end of the file
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(DeleteWordBackward),
+                Expect(CurrentComponentContent(
+                    "fn snake_case(camelCase: String) {",
+                )),
+                Editor(DeleteWordBackward),
                 Expect(CurrentComponentContent("fn snake_case(camelCase: String) ")),
                 Editor(DeleteWordBackward),
                 Expect(CurrentComponentContent("fn snake_case(camelCase: String")),
@@ -1232,12 +1236,9 @@ src/main.rs 🦀
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(input.to_string())),
                 Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
-                Editor(SetSelectionMode(Word)),
-                Editor(MoveSelection(Next)),
-                Editor(MoveSelection(Next)),
+                Editor(MatchLiteral("bar".to_string())),
                 Editor(ToggleBookmark),
                 Editor(SetSelectionMode(Bookmark)),
-                Expect(CurrentSelectedTexts(&["bar"])),
                 Editor(Save),
                 // Expect the content is formatted (second line dedented)
                 Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
