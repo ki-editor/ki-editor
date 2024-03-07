@@ -27,4 +27,8 @@ impl ProcessCommand {
                 )
             })
     }
+
+    pub(crate) fn to_string(&self) -> String {
+        format!("{} {}", self.command, self.args.join(" "))
+    }
 }

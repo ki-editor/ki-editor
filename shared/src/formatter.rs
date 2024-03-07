@@ -15,6 +15,9 @@ impl From<ProcessCommand> for Formatter {
 }
 
 impl Formatter {
+    pub fn command_string(&self) -> String {
+        self.process_command.to_string()
+    }
     pub fn format(&self, content: &str) -> anyhow::Result<String> {
         // Run the command with the args,
         // pass in the content using stdin,

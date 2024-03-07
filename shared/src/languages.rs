@@ -150,7 +150,7 @@ const fn sql() -> Language {
             commit: "main",
             subpath: None,
         }),
-        formatter_command: Some(Command("sql-formatter", &[])),
+        formatter_command: Some(Command("sql-formatter", &["--language", "postgresql"])),
         ..Language::new()
     }
 }

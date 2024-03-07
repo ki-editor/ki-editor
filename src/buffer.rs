@@ -559,23 +559,21 @@ impl Buffer {
     }
 
     pub fn get_formatted_content(&self) -> Option<String> {
-        if !self.tree.root_node().has_error() {
-            if let Some(content) = self.language.as_ref().and_then(|language| {
-                language
-                    .formatter()
-                    .map(|formatter| formatter.format(&self.rope.to_string()))
-            }) {
-                match content {
-                    Ok(content) => {
-                        return Some(content);
-                    }
-                    Err(error) => {
-                        log::info!("Error formatting: {}", error);
-                    }
+        if let Some(content) = self.language.as_ref().and_then(|language| {
+            language.formatter().map(|formatter| {
+                log::info!("[FORMAT]: {}", formatter.command_string());
+                formatter.format(&self.rope.to_string())
+            })
+        }) {
+            match content {
+                Ok(content) => {
+                    return Some(content);
+                }
+                Err(error) => {
+                    log::info!("Error formatting: {}", error);
                 }
             }
         }
-        log::info!("Unable to get formatted content because of syntax error");
         None
     }
 
