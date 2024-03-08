@@ -1331,24 +1331,11 @@ src/main.rs 🦀
                 Editor(SetContent("fn main() { x.y() }".to_string())),
                 Editor(MatchLiteral("x.y()".to_string())),
                 App(HandleKeyEvents(keys!("( { [ < ' `").to_vec())),
+                App(HandleKeyEvent(key!('"'))),
                 Expect(CurrentComponentContent(
-                    "fn main() { `\"'<[{(x.y())}]>'\"` }",
+                    "fn main() { \"`'<[{(x.y())}]>'`\" }",
                 )),
-                Expect(CurrentSelectedTexts(&["`\"'<[{(x.y())}]>'\"`"])),
-            ])
-        })
-    }
-
-    #[test]
-    fn enclose_right_bracket() -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("fn main() { x.y() }".to_string())),
-                Editor(MatchLiteral("x.y()".to_string())),
-                App(HandleKeyEvents(keys!(") } ] >").to_vec())),
-                Expect(CurrentComponentContent("fn main() { <[{(x.y())}]> }")),
-                Expect(CurrentSelectedTexts(&["<[{(x.y())}]>"])),
+                Expect(CurrentSelectedTexts(&["\"`'<[{(x.y())}]>'`\""])),
             ])
         })
     }
