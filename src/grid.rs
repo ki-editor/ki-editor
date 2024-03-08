@@ -9,6 +9,7 @@ use itertools::Itertools;
 use my_proc_macros::hex;
 #[cfg(test)]
 use ropey::Rope;
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Grid {
@@ -56,6 +57,13 @@ impl Cell {
             source: update.source.or(self.source),
         }
     }
+
+    fn set_background_color(self, background_color: Color) -> Cell {
+        Cell {
+            background_color,
+            ..self
+        }
+    }
 }
 
 impl Default for Cell {
@@ -71,7 +79,7 @@ impl Default for Cell {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CellUpdate {
     pub position: Position,
     pub symbol: Option<String>,
@@ -169,6 +177,13 @@ impl CellUpdate {
     pub(crate) fn set_symbol(self, symbol: &str) -> CellUpdate {
         CellUpdate {
             symbol: Some(symbol.to_string()),
+            ..self
+        }
+    }
+
+    fn unset_symbol(self) -> CellUpdate {
+        CellUpdate {
+            symbol: None,
             ..self
         }
     }
@@ -324,8 +339,38 @@ impl Grid {
 
     pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
         let Position { line, column } = update.position;
-        if line < self.rows.len() && column < self.rows[line].len() {
-            self.rows[line][column] = self.rows[line][column].apply_update(update);
+        if column >= self.width {
+            return self;
+        }
+        if line >= self.height() {
+            return self;
+        }
+        // get the unicode width off set of the row of the update
+        let unicode_width: usize = self.rows[line][0..column]
+            .iter()
+            .map(|cell| UnicodeWidthStr::width(cell.symbol.as_str()))
+            .sum();
+        let offset = unicode_width.saturating_sub(column);
+        let column = column + offset;
+        // if the update sits on a unicode char, then the update should span up to the unicode width of the char
+        let span = UnicodeWidthStr::width(
+            update
+                .symbol
+                .clone()
+                .unwrap_or_else(|| self.rows[line][column].symbol.clone())
+                .as_str(),
+        );
+        for current_column in column..(column + span).min(self.width) {
+            if line < self.rows.len() && current_column < self.rows[line].len() {
+                let symbol = if current_column > column {
+                    // The filler symbol for the extended with of Unicode character should be nothing
+                    update.clone().unset_symbol()
+                } else {
+                    update.clone()
+                };
+                self.rows[line][current_column] =
+                    self.rows[line][current_column].apply_update(symbol);
+            }
         }
         self
     }
@@ -410,29 +455,31 @@ impl Grid {
         style: &Style,
     ) -> Self {
         let dimension = self.dimension();
-        let mut grid = self;
+        let grid = self;
         let column_range =
             column_start.unwrap_or(0)..column_end.unwrap_or(dimension.width as usize);
         // Trim or Pad end with spaces
         let content = format!("{:<width$}", content, width = column_range.len());
-        for (column_index, character) in content
-            .chars()
-            .take(grid.dimension().width as usize)
-            .enumerate()
-        {
-            let default = Cell::default();
-
-            let column_index = column_range.start + column_index;
-            if row_index < grid.rows.len() && column_index < grid.rows[row_index].len() {
-                grid.rows[row_index][column_index] = Cell {
-                    symbol: character.to_string(),
-                    foreground_color: style.foreground_color.unwrap_or(default.foreground_color),
-                    background_color: style.background_color.unwrap_or(default.background_color),
-                    ..default
-                }
-            }
-        }
-        grid
+        let take = grid.dimension().width as usize;
+        grid.apply_cell_updates(
+            content
+                .chars()
+                .take(take)
+                .enumerate()
+                .map(|(char_index, character)| {
+                    let column_index = column_range.start + char_index;
+                    CellUpdate {
+                        position: Position {
+                            line: row_index,
+                            column: column_index,
+                        },
+                        symbol: Some(character.to_string()),
+                        style: style.clone(),
+                        ..CellUpdate::default()
+                    }
+                })
+                .collect_vec(),
+        )
     }
 
     #[cfg(test)]
@@ -458,6 +505,10 @@ impl Grid {
         for range in ranges {
             self.assert_range(range, predicate.clone())
         }
+    }
+
+    fn height(&self) -> usize {
+        self.rows.len()
     }
 }
 
@@ -534,13 +585,68 @@ impl Style {
 #[cfg(test)]
 mod test_grid {
 
+    use my_proc_macros::hex;
     use pretty_assertions::assert_eq;
 
     use crate::{
         app::Dimension,
-        grid::{Cell, Grid, PositionedCell},
+        grid::{Cell, CellUpdate, Grid, PositionedCell, Style},
         position::Position,
     };
+
+    #[test]
+    fn set_row_should_pad_char_by_unicode_width() {
+        use unicode_width::UnicodeWidthStr;
+
+        let dimension = Dimension {
+            height: 1,
+            width: 3,
+        };
+        let microscope = '🔬';
+        assert_eq!(UnicodeWidthStr::width(microscope.to_string().as_str()), 2); // Microscope
+        let content = format!("{}x", microscope);
+        let microscope_color = hex!("#abcdef");
+        let x_color = hex!("#fafafa");
+        let microscope_style = Style::default().background_color(microscope_color);
+
+        let grid = Grid::from_text(dimension, "")
+            .set_row(0, None, None, &content, &Style::default())
+            .apply_cell_update(
+                // Set the backgroud color of microscope
+                CellUpdate {
+                    position: Position { line: 0, column: 0 },
+                    symbol: None,
+                    style: microscope_style,
+                    ..Default::default()
+                },
+            )
+            .apply_cell_update(
+                // Set the background color of 'x'
+                CellUpdate {
+                    position: Position { line: 0, column: 1 },
+                    symbol: None,
+                    style: Style::default().background_color(x_color),
+                    ..Default::default()
+                },
+            );
+        let expected = [
+            PositionedCell {
+                cell: Cell::from_char(microscope).set_background_color(microscope_color),
+                position: Position { line: 0, column: 0 },
+            },
+            PositionedCell {
+                // One whitespace is added after microscope, because the unicode width of microscope is two
+                cell: Cell::from_char(' ').set_background_color(microscope_color),
+                position: Position { line: 0, column: 1 },
+            },
+            PositionedCell {
+                cell: Cell::from_char('x').set_background_color(x_color),
+                position: Position { line: 0, column: 2 },
+            },
+        ]
+        .to_vec();
+        assert_eq!(grid.to_positioned_cells(), expected);
+    }
 
     #[test]
     fn diff_same_size() {
