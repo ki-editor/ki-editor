@@ -1,4 +1,6 @@
 use event::{parse_key_event, KeyEvent};
+use unicode_width::UnicodeWidthStr;
+
 use itertools::Itertools;
 use my_proc_macros::key;
 
@@ -44,44 +46,77 @@ impl Keymaps {
             .map(|keymap| keymap.description.len())
             .max()
             .unwrap_or(0);
-
-        let key_description_gap = 2;
+        let between_key_and_description = " → ";
+        let key_description_gap = UnicodeWidthStr::width(between_key_and_description);
         let column_gap = key_description_gap * 2;
-        let key_surrounding_width = 2;
-        let column_width = max_key_width
-            + key_description_gap
-            + key_surrounding_width
-            + max_description_width
-            + column_gap;
-
+        let column_width = max_key_width + key_description_gap + max_description_width + column_gap;
         let column_count = width / column_width;
 
         // Align the keys columns and the dispatch columns
-        self.0
+        let result = self
+            .0
             .iter()
             .sorted_by_key(|keymap| keymap.key.to_lowercase())
             .map(|keymap| {
-                format!(
-                    "{}{:<width$}{}",
-                    " ".repeat(indent),
-                    format!("({})", keymap.key),
+                let formatted = format!(
+                    "{: >width$}{}{}",
+                    keymap.key,
+                    between_key_and_description,
                     keymap.description,
-                    width = (max_key_width + key_description_gap + key_surrounding_width - 1)
-                )
+                    width = max_key_width
+                );
+                formatted
             })
             .chunks(column_count.max(1)) // At least 1, otherwise `chunks` will panic
             .into_iter()
             .map(|chunks| {
-                chunks
-                    .map(|chunk| format!("{:<width$}", chunk, width = column_width))
-                    .join("")
+                let joined = chunks
+                    .map(|chunk| {
+                        let second_formatted = format!("{: <width$}", chunk, width = column_width);
+                        second_formatted
+                    })
+                    .join("");
+                joined
             })
+            .join("\n");
+        let result = dedent(&result);
+        result
+            .lines()
+            .map(|line| format!("{}{}", " ".repeat(indent), line.trim_end()))
             .join("\n")
     }
 
     pub fn new(keymaps: &[Keymap]) -> Self {
         Self(keymaps.to_vec())
     }
+}
+
+fn dedent(s: &str) -> String {
+    // Split the input string into lines
+    let lines: Vec<&str> = s.lines().collect();
+
+    // Find the minimum indentation (number of leading spaces)
+    let min_indent = lines
+        .iter()
+        .filter(|&&line| !line.trim().is_empty())
+        .map(|line| line.chars().take_while(|&c| c == ' ').count())
+        .min()
+        .unwrap_or(0);
+
+    // Remove the common indentation from each line
+    let dedented_lines: Vec<String> = lines
+        .iter()
+        .map(|&line| {
+            if line.len() >= min_indent {
+                line[min_indent..].to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect();
+
+    // Join the dedented lines back into a single string
+    dedented_lines.join("\n")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,7 +283,7 @@ mod test_keymap_legend {
     use super::*;
 
     #[test]
-    fn test_display() {
+    fn test_display_1() {
         let keymaps = Keymaps(
             [
                 Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
@@ -256,18 +291,38 @@ mod test_keymap_legend {
                 Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
                 Keymap::new("d", "D".to_string(), Dispatch::Null),
                 Keymap::new("e", "Elephant".to_string(), Dispatch::Null),
-                Keymap::new("f", "Fis".to_string(), Dispatch::Null),
-                Keymap::new("g", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
             ]
             .to_vec(),
         );
-        let actual = keymaps.display(0, 16 * 4).trim().to_string();
+        let width = 53;
+        let actual = keymaps.display(2, width).to_string();
         let expected = "
-(a) Aloha           (b) Bomb            (c) Caterpillar     
-(d) D               (e) Elephant        (f) Fis             
-(g) Gogagg"
-            .trim();
-        assert_eq!(actual, expected)
+  a → Aloha                b → Bomb
+  c → Caterpillar          d → D
+  e → Elephant         space → Gogagg"
+            .trim_matches('\n');
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_2() {
+        let keymaps = Keymaps(
+            [
+                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keymap::new("b", "Bomb".to_string(), Dispatch::Null),
+                Keymap::new("space", "Gogagg".to_string(), Dispatch::Null),
+                Keymap::new("c", "Caterpillar".to_string(), Dispatch::Null),
+            ]
+            .to_vec(),
+        );
+        let width = 53;
+        let actual = keymaps.display(2, width).to_string();
+        let expected = "
+      a → Aloha                b → Bomb
+  space → Gogagg               c → Caterpillar"
+            .trim_matches('\n');
+        assert_eq!(actual, expected);
     }
 
     #[test]

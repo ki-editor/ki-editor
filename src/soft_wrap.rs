@@ -1,4 +1,5 @@
 use regex::Regex;
+use unicode_width::UnicodeWidthStr;
 
 use crate::position::Position;
 
@@ -127,7 +128,11 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .filter_map(|(line_number, line)| {
             let wrapped_lines: Vec<String> = re.split(line).fold(vec![], |mut lines, word| {
                 match lines.last_mut() {
-                    Some(last_line) if last_line.len() + word.len() <= width => {
+                    Some(last_line)
+                        if UnicodeWidthStr::width(last_line.as_str())
+                            + UnicodeWidthStr::width(word)
+                            <= width =>
+                    {
                         last_line.push_str(word);
                     }
                     _ => lines.push(word.to_string()),
@@ -151,6 +156,24 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
 
 #[cfg(test)]
 mod test_soft_wrap {
+    use super::soft_wrap;
+    use unicode_width::UnicodeWidthStr;
+
+    #[test]
+    fn consider_unicode_width_1() {
+        let content = "→ abc";
+        let wrapped_lines = soft_wrap(content, 5);
+        assert_eq!(UnicodeWidthStr::width("→"), 1);
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 1)
+    }
+
+    #[test]
+    fn consider_unicode_width_2() {
+        let content = "👩 abc";
+        let wrapped_lines = soft_wrap(content, 5);
+        assert_eq!(UnicodeWidthStr::width("👩"), 2);
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2)
+    }
 
     #[cfg(test)]
     mod calibrate {
