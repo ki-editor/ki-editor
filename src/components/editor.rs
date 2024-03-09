@@ -54,6 +54,7 @@ pub enum Mode {
     FindOneChar,
     Exchange,
     UndoTree,
+    Replace,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -1359,7 +1360,7 @@ impl Editor {
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
-            Raise => return self.raise(context),
+            Raise => return self.replace(context, &Movement::Parent),
             Exchange(movement) => return self.exchange(context, movement),
             EnterExchangeMode => self.enter_exchange_mode(),
             Replace { config } => {
@@ -1407,6 +1408,7 @@ impl Editor {
                 )]
                 .to_vec())
             }
+            EnterReplaceMode => self.enter_replace_mode(),
         }
         Ok([].to_vec())
     }
@@ -1428,6 +1430,7 @@ impl Editor {
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
                         Mode::Exchange => self.handle_exchange_mode(context, key_event),
                         Mode::UndoTree => self.handle_undo_tree_mode(context, key_event),
+                        Mode::Replace => self.handle_replace_mode(context, key_event),
                     }
                 }
             }
@@ -1673,6 +1676,7 @@ impl Editor {
                 self.selection_set.mode.clone(),
             ),
             Mode::Exchange => self.exchange(context, movement),
+            Mode::Replace => self.replace(context, &movement),
             Mode::UndoTree => self.navigate_undo_tree(movement),
             Mode::MultiCursor => self.add_cursor(context, &movement).map(|_| Vec::new()),
             _ => Ok(Vec::new()),
@@ -2065,7 +2069,11 @@ impl Editor {
     }
 
     /// Replace the parent node of the current node with the current node
-    pub fn raise(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace(
+        &mut self,
+        context: &Context,
+        movement: &Movement,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -2100,7 +2108,7 @@ impl Editor {
             self.get_valid_selection(
                 selection,
                 &self.selection_set.mode,
-                &Movement::Parent,
+                movement,
                 context,
                 get_edit_transaction,
             )
@@ -2355,6 +2363,7 @@ impl Editor {
             Mode::FindOneChar => "FIND ONE CHAR",
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
+            Mode::Replace => "REPLACE",
         };
         let cursor_count = self.selection_set.len();
         let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
@@ -2727,6 +2736,24 @@ impl Editor {
     fn enter_multicursor_mode(&mut self) {
         self.mode = Mode::MultiCursor
     }
+
+    fn enter_replace_mode(&mut self) {
+        self.mode = Mode::Replace
+    }
+
+    fn handle_replace_mode(
+        &mut self,
+        context: &Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        match key_event {
+            key!("esc") => {
+                self.enter_normal_mode()?;
+                Ok(Vec::new())
+            }
+            other => self.handle_normal_mode(context, other),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2782,6 +2809,7 @@ pub enum DispatchEditor {
     EnterInsideMode(InsideKind),
     EnterNormalMode,
     EnterExchangeMode,
+    EnterReplaceMode,
     EnterMultiCursorMode,
     FilterPush(Filter),
     FilterClear,
