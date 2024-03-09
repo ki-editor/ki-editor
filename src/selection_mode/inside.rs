@@ -41,6 +41,23 @@ impl SelectionMode for Inside {
         Ok(pair.map(|pair| current_selection.clone().set_range(pair.inner_range())))
     }
 
+    fn up(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
+        Ok(self
+            .parent(params)?
+            .map(super::ApplyMovementResult::from_selection))
+    }
+    fn down(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
+        Ok(self
+            .first_child(params)?
+            .map(super::ApplyMovementResult::from_selection))
+    }
+
     fn parent(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
             current_selection, ..
