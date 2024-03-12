@@ -397,10 +397,10 @@ pub trait SelectionMode {
                         // NOTE: we use ! (not) because false ranks lower than true
                         // Prioritize selection of the same range
                         !(range.range == byte_range && range.info == info),
-                        // Then by if they overlaps
-                        !(is_overlapping(&range.range, &byte_range)),
                         // Then by selection that is one the same line
                         line.abs_diff(current_selection_line),
+                        // Then by if they overlaps
+                        !(is_overlapping(&range.range, &byte_range)),
                         // Then by their distance to the current selection
                         cursor_position.abs_diff(byte_range.start),
                         // Then by their length

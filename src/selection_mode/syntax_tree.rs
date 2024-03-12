@@ -165,4 +165,32 @@ mod test_syntax_tree {
         let child_range = selection.unwrap().unwrap().range();
         assert_eq!(child_range, child_range);
     }
+
+    #[test]
+    fn current() {
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "
+fn main() {
+  let x = X;
+}"
+            .trim(),
+        );
+
+        // Let the range be the space before `let`
+        let range = (CharIndex(12)..CharIndex(13)).into();
+        let context = Context::default();
+        let selection = SyntaxTree.current(SelectionModeParams {
+            context: &context,
+            buffer: &buffer,
+            current_selection: &Selection::new(range),
+            cursor_direction: &crate::components::editor::Direction::Start,
+            filters: &Filters::default(),
+        });
+
+        let actual_range = buffer.slice(&selection.unwrap().unwrap().range()).unwrap();
+        // Although the cursor is placed before `let`, the expected selection should be
+        // `let x = X;`, which is the largest node of the current line
+        assert_eq!(actual_range, "let x = X;");
+    }
 }
