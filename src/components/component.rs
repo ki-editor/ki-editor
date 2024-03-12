@@ -21,7 +21,9 @@ impl GetGridResult {
             Some(cursor) => self
                 .grid
                 .clone()
-                .apply_cell_update(crate::grid::CellUpdate::new(cursor.position).set_symbol("█"))
+                .apply_cell_update(
+                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some("█".to_string())),
+                )
                 .to_string(),
             None => self.grid.to_string(),
         }

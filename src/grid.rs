@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{
     app::Dimension,
     position::Position,
@@ -17,14 +19,17 @@ pub struct Grid {
     pub width: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+const DEFAULT_TAB_SIZE: usize = 4;
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct Cell {
     pub symbol: String,
     pub foreground_color: Color,
     pub background_color: Color,
     pub undercurl: Option<Color>,
     pub is_cursor: bool,
-    /// For debugging purposes, so that we can trace this Cell is updated by which decoration, e.g. Diagnostic
+    /// For debugging purposes, so that we can trace this Cell is updated by which
+    /// decoration, e.g. Diagnostic
     pub source: Option<StyleKey>,
 }
 
@@ -105,13 +110,6 @@ impl CellUpdate {
         CellUpdate { source, ..self }
     }
 
-    pub fn symbol(self, symbol: String) -> Self {
-        CellUpdate {
-            symbol: Some(symbol),
-            ..self
-        }
-    }
-
     pub fn background_color(self, background_color: Color) -> Self {
         CellUpdate {
             style: self.style.background_color(background_color),
@@ -174,53 +172,41 @@ impl CellUpdate {
         }
     }
 
-    pub(crate) fn set_symbol(self, symbol: &str) -> CellUpdate {
-        CellUpdate {
-            symbol: Some(symbol.to_string()),
-            ..self
-        }
-    }
-
-    fn unset_symbol(self) -> CellUpdate {
-        CellUpdate {
-            symbol: None,
-            ..self
-        }
+    pub(crate) fn set_symbol(self, symbol: Option<String>) -> CellUpdate {
+        CellUpdate { symbol, ..self }
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, Hash)]
 pub struct PositionedCell {
     pub cell: Cell,
     pub position: Position,
 }
 
+impl PartialOrd for PositionedCell {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.position.partial_cmp(&other.position)
+    }
+}
+impl Ord for PositionedCell {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.position.cmp(&other.position)
+    }
+}
+
 impl Grid {
     /// The `new_grid` need not be the same size as the old grid (`self`).
     pub fn diff(&self, new_grid: &Grid) -> Vec<PositionedCell> {
-        let mut cells = vec![];
-        for (row_index, new_row) in new_grid.rows.iter().enumerate() {
-            for (column_index, new_cell) in new_row.iter().enumerate() {
-                match self
-                    .rows
-                    .get(row_index)
-                    .and_then(|old_row| old_row.get(column_index))
-                {
-                    Some(old_cell) if new_cell == old_cell => {
-                        // Do nothing
-                    }
-                    // Otherwise
-                    _ => cells.push(PositionedCell {
-                        cell: new_cell.clone(),
-                        position: Position {
-                            line: row_index,
-                            column: column_index,
-                        },
-                    }),
-                }
-            }
-        }
-        cells
+        // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
+        // which can cause re-render to flicker like old TV (at least on Kitty term)
+
+        let new: indexmap::IndexSet<PositionedCell> =
+            new_grid.to_positioned_cells().into_iter().collect();
+        let old: indexmap::IndexSet<PositionedCell> =
+            self.to_positioned_cells().into_iter().collect();
+        new.difference(&old)
+            .map(|cell| cell.to_owned())
+            .collect_vec()
     }
 
     pub fn new(dimension: Dimension) -> Grid {
@@ -239,14 +225,30 @@ impl Grid {
     pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         let mut cells = vec![];
         for (row_index, row) in self.rows.iter().enumerate() {
+            let mut offset = 0;
             for (column_index, cell) in row.iter().enumerate() {
-                cells.push(PositionedCell {
-                    cell: cell.clone(),
-                    position: Position {
-                        line: row_index,
-                        column: column_index,
-                    },
-                })
+                let width = get_string_width(cell.symbol.as_str());
+                for index in 0..width {
+                    let adjusted_column = column_index + offset + index;
+                    if adjusted_column >= self.width {
+                        break;
+                    }
+                    cells.push(PositionedCell {
+                        cell: Cell {
+                            symbol: if index > 0 {
+                                " ".to_string()
+                            } else {
+                                cell.symbol.clone()
+                            },
+                            ..cell.clone()
+                        },
+                        position: Position {
+                            line: row_index,
+                            column: adjusted_column,
+                        },
+                    });
+                }
+                offset += width.saturating_sub(1)
             }
         }
 
@@ -339,39 +341,8 @@ impl Grid {
 
     pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
         let Position { line, column } = update.position;
-        // get the unicode width off set of the row of the update
-        let Some(row) = self.rows.get(line) else {
-            return self;
-        };
-        if column >= row.len() {
-            return self;
-        }
-        let unicode_width: usize = row[0..column]
-            .iter()
-            .map(|cell| UnicodeWidthStr::width(cell.symbol.as_str()))
-            .sum();
-        let offset = unicode_width.saturating_sub(column);
-        let column = column + offset;
-        // if the update sits on a unicode char, then the update should span up to the unicode width of the char
-        let Some(symbol) = update
-            .symbol
-            .clone()
-            .or_else(|| Some(self.rows.get(line)?.get(column)?.symbol.clone()))
-        else {
-            return self;
-        };
-        let span = UnicodeWidthStr::width(symbol.as_str());
-        for current_column in column..(column + span).min(self.width) {
-            if line < self.rows.len() && current_column < self.rows[line].len() {
-                let symbol = if current_column > column {
-                    // The filler symbol for the extended with of Unicode character should be nothing
-                    update.clone().unset_symbol()
-                } else {
-                    update.clone()
-                };
-                self.rows[line][current_column] =
-                    self.rows[line][current_column].apply_update(symbol);
-            }
+        if line < self.rows.len() && column < self.rows[line].len() {
+            self.rows[line][column] = self.rows[line][column].apply_update(update);
         }
         self
     }
@@ -421,6 +392,13 @@ impl Grid {
     }
 
     pub fn get_cursor_position(&self) -> Option<Position> {
+        return self.to_positioned_cells().into_iter().find_map(|cell| {
+            if cell.cell.is_cursor {
+                Some(cell.position)
+            } else {
+                None
+            }
+        });
         self.rows.iter().enumerate().find_map(|(line, row)| {
             row.iter().enumerate().find_map(|(column, cell)| {
                 if cell.is_cursor {
@@ -596,6 +574,75 @@ mod test_grid {
     };
 
     #[test]
+    fn set_row_should_pad_char_by_tab_width() {
+        let dimension = Dimension {
+            height: 1,
+            width: 10,
+        };
+        let tab = '\t';
+        let content = format!("{}x{}x", tab, tab);
+        let tab_color = hex!("#abcdef");
+        let x_color = hex!("#fafafa");
+        let tab_style = Style::default().background_color(tab_color);
+        let tab_cell_update = |column: usize| CellUpdate {
+            position: Position { line: 0, column },
+            symbol: None,
+            style: tab_style,
+            ..Default::default()
+        };
+        let x_cell_update = |column: usize| CellUpdate {
+            position: Position { line: 0, column },
+            symbol: None,
+            style: Style::default().background_color(x_color),
+            ..Default::default()
+        };
+
+        let grid = Grid::from_text(dimension, "")
+            .set_row(0, None, None, &content, &Style::default())
+            // Set the backgroud color of the first and second tab
+            .apply_cell_update(tab_cell_update(0))
+            .apply_cell_update(tab_cell_update(2))
+            // Set the background color of the first and second 'x'
+            .apply_cell_update(CellUpdate {
+                is_cursor: true,
+                ..x_cell_update(1)
+            })
+            .apply_cell_update(x_cell_update(3));
+        let whitespace = |column: usize| PositionedCell {
+            cell: Cell::from_char(' ').set_background_color(tab_color),
+            position: Position { line: 0, column },
+        };
+        let tab = |column: usize| PositionedCell {
+            cell: Cell::from_char('\t').set_background_color(tab_color),
+            position: Position { line: 0, column },
+        };
+        let x = |column: usize, is_cursor: bool| PositionedCell {
+            cell: Cell {
+                is_cursor,
+                ..Cell::from_char('x').set_background_color(x_color)
+            },
+            position: Position { line: 0, column },
+        };
+        let expected = [
+            tab(0),
+            // 3 whitespaces are added after tab, because the unicode width of tab is two
+            whitespace(1),
+            whitespace(2),
+            whitespace(3),
+            x(4, true),
+            tab(5),
+            whitespace(6),
+            whitespace(7),
+            whitespace(8),
+            x(9, false),
+        ]
+        .to_vec();
+        assert_eq!(grid.to_positioned_cells(), expected);
+        let expected_cursor_position = Position { line: 0, column: 4 };
+        assert_eq!(grid.get_cursor_position(), Some(expected_cursor_position));
+    }
+
+    #[test]
     fn set_row_should_pad_char_by_unicode_width() {
         use unicode_width::UnicodeWidthStr;
 
@@ -657,7 +704,8 @@ mod test_grid {
         };
         let old = Grid::from_text(dimension, "a\nbc");
         let new = Grid::from_text(dimension, "bc");
-        let actual = old.diff(&new);
+        let mut actual = old.diff(&new);
+        actual.sort();
         let expected = vec![
             PositionedCell {
                 position: Position { line: 0, column: 0 },
@@ -677,5 +725,13 @@ mod test_grid {
             },
         ];
         assert_eq!(actual, expected);
+    }
+}
+
+/// TODO: in the future, tab size should be configurable
+pub fn get_string_width(str: &str) -> usize {
+    match str {
+        "\t" => DEFAULT_TAB_SIZE,
+        _ => UnicodeWidthStr::width(str),
     }
 }

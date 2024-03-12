@@ -129,6 +129,7 @@ impl Frontend for Crossterm {
 fn reveal(s: &str) -> String {
     match s {
         "\n" => " ".to_string(),
+        "\t" => " ".to_string(),
         _ => s.into(),
     }
 }

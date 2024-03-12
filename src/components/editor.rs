@@ -319,7 +319,7 @@ impl Component for Editor {
                 Some(
                     CellUpdate::new(position)
                         .style(style)
-                        .symbol(jump.character.to_string()),
+                        .set_symbol(Some(jump.character.to_string())),
                 )
             });
         let extra_decorations = buffer

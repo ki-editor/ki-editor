@@ -1,8 +1,7 @@
 use itertools::Itertools;
 use regex::Regex;
-use unicode_width::UnicodeWidthStr;
 
-use crate::position::Position;
+use crate::{grid::get_string_width, position::Position};
 
 #[derive(Debug, Clone, Default)]
 pub struct WrappedLines {
@@ -143,8 +142,7 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
             let wrapped_lines: Vec<String> = re.split(line).fold(vec![], |mut lines, word| {
                 match lines.last_mut() {
                     Some(last_line)
-                        if UnicodeWidthStr::width(last_line.as_str())
-                            + UnicodeWidthStr::width(word)
+                        if get_string_width(last_line.as_str()) + get_string_width(word)
                             <= width =>
                     {
                         last_line.push_str(word);
@@ -184,6 +182,14 @@ mod test_soft_wrap {
     #[test]
     fn consider_unicode_width_2() {
         let content = "👩 abc";
+        let wrapped_lines = soft_wrap(content, 5);
+        assert_eq!(UnicodeWidthStr::width("👩"), 2);
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2)
+    }
+
+    #[test]
+    fn consider_tab_width() {
+        let content = "\tabc";
         let wrapped_lines = soft_wrap(content, 5);
         assert_eq!(UnicodeWidthStr::width("👩"), 2);
         assert_eq!(wrapped_lines.wrapped_lines_count(), 2)

@@ -119,7 +119,7 @@ impl SyntaxStyles {
 }
 
 /// This should be constructed using the `color!` macro.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Color {
     r: u8,
     g: u8,
