@@ -5,7 +5,7 @@ use crate::{
     selection::Selection,
 };
 
-use super::{ApplyMovementResult, SelectionMode, SelectionModeParams};
+use super::{SelectionMode, SelectionModeParams};
 
 pub struct Inside(pub InsideKind);
 
@@ -31,16 +31,34 @@ impl SelectionMode for Inside {
         SelectionModeParams {
             buffer,
             current_selection,
+            cursor_direction,
             ..
         }: SelectionModeParams,
     ) -> anyhow::Result<Option<Selection>> {
         let (open, close) = self.0.open_close_symbols();
-        let range = current_selection.extended_range();
-        let pair = buffer.find_nearest_pair(range, &open, &close);
+        let range = current_selection.get_anchor(cursor_direction);
+        let pair = buffer.find_nearest_pair((range..range).into(), &open, &close);
         Ok(pair.map(|pair| current_selection.clone().set_range(pair.inner_range())))
     }
 
-    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn up(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
+        Ok(self
+            .parent(params)?
+            .map(super::ApplyMovementResult::from_selection))
+    }
+    fn down(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
+        Ok(self
+            .first_child(params)?
+            .map(super::ApplyMovementResult::from_selection))
+    }
+
+    fn parent(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
             current_selection, ..
         } = params;
@@ -49,9 +67,7 @@ impl SelectionMode for Inside {
         let (open, close) = self.0.open_close_symbols();
         let range = current_selection.extended_range();
         if text.starts_with(&open) && text.ends_with(&close) {
-            return Ok(self
-                .current(params)?
-                .map(ApplyMovementResult::from_selection));
+            return self.current(params);
         }
 
         let start = range.start - open.chars().count();
@@ -59,12 +75,10 @@ impl SelectionMode for Inside {
 
         let range: CharIndexRange = (start..end).into();
 
-        Ok(Some(ApplyMovementResult::from_selection(
-            current_selection.clone().set_range(range),
-        )))
+        Ok(Some(current_selection.clone().set_range(range)))
     }
 
-    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn first_child(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
             buffer,
             current_selection,
@@ -92,9 +106,7 @@ impl SelectionMode for Inside {
                 })
                 .map(|pair| pair.outer_range())
         };
-        Ok(range.map(|range| {
-            ApplyMovementResult::from_selection(current_selection.clone().set_range(range))
-        }))
+        Ok(range.map(|range| current_selection.clone().set_range(range)))
     }
 }
 
@@ -207,7 +219,7 @@ mod test_inside {
     }
 
     #[test]
-    fn up() -> anyhow::Result<()> {
+    fn parent() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
         let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
@@ -216,7 +228,7 @@ mod test_inside {
 
         let ups = inside.generate_selections(
             &buffer,
-            Movement::Up,
+            Movement::Parent,
             3,
             (CharIndex(10)..CharIndex(13)).into(),
         )?;
@@ -226,7 +238,7 @@ mod test_inside {
     }
 
     #[test]
-    fn down() -> anyhow::Result<()> {
+    fn first_child() -> anyhow::Result<()> {
         let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|} {| x |}");
         let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
@@ -235,7 +247,7 @@ mod test_inside {
 
         let downs = inside.generate_selections(
             &buffer,
-            Movement::Down,
+            Movement::FirstChild,
             3,
             (CharIndex(4)..CharIndex(17)).into(),
         )?;

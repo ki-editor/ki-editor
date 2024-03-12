@@ -6,16 +6,11 @@ impl SelectionMode for LineFull {
     fn name(&self) -> &'static str {
         "LINE(FULL)"
     }
-    fn down(
+    fn first_child(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        Ok(LineTrimmed
-            .apply_movement(params, crate::components::editor::Movement::Current)?
-            .map(|result| ApplyMovementResult {
-                selection: result.selection,
-                mode: Some(crate::selection::SelectionMode::LineTrimmed),
-            }))
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        LineTrimmed.current(params)
     }
     fn iter<'a>(
         &'a self,

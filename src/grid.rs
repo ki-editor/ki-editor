@@ -339,27 +339,28 @@ impl Grid {
 
     pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
         let Position { line, column } = update.position;
-        if column >= self.width {
-            return self;
-        }
-        if line >= self.height() {
-            return self;
-        }
         // get the unicode width off set of the row of the update
-        let unicode_width: usize = self.rows[line][0..column]
+        let Some(row) = self.rows.get(line) else {
+            return self;
+        };
+        if column >= row.len() {
+            return self;
+        }
+        let unicode_width: usize = row[0..column]
             .iter()
             .map(|cell| UnicodeWidthStr::width(cell.symbol.as_str()))
             .sum();
         let offset = unicode_width.saturating_sub(column);
         let column = column + offset;
         // if the update sits on a unicode char, then the update should span up to the unicode width of the char
-        let span = UnicodeWidthStr::width(
-            update
-                .symbol
-                .clone()
-                .unwrap_or_else(|| self.rows[line][column].symbol.clone())
-                .as_str(),
-        );
+        let Some(symbol) = update
+            .symbol
+            .clone()
+            .or_else(|| Some(self.rows.get(line)?.get(column)?.symbol.clone()))
+        else {
+            return self;
+        };
+        let span = UnicodeWidthStr::width(symbol.as_str());
         for current_column in column..(column + span).min(self.width) {
             if line < self.rows.len() && current_column < self.rows[line].len() {
                 let symbol = if current_column > column {

@@ -543,7 +543,7 @@ pub mod test_app {
                 Editor(MatchLiteral("let x = S(spongebob_squarepants);".to_owned())),
                 Editor(SetSelectionMode(SelectionMode::SyntaxTree)),
                 Editor(CursorAddToAllSelections),
-                Editor(MoveSelection(Movement::Down)),
+                Editor(MoveSelection(Movement::FirstChild)),
                 Editor(MoveSelection(Movement::Next)),
                 Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
                 Editor(Cut),

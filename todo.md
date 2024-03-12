@@ -268,3 +268,9 @@
 - [] feat: mouse selection
 - [] fix(completion): browsing selections, selection always aligned to top
 - [] feat(editor): select around brackets
+- [] feat(surround): put [({< under the transformation keymap
+- [] feat(movement): [ = first selection in previous file, ] = first selection in next file
+- [] fix(code_action): not showing menu everytime properly
+- [] feat(syntax-tree): another mode to includes nameless sibling
+- [] crazy: why not pressing selection mode straigt away jump?
+- [] style: color based on regex capture (use this to style keymap legend)

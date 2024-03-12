@@ -27,7 +27,7 @@ impl From<crossterm::event::Event> for Event {
 /// on combined modifier keys like Ctrl+Alt+Shift.
 ///
 /// The `crossterm` crate does not support this out of the box.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEvent {
     pub code: crossterm::event::KeyCode,
     pub modifiers: KeyModifiers,

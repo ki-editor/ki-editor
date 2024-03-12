@@ -9,6 +9,7 @@ use crate::{
     selection::{Filter, Filters},
     selection_mode::{self, inside::InsideKind, ByteRange},
     soft_wrap,
+    transformation::Transformation,
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -18,7 +19,6 @@ use std::{
     rc::Rc,
 };
 
-use convert_case::{Case, Casing};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
@@ -54,6 +54,7 @@ pub enum Mode {
     FindOneChar,
     Exchange,
     UndoTree,
+    Replace,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -721,6 +722,8 @@ pub enum Movement {
     Index(usize),
     Jump(CharIndexRange),
     ToParentLine,
+    Parent,
+    FirstChild,
 }
 
 impl Editor {
@@ -1194,7 +1197,7 @@ impl Editor {
         self.replace_current_selection_with(|selection| selection.copied_text(context))
     }
 
-    pub fn replace(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace_cut(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1285,7 +1288,7 @@ impl Editor {
         self.navigate_undo_tree(Movement::Next)
     }
 
-    fn change_cursor_direction(&mut self) {
+    pub fn change_cursor_direction(&mut self) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
@@ -1328,7 +1331,7 @@ impl Editor {
             AlignViewTop => self.align_cursor_to_top(),
             AlignViewCenter => self.align_cursor_to_center(),
             AlignViewBottom => self.align_cursor_to_bottom(),
-            Transform(case) => return self.transform_selection(case),
+            Transform(transformation) => return self.transform_selection(transformation),
             SetSelectionMode(selection_mode) => {
                 return self.set_selection_mode(context, selection_mode);
             }
@@ -1340,7 +1343,7 @@ impl Editor {
             Paste => return self.paste(context),
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
-            ReplaceSelectionWithCopiedText => return self.replace(context),
+            ReplaceSelectionWithCopiedText => return self.replace_cut(context),
             Cut => return self.cut(),
             ToggleHighlightMode => self.toggle_highlight_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
@@ -1357,7 +1360,7 @@ impl Editor {
             CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
             FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
-            Raise => return self.raise(context),
+            Raise => return self.replace(context, &Movement::Parent),
             Exchange(movement) => return self.exchange(context, movement),
             EnterExchangeMode => self.enter_exchange_mode(),
             Replace { config } => {
@@ -1396,6 +1399,16 @@ impl Editor {
             ReplacePreviousWord(word) => return self.replace_previous_word(&word, context),
             ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
             SelectLineAt(index) => return self.select_line_at(index),
+            EnterMultiCursorMode => self.enter_multicursor_mode(),
+            ReplaceCut => return self.replace_cut(context),
+            Surround(open, close) => return self.enclose(open, close),
+            ShowKeymapLegendNormalMode => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.normal_mode_keymap_legend_config(context),
+                )]
+                .to_vec())
+            }
+            EnterReplaceMode => self.enter_replace_mode(),
         }
         Ok([].to_vec())
     }
@@ -1417,6 +1430,7 @@ impl Editor {
                         Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
                         Mode::Exchange => self.handle_exchange_mode(context, key_event),
                         Mode::UndoTree => self.handle_undo_tree_mode(context, key_event),
+                        Mode::Replace => self.handle_replace_mode(context, key_event),
                     }
                 }
             }
@@ -1662,6 +1676,7 @@ impl Editor {
                 self.selection_set.mode.clone(),
             ),
             Mode::Exchange => self.exchange(context, movement),
+            Mode::Replace => self.replace(context, &movement),
             Mode::UndoTree => self.navigate_undo_tree(movement),
             Mode::MultiCursor => self.add_cursor(context, &movement).map(|_| Vec::new()),
             _ => Ok(Vec::new()),
@@ -1673,167 +1688,6 @@ impl Editor {
             .selection_set
             .map(|selection| selection.extended_range());
         self.buffer_mut().save_bookmarks(selections)
-    }
-
-    fn handle_movement_key(
-        &mut self,
-        key_event: &KeyEvent,
-        context: &Context,
-    ) -> anyhow::Result<Option<Vec<Dispatch>>> {
-        let move_selection = |movement: Movement| {
-            Ok(Some(
-                [Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    movement,
-                ))]
-                .to_vec(),
-            ))
-        };
-        match key_event {
-            key!("d") => move_selection(Movement::Down),
-            key!("j") => {
-                self.jump(context)?;
-                Ok(Some(Vec::new()))
-            }
-            key!("n") => move_selection(Movement::Next),
-            key!("p") => move_selection(Movement::Previous),
-            key!("u") => move_selection(Movement::Up),
-            key!(".") => move_selection(Movement::Last),
-            key!(",") => move_selection(Movement::First),
-            key!("-") => move_selection(Movement::ToParentLine),
-            _ => Ok(None),
-        }
-    }
-
-    fn handle_normal_mode(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
-        if let Some(dispatches) = self.handle_movement_key(&event, context)? {
-            return Ok(dispatches);
-        }
-        if self.mode != Mode::Normal {
-            self.mode = Mode::Normal
-        }
-        match event {
-            key!("'") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.list_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
-            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
-            key!("*") => return Ok(self.select_all()),
-            key!("ctrl+d") => {
-                return self.scroll_page_down();
-            }
-            key!("ctrl+u") => {
-                return self.scroll_page_up();
-            }
-
-            key!("left") => return self.handle_movement(context, Movement::Previous),
-            key!("shift+left") => return self.handle_movement(context, Movement::First),
-            key!("right") => return self.handle_movement(context, Movement::Next),
-            key!("shift+right") => return self.handle_movement(context, Movement::Last),
-            key!("esc") => {
-                self.reset();
-                return Ok(vec![
-                    Dispatch::CloseAllExceptMainPanel,
-                    Dispatch::SetGlobalMode(None),
-                ]);
-            }
-            // Objects
-            key!("a") => self.enter_insert_mode(Direction::Start)?,
-            key!("b") => self.toggle_bookmarks(),
-
-            key!("c") => return self.set_selection_mode(context, SelectionMode::Character),
-            // d = down
-            key!("e") => self.enter_insert_mode(Direction::End)?,
-            key!("f") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.find_local_keymap_legend_config(context)?,
-                )]
-                .to_vec())
-            }
-            key!("g") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.find_global_keymap_legend_config(context),
-                )])
-            }
-            key!("h") => self.toggle_highlight_mode(),
-            key!("i") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.inside_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
-
-            // Initial
-
-            // j = jump
-            key!("k") => return self.kill(context),
-            key!("shift+K") => return self.select_kids(),
-            key!("l") => return self.set_selection_mode(context, SelectionMode::LineTrimmed),
-            key!("m") => self.mode = Mode::MultiCursor,
-            key!("o") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.omit_mode_keymap_legend_config(),
-                )]
-                .to_vec())
-            }
-
-            // p = previous
-            key!("q") => {
-                return Ok([Dispatch::SetGlobalMode(Some(GlobalMode::QuickfixListItem))].to_vec())
-            }
-            // r for rotate? more general than swapping/exchange, which does not warp back to first
-            // selection
-            key!("r") => return self.raise(context),
-            key!("shift+R") => return self.replace(context),
-            key!("s") => return self.set_selection_mode(context, SelectionMode::SyntaxTree),
-            key!("t") => return self.set_selection_mode(context, SelectionMode::TopNode),
-            // u = up
-            // TODO: v = view (scroll line, scroll half page, scroll full page)
-            key!("w") => return self.set_selection_mode(context, SelectionMode::Word),
-            key!("x") => self.enter_exchange_mode(),
-            key!("y") => return self.copy(context),
-            key!("z") => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.x_mode_keymap_legend_config()?,
-                )]
-                .to_vec())
-            }
-            key!("shift+X") => return self.exchange(context, Movement::Previous),
-            // y = unused
-            key!("backspace") => {
-                return self.change();
-            }
-            key!("enter") => return self.open_new_line(),
-            key!("%") => self.change_cursor_direction(),
-            key!("(") | key!(")") => return self.enclose(Enclosure::RoundBracket),
-            // key!("{") => {
-            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Previous)].to_vec())
-            // }
-            // key!("}") => {
-            // return Ok([Dispatch::GotoSelectionHistoryContiguous(Movement::Next)].to_vec())
-            // }
-            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
-            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
-            key!("[") | key!("]") => return self.enclose(Enclosure::SquareBracket),
-            key!('{') | key!('}') => return self.enclose(Enclosure::CurlyBracket),
-            key!('<') | key!('>') => return self.enclose(Enclosure::AngleBracket),
-
-            key!("space") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.space_mode_keymap_legend_config(context),
-                )])
-            }
-            key!("0") => return Ok([Dispatch::OpenMoveToIndexPrompt].to_vec()),
-            _ => {
-                log::info!("event: {:?}", event);
-            }
-        };
-        Ok(vec![])
     }
 
     pub fn path(&self) -> Option<CanonicalizedPath> {
@@ -2215,7 +2069,11 @@ impl Editor {
     }
 
     /// Replace the parent node of the current node with the current node
-    pub fn raise(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace(
+        &mut self,
+        context: &Context,
+        movement: &Movement,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -2250,7 +2108,7 @@ impl Editor {
             self.get_valid_selection(
                 selection,
                 &self.selection_set.mode,
-                &Movement::Up,
+                movement,
                 context,
                 get_edit_transaction,
             )
@@ -2429,7 +2287,7 @@ impl Editor {
         Ok(())
     }
 
-    fn enclose(&mut self, enclosure: Enclosure) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2438,23 +2296,7 @@ impl Editor {
                         [
                             Action::Edit(Edit {
                                 range: selection.extended_range(),
-                                new: format!(
-                                    "{}{}{}",
-                                    match enclosure {
-                                        Enclosure::RoundBracket => "(",
-                                        Enclosure::SquareBracket => "[",
-                                        Enclosure::CurlyBracket => "{",
-                                        Enclosure::AngleBracket => "<",
-                                    },
-                                    old,
-                                    match enclosure {
-                                        Enclosure::RoundBracket => ")",
-                                        Enclosure::SquareBracket => "]",
-                                        Enclosure::CurlyBracket => "}",
-                                        Enclosure::AngleBracket => ">",
-                                    }
-                                )
-                                .into(),
+                                new: format!("{}{}{}", open, old, close).into(),
                             }),
                             Action::Select(
                                 selection.clone().set_range(
@@ -2475,15 +2317,19 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn transform_selection(&mut self, case: Case) -> anyhow::Result<Vec<Dispatch>> {
+    fn transform_selection(
+        &mut self,
+        transformation: Transformation,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let new: Rope = self
-                        .buffer()
-                        .slice(&selection.extended_range())?
-                        .to_string()
-                        .to_case(case)
+                    let new: Rope = transformation
+                        .apply(
+                            self.buffer()
+                                .slice(&selection.extended_range())?
+                                .to_string(),
+                        )
                         .into();
                     let new_char_count = new.chars().count();
                     let range = selection.extended_range();
@@ -2521,6 +2367,7 @@ impl Editor {
             Mode::FindOneChar => "FIND ONE CHAR",
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
+            Mode::Replace => "REPLACE",
         };
         let cursor_count = self.selection_set.len();
         let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
@@ -2675,7 +2522,7 @@ impl Editor {
         .to_vec())
     }
 
-    fn select_all(&mut self) -> Vec<Dispatch> {
+    pub fn select_all(&mut self) -> Vec<Dispatch> {
         [
             Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
             Dispatch::DispatchEditor(DispatchEditor::ToggleHighlightMode),
@@ -2889,6 +2736,28 @@ impl Editor {
         self.enter_insert_mode(Direction::Start)?;
         Ok(dispatches)
     }
+
+    fn enter_multicursor_mode(&mut self) {
+        self.mode = Mode::MultiCursor
+    }
+
+    fn enter_replace_mode(&mut self) {
+        self.mode = Mode::Replace
+    }
+
+    fn handle_replace_mode(
+        &mut self,
+        context: &Context,
+        key_event: KeyEvent,
+    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+        match key_event {
+            key!("esc") => {
+                self.enter_normal_mode()?;
+                Ok(Vec::new())
+            }
+            other => self.handle_normal_mode(context, other),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2898,13 +2767,6 @@ pub enum ViewAlignment {
     Bottom,
 }
 
-enum Enclosure {
-    RoundBracket,
-    SquareBracket,
-    CurlyBracket,
-    AngleBracket,
-}
-
 pub enum HandleEventResult {
     Handled(Vec<Dispatch>),
     Ignored(KeyEvent),
@@ -2912,6 +2774,7 @@ pub enum HandleEventResult {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DispatchEditor {
+    Surround(String, String),
     SetScrollOffset(u16),
     Jump,
     ScrollPageDown,
@@ -2919,7 +2782,7 @@ pub enum DispatchEditor {
     AlignViewTop,
     AlignViewCenter,
     AlignViewBottom,
-    Transform(convert_case::Case),
+    Transform(Transformation),
     SetSelectionMode(SelectionMode),
     Save,
     Exchange(Movement),
@@ -2950,6 +2813,8 @@ pub enum DispatchEditor {
     EnterInsideMode(InsideKind),
     EnterNormalMode,
     EnterExchangeMode,
+    EnterReplaceMode,
+    EnterMultiCursorMode,
     FilterPush(Filter),
     FilterClear,
     CursorAddToAllSelections,
@@ -2969,4 +2834,6 @@ pub enum DispatchEditor {
     ReplacePreviousWord(String),
     ApplyPositionalEdit(crate::lsp::completion::PositionalEdit),
     SelectLineAt(usize),
+    ReplaceCut,
+    ShowKeymapLegendNormalMode,
 }
