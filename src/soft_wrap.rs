@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use regex::Regex;
 use unicode_width::UnicodeWidthStr;
 
@@ -53,6 +54,15 @@ impl WrappedLines {
         &self.lines
     }
 
+    pub fn to_string(&self) -> String {
+        self.lines
+            .iter()
+            .map(|line| line.to_string())
+            .collect_vec()
+            .join("\n")
+            .to_string()
+    }
+
     pub(crate) fn wrapped_lines_count(&self) -> usize {
         self.lines.iter().map(|line| line.count()).sum()
     }
@@ -75,6 +85,10 @@ impl WrappedLine {
 
     pub fn line_number(&self) -> usize {
         self.line_number
+    }
+
+    pub fn to_string(&self) -> String {
+        self.lines().join("\n").to_string()
     }
 
     fn get_position(&self, column: usize, width: usize) -> Option<Position> {

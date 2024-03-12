@@ -15,6 +15,7 @@ use crate::{
     quickfix_list::QuickfixListType,
     selection::{FilterKind, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
+    transformation::Transformation,
 };
 
 use super::{
@@ -417,32 +418,53 @@ impl Editor {
             title: "Transform".to_string(),
             owner_id: self.id(),
             body: KeymapLegendBody::MultipleSections {
-                sections: [KeymapLegendSection {
-                    title: "Letter case".to_string(),
-                    keymaps: Keymaps::new(
-                        &[
-                            ("a", "aLtErNaTiNg CaSe", Case::Toggle),
-                            ("c", "camelCase", Case::Camel),
-                            ("l", "lowercase", Case::Lower),
-                            ("k", "kebab-case", Case::Kebab),
-                            ("K", "Upper-Kebab", Case::UpperKebab),
-                            ("p", "PascalCase", Case::Pascal),
-                            ("s", "snake_case", Case::Snake),
-                            ("S", "UPPER_SNAKE_CASE", Case::UpperSnake),
-                            ("t", "Title Case", Case::Title),
-                            ("u", "UPPERCASE", Case::Upper),
-                        ]
-                        .into_iter()
-                        .map(|(key, description, case)| {
+                sections: [
+                    KeymapLegendSection {
+                        title: "Letter case".to_string(),
+                        keymaps: Keymaps::new(
+                            &[
+                                ("a", "aLtErNaTiNg CaSe", Case::Toggle),
+                                ("c", "camelCase", Case::Camel),
+                                ("l", "lowercase", Case::Lower),
+                                ("k", "kebab-case", Case::Kebab),
+                                ("K", "Upper-Kebab", Case::UpperKebab),
+                                ("p", "PascalCase", Case::Pascal),
+                                ("s", "snake_case", Case::Snake),
+                                ("S", "UPPER_SNAKE_CASE", Case::UpperSnake),
+                                ("t", "Title Case", Case::Title),
+                                ("u", "UPPERCASE", Case::Upper),
+                            ]
+                            .into_iter()
+                            .map(|(key, description, case)| {
+                                Keymap::new(
+                                    key,
+                                    description.to_string(),
+                                    Dispatch::DispatchEditor(Transform(Transformation::Case(case))),
+                                )
+                            })
+                            .collect_vec(),
+                        ),
+                    },
+                    KeymapLegendSection {
+                        title: "Other".to_string(),
+                        keymaps: Keymaps::new(&[
                             Keymap::new(
-                                key,
-                                description.to_string(),
-                                Dispatch::DispatchEditor(Transform(case)),
-                            )
-                        })
-                        .collect_vec(),
-                    ),
-                }]
+                                "j",
+                                "Join".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::Transform(
+                                    Transformation::Join,
+                                )),
+                            ),
+                            Keymap::new(
+                                "w",
+                                "Wrap".to_string(),
+                                Dispatch::DispatchEditor(DispatchEditor::Transform(
+                                    Transformation::Wrap,
+                                )),
+                            ),
+                        ]),
+                    },
+                ]
                 .to_vec(),
             },
         }

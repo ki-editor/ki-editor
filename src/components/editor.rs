@@ -9,6 +9,7 @@ use crate::{
     selection::{Filter, Filters},
     selection_mode::{self, inside::InsideKind, ByteRange},
     soft_wrap,
+    transformation::Transformation,
 };
 
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
@@ -18,7 +19,6 @@ use std::{
     rc::Rc,
 };
 
-use convert_case::{Case, Casing};
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
@@ -1331,7 +1331,7 @@ impl Editor {
             AlignViewTop => self.align_cursor_to_top(),
             AlignViewCenter => self.align_cursor_to_center(),
             AlignViewBottom => self.align_cursor_to_bottom(),
-            Transform(case) => return self.transform_selection(case),
+            Transform(transformation) => return self.transform_selection(transformation),
             SetSelectionMode(selection_mode) => {
                 return self.set_selection_mode(context, selection_mode);
             }
@@ -2317,15 +2317,19 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn transform_selection(&mut self, case: Case) -> anyhow::Result<Vec<Dispatch>> {
+    fn transform_selection(
+        &mut self,
+        transformation: Transformation,
+    ) -> anyhow::Result<Vec<Dispatch>> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let new: Rope = self
-                        .buffer()
-                        .slice(&selection.extended_range())?
-                        .to_string()
-                        .to_case(case)
+                    let new: Rope = transformation
+                        .apply(
+                            self.buffer()
+                                .slice(&selection.extended_range())?
+                                .to_string(),
+                        )
                         .into();
                     let new_char_count = new.chars().count();
                     let range = selection.extended_range();
@@ -2778,7 +2782,7 @@ pub enum DispatchEditor {
     AlignViewTop,
     AlignViewCenter,
     AlignViewBottom,
-    Transform(convert_case::Case),
+    Transform(Transformation),
     SetSelectionMode(SelectionMode),
     Save,
     Exchange(Movement),

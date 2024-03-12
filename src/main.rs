@@ -29,6 +29,7 @@ pub mod syntax_highlight;
 mod terminal;
 mod test_app;
 pub mod themes;
+pub mod transformation;
 pub mod undo_tree;
 mod utils;
 
