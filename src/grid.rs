@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::{
     app::Dimension,
     position::Position,
@@ -11,7 +9,7 @@ use itertools::Itertools;
 use my_proc_macros::hex;
 #[cfg(test)]
 use ropey::Rope;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::UnicodeWidthChar;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Grid {
@@ -392,21 +390,12 @@ impl Grid {
     }
 
     pub fn get_cursor_position(&self) -> Option<Position> {
-        return self.to_positioned_cells().into_iter().find_map(|cell| {
+        self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)
             } else {
                 None
             }
-        });
-        self.rows.iter().enumerate().find_map(|(line, row)| {
-            row.iter().enumerate().find_map(|(column, cell)| {
-                if cell.is_cursor {
-                    Some(Position { line, column })
-                } else {
-                    None
-                }
-            })
         })
     }
 
@@ -573,6 +562,8 @@ mod test_grid {
         position::Position,
     };
 
+    use super::get_string_width;
+
     #[test]
     fn set_row_should_pad_char_by_tab_width() {
         let dimension = Dimension {
@@ -726,12 +717,19 @@ mod test_grid {
         ];
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_get_string_width() {
+        assert_eq!(get_string_width("\t\t"), 8)
+    }
 }
 
 /// TODO: in the future, tab size should be configurable
 pub fn get_string_width(str: &str) -> usize {
-    match str {
-        "\t" => DEFAULT_TAB_SIZE,
-        _ => UnicodeWidthStr::width(str),
-    }
+    str.chars()
+        .map(|char| match char {
+            '\t' => DEFAULT_TAB_SIZE,
+            _ => UnicodeWidthChar::width(char).unwrap_or(1),
+        })
+        .sum()
 }
