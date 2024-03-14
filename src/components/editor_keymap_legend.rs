@@ -170,7 +170,7 @@ impl Editor {
             ),
             Keymap::new(
                 "o",
-                "Omnom (Eat)".to_string(),
+                "Overwrite".to_string(),
                 Dispatch::DispatchEditor(EnterReplaceMode),
             ),
             Keymap::new(

@@ -46,6 +46,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
+    screen::{Screen, Window},
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
@@ -243,12 +244,12 @@ impl<T: Frontend> App<T> {
     }
 
     fn render(&mut self) -> Result<(), anyhow::Error> {
-        let GetGridResult { grid, cursor } = self.get_grid()?;
-        self.render_grid(grid, cursor)?;
+        let screen = self.get_screen()?;
+        self.render_screen(screen)?;
         Ok(())
     }
 
-    pub fn get_grid(&mut self) -> Result<GetGridResult, anyhow::Error> {
+    pub fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
 
@@ -260,7 +261,7 @@ impl<T: Frontend> App<T> {
         });
 
         // Render every window
-        let (grid, cursor) = self
+        let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
             .into_iter()
             .map(|component| {
@@ -291,21 +292,15 @@ impl<T: Frontend> App<T> {
                 } else {
                     None
                 };
+                let window = Window::new(grid, rectangle.clone());
 
-                (grid, rectangle.clone(), cursor_position)
+                (window, cursor_position)
             })
-            .fold(
-                (grid, None),
-                |(grid, current_cursor_point), (component_grid, rectangle, cursor_point)| {
-                    {
-                        (
-                            grid.update(&component_grid, &rectangle),
-                            current_cursor_point.or(cursor_point),
-                        )
-                    }
-                },
-            );
-
+            .unzip();
+        //            .fold( (grid, None), |(grid, current_cursor_point), (component_grid, rectangle, cursor_point)| { { ( grid.update(&component_grid, &rectangle), current_cursor_point.or(cursor_point), ) } }, );
+        let borders = self.layout.borders();
+        let cursor = cursors.into_iter().find_map(|cursor| cursor);
+        let screen = Screen::new(windows, borders, cursor);
         // Render every border
         let grid = self
             .layout
@@ -350,7 +345,7 @@ impl<T: Frontend> App<T> {
         };
         let grid = grid.merge_vertical(global_title_grid);
 
-        Ok(GetGridResult { grid, cursor })
+        Ok(screen)
     }
 
     fn current_branch(&self) -> Option<String> {
@@ -363,10 +358,11 @@ impl<T: Frontend> App<T> {
         Some(branch.to_string())
     }
 
-    fn render_grid(&mut self, grid: Grid, cursor: Option<Cursor>) -> Result<(), anyhow::Error> {
+    fn render_screen(&mut self, screen: Screen) -> Result<(), anyhow::Error> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.hide_cursor()?;
-        frontend.render_grid(grid)?;
+        let cursor = screen.cursor();
+        frontend.render_screen(screen)?;
         if let Some(position) = cursor {
             frontend.show_cursor(&position)?;
         }

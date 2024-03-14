@@ -1,18 +1,18 @@
-use crate::{components::component::Cursor, grid::Grid};
+use crate::{components::component::Cursor, screen::Screen};
 
 use super::frontend::Frontend;
 
 pub struct Crossterm {
     stdout: std::io::Stdout,
     /// Used for diffing to reduce unnecessary re-painting.
-    previous_grid: Option<Grid>,
+    previous_screen: Screen,
 }
 
 impl Crossterm {
     pub fn new() -> Crossterm {
         Crossterm {
             stdout: std::io::stdout(),
-            previous_grid: None,
+            previous_screen: Screen::default(),
         }
     }
 }
@@ -83,20 +83,16 @@ impl Frontend for Crossterm {
         Ok(())
     }
 
-    fn render_grid(&mut self, grid: Grid) -> anyhow::Result<()> {
+    fn render_screen(&mut self, screen: Screen) -> anyhow::Result<()> {
         let cells = {
-            let diff = match self.previous_grid {
-                // Only perform diff if the dimension is the same
-                Some(ref previous_grid) if previous_grid.dimension() == grid.dimension() => {
-                    previous_grid.diff(&grid)
-                }
-                _ => {
-                    self.clear_screen()?;
-                    grid.to_positioned_cells()
-                }
+            // Only perform diff if the dimension is the same
+            let diff = if self.previous_screen.dimension() == screen.dimension() {
+                screen.diff(&self.previous_screen)
+            } else {
+                self.clear_screen()?;
+                screen.to_positioned_cells()
             };
-
-            self.previous_grid = Some(grid);
+            self.previous_screen = screen;
 
             diff
         };

@@ -1,10 +1,15 @@
 use itertools::{Either, Itertools};
+use my_proc_macros::hex;
 use std::collections::HashSet;
 
-use crate::{app::Dimension, position::Position};
+use crate::{
+    app::Dimension,
+    grid::{Cell, PositionedCell},
+    position::Position,
+};
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
-// A struct to represent a rectangle with origin, width and height
+/// A struct to represent a rectangle with origin, width and height
 pub struct Rectangle {
     pub origin: Position,
     pub width: u16,
@@ -12,10 +17,11 @@ pub struct Rectangle {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-// A struct to represent a border with direction, start and length
+/// A struct to represent a border with direction, start and length
 pub struct Border {
     pub direction: BorderDirection,
     pub start: Position,
+    pub length: u16,
 }
 
 impl Border {
@@ -30,15 +36,17 @@ impl Border {
         }
     }
 
-    fn positions(&self, dimension: &Dimension) -> HashSet<Position> {
+    fn positions(&self) -> HashSet<Position> {
         match self.direction {
-            BorderDirection::Horizontal => (self.start.column..(dimension.width as usize))
+            BorderDirection::Horizontal => (self.start.column
+                ..(self.start.column + self.length as usize))
                 .map(|column| Position {
                     line: self.start.line,
                     column,
                 })
                 .collect(),
-            BorderDirection::Vertical => (self.start.line..(dimension.height as usize))
+            BorderDirection::Vertical => (self.start.line
+                ..(self.start.line + self.length as usize))
                 .map(|line| Position {
                     line,
                     column: self.start.column,
@@ -47,24 +55,43 @@ impl Border {
         }
     }
 
-    fn intersection(&self, other: &Border, dimension: &Dimension) -> HashSet<Position> {
-        self.positions(dimension)
-            .intersection(&other.positions(dimension))
+    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+        self.positions()
+            .into_iter()
+            .map(|position| PositionedCell {
+                position,
+                cell: Cell {
+                    symbol: match self.direction {
+                        BorderDirection::Horizontal => "─".to_string(),
+                        BorderDirection::Vertical => "│".to_string(),
+                    },
+                    foreground_color: hex!("#000000"),
+                    ..Default::default()
+                },
+            })
+            .collect()
+    }
+
+    fn intersection(&self, other: &Border) -> HashSet<Position> {
+        self.positions()
+            .intersection(&other.positions())
             .cloned()
             .collect()
     }
 
-    fn new_vertical(start: Position) -> Border {
+    fn new_vertical(start: Position, length: u16) -> Border {
         Border {
             direction: BorderDirection::Vertical,
             start,
+            length,
         }
     }
 
-    fn new_horizontal(position: Position) -> Border {
+    fn new_horizontal(position: Position, length: u16) -> Border {
         Border {
             direction: BorderDirection::Horizontal,
             start: position,
+            length,
         }
     }
 }
@@ -157,6 +184,7 @@ impl Rectangle {
                     column: self.origin.column + (width1 as usize),
                     line: self.origin.line,
                 },
+                length: self.height,
             };
             (rectangle1, rectangle2, border)
         } else {
@@ -182,6 +210,7 @@ impl Rectangle {
                     line: self.origin.line + height1 as usize,
                     column: self.origin.column,
                 },
+                length: self.width,
             };
             (rectangle1, rectangle2, border)
         }
@@ -232,7 +261,9 @@ impl Rectangle {
                         width: size,
                         height: self.height,
                     }),
-                    SplitKind::Border => Element::Border(Border::new_vertical(position)),
+                    SplitKind::Border => {
+                        Element::Border(Border::new_vertical(position, self.height))
+                    }
                 }
             })
             .collect()
@@ -253,7 +284,9 @@ impl Rectangle {
                         width: self.width,
                         height: size,
                     }),
-                    SplitKind::Border => Element::Border(Border::new_horizontal(position)),
+                    SplitKind::Border => {
+                        Element::Border(Border::new_horizontal(position, self.width))
+                    }
                 }
             })
             .collect()
@@ -277,10 +310,13 @@ impl Rectangle {
 
         let (left, right) = initial.split_vertically_at(split_at);
 
-        let center_border = Border::new_vertical(Position {
-            column: split_at,
-            line: 0,
-        });
+        let center_border = Border::new_vertical(
+            Position {
+                column: split_at,
+                line: 0,
+            },
+            dimension.height,
+        );
         let right = right.clamp_left(1);
 
         let (rectangles, borders): (Vec<Rectangle>, Vec<Border>) = right
@@ -461,6 +497,12 @@ impl Rectangle {
             LayoutKind::Wide => Rectangle::generate_wide(count, ratio, dimension),
         }
     }
+
+    pub(crate) fn in_bound(&self, position: Position) -> bool {
+        let translated_position = position.translate(self.origin);
+        translated_position.line < self.origin.line + self.height as usize
+            && translated_position.column < self.origin.column + self.width as usize
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -614,11 +656,7 @@ mod test_rectangle {
             let rectangle_and_border_positions = rectangles
                 .iter()
                 .flat_map(|rectangle| rectangle.positions())
-                .chain(
-                    borders
-                        .iter()
-                        .flat_map(|border| border.positions(&dimension)),
-                )
+                .chain(borders.iter().flat_map(|border| border.positions()))
                 .collect::<HashSet<Position>>();
 
             let dimension_positions = dimension.positions();
@@ -660,7 +698,7 @@ mod test_rectangle {
                     borders
                         .iter()
                         .filter(|b2| *b1 != **b2)
-                        .map(|b2| b1.intersection(b2, &dimension))
+                        .map(|b2| b1.intersection(b2))
                 })
                 .filter(|intersection| !intersection.is_empty())
                 .collect::<Vec<_>>();
@@ -671,7 +709,7 @@ mod test_rectangle {
                     borders
                         .iter()
                         .map(|border| {
-                            let border_positions = border.positions(&dimension);
+                            let border_positions = border.positions();
                             rectangle
                                 .positions()
                                 .intersection(&border_positions)
@@ -741,21 +779,24 @@ mod test_rectangle {
                         start: Position {
                             line: 50,
                             column: 0
-                        }
+                        },
+                        length: 100
                     },
                     Border {
                         direction: Horizontal,
                         start: Position {
                             line: 75,
                             column: 0
-                        }
+                        },
+                        length: 100
                     },
                     Border {
                         direction: Vertical,
                         start: Position {
                             line: 76,
                             column: 50
-                        }
+                        },
+                        length: 24
                     }
                 ]
             );

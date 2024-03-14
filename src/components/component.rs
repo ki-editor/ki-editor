@@ -30,6 +30,7 @@ impl GetGridResult {
     }
 }
 
+#[derive(Clone)]
 pub struct Cursor {
     position: Position,
     style: crossterm::cursor::SetCursorStyle,

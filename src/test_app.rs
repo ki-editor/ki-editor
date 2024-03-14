@@ -148,7 +148,7 @@ pub mod test_app {
                     component.borrow().editor().get_grid(context).to_string(),
                     grid.to_string(),
                 ),
-                AppGrid(grid) => contextualize(app.get_grid()?.to_string(), grid.to_string()),
+                AppGrid(grid) => contextualize(app.get_screen()?.to_string(), grid.to_string()),
                 CurrentPath(path) => {
                     contextualize(app.get_current_file_path().unwrap(), path.clone())
                 }

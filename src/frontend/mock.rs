@@ -1,9 +1,9 @@
 #! #[cfg(test)]
 
-use crate::{components::component::Cursor, grid::Grid};
+use crate::{components::component::Cursor, grid::Grid, screen::Screen};
 #[derive(Clone)]
 pub struct MockFrontend {
-    grid: Option<Grid>,
+    screen: Option<Screen>,
 }
 
 const WIDTH: u16 = 80;
@@ -50,20 +50,20 @@ impl super::frontend::Frontend for MockFrontend {
         Ok(())
     }
 
-    fn render_grid(&mut self, grid: Grid) -> anyhow::Result<()> {
-        self.grid = Some(grid);
+    fn render_screen(&mut self, grid: Screen) -> anyhow::Result<()> {
+        self.screen = Some(grid);
         Ok(())
     }
 }
 
 impl MockFrontend {
     pub fn new() -> Self {
-        Self { grid: None }
+        Self { screen: None }
     }
     pub fn content(&self) -> String {
-        self.grid
+        self.screen
             .as_ref()
-            .map(|grid| grid.content())
+            .map(|screen| screen.to_string())
             .unwrap_or_default()
     }
 }

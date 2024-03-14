@@ -54,6 +54,13 @@ impl Position {
             column: self.column,
         }
     }
+
+    pub(crate) fn translate(&self, Position { line, column }: Position) -> Position {
+        Position {
+            line: self.line + line,
+            column: self.column + column,
+        }
+    }
 }
 
 impl PartialOrd for Position {

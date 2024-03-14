@@ -1,4 +1,4 @@
-use crate::{app::Dimension, components::component::Cursor, grid::Grid};
+use crate::{app::Dimension, components::component::Cursor, screen::Screen};
 
 pub trait Frontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<Dimension>;
@@ -10,5 +10,5 @@ pub trait Frontend {
     fn show_cursor(&mut self, cursor: &Cursor) -> anyhow::Result<()>;
     fn hide_cursor(&mut self) -> anyhow::Result<()>;
     fn clear_screen(&mut self) -> anyhow::Result<()>;
-    fn render_grid(&mut self, grid: Grid) -> anyhow::Result<()>;
+    fn render_screen(&mut self, screen: Screen) -> anyhow::Result<()>;
 }
