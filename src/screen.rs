@@ -97,6 +97,11 @@ impl Screen {
             height: (max_line + 1) as u16,
         }
     }
+
+    pub(crate) fn add_window(mut self, window: Window) -> Screen {
+        self.windows.push(window);
+        self
+    }
 }
 
 #[derive(Clone)]

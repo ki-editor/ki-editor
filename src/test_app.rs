@@ -148,7 +148,10 @@ pub mod test_app {
                     component.borrow().editor().get_grid(context).to_string(),
                     grid.to_string(),
                 ),
-                AppGrid(grid) => contextualize(app.get_screen()?.to_string(), grid.to_string()),
+                AppGrid(grid) => contextualize(
+                    app.get_screen()?.to_string().trim_matches('\n').to_string(),
+                    grid.to_string().trim_matches('\n').to_string(),
+                ),
                 CurrentPath(path) => {
                     contextualize(app.get_current_file_path().unwrap(), path.clone())
                 }
@@ -730,28 +733,26 @@ fn first () {
                 )),
                 Editor(DispatchEditor::MatchLiteral("fifth()".to_string())),
                 Editor(AlignViewTop),
-                Expect(ExpectKind::AppGrid(
+                Expect(AppGrid(
                     "
-src/main.rs 🦀
+ src/main.rs 🦀
 1│fn first () {
 5│  █ifth();
 6│}
 
 [GLOBAL TITLE]
-"
-                    .trim(),
+",
                 )),
                 Editor(AlignViewBottom),
                 Expect(AppGrid(
                     "
-src/main.rs 🦀
+ src/main.rs 🦀
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
 5│  █ifth();
 [GLOBAL TITLE]
-"
-                    .trim(),
+",
                 )),
                 // Resize the terminal dimension sucht that the fourth line will be wrapped
                 App(TerminalDimensionChanged(Dimension {
@@ -761,14 +762,13 @@ src/main.rs 🦀
                 Editor(AlignViewBottom),
                 Expect(AppGrid(
                     "
-src/main.rs 🦀
+ src/main.rs 🦀
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long
 5│  █ifth();
 [GLOBAL TITLE]
-"
-                    .trim(),
+",
                 )),
             ])
         })

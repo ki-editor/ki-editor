@@ -309,7 +309,7 @@ impl<T: Frontend> App<T> {
             .fold(grid, Grid::set_border);
 
         // Set the global title
-        let global_title_grid = {
+        let global_title_window = {
             let mode = self.context.mode().map(|mode| mode.display()).or_else(|| {
                 self.current_component()
                     .map(|component| component.borrow().editor().display_mode())
@@ -337,13 +337,24 @@ impl<T: Frontend> App<T> {
                 )
             };
 
-            Grid::new(Dimension {
+            let grid = Grid::new(Dimension {
                 height: 1,
                 width: dimension.width,
             })
-            .set_line(0, &title, &self.context.theme().ui.global_title)
+            .set_line(0, &title, &self.context.theme().ui.global_title);
+            Window::new(
+                grid,
+                crate::rectangle::Rectangle {
+                    width: dimension.width,
+                    height: 1,
+                    origin: Position {
+                        line: dimension.height as usize,
+                        column: 0,
+                    },
+                },
+            )
         };
-        let grid = grid.merge_vertical(global_title_grid);
+        let screen = screen.add_window(global_title_window);
 
         Ok(screen)
     }
