@@ -30,20 +30,48 @@ impl GetGridResult {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Cursor {
     position: Position,
-    style: crossterm::cursor::SetCursorStyle,
+    style: SetCursorStyle,
+}
+
+/// Why is this necessary? Because `crossterm::cursor::SetCursorStyle` does not implement `Debug`.
+#[derive(Debug, Clone, Copy)]
+pub enum SetCursorStyle {
+    DefaultUserShape,
+    BlinkingBlock,
+    SteadyBlock,
+    BlinkingUnderScore,
+    SteadyUnderScore,
+    BlinkingBar,
+    SteadyBar,
+}
+
+impl From<&SetCursorStyle> for crossterm::cursor::SetCursorStyle {
+    fn from(style: &SetCursorStyle) -> Self {
+        match style {
+            SetCursorStyle::DefaultUserShape => crossterm::cursor::SetCursorStyle::DefaultUserShape,
+            SetCursorStyle::BlinkingBlock => crossterm::cursor::SetCursorStyle::BlinkingBlock,
+            SetCursorStyle::SteadyBlock => crossterm::cursor::SetCursorStyle::SteadyBlock,
+            SetCursorStyle::BlinkingUnderScore => {
+                crossterm::cursor::SetCursorStyle::BlinkingUnderScore
+            }
+            SetCursorStyle::SteadyUnderScore => crossterm::cursor::SetCursorStyle::SteadyUnderScore,
+            SetCursorStyle::BlinkingBar => crossterm::cursor::SetCursorStyle::BlinkingBar,
+            SetCursorStyle::SteadyBar => crossterm::cursor::SetCursorStyle::SteadyBar,
+        }
+    }
 }
 impl Cursor {
-    pub fn style(&self) -> &crossterm::cursor::SetCursorStyle {
+    pub fn style(&self) -> &SetCursorStyle {
         &self.style
     }
     pub fn position(&self) -> &Position {
         &self.position
     }
 
-    pub fn new(position: Position, style: crossterm::cursor::SetCursorStyle) -> Cursor {
+    pub fn new(position: Position, style: SetCursorStyle) -> Cursor {
         Cursor { position, style }
     }
 
@@ -67,7 +95,7 @@ pub trait Component: Any + AnyComponent {
     }
 
     #[cfg(test)]
-    /// This is for writing tests for components.
+
     fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
         let mut context = Context::default();
         Ok(events
@@ -137,10 +165,8 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().set_title(title);
     }
 
-    /// This should only return the direct children of this component.
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>>;
 
-    /// Does not include the component itself
     fn descendants(&self) -> Vec<Rc<RefCell<dyn Component>>> {
         self.children()
             .into_iter()
@@ -154,7 +180,6 @@ pub trait Component: Any + AnyComponent {
     fn remove_child(&mut self, component_id: ComponentId);
 }
 
-/// Modified from https://github.com/helix-editor/helix/blob/91da0dc172dde1a972be7708188a134db70562c3/helix-term/src/compositor.rs#L212
 pub trait AnyComponent {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -178,8 +203,6 @@ fn increment_counter() -> usize {
     COUNTER.fetch_add(1, Ordering::SeqCst)
 }
 
-/// Why do I use UUID instead of a simple u64?
-/// Because with UUID I don't need a global state to keep track of the next ID.
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
 pub struct ComponentId(usize);
 impl ComponentId {

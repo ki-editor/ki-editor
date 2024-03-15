@@ -65,7 +65,13 @@ impl Screen {
                 let cells = cells
                     .into_iter()
                     .sorted_by(|a, b| a.position.column.cmp(&b.position.column))
-                    .map(|cell| cell.cell.symbol)
+                    .map(|cell| {
+                        if cell.cell.is_cursor {
+                            "█".to_string()
+                        } else {
+                            cell.cell.symbol
+                        }
+                    })
                     .join("")
                     .trim_end()
                     .to_string();
@@ -106,14 +112,6 @@ impl Window {
             .into_iter()
             .map(|cell| PositionedCell {
                 position: cell.position.translate(self.rectangle.origin),
-                cell: Cell {
-                    symbol: if cell.cell.is_cursor {
-                        "█".to_string()
-                    } else {
-                        cell.cell.symbol
-                    },
-                    ..cell.cell
-                },
                 ..cell
             })
             // // Why is this necessary? Because some character takes up multiple terminal cells, such as tab

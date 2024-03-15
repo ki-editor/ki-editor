@@ -17,7 +17,7 @@ use std::{
 use crate::{
     buffer::Buffer,
     components::{
-        component::{Component, ComponentId, Cursor, GetGridResult},
+        component::{Component, ComponentId, GetGridResult},
         dropdown::DropdownRender,
         editor::{DispatchEditor, Editor, Movement},
         keymap_legend::{
@@ -363,8 +363,8 @@ impl<T: Frontend> App<T> {
         frontend.hide_cursor()?;
         let cursor = screen.cursor();
         frontend.render_screen(screen)?;
-        if let Some(position) = cursor {
-            frontend.show_cursor(&position)?;
+        if let Some(cursor) = cursor {
+            frontend.show_cursor(&cursor)?;
         }
 
         Ok(())
@@ -892,8 +892,6 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::PrepareRenameResponse(context, response) => {
                 let editor = self.get_suggestive_editor(context.component_id)?;
-                log::info!("response = {:#?}", response);
-
                 // Note: we cannot refactor the following code into the below code, otherwise we will get error,
                 // because RefCell is borrow_mut twice. The borrow has to be dropped.
                 //
@@ -1195,11 +1193,6 @@ impl<T: Frontend> App<T> {
 
     fn move_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
-        log::info!(
-            "move file from {} to {}",
-            from.display_absolute(),
-            to.display()
-        );
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
         self.layout.refresh_file_explorer(&self.working_directory)?;
@@ -1210,7 +1203,6 @@ impl<T: Frontend> App<T> {
     }
     fn add_path_parent(&self, path: &PathBuf) -> anyhow::Result<()> {
         if let Some(new_dir) = path.parent() {
-            log::info!("Creating new dir at {}", new_dir.display());
             std::fs::create_dir_all(new_dir)?;
         }
         Ok(())

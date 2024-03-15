@@ -18,7 +18,7 @@ impl Crossterm {
 }
 
 use crossterm::{
-    cursor::{Hide, MoveTo, Show},
+    cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{DisableBracketedPaste, EnableBracketedPaste, EnableMouseCapture},
     execute, queue,
     style::{
@@ -62,7 +62,8 @@ impl Frontend for Crossterm {
     }
 
     fn show_cursor(&mut self, cursor: &Cursor) -> anyhow::Result<()> {
-        queue!(self.stdout, Show, cursor.style())?;
+        let style: SetCursorStyle = cursor.style().into();
+        queue!(self.stdout, Show, style)?;
         execute!(
             self.stdout,
             MoveTo(

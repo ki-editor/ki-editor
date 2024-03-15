@@ -109,53 +109,6 @@ impl Component for SuggestiveEditor {
         context: &Context,
         event: event::KeyEvent,
     ) -> anyhow::Result<Vec<Dispatch>> {
-        if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
-            match event {
-                key!("ctrl+n") | key!("down") => {
-                    self.completion_dropdown.next_item();
-                    return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
-                        render: self.completion_dropdown.render(),
-                    }]
-                    .to_vec());
-                }
-                key!("ctrl+p") | key!("up") => {
-                    self.completion_dropdown.previous_item();
-                    return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
-                        render: self.completion_dropdown.render(),
-                    }]
-                    .to_vec());
-                }
-                key!("tab") => {
-                    let current_item = self.completion_dropdown.current_item();
-                    if let Some(completion) = current_item {
-                        let edit_dispatch = match completion.edit {
-                            None => Dispatch::DispatchEditor(DispatchEditor::ReplacePreviousWord(
-                                completion.label(),
-                            )),
-                            Some(edit) => match edit {
-                                CompletionItemEdit::PositionalEdit(edit) => {
-                                    Dispatch::DispatchEditor(DispatchEditor::ApplyPositionalEdit(
-                                        edit,
-                                    ))
-                                }
-                            },
-                        };
-                        return Ok([
-                            Dispatch::CloseDropdown {
-                                owner_id: self.id(),
-                            },
-                            edit_dispatch,
-                        ]
-                        .to_vec());
-                    }
-                }
-
-                _ => {}
-            }
-        }
-
         if self.editor.mode == Mode::Normal && self.code_action_dropdown.current_item().is_some() {
             match event {
                 key!("ctrl+n") | key!("down") => {
@@ -208,6 +161,53 @@ impl Component for SuggestiveEditor {
                         owner_id: self.id(),
                     }]
                     .to_vec());
+                }
+
+                _ => {}
+            }
+        }
+
+        if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
+            match event {
+                key!("ctrl+n") | key!("down") => {
+                    self.completion_dropdown.next_item();
+                    return Ok([Dispatch::RenderDropdown {
+                        owner_id: self.id(),
+                        render: self.completion_dropdown.render(),
+                    }]
+                    .to_vec());
+                }
+                key!("ctrl+p") | key!("up") => {
+                    self.completion_dropdown.previous_item();
+                    return Ok([Dispatch::RenderDropdown {
+                        owner_id: self.id(),
+                        render: self.completion_dropdown.render(),
+                    }]
+                    .to_vec());
+                }
+                key!("tab") => {
+                    let current_item = self.completion_dropdown.current_item();
+                    if let Some(completion) = current_item {
+                        let edit_dispatch = match completion.edit {
+                            None => Dispatch::DispatchEditor(DispatchEditor::ReplacePreviousWord(
+                                completion.label(),
+                            )),
+                            Some(edit) => match edit {
+                                CompletionItemEdit::PositionalEdit(edit) => {
+                                    Dispatch::DispatchEditor(DispatchEditor::ApplyPositionalEdit(
+                                        edit,
+                                    ))
+                                }
+                            },
+                        };
+                        return Ok([
+                            Dispatch::CloseDropdown {
+                                owner_id: self.id(),
+                            },
+                            edit_dispatch,
+                        ]
+                        .to_vec());
+                    }
                 }
 
                 _ => {}

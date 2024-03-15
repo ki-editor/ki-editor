@@ -195,16 +195,7 @@ impl Ord for PositionedCell {
 impl Grid {
     /// The `new_grid` need not be the same size as the old grid (`self`).
     pub fn diff(&self, new_grid: &Grid) -> Vec<PositionedCell> {
-        // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
-        // which can cause re-render to flicker like old TV (at least on Kitty term)
-
-        let new: indexmap::IndexSet<PositionedCell> =
-            new_grid.to_positioned_cells().into_iter().collect();
-        let old: indexmap::IndexSet<PositionedCell> =
-            self.to_positioned_cells().into_iter().collect();
-        new.difference(&old)
-            .map(|cell| cell.to_owned())
-            .collect_vec()
+        todo!("Remove this function, it has been moved under Screen")
     }
 
     pub fn new(dimension: Dimension) -> Grid {
@@ -695,8 +686,7 @@ mod test_grid {
         };
         let old = Grid::from_text(dimension, "a\nbc");
         let new = Grid::from_text(dimension, "bc");
-        let mut actual = old.diff(&new);
-        actual.sort();
+        let actual = old.diff(&new);
         let expected = vec![
             PositionedCell {
                 position: Position { line: 0, column: 0 },
