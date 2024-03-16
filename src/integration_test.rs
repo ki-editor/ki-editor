@@ -68,7 +68,7 @@ impl TestRunner {
         let tree_oid = index.write_tree()?;
         let tree = repo.find_tree(tree_oid)?;
         let sig = repo.signature()?;
-        let mut config = Config::open_default()?;
+        let mut config = Config::open_default()?.open_global()?;
 
         if !has_value(&config, "user.name") {
             config.set_str("user.name", "Tester")?;
