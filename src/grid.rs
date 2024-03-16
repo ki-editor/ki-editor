@@ -37,7 +37,7 @@ fn choose<T>(old: Option<T>, new: Option<T>) -> Option<T> {
 
 impl Cell {
     #[cfg(test)]
-    fn from_char(c: char) -> Self {
+    pub fn from_char(c: char) -> Self {
         Cell {
             symbol: c.to_string(),
             ..Default::default()
@@ -245,7 +245,7 @@ impl Grid {
     }
 
     #[cfg(test)]
-    fn from_text(dimension: Dimension, text: &str) -> Grid {
+    pub fn from_text(dimension: Dimension, text: &str) -> Grid {
         Grid::from_rope(dimension, &Rope::from_str(text))
     }
 
@@ -676,36 +676,6 @@ mod test_grid {
         ]
         .to_vec();
         assert_eq!(grid.to_positioned_cells(), expected);
-    }
-
-    #[test]
-    fn diff_same_size() {
-        let dimension = Dimension {
-            height: 2,
-            width: 4,
-        };
-        let old = Grid::from_text(dimension, "a\nbc");
-        let new = Grid::from_text(dimension, "bc");
-        let actual = old.diff(&new);
-        let expected = vec![
-            PositionedCell {
-                position: Position { line: 0, column: 0 },
-                cell: Cell::from_char('b'),
-            },
-            PositionedCell {
-                position: Position { line: 0, column: 1 },
-                cell: Cell::from_char('c'),
-            },
-            PositionedCell {
-                position: Position { line: 1, column: 0 },
-                cell: Cell::from_char(' '),
-            },
-            PositionedCell {
-                position: Position { line: 1, column: 1 },
-                cell: Cell::from_char(' '),
-            },
-        ];
-        assert_eq!(actual, expected);
     }
 
     #[test]

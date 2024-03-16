@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::{
     app::Dimension,
-    grid::{Cell, Grid, PositionedCell},
+    grid::{Grid, PositionedCell},
     rectangle::{Border, Rectangle},
 };
 
@@ -126,5 +126,62 @@ impl Window {
 
     pub(crate) fn new(grid: Grid, rectangle: Rectangle) -> Self {
         Self { grid, rectangle }
+    }
+}
+
+#[cfg(test)]
+mod test_screen {
+    use crate::{
+        app::Dimension,
+        grid::{Cell, Grid, PositionedCell},
+        position::Position,
+        screen::{Screen, Window},
+    };
+
+    #[test]
+    fn diff_same_size() {
+        let dimension = Dimension {
+            height: 2,
+            width: 4,
+        };
+        let rectangle = crate::rectangle::Rectangle {
+            origin: Position::new(0, 0),
+            width: dimension.width,
+            height: dimension.height,
+        };
+        let old = Screen::new(
+            [Window::new(
+                Grid::from_text(dimension, "a\nbc"),
+                rectangle.clone(),
+            )]
+            .to_vec(),
+            Vec::new(),
+            None,
+        );
+        let new = Screen::new(
+            [Window::new(Grid::from_text(dimension, "bc"), rectangle)].to_vec(),
+            Vec::new(),
+            None,
+        );
+        let actual = new.diff(&old);
+        let expected = vec![
+            PositionedCell {
+                position: Position { line: 0, column: 0 },
+                cell: Cell::from_char('b'),
+            },
+            PositionedCell {
+                position: Position { line: 0, column: 1 },
+                cell: Cell::from_char('c'),
+            },
+            PositionedCell {
+                position: Position { line: 1, column: 0 },
+                cell: Cell::from_char(' '),
+            },
+            PositionedCell {
+                position: Position { line: 1, column: 1 },
+                cell: Cell::from_char(' '),
+            },
+        ];
+        assert_eq!(actual, expected);
     }
 }
