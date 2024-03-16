@@ -68,13 +68,25 @@ impl TestRunner {
         let tree_oid = index.write_tree()?;
         let tree = repo.find_tree(tree_oid)?;
         let sig = repo.signature()?;
-        if is_ci::cached() {
-            // This is necessary for `git commit` to work
-            let mut config = Config::open_default()?;
+        let mut config = Config::open_default()?;
+
+        if !has_value(&config, "user.name") {
             config.set_str("user.name", "Tester")?;
+        }
+        if !has_value(&config, "user.email") {
             config.set_str("user.email", "tester@dokimi.com")?;
         }
         repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])?;
         Ok(())
     }
+}
+
+fn has_value(config: &Config, name: &str) -> bool {
+    let Ok(entry) = config.get_entry(name) else {
+        return false;
+    };
+    let Some(value) = entry.value() else {
+        return false;
+    };
+    !value.is_empty()
 }
