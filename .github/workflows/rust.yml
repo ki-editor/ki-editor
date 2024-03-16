@@ -8,24 +8,13 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
 
 jobs:
   check:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up global git user.name (needed for testing)
-      run: git config --global user.name Tester
-    - name: Set up global git user.email
-      run: git config --global user.email tester@gmail.com
-    - name: Build
-      run: cargo build --workspace --tests  
-    - name: Test
-      run: cargo test --workspace 
-    - name: Clippy
-      run: cargo clippy --workspace --tests
-    - name: Format
-      run: cargo fmt -- --check
+    - uses: extractions/setup-just@v1
+    - name: Just
+      run: just
