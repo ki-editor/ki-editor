@@ -5,7 +5,6 @@ use std::{
 };
 
 use crate::app::AppMessage;
-use git2::Config;
 use shared::canonicalized_path::CanonicalizedPath;
 
 pub struct TestRunner {

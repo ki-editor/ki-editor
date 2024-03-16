@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
 
 jobs:
   check:
@@ -25,6 +26,6 @@ jobs:
     - name: Test
       run: cargo test --workspace 
     - name: Clippy
-      run: cargo clippy --workspace --tests 
+      run: cargo clippy --workspace --tests
     - name: Format
       run: cargo fmt -- --check
