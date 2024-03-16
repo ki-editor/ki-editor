@@ -17,7 +17,7 @@ use std::{
 use crate::{
     buffer::Buffer,
     components::{
-        component::{Component, ComponentId, Cursor, GetGridResult},
+        component::{Component, ComponentId, GetGridResult},
         dropdown::DropdownRender,
         editor::{DispatchEditor, Editor, Movement},
         keymap_legend::{
@@ -46,6 +46,7 @@ use crate::{
     },
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
+    screen::{Screen, Window},
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
@@ -243,24 +244,19 @@ impl<T: Frontend> App<T> {
     }
 
     fn render(&mut self) -> Result<(), anyhow::Error> {
-        let GetGridResult { grid, cursor } = self.get_grid()?;
-        self.render_grid(grid, cursor)?;
+        let screen = self.get_screen()?;
+        self.render_screen(screen)?;
         Ok(())
     }
 
-    pub fn get_grid(&mut self) -> Result<GetGridResult, anyhow::Error> {
+    pub fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
 
         // Generate layout
         let dimension = self.layout.terminal_dimension();
-        let grid = Grid::new(Dimension {
-            height: dimension.height,
-            width: dimension.width,
-        });
-
         // Render every window
-        let (grid, cursor) = self
+        let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
             .into_iter()
             .map(|component| {
@@ -291,30 +287,17 @@ impl<T: Frontend> App<T> {
                 } else {
                     None
                 };
+                let window = Window::new(grid, rectangle.clone());
 
-                (grid, rectangle.clone(), cursor_position)
+                (window, cursor_position)
             })
-            .fold(
-                (grid, None),
-                |(grid, current_cursor_point), (component_grid, rectangle, cursor_point)| {
-                    {
-                        (
-                            grid.update(&component_grid, &rectangle),
-                            current_cursor_point.or(cursor_point),
-                        )
-                    }
-                },
-            );
-
-        // Render every border
-        let grid = self
-            .layout
-            .borders()
-            .into_iter()
-            .fold(grid, Grid::set_border);
+            .unzip();
+        let borders = self.layout.borders();
+        let cursor = cursors.into_iter().find_map(|cursor| cursor);
+        let screen = Screen::new(windows, borders, cursor);
 
         // Set the global title
-        let global_title_grid = {
+        let global_title_window = {
             let mode = self.context.mode().map(|mode| mode.display()).or_else(|| {
                 self.current_component()
                     .map(|component| component.borrow().editor().display_mode())
@@ -342,15 +325,26 @@ impl<T: Frontend> App<T> {
                 )
             };
 
-            Grid::new(Dimension {
+            let grid = Grid::new(Dimension {
                 height: 1,
                 width: dimension.width,
             })
-            .set_line(0, &title, &self.context.theme().ui.global_title)
+            .set_line(0, &title, &self.context.theme().ui.global_title);
+            Window::new(
+                grid,
+                crate::rectangle::Rectangle {
+                    width: dimension.width,
+                    height: 1,
+                    origin: Position {
+                        line: dimension.height as usize,
+                        column: 0,
+                    },
+                },
+            )
         };
-        let grid = grid.merge_vertical(global_title_grid);
+        let screen = screen.add_window(global_title_window);
 
-        Ok(GetGridResult { grid, cursor })
+        Ok(screen)
     }
 
     fn current_branch(&self) -> Option<String> {
@@ -363,12 +357,13 @@ impl<T: Frontend> App<T> {
         Some(branch.to_string())
     }
 
-    fn render_grid(&mut self, grid: Grid, cursor: Option<Cursor>) -> Result<(), anyhow::Error> {
+    fn render_screen(&mut self, screen: Screen) -> Result<(), anyhow::Error> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.hide_cursor()?;
-        frontend.render_grid(grid)?;
-        if let Some(position) = cursor {
-            frontend.show_cursor(&position)?;
+        let cursor = screen.cursor();
+        frontend.render_screen(screen)?;
+        if let Some(cursor) = cursor {
+            frontend.show_cursor(&cursor)?;
         }
 
         Ok(())
@@ -896,8 +891,6 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::PrepareRenameResponse(context, response) => {
                 let editor = self.get_suggestive_editor(context.component_id)?;
-                log::info!("response = {:#?}", response);
-
                 // Note: we cannot refactor the following code into the below code, otherwise we will get error,
                 // because RefCell is borrow_mut twice. The borrow has to be dropped.
                 //
@@ -1199,11 +1192,6 @@ impl<T: Frontend> App<T> {
 
     fn move_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
         use std::fs;
-        log::info!(
-            "move file from {} to {}",
-            from.display_absolute(),
-            to.display()
-        );
         self.add_path_parent(&to)?;
         fs::rename(from.clone(), to.clone())?;
         self.layout.refresh_file_explorer(&self.working_directory)?;
@@ -1214,7 +1202,6 @@ impl<T: Frontend> App<T> {
     }
     fn add_path_parent(&self, path: &PathBuf) -> anyhow::Result<()> {
         if let Some(new_dir) = path.parent() {
-            log::info!("Creating new dir at {}", new_dir.display());
             std::fs::create_dir_all(new_dir)?;
         }
         Ok(())

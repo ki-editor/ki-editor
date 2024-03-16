@@ -21,6 +21,7 @@ mod app;
 pub mod history;
 mod quickfix_list;
 mod rectangle;
+mod screen;
 mod selection;
 pub mod selection_mode;
 pub mod selection_range;

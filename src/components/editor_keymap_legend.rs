@@ -87,13 +87,13 @@ impl Editor {
             ),
             Keymap::new(
                 "y",
-                "Line (Trimmed)".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(LineTrimmed)),
+                "Line (Full)".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(LineFull)),
             ),
             Keymap::new(
                 "Y",
-                "Line (Full)".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(LineFull)),
+                "Line (Trimmed)".to_string(),
+                Dispatch::DispatchEditor(SetSelectionMode(LineTrimmed)),
             ),
             Keymap::new(
                 "f",
@@ -170,7 +170,7 @@ impl Editor {
             ),
             Keymap::new(
                 "o",
-                "Omnom (Eat)".to_string(),
+                "Overwrite".to_string(),
                 Dispatch::DispatchEditor(EnterReplaceMode),
             ),
             Keymap::new(

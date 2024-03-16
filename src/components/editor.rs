@@ -2,7 +2,7 @@ use crate::{
     app::{RequestParams, Scope, SelectionSetHistoryKind},
     buffer::Line,
     char_index_range::CharIndexRange,
-    components::component::Cursor,
+    components::component::{Cursor, SetCursorStyle},
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
@@ -319,7 +319,7 @@ impl Component for Editor {
                 Some(
                     CellUpdate::new(position)
                         .style(style)
-                        .symbol(jump.character.to_string()),
+                        .set_symbol(Some(jump.character.to_string())),
                 )
             });
         let extra_decorations = buffer
@@ -541,18 +541,14 @@ impl Component for Editor {
 
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
+        let style = match self.mode {
+            Mode::Normal => SetCursorStyle::BlinkingBlock,
+            Mode::Insert => SetCursorStyle::BlinkingBar,
+            _ => SetCursorStyle::BlinkingUnderScore,
+        };
 
         GetGridResult {
-            cursor: cursor_position.map(|position| {
-                Cursor::new(
-                    position,
-                    if self.mode == Mode::Insert {
-                        crossterm::cursor::SetCursorStyle::BlinkingBar
-                    } else {
-                        crossterm::cursor::SetCursorStyle::BlinkingBlock
-                    },
-                )
-            }),
+            cursor: cursor_position.map(|position| Cursor::new(position, style)),
             grid,
         }
     }
