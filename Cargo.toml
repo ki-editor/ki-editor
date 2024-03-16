@@ -81,6 +81,8 @@ similar = {version = "2.4.0", features = ["unicode", "inline"]}
 indexmap = "2.2.2"
 globset = "0.4.14"
 unicode-width = "0.1.11"
+
+
 [dev-dependencies]
 serial_test = "2.0.0"
 tempfile = "3.6.0"
@@ -91,6 +93,7 @@ rand = "0.8.5"
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 indoc = "2.0.4"
+is_ci = "1.2.0"
 
 [profile.release]
 debug = true

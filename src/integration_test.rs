@@ -5,6 +5,7 @@ use std::{
 };
 
 use crate::app::AppMessage;
+use git2::Config;
 use shared::canonicalized_path::CanonicalizedPath;
 
 pub struct TestRunner {
@@ -61,13 +62,18 @@ impl TestRunner {
     }
     fn git_init(path: CanonicalizedPath) -> anyhow::Result<()> {
         use git2::{Repository, RepositoryInitOptions};
-
         let repo = Repository::init_opts(path, RepositoryInitOptions::new().mkdir(false))?;
         let mut index = repo.index()?;
         index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
         let tree_oid = index.write_tree()?;
         let tree = repo.find_tree(tree_oid)?;
         let sig = repo.signature()?;
+        if is_ci::cached() {
+            // This is necessary for `git commit` to work
+            let mut config = Config::open_default()?;
+            config.set_str("user.name", "Tester")?;
+            config.set_str("user.email", "tester@dokimi.com")?;
+        }
         repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])?;
         Ok(())
     }
