@@ -60,9 +60,9 @@ impl MockFrontend {
     pub fn new() -> Self {
         Self { screen: None }
     }
-    pub fn content(&self) -> String {
+    pub fn content(&mut self) -> String {
         self.screen
-            .as_ref()
+            .as_mut()
             .map(|screen| screen.to_string())
             .unwrap_or_default()
     }

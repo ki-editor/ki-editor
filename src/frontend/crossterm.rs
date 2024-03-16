@@ -84,11 +84,11 @@ impl Frontend for Crossterm {
         Ok(())
     }
 
-    fn render_screen(&mut self, screen: Screen) -> anyhow::Result<()> {
+    fn render_screen(&mut self, mut screen: Screen) -> anyhow::Result<()> {
         let cells = {
             // Only perform diff if the dimension is the same
             let diff = if self.previous_screen.dimension() == screen.dimension() {
-                screen.diff(&self.previous_screen)
+                screen.diff(&mut self.previous_screen)
             } else {
                 self.clear_screen()?;
                 screen.to_positioned_cells()

@@ -11,6 +11,7 @@ pub struct Screen {
     windows: Vec<Window>,
     borders: Vec<Border>,
     cursor: Option<crate::components::component::Cursor>,
+    memoized_positioned_cells: Option<Vec<PositionedCell>>,
 }
 
 impl Screen {
@@ -23,18 +24,29 @@ impl Screen {
             windows,
             borders,
             cursor,
+            memoized_positioned_cells: None,
         }
     }
-    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
-        self.windows
-            .iter()
-            .flat_map(Window::to_positioned_cells)
-            .chain(
-                self.borders
+    /// This takes a `&mut self` instead of a `&self` because memoization.
+    /// Memoization is necessary because there are other functions that depends on the result of this function,
+    /// for example `Screen::dimension`.
+    pub fn to_positioned_cells(&mut self) -> Vec<PositionedCell> {
+        if let Some(positioned_cells) = self.memoized_positioned_cells.clone() {
+            positioned_cells
+        } else {
+            self.memoized_positioned_cells = Some(
+                self.windows
                     .iter()
-                    .flat_map(|border| border.to_positioned_cells()),
-            )
-            .collect()
+                    .flat_map(Window::to_positioned_cells)
+                    .chain(
+                        self.borders
+                            .iter()
+                            .flat_map(|border| border.to_positioned_cells()),
+                    )
+                    .collect(),
+            );
+            self.to_positioned_cells()
+        }
     }
 
     pub(crate) fn cursor(&self) -> Option<crate::components::component::Cursor> {
@@ -42,7 +54,7 @@ impl Screen {
     }
 
     /// The `new_screen` need not be the same size as the old screen (`self`).
-    pub fn diff(&self, old_screen: &Screen) -> Vec<PositionedCell> {
+    pub fn diff(&mut self, old_screen: &mut Screen) -> Vec<PositionedCell> {
         // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
         // which can cause re-render to flicker like old TV (at least on Kitty term)
 
@@ -56,7 +68,7 @@ impl Screen {
     }
 
     #[cfg(test)]
-    pub(crate) fn to_string(&self) -> String {
+    pub(crate) fn to_string(&mut self) -> String {
         self.to_positioned_cells()
             .into_iter()
             .group_by(|cell| cell.position.line)
@@ -80,7 +92,7 @@ impl Screen {
             .join("\n")
     }
 
-    pub(crate) fn dimension(&self) -> Dimension {
+    pub(crate) fn dimension(&mut self) -> Dimension {
         let cells = self.to_positioned_cells();
         let max_column = cells
             .iter()
@@ -149,7 +161,7 @@ mod test_screen {
             width: dimension.width,
             height: dimension.height,
         };
-        let old = Screen::new(
+        let mut old = Screen::new(
             [Window::new(
                 Grid::from_text(dimension, "a\nbc"),
                 rectangle.clone(),
@@ -158,12 +170,12 @@ mod test_screen {
             Vec::new(),
             None,
         );
-        let new = Screen::new(
+        let mut new = Screen::new(
             [Window::new(Grid::from_text(dimension, "bc"), rectangle)].to_vec(),
             Vec::new(),
             None,
         );
-        let actual = new.diff(&old);
+        let actual = new.diff(&mut old);
         let expected = vec![
             PositionedCell {
                 position: Position { line: 0, column: 0 },
