@@ -191,7 +191,6 @@ mod test_soft_wrap {
     fn consider_tab_width() {
         let content = "\tabc";
         let wrapped_lines = soft_wrap(content, 5);
-        assert_eq!(UnicodeWidthStr::width("👩"), 2);
         assert_eq!(wrapped_lines.wrapped_lines_count(), 2)
     }
 

@@ -95,7 +95,7 @@ pub trait Component: Any + AnyComponent {
     }
 
     #[cfg(test)]
-
+    /// This is for writing tests for components.
     fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
         let mut context = Context::default();
         Ok(events
@@ -165,8 +165,10 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().set_title(title);
     }
 
+    /// This should only return the direct children of this component.
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>>;
 
+    /// Does not include the component itself
     fn descendants(&self) -> Vec<Rc<RefCell<dyn Component>>> {
         self.children()
             .into_iter()
@@ -180,6 +182,7 @@ pub trait Component: Any + AnyComponent {
     fn remove_child(&mut self, component_id: ComponentId);
 }
 
+/// Modified from https://github.com/helix-editor/helix/blob/91da0dc172dde1a972be7708188a134db70562c3/helix-term/src/compositor.rs#L212
 pub trait AnyComponent {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;

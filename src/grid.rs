@@ -193,11 +193,6 @@ impl Ord for PositionedCell {
 }
 
 impl Grid {
-    /// The `new_grid` need not be the same size as the old grid (`self`).
-    pub fn diff(&self, new_grid: &Grid) -> Vec<PositionedCell> {
-        todo!("Remove this function, it has been moved under Screen")
-    }
-
     pub fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
         cells.resize_with(dimension.height.into(), || {

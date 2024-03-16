@@ -255,11 +255,6 @@ impl<T: Frontend> App<T> {
 
         // Generate layout
         let dimension = self.layout.terminal_dimension();
-        let grid = Grid::new(Dimension {
-            height: dimension.height,
-            width: dimension.width,
-        });
-
         // Render every window
         let (windows, cursors): (Vec<_>, Vec<_>) = self
             .components()
@@ -297,16 +292,9 @@ impl<T: Frontend> App<T> {
                 (window, cursor_position)
             })
             .unzip();
-        //            .fold( (grid, None), |(grid, current_cursor_point), (component_grid, rectangle, cursor_point)| { { ( grid.update(&component_grid, &rectangle), current_cursor_point.or(cursor_point), ) } }, );
         let borders = self.layout.borders();
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
         let screen = Screen::new(windows, borders, cursor);
-        // Render every border
-        let grid = self
-            .layout
-            .borders()
-            .into_iter()
-            .fold(grid, Grid::set_border);
 
         // Set the global title
         let global_title_window = {
