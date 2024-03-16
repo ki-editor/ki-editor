@@ -15,18 +15,24 @@ pub struct GetGridResult {
     pub grid: Grid,
     pub cursor: Option<Cursor>,
 }
-impl GetGridResult {
-    pub(crate) fn to_string(&self) -> String {
-        match &self.cursor {
-            Some(cursor) => self
-                .grid
-                .clone()
-                .apply_cell_update(
-                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some("█".to_string())),
-                )
-                .to_string(),
-            None => self.grid.to_string(),
-        }
+#[cfg(test)]
+impl std::fmt::Display for GetGridResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match &self.cursor {
+                Some(cursor) => self
+                    .grid
+                    .clone()
+                    .apply_cell_update(
+                        crate::grid::CellUpdate::new(cursor.position)
+                            .set_symbol(Some("█".to_string())),
+                    )
+                    .to_string(),
+                None => self.grid.to_string(),
+            }
+        )
     }
 }
 
@@ -97,10 +103,10 @@ pub trait Component: Any + AnyComponent {
     #[cfg(test)]
     /// This is for writing tests for components.
     fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
-        let mut context = Context::default();
+        let context = Context::default();
         Ok(events
             .iter()
-            .map(|event| self.handle_key_event(&mut context, event.clone()))
+            .map(|event| self.handle_key_event(&context, event.clone()))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()

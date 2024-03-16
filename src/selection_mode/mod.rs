@@ -85,15 +85,7 @@ impl ByteRange {
 
 impl PartialOrd for ByteRange {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.range
-            .start
-            .partial_cmp(&other.range.start)
-            .or_else(|| {
-                self.range
-                    .end
-                    .partial_cmp(&other.range.end)
-                    .map(|ordering| ordering.reverse())
-            })
+        Some(self.cmp(other))
     }
 }
 
@@ -488,10 +480,10 @@ pub trait SelectionMode {
             filters: &Filters::default(),
         };
         Ok((0..up_to)
-            .fold(
-                Ok((initial_range, Vec::new())),
+            .try_fold(
+                (initial_range, Vec::new()),
                 |result, _| -> anyhow::Result<_> {
-                    let (range, mut results) = result?;
+                    let (range, mut results) = result;
                     let selection = self.apply_movement(
                         SelectionModeParams {
                             current_selection: &Selection::new(range),

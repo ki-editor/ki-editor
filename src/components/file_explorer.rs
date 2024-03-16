@@ -108,7 +108,6 @@ impl Tree {
     {
         Tree {
             nodes: self.nodes.into_iter().map(f).collect(),
-            ..self
         }
     }
 

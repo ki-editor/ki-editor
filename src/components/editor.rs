@@ -254,24 +254,21 @@ impl Component for Editor {
 
         let secondary_selection_cursors = secondary_selections
             .iter()
-            .filter_map(|secondary_selection| {
-                Some(
-                    [
-                        char_index_to_cell_update(
-                            &buffer,
-                            secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
-                            theme.ui.secondary_selection_secondary_cursor,
-                        ),
-                        char_index_to_cell_update(
-                            &buffer,
-                            secondary_selection.to_char_index(&editor.cursor_direction),
-                            theme.ui.secondary_selection_primary_cursor,
-                        ),
-                    ]
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>(),
-                )
+            .flat_map(|secondary_selection| {
+                [
+                    char_index_to_cell_update(
+                        &buffer,
+                        secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
+                        theme.ui.secondary_selection_secondary_cursor,
+                    ),
+                    char_index_to_cell_update(
+                        &buffer,
+                        secondary_selection.to_char_index(&editor.cursor_direction),
+                        theme.ui.secondary_selection_primary_cursor,
+                    ),
+                ]
+                .into_iter()
+                .collect::<Vec<_>>()
             })
             .flatten();
 
@@ -481,7 +478,7 @@ impl Component for Editor {
                     .filter_map(|update| {
                         if let Some((index, _)) = hidden_parent_lines_with_index
                             .iter()
-                            .find(|(_, line)| &update.position.line == &line.line_number)
+                            .find(|(_, line)| update.position.line == line.line_number)
                         {
                             Some(
                                 update
@@ -700,6 +697,7 @@ impl Direction {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn default() -> Direction {
         Direction::Start
     }
@@ -747,9 +745,9 @@ impl Editor {
         self.apply_dispatches(
             context,
             [
-                DispatchEditor::SetContent(render.content.clone()),
-                DispatchEditor::SelectLineAt(render.highlight_line_index),
-                DispatchEditor::AlignViewCenter,
+                SetContent(render.content.clone()),
+                SelectLineAt(render.highlight_line_index),
+                AlignViewCenter,
             ]
             .to_vec(),
         )
@@ -964,7 +962,7 @@ impl Editor {
     }
 
     fn jump_characters() -> Vec<char> {
-        ('a'..='z').chain('A'..='Z').chain('0'..'9').collect_vec()
+        ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
     }
 
     fn get_selection_mode_trait_object(
@@ -1030,7 +1028,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn jump(&mut self, context: &Context) -> anyhow::Result<()> {
+    pub fn show_jumps(&mut self, context: &Context) -> anyhow::Result<()> {
         self.jump_from_selection(&self.selection_set.primary.clone(), context)
     }
 
@@ -1383,7 +1381,7 @@ impl Editor {
             SetRectangle(rectangle) => self.set_rectangle(rectangle),
             ScrollPageDown => return self.scroll_page_down(),
             ScrollPageUp => return self.scroll_page_up(),
-            DispatchEditor::Jump => self.jump(context)?,
+            ShowJumps => self.show_jumps(context)?,
             SwitchViewAlignment => self.switch_view_alignment(),
             SetScrollOffset(n) => self.set_scroll_offset(n),
             SetLanguage(language) => self.set_language(language)?,
@@ -1582,24 +1580,15 @@ impl Editor {
             key!("ctrl+a") | key!("home") => return self.move_to_line_start(),
             key!("ctrl+e") | key!("end") => return self.move_to_line_end(),
             key!("alt+backspace") => return self.delete_word_backward(context),
-            key!("ctrl+k") => {
-                return Ok([Dispatch::DispatchEditor(DispatchEditor::KillLine(
-                    Direction::End,
-                ))]
-                .to_vec())
-            }
-            key!("ctrl+u") => {
-                return Ok([Dispatch::DispatchEditor(DispatchEditor::KillLine(
-                    Direction::Start,
-                ))]
-                .to_vec())
-            }
+            key!("ctrl+k") => return Ok([Dispatch::ToEditor(KillLine(Direction::End))].to_vec()),
+            key!("ctrl+u") => return Ok([Dispatch::ToEditor(KillLine(Direction::Start))].to_vec()),
             // key!("alt+left") => self.move_word_backward(),
             // key!("alt+right") => self.move_word_forward(),
-            event => match event.code {
-                KeyCode::Char(c) => return self.insert(&c.to_string()),
-                _ => {}
-            },
+            event => {
+                if let KeyCode::Char(c) = event.code {
+                    return self.insert(&c.to_string());
+                }
+            }
         };
         Ok(vec![])
     }
@@ -1618,7 +1607,6 @@ impl Editor {
         })
     }
 
-    #[must_use]
     pub fn set_selection_mode(
         &mut self,
         context: &Context,
@@ -1749,6 +1737,7 @@ impl Editor {
     }
 
     // TODO: handle mouse click
+    #[allow(dead_code)]
     pub fn set_cursor_position(&mut self, row: u16, column: u16) -> anyhow::Result<Vec<Dispatch>> {
         let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
         let primary = self
@@ -1808,8 +1797,9 @@ impl Editor {
 
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
-                if let Err(_) =
-                    new_buffer.apply_edit_transaction(&edit_transaction, self.selection_set.clone())
+                if new_buffer
+                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
+                    .is_err()
                 {
                     continue;
                 }
@@ -1949,6 +1939,7 @@ impl Editor {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn get_selected_texts(&self) -> Vec<String> {
         let buffer = self.buffer.borrow();
         let mut selections = self
@@ -2170,7 +2161,7 @@ impl Editor {
         Ok(self
             .update_selection_set(selection, false)
             .into_iter()
-            .chain(Some(Dispatch::DispatchEditor(ReplaceCurrentSelectionWith(
+            .chain(Some(Dispatch::ToEditor(ReplaceCurrentSelectionWith(
                 completion.to_string(),
             ))))
             .collect())
@@ -2374,13 +2365,6 @@ impl Editor {
         }
     }
 
-    pub fn current_selection(&self) -> anyhow::Result<String> {
-        Ok(self
-            .buffer()
-            .slice(&self.selection_set.primary.extended_range())?
-            .into())
-    }
-
     fn line_range(&self) -> Range<usize> {
         let start = self.scroll_offset;
         let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
@@ -2396,11 +2380,7 @@ impl Editor {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
             key!("a") => self.add_cursor_to_all_selections(context),
-            // todo: kill primary cursor does not work as expected, we need another editr cursor mode
-            key!("k") => self.kill_primary_cursor(),
-            key!("n") => self.add_cursor(context, &Movement::Next),
             key!("o") => self.cursor_keep_primary_only(),
-            key!("p") => self.add_cursor(context, &Movement::Previous),
             other => return self.handle_normal_mode(context, other),
         }?;
         Ok(Vec::new())
@@ -2460,7 +2440,7 @@ impl Editor {
         }
     }
 
-    pub fn set_decorations(&mut self, decorations: &Vec<super::suggestive_editor::Decoration>) {
+    pub fn set_decorations(&mut self, decorations: &[super::suggestive_editor::Decoration]) {
         self.buffer.borrow_mut().set_decorations(decorations)
     }
 
@@ -2504,25 +2484,25 @@ impl Editor {
 
     pub fn move_to_line_start(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         Ok([
-            Dispatch::DispatchEditor(SelectLine(Movement::Current)),
-            Dispatch::DispatchEditor(EnterInsertMode(Direction::Start)),
+            Dispatch::ToEditor(SelectLine(Movement::Current)),
+            Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
         ]
         .to_vec())
     }
 
     pub fn move_to_line_end(&mut self) -> anyhow::Result<Vec<Dispatch>> {
         Ok([
-            Dispatch::DispatchEditor(SelectLine(Movement::Current)),
-            Dispatch::DispatchEditor(EnterInsertMode(Direction::End)),
+            Dispatch::ToEditor(SelectLine(Movement::Current)),
+            Dispatch::ToEditor(EnterInsertMode(Direction::End)),
         ]
         .to_vec())
     }
 
     pub fn select_all(&mut self) -> Vec<Dispatch> {
         [
-            Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::First)),
-            Dispatch::DispatchEditor(DispatchEditor::ToggleHighlightMode),
-            Dispatch::DispatchEditor(DispatchEditor::MoveSelection(Movement::Last)),
+            Dispatch::ToEditor(MoveSelection(Movement::First)),
+            Dispatch::ToEditor(ToggleHighlightMode),
+            Dispatch::ToEditor(MoveSelection(Movement::Last)),
         ]
         .to_vec()
     }
@@ -2548,6 +2528,7 @@ impl Editor {
         self.scroll(Direction::Start, self.half_page_height())
     }
 
+    #[cfg(test)]
     pub fn current_view_alignment(&self) -> Option<ViewAlignment> {
         self.current_view_alignment
     }
@@ -2623,29 +2604,11 @@ impl Editor {
         Ok(())
     }
 
-    #[cfg(test)]
-    pub(crate) fn handle_movements(
-        &mut self,
-        context: &Context,
-        movements: &[Movement],
-    ) -> anyhow::Result<()> {
-        for movement in movements {
-            self.handle_movement(context, *movement)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn get_formatted_content(&self) -> Option<String> {
-        self.buffer().get_formatted_content()
-    }
-
     fn filters_push(&mut self, _context: &Context, filter: Filter) -> Vec<Dispatch> {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set, true)
             .into_iter()
-            .chain(Some(Dispatch::DispatchEditor(MoveSelection(
-                Movement::Current,
-            ))))
+            .chain(Some(Dispatch::ToEditor(MoveSelection(Movement::Current))))
             .collect()
     }
 
@@ -2672,10 +2635,6 @@ impl Editor {
             Scope::Global => "Global".to_string(),
         };
         format!("Find ({scope}): {title}")
-    }
-
-    fn find_local_submenu_title(arg: &str) -> String {
-        format!("Find (this file): {arg}")
     }
 
     fn enter_exchange_mode(&mut self) {
@@ -2772,7 +2731,7 @@ pub enum HandleEventResult {
 pub enum DispatchEditor {
     Surround(String, String),
     SetScrollOffset(u16),
-    Jump,
+    ShowJumps,
     ScrollPageDown,
     ScrollPageUp,
     AlignViewTop,

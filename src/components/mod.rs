@@ -7,4 +7,5 @@ mod editor_keymap_legend;
 pub mod file_explorer;
 pub mod keymap_legend;
 pub mod suggestive_editor;
+#[cfg(test)]
 mod test_editor;

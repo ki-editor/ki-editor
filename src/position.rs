@@ -1,6 +1,6 @@
 use crate::{buffer::Buffer, selection::CharIndex};
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Ord, Default)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default)]
 pub struct Position {
     /// 0-based
     pub line: usize,
@@ -63,12 +63,18 @@ impl Position {
     }
 }
 
+impl Ord for Position {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.line.cmp(&other.line) {
+            std::cmp::Ordering::Equal => self.column.cmp(&other.column),
+            ord => ord,
+        }
+    }
+}
+
 impl PartialOrd for Position {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.line.cmp(&other.line) {
-            std::cmp::Ordering::Equal => Some(self.column.cmp(&other.column)),
-            ord => Some(ord),
-        }
+        Some(self.cmp(other))
     }
 }
 

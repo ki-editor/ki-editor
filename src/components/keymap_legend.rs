@@ -70,13 +70,12 @@ impl Keymaps {
             .chunks(column_count.max(1)) // At least 1, otherwise `chunks` will panic
             .into_iter()
             .map(|chunks| {
-                let joined = chunks
+                chunks
                     .map(|chunk| {
                         let second_formatted = format!("{: <width$}", chunk, width = column_width);
                         second_formatted
                     })
-                    .join("");
-                joined
+                    .join("")
             })
             .join("\n");
         let result = dedent(&result);

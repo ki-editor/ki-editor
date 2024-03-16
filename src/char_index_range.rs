@@ -72,6 +72,10 @@ impl CharIndexRange {
         self.end.0.saturating_sub(self.start.0)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn shift_left(&self, len: usize) -> CharIndexRange {
         CharIndexRange {
             start: self.start - len,
@@ -90,7 +94,7 @@ impl CharIndexRange {
         is_overlapping(&self.to_range(), &other.to_range())
     }
 
-    fn to_range(&self) -> Range<CharIndex> {
+    fn to_range(self) -> Range<CharIndex> {
         self.start..self.end
     }
 

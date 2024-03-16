@@ -30,8 +30,10 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         }
         item.map(|item| item.old_to_new)
     }
+}
 
-    pub fn new() -> Self {
+impl<T> Default for History<T> {
+    fn default() -> Self {
         Self {
             backward_history: Default::default(),
             forward_history: Default::default(),
@@ -44,7 +46,7 @@ mod test_history {
     use super::*;
     #[test]
     fn basic_undo_redo() {
-        let mut history = History::new();
+        let mut history = History::default();
         history.push(OldNew {
             new_to_old: 0,
             old_to_new: 1,
@@ -64,7 +66,7 @@ mod test_history {
 
     #[test]
     fn push_should_clear_redo_stack() {
-        let mut history = History::new();
+        let mut history = History::default();
         history.push(OldNew {
             new_to_old: 1,
             old_to_new: 2,
@@ -80,7 +82,7 @@ mod test_history {
 
     #[test]
     fn push_should_not_allow_consecutive_duplicates() {
-        let mut history = History::new();
+        let mut history = History::default();
         history.push(OldNew {
             new_to_old: 1,
             old_to_new: 2,
@@ -100,7 +102,7 @@ mod test_history {
 
     #[test]
     fn push_should_allow_non_consecutive_duplicates() {
-        let mut history = History::new();
+        let mut history = History::default();
         history.push(OldNew {
             new_to_old: 1,
             old_to_new: 2,

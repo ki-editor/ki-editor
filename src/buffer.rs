@@ -7,7 +7,6 @@ use crate::{
     selection::{CharIndex, Selection, SelectionSet},
     selection_mode::{AstGrep, ByteRange},
     syntax_highlight::{HighlighedSpan, HighlighedSpans},
-    themes::Theme,
     undo_tree::{Applicable, OldNew, UndoTree},
     utils::find_previous,
 };
@@ -31,7 +30,6 @@ pub struct Buffer {
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
-    theme: Theme,
     bookmarks: Vec<CharIndexRange>,
     decorations: Vec<Decoration>,
 }
@@ -57,7 +55,6 @@ impl Buffer {
             },
             path: None,
             highlighted_spans: HighlighedSpans::default(),
-            theme: Theme::default(),
             bookmarks: Vec::new(),
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
@@ -78,8 +75,8 @@ impl Buffer {
     pub fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
-    pub fn set_decorations(&mut self, decorations: &Vec<Decoration>) {
-        self.decorations = decorations.clone();
+    pub fn set_decorations(&mut self, decorations: &[Decoration]) {
+        self.decorations = decorations.to_owned();
     }
 
     pub fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
@@ -430,10 +427,7 @@ impl Buffer {
         edit_transaction
             .edits()
             .into_iter()
-            .fold(Ok(()), |result, edit| match result {
-                Err(err) => Err(err),
-                Ok(()) => self.apply_edit(edit),
-            })?;
+            .try_fold((), |_, edit| self.apply_edit(edit))?;
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
@@ -849,7 +843,6 @@ impl Buffer {
                             &(byte_start..byte_start + representation.len()),
                         )
                         .ok()?,
-                    representation: representation.to_string(),
                     is_opening,
                 })
             })
@@ -935,7 +928,6 @@ impl EnclosurePair {
 
 #[derive(Debug, Clone)]
 pub struct Enclosure {
-    representation: String,
     pub char_index_range: CharIndexRange,
     is_opening: bool,
 }

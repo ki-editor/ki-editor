@@ -25,7 +25,7 @@ pub struct RegexConfig {
     pub match_whole_word: bool,
 }
 impl RegexConfig {
-    pub(crate) fn to_regex(&self, pattern: &str) -> Result<Regex, anyhow::Error> {
+    pub(crate) fn to_regex(self, pattern: &str) -> Result<Regex, anyhow::Error> {
         get_regex(pattern, self)
     }
 }
@@ -68,7 +68,7 @@ pub fn run(
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,
 ) -> anyhow::Result<Vec<Location>> {
-    let pattern = get_regex(pattern, &grep_config)?.as_str().to_string();
+    let pattern = get_regex(pattern, grep_config)?.as_str().to_string();
     let matcher = RegexMatcher::new_line_matcher(&pattern)?;
     let regex = Regex::new(&pattern)?;
 

@@ -135,7 +135,6 @@ const fn rust() -> Language {
             subpath: None,
         }),
         formatter_command: Some(Command("rustfmt", &[])),
-        ..Language::new()
     }
 }
 

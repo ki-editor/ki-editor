@@ -3,6 +3,7 @@ use crate::context::Context;
 use crate::grid::StyleKey;
 use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
+use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
 use crate::{
@@ -131,14 +132,10 @@ impl Component for SuggestiveEditor {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
                         let edit_dispatch = match completion.edit {
-                            None => Dispatch::DispatchEditor(DispatchEditor::ReplacePreviousWord(
-                                completion.label(),
-                            )),
+                            None => Dispatch::ToEditor(ReplacePreviousWord(completion.label())),
                             Some(edit) => match edit {
                                 CompletionItemEdit::PositionalEdit(edit) => {
-                                    Dispatch::DispatchEditor(DispatchEditor::ApplyPositionalEdit(
-                                        edit,
-                                    ))
+                                    Dispatch::ToEditor(ApplyPositionalEdit(edit))
                                 }
                             },
                         };
@@ -258,7 +255,7 @@ impl Component for SuggestiveEditor {
                     Dispatch::CloseEditorInfo {
                         owner_id: self.id(),
                     },
-                    Dispatch::DispatchEditor(DispatchEditor::EnterNormalMode),
+                    Dispatch::ToEditor(EnterNormalMode),
                 ]
                 .to_vec(),
                 _ => [].to_vec(),
@@ -318,6 +315,7 @@ impl SuggestiveEditor {
         }
     }
 
+    #[cfg(test)]
     pub fn code_actions(&self) -> Vec<CodeAction> {
         self.code_action_dropdown.items()
     }
@@ -327,11 +325,11 @@ impl SuggestiveEditor {
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<Vec<Dispatch>> {
         match dispatch {
-            DispatchSuggestiveEditor::SetCompletionFilter(filter) => {
+            DispatchSuggestiveEditor::CompletionFilter(filter) => {
                 self.filter = filter;
                 Ok([].to_vec())
             }
-            DispatchSuggestiveEditor::SetCompletion(completion) => {
+            DispatchSuggestiveEditor::Completion(completion) => {
                 if self.editor.mode == Mode::Insert {
                     self.set_completion(completion);
                     Ok([Dispatch::RenderDropdown {
@@ -343,7 +341,7 @@ impl SuggestiveEditor {
                     Ok(Vec::new())
                 }
             }
-            DispatchSuggestiveEditor::SetCodeActions(code_actions) => {
+            DispatchSuggestiveEditor::CodeActions(code_actions) => {
                 if self.editor.mode != Mode::Normal || code_actions.is_empty() {
                     return Ok(Vec::new());
                 }
@@ -376,10 +374,6 @@ impl SuggestiveEditor {
         todo!("remove this method")
     }
 
-    fn close_all_subcomponents(&mut self) {
-        self.info_panel = None;
-    }
-
     pub fn set_completion(&mut self, completion: Completion) {
         self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
@@ -396,9 +390,9 @@ impl SuggestiveEditor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispatchSuggestiveEditor {
-    SetCompletionFilter(SuggestiveEditorFilter),
-    SetCompletion(Completion),
-    SetCodeActions(Vec<CodeAction>),
+    CompletionFilter(SuggestiveEditorFilter),
+    Completion(Completion),
+    CodeActions(Vec<CodeAction>),
 }
 
 #[cfg(test)]
@@ -415,9 +409,9 @@ mod test_suggestive_editor {
         buffer::Buffer,
         components::{component::Component, editor::Direction},
         lsp::completion::{Completion, CompletionItem},
-        test_app::test_app::execute_test,
-        test_app::test_app::ExpectKind::*,
-        test_app::test_app::Step::*,
+        test_app::execute_test,
+        test_app::ExpectKind::*,
+        test_app::Step::*,
     };
     use lsp_types::CompletionItemKind;
     use my_proc_macros::{key, keys};
@@ -606,9 +600,9 @@ mod test_suggestive_editor {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 // Pretend that the LSP server returned a completion
-                SuggestiveEditor(SetCompletion(dummy_completion())),
+                SuggestiveEditor(Completion(dummy_completion())),
                 // Expect the completion dropdown to be open,
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
                 // Type in 'pa'
@@ -632,10 +626,10 @@ mod test_suggestive_editor {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 App(HandleKeyEvents(keys!("s p o n g e").to_vec())),
                 // Pretend that the LSP server returned a completion
-                SuggestiveEditor(SetCompletion(Completion {
+                SuggestiveEditor(Completion(Completion {
                     trigger_characters: vec![".".to_string()],
                     items: vec![CompletionItem {
                         label: "Spongebob".to_string(),
@@ -663,8 +657,8 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("a.to_s".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
-                SuggestiveEditor(SetCodeActions(
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CodeActions(
                     [CodeAction {
                         title: "".to_string(),
                         kind: None,
@@ -697,9 +691,9 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(SetCompletion(dummy_completion())),
+                SuggestiveEditor(Completion(dummy_completion())),
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CompletionDropdownSelectedItem("Patrick")),
                 App(HandleKeyEvent(key!("down"))),
@@ -720,9 +714,9 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(SetCompletion(dummy_completion())),
+                SuggestiveEditor(Completion(dummy_completion())),
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CompletionDropdownContent("Patrick")),
@@ -740,9 +734,9 @@ mod test_suggestive_editor {
         execute_test(|s| {
             Box::new([
                 App(OpenFile(s.main_rs())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(SetCompletion(dummy_completion())),
+                SuggestiveEditor(Completion(dummy_completion())),
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CurrentPath(s.main_rs())),
                 App(HandleKeyEvent(key!("esc"))),
@@ -759,7 +753,7 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(ShowEditorInfo(Info::default())),
                 Expect(EditorInfoOpen(true)),
@@ -783,12 +777,12 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 Expect(DropdownInfosCount(0)),
-                SuggestiveEditor(SetCompletion(completion.clone())),
+                SuggestiveEditor(Completion(completion.clone())),
                 Expect(DropdownInfosCount(1)),
-                SuggestiveEditor(SetCompletion(completion.clone())),
+                SuggestiveEditor(Completion(completion.clone())),
                 Expect(DropdownInfosCount(1)),
             ])
         })
@@ -800,9 +794,9 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
-                SuggestiveEditor(SetCompletion(dummy_completion())),
+                SuggestiveEditor(Completion(dummy_completion())),
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CompletionDropdownContent("Patrick")),
@@ -820,10 +814,10 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterNormalMode),
                 // Pretend that the LSP server returned a completion
-                SuggestiveEditor(SetCompletion(dummy_completion())),
+                SuggestiveEditor(Completion(dummy_completion())),
                 // Expect the completion dropdown to not be opened,
                 // since the editor is not in insert mode
                 Expect(CompletionDropdownIsOpen(false)),
@@ -839,11 +833,11 @@ mod test_suggestive_editor {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
-                SuggestiveEditor(SetCompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 // Pretend that the LSP server returned a completion
                 // That is without edit, but contains `kind`, which means it has emoji
-                SuggestiveEditor(SetCompletion(Completion {
+                SuggestiveEditor(Completion(Completion {
                     items: [CompletionItem {
                         label: "Spongebob".to_string(),
                         edit: None,

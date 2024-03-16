@@ -131,7 +131,7 @@ impl Component for Prompt {
 
 #[cfg(test)]
 mod test_prompt {
-    use crate::test_app::test_app::*;
+    use crate::test_app::*;
     use my_proc_macros::keys;
 
     use crate::{app::Dispatch, position::Position};

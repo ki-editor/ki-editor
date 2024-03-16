@@ -1,9 +1,4 @@
-use crate::{
-    app::Dimension,
-    position::Position,
-    rectangle::{Border, BorderDirection, Rectangle},
-    themes::Color,
-};
+use crate::{app::Dimension, position::Position, themes::Color};
 
 use itertools::Itertools;
 use my_proc_macros::hex;
@@ -61,6 +56,7 @@ impl Cell {
         }
     }
 
+    #[cfg(test)]
     fn set_background_color(self, background_color: Color) -> Cell {
         Cell {
             background_color,
@@ -108,21 +104,6 @@ impl CellUpdate {
         CellUpdate { source, ..self }
     }
 
-    pub fn background_color(self, background_color: Color) -> Self {
-        CellUpdate {
-            style: self.style.background_color(background_color),
-            ..self
-        }
-    }
-
-    pub fn foreground_color(self, foreground_color: Color) -> Self {
-        CellUpdate {
-            style: self.style.foreground_color(foreground_color),
-
-            ..self
-        }
-    }
-
     pub fn move_up(self, scroll_offset: usize) -> Option<CellUpdate> {
         if scroll_offset > self.position.line {
             None
@@ -134,13 +115,6 @@ impl CellUpdate {
                 },
                 ..self
             })
-        }
-    }
-
-    pub fn undercurl(self, color: Option<Color>) -> CellUpdate {
-        CellUpdate {
-            style: self.style.undercurl(color),
-            ..self
         }
     }
 
@@ -157,10 +131,6 @@ impl CellUpdate {
             position: self.position.set_line(line),
             ..self
         }
-    }
-
-    pub fn set_position(self, position: Position) -> CellUpdate {
-        CellUpdate { position, ..self }
     }
 
     pub(crate) fn move_right(self, by: u16) -> CellUpdate {
@@ -183,7 +153,7 @@ pub struct PositionedCell {
 
 impl PartialOrd for PositionedCell {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.position.partial_cmp(&other.position)
+        Some(self.cmp(other))
     }
 }
 impl Ord for PositionedCell {
@@ -191,7 +161,27 @@ impl Ord for PositionedCell {
         self.position.cmp(&other.position)
     }
 }
-
+#[cfg(test)]
+impl std::fmt::Display for Grid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.rows
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|cell| cell.symbol.to_string())
+                        .collect_vec()
+                        .join("")
+                        .trim()
+                        .to_string()
+                })
+                .collect_vec()
+                .join("\n")
+        )
+    }
+}
 impl Grid {
     pub fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
@@ -262,56 +252,6 @@ impl Grid {
         grid
     }
 
-    pub fn update(self, other: &Grid, rectangle: &Rectangle) -> Grid {
-        let mut grid = self;
-        for (row_index, rows) in other.rows.iter().enumerate() {
-            for (column_index, cell) in rows.iter().enumerate() {
-                let row = row_index + rectangle.origin.line;
-                let column = column_index + rectangle.origin.column;
-                if row < grid.rows.len() && column < grid.rows[row].len() {
-                    grid.rows[row][column] = cell.clone();
-                }
-            }
-        }
-        grid
-    }
-
-    pub fn merge_horizontal(self, right: Grid) -> Grid {
-        let dimension = self.dimension();
-        assert_eq!(dimension.height, right.dimension().height);
-
-        let mut left = self;
-        for (row_index, rows) in left.rows.iter_mut().enumerate() {
-            rows.extend(right.rows[row_index].clone());
-        }
-        left
-    }
-
-    pub fn set_border(mut self, border: Border) -> Grid {
-        let dimension = self.dimension();
-        match border.direction {
-            BorderDirection::Horizontal => {
-                for i in 0..dimension.width.saturating_sub(border.start.column as u16) {
-                    self.rows[border.start.line][border.start.column + i as usize] = Cell {
-                        symbol: "─".to_string(),
-                        foreground_color: hex!("#000000"),
-                        ..Cell::default()
-                    };
-                }
-            }
-            BorderDirection::Vertical => {
-                for i in 0..dimension.height.saturating_sub(border.start.line as u16) {
-                    self.rows[border.start.line + i as usize][border.start.column] = Cell {
-                        symbol: "│".to_string(),
-                        foreground_color: hex!("#000000"),
-                        ..Cell::default()
-                    };
-                }
-            }
-        }
-        self
-    }
-
     pub fn dimension(&self) -> Dimension {
         Dimension {
             height: self.rows.len() as u16,
@@ -335,20 +275,6 @@ impl Grid {
         updates
             .into_iter()
             .fold(self, |grid, update| grid.apply_cell_update(update))
-    }
-
-    pub fn content(&self) -> String {
-        self.rows
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|cell| cell.symbol.clone())
-                    .collect::<Vec<String>>()
-                    .join("")
-            })
-            .map(|line| line.replace('\n', " "))
-            .collect::<Vec<String>>()
-            .join("\n")
     }
 
     pub fn merge_vertical(self, bottom: Grid) -> Grid {
@@ -385,21 +311,6 @@ impl Grid {
         })
     }
 
-    pub fn to_string(&self) -> String {
-        self.rows
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|cell| cell.symbol.to_string())
-                    .collect_vec()
-                    .join("")
-                    .trim()
-                    .to_string()
-            })
-            .collect_vec()
-            .join("\n")
-    }
-
     pub(crate) fn set_row(
         self,
         row_index: usize,
@@ -428,41 +339,12 @@ impl Grid {
                             column: column_index,
                         },
                         symbol: Some(character.to_string()),
-                        style: style.clone(),
+                        style: *style,
                         ..CellUpdate::default()
                     }
                 })
                 .collect_vec(),
         )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn assert_range(
-        &self,
-        range: &std::ops::RangeInclusive<Position>,
-        predicate: impl Fn(&Cell) -> bool,
-    ) {
-        for (row_index, row) in self.rows.iter().enumerate() {
-            for (column_index, cell) in row.iter().enumerate() {
-                if range.contains(&Position::new(row_index, column_index)) {
-                    assert!(predicate(cell))
-                }
-            }
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn assert_ranges(
-        &self,
-        ranges: &[std::ops::RangeInclusive<Position>],
-        predicate: impl Fn(&Cell) -> bool + Clone,
-    ) {
-        for range in ranges {
-            self.assert_range(range, predicate.clone())
-        }
-    }
-
-    fn height(&self) -> usize {
-        self.rows.len()
     }
 }
 

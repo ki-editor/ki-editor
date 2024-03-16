@@ -37,7 +37,7 @@ impl CodeAction {
 
 impl PartialOrd for CodeAction {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.title().partial_cmp(&other.title())
+        Some(self.cmp(other))
     }
 }
 

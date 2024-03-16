@@ -1,4 +1,4 @@
-use super::{ApplyMovementResult, LineFull, SelectionMode};
+use super::{LineFull, SelectionMode};
 
 pub struct LineTrimmed;
 

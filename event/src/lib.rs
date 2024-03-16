@@ -21,7 +21,7 @@ pub fn parse_key_event(input: &str) -> Result<KeyEvent, ParseError> {
 }
 
 impl Token {
-    fn to_key_event(self) -> Result<KeyEvent, ParseError> {
+    fn to_key_event(&self) -> Result<KeyEvent, ParseError> {
         match self.0.split('+').collect::<Vec<_>>().split_last() {
             Some((key, modifiers)) => {
                 let result = Token::parse_key_code(key)?;

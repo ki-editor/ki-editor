@@ -3,8 +3,8 @@ use crate::buffer::Buffer;
 pub struct SmallWord;
 
 impl SmallWord {
-    pub fn new(buffer: &Buffer) -> anyhow::Result<super::Regex> {
-        super::Regex::new(
+    pub fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
+        super::Regex::from_config(
             buffer,
             r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*))_*)|([^\w\s]|_)|[0-9]+",
             crate::list::grep::RegexConfig {
@@ -28,7 +28,7 @@ mod test_small_word {
             tree_sitter_rust::language(),
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_>",
         );
-        SmallWord::new(&buffer).unwrap().assert_all_selections(
+        SmallWord::as_regex(&buffer).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[

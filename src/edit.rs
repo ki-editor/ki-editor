@@ -226,10 +226,6 @@ impl ActionGroup {
     pub fn new(actions: Vec<Action>) -> Self {
         Self { actions }
     }
-    fn overlaps(&self, other: &ActionGroup) -> bool {
-        is_overlapping(&self.range().into(), &other.range().into())
-    }
-
     fn get_net_offset(&self) -> isize {
         self.actions
             .iter()
@@ -264,10 +260,6 @@ impl ActionGroup {
             .max()
             .unwrap_or(CharIndex(0));
         (min..max).into()
-    }
-
-    fn subset_of(&self, other: &ActionGroup) -> bool {
-        is_subset(&self.range().into(), &other.range().into())
     }
 }
 
@@ -375,15 +367,15 @@ mod test_normalize_actions {
     }
 }
 
-/// Check if range a is a subset of range b
-fn is_subset<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
-    a.start >= b.start && a.end <= b.end
-}
-
 // Test is_subset
 #[cfg(test)]
 mod test_is_subset {
-    use crate::edit::is_subset;
+
+    use std::ops::Range;
+    /// Check if range a is a subset of range b
+    fn is_subset<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
+        a.start >= b.start && a.end <= b.end
+    }
 
     #[test]
     fn subset() {

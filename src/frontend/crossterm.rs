@@ -1,6 +1,6 @@
 use crate::{components::component::Cursor, screen::Screen};
 
-use super::frontend::Frontend;
+use super::Frontend;
 
 pub struct Crossterm {
     stdout: std::io::Stdout,
@@ -14,6 +14,12 @@ impl Crossterm {
             stdout: std::io::stdout(),
             previous_screen: Screen::default(),
         }
+    }
+}
+
+impl Default for Crossterm {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -91,7 +97,7 @@ impl Frontend for Crossterm {
                 screen.diff(&mut self.previous_screen)
             } else {
                 self.clear_screen()?;
-                screen.to_positioned_cells()
+                screen.get_positioned_cells()
             };
             self.previous_screen = screen;
 

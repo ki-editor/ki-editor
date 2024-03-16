@@ -106,7 +106,6 @@ impl Default for QuickfixLists {
 }
 
 pub struct QuickfixList {
-    current_index: usize,
     dropdown: Dropdown<QuickfixListItem>,
     title: Option<String>,
 }
@@ -134,7 +133,6 @@ impl QuickfixList {
         dropdown.set_items(items);
 
         QuickfixList {
-            current_index: 0,
             dropdown,
             title: None,
         }
@@ -156,6 +154,10 @@ impl QuickfixList {
         self.dropdown.apply_movement(movement);
         self.dropdown.current_item()
     }
+
+    pub(crate) fn title(&self) -> Option<String> {
+        self.title.clone()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,13 +168,13 @@ pub struct QuickfixListItem {
 
 impl PartialOrd for QuickfixListItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.location.partial_cmp(&other.location)
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for QuickfixListItem {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+        self.location.cmp(&other.location)
     }
 }
 
@@ -198,6 +200,7 @@ impl QuickfixListItem {
         &self.info
     }
 
+    #[cfg(test)]
     pub(crate) fn set_info(self, info: Option<Info>) -> Self {
         Self { info, ..self }
     }
@@ -266,17 +269,17 @@ impl TryFrom<lsp_types::Location> for Location {
 
 impl PartialOrd for Location {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        (&self.path, self.range.start.line, self.range.start.column).partial_cmp(&(
-            &other.path,
-            other.range.start.line,
-            other.range.start.column,
-        ))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for Location {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+        (&self.path, self.range.start.line, self.range.start.column).cmp(&(
+            &other.path,
+            other.range.start.line,
+            other.range.start.column,
+        ))
     }
 }
 
@@ -318,7 +321,6 @@ mod test_quickfix_list {
             info: None,
         };
         let quickfix_list = QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()]);
-
         assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
     }
 

@@ -1,12 +1,14 @@
 use portable_pty::{native_pty_system, PtySize};
 use std::io::{Read, Write};
 
+#[allow(dead_code)]
+/// This piece of function is left in the codebase as a reference,
+/// in case we want to implement integrated terminal.
 pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error> {
     crossterm::terminal::enable_raw_mode()?;
     use portable_pty::CommandBuilder;
 
     let mut parser = vt100::Parser::new(rows, cols, 0);
-    parser.screen().contents();
 
     // Use the native pty implementation for the system
     let pty_system = native_pty_system();
@@ -43,7 +45,7 @@ pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error
         loop {
             // Read some bytes
             let n = match reader.read(&mut buf) {
-                Ok(n) if n == 0 => break, // EOF
+                Ok(0) => break, // EOF
                 Ok(n) => n,
                 Err(e) => {
                     eprintln!("Error reading from pty: {}", e);
@@ -95,7 +97,7 @@ pub fn run_integrated_terminal(rows: u16, cols: u16) -> Result<(), anyhow::Error
         loop {
             // Read some bytes
             let n = match std::io::stdin().read(&mut buf) {
-                Ok(n) if n == 0 => break, // EOF
+                Ok(0) => break, // EOF
                 Ok(n) => n,
                 Err(e) => {
                     eprintln!("Error reading from stdin: {}", e);

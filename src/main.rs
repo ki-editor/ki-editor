@@ -10,6 +10,7 @@ mod context;
 mod edit;
 pub mod frontend;
 mod grid;
+#[cfg(test)]
 mod integration_test;
 
 mod layout;
@@ -28,6 +29,7 @@ pub mod selection_range;
 pub mod soft_wrap;
 pub mod syntax_highlight;
 mod terminal;
+#[cfg(test)]
 mod test_app;
 pub mod themes;
 pub mod transformation;
@@ -57,7 +59,7 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
-        Arc::new(Mutex::new(Crossterm::new())),
+        Arc::new(Mutex::new(Crossterm::default())),
         CanonicalizedPath::try_from(".")?,
         sender,
         receiver,
@@ -67,12 +69,12 @@ pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     let sender = app.sender();
 
     let crossterm_join_handle = std::thread::spawn(move || loop {
-        match crossterm::event::read()
+        if crossterm::event::read()
             .map_err(|error| anyhow::anyhow!("{:?}", error))
             .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
+            .is_err()
         {
-            Err(_) => break,
-            _ => (),
+            break;
         }
     });
 

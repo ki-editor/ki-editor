@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use itertools::Itertools;
 use regex::Regex;
 
@@ -15,7 +17,19 @@ pub enum CalibrationError {
     LineOutOfRange,
     ColumnOutOfRange,
 }
-
+impl Display for WrappedLines {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.lines
+                .iter()
+                .map(|line| line.to_string())
+                .collect_vec()
+                .join("\n")
+        )
+    }
+}
 impl WrappedLines {
     pub fn calibrate(&self, position: Position) -> Result<Position, CalibrationError> {
         if self.lines.is_empty() && position.line == 0 && position.column == 0 {
@@ -53,15 +67,6 @@ impl WrappedLines {
         &self.lines
     }
 
-    pub fn to_string(&self) -> String {
-        self.lines
-            .iter()
-            .map(|line| line.to_string())
-            .collect_vec()
-            .join("\n")
-            .to_string()
-    }
-
     pub(crate) fn wrapped_lines_count(&self) -> usize {
         self.lines.iter().map(|line| line.count()).sum()
     }
@@ -74,6 +79,11 @@ pub struct WrappedLine {
     primary: String,
     wrapped: Vec<String>,
 }
+impl Display for WrappedLine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lines().join("\n"))
+    }
+}
 impl WrappedLine {
     pub fn lines(&self) -> Vec<String> {
         [self.primary.clone()]
@@ -84,10 +94,6 @@ impl WrappedLine {
 
     pub fn line_number(&self) -> usize {
         self.line_number
-    }
-
-    pub fn to_string(&self) -> String {
-        self.lines().join("\n").to_string()
     }
 
     fn get_position(&self, column: usize, width: usize) -> Option<Position> {

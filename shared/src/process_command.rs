@@ -27,8 +27,10 @@ impl ProcessCommand {
                 )
             })
     }
+}
 
-    pub(crate) fn to_string(&self) -> String {
-        format!("{} {}", self.command, self.args.join(" "))
+impl std::fmt::Display for ProcessCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.command, self.args.join(" "))
     }
 }

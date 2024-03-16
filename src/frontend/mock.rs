@@ -1,7 +1,7 @@
 #! #[cfg(test)]
 
-use crate::{components::component::Cursor, grid::Grid, screen::Screen};
-#[derive(Clone)]
+use crate::{components::component::Cursor, screen::Screen};
+#[derive(Clone, Default)]
 pub struct MockFrontend {
     screen: Option<Screen>,
 }
@@ -13,7 +13,7 @@ const DIMENSION: crate::app::Dimension = crate::app::Dimension {
     height: HEIGHT,
 };
 
-impl super::frontend::Frontend for MockFrontend {
+impl super::Frontend for MockFrontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<crate::app::Dimension> {
         Ok(DIMENSION)
     }
@@ -57,13 +57,10 @@ impl super::frontend::Frontend for MockFrontend {
 }
 
 impl MockFrontend {
-    pub fn new() -> Self {
-        Self { screen: None }
-    }
     pub fn content(&mut self) -> String {
         self.screen
             .as_mut()
-            .map(|screen| screen.to_string())
+            .map(|screen| screen.stringify())
             .unwrap_or_default()
     }
 }
