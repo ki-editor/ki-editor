@@ -25,6 +25,7 @@ pub struct Border {
 }
 
 impl Border {
+    #[cfg(test)]
     fn area(&self, dimension: &Dimension) -> usize {
         match self.direction {
             BorderDirection::Horizontal => {
@@ -72,6 +73,7 @@ impl Border {
             .collect()
     }
 
+    #[cfg(test)]
     fn intersection(&self, other: &Border) -> HashSet<Position> {
         self.positions()
             .intersection(&other.positions())
@@ -461,20 +463,6 @@ impl Rectangle {
         }
     }
 
-    fn move_right(&self, arg: i32) -> Rectangle {
-        Rectangle {
-            origin: Position {
-                column: self
-                    .origin
-                    .column
-                    .saturating_add(arg as usize)
-                    .min(self.width.saturating_sub(1) as usize),
-                ..self.origin
-            },
-            ..*self
-        }
-    }
-
     fn clamp_left(&self, width: usize) -> Rectangle {
         Rectangle {
             origin: Position {
@@ -496,12 +484,6 @@ impl Rectangle {
             LayoutKind::Tall => Rectangle::generate_tall(count, ratio, dimension),
             LayoutKind::Wide => Rectangle::generate_wide(count, ratio, dimension),
         }
-    }
-
-    pub(crate) fn in_bound(&self, position: Position) -> bool {
-        let translated_position = position.translate(self.origin);
-        translated_position.line < self.origin.line + self.height as usize
-            && translated_position.column < self.origin.column + self.width as usize
     }
 }
 

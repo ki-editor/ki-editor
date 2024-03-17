@@ -207,6 +207,7 @@ impl Context {
         self.quickfix_lists.push(quickfix_list)
     }
 
+    #[cfg(test)]
     pub(crate) fn get_latest_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
         self.quickfix_lists.get_items()
     }
@@ -333,11 +334,11 @@ impl LocalSearchConfig {
 
     fn update(&mut self, update: LocalSearchConfigUpdate) {
         match update {
-            LocalSearchConfigUpdate::SetMode(mode) => self.mode = mode,
-            LocalSearchConfigUpdate::SetReplacement(replacement) => {
+            LocalSearchConfigUpdate::Mode(mode) => self.mode = mode,
+            LocalSearchConfigUpdate::Replacement(replacement) => {
                 self.set_replacment(replacement);
             }
-            LocalSearchConfigUpdate::SetSearch(search) => {
+            LocalSearchConfigUpdate::Search(search) => {
                 self.set_search(search);
             }
         }

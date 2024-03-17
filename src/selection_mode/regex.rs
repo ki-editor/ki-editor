@@ -6,7 +6,7 @@ pub struct Regex {
     regex: regex::Regex,
     content: String,
 }
-pub fn get_regex(pattern: &str, config: &RegexConfig) -> anyhow::Result<regex::Regex> {
+pub fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
@@ -26,18 +26,22 @@ pub fn get_regex(pattern: &str, config: &RegexConfig) -> anyhow::Result<regex::R
 }
 
 impl Regex {
-    pub fn new(buffer: &Buffer, pattern: &str, config: RegexConfig) -> anyhow::Result<Self> {
-        let regex = get_regex(pattern, &config)?;
+    pub fn from_config(
+        buffer: &Buffer,
+        pattern: &str,
+        config: RegexConfig,
+    ) -> anyhow::Result<Self> {
+        let regex = get_regex(pattern, config)?;
         Ok(Self {
             regex,
             content: buffer.rope().to_string(),
         })
     }
 
-    pub fn regex(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
+    pub fn new(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
         let regex = get_regex(
             pattern,
-            &RegexConfig {
+            RegexConfig {
                 escaped: false,
                 case_sensitive: false,
                 match_whole_word: false,
@@ -59,8 +63,8 @@ impl SelectionMode for Regex {
         _params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);
-        Ok(Box::new(matches.filter_map(move |matches| {
-            Some(ByteRange::new(matches.start()..matches.end()))
+        Ok(Box::new(matches.map(move |matches| {
+            ByteRange::new(matches.start()..matches.end())
         })))
     }
 }
@@ -74,7 +78,7 @@ mod test_regex {
     #[test]
     fn escaped() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(
+        crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
             RegexConfig {
@@ -90,7 +94,7 @@ mod test_regex {
     #[test]
     fn unescaped() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(
+        crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
             RegexConfig {
@@ -110,7 +114,7 @@ mod test_regex {
     #[test]
     fn ignore_case() {
         let buffer = Buffer::new(tree_sitter_rust::language(), "fn Main() { let x = m.in; }");
-        crate::selection_mode::Regex::new(
+        crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
             RegexConfig {
@@ -133,7 +137,7 @@ mod test_regex {
             tree_sitter_rust::language(),
             "fn Main() { let x = main_war; }",
         );
-        crate::selection_mode::Regex::new(
+        crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
             RegexConfig {

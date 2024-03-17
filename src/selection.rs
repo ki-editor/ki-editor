@@ -40,9 +40,9 @@ impl Filters {
         buffer: &Buffer,
         item: selection_mode::ByteRange,
     ) -> Option<selection_mode::ByteRange> {
-        self.0.iter().fold(Some(item), |item, filter| {
-            item.and_then(|item| filter.retain(buffer, item))
-        })
+        self.0
+            .iter()
+            .try_fold(item, |item, filter| filter.retain(buffer, item))
     }
 
     fn push(self, filter: Filter) -> Filters {
@@ -365,7 +365,7 @@ impl SelectionSet {
         cursor_direction: &Direction,
         context: &Context,
     ) -> anyhow::Result<()> {
-        match self
+        if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
                     .mode
@@ -401,11 +401,8 @@ impl SelectionSet {
             .collect_vec()
             .split_first()
         {
-            Some((head, tail)) => {
-                self.primary = head.to_owned();
-                self.secondary = tail.to_vec();
-            }
-            None => {}
+            self.primary = head.to_owned();
+            self.secondary = tail.to_vec();
         };
         Ok(())
     }
@@ -528,7 +525,7 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Inside(kind) => format!("INSIDE {}", kind.to_string()),
+            SelectionMode::Inside(kind) => format!("INSIDE {}", kind),
             SelectionMode::TopNode => "TOP NODE".to_string(),
         }
     }
@@ -549,7 +546,7 @@ impl SelectionMode {
             filters,
         };
         Ok(match self {
-            SelectionMode::Word => Box::new(selection_mode::SmallWord::new(buffer)?),
+            SelectionMode::Word => Box::new(selection_mode::SmallWord::as_regex(buffer)?),
             SelectionMode::LineTrimmed => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Character => {
@@ -562,9 +559,9 @@ impl SelectionMode {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
             }
             SelectionMode::Find { search } => match search.mode {
-                LocalSearchConfigMode::Regex(regex) => {
-                    Box::new(selection_mode::Regex::new(buffer, &search.search, regex)?)
-                }
+                LocalSearchConfigMode::Regex(regex) => Box::new(
+                    selection_mode::Regex::from_config(buffer, &search.search, regex)?,
+                ),
                 LocalSearchConfigMode::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
@@ -577,9 +574,7 @@ impl SelectionMode {
             }
             SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
-            SelectionMode::EmptyLine => {
-                Box::new(selection_mode::Regex::regex(buffer, r"(?m)^\s*$")?)
-            }
+            SelectionMode::EmptyLine => Box::new(selection_mode::Regex::new(buffer, r"(?m)^\s*$")?),
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
@@ -588,16 +583,16 @@ impl SelectionMode {
     }
 
     pub(crate) fn is_contiguous(&self) -> bool {
-        match self {
+        matches!(
+            self,
             SelectionMode::Word
-            | SelectionMode::LineTrimmed
-            | SelectionMode::LineFull
-            | SelectionMode::Character
-            | SelectionMode::BottomNode
-            | SelectionMode::TopNode
-            | SelectionMode::SyntaxTree => true,
-            _ => false,
-        }
+                | SelectionMode::LineTrimmed
+                | SelectionMode::LineFull
+                | SelectionMode::Character
+                | SelectionMode::BottomNode
+                | SelectionMode::TopNode
+                | SelectionMode::SyntaxTree
+        )
     }
 }
 

@@ -118,24 +118,30 @@ pub enum InsideKind {
     SquareBrackets,
     DoubleQuotes,
     SingleQuotes,
-    BackQuotes,
+    Backtick,
     Other { open: String, close: String },
 }
 
-impl InsideKind {
-    pub fn to_string(&self) -> String {
-        match self {
-            InsideKind::Parentheses => "Parentheses".to_string(),
-            InsideKind::CurlyBraces => "Curly Braces".to_string(),
-            InsideKind::AngularBrackets => "Angular Brackets".to_string(),
-            InsideKind::SquareBrackets => "Square Brackets".to_string(),
-            InsideKind::DoubleQuotes => "Double Quotes".to_string(),
-            InsideKind::SingleQuotes => "Single Quotes".to_string(),
-            InsideKind::BackQuotes => "Back Quotes".to_string(),
-            InsideKind::Other { open, close } => format!("'{} {}'", open, close),
-        }
+impl std::fmt::Display for InsideKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                InsideKind::Parentheses => "Parentheses".to_string(),
+                InsideKind::CurlyBraces => "Curly Braces".to_string(),
+                InsideKind::AngularBrackets => "Angular Brackets".to_string(),
+                InsideKind::SquareBrackets => "Square Brackets".to_string(),
+                InsideKind::DoubleQuotes => "Double Quotes".to_string(),
+                InsideKind::SingleQuotes => "Single Quotes".to_string(),
+                InsideKind::Backtick => "Backticks".to_string(),
+                InsideKind::Other { open, close } => format!("'{} {}'", open, close),
+            }
+        )
     }
+}
 
+impl InsideKind {
     fn open_close_symbols(&self) -> (String, String) {
         match self {
             InsideKind::Parentheses => ("(".to_string(), ")".to_string()),
@@ -144,7 +150,7 @@ impl InsideKind {
             InsideKind::SquareBrackets => ("[".to_string(), "]".to_string()),
             InsideKind::DoubleQuotes => ("\"".to_string(), "\"".to_string()),
             InsideKind::SingleQuotes => ("'".to_string(), "'".to_string()),
-            InsideKind::BackQuotes => ("`".to_string(), "`".to_string()),
+            InsideKind::Backtick => ("`".to_string(), "`".to_string()),
             InsideKind::Other { open, close } => (open.clone(), close.clone()),
         }
     }

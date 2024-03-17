@@ -16,9 +16,11 @@ pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
             format!("{} {}", self.emoji(), self.label())
         }
     }
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>>;
+    fn group() -> Option<Group<Self>>;
     fn info(&self) -> Option<Info>;
 }
+
+type Group<T> = Box<dyn Fn(&T) -> String>;
 
 impl DropdownItem for String {
     fn label(&self) -> String {
@@ -224,10 +226,6 @@ impl<T: DropdownItem> Dropdown<T> {
         }
     }
 
-    pub fn filtered_items(&self) -> &Vec<T> {
-        &self.filtered_items
-    }
-
     #[cfg(test)]
     fn assert_highlighted_content(&self, label: &str) {
         let render = self.render();
@@ -238,10 +236,6 @@ impl<T: DropdownItem> Dropdown<T> {
 
     pub(crate) fn items(&self) -> Vec<T> {
         self.items.clone()
-    }
-
-    pub(crate) fn set_title(&mut self, title: String) {
-        self.title = title
     }
 
     pub(crate) fn clear(&mut self) {
@@ -263,7 +257,7 @@ mod test_dropdown {
     }
     impl PartialOrd for Item {
         fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            self.label.partial_cmp(&other.label)
+            Some(self.cmp(other))
         }
     }
 

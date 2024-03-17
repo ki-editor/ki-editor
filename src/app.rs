@@ -1,19 +1,3 @@
-use event::event::Event;
-use itertools::Itertools;
-use my_proc_macros::key;
-use shared::{canonicalized_path::CanonicalizedPath, language::Language};
-use std::{
-    cell::RefCell,
-    collections::HashSet,
-    ops::Range,
-    path::PathBuf,
-    rc::Rc,
-    sync::{
-        mpsc::{Receiver, Sender},
-        Arc, Mutex,
-    },
-};
-
 use crate::{
     buffer::Buffer,
     components::{
@@ -29,7 +13,7 @@ use crate::{
         },
     },
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
-    frontend::frontend::Frontend,
+    frontend::Frontend,
     git,
     grid::Grid,
     history::History,
@@ -52,6 +36,22 @@ use crate::{
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::{Theme, VSCODE_LIGHT},
 };
+use event::event::Event;
+use itertools::Itertools;
+use my_proc_macros::key;
+use shared::{canonicalized_path::CanonicalizedPath, language::Language};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    ops::Range,
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::{
+        mpsc::{Receiver, Sender},
+        Arc, Mutex,
+    },
+};
+use DispatchEditor::*;
 
 pub struct App<T: Frontend> {
     context: Context,
@@ -99,6 +99,7 @@ impl std::fmt::Display for Null {
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 impl<T: Frontend> App<T> {
+    #[cfg(test)]
     pub fn new(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
@@ -107,6 +108,7 @@ impl<T: Frontend> App<T> {
         Self::from_channel(frontend, working_directory, sender, receiver)
     }
 
+    #[cfg(test)]
     pub fn disable_lsp(&mut self) {
         self.enable_lsp = false
     }
@@ -133,7 +135,7 @@ impl<T: Frontend> App<T> {
             syntax_highlight_request_sender: None,
             global_title: None,
 
-            selection_set_history: History::new(),
+            selection_set_history: History::default(),
         };
         Ok(app)
     }
@@ -196,8 +198,6 @@ impl<T: Frontend> App<T> {
 
         // TODO: this line is a hack
         std::process::exit(0);
-
-        Ok(())
     }
 
     pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
@@ -225,13 +225,13 @@ impl<T: Frontend> App<T> {
                 });
             }
             event => {
-                component.map(|component| {
+                if let Some(component) = component {
                     let dispatches = component.borrow_mut().handle_event(&self.context, event);
                     self.handle_dispatches_result(dispatches)
                         .unwrap_or_else(|e| {
                             self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
                         });
-                });
+                }
             }
         }
 
@@ -263,7 +263,7 @@ impl<T: Frontend> App<T> {
                 let component = component.borrow();
 
                 let rectangle = component.rectangle();
-                let GetGridResult { grid, cursor } = component.get_grid(&mut self.context);
+                let GetGridResult { grid, cursor } = component.get_grid(&self.context);
                 let focused_component_id = self.layout.focused_component_id();
                 let cursor_position = if focused_component_id
                     .map(|focused_component_id| component.id() == focused_component_id)
@@ -474,9 +474,7 @@ impl<T: Frontend> App<T> {
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
             Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
-            Dispatch::DispatchEditor(dispatch_editor) => {
-                self.handle_dispatch_editor(dispatch_editor)?
-            }
+            Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::GlobalSearch => self.global_search()?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
@@ -554,7 +552,7 @@ impl<T: Frontend> App<T> {
                 self.open_update_search_prompt(owner_id, scope)?
             }
             Dispatch::Replace { scope } => match scope {
-                Scope::Local => self.handle_dispatch_editor(DispatchEditor::Replace {
+                Scope::Local => self.handle_dispatch_editor(Replace {
                     config: self.context.local_search_config().clone(),
                 })?,
                 Scope::Global => self.global_replace()?,
@@ -569,7 +567,7 @@ impl<T: Frontend> App<T> {
                 self.context = context.set_theme(theme);
             }
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
-            Dispatch::DispatchSuggestiveEditor(dispatch) => {
+            Dispatch::ToSuggestiveEditor(dispatch) => {
                 self.handle_dispatch_suggestive_editor(dispatch)?
             }
             Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
@@ -601,7 +599,7 @@ impl<T: Frontend> App<T> {
         let search = config.search();
         if !search.is_empty() {
             self.handle_dispatch_editor_custom(
-                DispatchEditor::SetSelectionMode(SelectionMode::Find {
+                SetSelectionMode(SelectionMode::Find {
                     search: Search {
                         mode: config.mode,
                         search,
@@ -853,7 +851,7 @@ impl<T: Frontend> App<T> {
                 QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
             ),
             LspNotification::Completion(_context, completion) => {
-                self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::SetCompletion(
+                self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::Completion(
                     completion,
                 ))?;
 
@@ -908,7 +906,7 @@ impl<T: Frontend> App<T> {
                         .map(|range| {
                             let range = buffer.position_to_char(range.start)?
                                 ..buffer.position_to_char(range.end)?;
-                            buffer.slice(&range.try_into()?)
+                            buffer.slice(&range.into())
                         })
                         .transpose()
                         .unwrap_or_default()
@@ -932,7 +930,7 @@ impl<T: Frontend> App<T> {
                 let component = self.layout.get_suggestive_editor(context.component_id)?;
                 let dispatches = component
                     .borrow_mut()
-                    .handle_dispatch(DispatchSuggestiveEditor::SetCodeActions(code_actions))?;
+                    .handle_dispatch(DispatchSuggestiveEditor::CodeActions(code_actions))?;
 
                 self.handle_dispatches(dispatches)?;
                 Ok(())
@@ -1047,7 +1045,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         let quickfix_list = quickfix_list.set_title(context.description.clone());
-        let _render = quickfix_list.render();
+        let title = quickfix_list.title();
         self.context.set_quickfix_list(quickfix_list);
         match context.scope {
             None | Some(Scope::Global) => {
@@ -1055,11 +1053,11 @@ impl<T: Frontend> App<T> {
                 self.goto_quickfix_list_item(Movement::Current)?;
                 Ok(())
             }
-            Some(Scope::Local) => self.handle_dispatch(Dispatch::DispatchEditor(
-                DispatchEditor::SetSelectionMode(SelectionMode::LocalQuickfix {
-                    title: context.description.unwrap_or_default(),
-                }),
-            )),
+            Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
+                SelectionMode::LocalQuickfix {
+                    title: title.unwrap_or_default(),
+                },
+            ))),
         }
     }
 
@@ -1200,7 +1198,7 @@ impl<T: Frontend> App<T> {
         self.lsp_manager.document_did_rename(from, to)?;
         Ok(())
     }
-    fn add_path_parent(&self, path: &PathBuf) -> anyhow::Result<()> {
+    fn add_path_parent(&self, path: &Path) -> anyhow::Result<()> {
         if let Some(new_dir) = path.parent() {
             std::fs::create_dir_all(new_dir)?;
         }
@@ -1242,16 +1240,6 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_selected_texts(&mut self, path: &CanonicalizedPath) -> Vec<String> {
-        self.layout
-            .open_file(path)
-            .unwrap()
-            .borrow()
-            .editor()
-            .get_selected_texts()
-    }
-
-    #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
         let _content = self.current_component().unwrap().borrow().content();
         self.current_component()
@@ -1268,17 +1256,6 @@ impl<T: Frontend> App<T> {
             .unwrap()
             .borrow()
             .content()
-    }
-
-    #[cfg(test)]
-    pub fn handle_dispatch_editors(
-        &mut self,
-        dispatch_editors: &[DispatchEditor],
-    ) -> anyhow::Result<()> {
-        for dispatch_editor in dispatch_editors {
-            self.handle_dispatch_editor(dispatch_editor.clone())?;
-        }
-        Ok(())
     }
 
     pub fn handle_dispatch_editor(
@@ -1338,6 +1315,7 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn get_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
         self.context.get_latest_quickfixes()
     }
@@ -1350,13 +1328,10 @@ impl<T: Frontend> App<T> {
         self.syntax_highlight_request_sender = Some(sender);
     }
 
+    #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component()
             .and_then(|component| component.borrow().path())
-    }
-
-    pub(crate) fn get_current_info(&self) -> Option<String> {
-        self.layout.get_info()
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
@@ -1438,16 +1413,6 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub(crate) fn get_current_selection_set(&self) -> Option<SelectionSet> {
-        Some(
-            self.current_component()?
-                .borrow()
-                .editor()
-                .selection_set
-                .clone(),
-        )
-    }
-
     fn goto_selection_history_contiguous(&mut self, movement: Movement) -> anyhow::Result<()> {
         match movement {
             Movement::Next => {
@@ -1468,6 +1433,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn context(&self) -> &Context {
         &self.context
     }
@@ -1563,7 +1529,7 @@ impl<T: Frontend> App<T> {
                                   checked: bool|
          -> Keymap {
             let description = show_checkbox(&name, checked);
-            update_keymap(key, description, LocalSearchConfigUpdate::SetMode(mode))
+            update_keymap(key, description, LocalSearchConfigUpdate::Mode(mode))
         };
         let regex = match local_search_config.mode {
             LocalSearchConfigMode::Regex(regex) => Some(regex),
@@ -1779,6 +1745,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component()
             .unwrap()
@@ -1806,10 +1773,12 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
         self.layout.completion_dropdown_is_open()
     }
 
+    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
         self.layout.current_completion_dropdown()
     }
@@ -1838,17 +1807,19 @@ impl<T: Frontend> App<T> {
         let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
         match render.info {
             Some(info) if !info.content().trim().is_empty() => {
-                self.layout.show_dropdown_info(owner_id, info)
+                self.layout.show_dropdown_info(owner_id, info)?;
             }
             _ => self.layout.hide_dropdown_info(owner_id),
         }
         self.handle_dispatches(dispatches)
     }
 
+    #[cfg(test)]
     pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
         self.layout.quickfix_list()
     }
 
+    #[cfg(test)]
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
         self.layout.get_dropdown_infos_count()
     }
@@ -1865,14 +1836,17 @@ impl<T: Frontend> App<T> {
         self.layout.show_editor_info(owner_id, info)
     }
 
+    #[cfg(test)]
     pub(crate) fn editor_info_open(&self) -> bool {
         self.layout.editor_info_open()
     }
 
+    #[cfg(test)]
     pub(crate) fn editor_info_content(&self) -> Option<String> {
         self.layout.editor_info_content()
     }
 
+    #[cfg(test)]
     pub(crate) fn current_code_actions(&self) -> Vec<crate::lsp::code_action::CodeAction> {
         self.layout
             .get_current_suggestive_editor()
@@ -1959,7 +1933,7 @@ pub enum Dispatch {
     #[cfg(test)]
     /// Used for testing
     Custom(String),
-    DispatchEditor(DispatchEditor),
+    ToEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),
     GlobalSearch,
@@ -2039,7 +2013,7 @@ pub enum Dispatch {
     GoToPreviousSelection,
     GoToNextSelection,
     HandleLspNotification(LspNotification),
-    DispatchSuggestiveEditor(DispatchSuggestiveEditor),
+    ToSuggestiveEditor(DispatchSuggestiveEditor),
     CloseDropdown {
         owner_id: ComponentId,
     },
@@ -2067,9 +2041,9 @@ pub enum GlobalSearchFilterGlob {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LocalSearchConfigUpdate {
-    SetMode(LocalSearchConfigMode),
-    SetReplacement(String),
-    SetSearch(String),
+    Mode(LocalSearchConfigMode),
+    Replacement(String),
+    Search(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2204,9 +2178,9 @@ impl DispatchPrompt {
                     MakeFilterMechanism::Literal => FilterMechanism::Literal(text.to_string()),
                     MakeFilterMechanism::Regex => FilterMechanism::Regex(regex::Regex::new(text)?),
                 };
-                Ok([Dispatch::DispatchEditor(DispatchEditor::FilterPush(
-                    Filter::new(kind, target, mechanism),
-                ))]
+                Ok([Dispatch::ToEditor(FilterPush(Filter::new(
+                    kind, target, mechanism,
+                )))]
                 .to_vec())
             }
             DispatchPrompt::GlobalSearchConfigSetGlob {
@@ -2219,10 +2193,7 @@ impl DispatchPrompt {
             .to_vec()),
             DispatchPrompt::MoveSelectionByIndex => {
                 let index = text.parse::<usize>()?.saturating_sub(1);
-                Ok([Dispatch::DispatchEditor(DispatchEditor::MoveSelection(
-                    Movement::Index(index),
-                ))]
-                .to_vec())
+                Ok([Dispatch::ToEditor(MoveSelection(Movement::Index(index)))].to_vec())
             }
             DispatchPrompt::RenameSymbol { params } => Ok(vec![Dispatch::RenameSymbol {
                 params: params.clone(),
@@ -2234,7 +2205,7 @@ impl DispatchPrompt {
                 show_config_after_enter,
             } => Ok([Dispatch::UpdateLocalSearchConfig {
                 owner_id,
-                update: LocalSearchConfigUpdate::SetSearch(text.to_string()),
+                update: LocalSearchConfigUpdate::Search(text.to_string()),
                 scope,
                 show_config_after_enter,
             }]
@@ -2245,17 +2216,17 @@ impl DispatchPrompt {
                 }]
                 .to_vec())
             }
-            DispatchPrompt::EnterInsideMode { open } => Ok([Dispatch::DispatchEditor(
-                DispatchEditor::EnterInsideMode(InsideKind::Other {
+            DispatchPrompt::EnterInsideMode { open } => {
+                Ok([Dispatch::ToEditor(EnterInsideMode(InsideKind::Other {
                     open: open.clone(),
                     close: text.to_owned(),
-                }),
-            )]
-            .to_vec()),
+                }))]
+                .to_vec())
+            }
             DispatchPrompt::AddPath => Ok([Dispatch::AddPath(text.into())].to_vec()),
             DispatchPrompt::MovePath { from } => Ok([Dispatch::MoveFile {
                 from,
-                to: text.try_into()?,
+                to: text.into(),
             }]
             .to_vec()),
             DispatchPrompt::SelectSymbol { symbols } => {
@@ -2266,7 +2237,7 @@ impl DispatchPrompt {
                 if let Some(symbol) = symbols
                     .symbols
                     .iter()
-                    .find(|symbol| text == &symbol.display())
+                    .find(|symbol| text == symbol.display())
                 {
                     Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
                 } else {
@@ -2284,15 +2255,14 @@ impl DispatchPrompt {
                 Ok([Dispatch::UpdateLocalSearchConfig {
                     owner_id,
                     scope,
-                    update: LocalSearchConfigUpdate::SetReplacement(text.to_owned()),
+                    update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
                     show_config_after_enter: true,
                 }]
                 .to_vec())
             }
-            DispatchPrompt::SetContent => Ok([Dispatch::DispatchEditor(
-                DispatchEditor::SetContent(text.to_string()),
-            )]
-            .to_vec()),
+            DispatchPrompt::SetContent => {
+                Ok([Dispatch::ToEditor(SetContent(text.to_string()))].to_vec())
+            }
         }
     }
 }

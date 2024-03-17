@@ -97,7 +97,6 @@ impl GitRepo {
         Ok(git_files
             .into_iter()
             .chain(git_status_files)
-            .filter_map(|path| -> Option<CanonicalizedPath> { path.try_into().ok() })
             .filter(|path| path.is_file())
             .unique_by(|item| item.clone())
             .collect_vec())

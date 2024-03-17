@@ -216,7 +216,7 @@ impl Layout {
 
     /// Return true if there's no more windows
     pub fn remove_current_component(&mut self) -> bool {
-        self.focused_component_id.map(|id| {
+        if let Some(id) = self.focused_component_id {
             self.prompts.retain(|c| c.borrow().id() != id);
 
             let main_panel = self.main_panel.take();
@@ -245,7 +245,7 @@ impl Layout {
             self.components().into_iter().for_each(|c| {
                 c.borrow_mut().remove_child(id);
             });
-        });
+        };
 
         if let Some(component) = self.components().last() {
             self.focused_component_id = Some(component.borrow().id());
@@ -323,8 +323,7 @@ impl Layout {
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.background_suggestive_editors
             .iter()
-            .cloned()
-            .find(|component| {
+            .find(|&component| {
                 component
                     .borrow()
                     .editor()
@@ -333,6 +332,7 @@ impl Layout {
                     .map(|p| &p == path)
                     .unwrap_or(false)
             })
+            .cloned()
     }
 
     pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
@@ -392,7 +392,7 @@ impl Layout {
                 "",
             )))
         });
-        info_panel.borrow_mut().show_info(info);
+        info_panel.borrow_mut().show_info(info)?;
         self.global_info = Some(info_panel);
 
         Ok(())
@@ -483,12 +483,6 @@ impl Layout {
         Ok(())
     }
 
-    pub(crate) fn get_info(&self) -> Option<String> {
-        self.global_info
-            .as_ref()
-            .map(|info_panel| info_panel.borrow().text())
-    }
-
     pub(crate) fn buffers(&self) -> Vec<Rc<RefCell<Buffer>>> {
         self.background_suggestive_editors
             .iter()
@@ -529,28 +523,15 @@ impl Layout {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn completion_dropdown_is_open(&self) -> bool {
         self.current_completion_dropdown().is_some()
     }
 
+    #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
         self.current_component()
             .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
-    }
-
-    pub(crate) fn get_code_action_dropdown(
-        &self,
-        _owner_id: ComponentId,
-    ) -> Option<Rc<RefCell<Editor>>> {
-        self.current_component()
-            .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
-    }
-
-    pub(crate) fn get_completion_dropdown(
-        &self,
-        owner_id: ComponentId,
-    ) -> Option<Rc<RefCell<Editor>>> {
-        self.dropdowns.get(&owner_id).cloned()
     }
 
     pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Rc<RefCell<Editor>> {
@@ -570,7 +551,11 @@ impl Layout {
             .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
     }
 
-    pub(crate) fn show_dropdown_info(&mut self, owner_id: ComponentId, info: Info) {
+    pub(crate) fn show_dropdown_info(
+        &mut self,
+        owner_id: ComponentId,
+        info: Info,
+    ) -> anyhow::Result<()> {
         let editor = self
             .dropdown_infos
             .shift_remove(&owner_id)
@@ -580,8 +565,9 @@ impl Layout {
                     "",
                 )))
             });
-        editor.borrow_mut().show_info(info);
+        editor.borrow_mut().show_info(info)?;
         self.dropdown_infos.insert(owner_id, editor);
+        Ok(())
     }
 
     pub(crate) fn hide_dropdown_info(&mut self, owner_id: ComponentId) {
@@ -624,10 +610,12 @@ impl Layout {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
         self.quickfix_list.clone()
     }
 
+    #[cfg(test)]
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
         self.dropdown_infos.len()
     }
@@ -644,6 +632,7 @@ impl Layout {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(crate) fn editor_info_open(&self) -> bool {
         !self.editor_infos.is_empty()
     }
@@ -653,6 +642,7 @@ impl Layout {
             .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
     }
 
+    #[cfg(test)]
     pub(crate) fn editor_info_content(&self) -> Option<String> {
         Some(self.editor_infos.first()?.1.borrow().content())
     }

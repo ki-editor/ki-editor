@@ -2,7 +2,7 @@ pub struct BottomNode;
 
 use crate::selection_mode::SelectionMode;
 
-use super::{ApplyMovementResult, ByteRange, TopNode};
+use super::{ByteRange, TopNode};
 
 impl SelectionMode for BottomNode {
     fn name(&self) -> &'static str {

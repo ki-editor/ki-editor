@@ -32,42 +32,42 @@ impl Editor {
             Keymap::new(
                 ",",
                 "First".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(First)),
+                Dispatch::ToEditor(MoveSelection(First)),
             ),
             Keymap::new(
                 ".",
                 "Last".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Last)),
+                Dispatch::ToEditor(MoveSelection(Last)),
             ),
             Keymap::new(
                 "h",
                 "Higher (Previous)".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Movement::Previous)),
+                Dispatch::ToEditor(MoveSelection(Movement::Previous)),
             ),
             Keymap::new(
                 "j",
                 "Down / First Child".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Down)),
+                Dispatch::ToEditor(MoveSelection(Down)),
             ),
             Keymap::new(
                 "k",
                 "Up / Parent".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Up)),
+                Dispatch::ToEditor(MoveSelection(Up)),
             ),
             Keymap::new(
                 "l",
                 "Lower (Next)".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(Next)),
+                Dispatch::ToEditor(MoveSelection(Next)),
             ),
             Keymap::new(
                 "s",
                 "Skip (Jump)".to_string(),
-                Dispatch::DispatchEditor(DispatchEditor::Jump),
+                Dispatch::ToEditor(DispatchEditor::ShowJumps),
             ),
             Keymap::new(
                 "p",
                 "Parent Line".to_string(),
-                Dispatch::DispatchEditor(MoveSelection(ToParentLine)),
+                Dispatch::ToEditor(MoveSelection(ToParentLine)),
             ),
             Keymap::new(
                 "0",
@@ -88,12 +88,12 @@ impl Editor {
             Keymap::new(
                 "y",
                 "Line (Full)".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(LineFull)),
+                Dispatch::ToEditor(SetSelectionMode(LineFull)),
             ),
             Keymap::new(
                 "Y",
                 "Line (Trimmed)".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(LineTrimmed)),
+                Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
             ),
             Keymap::new(
                 "f",
@@ -108,40 +108,40 @@ impl Editor {
             Keymap::new(
                 "n",
                 "Node".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(SyntaxTree)),
+                Dispatch::ToEditor(SetSelectionMode(SyntaxTree)),
             ),
             Keymap::new(
                 "t",
                 "Token".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(BottomNode)),
+                Dispatch::ToEditor(SetSelectionMode(BottomNode)),
             ),
             Keymap::new(
                 "x",
                 "Column".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(Character)),
+                Dispatch::ToEditor(SetSelectionMode(Character)),
             ),
             Keymap::new(
                 "w",
                 "Word".to_string(),
-                Dispatch::DispatchEditor(SetSelectionMode(Word)),
+                Dispatch::ToEditor(SetSelectionMode(Word)),
             ),
         ]
         .to_vec()
     }
     pub(crate) fn keymap_actions(&self) -> Vec<Keymap> {
         [
-            Keymap::new("c", "Change".to_string(), Dispatch::DispatchEditor(Change)),
-            Keymap::new("d", "Delete".to_string(), Dispatch::DispatchEditor(Kill)),
+            Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
+            Keymap::new("d", "Delete".to_string(), Dispatch::ToEditor(Kill)),
             Keymap::new(
                 "m",
                 "Toggle Mark".to_string(),
-                Dispatch::DispatchEditor(ToggleBookmark),
+                Dispatch::ToEditor(ToggleBookmark),
             ),
-            Keymap::new("r", "Raise".to_string(), Dispatch::DispatchEditor(Raise)),
+            Keymap::new("r", "Raise".to_string(), Dispatch::ToEditor(Raise)),
             Keymap::new(
                 "R",
                 "Replace Cut".to_string(),
-                Dispatch::DispatchEditor(ReplaceCut),
+                Dispatch::ToEditor(ReplaceCut),
             ),
             Keymap::new(
                 "u",
@@ -156,32 +156,32 @@ impl Editor {
             Keymap::new(
                 "a",
                 "Insert after selection".to_string(),
-                Dispatch::DispatchEditor(EnterInsertMode(Direction::End)),
+                Dispatch::ToEditor(EnterInsertMode(Direction::End)),
             ),
             Keymap::new(
                 "i",
                 "Insert before selection".to_string(),
-                Dispatch::DispatchEditor(EnterInsertMode(Direction::Start)),
+                Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
             ),
             Keymap::new(
                 "e",
                 "Exchange".to_string(),
-                Dispatch::DispatchEditor(EnterExchangeMode),
+                Dispatch::ToEditor(EnterExchangeMode),
             ),
             Keymap::new(
                 "o",
                 "Overwrite".to_string(),
-                Dispatch::DispatchEditor(EnterReplaceMode),
+                Dispatch::ToEditor(EnterReplaceMode),
             ),
             Keymap::new(
                 "v",
                 "Visual (Extend selection)".to_string(),
-                Dispatch::DispatchEditor(ToggleHighlightMode),
+                Dispatch::ToEditor(ToggleHighlightMode),
             ),
             Keymap::new(
                 "z",
                 "Multi-cursor".to_string(),
-                Dispatch::DispatchEditor(EnterMultiCursorMode),
+                Dispatch::ToEditor(EnterMultiCursorMode),
             ),
         ]
         .to_vec()
@@ -206,7 +206,7 @@ impl Editor {
             Keymap::new(
                 "?",
                 "Help (Normal mode)".to_string(),
-                Dispatch::DispatchEditor(ShowKeymapLegendNormalMode),
+                Dispatch::ToEditor(ShowKeymapLegendNormalMode),
             ),
         ]
         .to_vec()
@@ -252,7 +252,7 @@ impl Editor {
                 .normal_mode_keymap_legend_config(context)
                 .keymaps()
                 .into_iter()
-                .map(|keymap| keymap.clone())
+                .cloned()
                 .collect_vec(),
         )
     }
@@ -303,7 +303,7 @@ impl Editor {
                             &[Keymap::new(
                                 "z",
                                 "Undo Tree".to_string(),
-                                Dispatch::DispatchEditor(EnterUndoTreeMode),
+                                Dispatch::ToEditor(EnterUndoTreeMode),
                             )]
                             .into_iter()
                             .chain(self.path().map(|path| {
@@ -317,7 +317,6 @@ impl Editor {
                         ),
                     }),
                 ]
-                .to_vec()
                 .into_iter()
                 .flatten()
                 .collect(),
@@ -400,7 +399,7 @@ impl Editor {
                                         Keymap::new(
                                             "z",
                                             "Undo Tree".to_string(),
-                                            Dispatch::DispatchEditor(EnterUndoTreeMode),
+                                            Dispatch::ToEditor(EnterUndoTreeMode),
                                         ),
                                     ]
                                     .to_vec()
@@ -439,7 +438,7 @@ impl Editor {
                                 Keymap::new(
                                     key,
                                     description.to_string(),
-                                    Dispatch::DispatchEditor(Transform(Transformation::Case(case))),
+                                    Dispatch::ToEditor(Transform(Transformation::Case(case))),
                                 )
                             })
                             .collect_vec(),
@@ -451,16 +450,12 @@ impl Editor {
                             Keymap::new(
                                 "j",
                                 "Join".to_string(),
-                                Dispatch::DispatchEditor(DispatchEditor::Transform(
-                                    Transformation::Join,
-                                )),
+                                Dispatch::ToEditor(Transform(Transformation::Join)),
                             ),
                             Keymap::new(
                                 "w",
                                 "Wrap".to_string(),
-                                Dispatch::DispatchEditor(DispatchEditor::Transform(
-                                    Transformation::Wrap,
-                                )),
+                                Dispatch::ToEditor(Transform(Transformation::Wrap)),
                             ),
                         ]),
                     },
@@ -485,7 +480,7 @@ impl Editor {
             Keymap::new(
                 key,
                 description.to_string(),
-                Dispatch::DispatchEditor(Surround(open.to_string(), close.to_string())),
+                Dispatch::ToEditor(Surround(open.to_string(), close.to_string())),
             )
         })
         .collect_vec()
@@ -519,7 +514,6 @@ impl Editor {
                         .collect_vec(),
                     ),
                 }]
-                .to_vec()
                 .into_iter()
                 .chain(self.get_request_params().map(|params| KeymapLegendSection {
                     title: "LSP".to_string(),
@@ -548,9 +542,7 @@ impl Editor {
                 char,
                 description.to_string(),
                 match scope {
-                    Scope::Local => {
-                        Dispatch::DispatchEditor(SetSelectionMode(Diagnostic(severity)))
-                    }
+                    Scope::Local => Dispatch::ToEditor(SetSelectionMode(Diagnostic(severity))),
                     Scope::Global => {
                         Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic(severity))
                     }
@@ -602,7 +594,7 @@ impl Editor {
                                 Dispatch::UpdateLocalSearchConfig {
                                     owner_id: self.id(),
                                     scope,
-                                    update: crate::app::LocalSearchConfigUpdate::SetSearch(
+                                    update: crate::app::LocalSearchConfigUpdate::Search(
                                         search.to_string(),
                                     ),
                                     show_config_after_enter: false,
@@ -620,7 +612,7 @@ impl Editor {
                         Keymap::new(
                             "space",
                             "Empty line".to_string(),
-                            Dispatch::DispatchEditor(SetSelectionMode(EmptyLine)),
+                            Dispatch::ToEditor(SetSelectionMode(EmptyLine)),
                         ),
                     ]
                     .to_vec(),
@@ -630,7 +622,7 @@ impl Editor {
                     Keymap::new(
                         "p",
                         "Search (using previous search)".to_string(),
-                        Dispatch::DispatchEditor(SetSelectionMode(Find { search })),
+                        Dispatch::ToEditor(SetSelectionMode(Find { search })),
                     )
                 }))
                 .collect_vec(),
@@ -653,22 +645,22 @@ impl Editor {
                             Keymap::new(
                                 "m",
                                 "Mark".to_string(),
-                                Dispatch::DispatchEditor(SetSelectionMode(Bookmark)),
+                                Dispatch::ToEditor(SetSelectionMode(Bookmark)),
                             ),
                             Keymap::new(
                                 "o",
                                 "One character".to_string(),
-                                Dispatch::DispatchEditor(FindOneChar),
+                                Dispatch::ToEditor(FindOneChar),
                             ),
                             Keymap::new(
                                 "g",
                                 "Git hunk".to_string(),
-                                Dispatch::DispatchEditor(SetSelectionMode(GitHunk)),
+                                Dispatch::ToEditor(SetSelectionMode(GitHunk)),
                             ),
                             Keymap::new(
                                 "q",
                                 "Quickfix".to_string(),
-                                Dispatch::DispatchEditor(SetSelectionMode(LocalQuickfix {
+                                Dispatch::ToEditor(SetSelectionMode(LocalQuickfix {
                                     title: "LOCAL QUICKFIX".to_string(),
                                 })),
                             ),
@@ -788,7 +780,7 @@ impl Editor {
                 keymaps: Keymaps::new(
                     &[
                         ("<", "Angular Bracket", InsideKind::AngularBrackets),
-                        ("`", "Back Quote", InsideKind::BackQuotes),
+                        ("`", "Back Quote", InsideKind::Backtick),
                         ("{", "Curly Brace", InsideKind::CurlyBraces),
                         ("\"", "Double Quote", InsideKind::DoubleQuotes),
                         ("(", "Parenthesis", InsideKind::Parentheses),
@@ -800,7 +792,7 @@ impl Editor {
                         Keymap::new(
                             key,
                             description.to_string(),
-                            Dispatch::DispatchEditor(EnterInsideMode(inside_kind)),
+                            Dispatch::ToEditor(EnterInsideMode(inside_kind)),
                         )
                     })
                     .chain(Some(Keymap::new(
@@ -875,11 +867,7 @@ impl Editor {
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     [
-                        Keymap::new(
-                            "c",
-                            "Clear".to_string(),
-                            Dispatch::DispatchEditor(FilterClear),
-                        ),
+                        Keymap::new("c", "Clear".to_string(), Dispatch::ToEditor(FilterClear)),
                         Keymap::new(
                             "k",
                             "keep".to_string(),
@@ -922,7 +910,7 @@ impl Editor {
                                 case_sensitive: false,
                             }),
                         };
-                        let dispatch = Dispatch::DispatchEditor(SetSelectionMode(Find { search }));
+                        let dispatch = Dispatch::ToEditor(SetSelectionMode(Find { search }));
                         Keymap::new(key, description.to_string(), dispatch)
                     })
                     .collect_vec(),

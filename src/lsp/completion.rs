@@ -54,10 +54,7 @@ impl TryFrom<lsp_types::TextEdit> for PositionalEdit {
 
 impl PartialOrd for CompletionItem {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match (self.sort_text.as_ref(), other.sort_text.as_ref()) {
-            (Some(a), Some(b)) => a.partial_cmp(b),
-            _ => self.label.partial_cmp(&other.label),
-        }
+        Some(self.cmp(other))
     }
 }
 

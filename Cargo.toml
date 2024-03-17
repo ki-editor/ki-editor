@@ -81,11 +81,12 @@ similar = {version = "2.4.0", features = ["unicode", "inline"]}
 indexmap = "2.2.2"
 globset = "0.4.14"
 unicode-width = "0.1.11"
+
+
 [dev-dependencies]
 serial_test = "2.0.0"
 tempfile = "3.6.0"
 pretty_assertions = "1.3.0"
-insta = { version = "1.29.0", features = [] }
 fs_extra = "1.3.0"
 rand = "0.8.5"
 quickcheck = "1.0.3"

@@ -11,7 +11,7 @@ pub enum Transformation {
 impl Transformation {
     pub fn apply(&self, string: String) -> String {
         match self {
-            Transformation::Case(case) => string.to_case(case.clone()),
+            Transformation::Case(case) => string.to_case(*case),
             Transformation::Join => regex::Regex::new(r"\s*\n+\s*")
                 .unwrap()
                 .replace_all(&string, " ")

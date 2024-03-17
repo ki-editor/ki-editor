@@ -15,13 +15,9 @@ pub struct Hunk {
     /// 0-based index
     new_line_range: Range<usize>,
 
-    /// 0-based index
-    old_line_range: Range<usize>,
-
     /// Used for displaying the diff.
     /// This field contains both the old content and the new content.
     content: String,
-    new_content: String,
     decorations: Vec<Decoration>,
 }
 impl Hunk {
@@ -34,29 +30,28 @@ impl Hunk {
             .iter()
             .filter_map(|group| {
                 // I'm going to assume each group only has one change (i.e. Delete/Insert/Replace), while the other diff_ops are Equal
-                let (old_line_range, new_line_range) =
-                    group.iter().find_map(|diff_op| match diff_op {
-                        similar::DiffOp::Equal { .. } => None,
-                        similar::DiffOp::Delete {
-                            new_index,
-                            old_index,
-                            old_len,
-                        } => Some((*old_index..(old_index + old_len), *new_index..*new_index)),
-                        similar::DiffOp::Insert {
-                            new_index,
-                            new_len,
-                            old_index,
-                        } => Some((*old_index..*old_index, *new_index..(new_index + new_len))),
-                        similar::DiffOp::Replace {
-                            new_index,
-                            new_len,
-                            old_index,
-                            old_len,
-                        } => Some((
-                            *old_index..(old_index + old_len),
-                            *new_index..(new_index + new_len),
-                        )),
-                    })?;
+                let (_, new_line_range) = group.iter().find_map(|diff_op| match diff_op {
+                    similar::DiffOp::Equal { .. } => None,
+                    similar::DiffOp::Delete {
+                        new_index,
+                        old_index,
+                        old_len,
+                    } => Some((*old_index..(old_index + old_len), *new_index..*new_index)),
+                    similar::DiffOp::Insert {
+                        new_index,
+                        new_len,
+                        old_index,
+                    } => Some((*old_index..*old_index, *new_index..(new_index + new_len))),
+                    similar::DiffOp::Replace {
+                        new_index,
+                        new_len,
+                        old_index,
+                        old_len,
+                    } => Some((
+                        *old_index..(old_index + old_len),
+                        *new_index..(new_index + new_len),
+                    )),
+                })?;
 
                 #[derive(PartialEq)]
                 enum LineKind {
@@ -102,14 +97,6 @@ impl Hunk {
                     })
                     .unzip();
                 let content = lines.iter().map(|(line, _)| line.trim_end()).join("\n");
-                let new_content = lines
-                    .iter()
-                    .filter_map(|(line, kind)| match kind {
-                        LineKind::Delete => None,
-                        LineKind::Insert => Some(line.to_string()),
-                    })
-                    .collect_vec()
-                    .join("");
                 let min_leading_whitespaces_count = content
                     .lines()
                     .map(leading_whitespace_count)
@@ -123,10 +110,8 @@ impl Hunk {
                 let content = trim_start(content, min_leading_whitespaces_count);
                 Some(Hunk {
                     new_line_range,
-                    old_line_range,
                     content,
                     decorations,
-                    new_content,
                 })
             })
             .collect_vec();
@@ -138,10 +123,8 @@ impl Hunk {
     pub(crate) fn one_insert(message: &str) -> Hunk {
         Hunk {
             new_line_range: 0..0,
-            old_line_range: 0..0,
             content: message.to_string(),
             decorations: Vec::new(),
-            new_content: "".to_string(),
         }
     }
 
@@ -149,14 +132,6 @@ impl Hunk {
         let info = Info::new("Git Hunk Diff".to_string(), self.content.clone())
             .set_decorations(self.decorations.clone());
         Some(info)
-    }
-
-    pub(crate) fn old_line_range(&self) -> Range<usize> {
-        self.old_line_range.clone()
-    }
-
-    pub(crate) fn new_content(&self) -> String {
-        self.new_content.to_string()
     }
 }
 

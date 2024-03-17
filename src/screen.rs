@@ -30,7 +30,7 @@ impl Screen {
     /// This takes a `&mut self` instead of a `&self` because memoization.
     /// Memoization is necessary because there are other functions that depends on the result of this function,
     /// for example `Screen::dimension`.
-    pub fn to_positioned_cells(&mut self) -> Vec<PositionedCell> {
+    pub fn get_positioned_cells(&mut self) -> Vec<PositionedCell> {
         if let Some(positioned_cells) = self.memoized_positioned_cells.clone() {
             positioned_cells
         } else {
@@ -45,7 +45,7 @@ impl Screen {
                     )
                     .collect(),
             );
-            self.to_positioned_cells()
+            self.get_positioned_cells()
         }
     }
 
@@ -59,17 +59,17 @@ impl Screen {
         // which can cause re-render to flicker like old TV (at least on Kitty term)
 
         let new: indexmap::IndexSet<PositionedCell> =
-            self.to_positioned_cells().into_iter().collect();
+            self.get_positioned_cells().into_iter().collect();
         let old: indexmap::IndexSet<PositionedCell> =
-            old_screen.to_positioned_cells().into_iter().collect();
+            old_screen.get_positioned_cells().into_iter().collect();
         new.difference(&old)
             .map(|cell| cell.to_owned())
             .collect_vec()
     }
 
     #[cfg(test)]
-    pub(crate) fn to_string(&mut self) -> String {
-        self.to_positioned_cells()
+    pub(crate) fn stringify(&mut self) -> String {
+        self.get_positioned_cells()
             .into_iter()
             .group_by(|cell| cell.position.line)
             .into_iter()
@@ -93,7 +93,7 @@ impl Screen {
     }
 
     pub(crate) fn dimension(&mut self) -> Dimension {
-        let cells = self.to_positioned_cells();
+        let cells = self.get_positioned_cells();
         let max_column = cells
             .iter()
             .max_by_key(|cell| cell.position.column)
