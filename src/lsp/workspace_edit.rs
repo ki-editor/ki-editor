@@ -26,7 +26,7 @@ impl TryFrom<lsp_types::ResourceOp> for ResourceOperation {
     fn try_from(value: lsp_types::ResourceOp) -> Result<Self, Self::Error> {
         match value {
             lsp_types::ResourceOp::Create(create) => {
-                Ok(ResourceOperation::Create(create.uri.try_into()?))
+                Ok(ResourceOperation::Create(create.uri.into()))
             }
             lsp_types::ResourceOp::Rename(rename) => Ok(ResourceOperation::Rename {
                 old: rename.old_uri.try_into()?,

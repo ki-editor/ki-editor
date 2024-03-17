@@ -1,9 +1,12 @@
 default:
-    @just fmt build clippy test
+    @just fmt-check build clippy test
 
-fmt:
-    @echo "Running cargo fmt..."
+fmt-check:
+    @echo "Checking formating"
     cargo fmt --all -- --check
+    
+fmt:
+	cargo fmt --all
 
 build:
     @echo "Running cargo build..."
@@ -11,10 +14,19 @@ build:
 
 clippy:
     @echo "Running cargo clippy..."
-    cargo clippy --workspace -- -D warnings
+    cargo clippy --workspace --tests -- -D warnings
+    
+clippy-fix:
+	cargo clippy --workspace --tests --fix --allow-staged
 
 test:
     @echo "Running cargo test..."
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
     cargo test --workspace
+    
+watch-test:
+	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' -- cargo test --workspace  -- --nocapture 
+	
+watch-clippy:
+	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests

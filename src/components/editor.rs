@@ -2386,11 +2386,6 @@ impl Editor {
         Ok(Vec::new())
     }
 
-    fn kill_primary_cursor(&mut self) -> Result<(), anyhow::Error> {
-        self.selection_set.delete_primary_cursor();
-        Ok(())
-    }
-
     pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;

@@ -418,6 +418,16 @@ impl Style {
     }
 }
 
+/// TODO: in the future, tab size should be configurable
+pub fn get_string_width(str: &str) -> usize {
+    str.chars()
+        .map(|char| match char {
+            '\t' => DEFAULT_TAB_SIZE,
+            _ => UnicodeWidthChar::width(char).unwrap_or(1),
+        })
+        .sum()
+}
+
 #[cfg(test)]
 mod test_grid {
 
@@ -559,14 +569,4 @@ mod test_grid {
     fn test_get_string_width() {
         assert_eq!(get_string_width("\t\t"), 8)
     }
-}
-
-/// TODO: in the future, tab size should be configurable
-pub fn get_string_width(str: &str) -> usize {
-    str.chars()
-        .map(|char| match char {
-            '\t' => DEFAULT_TAB_SIZE,
-            _ => UnicodeWidthChar::width(char).unwrap_or(1),
-        })
-        .sum()
 }

@@ -323,8 +323,7 @@ impl Layout {
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.background_suggestive_editors
             .iter()
-            .cloned()
-            .find(|component| {
+            .find(|&component| {
                 component
                     .borrow()
                     .editor()
@@ -333,6 +332,7 @@ impl Layout {
                     .map(|p| &p == path)
                     .unwrap_or(false)
             })
+            .cloned()
     }
 
     pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {

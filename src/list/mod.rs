@@ -53,11 +53,9 @@ impl WalkBuilderConfig {
                             .file_type()
                             .map_or(false, |file_type| file_type.is_file())
                         {
-                            let path = path.path();
-                            if let Ok(path) = path.try_into() {
-                                if let Err(error) = f(path, sender.clone()) {
-                                    log::error!("sender.send {:?}", error)
-                                }
+                            let path = path.path().into();
+                            if let Err(error) = f(path, sender.clone()) {
+                                log::error!("sender.send {:?}", error)
                             }
                         }
                     }

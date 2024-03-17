@@ -567,7 +567,7 @@ impl<T: Frontend> App<T> {
                 self.context = context.set_theme(theme);
             }
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
-            Dispatch::DispatchSuggestiveEditor(dispatch) => {
+            Dispatch::ToSuggestiveEditor(dispatch) => {
                 self.handle_dispatch_suggestive_editor(dispatch)?
             }
             Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
@@ -906,7 +906,7 @@ impl<T: Frontend> App<T> {
                         .map(|range| {
                             let range = buffer.position_to_char(range.start)?
                                 ..buffer.position_to_char(range.end)?;
-                            buffer.slice(&range.try_into()?)
+                            buffer.slice(&range.into())
                         })
                         .transpose()
                         .unwrap_or_default()
@@ -2013,7 +2013,7 @@ pub enum Dispatch {
     GoToPreviousSelection,
     GoToNextSelection,
     HandleLspNotification(LspNotification),
-    DispatchSuggestiveEditor(DispatchSuggestiveEditor),
+    ToSuggestiveEditor(DispatchSuggestiveEditor),
     CloseDropdown {
         owner_id: ComponentId,
     },
@@ -2226,7 +2226,7 @@ impl DispatchPrompt {
             DispatchPrompt::AddPath => Ok([Dispatch::AddPath(text.into())].to_vec()),
             DispatchPrompt::MovePath { from } => Ok([Dispatch::MoveFile {
                 from,
-                to: text.try_into()?,
+                to: text.into(),
             }]
             .to_vec()),
             DispatchPrompt::SelectSymbol { symbols } => {

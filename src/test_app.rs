@@ -15,7 +15,7 @@ use std::{
 };
 pub use Dispatch::*;
 pub use DispatchEditor::*;
-pub use DispatchSuggestiveEditor::*;
+
 pub use Movement::*;
 pub use SelectionMode::*;
 
