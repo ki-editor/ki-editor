@@ -2,7 +2,7 @@ use ropey::Rope;
 
 use crate::selection::Selection;
 
-use super::{ApplyMovementResult, ByteRange, SelectionMode, SelectionModeParams};
+use super::{ByteRange, SelectionMode, SelectionModeParams};
 
 pub struct Column {
     current_column: usize,
@@ -43,14 +43,14 @@ impl SelectionMode for Column {
     fn up(
         &self,
         params: super::SelectionModeParams,
-    ) -> Result<std::option::Option<ApplyMovementResult>, anyhow::Error> {
+    ) -> Result<std::option::Option<Selection>, anyhow::Error> {
         self.move_vertically(true, params)
     }
 
     fn down(
         &self,
         params: super::SelectionModeParams,
-    ) -> Result<std::option::Option<ApplyMovementResult>, anyhow::Error> {
+    ) -> Result<std::option::Option<Selection>, anyhow::Error> {
         self.move_vertically(false, params)
     }
 }
@@ -80,7 +80,7 @@ impl Column {
             cursor_direction,
             ..
         }: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    ) -> anyhow::Result<Option<Selection>> {
         let current_char_index = current_selection.to_char_index(cursor_direction);
         let current_line = buffer.char_to_line(current_char_index)?;
         let line_index = if go_up {
@@ -95,10 +95,7 @@ impl Column {
         let column = self.current_column.min(line_len.saturating_sub(1));
         let char_index =
             buffer.position_to_char(crate::position::Position::new(line_index, column))?;
-        Ok(Some(ApplyMovementResult {
-            selection: Selection::new((char_index..char_index + 1).into()),
-            mode: None,
-        }))
+        Ok(Some(Selection::new((char_index..char_index + 1).into())))
     }
 }
 
@@ -164,9 +161,7 @@ gam
                 },
             )
             .unwrap()
-            .unwrap()
-            .selection;
-
+            .unwrap();
             let actual = buffer.slice(&result.extended_range()).unwrap();
             assert_eq!(actual, expected);
         };

@@ -1,3 +1,4 @@
+use crate::selection_mode::ApplyMovementResult;
 use itertools::Itertools;
 
 use crate::{
@@ -41,24 +42,7 @@ impl SelectionMode for Inside {
         Ok(pair.map(|pair| current_selection.clone().set_range(pair.inner_range())))
     }
 
-    fn up(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        Ok(self
-            .parent(params)?
-            .map(super::ApplyMovementResult::from_selection))
-    }
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        Ok(self
-            .first_child(params)?
-            .map(super::ApplyMovementResult::from_selection))
-    }
-
-    fn parent(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn parent(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         let SelectionModeParams {
             current_selection, ..
         } = params;
@@ -67,7 +51,9 @@ impl SelectionMode for Inside {
         let (open, close) = self.0.open_close_symbols();
         let range = current_selection.extended_range();
         if text.starts_with(&open) && text.ends_with(&close) {
-            return self.current(params);
+            return Ok(self
+                .current(params)?
+                .map(ApplyMovementResult::from_selection));
         }
 
         let start = range.start - open.chars().count();
@@ -75,10 +61,15 @@ impl SelectionMode for Inside {
 
         let range: CharIndexRange = (start..end).into();
 
-        Ok(Some(current_selection.clone().set_range(range)))
+        Ok(Some(ApplyMovementResult::from_selection(
+            current_selection.clone().set_range(range),
+        )))
     }
 
-    fn first_child(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn first_child(
+        &self,
+        params: SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let SelectionModeParams {
             buffer,
             current_selection,
@@ -106,7 +97,9 @@ impl SelectionMode for Inside {
                 })
                 .map(|pair| pair.outer_range())
         };
-        Ok(range.map(|range| current_selection.clone().set_range(range)))
+        Ok(range.map(|range| {
+            ApplyMovementResult::from_selection(current_selection.clone().set_range(range))
+        }))
     }
 }
 

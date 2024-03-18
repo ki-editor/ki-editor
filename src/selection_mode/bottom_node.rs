@@ -26,8 +26,13 @@ impl SelectionMode for BottomNode {
     fn parent(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TopNode.current(params)
+    ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
+        Ok(TopNode
+            .current(params)?
+            .map(|selection| crate::selection_mode::ApplyMovementResult {
+                selection,
+                mode: Some(crate::selection::SelectionMode::SyntaxTree),
+            }))
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::selection::Selection;
+use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, SelectionMode, TopNode};
 
@@ -43,29 +43,16 @@ impl SelectionMode for SyntaxTree {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         super::TopNode.current(params)
     }
-    fn up(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        Ok(self
-            .parent(params)?
-            .map(super::ApplyMovementResult::from_selection))
-    }
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<super::ApplyMovementResult>> {
-        Ok(self
-            .first_child(params)?
-            .map(super::ApplyMovementResult::from_selection))
-    }
     fn parent(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, true)
     }
-    fn first_child(&self, params: super::SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn first_child(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params, false)
     }
 }
@@ -75,7 +62,7 @@ impl SyntaxTree {
         &self,
         params: super::SelectionModeParams,
         go_up: bool,
-    ) -> anyhow::Result<Option<Selection>> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let mut node = params
             .buffer
             .get_current_node(params.current_selection, false)?;
@@ -83,9 +70,10 @@ impl SyntaxTree {
             // This is necessary because sometimes the parent node can have the same range as
             // the current node
             if some_node.range() != node.range() {
-                return ByteRange::new(some_node.byte_range())
-                    .to_selection(params.buffer, params.current_selection)
-                    .map(Some);
+                return Ok(Some(ApplyMovementResult::from_selection(
+                    ByteRange::new(some_node.byte_range())
+                        .to_selection(params.buffer, params.current_selection)?,
+                )));
             }
             node = some_node;
         }
@@ -151,7 +139,7 @@ mod test_syntax_tree {
             filters: &Filters::default(),
         });
 
-        let parent_range = selection.unwrap().unwrap().range();
+        let parent_range = selection.unwrap().unwrap().selection.range();
         assert_eq!(parent_range, (CharIndex(22)..CharIndex(31)).into());
 
         let selection = SyntaxTree.first_child(SelectionModeParams {
@@ -162,7 +150,7 @@ mod test_syntax_tree {
             filters: &Filters::default(),
         });
 
-        let child_range = selection.unwrap().unwrap().range();
+        let child_range = selection.unwrap().unwrap().selection.range();
         assert_eq!(child_range, child_range);
     }
 

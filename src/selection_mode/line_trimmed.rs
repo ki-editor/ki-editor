@@ -1,4 +1,5 @@
 use super::{LineFull, SelectionMode};
+use crate::selection_mode::ApplyMovementResult;
 
 pub struct LineTrimmed;
 
@@ -9,8 +10,10 @@ impl SelectionMode for LineTrimmed {
     fn parent(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        LineFull.current(params)
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        Ok(LineFull
+            .current(params)?
+            .map(|selection| ApplyMovementResult::from_selection(selection)))
     }
     fn iter<'a>(
         &'a self,

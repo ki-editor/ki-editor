@@ -173,19 +173,19 @@ pub trait SelectionMode {
             Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
                 params.current_selection.clone().set_range(range),
             ))),
-            Movement::Up => self.up(params),
-            Movement::Down => self.down(params),
+            Movement::Up => convert(self.up(params)),
+            Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
-            Movement::Parent => convert(self.parent(params)),
-            Movement::FirstChild => convert(self.first_child(params)),
+            Movement::Parent => self.parent(params),
+            Movement::FirstChild => self.first_child(params),
         }
     }
 
-    fn parent(&self, _: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn parent(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         Ok(None)
     }
 
-    fn first_child(&self, _: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn first_child(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         Ok(None)
     }
 
@@ -221,11 +221,11 @@ pub trait SelectionMode {
             .flatten())
     }
 
-    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.select_vertical(params, std::cmp::Ordering::Less)
     }
 
-    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn down(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.select_vertical(params, std::cmp::Ordering::Greater)
     }
 
@@ -233,7 +233,7 @@ pub trait SelectionMode {
         &self,
         params: SelectionModeParams,
         ordering: std::cmp::Ordering,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    ) -> anyhow::Result<Option<Selection>> {
         let SelectionModeParams {
             buffer,
             current_selection,
@@ -258,10 +258,7 @@ pub trait SelectionMode {
             .next()
             .map(|(_, range)| range.to_selection(buffer, current_selection))
             .transpose()?;
-        Ok(selection.map(|selection| ApplyMovementResult {
-            selection,
-            mode: None,
-        }))
+        Ok(selection)
     }
 
     fn selections_in_line_number_range(

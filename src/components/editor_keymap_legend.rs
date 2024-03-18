@@ -46,18 +46,24 @@ impl Editor {
             ),
             Keymap::new(
                 "j",
-                "Down / First Child".to_string(),
+                "Down".to_string(),
                 Dispatch::ToEditor(MoveSelection(Down)),
             ),
-            Keymap::new(
-                "k",
-                "Up / Parent".to_string(),
-                Dispatch::ToEditor(MoveSelection(Up)),
-            ),
+            Keymap::new("k", "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
             Keymap::new(
                 "l",
                 "Lower (Next)".to_string(),
                 Dispatch::ToEditor(MoveSelection(Next)),
+            ),
+            Keymap::new(
+                "p",
+                "Parent".to_string(),
+                Dispatch::ToEditor(MoveSelection(Parent)),
+            ),
+            Keymap::new(
+                "q",
+                "First child".to_string(),
+                Dispatch::ToEditor(MoveSelection(FirstChild)),
             ),
             Keymap::new(
                 "s",
@@ -65,7 +71,7 @@ impl Editor {
                 Dispatch::ToEditor(DispatchEditor::ShowJumps),
             ),
             Keymap::new(
-                "p",
+                "-",
                 "Parent Line".to_string(),
                 Dispatch::ToEditor(MoveSelection(ToParentLine)),
             ),
@@ -84,16 +90,6 @@ impl Editor {
                 "b",
                 "Between".to_string(),
                 Dispatch::ShowKeymapLegend(self.inside_mode_keymap_legend_config()),
-            ),
-            Keymap::new(
-                "y",
-                "Line (Full)".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(LineFull)),
-            ),
-            Keymap::new(
-                "Y",
-                "Line (Trimmed)".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
             ),
             Keymap::new(
                 "f",
@@ -116,14 +112,24 @@ impl Editor {
                 Dispatch::ToEditor(SetSelectionMode(BottomNode)),
             ),
             Keymap::new(
-                "x",
-                "Column".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(Character)),
-            ),
-            Keymap::new(
                 "w",
                 "Word".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(Word)),
+            ),
+            Keymap::new(
+                "x",
+                "Character".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(Character)),
+            ),
+            Keymap::new(
+                "y",
+                "Line (Trimmed)".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
+            ),
+            Keymap::new(
+                "Y",
+                "Line (Full)".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(LineFull)),
             ),
         ]
         .to_vec()
@@ -134,19 +140,19 @@ impl Editor {
             Keymap::new("d", "Delete".to_string(), Dispatch::ToEditor(Kill)),
             Keymap::new(
                 "m",
-                "Toggle Mark".to_string(),
+                "Mark (Toggle)".to_string(),
                 Dispatch::ToEditor(ToggleBookmark),
+            ),
+            Keymap::new(
+                "u",
+                "Update (Transform)".to_string(),
+                Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
             ),
             Keymap::new("r", "Raise".to_string(), Dispatch::ToEditor(Raise)),
             Keymap::new(
                 "R",
                 "Replace Cut".to_string(),
                 Dispatch::ToEditor(ReplaceCut),
-            ),
-            Keymap::new(
-                "u",
-                "Update".to_string(),
-                Dispatch::ShowKeymapLegend(self.update_keymap_legend_config()),
             ),
         ]
         .to_vec()
@@ -169,8 +175,8 @@ impl Editor {
                 Dispatch::ToEditor(EnterExchangeMode),
             ),
             Keymap::new(
-                "o",
-                "Overwrite".to_string(),
+                "z",
+                "Replace".to_string(),
                 Dispatch::ToEditor(EnterReplaceMode),
             ),
             Keymap::new(
@@ -179,8 +185,8 @@ impl Editor {
                 Dispatch::ToEditor(ToggleHighlightMode),
             ),
             Keymap::new(
-                "z",
-                "Multi-cursor".to_string(),
+                "o",
+                "Omni-cursor (Multi-cursor)".to_string(),
                 Dispatch::ToEditor(EnterMultiCursorMode),
             ),
         ]
@@ -194,8 +200,8 @@ impl Editor {
                 Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
             ),
             Keymap::new(
-                "q",
-                "Qontext menu".to_string(),
+                "\\",
+                "Context menu".to_string(),
                 Dispatch::ShowKeymapLegend(self.context_menu_legend_config(context)),
             ),
             Keymap::new(
@@ -412,7 +418,7 @@ impl Editor {
         }
     }
 
-    pub fn update_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
             owner_id: self.id(),
