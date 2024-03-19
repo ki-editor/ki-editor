@@ -1814,7 +1814,7 @@ impl<T: Frontend> App<T> {
 
         let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
         match render.info {
-            Some(info) if !info.content().trim().is_empty() => {
+            Some(info) => {
                 self.layout.show_dropdown_info(owner_id, info)?;
             }
             _ => self.layout.hide_dropdown_info(owner_id),

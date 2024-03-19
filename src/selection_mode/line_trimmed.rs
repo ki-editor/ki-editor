@@ -13,7 +13,7 @@ impl SelectionMode for LineTrimmed {
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         Ok(LineFull
             .current(params)?
-            .map(|selection| ApplyMovementResult::from_selection(selection)))
+            .map(ApplyMovementResult::from_selection))
     }
     fn iter<'a>(
         &'a self,

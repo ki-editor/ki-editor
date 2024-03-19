@@ -685,7 +685,7 @@ Code Actions
 3│ └ Use to_string
 "
                 .trim_matches('\n'),
-                s.temp_dir().display_absolute()[0..20].to_string()
+                &s.temp_dir().display_absolute()[0..20]
             );
             let expected_grid_2 = format!(
                 "{}\n{}",
@@ -701,7 +701,7 @@ Code Actions
 3│█└ Use to_string
 "
                 .trim_matches('\n'),
-                s.temp_dir().display_absolute()[0..20].to_string()
+                &s.temp_dir().display_absolute()[0..20]
             );
             Box::new([
                 App(OpenFile(s.main_rs())),

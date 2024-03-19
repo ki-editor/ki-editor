@@ -41,7 +41,7 @@ impl SelectionMode for TopNode {
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
         Ok(BottomNode
             .current(params)?
-            .map(|selection| crate::selection_mode::ApplyMovementResult::from_selection(selection)))
+            .map(crate::selection_mode::ApplyMovementResult::from_selection))
     }
 }
 
