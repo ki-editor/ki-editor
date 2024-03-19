@@ -747,7 +747,6 @@ impl Editor {
             [
                 SetContent(render.content.clone()),
                 SelectLineAt(render.highlight_line_index),
-                AlignViewCenter,
             ]
             .to_vec(),
         )

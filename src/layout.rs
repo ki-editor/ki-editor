@@ -540,6 +540,7 @@ impl Layout {
             "",
         )));
         self.dropdowns.insert(owner_id, dropdown.clone());
+        self.recalculate_layout(); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
         dropdown
     }
 

@@ -25,8 +25,9 @@ test:
     git config --get --global user.email || git config --global user.email tester@gmail.com
     cargo test --workspace
     
-watch-test:
-	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' -- cargo test --workspace  -- --nocapture 
+
+watch-test testname:
+	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' -- cargo test --workspace  -- --nocapture -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests

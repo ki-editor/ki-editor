@@ -582,6 +582,15 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
+            Dispatch::ReceiveCodeActions(code_actions) => {
+                if let Some(component) = self.layout.get_current_suggestive_editor() {
+                    let dispatches = component
+                        .borrow_mut()
+                        .handle_dispatch(DispatchSuggestiveEditor::CodeActions(code_actions))?;
+
+                    self.handle_dispatches(dispatches)?;
+                }
+            }
         }
         Ok(())
     }
@@ -927,12 +936,11 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)
             }
             LspNotification::CodeAction(context, code_actions) => {
-                let component = self.layout.get_suggestive_editor(context.component_id)?;
-                let dispatches = component
-                    .borrow_mut()
-                    .handle_dispatch(DispatchSuggestiveEditor::CodeActions(code_actions))?;
-
-                self.handle_dispatches(dispatches)?;
+                if Some(context.component_id)
+                    == self.layout.current_component().map(|c| c.borrow().id())
+                {
+                    self.handle_dispatch(Dispatch::ReceiveCodeActions(code_actions))?;
+                }
                 Ok(())
             }
             LspNotification::SignatureHelp(context, signature_help) => {
@@ -1806,7 +1814,7 @@ impl<T: Frontend> App<T> {
 
         let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
         match render.info {
-            Some(info) if !info.content().trim().is_empty() => {
+            Some(info) => {
                 self.layout.show_dropdown_info(owner_id, info)?;
             }
             _ => self.layout.hide_dropdown_info(owner_id),
@@ -2026,6 +2034,7 @@ pub enum Dispatch {
     CloseEditorInfo {
         owner_id: ComponentId,
     },
+    ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

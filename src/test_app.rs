@@ -80,7 +80,7 @@ pub enum ExpectKind {
     CurrentViewAlignment(Option<ViewAlignment>),
     ComponentsLength(usize),
     Quickfixes(Box<[QuickfixListItem]>),
-    AppGrid(&'static str),
+    AppGrid(String),
     EditorGrid(&'static str),
     CurrentPath(CanonicalizedPath),
     LocalSearchConfigSearches(&'static [&'static str]),
@@ -728,7 +728,8 @@ fn first () {
 6│}
 
 [GLOBAL TITLE]
-",
+"
+                .to_string(),
             )),
             Editor(AlignViewBottom),
             Expect(AppGrid(
@@ -739,7 +740,8 @@ fn first () {
 4│  fourth(); // this line is long
 5│  █ifth();
 [GLOBAL TITLE]
-",
+"
+                .to_string(),
             )),
             // Resize the terminal dimension sucht that the fourth line will be wrapped
             App(TerminalDimensionChanged(Dimension {
@@ -755,7 +757,8 @@ fn first () {
 ↪│this line is long
 5│  █ifth();
 [GLOBAL TITLE]
-",
+"
+                .to_string(),
             )),
         ])
     })
