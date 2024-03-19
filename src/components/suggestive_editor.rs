@@ -159,7 +159,7 @@ impl Component for SuggestiveEditor {
                     self.code_action_dropdown.next_item();
                     return Ok([Dispatch::RenderDropdown {
                         owner_id: self.id(),
-                        render: self.completion_dropdown.render(),
+                        render: self.code_action_dropdown.render(),
                     }]
                     .to_vec());
                 }
@@ -167,7 +167,7 @@ impl Component for SuggestiveEditor {
                     self.code_action_dropdown.previous_item();
                     return Ok([Dispatch::RenderDropdown {
                         owner_id: self.id(),
-                        render: self.completion_dropdown.render(),
+                        render: self.code_action_dropdown.render(),
                     }]
                     .to_vec());
                 }
@@ -379,7 +379,7 @@ impl SuggestiveEditor {
         self.trigger_characters = completion.trigger_characters;
     }
 
-    pub(crate) fn render(&self) -> Vec<Dispatch> {
+    pub(crate) fn render_completion_dropdown(&self) -> Vec<Dispatch> {
         [Dispatch::RenderDropdown {
             owner_id: self.id(),
             render: self.completion_dropdown.render(),
@@ -654,30 +654,73 @@ mod test_suggestive_editor {
     #[test]
     fn code_action() -> anyhow::Result<()> {
         execute_test(|s| {
+            let code_action = |new_text: &str| CodeAction {
+                title: format!("Use {}", new_text),
+                kind: None,
+                edit: Some(WorkspaceEdit {
+                    edits: [TextDocumentEdit {
+                        path: s.main_rs(),
+                        edits: [PositionalEdit {
+                            range: Position::new(0, 2)..Position::new(0, 6),
+                            new_text: new_text.to_string(),
+                        }]
+                        .to_vec(),
+                    }]
+                    .to_vec(),
+                    resource_operations: Vec::new(),
+                }),
+                command: None,
+            };
+            let expected_grid_1 = format!(
+                "{}\n{}",
+                "
+ src/main.rs 🦀
+1│█.to_s
+
+
+
+Code Actions
+1│■┬ Unknown
+2│█├ Use to_soup
+3│ └ Use to_string
+"
+                .trim_matches('\n'),
+                s.temp_dir().display_absolute()[0..20].to_string()
+            );
+            let expected_grid_2 = format!(
+                "{}\n{}",
+                "
+ src/main.rs 🦀
+1│█.to_s
+
+
+
+Code Actions
+1│■┬ Unknown
+2│ ├ Use to_soup
+3│█└ Use to_string
+"
+                .trim_matches('\n'),
+                s.temp_dir().display_absolute()[0..20].to_string()
+            );
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("a.to_s".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
-                SuggestiveEditor(CodeActions(
-                    [CodeAction {
-                        title: "".to_string(),
-                        kind: None,
-                        edit: Some(WorkspaceEdit {
-                            edits: [TextDocumentEdit {
-                                path: s.main_rs(),
-                                edits: [PositionalEdit {
-                                    range: Position::new(0, 2)..Position::new(0, 6),
-                                    new_text: "to_string".to_string(),
-                                }]
-                                .to_vec(),
-                            }]
-                            .to_vec(),
-                            resource_operations: Vec::new(),
-                        }),
-                        command: None,
-                    }]
-                    .to_vec(),
+                App(TerminalDimensionChanged(crate::app::Dimension {
+                    height: 10,
+                    width: 20,
+                })),
+                App(ReceiveCodeActions(
+                    [code_action("to_soup"), code_action("to_string")].to_vec(),
                 )),
+                Expect(AppGrid(expected_grid_1.clone())),
+                App(HandleKeyEvent(key!("ctrl+n"))),
+                Expect(AppGrid(expected_grid_2.clone())),
+                App(HandleKeyEvent(key!("ctrl+p"))),
+                Expect(AppGrid(expected_grid_1)),
+                App(HandleKeyEvent(key!("ctrl+n"))),
+                Expect(AppGrid(expected_grid_2)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentComponentContent("a.to_string")),
                 Expect(CurrentCodeActions(&[])),

@@ -53,7 +53,7 @@ impl Prompt {
             items: config.items,
             trigger_characters: vec![" ".to_string()],
         });
-        let dispatches = editor.render();
+        let dispatches = editor.render_completion_dropdown();
         (
             Prompt {
                 editor,
