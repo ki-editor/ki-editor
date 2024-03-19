@@ -56,8 +56,8 @@ impl Editor {
                 Dispatch::ToEditor(MoveSelection(Next)),
             ),
             Keymap::new(
-                "p",
-                "Parent".to_string(),
+                "o",
+                "Older (Parent)".to_string(),
                 Dispatch::ToEditor(MoveSelection(Parent)),
             ),
             Keymap::new(
@@ -92,6 +92,11 @@ impl Editor {
                 Dispatch::ShowKeymapLegend(self.inside_mode_keymap_legend_config()),
             ),
             Keymap::new(
+                "e",
+                "Equator (Line Trimmed)".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
+            ),
+            Keymap::new(
                 "f",
                 "Find (Local)".to_string(),
                 Dispatch::ShowKeymapLegend(self.find_local_keymap_legend_config(context)),
@@ -112,23 +117,18 @@ impl Editor {
                 Dispatch::ToEditor(SetSelectionMode(BottomNode)),
             ),
             Keymap::new(
+                "u",
+                "Character".to_string(),
+                Dispatch::ToEditor(SetSelectionMode(Character)),
+            ),
+            Keymap::new(
                 "w",
                 "Word".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(Word)),
             ),
             Keymap::new(
-                "x",
-                "Character".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(Character)),
-            ),
-            Keymap::new(
-                "y",
-                "Line (Trimmed)".to_string(),
-                Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
-            ),
-            Keymap::new(
-                "Y",
-                "Line (Full)".to_string(),
+                "E",
+                "Equator (Line Full)".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(LineFull)),
             ),
         ]
@@ -144,8 +144,18 @@ impl Editor {
                 Dispatch::ToEditor(ToggleBookmark),
             ),
             Keymap::new(
-                "u",
-                "Update (Transform)".to_string(),
+                "p",
+                "Paste (after selection)".to_string(),
+                Dispatch::ToEditor(Paste(Direction::End)),
+            ),
+            Keymap::new(
+                "P",
+                "Paste (before selection)".to_string(),
+                Dispatch::ToEditor(Paste(Direction::Start)),
+            ),
+            Keymap::new(
+                "!",
+                "Transform".to_string(),
                 Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
             ),
             Keymap::new("r", "Raise".to_string(), Dispatch::ToEditor(Raise)),
@@ -154,6 +164,7 @@ impl Editor {
                 "Replace Cut".to_string(),
                 Dispatch::ToEditor(ReplaceCut),
             ),
+            Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
         ]
         .to_vec()
     }
@@ -170,25 +181,21 @@ impl Editor {
                 Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
             ),
             Keymap::new(
-                "e",
-                "Exchange".to_string(),
-                Dispatch::ToEditor(EnterExchangeMode),
-            ),
-            Keymap::new(
-                "z",
-                "Replace".to_string(),
-                Dispatch::ToEditor(EnterReplaceMode),
-            ),
-            Keymap::new(
                 "v",
                 "Visual (Extend selection)".to_string(),
                 Dispatch::ToEditor(ToggleHighlightMode),
             ),
             Keymap::new(
-                "o",
+                "x",
+                "Exchange".to_string(),
+                Dispatch::ToEditor(EnterExchangeMode),
+            ),
+            Keymap::new(
+                "z",
                 "Omni-cursor (Multi-cursor)".to_string(),
                 Dispatch::ToEditor(EnterMultiCursorMode),
             ),
+            // Keymap::new( "z", "Replace".to_string(), Dispatch::ToEditor(EnterReplaceMode), ),
         ]
         .to_vec()
     }

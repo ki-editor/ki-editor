@@ -1187,8 +1187,45 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn paste(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace_with_clipboard(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
         self.replace_current_selection_with(|selection| selection.copied_text(context))
+    }
+
+    pub fn paste(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+    ) -> anyhow::Result<Vec<Dispatch>> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let current_range = selection.extended_range();
+                    let insertion_range_start = match direction {
+                        Direction::Start => current_range.start,
+                        Direction::End => current_range.end,
+                    };
+                    let insertion_range = insertion_range_start..insertion_range_start;
+                    let copied_text = selection.copied_text(context).unwrap_or_default();
+                    let copied_text_len = copied_text.len_chars();
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: insertion_range.into(),
+                                new: copied_text,
+                            }),
+                            Action::Select(Selection::new(
+                                (insertion_range_start..insertion_range_start + copied_text_len)
+                                    .into(),
+                            )),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction)
     }
 
     pub fn replace_cut(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
@@ -1334,7 +1371,7 @@ impl Editor {
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy => return self.copy(context),
-            Paste => return self.paste(context),
+            ReplaceWithClipboard => return self.replace_with_clipboard(context),
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
             ReplaceSelectionWithCopiedText => return self.replace_cut(context),
@@ -1403,6 +1440,7 @@ impl Editor {
                 .to_vec())
             }
             EnterReplaceMode => self.enter_replace_mode(),
+            Paste(direction) => return self.paste(direction, context),
         }
         Ok([].to_vec())
     }
@@ -1461,7 +1499,9 @@ impl Editor {
                 Ok(HandleEventResult::Handled(dispatches))
             }
             key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
-            key!("ctrl+v") => Ok(HandleEventResult::Handled(self.paste(context)?)),
+            key!("ctrl+v") => Ok(HandleEventResult::Handled(
+                self.replace_with_clipboard(context)?,
+            )),
             key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo()?)),
             key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo()?)),
             _ => Ok(HandleEventResult::Ignored(event)),
@@ -2743,7 +2783,7 @@ pub enum DispatchEditor {
     Copy,
     Cut,
     ReplaceSelectionWithCopiedText,
-    Paste,
+    ReplaceWithClipboard,
     SelectAll,
     SetContent(String),
     SetRectangle(Rectangle),
@@ -2786,4 +2826,5 @@ pub enum DispatchEditor {
     SelectLineAt(usize),
     ReplaceCut,
     ShowKeymapLegendNormalMode,
+    Paste(Direction),
 }

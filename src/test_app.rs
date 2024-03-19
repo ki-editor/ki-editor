@@ -368,7 +368,7 @@ fn copy_paste_from_different_file() -> anyhow::Result<()> {
             Editor(Copy),
             App(OpenFile(s.main_rs())),
             Editor(SelectAll),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(FileContentEqual(s.main_rs, s.foo_rs)),
         ])
     })
@@ -402,11 +402,11 @@ fn copy_paste() -> anyhow::Result<()> {
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(Copy),
             Editor(MoveSelection(Movement::Next)),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
             Expect(CurrentSelectedTexts(&[""])),
             Editor(MoveSelection(Next)),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent("fn fn(fn { let x = 1; }")),
         ])
     })
@@ -425,7 +425,7 @@ fn cut_paste() -> anyhow::Result<()> {
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
             Editor(MoveSelection(Current)),
             Expect(CurrentSelectedTexts(&["main"])),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent(" fn() { let x = 1; }")),
         ])
     })
@@ -448,7 +448,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Cut),
             Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = S(a); let y = S(b); }",
             )),
@@ -474,7 +474,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(Copy),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent(
                 "fn f()fn f() let x = S(a); let y = S(b); }",
             )),
@@ -524,7 +524,7 @@ fn highlight_mode_paste() -> anyhow::Result<()> {
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent("fn{ let x = S(a); let y = S(b); }")),
         ])
     })
@@ -548,14 +548,14 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(Cut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent(".hello".to_owned())),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }",
             )),

@@ -640,7 +640,39 @@ fn multi_insert() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn paste_from_clipboard() -> anyhow::Result<()> {
+fn paste_after() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(SetClipboardContent("haha".to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(Paste(Direction::End)),
+            Expect(CurrentComponentContent("foo barhaha spam")),
+            Expect(CurrentSelectedTexts(&["haha"])),
+        ])
+    })
+}
+
+#[serial]
+#[test]
+fn paste_before() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(SetClipboardContent("haha".to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(Paste(Direction::Start)),
+            Expect(CurrentComponentContent("foo hahabar spam")),
+            Expect(CurrentSelectedTexts(&["haha"])),
+        ])
+    })
+}
+
+#[serial]
+#[test]
+fn replace_from_clipboard() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -648,7 +680,7 @@ fn paste_from_clipboard() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             App(SetClipboardContent("let z = S(c);".to_string())),
-            Editor(Paste),
+            Editor(ReplaceWithClipboard),
             Expect(CurrentComponentContent(
                 "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
             )),
