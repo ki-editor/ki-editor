@@ -37,12 +37,15 @@ impl Formatter {
         // Read from stdout
         let output = child.wait_with_output()?;
 
-        // Get the stderr
-        if !output.stderr.is_empty() {
+        if !output.status.success() {
+            let stdout = String::from_utf8(output.stdout.clone())
+                .unwrap_or_else(|_| format!("{:?}", output.stdout));
+            let stderr = String::from_utf8(output.stderr.clone())
+                .unwrap_or_else(|_| format!("{:?}", output.stderr));
             Err(anyhow::anyhow!(
-                "Failed to format the content: {:#?}",
-                String::from_utf8(output.stderr.clone())
-                    .unwrap_or_else(|_| format!("{:?}", output.stderr))
+                "Failed to format the content:\n[[STDOUT]]:\n\n{:#?}\n\n[[STDERR]]:\n\n{:#?}",
+                stdout,
+                stderr
             ))
         } else {
             Ok(String::from_utf8(output.stdout)?)
