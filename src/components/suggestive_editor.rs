@@ -366,7 +366,7 @@ impl SuggestiveEditor {
     }
 
     pub fn completion_dropdown_opened(&self) -> bool {
-        self.completion_dropdown.current_item().is_some()
+        !self.completion_dropdown.items().is_empty()
     }
 
     #[cfg(test)]

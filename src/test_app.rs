@@ -81,6 +81,7 @@ pub enum ExpectKind {
     ComponentsLength(usize),
     Quickfixes(Box<[QuickfixListItem]>),
     AppGrid(String),
+    AppGridIncludes(&'static str),
     EditorGrid(&'static str),
     CurrentPath(CanonicalizedPath),
     LocalSearchConfigSearches(&'static [&'static str]),
@@ -149,10 +150,11 @@ impl ExpectKind {
                 component.borrow().editor().get_grid(context).to_string(),
                 grid.to_string(),
             ),
-            AppGrid(grid) => contextualize(
-                app.get_screen()?.stringify().trim_matches('\n').to_string(),
-                grid.to_string().trim_matches('\n').to_string(),
-            ),
+            AppGrid(grid) => {
+                let actual = app.get_screen()?.stringify().trim_matches('\n').to_string();
+                println!("actual =\n{}", actual);
+                contextualize(actual, grid.to_string().trim_matches('\n').to_string())
+            }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
             LocalSearchConfigSearches(searches) => {
                 contextualize(context.local_search_config().searches(), to_vec(searches))
@@ -261,6 +263,11 @@ impl ExpectKind {
             }
             CurrentCodeActions(code_actions) => {
                 contextualize(app.current_code_actions(), code_actions.to_vec())
+            }
+            AppGridIncludes(substring) => {
+                let content = app.get_screen().unwrap().stringify();
+                println!("content =\n{}", content);
+                contextualize(content.contains(substring), true)
             }
         })
     }
