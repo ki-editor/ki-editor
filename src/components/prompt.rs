@@ -193,4 +193,30 @@ mod test_prompt {
             ])
         })
     }
+
+    #[test]
+    fn filter_without_matching_items_should_clear_suggestions() -> anyhow::Result<()> {
+        execute_test(|_| {
+            Box::new([
+                App(Dispatch::OpenPrompt(super::PromptConfig {
+                    history: vec![],
+                    on_enter: DispatchPrompt::SetContent,
+                    items: [CompletionItem::from_label(
+                        "spongebob squarepants".to_string(),
+                    )]
+                    .to_vec(),
+
+                    title: "".to_string(),
+                    enter_selects_first_matching_item: true,
+                })),
+                App(TerminalDimensionChanged(crate::app::Dimension {
+                    height: 10,
+                    width: 50,
+                })),
+                Expect(AppGridIncludes("squarepants")),
+                App(HandleKeyEvents(keys!("f o o").to_vec())),
+                Expect(Not(Box::new(AppGridIncludes("squarepants")))),
+            ])
+        })
+    }
 }
