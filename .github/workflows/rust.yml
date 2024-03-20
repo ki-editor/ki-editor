@@ -11,6 +11,7 @@ env:
 
 jobs:
   check:
+    name: all-rust-check
     runs-on: ubuntu-latest
 
     steps:
