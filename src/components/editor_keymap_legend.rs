@@ -8,7 +8,7 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    app::{Dispatch, FilePickerKind, MakeFilterMechanism, RequestParams, Scope},
+    app::{Dispatch, Dispatches, FilePickerKind, MakeFilterMechanism, RequestParams, Scope},
     components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
@@ -341,13 +341,13 @@ impl Editor {
         &mut self,
         context: &Context,
         event: KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         if let Some(keymap) = self.normal_mode_keymaps(context).get(&event) {
-            return Ok([keymap.dispatch()].to_vec());
+            return Ok([keymap.dispatch()].to_vec().into());
         }
         match event {
             // I think command should be nested inside `'` pickers
-            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
+            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec().into()),
             key!("*") => return Ok(self.select_all()),
             key!("ctrl+d") => {
                 return self.scroll_page_down();
@@ -365,7 +365,8 @@ impl Editor {
                 return Ok(vec![
                     Dispatch::CloseAllExceptMainPanel,
                     Dispatch::SetGlobalMode(None),
-                ]);
+                ]
+                .into());
             }
             key!("shift+K") => return self.select_kids(),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
@@ -374,19 +375,20 @@ impl Editor {
             key!("enter") => return self.open_new_line(),
             key!("%") => self.change_cursor_direction(),
 
-            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
-            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
+            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec().into()),
+            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec().into()),
 
             key!("space") => {
                 return Ok(vec![Dispatch::ShowKeymapLegend(
                     self.space_mode_keymap_legend_config(),
-                )])
+                )]
+                .into())
             }
             _ => {
                 log::info!("event: {:?}", event);
             }
         };
-        Ok(vec![])
+        Ok(vec![].into())
     }
 
     // TODO: where to put this?

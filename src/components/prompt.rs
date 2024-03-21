@@ -1,10 +1,9 @@
 use std::{cell::RefCell, rc::Rc};
 
-use itertools::Itertools;
 use my_proc_macros::key;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt},
+    app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
     context::Context,
     lsp::completion::{Completion, CompletionItem},
@@ -33,7 +32,7 @@ pub struct PromptConfig {
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig, owner_id: Option<ComponentId>) -> (Self, Vec<Dispatch>) {
+    pub fn new(config: PromptConfig, owner_id: Option<ComponentId>) -> (Self, Dispatches) {
         let text = &if config.history.is_empty() {
             "".to_string()
         } else {
@@ -77,12 +76,13 @@ impl Component for Prompt {
         &mut self,
         context: &Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(vec![Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner_id,
-                }])
+                }]
+                .into())
             }
             key!("tab") => {
                 if self.editor.completion_dropdown_opened() {
@@ -90,9 +90,9 @@ impl Component for Prompt {
                         self.editor.set_content(&item.label())?;
                         return self.editor_mut().move_to_line_end();
                     }
-                    Ok(Vec::new())
+                    Ok(Default::default())
                 } else {
-                    return self.editor_mut().handle_key_event(context, event);
+                    self.editor_mut().handle_key_event(context, event)
                 }
             }
             key!("enter") => {
@@ -109,12 +109,9 @@ impl Component for Prompt {
 
                 let dispatches = self.on_enter.to_dispatches(&current_item)?;
 
-                Ok(vec![Dispatch::CloseCurrentWindow {
+                Ok(dispatches.append(Dispatch::CloseCurrentWindow {
                     change_focused_to: self.owner_id,
-                }]
-                .into_iter()
-                .chain(dispatches)
-                .collect_vec())
+                }))
             }
             _ => self.editor.handle_key_event(context, event),
         }

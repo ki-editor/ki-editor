@@ -4,7 +4,10 @@ use unicode_width::UnicodeWidthStr;
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::{app::Dispatch, rectangle::Rectangle};
+use crate::{
+    app::{Dispatch, Dispatches},
+    rectangle::Rectangle,
+};
 
 use super::{
     component::{Component, ComponentId},
@@ -241,7 +244,7 @@ impl Component for KeymapLegend {
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
+    ) -> Result<Dispatches, anyhow::Error> {
         let close_current_window = Dispatch::CloseCurrentWindow {
             change_focused_to: Some(self.config.owner_id),
         };
@@ -249,7 +252,7 @@ impl Component for KeymapLegend {
             match &event {
                 key!("esc") => {
                     self.editor.enter_normal_mode()?;
-                    Ok(vec![])
+                    Ok(Default::default())
                 }
                 key_event => {
                     if let Some(keymap) = self
@@ -261,14 +264,15 @@ impl Component for KeymapLegend {
                         Ok([close_current_window]
                             .into_iter()
                             .chain(vec![keymap.dispatch.clone()])
-                            .collect())
+                            .collect_vec()
+                            .into())
                     } else {
-                        Ok(vec![])
+                        Ok(vec![].into())
                     }
                 }
             }
         } else if self.editor.mode == Mode::Normal && event == key!("esc") {
-            Ok([close_current_window].to_vec())
+            Ok([close_current_window].to_vec().into())
         } else {
             self.editor.handle_key_event(context, event)
         }
@@ -351,12 +355,12 @@ mod test_keymap_legend {
 
         assert_eq!(
             dispatches,
-            vec![
+            Dispatches::new(vec![
                 Dispatch::CloseCurrentWindow {
                     change_focused_to: Some(owner_id)
                 },
                 Dispatch::Custom("Spongebob".to_string())
-            ]
+            ])
         )
     }
 }

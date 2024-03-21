@@ -1,5 +1,5 @@
 use crate::{
-    app::Dimension,
+    app::{Dimension, Dispatches},
     buffer::Buffer,
     components::{
         component::{Component, ComponentId},
@@ -436,13 +436,16 @@ impl Layout {
         Ok(())
     }
 
-    pub fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
-        self.file_explorer.borrow_mut().reveal(path)?;
+    pub fn reveal_path_in_explorer(
+        &mut self,
+        path: &CanonicalizedPath,
+    ) -> anyhow::Result<Dispatches> {
+        let dispatches = self.file_explorer.borrow_mut().reveal(path)?;
 
         self.focused_component_id = Some(self.file_explorer.borrow().id());
         self.file_explorer_open = true;
 
-        Ok(())
+        Ok(dispatches)
     }
 
     pub fn remove_suggestive_editor(&mut self, path: &CanonicalizedPath) {
