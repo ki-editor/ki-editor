@@ -421,6 +421,10 @@ mod test_file_explorer {
         execute_test(|s| {
             Box::new([
                 App(RevealInExplorer(s.main_rs())),
+                App(TerminalDimensionChanged(crate::app::Dimension {
+                    height: 50,
+                    width: 50,
+                })),
                 Expect(AppGridContains(
                     "
 File Explorer
