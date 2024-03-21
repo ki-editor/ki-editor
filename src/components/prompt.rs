@@ -213,9 +213,9 @@ mod test_prompt {
                     height: 10,
                     width: 50,
                 })),
-                Expect(AppGridIncludes("squarepants")),
+                Expect(AppGridContains("squarepants")),
                 App(HandleKeyEvents(keys!("f o o").to_vec())),
-                Expect(Not(Box::new(AppGridIncludes("squarepants")))),
+                Expect(Not(Box::new(AppGridContains("squarepants")))),
             ])
         })
     }
