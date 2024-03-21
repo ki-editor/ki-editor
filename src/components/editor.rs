@@ -860,7 +860,6 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
-    #[must_use]
     pub fn update_selection_set(
         &self,
         selection_set: SelectionSet,

@@ -467,7 +467,7 @@ mod test_suggestive_editor {
         editor.set_completion(dummy_completion());
 
         // Type in 'pa'
-        editor.handle_events(keys!("p a"))?;
+        let _ = editor.handle_events(keys!("p a"))?;
 
         // Expect the completion dropdown to be open,
         // and the dropdown items to be filtered
@@ -475,7 +475,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
 
         // Type in space, then 's'
-        editor.handle_events(keys!("space s"))?;
+        let _ = editor.handle_events(keys!("space s"))?;
 
         // Expect the completion dropdown to be hidden,
         // and the dropdown items to be filtered by the current line, 'pa s'
@@ -483,7 +483,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
 
         // Type in enter
-        editor.handle_events(keys!("tab"))?;
+        let _ = editor.handle_events(keys!("tab"))?;
 
         // Expect a new line is added
         assert_eq!(editor.editor().text(), "pa s\n");
@@ -501,10 +501,10 @@ mod test_suggestive_editor {
         );
 
         // Close the dropdown menu
-        editor.handle_events(keys!("ctrl+e"))?;
+        let _ = editor.handle_events(keys!("ctrl+e"))?;
 
         // Enter a next line
-        editor.handle_events(keys!("enter h e l l o"))?;
+        let _ = editor.handle_events(keys!("enter h e l l o"))?;
 
         // Expect the content to be updated
         assert_eq!(editor.editor().text(), "pa s\n\nhello");
@@ -513,14 +513,14 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().current_line()?, "hello");
 
         // Go to the previous line
-        editor.handle_events(keys!("esc l p p p"))?;
+        let _ = editor.handle_events(keys!("esc l p p p"))?;
 
         // Expect the current line is empty
         assert_eq!(editor.editor().current_line()?, "");
 
         // Type in 's'
         editor.editor_mut().enter_insert_mode(Direction::Start)?;
-        editor.handle_events(keys!("s"))?;
+        let _ = editor.handle_events(keys!("s"))?;
 
         // Expect the current line is 's'
         assert_eq!(editor.editor().current_line()?, "s");
@@ -595,7 +595,7 @@ mod test_suggestive_editor {
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
 
         // Enter normal mode
-        editor.handle_events(keys!("esc")).unwrap();
+        let _ = editor.handle_events(keys!("esc")).unwrap();
 
         // Type something
         let dispatches = editor.handle_events(keys!("l")).unwrap();

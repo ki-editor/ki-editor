@@ -109,9 +109,13 @@ impl Component for Prompt {
 
                 let dispatches = self.on_enter.to_dispatches(&current_item)?;
 
-                Ok(dispatches.append(Dispatch::CloseCurrentWindow {
-                    change_focused_to: self.owner_id,
-                }))
+                Ok(Dispatches::new(
+                    [Dispatch::CloseCurrentWindow {
+                        change_focused_to: self.owner_id,
+                    }]
+                    .to_vec(),
+                )
+                .chain(dispatches))
             }
             _ => self.editor.handle_key_event(context, event),
         }
