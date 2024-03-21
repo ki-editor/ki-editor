@@ -78,17 +78,19 @@ impl DropdownItem for CompletionItem {
             convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
         });
         let detail = self.detail.clone();
-
         let documentation = self.documentation().map(|d| d.content);
-        Some(Info::new(
-            "Completion Info".to_string(),
-            [].into_iter()
-                .chain(kind)
-                .chain(detail)
-                .chain(documentation)
-                .collect_vec()
-                .join("\n==========\n"),
-        ))
+        let result = []
+            .into_iter()
+            .chain(kind)
+            .chain(detail)
+            .chain(documentation)
+            .collect_vec()
+            .join("\n==========\n");
+        if result.is_empty() {
+            None
+        } else {
+            Some(Info::new("Completion Info".to_string(), result))
+        }
     }
 
     fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
@@ -615,6 +617,44 @@ mod test_suggestive_editor {
                 // Expect the buffer to contain the selected item
                 Expect(CurrentComponentContent("Patrick")),
                 Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    fn completion_info_documentation() -> anyhow::Result<()> {
+        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+            label: label.to_string(),
+            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                range: Position::new(0, 0)..Position::new(0, 6),
+                new_text: label.to_string(),
+            })),
+            documentation: documentation.map(Documentation::new),
+            sort_text: None,
+            kind: None,
+            detail: None,
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(super::DispatchSuggestiveEditor::Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![
+                        completion_item("Spongebob", Some("krabby patty maker")),
+                        completion_item("patrick", None),
+                    ],
+                })),
+                // Expect the "Completion Info" panel is shown, because "Spongebob" has doc
+                Expect(AppGridContains("Completion Info")),
+                Expect(AppGridContains("patty maker")),
+                App(HandleKeyEvents(keys!("p a t r i c k").to_vec())),
+                Expect(AppGridContains("atrick")),
+                // Expect the "Completion Info" panel is hidden, because "patrick" has no doc
+                Expect(Not(Box::new(AppGridContains("Completion Info")))),
             ])
         })
     }

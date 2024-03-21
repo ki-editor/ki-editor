@@ -81,7 +81,7 @@ pub enum ExpectKind {
     ComponentsLength(usize),
     Quickfixes(Box<[QuickfixListItem]>),
     AppGrid(String),
-    AppGridIncludes(&'static str),
+    AppGridContains(&'static str),
     EditorGrid(&'static str),
     CurrentPath(CanonicalizedPath),
     LocalSearchConfigSearches(&'static [&'static str]),
@@ -264,7 +264,7 @@ impl ExpectKind {
             CurrentCodeActions(code_actions) => {
                 contextualize(app.current_code_actions(), code_actions.to_vec())
             }
-            AppGridIncludes(substring) => {
+            AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
                 println!("content =\n{}", content);
                 contextualize(content.contains(substring), true)
