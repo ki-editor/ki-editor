@@ -43,58 +43,51 @@ pub enum SuggestiveEditorFilter {
     CurrentLine,
 }
 
-impl DropdownItem for CodeAction {
-    fn label(&self) -> String {
-        self.title()
-    }
-    fn info(&self) -> Option<Info> {
-        None
-    }
-
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-        Some(Box::new(|item| {
-            item.kind.clone().unwrap_or("Unknown".to_string())
-        }))
+impl From<CodeAction> for DropdownItem<CodeAction> {
+    fn from(value: CodeAction) -> Self {
+        Self {
+            emoji: None,
+            info: None,
+            display: value.title(),
+            group: value.kind.clone(),
+            value,
+        }
     }
 }
 
-impl DropdownItem for CompletionItem {
-    fn emoji(&self) -> String {
-        self.kind
-            .map(|kind| {
+impl From<CompletionItem> for DropdownItem<CompletionItem> {
+    fn from(value: CompletionItem) -> Self {
+        Self {
+            emoji: value.kind.map(|kind| {
                 get_icon_config()
                     .completion
                     .get(&format!("{:?}", kind))
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| format!("({:?})", kind))
-            })
-            .unwrap_or_default()
-    }
-    fn label(&self) -> String {
-        self.label()
-    }
-    fn info(&self) -> Option<Info> {
-        let kind = self.kind.map(|kind| {
-            convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
-        });
-        let detail = self.detail.clone();
-        let documentation = self.documentation().map(|d| d.content);
-        let result = []
-            .into_iter()
-            .chain(kind)
-            .chain(detail)
-            .chain(documentation)
-            .collect_vec()
-            .join("\n==========\n");
-        if result.is_empty() {
-            None
-        } else {
-            Some(Info::new("Completion Info".to_string(), result))
+            }),
+            info: {
+                let kind = value.kind.map(|kind| {
+                    convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
+                });
+                let detail = value.detail.clone();
+                let documentation = value.documentation().map(|d| d.content);
+                let result = []
+                    .into_iter()
+                    .chain(kind)
+                    .chain(detail)
+                    .chain(documentation)
+                    .collect_vec()
+                    .join("\n==========\n");
+                if result.is_empty() {
+                    None
+                } else {
+                    Some(Info::new("Completion Info".to_string(), result))
+                }
+            },
+            display: value.label.clone(),
+            group: None,
+            value,
         }
-    }
-
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-        None
     }
 }
 
@@ -135,8 +128,10 @@ impl Component for SuggestiveEditor {
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
-                        let edit_dispatch = match completion.edit {
-                            None => Dispatch::ToEditor(ReplacePreviousWord(completion.label())),
+                        let edit_dispatch = match completion.value.edit {
+                            None => {
+                                Dispatch::ToEditor(ReplacePreviousWord(completion.value.label()))
+                            }
                             Some(edit) => match edit {
                                 CompletionItemEdit::PositionalEdit(edit) => {
                                     Dispatch::ToEditor(ApplyPositionalEdit(edit))
@@ -183,6 +178,7 @@ impl Component for SuggestiveEditor {
                     if let Some(code_action) = current_item {
                         let params = self.editor.get_request_params();
                         let dispatches = code_action
+                            .value
                             .edit
                             .map(Dispatch::ApplyWorkspaceEdit)
                             .into_iter()
@@ -192,6 +188,7 @@ impl Component for SuggestiveEditor {
                             // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
                             .chain(params.and_then(|params| {
                                 code_action
+                                    .value
                                     .command
                                     .map(|command| Dispatch::LspExecuteCommand { command, params })
                             }))
@@ -326,7 +323,11 @@ impl SuggestiveEditor {
 
     #[cfg(test)]
     pub fn code_actions(&self) -> Vec<CodeAction> {
-        self.code_action_dropdown.items()
+        self.code_action_dropdown
+            .items()
+            .into_iter()
+            .map(|item| item.value)
+            .collect()
     }
 
     pub fn handle_dispatch(
@@ -355,7 +356,12 @@ impl SuggestiveEditor {
                 if self.editor.mode != Mode::Normal || code_actions.is_empty() {
                     return Ok(Vec::new().into());
                 }
-                self.code_action_dropdown.set_items(code_actions);
+                self.code_action_dropdown.set_items(
+                    code_actions
+                        .into_iter()
+                        .map(|code_action| code_action.into())
+                        .collect(),
+                );
                 let render = self.code_action_dropdown.render();
                 Ok([Dispatch::RenderDropdown {
                     owner_id: self.id(),
@@ -373,7 +379,7 @@ impl SuggestiveEditor {
     }
 
     pub fn completion_dropdown_current_item(&mut self) -> Option<CompletionItem> {
-        self.completion_dropdown.current_item()
+        Some(self.completion_dropdown.current_item()?.value)
     }
 
     pub fn completion_dropdown_opened(&self) -> bool {
@@ -386,7 +392,13 @@ impl SuggestiveEditor {
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
-        self.completion_dropdown.set_items(completion.items);
+        self.completion_dropdown.set_items(
+            completion
+                .items
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+        );
         self.trigger_characters = completion.trigger_characters;
     }
 

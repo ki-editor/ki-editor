@@ -4,43 +4,50 @@ use itertools::Itertools;
 
 use super::suggestive_editor::Info;
 
-pub trait DropdownItem: Clone + std::fmt::Debug + Ord {
-    fn emoji(&self) -> String {
-        String::new()
-    }
-    fn label(&self) -> String;
+#[derive(Clone, Debug)]
+/// Note: filtering will be done on the combination of `display` and `group` (if applicable)
+pub struct DropdownItem<T: Clone> {
+    pub emoji: Option<String>,
+    /// The underlying value
+    pub value: T,
+    pub display: String,
+    pub group: Option<String>,
+    pub info: Option<Info>,
+}
+impl<T: Clone> DropdownItem<T> {
     fn display(&self) -> String {
-        if self.emoji().is_empty() {
-            self.label()
-        } else {
-            format!("{} {}", self.emoji(), self.label())
+        self.display.clone()
+    }
+}
+
+impl From<String> for DropdownItem<String> {
+    fn from(value: String) -> Self {
+        Self {
+            emoji: None,
+            display: value.clone(),
+            value,
+            group: None,
+            info: None,
         }
     }
-    fn group() -> Option<Group<Self>>;
-    fn info(&self) -> Option<Info>;
+}
+
+pub trait FromVec<T: Clone + Into<DropdownItem<T>>> {
+    fn from(value: Vec<T>) -> Vec<DropdownItem<T>>
+    where
+        Self: Sized,
+    {
+        value.into_iter().map(|v| v.into()).collect()
+    }
 }
 
 type Group<T> = Box<dyn Fn(&T) -> String>;
 
-impl DropdownItem for String {
-    fn label(&self) -> String {
-        self.clone()
-    }
-
-    fn info(&self) -> Option<Info> {
-        None
-    }
-
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-        None
-    }
-}
-
-pub struct Dropdown<T: DropdownItem> {
+pub struct Dropdown<T: Clone> {
     title: String,
     filter: String,
-    items: Vec<T>,
-    filtered_items: Vec<T>,
+    items: Vec<DropdownItem<T>>,
+    filtered_items: Vec<DropdownItem<T>>,
     current_item_index: usize,
 }
 
@@ -48,7 +55,7 @@ pub struct DropdownConfig {
     pub title: String,
 }
 
-impl<T: DropdownItem> Dropdown<T> {
+impl<T: Clone> Dropdown<T> {
     pub fn new(config: DropdownConfig) -> Self {
         Self {
             filter: String::new(),
@@ -67,7 +74,7 @@ impl<T: DropdownItem> Dropdown<T> {
     }
 
     fn highlight_line_index(&self) -> usize {
-        let group_title_size = T::group().map(|_| 1).unwrap_or(0);
+        let group_title_size = self.items.first().map(|_| 1).unwrap_or(0);
         self.current_item_index
             + self.get_current_item_group_index().unwrap_or(0) * group_title_size
             + group_title_size
@@ -90,18 +97,22 @@ impl<T: DropdownItem> Dropdown<T> {
     }
 
     fn groups(&self) -> Option<Vec<String>> {
-        T::group().map(|f| {
-            self.filtered_items
-                .iter()
-                .map(f)
-                .unique()
-                .sorted()
-                .collect_vec()
-        })
+        let groups = self
+            .filtered_items
+            .iter()
+            .flat_map(|item| item.group.clone())
+            .unique()
+            .sorted()
+            .collect_vec();
+        if groups.is_empty() {
+            None
+        } else {
+            Some(groups)
+        }
     }
 
     fn get_current_item_group_index(&self) -> Option<usize> {
-        let current_group = T::group()?(&self.current_item()?);
+        let current_group = self.current_item()?.group?;
         let groups = self.groups()?;
         let (current_group_index, _) = groups
             .iter()
@@ -111,7 +122,6 @@ impl<T: DropdownItem> Dropdown<T> {
 
     fn change_group_index(&mut self, increment: bool) -> Option<()> {
         let _groups = self.groups();
-        let get_group = T::group()?;
         let groups = self.groups()?;
         let current_group_index = self.get_current_item_group_index()?;
         let new_group_index = if increment {
@@ -123,7 +133,7 @@ impl<T: DropdownItem> Dropdown<T> {
         let (new_item_index, _) = self
             .filtered_items
             .iter()
-            .find_position(|item| &get_group(item) == new_group)?;
+            .find_position(|item| item.group.as_ref() == Some(new_group))?;
         self.change_index(new_item_index);
         Some(())
     }
@@ -136,12 +146,12 @@ impl<T: DropdownItem> Dropdown<T> {
         self.change_group_index(false).unwrap_or_default()
     }
 
-    pub fn current_item(&self) -> Option<T> {
+    pub fn current_item(&self) -> Option<DropdownItem<T>> {
         self.filtered_items.get(self.current_item_index).cloned()
     }
 
-    pub fn set_items(&mut self, items: Vec<T>) {
-        self.items = items;
+    pub fn set_items(&mut self, items: Vec<DropdownItem<T>>) {
+        self.items = items.into_iter().map(|item| item.into()).collect();
         self.current_item_index = 0;
         self.compute_filtered_items();
     }
@@ -151,18 +161,12 @@ impl<T: DropdownItem> Dropdown<T> {
             .items
             .iter()
             .filter(|item| {
-                item.label()
+                item.display
                     .to_lowercase()
                     .contains(&self.filter.to_lowercase())
             })
             .cloned()
-            .sorted_by(|a, b| match T::group() {
-                Some(f) => match f(a).cmp(&f(b)) {
-                    std::cmp::Ordering::Equal => a.label().cmp(&b.label()),
-                    ord => ord,
-                },
-                None => a.label().cmp(&b.label()),
-            })
+            .sorted_by_key(|item| (item.group.clone(), item.display.clone()))
             .collect();
     }
 
@@ -177,14 +181,14 @@ impl<T: DropdownItem> Dropdown<T> {
             title: self.title.clone(),
             content: self.content(),
             highlight_line_index: self.highlight_line_index(),
-            info: self.current_item().and_then(|item| item.info()),
+            info: self.current_item().and_then(|item| item.info),
         }
     }
 
     fn content(&self) -> String {
         self.filtered_items
             .iter()
-            .group_by(|item| T::group().map(|f| f(item)))
+            .group_by(|item| &item.group)
             .into_iter()
             .map(|(group_key, items)| {
                 if let Some(group_key) = group_key {
@@ -192,7 +196,7 @@ impl<T: DropdownItem> Dropdown<T> {
                     let items_len = items.len();
                     let items = items
                         .into_iter()
-                        .sorted()
+                        // .sorted()
                         .enumerate()
                         .map(|(index, item)| {
                             let content = item.display();
@@ -234,12 +238,12 @@ impl<T: DropdownItem> Dropdown<T> {
         assert_eq!(highlighed_content, label);
     }
 
-    pub(crate) fn items(&self) -> Vec<T> {
+    pub(crate) fn items(&self) -> Vec<DropdownItem<T>> {
         self.items.clone()
     }
 
     pub(crate) fn clear(&mut self) {
-        self.set_items(Vec::new())
+        self.set_items(Default::default())
     }
 }
 
@@ -276,18 +280,15 @@ mod test_dropdown {
             }
         }
     }
-
-    impl DropdownItem for Item {
-        fn label(&self) -> String {
-            self.label.to_string()
-        }
-
-        fn info(&self) -> Option<Info> {
-            Some(self.info.clone())
-        }
-
-        fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-            Some(Box::new(|item| item.group.clone()))
+    impl From<Item> for DropdownItem<Item> {
+        fn from(value: Item) -> Self {
+            Self {
+                emoji: None,
+                info: Some(value.info.clone()),
+                display: value.label.to_string(),
+                group: Some(value.group.clone()),
+                value,
+            }
         }
     }
 
@@ -296,14 +297,17 @@ mod test_dropdown {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
+        let item_a = Item::new("a", "", "1");
         dropdown.set_items(
             [
-                Item::new("a", "", "1"),
+                item_a.clone(),
                 Item::new("d", "", "2"),
                 Item::new("c", "", "2"),
                 Item::new("b", "", "3"),
             ]
-            .to_vec(),
+            .into_iter()
+            .map(|item| item.into())
+            .collect(),
         );
 
         // Expect the items are sorted by group first, then by label
@@ -322,6 +326,7 @@ mod test_dropdown {
             .trim()
         );
         dropdown.assert_highlighted_content(" └ a");
+        assert_eq!(dropdown.current_item().unwrap().value, item_a);
 
         dropdown.next_group();
         dropdown.assert_highlighted_content(" ├ c");
@@ -339,7 +344,12 @@ mod test_dropdown {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
-        dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        dropdown.set_items(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+                .into_iter()
+                .map(|s| s.into())
+                .collect(),
+        );
         assert_eq!(dropdown.render().content, "a\nb\nc");
         dropdown.assert_highlighted_content("a");
         dropdown.next_item();
@@ -361,18 +371,23 @@ mod test_dropdown {
         dropdown.set_filter("c");
         dropdown.assert_highlighted_content("c");
         dropdown.set_filter("d");
-        assert_eq!(dropdown.current_item(), None);
+        assert_eq!(dropdown.current_item().map(|item| item.value), None);
 
         dropdown.set_filter("");
         dropdown.assert_highlighted_content("a");
         dropdown.next_item();
         dropdown.assert_highlighted_content("b");
 
-        dropdown.set_items(vec![
-            "lorem".to_string(),
-            "ipsum".to_string(),
-            "dolor".to_string(),
-        ]);
+        dropdown.set_items(
+            vec![
+                "lorem".to_string(),
+                "ipsum".to_string(),
+                "dolor".to_string(),
+            ]
+            .into_iter()
+            .map(|s| s.into())
+            .collect(),
+        );
 
         // The current item should be `dolor` because dropdown will sort the items
         dropdown.assert_highlighted_content("dolor");
@@ -387,9 +402,14 @@ mod test_dropdown {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
-        dropdown.set_items(vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        dropdown.set_items(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+                .into_iter()
+                .map(|s| s.into())
+                .collect(),
+        );
         dropdown.set_filter("A");
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        assert_eq!(dropdown.current_item().unwrap().display, "a");
         Ok(())
     }
 
@@ -398,18 +418,23 @@ mod test_dropdown {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "test".to_string(),
         });
-        dropdown.set_items(vec![
-            Item::new("a", "info a", ""),
-            Item::new("b", "info b", ""),
-            Item::new("c", "info c", ""),
-        ]);
+        dropdown.set_items(
+            vec![
+                Item::new("a", "info a", ""),
+                Item::new("b", "info b", ""),
+                Item::new("c", "info c", ""),
+            ]
+            .into_iter()
+            .map(|s| s.into())
+            .collect(),
+        );
 
-        assert_eq!(dropdown.current_item().unwrap().label(), "a");
+        assert_eq!(dropdown.current_item().unwrap().display, "a");
         assert_eq!(dropdown.render().info.unwrap().content(), "info a");
 
         dropdown.set_filter("b");
 
-        assert_eq!(dropdown.current_item().unwrap().label(), "b");
+        assert_eq!(dropdown.current_item().unwrap().display, "b");
         assert_eq!(dropdown.render().info.unwrap().content(), "info b");
         Ok(())
     }
