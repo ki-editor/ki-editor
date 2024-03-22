@@ -5,7 +5,7 @@ use std::ops::{Add, Range, Sub};
 use ropey::Rope;
 
 use crate::{
-    app::Dispatch,
+    app::{Dispatch, Dispatches},
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
@@ -221,7 +221,7 @@ impl SelectionSet {
         result
     }
 
-    pub fn copy(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn copy(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<Dispatches> {
         if self.secondary.is_empty() {
             // Copy the primary selected text to clipboard
             let copied_text = buffer.slice(&self.primary.extended_range())?;
@@ -232,7 +232,9 @@ impl SelectionSet {
                 copied_text: None,
                 info: None,
             };
-            Ok([Dispatch::SetClipboardContent(copied_text.to_string())].to_vec())
+            Ok([Dispatch::SetClipboardContent(copied_text.to_string())]
+                .to_vec()
+                .into())
         } else {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
@@ -242,7 +244,7 @@ impl SelectionSet {
                 selection.initial_range = None;
                 Ok(())
             });
-            Ok(Vec::new())
+            Ok(Vec::new().into())
         }
     }
 

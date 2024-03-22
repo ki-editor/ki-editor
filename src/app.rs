@@ -371,13 +371,13 @@ impl<T: Frontend> App<T> {
 
     fn handle_dispatches_result(
         &mut self,
-        dispatches: anyhow::Result<Vec<Dispatch>>,
+        dispatches: anyhow::Result<Dispatches>,
     ) -> anyhow::Result<()> {
         self.handle_dispatches(dispatches?)
     }
 
-    pub fn handle_dispatches(&mut self, dispatches: Vec<Dispatch>) -> Result<(), anyhow::Error> {
-        for dispatch in dispatches {
+    pub fn handle_dispatches(&mut self, dispatches: Dispatches) -> Result<(), anyhow::Error> {
+        for dispatch in dispatches.into_vec() {
             self.handle_dispatch(dispatch)?;
         }
         Ok(())
@@ -482,7 +482,7 @@ impl<T: Frontend> App<T> {
             Dispatch::QuitAll => self.quit_all()?,
             Dispatch::OpenCommandPrompt => self.open_command_prompt()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
-            Dispatch::RevealInExplorer(path) => self.layout.reveal_path_in_explorer(&path)?,
+            Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
             Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
             Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
@@ -1202,7 +1202,7 @@ impl<T: Frontend> App<T> {
         fs::rename(from.clone(), to.clone())?;
         self.layout.refresh_file_explorer(&self.working_directory)?;
         let to = to.try_into()?;
-        self.layout.reveal_path_in_explorer(&to)?;
+        self.reveal_path_in_explorer(&to)?;
         self.lsp_manager.document_did_rename(from, to)?;
         Ok(())
     }
@@ -1225,7 +1225,7 @@ impl<T: Frontend> App<T> {
             std::fs::File::create(&path)?;
         }
         self.layout.refresh_file_explorer(&self.working_directory)?;
-        self.layout.reveal_path_in_explorer(&path.try_into()?)?;
+        self.reveal_path_in_explorer(&path.try_into()?)?;
 
         Ok(())
     }
@@ -1861,6 +1861,16 @@ impl<T: Frontend> App<T> {
             .map(|c| c.borrow().code_actions())
             .unwrap_or_default()
     }
+
+    fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+        let dispatches = self.layout.reveal_path_in_explorer(path)?;
+        self.handle_dispatches(dispatches)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn file_explorer_content(&self) -> String {
+        self.layout.file_explorer_content()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1884,6 +1894,40 @@ impl Dimension {
         Dimension {
             height: self.height.saturating_sub(global_title_bar_height),
             width: self.width,
+        }
+    }
+}
+
+#[must_use]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct Dispatches(Vec<Dispatch>);
+impl From<Vec<Dispatch>> for Dispatches {
+    fn from(value: Vec<Dispatch>) -> Self {
+        Self(value)
+    }
+}
+impl Dispatches {
+    pub(crate) fn into_vec(self) -> Vec<Dispatch> {
+        self.0
+    }
+
+    pub(crate) fn new(dispatches: Vec<Dispatch>) -> Dispatches {
+        Dispatches(dispatches)
+    }
+
+    pub(crate) fn chain(self, other: Dispatches) -> Dispatches {
+        self.0.into_iter().chain(other.0).collect_vec().into()
+    }
+
+    pub(crate) fn append(self, other: Dispatch) -> Dispatches {
+        self.0.into_iter().chain(Some(other)).collect_vec().into()
+    }
+
+    pub(crate) fn append_some(self, dispatch: Option<Dispatch>) -> Dispatches {
+        if let Some(dispatch) = dispatch {
+            self.append(dispatch)
+        } else {
+            self
         }
     }
 }
@@ -2176,7 +2220,7 @@ pub enum DispatchPrompt {
     SetContent,
 }
 impl DispatchPrompt {
-    pub fn to_dispatches(&self, text: &str) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
             DispatchPrompt::PushFilter {
                 kind,
@@ -2187,57 +2231,71 @@ impl DispatchPrompt {
                     MakeFilterMechanism::Literal => FilterMechanism::Literal(text.to_string()),
                     MakeFilterMechanism::Regex => FilterMechanism::Regex(regex::Regex::new(text)?),
                 };
-                Ok([Dispatch::ToEditor(FilterPush(Filter::new(
-                    kind, target, mechanism,
-                )))]
-                .to_vec())
+                Ok(Dispatches::new(
+                    [Dispatch::ToEditor(FilterPush(Filter::new(
+                        kind, target, mechanism,
+                    )))]
+                    .to_vec(),
+                ))
             }
             DispatchPrompt::GlobalSearchConfigSetGlob {
                 owner_id,
                 filter_glob,
-            } => Ok([Dispatch::UpdateGlobalSearchConfig {
-                owner_id,
-                update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
-            }]
-            .to_vec()),
+            } => Ok(Dispatches::new(
+                [Dispatch::UpdateGlobalSearchConfig {
+                    owner_id,
+                    update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
+                }]
+                .to_vec(),
+            )),
             DispatchPrompt::MoveSelectionByIndex => {
                 let index = text.parse::<usize>()?.saturating_sub(1);
-                Ok([Dispatch::ToEditor(MoveSelection(Movement::Index(index)))].to_vec())
+                Ok(Dispatches::new(
+                    [Dispatch::ToEditor(MoveSelection(Movement::Index(index)))].to_vec(),
+                ))
             }
-            DispatchPrompt::RenameSymbol { params } => Ok(vec![Dispatch::RenameSymbol {
-                params: params.clone(),
-                new_name: text.to_string(),
-            }]),
+            DispatchPrompt::RenameSymbol { params } => {
+                Ok(Dispatches::new(vec![Dispatch::RenameSymbol {
+                    params: params.clone(),
+                    new_name: text.to_string(),
+                }]))
+            }
             DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
                 owner_id,
                 show_config_after_enter,
-            } => Ok([Dispatch::UpdateLocalSearchConfig {
-                owner_id,
-                update: LocalSearchConfigUpdate::Search(text.to_string()),
-                scope,
-                show_config_after_enter,
-            }]
-            .to_vec()),
-            DispatchPrompt::OpenInsideOtherPromptClose => {
-                Ok([Dispatch::OpenInsideOtherPromptClose {
+            } => Ok(Dispatches::new(
+                [Dispatch::UpdateLocalSearchConfig {
+                    owner_id,
+                    update: LocalSearchConfigUpdate::Search(text.to_string()),
+                    scope,
+                    show_config_after_enter,
+                }]
+                .to_vec(),
+            )),
+            DispatchPrompt::OpenInsideOtherPromptClose => Ok(Dispatches::new(
+                [Dispatch::OpenInsideOtherPromptClose {
                     open: text.to_owned(),
                 }]
-                .to_vec())
-            }
-            DispatchPrompt::EnterInsideMode { open } => {
-                Ok([Dispatch::ToEditor(EnterInsideMode(InsideKind::Other {
+                .to_vec(),
+            )),
+            DispatchPrompt::EnterInsideMode { open } => Ok(Dispatches::new(
+                [Dispatch::ToEditor(EnterInsideMode(InsideKind::Other {
                     open: open.clone(),
                     close: text.to_owned(),
                 }))]
-                .to_vec())
+                .to_vec(),
+            )),
+            DispatchPrompt::AddPath => {
+                Ok(Dispatches::new([Dispatch::AddPath(text.into())].to_vec()))
             }
-            DispatchPrompt::AddPath => Ok([Dispatch::AddPath(text.into())].to_vec()),
-            DispatchPrompt::MovePath { from } => Ok([Dispatch::MoveFile {
-                from,
-                to: text.into(),
-            }]
-            .to_vec()),
+            DispatchPrompt::MovePath { from } => Ok(Dispatches::new(
+                [Dispatch::MoveFile {
+                    from,
+                    to: text.into(),
+                }]
+                .to_vec(),
+            )),
             DispatchPrompt::SelectSymbol { symbols } => {
                 // TODO: make Prompt generic over the item type,
                 // so that we don't have to do this,
@@ -2248,30 +2306,36 @@ impl DispatchPrompt {
                     .iter()
                     .find(|symbol| text == symbol.display())
                 {
-                    Ok(vec![Dispatch::GotoLocation(symbol.location.clone())])
+                    Ok(Dispatches::new(vec![Dispatch::GotoLocation(
+                        symbol.location.clone(),
+                    )]))
                 } else {
-                    Ok(vec![])
+                    Ok(Dispatches::new(vec![]))
                 }
             }
-            DispatchPrompt::RunCommand => Ok([Dispatch::RunCommand(text.to_string())]
-                .into_iter()
-                .collect()),
+            DispatchPrompt::RunCommand => Ok(Dispatches::new(
+                [Dispatch::RunCommand(text.to_string())]
+                    .into_iter()
+                    .collect(),
+            )),
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
-                Ok(vec![Dispatch::OpenFile(path)])
+                Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
             }
             DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope } => {
-                Ok([Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
-                    scope,
-                    update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
-                    show_config_after_enter: true,
-                }]
-                .to_vec())
+                Ok(Dispatches::new(
+                    [Dispatch::UpdateLocalSearchConfig {
+                        owner_id,
+                        scope,
+                        update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
+                        show_config_after_enter: true,
+                    }]
+                    .to_vec(),
+                ))
             }
-            DispatchPrompt::SetContent => {
-                Ok([Dispatch::ToEditor(SetContent(text.to_string()))].to_vec())
-            }
+            DispatchPrompt::SetContent => Ok(Dispatches::new(
+                [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),
+            )),
         }
     }
 }

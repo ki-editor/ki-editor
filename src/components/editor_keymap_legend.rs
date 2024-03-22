@@ -8,7 +8,7 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
-    app::{Dispatch, FilePickerKind, MakeFilterMechanism, RequestParams, Scope},
+    app::{Dispatch, Dispatches, FilePickerKind, MakeFilterMechanism, Scope},
     components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
@@ -273,63 +273,42 @@ impl Editor {
         KeymapLegendConfig {
             title: "Context menu".to_string(),
             body: KeymapLegendBody::MultipleSections {
-                sections: [
-                    self.get_request_params().map(|params| KeymapLegendSection {
-                        title: "LSP".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "h",
-                                "Hover".to_string(),
-                                Dispatch::RequestHover(params.clone()),
-                            ),
-                            Keymap::new(
-                                "r",
-                                "Rename".to_string(),
-                                Dispatch::PrepareRename(params.clone()),
-                            ),
-                            Keymap::new(
-                                "c",
-                                "Code Actions".to_string(),
-                                Dispatch::RequestCodeAction {
-                                    params,
-                                    diagnostics: context
-                                        .get_diagnostics(self.path())
-                                        .into_iter()
-                                        .filter_map(|diagnostic| {
-                                            if diagnostic
-                                                .range
-                                                .contains(&self.get_cursor_position().ok()?)
-                                            {
-                                                diagnostic.original_value.clone()
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .collect_vec(),
-                                },
-                            ),
-                        ]),
-                    }),
-                    Some(KeymapLegendSection {
-                        title: "Other".to_string(),
-                        keymaps: Keymaps::new(
-                            &[Keymap::new(
-                                "z",
-                                "Undo Tree".to_string(),
-                                Dispatch::ToEditor(EnterUndoTreeMode),
-                            )]
-                            .into_iter()
-                            .chain(self.path().map(|path| {
-                                Keymap::new(
-                                    "e",
-                                    "Explorer".to_string(),
-                                    Dispatch::RevealInExplorer(path),
-                                )
-                            }))
-                            .collect_vec(),
+                sections: [self.get_request_params().map(|params| KeymapLegendSection {
+                    title: "LSP".to_string(),
+                    keymaps: Keymaps::new(&[
+                        Keymap::new(
+                            "h",
+                            "Hover".to_string(),
+                            Dispatch::RequestHover(params.clone()),
                         ),
-                    }),
-                ]
+                        Keymap::new(
+                            "r",
+                            "Rename".to_string(),
+                            Dispatch::PrepareRename(params.clone()),
+                        ),
+                        Keymap::new(
+                            "c",
+                            "Code Actions".to_string(),
+                            Dispatch::RequestCodeAction {
+                                params,
+                                diagnostics: context
+                                    .get_diagnostics(self.path())
+                                    .into_iter()
+                                    .filter_map(|diagnostic| {
+                                        if diagnostic
+                                            .range
+                                            .contains(&self.get_cursor_position().ok()?)
+                                        {
+                                            diagnostic.original_value.clone()
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect_vec(),
+                            },
+                        ),
+                    ]),
+                })]
                 .into_iter()
                 .flatten()
                 .collect(),
@@ -341,13 +320,13 @@ impl Editor {
         &mut self,
         context: &Context,
         event: KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         if let Some(keymap) = self.normal_mode_keymaps(context).get(&event) {
-            return Ok([keymap.dispatch()].to_vec());
+            return Ok([keymap.dispatch()].to_vec().into());
         }
         match event {
             // I think command should be nested inside `'` pickers
-            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec()),
+            key!(":") => return Ok([Dispatch::OpenCommandPrompt].to_vec().into()),
             key!("*") => return Ok(self.select_all()),
             key!("ctrl+d") => {
                 return self.scroll_page_down();
@@ -365,7 +344,8 @@ impl Editor {
                 return Ok(vec![
                     Dispatch::CloseAllExceptMainPanel,
                     Dispatch::SetGlobalMode(None),
-                ]);
+                ]
+                .into());
             }
             key!("shift+K") => return self.select_kids(),
             // r for rotate? more general than swapping/exchange, which does not warp back to first
@@ -374,55 +354,14 @@ impl Editor {
             key!("enter") => return self.open_new_line(),
             key!("%") => self.change_cursor_direction(),
 
-            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec()),
-            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec()),
+            key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec().into()),
+            key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec().into()),
 
-            key!("space") => {
-                return Ok(vec![Dispatch::ShowKeymapLegend(
-                    self.space_mode_keymap_legend_config(),
-                )])
-            }
             _ => {
                 log::info!("event: {:?}", event);
             }
         };
-        Ok(vec![])
-    }
-
-    // TODO: where to put this?
-    pub fn space_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Space".to_string(),
-            owner_id: self.id(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &vec![]
-                        .into_iter()
-                        .chain(
-                            self.get_request_params()
-                                .map(|params| {
-                                    [
-                                        Keymap::new(
-                                            "e",
-                                            "Explorer".to_string(),
-                                            Dispatch::ShowKeymapLegend(
-                                                self.explorer_keymap_legend_config(params.clone()),
-                                            ),
-                                        ),
-                                        Keymap::new(
-                                            "z",
-                                            "Undo Tree".to_string(),
-                                            Dispatch::ToEditor(EnterUndoTreeMode),
-                                        ),
-                                    ]
-                                    .to_vec()
-                                })
-                                .unwrap_or_default(),
-                        )
-                        .collect_vec(),
-                ),
-            },
-        }
+        Ok(vec![].into())
     }
 
     pub fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
@@ -501,7 +440,7 @@ impl Editor {
 
     pub fn search_list_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Search (List)".to_string(),
+            title: "Space".to_string(),
             owner_id: self.id(),
             body: KeymapLegendBody::MultipleSections {
                 sections: [KeymapLegendSection {
@@ -535,6 +474,25 @@ impl Editor {
                         "Symbols".to_string(),
                         Dispatch::RequestDocumentSymbols(params.set_description("Symbols")),
                     )]),
+                }))
+                .chain(Some(KeymapLegendSection {
+                    title: "Misc".to_string(),
+                    keymaps: Keymaps::new(
+                        &[Keymap::new(
+                            "z",
+                            "Undo Tree".to_string(),
+                            Dispatch::ToEditor(EnterUndoTreeMode),
+                        )]
+                        .into_iter()
+                        .chain(self.path().map(|path| {
+                            Keymap::new(
+                                "e",
+                                "Explorer".to_string(),
+                                Dispatch::RevealInExplorer(path),
+                            )
+                        }))
+                        .collect_vec(),
+                    ),
                 }))
                 .collect(),
             },
@@ -929,23 +887,6 @@ impl Editor {
                     .collect_vec(),
                 ),
             },
-        }
-    }
-
-    pub fn explorer_keymap_legend_config(&self, params: RequestParams) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Space: Explorer".to_string(),
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    [Keymap::new(
-                        "r",
-                        "Reveal in Explorer".to_string(),
-                        Dispatch::RevealInExplorer(params.path.clone()),
-                    )]
-                    .as_ref(),
-                ),
-            },
-            owner_id: self.id(),
         }
     }
 }

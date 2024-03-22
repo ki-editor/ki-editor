@@ -1,4 +1,4 @@
-use crate::app::Dispatch;
+use crate::app::{Dispatch, Dispatches};
 use crate::context::Context;
 use crate::grid::StyleKey;
 use crate::lsp::code_action::CodeAction;
@@ -111,7 +111,7 @@ impl Component for SuggestiveEditor {
         &mut self,
         context: &Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             match event {
                 key!("ctrl+n") | key!("down") => {
@@ -120,7 +120,8 @@ impl Component for SuggestiveEditor {
                         owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
-                    .to_vec());
+                    .to_vec()
+                    .into());
                 }
                 key!("ctrl+p") | key!("up") => {
                     self.completion_dropdown.previous_item();
@@ -128,7 +129,8 @@ impl Component for SuggestiveEditor {
                         owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
-                    .to_vec());
+                    .to_vec()
+                    .into());
                 }
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
@@ -147,7 +149,8 @@ impl Component for SuggestiveEditor {
                             },
                             edit_dispatch,
                         ]
-                        .to_vec());
+                        .to_vec()
+                        .into());
                     }
                 }
 
@@ -163,7 +166,8 @@ impl Component for SuggestiveEditor {
                         owner_id: self.id(),
                         render: self.code_action_dropdown.render(),
                     }]
-                    .to_vec());
+                    .to_vec()
+                    .into());
                 }
                 key!("ctrl+p") | key!("up") => {
                     self.code_action_dropdown.previous_item();
@@ -171,7 +175,8 @@ impl Component for SuggestiveEditor {
                         owner_id: self.id(),
                         render: self.code_action_dropdown.render(),
                     }]
-                    .to_vec());
+                    .to_vec()
+                    .into());
                 }
                 key!("enter") => {
                     let current_item = self.code_action_dropdown.current_item();
@@ -197,7 +202,8 @@ impl Component for SuggestiveEditor {
                             .chain(Some(Dispatch::CloseDropdown {
                                 owner_id: self.id(),
                             }))
-                            .collect_vec());
+                            .collect_vec()
+                            .into());
                         // self.menu_opened = false;
                         // self.info_panel = None;
                     }
@@ -206,7 +212,8 @@ impl Component for SuggestiveEditor {
                     return Ok([Dispatch::CloseDropdown {
                         owner_id: self.id(),
                     }]
-                    .to_vec());
+                    .to_vec()
+                    .into());
                 }
 
                 _ => {}
@@ -248,7 +255,6 @@ impl Component for SuggestiveEditor {
             None
         };
         let dispatches = dispatches
-            .into_iter()
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown {
@@ -259,8 +265,9 @@ impl Component for SuggestiveEditor {
                     },
                     Dispatch::ToEditor(EnterNormalMode),
                 ]
-                .to_vec(),
-                _ => [].to_vec(),
+                .to_vec()
+                .into(),
+                _ => Default::default(),
             })
             .chain(if self.editor.mode == Mode::Insert {
                 self.editor
@@ -278,10 +285,10 @@ impl Component for SuggestiveEditor {
                         owner_id: self.id(),
                     }))
                     .collect_vec()
+                    .into()
             } else {
-                vec![]
-            })
-            .collect::<Vec<_>>();
+                Default::default()
+            });
 
         Ok(dispatches)
     }
@@ -325,11 +332,11 @@ impl SuggestiveEditor {
     pub fn handle_dispatch(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match dispatch {
             DispatchSuggestiveEditor::CompletionFilter(filter) => {
                 self.filter = filter;
-                Ok([].to_vec())
+                Ok(Default::default())
             }
             DispatchSuggestiveEditor::Completion(completion) => {
                 if self.editor.mode == Mode::Insert {
@@ -338,14 +345,15 @@ impl SuggestiveEditor {
                         owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
-                    .to_vec())
+                    .to_vec()
+                    .into())
                 } else {
-                    Ok(Vec::new())
+                    Ok(Vec::new().into())
                 }
             }
             DispatchSuggestiveEditor::CodeActions(code_actions) => {
                 if self.editor.mode != Mode::Normal || code_actions.is_empty() {
-                    return Ok(Vec::new());
+                    return Ok(Vec::new().into());
                 }
                 self.code_action_dropdown.set_items(code_actions);
                 let render = self.code_action_dropdown.render();
@@ -353,7 +361,8 @@ impl SuggestiveEditor {
                     owner_id: self.id(),
                     render,
                 }]
-                .to_vec())
+                .to_vec()
+                .into())
             }
         }
     }
@@ -381,12 +390,13 @@ impl SuggestiveEditor {
         self.trigger_characters = completion.trigger_characters;
     }
 
-    pub(crate) fn render_completion_dropdown(&self) -> Vec<Dispatch> {
+    pub(crate) fn render_completion_dropdown(&self) -> Dispatches {
         [Dispatch::RenderDropdown {
             owner_id: self.id(),
             render: self.completion_dropdown.render(),
         }]
         .to_vec()
+        .into()
     }
 }
 
@@ -457,7 +467,7 @@ mod test_suggestive_editor {
         editor.set_completion(dummy_completion());
 
         // Type in 'pa'
-        editor.handle_events(keys!("p a"))?;
+        let _ = editor.handle_events(keys!("p a"))?;
 
         // Expect the completion dropdown to be open,
         // and the dropdown items to be filtered
@@ -465,7 +475,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
 
         // Type in space, then 's'
-        editor.handle_events(keys!("space s"))?;
+        let _ = editor.handle_events(keys!("space s"))?;
 
         // Expect the completion dropdown to be hidden,
         // and the dropdown items to be filtered by the current line, 'pa s'
@@ -473,7 +483,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
 
         // Type in enter
-        editor.handle_events(keys!("tab"))?;
+        let _ = editor.handle_events(keys!("tab"))?;
 
         // Expect a new line is added
         assert_eq!(editor.editor().text(), "pa s\n");
@@ -491,10 +501,10 @@ mod test_suggestive_editor {
         );
 
         // Close the dropdown menu
-        editor.handle_events(keys!("ctrl+e"))?;
+        let _ = editor.handle_events(keys!("ctrl+e"))?;
 
         // Enter a next line
-        editor.handle_events(keys!("enter h e l l o"))?;
+        let _ = editor.handle_events(keys!("enter h e l l o"))?;
 
         // Expect the content to be updated
         assert_eq!(editor.editor().text(), "pa s\n\nhello");
@@ -503,14 +513,14 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().current_line()?, "hello");
 
         // Go to the previous line
-        editor.handle_events(keys!("esc l p p p"))?;
+        let _ = editor.handle_events(keys!("esc l p p p"))?;
 
         // Expect the current line is empty
         assert_eq!(editor.editor().current_line()?, "");
 
         // Type in 's'
         editor.editor_mut().enter_insert_mode(Direction::Start)?;
-        editor.handle_events(keys!("s"))?;
+        let _ = editor.handle_events(keys!("s"))?;
 
         // Expect the current line is 's'
         assert_eq!(editor.editor().current_line()?, "s");
@@ -580,17 +590,19 @@ mod test_suggestive_editor {
 
         // Expect the completion request to be sent
         assert!(dispatches
+            .into_vec()
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
 
         // Enter normal mode
-        editor.handle_events(keys!("esc")).unwrap();
+        let _ = editor.handle_events(keys!("esc")).unwrap();
 
         // Type something
         let dispatches = editor.handle_events(keys!("l")).unwrap();
 
         // Expect the completion request to not be sent
         assert!(!dispatches
+            .into_vec()
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
     }

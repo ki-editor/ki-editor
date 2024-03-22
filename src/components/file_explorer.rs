@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use my_proc_macros::key;
 
-use crate::app::{Dispatch, YesNoPrompt};
+use crate::app::{Dispatch, Dispatches, YesNoPrompt};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use super::{
@@ -29,14 +29,15 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
-    pub fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
+    pub fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<Dispatches> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
         self.refresh_editor()?;
         if let Some(index) = self.tree.find_index(path) {
-            self.editor_mut().select_line_at(index)?;
+            self.editor_mut().select_line_at(index)
+        } else {
+            Ok(Dispatches::default())
         }
-        Ok(())
     }
 
     pub fn refresh(&mut self, working_directory: &CanonicalizedPath) -> anyhow::Result<()> {
@@ -329,24 +330,26 @@ impl Component for FileExplorer {
         &mut self,
         context: &crate::context::Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
+    ) -> Result<Dispatches, anyhow::Error> {
         match event {
             key!("enter") => {
                 if let Some(node) = self.get_current_node()? {
                     match node.kind {
-                        NodeKind::File => Ok([Dispatch::OpenFile(node.path.clone())].to_vec()),
+                        NodeKind::File => {
+                            Ok([Dispatch::OpenFile(node.path.clone())].to_vec().into())
+                        }
                         NodeKind::Directory { .. } => {
                             let tree = std::mem::take(&mut self.tree);
                             self.tree = tree.toggle(&node.path, |open| !open);
                             self.refresh_editor()?;
-                            Ok(Vec::new())
+                            Ok(Vec::new().into())
                         }
                     }
                 } else {
-                    Ok(Vec::new())
+                    Ok(Vec::new().into())
                 }
             }
-            key!("space") => {
+            key!("backslash") => {
                 let current_node = self.get_current_node()?;
                 Ok([Dispatch::ShowKeymapLegend(
                     super::keymap_legend::KeymapLegendConfig {
@@ -395,7 +398,8 @@ impl Component for FileExplorer {
                         },
                     },
                 )]
-                .to_vec())
+                .to_vec()
+                .into())
             }
             _ => self.editor.handle_key_event(context, event),
         }
@@ -406,4 +410,34 @@ impl Component for FileExplorer {
     }
 
     fn remove_child(&mut self, _component_id: super::component::ComponentId) {}
+}
+
+#[cfg(test)]
+mod test_file_explorer {
+    use crate::test_app::*;
+
+    #[test]
+    fn reveal() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(FileExplorerContent(
+                    "
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 🦀  main.rs
+"
+                    .trim_matches('\n')
+                    .to_string(),
+                )),
+                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs"])),
+                App(RevealInExplorer(s.foo_rs())),
+                Expect(CurrentSelectedTexts(&["   - 🦀  foo.rs\n"])),
+            ])
+        })
+    }
 }

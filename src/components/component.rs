@@ -1,11 +1,10 @@
+use crate::app::Dispatches;
 use std::{any::Any, cell::RefCell, rc::Rc};
 
 use event::event::Event;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use crate::{
-    app::Dispatch, context::Context, grid::Grid, position::Position, rectangle::Rectangle,
-};
+use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectangle};
 
 use super::editor::Editor;
 
@@ -102,42 +101,46 @@ pub trait Component: Any + AnyComponent {
 
     #[cfg(test)]
     /// This is for writing tests for components.
-    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Dispatches> {
         let context = Context::default();
-        Ok(events
-            .iter()
-            .map(|event| self.handle_key_event(&context, event.clone()))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>())
+        Ok(Dispatches::new(
+            events
+                .iter()
+                .map(|event| -> anyhow::Result<_> {
+                    Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+        ))
     }
 
-    fn handle_event(&mut self, context: &Context, event: Event) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_event(&mut self, context: &Context, event: Event) -> anyhow::Result<Dispatches> {
         match event {
             Event::Key(event) => self.handle_key_event(context, event),
             Event::Paste(content) => self.handle_paste_event(content),
             Event::Mouse(event) => self.handle_mouse_event(event),
-            _ => Ok(vec![]),
+            _ => Ok(Default::default()),
         }
     }
 
-    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
         self.editor_mut().handle_paste_event(content)
     }
 
     fn handle_mouse_event(
         &mut self,
         _event: crossterm::event::MouseEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
-        Ok(vec![])
+    ) -> anyhow::Result<Dispatches> {
+        Ok(Default::default())
     }
 
     fn handle_key_event(
         &mut self,
         context: &Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>>;
+    ) -> anyhow::Result<Dispatches>;
 
     fn get_cursor_position(&self) -> anyhow::Result<Position> {
         self.editor().get_cursor_position()
@@ -224,7 +227,7 @@ impl ComponentId {
 mod test_component {
     use std::{cell::RefCell, rc::Rc};
 
-    use crate::{components::component::Component, context::Context};
+    use crate::{app::Dispatches, components::component::Component, context::Context};
 
     #[test]
     fn child_should_rank_lower_than_parent() {
@@ -253,7 +256,7 @@ mod test_component {
                 &mut self,
                 _context: &crate::context::Context,
                 _event: event::KeyEvent,
-            ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
+            ) -> Result<Dispatches, anyhow::Error> {
                 todo!()
             }
         }
@@ -284,7 +287,7 @@ mod test_component {
                 &mut self,
                 _context: &crate::context::Context,
                 _event: event::KeyEvent,
-            ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
+            ) -> Result<Dispatches, anyhow::Error> {
                 todo!()
             }
         }
@@ -316,7 +319,7 @@ mod test_component {
                 &mut self,
                 _context: &crate::context::Context,
                 _event: event::KeyEvent,
-            ) -> anyhow::Result<Vec<crate::app::Dispatch>> {
+            ) -> Result<Dispatches, anyhow::Error> {
                 todo!()
             }
         }

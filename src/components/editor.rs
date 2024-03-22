@@ -1,5 +1,5 @@
 use crate::{
-    app::{RequestParams, Scope, SelectionSetHistoryKind},
+    app::{Dispatches, RequestParams, Scope, SelectionSetHistoryKind},
     buffer::Line,
     char_index_range::CharIndexRange,
     components::component::{Cursor, SetCursorStyle},
@@ -550,7 +550,7 @@ impl Component for Editor {
         }
     }
 
-    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
         self.insert(&content)
     }
 
@@ -583,56 +583,59 @@ impl Component for Editor {
         &mut self,
         context: &Context,
         event: event::KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         self.handle_key_event(context, event)
     }
 
     fn handle_mouse_event(
         &mut self,
         mouse_event: crossterm::event::MouseEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         const SCROLL_HEIGHT: usize = 1;
         match mouse_event.kind {
             MouseEventKind::ScrollUp => {
                 self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
-                Ok(vec![])
+                Ok(Default::default())
             }
             MouseEventKind::ScrollDown => {
                 self.apply_scroll(Direction::End, SCROLL_HEIGHT);
-                Ok(vec![])
+                Ok(Default::default())
             }
             MouseEventKind::Down(MouseButton::Left) => {
-                Ok(vec![])
+                Ok(Default::default())
 
                 // self
                 // .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
             }
-            _ => Ok(vec![]),
+            _ => Ok(Default::default()),
         }
     }
 
     #[cfg(test)]
-    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Vec<Dispatch>> {
+    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Dispatches> {
         let context = Context::default();
         Ok(events
             .iter()
-            .map(|event| self.handle_key_event(&context, event.clone()))
+            .map(|event| -> anyhow::Result<_> {
+                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+            })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
-            .collect::<Vec<_>>())
+            .collect::<Vec<_>>()
+            .into())
     }
 
     fn handle_event(
         &mut self,
         context: &Context,
         event: event::event::Event,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match event {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
             event::event::Event::Paste(content) => self.handle_paste_event(content),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
-            _ => Ok(vec![]),
+            _ => Ok(Default::default()),
         }
     }
 
@@ -741,7 +744,7 @@ impl Editor {
         &mut self,
         context: &mut Context,
         render: &DropdownRender,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         self.apply_dispatches(
             context,
             [
@@ -808,7 +811,7 @@ impl Editor {
         self.buffer.borrow().get_word_before_char_index(cursor)
     }
 
-    pub fn select_kids(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn select_kids(&mut self) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
 
         Ok(self.update_selection_set(
@@ -822,11 +825,11 @@ impl Editor {
         &mut self,
         movement: Movement,
         context: &Context,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         self.select(SelectionMode::LineTrimmed, movement, context)
     }
 
-    pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<Dispatches> {
         let start = self.buffer.borrow().line_to_char(line)?;
         let selection_set = SelectionSet {
             primary: Selection::new(
@@ -857,30 +860,30 @@ impl Editor {
         self.recalculate_scroll_offset()
     }
 
-    #[must_use]
     pub fn update_selection_set(
         &self,
         selection_set: SelectionSet,
         store_history: bool,
-    ) -> Vec<Dispatch> {
+    ) -> Dispatches {
         let show_info = selection_set
             .map(|selection| selection.info())
             .into_iter()
             .flatten()
             .reduce(Info::join)
             .map(Dispatch::ShowEditorInfo);
-        [Dispatch::UpdateSelectionSet {
-            selection_set,
-            kind: self
-                .buffer()
-                .path()
-                .map(SelectionSetHistoryKind::Path)
-                .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(self.id())),
-            store_history,
-        }]
-        .into_iter()
-        .chain(show_info)
-        .collect()
+        Dispatches::new(
+            [Dispatch::UpdateSelectionSet {
+                selection_set,
+                kind: self
+                    .buffer()
+                    .path()
+                    .map(SelectionSetHistoryKind::Path)
+                    .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(self.id())),
+                store_history,
+            }]
+            .to_vec(),
+        )
+        .append_some(show_info)
     }
 
     pub fn position_range_to_selection_set(
@@ -947,7 +950,7 @@ impl Editor {
         selection_mode: SelectionMode,
         movement: Movement,
         context: &Context,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         //  There are a few selection modes where Current make sense.
         let direction = if self.selection_set.mode != selection_mode {
             Movement::Current
@@ -1031,7 +1034,7 @@ impl Editor {
         self.jump_from_selection(&self.selection_set.primary.clone(), context)
     }
 
-    pub fn cut(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn cut(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1069,12 +1072,19 @@ impl Editor {
         };
         let dispatches = self
             .apply_edit_transaction(edit_transaction)
-            .map(|dispatches| dispatches.into_iter().chain(dispatch).collect());
+            .map(|dispatches| {
+                dispatches
+                    .into_vec()
+                    .into_iter()
+                    .chain(dispatch)
+                    .collect_vec()
+                    .into()
+            });
         self.enter_insert_mode(Direction::Start)?;
         dispatches
     }
 
-    pub fn kill(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn kill(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -1147,11 +1157,11 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn copy(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn copy(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         self.selection_set.copy(&self.buffer.borrow(), context)
     }
 
-    fn replace_current_selection_with<F>(&mut self, f: F) -> anyhow::Result<Vec<Dispatch>>
+    fn replace_current_selection_with<F>(&mut self, f: F) -> anyhow::Result<Dispatches>
     where
         F: Fn(&Selection) -> Option<Rope>,
     {
@@ -1186,15 +1196,11 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn replace_with_clipboard(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace_with_clipboard(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         self.replace_current_selection_with(|selection| selection.copied_text(context))
     }
 
-    pub fn paste(
-        &mut self,
-        direction: Direction,
-        context: &Context,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn paste(&mut self, direction: Direction, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1227,7 +1233,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn replace_cut(&mut self, context: &Context) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn replace_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1269,7 +1275,7 @@ impl Editor {
     fn apply_edit_transaction(
         &mut self,
         edit_transaction: EditTransaction,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let new_selection_set = self
             .buffer
             .borrow_mut()
@@ -1282,7 +1288,7 @@ impl Editor {
         Ok(self.get_document_did_change_dispatch())
     }
 
-    pub fn get_document_did_change_dispatch(&mut self) -> Vec<Dispatch> {
+    pub fn get_document_did_change_dispatch(&mut self) -> Dispatches {
         [Dispatch::DocumentDidChange {
             component_id: self.id(),
             path: self.buffer().path(),
@@ -1296,11 +1302,12 @@ impl Editor {
             None
         })
         .collect_vec()
+        .into()
     }
 
-    pub fn enter_undo_tree_mode(&mut self) -> Vec<Dispatch> {
+    pub fn enter_undo_tree_mode(&mut self) -> Dispatches {
         self.mode = Mode::UndoTree;
-        [self.show_undo_tree_dispatch()].to_vec()
+        [self.show_undo_tree_dispatch()].to_vec().into()
     }
 
     pub fn show_undo_tree_dispatch(&self) -> Dispatch {
@@ -1310,11 +1317,11 @@ impl Editor {
         ))
     }
 
-    pub fn undo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn undo(&mut self) -> anyhow::Result<Dispatches> {
         self.navigate_undo_tree(Movement::Previous)
     }
 
-    pub fn redo(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn redo(&mut self) -> anyhow::Result<Dispatches> {
         self.navigate_undo_tree(Movement::Next)
     }
 
@@ -1356,7 +1363,7 @@ impl Editor {
         &mut self,
         context: &mut Context,
         dispatch: DispatchEditor,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match dispatch {
             AlignViewTop => self.align_cursor_to_top(),
             AlignViewCenter => self.align_cursor_to_center(),
@@ -1398,9 +1405,7 @@ impl Editor {
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
                 return Ok(self
                     .update_selection_set(selection_set, false)
-                    .into_iter()
-                    .chain(self.get_document_did_change_dispatch())
-                    .collect());
+                    .chain(self.get_document_did_change_dispatch()));
             }
             Undo => return self.undo(),
             KillLine(direction) => return self.kill_line(direction),
@@ -1428,7 +1433,7 @@ impl Editor {
             }
             ReplacePreviousWord(word) => return self.replace_previous_word(&word, context),
             ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
-            SelectLineAt(index) => return self.select_line_at(index),
+            SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
             ReplaceCut => return self.replace_cut(context),
             Surround(open, close) => return self.enclose(open, close),
@@ -1436,19 +1441,20 @@ impl Editor {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.normal_mode_keymap_legend_config(context),
                 )]
-                .to_vec())
+                .to_vec()
+                .into())
             }
             EnterReplaceMode => self.enter_replace_mode(),
             Paste(direction) => return self.paste(direction, context),
         }
-        Ok([].to_vec())
+        Ok(Default::default())
     }
 
     pub fn handle_key_event(
         &mut self,
         context: &Context,
         key_event: KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match self.handle_universal_key(context, key_event)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
@@ -1475,13 +1481,13 @@ impl Editor {
         event: KeyEvent,
     ) -> anyhow::Result<HandleEventResult> {
         match event {
-            key!("left") => {
+            key!("left") | key!("ctrl+b") => {
                 self.selection_set.move_left(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(vec![]))
+                Ok(HandleEventResult::Handled(Default::default()))
             }
-            key!("right") => {
+            key!("right") | key!("ctrl+f") => {
                 self.selection_set.move_right(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(vec![]))
+                Ok(HandleEventResult::Handled(Default::default()))
             }
             key!("ctrl+c") => {
                 let dispatches = self.copy(context)?;
@@ -1490,7 +1496,7 @@ impl Editor {
 
             key!("ctrl+l") => {
                 self.switch_view_alignment();
-                Ok(HandleEventResult::Handled(vec![]))
+                Ok(HandleEventResult::Handled(Default::default()))
             }
             key!("ctrl+s") => {
                 let dispatches = self.save()?;
@@ -1512,22 +1518,22 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
         jumps: Vec<Jump>,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match key_event {
             key!("esc") => {
                 self.jumps = None;
-                Ok(Vec::new())
+                Ok(Default::default())
             }
             key => {
                 let KeyCode::Char(c) = key.code else {
-                    return Ok(Vec::new());
+                    return Ok(Default::default());
                 };
                 let matching_jumps = jumps
                     .iter()
                     .filter(|jump| c == jump.character)
                     .collect_vec();
                 match matching_jumps.split_first() {
-                    None => Ok(Vec::new()),
+                    None => Ok(Default::default()),
                     Some((jump, [])) => self
                         .handle_movement(context, Movement::Jump(jump.selection.extended_range())),
                     Some(_) => {
@@ -1541,7 +1547,7 @@ impl Editor {
                                 })
                                 .collect_vec(),
                         );
-                        Ok(Vec::new())
+                        Ok(Default::default())
                     }
                 }
             }
@@ -1549,7 +1555,7 @@ impl Editor {
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    pub fn change(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn change(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1580,7 +1586,7 @@ impl Editor {
         Ok(dispatches)
     }
 
-    pub fn insert(&mut self, s: &str) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn insert(&mut self, s: &str) -> anyhow::Result<Dispatches> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let range = selection.extended_range();
@@ -1610,7 +1616,7 @@ impl Editor {
         &mut self,
         context: &Context,
         event: KeyEvent,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match event {
             key!("esc") => self.enter_normal_mode()?,
             key!("backspace") => return self.backspace(),
@@ -1619,8 +1625,12 @@ impl Editor {
             key!("ctrl+a") | key!("home") => return self.move_to_line_start(),
             key!("ctrl+e") | key!("end") => return self.move_to_line_end(),
             key!("alt+backspace") => return self.delete_word_backward(context),
-            key!("ctrl+k") => return Ok([Dispatch::ToEditor(KillLine(Direction::End))].to_vec()),
-            key!("ctrl+u") => return Ok([Dispatch::ToEditor(KillLine(Direction::Start))].to_vec()),
+            key!("ctrl+k") => {
+                return Ok(([Dispatch::ToEditor(KillLine(Direction::End))].to_vec()).into())
+            }
+            key!("ctrl+u") => {
+                return Ok(([Dispatch::ToEditor(KillLine(Direction::Start))].to_vec()).into())
+            }
             // key!("alt+left") => self.move_word_backward(),
             // key!("alt+right") => self.move_word_forward(),
             event => {
@@ -1629,7 +1639,7 @@ impl Editor {
                 }
             }
         };
-        Ok(vec![])
+        Ok((vec![]).into())
     }
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
@@ -1650,7 +1660,7 @@ impl Editor {
         &mut self,
         context: &Context,
         selection_mode: SelectionMode,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         self.move_selection_with_selection_mode_without_global_mode(
             context,
             Movement::Current,
@@ -1659,8 +1669,9 @@ impl Editor {
         .map(|dispatches| {
             Some(Dispatch::SetGlobalMode(None))
                 .into_iter()
-                .chain(dispatches)
+                .chain(dispatches.into_vec())
                 .collect::<Vec<_>>()
+                .into()
         })
     }
 
@@ -1669,13 +1680,17 @@ impl Editor {
         context: &Context,
         movement: Movement,
         selection_mode: SelectionMode,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         if let Some(global_mode) = &context.mode() {
             match global_mode {
-                GlobalMode::QuickfixListItem => Ok(vec![Dispatch::GotoQuickfixListItem(movement)]),
+                GlobalMode::QuickfixListItem => {
+                    Ok(vec![Dispatch::GotoQuickfixListItem(movement)].into())
+                }
 
                 GlobalMode::SelectionHistoryContiguous => {
-                    Ok([Dispatch::GotoSelectionHistoryContiguous(movement)].to_vec())
+                    Ok([Dispatch::GotoSelectionHistoryContiguous(movement)]
+                        .to_vec()
+                        .into())
                 }
             }
         } else {
@@ -1691,7 +1706,7 @@ impl Editor {
         &mut self,
         context: &Context,
         movement: Movement,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         match self.mode {
             Mode::Normal => self.move_selection_with_selection_mode(
                 context,
@@ -1701,8 +1716,10 @@ impl Editor {
             Mode::Exchange => self.exchange(context, movement),
             Mode::Replace => self.replace(context, &movement),
             Mode::UndoTree => self.navigate_undo_tree(movement),
-            Mode::MultiCursor => self.add_cursor(context, &movement).map(|_| Vec::new()),
-            _ => Ok(Vec::new()),
+            Mode::MultiCursor => self
+                .add_cursor(context, &movement)
+                .map(|_| Default::default()),
+            _ => Ok(Default::default()),
         }
     }
 
@@ -1777,7 +1794,7 @@ impl Editor {
 
     // TODO: handle mouse click
     #[allow(dead_code)]
-    pub fn set_cursor_position(&mut self, row: u16, column: u16) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn set_cursor_position(&mut self, row: u16, column: u16) -> anyhow::Result<Dispatches> {
         let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
         let primary = self
             .selection_set
@@ -1899,7 +1916,7 @@ impl Editor {
         selection_mode: &SelectionMode,
         movement: Movement,
         context: &Context,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let get_edit_transaction = |current_selection: &Selection,
                                     next_selection: &Selection|
@@ -1962,7 +1979,7 @@ impl Editor {
         &mut self,
         context: &Context,
         movement: Movement,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let mode = self.selection_set.mode.clone();
         self.replace_faultlessly(&mode, movement, context)
     }
@@ -2015,7 +2032,7 @@ impl Editor {
         };
     }
 
-    pub fn backspace(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn backspace(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction =
             EditTransaction::from_action_groups(self.selection_set.map(|selection| {
                 let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
@@ -2034,10 +2051,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn delete_word_backward(
-        &mut self,
-        context: &Context,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    pub fn delete_word_backward(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
@@ -2099,7 +2113,7 @@ impl Editor {
         &mut self,
         context: &Context,
         movement: &Movement,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -2165,11 +2179,7 @@ impl Editor {
         self.buffer.borrow_mut().update(s)
     }
 
-    fn scroll(
-        &mut self,
-        direction: Direction,
-        scroll_height: usize,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    fn scroll(&mut self, direction: Direction, scroll_height: usize) -> anyhow::Result<Dispatches> {
         let dispatch = self.update_selection_set(
             self.selection_set
                 .apply(self.selection_set.mode.clone(), |selection| {
@@ -2194,19 +2204,19 @@ impl Editor {
         &mut self,
         completion: &str,
         context: &Context,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
         let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
-        Ok(self
-            .update_selection_set(selection, false)
-            .into_iter()
-            .chain(Some(Dispatch::ToEditor(ReplaceCurrentSelectionWith(
+        Ok(self.update_selection_set(selection, false).chain(
+            [Dispatch::ToEditor(ReplaceCurrentSelectionWith(
                 completion.to_string(),
-            ))))
-            .collect())
+            ))]
+            .to_vec()
+            .into(),
+        ))
     }
 
-    pub fn open_new_line(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn open_new_line(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| {
@@ -2255,7 +2265,7 @@ impl Editor {
     pub fn apply_positional_edits(
         &mut self,
         edits: Vec<PositionalEdit>,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             edits
                 .into_iter()
@@ -2286,20 +2296,18 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn apply_positional_edit(&mut self, edit: PositionalEdit) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn apply_positional_edit(&mut self, edit: PositionalEdit) -> anyhow::Result<Dispatches> {
         self.apply_positional_edits(vec![edit])
     }
 
-    pub fn save(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn save(&mut self) -> anyhow::Result<Dispatches> {
         let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
-            return Ok(vec![]);
+            return Ok(Default::default());
         };
         self.clamp()?;
         self.cursor_keep_primary_only()?;
-        Ok(vec![Dispatch::DocumentDidSave { path }]
-            .into_iter()
-            .chain(self.get_document_did_change_dispatch())
-            .collect())
+        Ok(Dispatches::new(vec![Dispatch::DocumentDidSave { path }])
+            .chain(self.get_document_did_change_dispatch()))
     }
 
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
@@ -2313,7 +2321,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn enclose(&mut self, open: String, close: String) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2346,7 +2354,7 @@ impl Editor {
     fn transform_selection(
         &mut self,
         transformation: Transformation,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2415,14 +2423,14 @@ impl Editor {
         &mut self,
         context: &Context,
         key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
             key!("a") => self.add_cursor_to_all_selections(context),
             key!("o") => self.cursor_keep_primary_only(),
             other => return self.handle_normal_mode(context, other),
         }?;
-        Ok(Vec::new())
+        Ok(Default::default())
     }
 
     pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
@@ -2446,7 +2454,7 @@ impl Editor {
         &mut self,
         context: &Context,
         key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
                 self.enter_normal_mode()?;
@@ -2468,9 +2476,9 @@ impl Editor {
             }
             KeyCode::Esc => {
                 self.enter_normal_mode()?;
-                Ok(Vec::new())
+                Ok(Default::default())
             }
-            _ => Ok(Vec::new()),
+            _ => Ok(Default::default()),
         }
     }
 
@@ -2482,11 +2490,7 @@ impl Editor {
         (self.dimension().height / 2) as usize
     }
 
-    pub fn match_literal(
-        &mut self,
-        context: &Context,
-        search: &str,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn match_literal(&mut self, context: &Context, search: &str) -> anyhow::Result<Dispatches> {
         self.set_selection_mode(
             context,
             SelectionMode::Find {
@@ -2506,39 +2510,42 @@ impl Editor {
         &mut self,
         context: &Context,
         key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         match key_event {
             key!("esc") => {
                 self.enter_normal_mode()?;
-                Ok(Vec::new())
+                Ok(Default::default())
             }
             other => self.handle_normal_mode(context, other),
         }
     }
 
-    pub fn move_to_line_start(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
         Ok([
             Dispatch::ToEditor(SelectLine(Movement::Current)),
             Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
         ]
-        .to_vec())
+        .to_vec()
+        .into())
     }
 
-    pub fn move_to_line_end(&mut self) -> anyhow::Result<Vec<Dispatch>> {
+    pub fn move_to_line_end(&mut self) -> anyhow::Result<Dispatches> {
         Ok([
             Dispatch::ToEditor(SelectLine(Movement::Current)),
             Dispatch::ToEditor(EnterInsertMode(Direction::End)),
         ]
-        .to_vec())
+        .to_vec()
+        .into())
     }
 
-    pub fn select_all(&mut self) -> Vec<Dispatch> {
+    pub fn select_all(&mut self) -> Dispatches {
         [
             Dispatch::ToEditor(MoveSelection(Movement::First)),
             Dispatch::ToEditor(ToggleHighlightMode),
             Dispatch::ToEditor(MoveSelection(Movement::Last)),
         ]
         .to_vec()
+        .into()
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
@@ -2546,7 +2553,7 @@ impl Editor {
         context: &Context,
         movement: Movement,
         selection_mode: SelectionMode,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         let dispatches = self.select(selection_mode, movement, context)?;
         self.current_view_alignment = None;
         log::info!("dispatches = {:?}", dispatches);
@@ -2554,11 +2561,11 @@ impl Editor {
         Ok(dispatches)
     }
 
-    pub fn scroll_page_down(&mut self) -> Result<Vec<Dispatch>, anyhow::Error> {
+    pub fn scroll_page_down(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.scroll(Direction::End, self.half_page_height())
     }
 
-    pub fn scroll_page_up(&mut self) -> Result<Vec<Dispatch>, anyhow::Error> {
+    pub fn scroll_page_up(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.scroll(Direction::Start, self.half_page_height())
     }
 
@@ -2588,25 +2595,23 @@ impl Editor {
         &mut self,
         context: &Context,
         key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         match key_event {
             key!("esc") => {
                 self.enter_normal_mode()?;
-                Ok(Vec::new())
+                Ok(Default::default())
             }
             other => self.handle_normal_mode(context, other),
         }
     }
 
-    fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Vec<Dispatch>, anyhow::Error> {
+    fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Dispatches, anyhow::Error> {
         let selection_set = self.buffer_mut().undo_tree_apply_movement(movement)?;
 
         Ok(selection_set
             .map(|selection_set| self.update_selection_set(selection_set, false))
             .unwrap_or_default()
-            .into_iter()
-            .chain(self.get_document_did_change_dispatch())
-            .collect())
+            .chain(self.get_document_did_change_dispatch()))
     }
 
     pub fn set_scroll_offset(&mut self, scroll_offset: u16) {
@@ -2638,27 +2643,25 @@ impl Editor {
         Ok(())
     }
 
-    fn filters_push(&mut self, _context: &Context, filter: Filter) -> Vec<Dispatch> {
+    fn filters_push(&mut self, _context: &Context, filter: Filter) -> Dispatches {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set, true)
-            .into_iter()
-            .chain(Some(Dispatch::ToEditor(MoveSelection(Movement::Current))))
-            .collect()
+            .append(Dispatch::ToEditor(MoveSelection(Movement::Current)))
     }
 
     pub(crate) fn apply_dispatches(
         &mut self,
         context: &mut Context,
         dispatches: Vec<DispatchEditor>,
-    ) -> anyhow::Result<Vec<Dispatch>> {
+    ) -> anyhow::Result<Dispatches> {
         let mut result = Vec::new();
         for dispatch in dispatches {
-            result.extend(self.apply_dispatch(context, dispatch)?);
+            result.extend(self.apply_dispatch(context, dispatch)?.into_vec());
         }
-        Ok(result)
+        Ok(result.into())
     }
 
-    fn filters_clear(&mut self) -> Vec<Dispatch> {
+    fn filters_clear(&mut self) -> Dispatches {
         let selection_set = self.selection_set.clone().filter_clear();
         self.update_selection_set(selection_set, true)
     }
@@ -2675,7 +2678,7 @@ impl Editor {
         self.mode = Mode::Exchange
     }
 
-    fn kill_line(&mut self, direction: Direction) -> Result<Vec<Dispatch>, anyhow::Error> {
+    fn kill_line(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2738,11 +2741,11 @@ impl Editor {
         &mut self,
         context: &Context,
         key_event: KeyEvent,
-    ) -> Result<Vec<Dispatch>, anyhow::Error> {
+    ) -> Result<Dispatches, anyhow::Error> {
         match key_event {
             key!("esc") => {
                 self.enter_normal_mode()?;
-                Ok(Vec::new())
+                Ok(Default::default())
             }
             other => self.handle_normal_mode(context, other),
         }
@@ -2757,7 +2760,7 @@ pub enum ViewAlignment {
 }
 
 pub enum HandleEventResult {
-    Handled(Vec<Dispatch>),
+    Handled(Dispatches),
     Ignored(KeyEvent),
 }
 

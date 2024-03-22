@@ -76,6 +76,7 @@ impl Token {
             "delete" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Delete)),
             "insert" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Insert)),
             "space" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Char(' '))),
+            "backslash" => Ok(ParseKeyCodeResult::from_key_code(KeyCode::Char('\\'))),
             _ if s.len() == 1 => {
                 let c = s.chars().next().unwrap();
                 Ok(ParseKeyCodeResult {
