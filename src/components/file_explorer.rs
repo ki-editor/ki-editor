@@ -430,12 +430,11 @@ mod test_file_explorer {
  - 📂  src/ :
    - 🦀  foo.rs
    - 🦀  main.rs
- - 📁  target/ :
 "
                     .trim_matches('\n')
                     .to_string(),
                 )),
-                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs\n"])),
+                Expect(CurrentSelectedTexts(&["   - 🦀  main.rs"])),
                 App(RevealInExplorer(s.foo_rs())),
                 Expect(CurrentSelectedTexts(&["   - 🦀  foo.rs\n"])),
             ])
