@@ -1866,6 +1866,11 @@ impl<T: Frontend> App<T> {
         let dispatches = self.layout.reveal_path_in_explorer(path)?;
         self.handle_dispatches(dispatches)
     }
+
+    #[cfg(test)]
+    pub(crate) fn file_explorer_content(&self) -> String {
+        self.layout.file_explorer_content()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

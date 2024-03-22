@@ -650,6 +650,11 @@ impl Layout {
     pub(crate) fn editor_info_content(&self) -> Option<String> {
         Some(self.editor_infos.first()?.1.borrow().content())
     }
+
+    #[cfg(test)]
+    pub(crate) fn file_explorer_content(&self) -> String {
+        self.file_explorer.borrow().content()
+    }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;

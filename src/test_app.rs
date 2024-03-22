@@ -58,6 +58,7 @@ pub enum Step {
 
 #[derive(Debug)]
 pub enum ExpectKind {
+    FileExplorerContent(String),
     CurrentCodeActions(&'static [crate::lsp::code_action::CodeAction]),
     EditorInfoContent(&'static str),
     EditorInfoOpen(bool),
@@ -269,6 +270,7 @@ impl ExpectKind {
                 println!("content =\n{}", content);
                 contextualize(content.contains(substring), true)
             }
+            FileExplorerContent(actual) => contextualize(actual, &app.file_explorer_content()),
         })
     }
 }

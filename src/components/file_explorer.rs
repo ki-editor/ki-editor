@@ -421,20 +421,23 @@ mod test_file_explorer {
         execute_test(|s| {
             Box::new([
                 App(RevealInExplorer(s.main_rs())),
-                App(TerminalDimensionChanged(crate::app::Dimension {
-                    height: 50,
-                    width: 50,
-                })),
-                Expect(AppGridContains(
+                Expect(FileExplorerContent(
                     "
-File Explorer
-5│ - 📂   src/ :
-7│█  - 🦀   main.rs
-8│ - 📁   target/ :
+ - 📁  .git/ :
+ - 🙈  .gitignore
+ - 🔒  Cargo.lock
+ - 📄  Cargo.toml
+ - 📂  src/ :
+   - 🦀  foo.rs
+   - 🦀  main.rs
+ - 📁  target/ :
 "
-                    .trim_matches('\n'),
+                    .trim_matches('\n')
+                    .to_string(),
                 )),
                 Expect(CurrentSelectedTexts(&["   - 🦀  main.rs\n"])),
+                App(RevealInExplorer(s.foo_rs())),
+                Expect(CurrentSelectedTexts(&["   - 🦀  foo.rs\n"])),
             ])
         })
     }
