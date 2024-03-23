@@ -196,7 +196,7 @@ impl Dropdown {
     }
 
     pub fn set_items(&mut self, items: Vec<DropdownItem>) {
-        self.items = items.into_iter().map(|item| item.into()).collect();
+        self.items = items;
         self.current_item_index = 0;
         self.compute_filtered_items();
     }

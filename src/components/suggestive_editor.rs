@@ -61,7 +61,7 @@ impl From<CompletionItem> for DropdownItem {
 }
 
 impl CodeAction {
-    fn to_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
+    fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
         let value = self;
         DropdownItem {
             info: None,
@@ -317,7 +317,7 @@ impl SuggestiveEditor {
                     code_actions
                         .into_iter()
                         .map(|code_action| {
-                            code_action.to_dropdown_item(self.editor.get_request_params())
+                            code_action.into_dropdown_item(self.editor.get_request_params())
                         })
                         .collect(),
                 );
@@ -351,13 +351,7 @@ impl SuggestiveEditor {
     }
 
     pub fn set_completion(&mut self, completion: Completion) {
-        self.completion_dropdown.set_items(
-            completion
-                .items
-                .into_iter()
-                .map(|item| item.into())
-                .collect(),
-        );
+        self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
 
