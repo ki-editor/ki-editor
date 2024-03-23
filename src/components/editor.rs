@@ -91,7 +91,8 @@ impl Component for Editor {
                 let string = path
                     .display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute());
-                Some(format!(" {} {}", string, path.icon()))
+                let icon = path.icon();
+                Some(format!(" {} {}", icon, string))
             })
             .unwrap_or_else(|| "[No title]".to_string())
     }

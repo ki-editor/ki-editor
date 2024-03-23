@@ -708,7 +708,7 @@ mod test_suggestive_editor {
             let expected_grid_1 = format!(
                 "{}\n{}",
                 "
- src/main.rs 🦀
+ 🦀  src/main.rs
 1│█.to_s
 
 
@@ -725,7 +725,7 @@ Code Actions
                 "{}\n{}",
                 "
 
- src/main.rs 🦀
+ 🦀  src/main.rs
 1│█.to_s
 
 
