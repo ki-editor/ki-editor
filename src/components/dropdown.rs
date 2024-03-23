@@ -1,7 +1,7 @@
 use crate::{app::Dispatches, components::editor::Movement};
 
 use itertools::Itertools;
-use shared::canonicalized_path::CanonicalizedPath;
+use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
 
 use super::suggestive_editor::Info;
 
@@ -49,11 +49,13 @@ impl From<CanonicalizedPath> for DropdownItem {
                 let icon = value.icon();
                 format!("{icon} {name}")
             },
-            group: value
-                .parent()
-                .ok()
-                .flatten()
-                .map(|parent| parent.try_display_relative()),
+            group: value.parent().ok().flatten().map(|parent| {
+                format!(
+                    "{} {}",
+                    get_icon_config().folder,
+                    parent.try_display_relative()
+                )
+            }),
             dispatches: Dispatches::one(crate::app::Dispatch::OpenFile(value)),
             info: None,
         }

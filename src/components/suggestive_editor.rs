@@ -66,7 +66,7 @@ impl CodeAction {
         DropdownItem {
             info: None,
             display: value.title,
-            group: None,
+            group: value.kind,
             dispatches: value
                 .edit
                 .map(Dispatch::ApplyWorkspaceEdit)

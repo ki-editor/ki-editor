@@ -5,6 +5,7 @@
   "folder": "📁",
   "folderExpanded": "📂",
   "completion": {
+    "Object": "🧱",
     "Method": "🔹",
     "Function": "ƒ",
     "Constructor": "🔨",

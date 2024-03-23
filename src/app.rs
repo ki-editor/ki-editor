@@ -717,12 +717,9 @@ impl<T: Frontend> App<T> {
             history: vec![],
             items: symbols
                 .symbols
-                .iter()
-                .map(|symbol| {
-                    DropdownItem::new(symbol.display()).set_dispatches(Dispatches::one(
-                        Dispatch::GotoLocation(symbol.location.to_owned()),
-                    ))
-                })
+                .clone()
+                .into_iter()
+                .map(|symbol| symbol.into())
                 .collect_vec(),
             on_enter: DispatchPrompt::SelectSymbol { symbols },
             enter_selects_first_matching_item: true,
