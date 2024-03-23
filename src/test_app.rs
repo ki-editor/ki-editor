@@ -59,7 +59,7 @@ pub enum Step {
 #[derive(Debug)]
 pub enum ExpectKind {
     FileExplorerContent(String),
-    CurrentCodeActions(&'static [crate::lsp::code_action::CodeAction]),
+    CodeActionsLength(usize),
     EditorInfoContent(&'static str),
     EditorInfoOpen(bool),
     QuickfixListCurrentLine(&'static str),
@@ -258,13 +258,11 @@ impl ExpectKind {
                 app.quickfix_list().unwrap().borrow().current_line()?,
                 actual.to_string(),
             ),
-            EditorInfoOpen(actual) => contextualize(app.editor_info_open(), *actual),
-            EditorInfoContent(actual) => {
-                contextualize(app.editor_info_content(), Some(actual.to_string()))
+            EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
+            EditorInfoContent(expected) => {
+                contextualize(app.editor_info_content(), Some(expected.to_string()))
             }
-            CurrentCodeActions(code_actions) => {
-                contextualize(app.current_code_actions(), code_actions.to_vec())
-            }
+            CodeActionsLength(length) => contextualize(app.current_code_actions_length(), *length),
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
                 println!("content =\n{}", content);

@@ -1,39 +1,78 @@
-use crate::components::editor::Movement;
+use crate::{app::Dispatches, components::editor::Movement};
 
 use itertools::Itertools;
+use shared::canonicalized_path::CanonicalizedPath;
 
 use super::suggestive_editor::Info;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// Note: filtering will be done on the combination of `display` and `group` (if applicable)
-pub struct DropdownItem<T: Clone> {
-    pub emoji: Option<String>,
-    /// The underlying value
-    pub value: T,
+pub struct DropdownItem {
+    pub dispatches: Dispatches,
     pub display: String,
     pub group: Option<String>,
     pub info: Option<Info>,
 }
-impl<T: Clone> DropdownItem<T> {
-    fn display(&self) -> String {
+impl DropdownItem {
+    pub fn display(&self) -> String {
         self.display.clone()
+    }
+
+    pub(crate) fn new(display: String) -> Self {
+        Self {
+            dispatches: Default::default(),
+            display,
+            group: Default::default(),
+            info: Default::default(),
+        }
+    }
+
+    pub(crate) fn set_info(self, info: Option<Info>) -> Self {
+        Self { info, ..self }
+    }
+
+    pub(crate) fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
+        Self { dispatches, ..self }
     }
 }
 
-impl From<String> for DropdownItem<String> {
+impl From<CanonicalizedPath> for DropdownItem {
+    fn from(value: CanonicalizedPath) -> Self {
+        Self {
+            display: {
+                let name = value
+                    .to_path_buf()
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                let icon = value.icon();
+                format!("{icon} {name}")
+            },
+            group: value
+                .parent()
+                .ok()
+                .flatten()
+                .map(|parent| parent.try_display_relative()),
+            dispatches: Dispatches::one(crate::app::Dispatch::OpenFile(value)),
+            info: None,
+        }
+    }
+}
+
+impl From<String> for DropdownItem {
     fn from(value: String) -> Self {
         Self {
-            emoji: None,
             display: value.clone(),
-            value,
+            dispatches: Dispatches::default(),
             group: None,
             info: None,
         }
     }
 }
 
-pub trait FromVec<T: Clone + Into<DropdownItem<T>>> {
-    fn from(value: Vec<T>) -> Vec<DropdownItem<T>>
+pub trait FromVec<T: Clone + Into<DropdownItem>> {
+    fn from(value: Vec<T>) -> Vec<DropdownItem>
     where
         Self: Sized,
     {
@@ -41,13 +80,11 @@ pub trait FromVec<T: Clone + Into<DropdownItem<T>>> {
     }
 }
 
-type Group<T> = Box<dyn Fn(&T) -> String>;
-
-pub struct Dropdown<T: Clone> {
+pub struct Dropdown {
     title: String,
     filter: String,
-    items: Vec<DropdownItem<T>>,
-    filtered_items: Vec<DropdownItem<T>>,
+    items: Vec<DropdownItem>,
+    filtered_items: Vec<DropdownItem>,
     current_item_index: usize,
 }
 
@@ -55,7 +92,7 @@ pub struct DropdownConfig {
     pub title: String,
 }
 
-impl<T: Clone> Dropdown<T> {
+impl Dropdown {
     pub fn new(config: DropdownConfig) -> Self {
         Self {
             filter: String::new(),
@@ -74,7 +111,11 @@ impl<T: Clone> Dropdown<T> {
     }
 
     fn highlight_line_index(&self) -> usize {
-        let group_title_size = self.items.first().map(|_| 1).unwrap_or(0);
+        let group_title_size = self
+            .items
+            .first()
+            .and_then(|item| item.group.as_ref().map(|_| 1))
+            .unwrap_or(0);
         self.current_item_index
             + self.get_current_item_group_index().unwrap_or(0) * group_title_size
             + group_title_size
@@ -146,11 +187,11 @@ impl<T: Clone> Dropdown<T> {
         self.change_group_index(false).unwrap_or_default()
     }
 
-    pub fn current_item(&self) -> Option<DropdownItem<T>> {
+    pub fn current_item(&self) -> Option<DropdownItem> {
         self.filtered_items.get(self.current_item_index).cloned()
     }
 
-    pub fn set_items(&mut self, items: Vec<DropdownItem<T>>) {
+    pub fn set_items(&mut self, items: Vec<DropdownItem>) {
         self.items = items.into_iter().map(|item| item.into()).collect();
         self.current_item_index = 0;
         self.compute_filtered_items();
@@ -238,7 +279,7 @@ impl<T: Clone> Dropdown<T> {
         assert_eq!(highlighed_content, label);
     }
 
-    pub(crate) fn items(&self) -> Vec<DropdownItem<T>> {
+    pub(crate) fn items(&self) -> Vec<DropdownItem> {
         self.items.clone()
     }
 
@@ -280,14 +321,13 @@ mod test_dropdown {
             }
         }
     }
-    impl From<Item> for DropdownItem<Item> {
+    impl From<Item> for DropdownItem {
         fn from(value: Item) -> Self {
             Self {
-                emoji: None,
                 info: Some(value.info.clone()),
                 display: value.label.to_string(),
                 group: Some(value.group.clone()),
-                value,
+                dispatches: Default::default(),
             }
         }
     }
@@ -326,7 +366,6 @@ mod test_dropdown {
             .trim()
         );
         dropdown.assert_highlighted_content(" └ a");
-        assert_eq!(dropdown.current_item().unwrap().value, item_a);
 
         dropdown.next_group();
         dropdown.assert_highlighted_content(" ├ c");
@@ -371,7 +410,7 @@ mod test_dropdown {
         dropdown.set_filter("c");
         dropdown.assert_highlighted_content("c");
         dropdown.set_filter("d");
-        assert_eq!(dropdown.current_item().map(|item| item.value), None);
+        assert_eq!(dropdown.current_item(), None);
 
         dropdown.set_filter("");
         dropdown.assert_highlighted_content("a");

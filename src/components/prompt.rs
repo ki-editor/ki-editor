@@ -6,11 +6,12 @@ use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
     context::Context,
-    lsp::completion::{Completion, CompletionItem},
+    lsp::completion::Completion,
 };
 
 use super::{
     component::{Component, ComponentId},
+    dropdown::DropdownItem,
     editor::{Editor, Mode},
     suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
 };
@@ -18,6 +19,7 @@ use super::{
 pub struct Prompt {
     editor: SuggestiveEditor,
     owner_id: Option<ComponentId>,
+    /// This will only be run on user input if the user input matches no dropdown item.
     on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
 }
@@ -26,7 +28,7 @@ pub struct Prompt {
 pub struct PromptConfig {
     pub history: Vec<String>,
     pub on_enter: DispatchPrompt,
-    pub items: Vec<CompletionItem>,
+    pub items: Vec<DropdownItem>,
     pub title: String,
     pub enter_selects_first_matching_item: bool,
 }
@@ -87,7 +89,7 @@ impl Component for Prompt {
             key!("tab") => {
                 if self.editor.completion_dropdown_opened() {
                     if let Some(item) = self.editor.completion_dropdown_current_item() {
-                        self.editor.set_content(&item.label())?;
+                        self.editor.set_content(&item.display())?;
                         return self.editor_mut().move_to_line_end();
                     }
                     Ok(Default::default())
@@ -96,18 +98,17 @@ impl Component for Prompt {
                 }
             }
             key!("enter") => {
-                let current_item = if self.enter_selects_first_matching_item
-                    && self.editor.completion_dropdown_opened()
+                let dispatches = if self.enter_selects_first_matching_item
+                    && self.editor.completion_dropdown_current_item().is_some()
                 {
                     self.editor
                         .completion_dropdown_current_item()
-                        .map(|item| item.label())
+                        .map(|item| item.dispatches)
                         .unwrap_or_default()
                 } else {
-                    self.editor().current_line()?
+                    self.on_enter
+                        .to_dispatches(&self.editor().current_line()?)?
                 };
-
-                let dispatches = self.on_enter.to_dispatches(&current_item)?;
 
                 Ok(Dispatches::new(
                     [Dispatch::CloseCurrentWindow {
@@ -132,7 +133,7 @@ impl Component for Prompt {
 
 #[cfg(test)]
 mod test_prompt {
-    use crate::test_app::*;
+    use crate::{lsp::completion::CompletionItem, test_app::*};
     use my_proc_macros::keys;
 
     use crate::{app::Dispatch, position::Position};
@@ -156,7 +157,13 @@ mod test_prompt {
                             CompletionItem::from_label("foo".to_string()),
                             CompletionItem::from_label("bar".to_string()),
                         ]
-                        .to_vec(),
+                        .into_iter()
+                        .map(|item| item.into())
+                        .map(|item: DropdownItem| {
+                            let content = item.display();
+                            item.set_dispatches(Dispatches::one(ToEditor(SetContent(content))))
+                        })
+                        .collect(),
 
                         title: "".to_string(),
                         enter_selects_first_matching_item,
@@ -183,7 +190,10 @@ mod test_prompt {
                 App(Dispatch::OpenPrompt(super::PromptConfig {
                     history: vec![],
                     on_enter: DispatchPrompt::SetContent,
-                    items: [CompletionItem::from_label("foo_bar".to_string())].to_vec(),
+                    items: [CompletionItem::from_label("foo_bar".to_string())]
+                        .into_iter()
+                        .map(|item| item.into())
+                        .collect(),
 
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
@@ -205,7 +215,9 @@ mod test_prompt {
                     items: [CompletionItem::from_label(
                         "spongebob squarepants".to_string(),
                     )]
-                    .to_vec(),
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
 
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,

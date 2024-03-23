@@ -2,7 +2,7 @@ use crate::{
     buffer::Buffer,
     components::{
         component::{Component, ComponentId, GetGridResult},
-        dropdown::DropdownRender,
+        dropdown::{DropdownItem, DropdownRender},
         editor::{DispatchEditor, Editor, Movement},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
@@ -20,7 +20,6 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
-        completion::CompletionItem,
         diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
@@ -719,7 +718,11 @@ impl<T: Frontend> App<T> {
             items: symbols
                 .symbols
                 .iter()
-                .map(|symbol| CompletionItem::from_label(symbol.display()))
+                .map(|symbol| {
+                    DropdownItem::new(symbol.display()).set_dispatches(Dispatches::one(
+                        Dispatch::GotoLocation(symbol.location.to_owned()),
+                    ))
+                })
                 .collect_vec(),
             on_enter: DispatchPrompt::SelectSymbol { symbols },
             enter_selects_first_matching_item: true,
@@ -733,7 +736,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::RunCommand,
             items: crate::command::commands()
                 .iter()
-                .flat_map(|command| command.to_completion_items())
+                .flat_map(|command| command.to_dropdown_items())
                 .collect(),
             enter_selects_first_matching_item: true,
         })
@@ -756,8 +759,7 @@ impl<T: Frontend> App<T> {
                     FilePickerKind::Opened => self.layout.get_opened_files(),
                 }
                 .into_iter()
-                .filter_map(|path| path.display_relative_to(&self.working_directory).ok())
-                .map(CompletionItem::from_label)
+                .map(|path| path.into())
                 .collect_vec()
             },
             enter_selects_first_matching_item: true,
@@ -961,9 +963,9 @@ impl<T: Frontend> App<T> {
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
-        let item = self.context.goto_quickfix_list_item(movement);
-        if let Some(item) = item {
-            self.go_to_location(item.location())?;
+        let dispatches = self.context.goto_quickfix_list_item(movement);
+        if let Some(dispatches) = dispatches {
+            self.handle_dispatches(dispatches)?;
             self.render_quickfix_list()?;
         }
 
@@ -1709,7 +1711,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn words(&self) -> Vec<CompletionItem> {
+    fn words(&self) -> Vec<DropdownItem> {
         self.current_component()
             .map(|current_component| {
                 current_component
@@ -1718,7 +1720,14 @@ impl<T: Frontend> App<T> {
                     .buffer()
                     .words()
                     .into_iter()
-                    .map(CompletionItem::from_label)
+                    .map(|word| DropdownItem {
+                        dispatches: Dispatches::one(Dispatch::ToEditor(
+                            ReplaceCurrentSelectionWith(word.clone()),
+                        )),
+                        display: word,
+                        group: None,
+                        info: None,
+                    })
                     .collect_vec()
             })
             .unwrap_or_default()
@@ -1855,10 +1864,10 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn current_code_actions(&self) -> Vec<crate::lsp::code_action::CodeAction> {
+    pub(crate) fn current_code_actions_length(&self) -> usize {
         self.layout
             .get_current_suggestive_editor()
-            .map(|c| c.borrow().code_actions())
+            .map(|c| c.borrow().code_actions_length())
             .unwrap_or_default()
     }
 
@@ -1929,6 +1938,10 @@ impl Dispatches {
         } else {
             self
         }
+    }
+
+    pub(crate) fn one(edit: Dispatch) -> Dispatches {
+        Dispatches(vec![edit])
     }
 }
 

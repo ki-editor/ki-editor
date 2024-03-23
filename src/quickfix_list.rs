@@ -9,6 +9,7 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
+    app::Dispatches,
     components::{
         component::Component,
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
@@ -23,10 +24,9 @@ pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
 }
 
-impl From<QuickfixListItem> for DropdownItem<QuickfixListItem> {
+impl From<QuickfixListItem> for DropdownItem {
     fn from(value: QuickfixListItem) -> Self {
         Self {
-            emoji: None,
             info: value.info.clone(),
             display: {
                 let location = value.location();
@@ -44,7 +44,9 @@ impl From<QuickfixListItem> for DropdownItem<QuickfixListItem> {
                         .unwrap_or_else(|_| path.display_absolute()),
                 )
             },
-            value,
+            dispatches: Dispatches::one(crate::app::Dispatch::GotoLocation(
+                value.location().to_owned(),
+            )),
         }
     }
 }
@@ -92,7 +94,7 @@ impl QuickfixLists {
     }
 
     /// Get the next item of the latest quickfix list based on the given `movement`
-    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
         if let Some(quickfix_list) = self.current_mut() {
             quickfix_list.get_item(movement)
         } else {
@@ -108,7 +110,8 @@ impl Default for QuickfixLists {
 }
 
 pub struct QuickfixList {
-    dropdown: Dropdown<QuickfixListItem>,
+    dropdown: Dropdown,
+    items: Vec<QuickfixListItem>,
     title: Option<String>,
 }
 
@@ -132,20 +135,17 @@ impl QuickfixList {
                     .reduce(Info::join),
             })
             .collect_vec();
-        dropdown.set_items(items.into_iter().map(|item| item.into()).collect());
+        dropdown.set_items(items.iter().map(|item| item.to_owned().into()).collect());
 
         QuickfixList {
+            items,
             dropdown,
             title: None,
         }
     }
 
     pub fn items(&self) -> Vec<QuickfixListItem> {
-        self.dropdown
-            .items()
-            .into_iter()
-            .map(|item| item.value)
-            .collect()
+        self.items.clone()
     }
 
     pub fn set_title(self, title: Option<String>) -> QuickfixList {
@@ -156,9 +156,9 @@ impl QuickfixList {
         self.dropdown.render()
     }
 
-    pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+    pub fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
         self.dropdown.apply_movement(movement);
-        Some(self.dropdown.current_item()?.value)
+        Some(self.dropdown.current_item()?.dispatches)
     }
 
     pub(crate) fn title(&self) -> Option<String> {

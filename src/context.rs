@@ -6,7 +6,10 @@ use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
+    app::{
+        Dispatches, GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate,
+        Scope,
+    },
     clipboard::Clipboard,
     list::grep::RegexConfig,
     lsp::diagnostic::Diagnostic,
@@ -219,7 +222,7 @@ impl Context {
     pub(crate) fn goto_quickfix_list_item(
         &mut self,
         movement: crate::components::editor::Movement,
-    ) -> Option<QuickfixListItem> {
+    ) -> Option<Dispatches> {
         self.quickfix_lists.get_item(movement)
     }
 }
