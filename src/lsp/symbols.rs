@@ -1,5 +1,10 @@
-use crate::quickfix_list::Location;
+use crate::{
+    app::{Dispatch, Dispatches},
+    components::dropdown::DropdownItem,
+    quickfix_list::Location,
+};
 use lsp_types::{DocumentSymbolResponse, SymbolKind};
+use shared::icons::get_icon_config;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Symbols {
@@ -35,6 +40,7 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
             name,
             kind: value.kind,
             location,
+            container_name: value.container_name,
         })
     }
 }
@@ -44,9 +50,27 @@ pub struct Symbol {
     pub name: String,
     pub kind: SymbolKind,
     pub location: Location,
+    pub container_name: Option<String>,
 }
 impl Symbol {
     pub(crate) fn display(&self) -> String {
-        format!("{} ({:?})", self.name, self.kind)
+        let icon = get_icon_config()
+            .completion
+            .get(&format!("{:?}", self.kind))
+            .cloned()
+            .unwrap_or_default();
+        format!("{} {}", icon, self.name)
+    }
+}
+
+impl From<Symbol> for DropdownItem {
+    fn from(symbol: Symbol) -> Self {
+        let dispatches = Dispatches::one(Dispatch::GotoLocation(symbol.location.to_owned()));
+        Self {
+            dispatches,
+            display: symbol.display(),
+            group: Some(symbol.container_name.unwrap_or("[TOP LEVEL]".to_string())),
+            info: None,
+        }
     }
 }

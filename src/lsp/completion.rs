@@ -1,14 +1,19 @@
 use std::ops::Range;
 
+use itertools::Itertools;
 use lsp_types::CompletionItemKind;
+use shared::icons::get_icon_config;
 
-use crate::position::Position;
+use crate::{
+    components::{dropdown::DropdownItem, suggestive_editor::Info},
+    position::Position,
+};
 
 use super::documentation::Documentation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Completion {
-    pub items: Vec<CompletionItem>,
+    pub items: Vec<DropdownItem>,
     pub trigger_characters: Vec<String>,
 }
 
@@ -65,6 +70,36 @@ impl Ord for CompletionItem {
 }
 
 impl CompletionItem {
+    pub fn emoji(&self) -> String {
+        self.kind
+            .map(|kind| {
+                get_icon_config()
+                    .completion
+                    .get(&format!("{:?}", kind))
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| format!("({:?})", kind))
+            })
+            .unwrap_or_default()
+    }
+    pub fn info(&self) -> Option<Info> {
+        let kind = self.kind.map(|kind| {
+            convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
+        });
+        let detail = self.detail.clone();
+        let documentation = self.documentation().map(|d| d.content);
+        let result = []
+            .into_iter()
+            .chain(kind)
+            .chain(detail)
+            .chain(documentation)
+            .collect_vec()
+            .join("\n==========\n");
+        if result.is_empty() {
+            None
+        } else {
+            Some(Info::new("Completion Info".to_string(), result))
+        }
+    }
     pub fn from_label(label: String) -> Self {
         Self {
             label,

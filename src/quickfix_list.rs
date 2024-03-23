@@ -9,6 +9,7 @@ use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
 
 use crate::{
+    app::Dispatches,
     components::{
         component::Component,
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
@@ -23,27 +24,30 @@ pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
 }
 
-impl DropdownItem for QuickfixListItem {
-    fn label(&self) -> String {
-        let location = self.location();
-        let line = location.range.start.line;
-        let content = read_specific_line(&location.path, line)
-            .unwrap_or("[Failed to read file]".to_string())
-            .trim_start_matches(|c: char| c.is_whitespace())
-            .to_string();
-        format!("{}: {}", line + 1, content)
-    }
-
-    fn info(&self) -> Option<Info> {
-        self.info.clone()
-    }
-
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-        Some(Box::new(|item| {
-            let path = item.location().path.clone();
-            path.display_relative()
-                .unwrap_or_else(|_| path.display_absolute())
-        }))
+impl From<QuickfixListItem> for DropdownItem {
+    fn from(value: QuickfixListItem) -> Self {
+        Self {
+            info: value.info.clone(),
+            display: {
+                let location = value.location();
+                let line = location.range.start.line;
+                let content = read_specific_line(&location.path, line)
+                    .unwrap_or("[Failed to read file]".to_string())
+                    .trim_start_matches(|c: char| c.is_whitespace())
+                    .to_string();
+                format!("{}: {}", line + 1, content)
+            },
+            group: {
+                let path = value.location().path.clone();
+                Some(
+                    path.display_relative()
+                        .unwrap_or_else(|_| path.display_absolute()),
+                )
+            },
+            dispatches: Dispatches::one(crate::app::Dispatch::GotoLocation(
+                value.location().to_owned(),
+            )),
+        }
     }
 }
 
@@ -90,7 +94,7 @@ impl QuickfixLists {
     }
 
     /// Get the next item of the latest quickfix list based on the given `movement`
-    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
         if let Some(quickfix_list) = self.current_mut() {
             quickfix_list.get_item(movement)
         } else {
@@ -106,7 +110,8 @@ impl Default for QuickfixLists {
 }
 
 pub struct QuickfixList {
-    dropdown: Dropdown<QuickfixListItem>,
+    dropdown: Dropdown,
+    items: Vec<QuickfixListItem>,
     title: Option<String>,
 }
 
@@ -130,16 +135,17 @@ impl QuickfixList {
                     .reduce(Info::join),
             })
             .collect_vec();
-        dropdown.set_items(items);
+        dropdown.set_items(items.iter().map(|item| item.to_owned().into()).collect());
 
         QuickfixList {
+            items,
             dropdown,
             title: None,
         }
     }
 
     pub fn items(&self) -> Vec<QuickfixListItem> {
-        self.dropdown.items()
+        self.items.clone()
     }
 
     pub fn set_title(self, title: Option<String>) -> QuickfixList {
@@ -150,9 +156,9 @@ impl QuickfixList {
         self.dropdown.render()
     }
 
-    pub fn get_item(&mut self, movement: Movement) -> Option<QuickfixListItem> {
+    pub fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
         self.dropdown.apply_movement(movement);
-        self.dropdown.current_item()
+        Some(self.dropdown.current_item()?.dispatches)
     }
 
     pub(crate) fn title(&self) -> Option<String> {

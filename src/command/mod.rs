@@ -1,6 +1,6 @@
 use crate::{
-    app::Dispatch,
-    lsp::{completion::CompletionItem, documentation::Documentation},
+    app::{Dispatch, Dispatches},
+    components::{dropdown::DropdownItem, suggestive_editor::Info},
 };
 
 pub struct Command {
@@ -18,14 +18,21 @@ impl Command {
         self.aliases.contains(&name) || self.name == name
     }
 
-    pub fn to_completion_items(&self) -> Vec<CompletionItem> {
-        [CompletionItem::from_label(self.name.to_string())
-            .set_documentation(Some(Documentation::new(self.description)))]
+    pub fn to_dropdown_items(&self) -> Vec<DropdownItem> {
+        [
+            DropdownItem::new(self.name.to_string()).set_info(Some(Info::new(
+                "Description".to_string(),
+                self.description.to_string(),
+            ))),
+        ]
         .into_iter()
         .chain(self.aliases.iter().map(|alias| {
-            CompletionItem::from_label(alias.to_string())
-                .set_documentation(Some(Documentation::new(self.description)))
+            DropdownItem::new(alias.to_string()).set_info(Some(Info::new(
+                "Description".to_string(),
+                self.description.to_string(),
+            )))
         }))
+        .map(|item| item.set_dispatches(Dispatches::one(self.dispatch.clone())))
         .collect()
     }
 }

@@ -59,7 +59,7 @@ pub enum Step {
 #[derive(Debug)]
 pub enum ExpectKind {
     FileExplorerContent(String),
-    CurrentCodeActions(&'static [crate::lsp::code_action::CodeAction]),
+    CodeActionsLength(usize),
     EditorInfoContent(&'static str),
     EditorInfoOpen(bool),
     QuickfixListCurrentLine(&'static str),
@@ -258,13 +258,11 @@ impl ExpectKind {
                 app.quickfix_list().unwrap().borrow().current_line()?,
                 actual.to_string(),
             ),
-            EditorInfoOpen(actual) => contextualize(app.editor_info_open(), *actual),
-            EditorInfoContent(actual) => {
-                contextualize(app.editor_info_content(), Some(actual.to_string()))
+            EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
+            EditorInfoContent(expected) => {
+                contextualize(app.editor_info_content(), Some(expected.to_string()))
             }
-            CurrentCodeActions(code_actions) => {
-                contextualize(app.current_code_actions(), code_actions.to_vec())
-            }
+            CodeActionsLength(length) => contextualize(app.current_code_actions_length(), *length),
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
                 println!("content =\n{}", content);
@@ -731,7 +729,7 @@ fn first () {
             Editor(AlignViewTop),
             Expect(AppGrid(
                 "
- src/main.rs 🦀
+ 🦀  src/main.rs
 1│fn first () {
 5│  █ifth();
 6│}
@@ -743,7 +741,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- src/main.rs 🦀
+ 🦀  src/main.rs
 1│fn first () {
 3│  third();
 4│  fourth(); // this line is long
@@ -760,7 +758,7 @@ fn first () {
             Editor(AlignViewBottom),
             Expect(AppGrid(
                 "
- src/main.rs 🦀
+ 🦀  src/main.rs
 1│fn first () {
 4│  fourth(); //
 ↪│this line is long
@@ -979,24 +977,24 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
                 format!(
                     "
 ■┬ {}
- ├ 1: foo b
- └ 2: foo a
+ ├─ 1: foo b
+ └─ 2: foo a
+
 ■┬ {}
- ├ 1: foo d
- └ 2: foo c
-",
+ ├─ 1: foo d
+ └─ 2: foo c",
                     s.foo_rs().display_absolute(),
                     s.main_rs().display_absolute()
                 )
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├ 1: foo b")),
+            Expect(QuickfixListCurrentLine("├─ 1: foo b")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo b")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
-            Expect(QuickfixListCurrentLine("└ 2: foo a")),
+            Expect(QuickfixListCurrentLine("└─ 2: foo a")),
             Expect(CurrentLine("foo a")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),

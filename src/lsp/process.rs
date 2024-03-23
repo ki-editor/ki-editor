@@ -696,6 +696,7 @@ impl LspServerProcess {
                                         }
                                         .into_iter()
                                         .map(CompletionItem::from)
+                                        .map(|item| item.into())
                                         .collect(),
                                     },
                                 )))

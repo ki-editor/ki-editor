@@ -1,4 +1,4 @@
-use crate::app::{Dispatch, Dispatches};
+use crate::app::{Dispatch, Dispatches, RequestParams};
 use crate::context::Context;
 use crate::grid::StyleKey;
 use crate::lsp::code_action::CodeAction;
@@ -13,7 +13,6 @@ use crate::{
 
 use itertools::Itertools;
 use my_proc_macros::key;
-use shared::icons::get_icon_config;
 use std::{cell::RefCell, rc::Rc};
 
 use super::component::ComponentId;
@@ -30,8 +29,8 @@ pub struct SuggestiveEditor {
     editor: Editor,
     info_panel: Option<Rc<RefCell<Editor>>>,
 
-    code_action_dropdown: Dropdown<CodeAction>,
-    completion_dropdown: Dropdown<CompletionItem>,
+    code_action_dropdown: Dropdown,
+    completion_dropdown: Dropdown,
 
     trigger_characters: Vec<String>,
     filter: SuggestiveEditorFilter,
@@ -43,58 +42,47 @@ pub enum SuggestiveEditorFilter {
     CurrentLine,
 }
 
-impl DropdownItem for CodeAction {
-    fn label(&self) -> String {
-        self.title()
-    }
-    fn info(&self) -> Option<Info> {
-        None
-    }
-
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-        Some(Box::new(|item| {
-            item.kind.clone().unwrap_or("Unknown".to_string())
-        }))
+impl From<CompletionItem> for DropdownItem {
+    fn from(value: CompletionItem) -> Self {
+        Self {
+            display: format!("{} {}", value.emoji(), value.label()),
+            info: value.info(),
+            dispatches: Dispatches::one(match value.edit {
+                None => Dispatch::ToEditor(ReplacePreviousWord(value.label())),
+                Some(edit) => match edit {
+                    CompletionItemEdit::PositionalEdit(edit) => {
+                        Dispatch::ToEditor(ApplyPositionalEdit(edit))
+                    }
+                },
+            }),
+            group: None,
+        }
     }
 }
 
-impl DropdownItem for CompletionItem {
-    fn emoji(&self) -> String {
-        self.kind
-            .map(|kind| {
-                get_icon_config()
-                    .completion
-                    .get(&format!("{:?}", kind))
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| format!("({:?})", kind))
-            })
-            .unwrap_or_default()
-    }
-    fn label(&self) -> String {
-        self.label()
-    }
-    fn info(&self) -> Option<Info> {
-        let kind = self.kind.map(|kind| {
-            convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
-        });
-        let detail = self.detail.clone();
-        let documentation = self.documentation().map(|d| d.content);
-        let result = []
-            .into_iter()
-            .chain(kind)
-            .chain(detail)
-            .chain(documentation)
-            .collect_vec()
-            .join("\n==========\n");
-        if result.is_empty() {
-            None
-        } else {
-            Some(Info::new("Completion Info".to_string(), result))
+impl CodeAction {
+    fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
+        let value = self;
+        DropdownItem {
+            info: None,
+            display: value.title,
+            group: Some(value.kind.unwrap_or("Misc.".to_string())),
+            dispatches: value
+                .edit
+                .map(Dispatch::ApplyWorkspaceEdit)
+                .into_iter()
+                // A command this code action executes. If a code action
+                // provides an edit and a command, first the edit is
+                // executed and then the command.
+                // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
+                .chain(params.and_then(|params| {
+                    value
+                        .command
+                        .map(|command| Dispatch::LspExecuteCommand { command, params })
+                }))
+                .collect_vec()
+                .into(),
         }
-    }
-
-    fn group() -> Option<Box<dyn Fn(&Self) -> String>> {
-        None
     }
 }
 
@@ -135,22 +123,10 @@ impl Component for SuggestiveEditor {
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
-                        let edit_dispatch = match completion.edit {
-                            None => Dispatch::ToEditor(ReplacePreviousWord(completion.label())),
-                            Some(edit) => match edit {
-                                CompletionItemEdit::PositionalEdit(edit) => {
-                                    Dispatch::ToEditor(ApplyPositionalEdit(edit))
-                                }
-                            },
-                        };
-                        return Ok([
-                            Dispatch::CloseDropdown {
-                                owner_id: self.id(),
-                            },
-                            edit_dispatch,
-                        ]
-                        .to_vec()
-                        .into());
+                        return Ok(Dispatches::one(Dispatch::CloseDropdown {
+                            owner_id: self.id(),
+                        })
+                        .chain(completion.dispatches));
                     }
                 }
 
@@ -181,29 +157,11 @@ impl Component for SuggestiveEditor {
                 key!("enter") => {
                     let current_item = self.code_action_dropdown.current_item();
                     if let Some(code_action) = current_item {
-                        let params = self.editor.get_request_params();
-                        let dispatches = code_action
-                            .edit
-                            .map(Dispatch::ApplyWorkspaceEdit)
-                            .into_iter()
-                            // A command this code action executes. If a code action
-                            // provides an edit and a command, first the edit is
-                            // executed and then the command.
-                            // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-                            .chain(params.and_then(|params| {
-                                code_action
-                                    .command
-                                    .map(|command| Dispatch::LspExecuteCommand { command, params })
-                            }))
-                            .collect_vec();
+                        let dispatches = code_action.dispatches;
                         self.code_action_dropdown.clear();
-                        return Ok(dispatches
-                            .into_iter()
-                            .chain(Some(Dispatch::CloseDropdown {
-                                owner_id: self.id(),
-                            }))
-                            .collect_vec()
-                            .into());
+                        return Ok(dispatches.append(Dispatch::CloseDropdown {
+                            owner_id: self.id(),
+                        }));
                         // self.menu_opened = false;
                         // self.info_panel = None;
                     }
@@ -325,8 +283,8 @@ impl SuggestiveEditor {
     }
 
     #[cfg(test)]
-    pub fn code_actions(&self) -> Vec<CodeAction> {
-        self.code_action_dropdown.items()
+    pub fn code_actions_length(&self) -> usize {
+        self.code_action_dropdown.items().len()
     }
 
     pub fn handle_dispatch(
@@ -355,7 +313,14 @@ impl SuggestiveEditor {
                 if self.editor.mode != Mode::Normal || code_actions.is_empty() {
                     return Ok(Vec::new().into());
                 }
-                self.code_action_dropdown.set_items(code_actions);
+                self.code_action_dropdown.set_items(
+                    code_actions
+                        .into_iter()
+                        .map(|code_action| {
+                            code_action.into_dropdown_item(self.editor.get_request_params())
+                        })
+                        .collect(),
+                );
                 let render = self.code_action_dropdown.render();
                 Ok([Dispatch::RenderDropdown {
                     owner_id: self.id(),
@@ -372,7 +337,7 @@ impl SuggestiveEditor {
             .enter_insert_mode(super::editor::Direction::Start)
     }
 
-    pub fn completion_dropdown_current_item(&mut self) -> Option<CompletionItem> {
+    pub fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
         self.completion_dropdown.current_item()
     }
 
@@ -441,7 +406,10 @@ mod test_suggestive_editor {
                 CompletionItem::from_label("Spongebob".to_string()),
                 CompletionItem::from_label("Patrick".to_string()),
                 CompletionItem::from_label("Squidward".to_string()),
-            ],
+            ]
+            .into_iter()
+            .map(|item| item.into())
+            .collect(),
         }
     }
 
@@ -618,12 +586,14 @@ mod test_suggestive_editor {
                 // Pretend that the LSP server returned a completion
                 SuggestiveEditor(Completion(dummy_completion())),
                 // Expect the completion dropdown to be open,
-                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                Expect(CompletionDropdownContent(
+                    " Patrick\n Spongebob\n Squidward",
+                )),
                 // Type in 'pa'
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 // Expect the dropdown items to be filtered
                 Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownContent("Patrick")),
+                Expect(CompletionDropdownContent(" Patrick")),
                 // Press tab
                 App(HandleKeyEvent(key!("tab"))),
                 // Expect the buffer to contain the selected item
@@ -658,7 +628,10 @@ mod test_suggestive_editor {
                     items: vec![
                         completion_item("Spongebob", Some("krabby patty maker")),
                         completion_item("patrick", None),
-                    ],
+                    ]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
                 })),
                 // Expect the "Completion Info" panel is shown, because "Spongebob" has doc
                 Expect(AppGridContains("Completion Info")),
@@ -693,7 +666,10 @@ mod test_suggestive_editor {
                         sort_text: None,
                         kind: None,
                         detail: None,
-                    }],
+                    }]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
                 })),
                 App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("Spongebob")),
@@ -726,15 +702,15 @@ mod test_suggestive_editor {
             let expected_grid_1 = format!(
                 "{}\n{}",
                 "
- src/main.rs 🦀
+ 🦀  src/main.rs
 1│█.to_s
 
 
 
 Code Actions
-1│■┬ Unknown
-2│█├ Use to_soup
-3│ └ Use to_string
+1│■┬ Misc.
+2│█├─ Use to_soup
+3│ └─ Use to_string
 "
                 .trim_matches('\n'),
                 &s.temp_dir().display_absolute()[0..20]
@@ -742,15 +718,16 @@ Code Actions
             let expected_grid_2 = format!(
                 "{}\n{}",
                 "
- src/main.rs 🦀
+
+ 🦀  src/main.rs
 1│█.to_s
 
 
 
 Code Actions
-1│■┬ Unknown
-2│ ├ Use to_soup
-3│█└ Use to_string
+1│■┬ Misc.
+2│ ├─ Use to_soup
+3│█└─ Use to_string
 "
                 .trim_matches('\n'),
                 &s.temp_dir().display_absolute()[0..20]
@@ -775,7 +752,7 @@ Code Actions
                 Expect(AppGrid(expected_grid_2)),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(CurrentComponentContent("a.to_string")),
-                Expect(CurrentCodeActions(&[])),
+                Expect(CodeActionsLength(0)),
             ])
         })
     }
@@ -814,12 +791,14 @@ Code Actions
                 SuggestiveEditor(Completion(dummy_completion())),
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownContent("Patrick")),
+                Expect(CompletionDropdownContent(" Patrick")),
                 // Type in one of the trigger characters, '.'
                 App(HandleKeyEvent(key!("."))),
                 Expect(CompletionDropdownIsOpen(true)),
                 // Expect dropdown items to be unfiltered (showing all items)
-                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                Expect(CompletionDropdownContent(
+                    " Patrick\n Spongebob\n Squidward",
+                )),
             ])
         })
     }
@@ -866,7 +845,9 @@ Code Actions
             trigger_characters: vec![".".to_string()],
             items: [CompletionItem::from_label("hello".to_string())
                 .set_documentation(Some(Documentation::new("This is a doc")))]
-            .to_vec(),
+            .into_iter()
+            .map(|item| item.into())
+            .collect(),
         };
         execute_test(|s| {
             Box::new([
@@ -894,11 +875,11 @@ Code Actions
                 SuggestiveEditor(Completion(dummy_completion())),
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownContent("Patrick")),
+                Expect(CompletionDropdownContent(" Patrick")),
                 App(HandleKeyEvents(keys!("space s").to_vec())),
                 // Expect the completion dropdown to be open,
                 // and the dropdown items to be filtered by the current word, 's'
-                Expect(CompletionDropdownContent("Spongebob\nSquidward")),
+                Expect(CompletionDropdownContent(" Spongebob\n Squidward")),
             ])
         })
     }
@@ -941,7 +922,9 @@ Code Actions
                         kind: Some(CompletionItemKind::FUNCTION),
                         detail: None,
                     }]
-                    .to_vec(),
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
                     trigger_characters: Vec::new(),
                 })),
                 App(HandleKeyEvent(key!("s"))),

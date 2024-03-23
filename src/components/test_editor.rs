@@ -994,7 +994,7 @@ fn main() {
             // because it is amongst the parent lines of the current selection
             Expect(EditorGrid(
                 "
-src/main.rs 🦀
+🦀 src/main.rs
 2│fn main() {
 4│  let y = 2;
 5│  for a in b {
@@ -1043,7 +1043,7 @@ src/main.rs 🦀
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-src/main.rs 🦀
+🦀 src/main.rs
 2│fn main() {
 4│  let y = 2;
 5│  for a in b {
@@ -1090,7 +1090,7 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Expect(EditorGrid(
                 "
-src/main.rs
+🦀 src/main.r
 1│// hello
 ↪│world█
 2│ hey
@@ -1137,7 +1137,7 @@ fn main() { // too long
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-src/main.rs 🦀
+🦀 src/main.rs
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
@@ -1176,7 +1176,7 @@ src/main.rs 🦀
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-src/main.rs 🦀
+🦀 src/main.rs
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -1208,7 +1208,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-src/main.rs 🦀
+🦀 src/main.rs
 1│█
 "
                 .trim(),
