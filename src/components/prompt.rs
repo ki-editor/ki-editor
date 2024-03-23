@@ -153,17 +153,13 @@ mod test_prompt {
                     App(OpenPrompt(super::PromptConfig {
                         history: vec![],
                         on_enter: DispatchPrompt::SetContent,
-                        items: [
-                            CompletionItem::from_label("foo".to_string()),
-                            CompletionItem::from_label("bar".to_string()),
-                        ]
-                        .into_iter()
-                        .map(|item| item.into())
-                        .map(|item: DropdownItem| {
-                            let content = item.display();
-                            item.set_dispatches(Dispatches::one(ToEditor(SetContent(content))))
-                        })
-                        .collect(),
+                        items: ["foo".to_string(), "bar".to_string()]
+                            .into_iter()
+                            .map(|str| {
+                                let item: DropdownItem = str.clone().into();
+                                item.set_dispatches(Dispatches::one(ToEditor(SetContent(str))))
+                            })
+                            .collect(),
 
                         title: "".to_string(),
                         enter_selects_first_matching_item,
@@ -190,7 +186,7 @@ mod test_prompt {
                 App(Dispatch::OpenPrompt(super::PromptConfig {
                     history: vec![],
                     on_enter: DispatchPrompt::SetContent,
-                    items: [CompletionItem::from_label("foo_bar".to_string())]
+                    items: ["foo_bar".to_string()]
                         .into_iter()
                         .map(|item| item.into())
                         .collect(),

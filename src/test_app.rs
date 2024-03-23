@@ -977,24 +977,24 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
                 format!(
                     "
 ■┬ {}
- ├ 1: foo b
- └ 2: foo a
+ ├─ 1: foo b
+ └─ 2: foo a
+
 ■┬ {}
- ├ 1: foo d
- └ 2: foo c
-",
+ ├─ 1: foo d
+ └─ 2: foo c",
                     s.foo_rs().display_absolute(),
                     s.main_rs().display_absolute()
                 )
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├ 1: foo b")),
+            Expect(QuickfixListCurrentLine("├─ 1: foo b")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo b")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
-            Expect(QuickfixListCurrentLine("└ 2: foo a")),
+            Expect(QuickfixListCurrentLine("└─ 2: foo a")),
             Expect(CurrentLine("foo a")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),

@@ -118,9 +118,11 @@ impl Dropdown {
             .first()
             .and_then(|item| item.group.as_ref().map(|_| 1))
             .unwrap_or(0);
-        self.current_item_index
-            + self.get_current_item_group_index().unwrap_or(0) * group_title_size
-            + group_title_size
+        let gap_size = 1;
+        let group_index = self.get_current_item_group_index().unwrap_or(0);
+        let group_gap = group_index * gap_size;
+
+        self.current_item_index + group_index * group_title_size + group_gap + group_title_size
     }
 
     pub fn next_item(&mut self) {
@@ -244,9 +246,9 @@ impl Dropdown {
                         .map(|(index, item)| {
                             let content = item.display();
                             let indicator = if index == items_len.saturating_sub(1) {
-                                "└"
+                                "└─"
                             } else {
-                                "├"
+                                "├─"
                             };
                             format!(" {} {}", indicator, content)
                         })
@@ -257,7 +259,7 @@ impl Dropdown {
                 }
             })
             .collect::<Vec<String>>()
-            .join("\n")
+            .join("\n\n")
     }
 
     pub fn apply_movement(&mut self, movement: Movement) {
@@ -358,26 +360,28 @@ mod test_dropdown {
             dropdown.render().content.trim(),
             "
 ■┬ 1
- └ a
+ └─ a
+
 ■┬ 2
- ├ c
- └ d
+ ├─ c
+ └─ d
+
 ■┬ 3
- └ b
+ └─ b
 "
             .trim()
         );
-        dropdown.assert_highlighted_content(" └ a");
+        dropdown.assert_highlighted_content(" └─ a");
 
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" ├ c");
+        dropdown.assert_highlighted_content(" ├─ c");
         dropdown.next_group();
-        dropdown.assert_highlighted_content(" └ b");
+        dropdown.assert_highlighted_content(" └─ b");
 
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" ├ c");
+        dropdown.assert_highlighted_content(" ├─ c");
         dropdown.previous_group();
-        dropdown.assert_highlighted_content(" └ a");
+        dropdown.assert_highlighted_content(" └─ a");
     }
 
     #[test]

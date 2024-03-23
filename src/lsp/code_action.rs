@@ -1,5 +1,3 @@
-use crate::components::dropdown::DropdownItem;
-
 use super::workspace_edit::WorkspaceEdit;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

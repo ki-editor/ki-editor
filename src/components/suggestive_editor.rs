@@ -66,7 +66,7 @@ impl CodeAction {
         DropdownItem {
             info: None,
             display: value.title,
-            group: value.kind,
+            group: Some(value.kind.unwrap_or("Misc.".to_string())),
             dispatches: value
                 .edit
                 .map(Dispatch::ApplyWorkspaceEdit)
@@ -592,12 +592,14 @@ mod test_suggestive_editor {
                 // Pretend that the LSP server returned a completion
                 SuggestiveEditor(Completion(dummy_completion())),
                 // Expect the completion dropdown to be open,
-                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                Expect(CompletionDropdownContent(
+                    " Patrick\n Spongebob\n Squidward",
+                )),
                 // Type in 'pa'
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 // Expect the dropdown items to be filtered
                 Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownContent("Patrick")),
+                Expect(CompletionDropdownContent(" Patrick")),
                 // Press tab
                 App(HandleKeyEvent(key!("tab"))),
                 // Expect the buffer to contain the selected item
@@ -712,9 +714,9 @@ mod test_suggestive_editor {
 
 
 Code Actions
-1│■┬ Unknown
-2│█├ Use to_soup
-3│ └ Use to_string
+1│■┬ Misc.
+2│█├─ Use to_soup
+3│ └─ Use to_string
 "
                 .trim_matches('\n'),
                 &s.temp_dir().display_absolute()[0..20]
@@ -722,15 +724,16 @@ Code Actions
             let expected_grid_2 = format!(
                 "{}\n{}",
                 "
+
  src/main.rs 🦀
 1│█.to_s
 
 
 
 Code Actions
-1│■┬ Unknown
-2│ ├ Use to_soup
-3│█└ Use to_string
+1│■┬ Misc.
+2│ ├─ Use to_soup
+3│█└─ Use to_string
 "
                 .trim_matches('\n'),
                 &s.temp_dir().display_absolute()[0..20]
@@ -794,12 +797,14 @@ Code Actions
                 SuggestiveEditor(Completion(dummy_completion())),
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownContent("Patrick")),
+                Expect(CompletionDropdownContent(" Patrick")),
                 // Type in one of the trigger characters, '.'
                 App(HandleKeyEvent(key!("."))),
                 Expect(CompletionDropdownIsOpen(true)),
                 // Expect dropdown items to be unfiltered (showing all items)
-                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                Expect(CompletionDropdownContent(
+                    " Patrick\n Spongebob\n Squidward",
+                )),
             ])
         })
     }
@@ -876,11 +881,11 @@ Code Actions
                 SuggestiveEditor(Completion(dummy_completion())),
                 App(HandleKeyEvents(keys!("p a").to_vec())),
                 Expect(CompletionDropdownIsOpen(true)),
-                Expect(CompletionDropdownContent("Patrick")),
+                Expect(CompletionDropdownContent(" Patrick")),
                 App(HandleKeyEvents(keys!("space s").to_vec())),
                 // Expect the completion dropdown to be open,
                 // and the dropdown items to be filtered by the current word, 's'
-                Expect(CompletionDropdownContent("Spongebob\nSquidward")),
+                Expect(CompletionDropdownContent(" Spongebob\n Squidward")),
             ])
         })
     }
