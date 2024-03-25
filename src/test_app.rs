@@ -78,6 +78,7 @@ pub enum ExpectKind {
     FileContent(CanonicalizedPath, String),
     FileContentEqual(CanonicalizedPath, CanonicalizedPath),
     CurrentSelectedTexts(&'static [&'static str]),
+    CurrentCursorDirection(Direction),
     CurrentViewAlignment(Option<ViewAlignment>),
     ComponentsLength(usize),
     Quickfixes(Box<[QuickfixListItem]>),
@@ -272,6 +273,14 @@ impl ExpectKind {
                 contextualize(content.contains(substring), true)
             }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
+            CurrentCursorDirection(expected) => contextualize(
+                expected,
+                &app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .cursor_direction,
+            ),
         })
     }
 }
