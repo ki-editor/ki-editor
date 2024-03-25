@@ -1724,6 +1724,7 @@ impl<T: Frontend> App<T> {
                         display: word,
                         group: None,
                         info: None,
+                        rank: None,
                     })
                     .collect_vec()
             })

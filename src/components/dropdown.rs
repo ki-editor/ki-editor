@@ -12,7 +12,10 @@ pub struct DropdownItem {
     pub display: String,
     pub group: Option<String>,
     pub info: Option<Info>,
+    /// Sorting will be based on `rank` if defined, otherwise sorting will be based on `display`
+    pub rank: Option<Box<[usize]>>,
 }
+
 impl DropdownItem {
     pub fn display(&self) -> String {
         self.display.clone()
@@ -24,6 +27,7 @@ impl DropdownItem {
             display,
             group: Default::default(),
             info: Default::default(),
+            rank: None,
         }
     }
 
@@ -58,6 +62,7 @@ impl From<CanonicalizedPath> for DropdownItem {
             }),
             dispatches: Dispatches::one(crate::app::Dispatch::OpenFile(value)),
             info: None,
+            rank: None,
         }
     }
 }
@@ -69,6 +74,7 @@ impl From<String> for DropdownItem {
             dispatches: Dispatches::default(),
             group: None,
             info: None,
+            rank: None,
         }
     }
 }
@@ -210,8 +216,11 @@ impl Dropdown {
                     .to_lowercase()
                     .contains(&self.filter.to_lowercase())
             })
+            .sorted_by(|a, b| match (&a.rank, &b.rank) {
+                (Some(rank_a), Some(rank_b)) => (&a.group, rank_a).cmp(&(&b.group, rank_b)),
+                _ => (&a.group, &a.display).cmp(&(&b.group, &b.display)),
+            })
             .cloned()
-            .sorted_by_key(|item| (item.group.clone(), item.display.clone()))
             .collect();
     }
 
@@ -241,7 +250,6 @@ impl Dropdown {
                     let items_len = items.len();
                     let items = items
                         .into_iter()
-                        // .sorted()
                         .enumerate()
                         .map(|(index, item)| {
                             let content = item.display();
@@ -332,6 +340,7 @@ mod test_dropdown {
                 display: value.label.to_string(),
                 group: Some(value.group.clone()),
                 dispatches: Default::default(),
+                rank: None,
             }
         }
     }

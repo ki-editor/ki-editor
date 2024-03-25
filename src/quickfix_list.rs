@@ -26,16 +26,16 @@ pub struct QuickfixLists {
 
 impl From<QuickfixListItem> for DropdownItem {
     fn from(value: QuickfixListItem) -> Self {
+        let location = value.location();
+        let Position { line, column } = location.range.start;
         Self {
             info: value.info.clone(),
             display: {
-                let location = value.location();
-                let line = location.range.start.line;
                 let content = read_specific_line(&location.path, line)
                     .unwrap_or("[Failed to read file]".to_string())
                     .trim_start_matches(|c: char| c.is_whitespace())
                     .to_string();
-                format!("{}: {}", line + 1, content)
+                format!("{}:{}  {}", line + 1, column + 1, content)
             },
             group: {
                 let path = value.location().path.clone();
@@ -47,6 +47,7 @@ impl From<QuickfixListItem> for DropdownItem {
             dispatches: Dispatches::one(crate::app::Dispatch::GotoLocation(
                 value.location().to_owned(),
             )),
+            rank: Some(Box::new([line, column])),
         }
     }
 }
