@@ -71,6 +71,7 @@ impl From<Symbol> for DropdownItem {
             display: symbol.display(),
             group: Some(symbol.container_name.unwrap_or("[TOP LEVEL]".to_string())),
             info: None,
+            rank: None,
         }
     }
 }

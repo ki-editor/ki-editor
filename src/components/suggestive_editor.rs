@@ -56,6 +56,7 @@ impl From<CompletionItem> for DropdownItem {
                 },
             }),
             group: None,
+            rank: None,
         }
     }
 }
@@ -64,6 +65,7 @@ impl CodeAction {
     fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
         let value = self;
         DropdownItem {
+            rank: None,
             info: None,
             display: value.title,
             group: Some(value.kind.unwrap_or("Misc.".to_string())),

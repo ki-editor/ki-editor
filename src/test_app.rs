@@ -249,14 +249,17 @@ impl ExpectKind {
                     .trim(),
                 item,
             ),
-            QuickfixListContent(content) => contextualize(
-                app.quickfix_list().unwrap().borrow().content(),
-                content.to_string(),
-            ),
-            DropdownInfosCount(actual) => contextualize(app.get_dropdown_infos_count(), *actual),
-            QuickfixListCurrentLine(actual) => contextualize(
+            QuickfixListContent(content) => {
+                let actual = app.quickfix_list().unwrap().borrow().content();
+                println!("actual =\n{actual}");
+                contextualize(actual, content.to_string())
+            }
+            DropdownInfosCount(expected) => {
+                contextualize(app.get_dropdown_infos_count(), *expected)
+            }
+            QuickfixListCurrentLine(expected) => contextualize(
                 app.quickfix_list().unwrap().borrow().current_line()?,
-                actual.to_string(),
+                expected.to_string(),
             ),
             EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
             EditorInfoContent(expected) => {
@@ -268,7 +271,7 @@ impl ExpectKind {
                 println!("content =\n{}", content);
                 contextualize(content.contains(substring), true)
             }
-            FileExplorerContent(actual) => contextualize(actual, &app.file_explorer_content()),
+            FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
         })
     }
 }
@@ -966,7 +969,22 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
         };
         Box::new([
             App(OpenFile(s.foo_rs())),
-            Editor(SetContent("foo b\nfoo a".to_string())),
+            Editor(SetContent(
+                "
+hello
+foo b // Line 2
+
+
+
+
+
+
+
+foo a // Line 10
+"
+                .trim()
+                .to_string(),
+            )),
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo d\nfoo c".to_string())),
             App(SaveAll),
@@ -974,28 +992,29 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
                 "foo".to_string(),
             ))),
             Expect(QuickfixListContent(
+                // Line 10 should be placed below Line 2 (sorted numerically, not lexicograhically)
                 format!(
                     "
 ■┬ {}
- ├─ 1: foo b
- └─ 2: foo a
+ ├─ 2:1  foo b // Line 2
+ └─ 10:1  foo a // Line 10
 
 ■┬ {}
- ├─ 1: foo d
- └─ 2: foo c",
+ ├─ 1:1  foo d
+ └─ 2:1  foo c",
                     s.foo_rs().display_absolute(),
                     s.main_rs().display_absolute()
                 )
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├─ 1: foo b")),
+            Expect(QuickfixListCurrentLine("├─ 2:1  foo b // Line 2")),
             Expect(CurrentPath(s.foo_rs())),
-            Expect(CurrentLine("foo b")),
+            Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
-            Expect(QuickfixListCurrentLine("└─ 2: foo a")),
-            Expect(CurrentLine("foo a")),
+            Expect(QuickfixListCurrentLine("└─ 10:1  foo a // Line 10")),
+            Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
             Expect(CurrentLine("foo d")),
@@ -1007,10 +1026,10 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
             Expect(CurrentLine("foo d")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Previous)),
-            Expect(CurrentLine("foo a")),
+            Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Previous)),
-            Expect(CurrentLine("foo b")),
+            Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
         ])
     })
