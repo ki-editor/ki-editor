@@ -80,6 +80,11 @@ impl Editor {
                 "To Index (1-based)".to_string(),
                 Dispatch::OpenMoveToIndexPrompt,
             ),
+            Keymap::new(
+                "%",
+                "Change cursor direction".to_string(),
+                Dispatch::ToEditor(DispatchEditor::ChangeCursorDirection),
+            ),
         ]
         .to_vec()
     }
@@ -352,7 +357,6 @@ impl Editor {
             // selection
             // y = unused
             key!("enter") => return self.open_new_line(),
-            key!("%") => self.change_cursor_direction(),
 
             key!("ctrl+o") => return Ok([Dispatch::GoToPreviousSelection].to_vec().into()),
             key!("tab") => return Ok([Dispatch::GoToNextSelection].to_vec().into()),

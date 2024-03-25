@@ -1365,3 +1365,19 @@ fn surround() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn cursor_direction() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn main() { x.y() }".to_string())),
+            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(ChangeCursorDirection),
+            Editor(SetSelectionMode(Character)),
+            Expect(CurrentSelectedTexts(&["}"])),
+            // Expect cursor direction is reset to `Start` if selection mode is changed
+            Expect(CurrentCursorDirection(Direction::Start)),
+        ])
+    })
+}

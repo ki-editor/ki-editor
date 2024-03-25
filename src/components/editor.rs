@@ -858,6 +858,7 @@ impl Editor {
     /// WARNING: this method should only be called by `app.rs`, not by this file    
     pub fn __update_selection_set_for_real(&mut self, selection_set: SelectionSet) {
         self.selection_set = selection_set;
+        self.cursor_direction = Direction::Start;
         self.recalculate_scroll_offset()
     }
 
@@ -1447,6 +1448,7 @@ impl Editor {
             }
             EnterReplaceMode => self.enter_replace_mode(),
             Paste(direction) => return self.paste(direction, context),
+            ChangeCursorDirection => self.change_cursor_direction(),
         }
         Ok(Default::default())
     }
@@ -2830,4 +2832,5 @@ pub enum DispatchEditor {
     ReplaceCut,
     ShowKeymapLegendNormalMode,
     Paste(Direction),
+    ChangeCursorDirection,
 }

@@ -368,8 +368,16 @@ pub trait SelectionMode {
         let cursor_position = current_selection_range.cursor_position(params.cursor_direction);
         let current_selection_line = cursor_position.to_line(params.buffer)?;
 
-        let byte_range = buffer.char_to_byte(current_selection_range.start)?
-            ..buffer.char_to_byte(current_selection_range.end)?;
+        let byte_range = match params.cursor_direction {
+            Direction::Start => {
+                buffer.char_to_byte(current_selection_range.start)?
+                    ..buffer.char_to_byte(current_selection_range.end)?
+            }
+            Direction::End => {
+                let start = buffer.char_to_byte(current_selection_range.end)?;
+                start..(start + 1)
+            }
+        };
         let info = current_selection.info();
 
         let nearest = iter
