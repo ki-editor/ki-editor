@@ -5,7 +5,7 @@
 use itertools::Itertools;
 
 use lsp_types::Url;
-use my_proc_macros::key;
+use my_proc_macros::{key, keys};
 
 use serial_test::serial;
 
@@ -36,7 +36,12 @@ use crate::{
     grid::StyleKey,
     integration_test::TestRunner,
     list::grep::RegexConfig,
-    lsp::signature_help::SignatureInformation,
+    lsp::{
+        code_action::CodeAction,
+        completion::PositionalEdit,
+        signature_help::SignatureInformation,
+        workspace_edit::{TextDocumentEdit, WorkspaceEdit},
+    },
     position::Position,
     quickfix_list::{Location, QuickfixListItem},
     selection::SelectionMode,
@@ -59,7 +64,6 @@ pub enum Step {
 #[derive(Debug)]
 pub enum ExpectKind {
     FileExplorerContent(String),
-    CodeActionsLength(usize),
     EditorInfoContent(&'static str),
     EditorInfoOpen(bool),
     QuickfixListCurrentLine(&'static str),
@@ -266,7 +270,6 @@ impl ExpectKind {
             EditorInfoContent(expected) => {
                 contextualize(app.editor_info_content(), Some(expected.to_string()))
             }
-            CodeActionsLength(length) => contextualize(app.current_code_actions_length(), *length),
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
                 println!("content =\n{}", content);
@@ -1066,6 +1069,38 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
             Editor(SetSelectionMode(Diagnostic(None))),
             Expect(EditorInfoOpen(true)),
             Expect(EditorInfoContent("Hello world")),
+        ])
+    })
+}
+
+#[test]
+fn code_action() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let code_action = |new_text: &str| CodeAction {
+            title: format!("Use {}", new_text),
+            kind: None,
+            edit: Some(WorkspaceEdit {
+                edits: [TextDocumentEdit {
+                    path: s.main_rs(),
+                    edits: [PositionalEdit {
+                        range: Position::new(0, 2)..Position::new(0, 6),
+                        new_text: new_text.to_string(),
+                    }]
+                    .to_vec(),
+                }]
+                .to_vec(),
+                resource_operations: Vec::new(),
+            }),
+            command: None,
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("a.to_s".to_string())),
+            App(ReceiveCodeActions(
+                [code_action("to_soup"), code_action("to_string")].to_vec(),
+            )),
+            App(HandleKeyEvents(keys!("i n g enter").to_vec())),
+            Expect(CurrentComponentContent("a.to_string")),
         ])
     })
 }

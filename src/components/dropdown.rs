@@ -294,10 +294,6 @@ impl Dropdown {
     pub(crate) fn items(&self) -> Vec<DropdownItem> {
         self.items.clone()
     }
-
-    pub(crate) fn clear(&mut self) {
-        self.set_items(Default::default())
-    }
 }
 
 #[cfg(test)]
