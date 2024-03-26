@@ -1,7 +1,6 @@
-use crate::app::{Dispatch, Dispatches, RequestParams};
+use crate::app::{Dispatch, Dispatches};
 use crate::context::Context;
 use crate::grid::StyleKey;
-use crate::lsp::code_action::CodeAction;
 use crate::lsp::completion::CompletionItemEdit;
 use DispatchEditor::*;
 
@@ -29,7 +28,6 @@ pub struct SuggestiveEditor {
     editor: Editor,
     info_panel: Option<Rc<RefCell<Editor>>>,
 
-    code_action_dropdown: Dropdown,
     completion_dropdown: Dropdown,
 
     trigger_characters: Vec<String>,
@@ -57,33 +55,6 @@ impl From<CompletionItem> for DropdownItem {
             }),
             group: None,
             rank: None,
-        }
-    }
-}
-
-impl CodeAction {
-    fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
-        let value = self;
-        DropdownItem {
-            rank: None,
-            info: None,
-            display: value.title,
-            group: Some(value.kind.unwrap_or("Misc.".to_string())),
-            dispatches: value
-                .edit
-                .map(Dispatch::ApplyWorkspaceEdit)
-                .into_iter()
-                // A command this code action executes. If a code action
-                // provides an edit and a command, first the edit is
-                // executed and then the command.
-                // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-                .chain(params.and_then(|params| {
-                    value
-                        .command
-                        .map(|command| Dispatch::LspExecuteCommand { command, params })
-                }))
-                .collect_vec()
-                .into(),
         }
     }
 }
@@ -136,49 +107,6 @@ impl Component for SuggestiveEditor {
             }
         }
 
-        if self.editor.mode == Mode::Normal && self.code_action_dropdown.current_item().is_some() {
-            match event {
-                key!("ctrl+n") | key!("down") => {
-                    self.code_action_dropdown.next_item();
-                    return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
-                        render: self.code_action_dropdown.render(),
-                    }]
-                    .to_vec()
-                    .into());
-                }
-                key!("ctrl+p") | key!("up") => {
-                    self.code_action_dropdown.previous_item();
-                    return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
-                        render: self.code_action_dropdown.render(),
-                    }]
-                    .to_vec()
-                    .into());
-                }
-                key!("enter") => {
-                    let current_item = self.code_action_dropdown.current_item();
-                    if let Some(code_action) = current_item {
-                        let dispatches = code_action.dispatches;
-                        self.code_action_dropdown.clear();
-                        return Ok(dispatches.append(Dispatch::CloseDropdown {
-                            owner_id: self.id(),
-                        }));
-                        // self.menu_opened = false;
-                        // self.info_panel = None;
-                    }
-                }
-                key!("esc") => {
-                    return Ok([Dispatch::CloseDropdown {
-                        owner_id: self.id(),
-                    }]
-                    .to_vec()
-                    .into());
-                }
-
-                _ => {}
-            }
-        };
         // Every other character typed in Insert mode should update the dropdown to show
         // relevant completions.
         let dispatches = self.editor.handle_key_event(context, event.clone())?;
@@ -209,8 +137,6 @@ impl Component for SuggestiveEditor {
         self.completion_dropdown.set_filter(&filter);
         let dropdown_render = if self.completion_dropdown_opened() {
             Some(self.completion_dropdown.render())
-        } else if self.code_action_dropdown.current_item().is_some() {
-            Some(self.code_action_dropdown.render())
         } else {
             None
         };
@@ -276,17 +202,9 @@ impl SuggestiveEditor {
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
             }),
-            code_action_dropdown: Dropdown::new(DropdownConfig {
-                title: "Code Actions".to_string(),
-            }),
             trigger_characters: vec![],
             filter,
         }
-    }
-
-    #[cfg(test)]
-    pub fn code_actions_length(&self) -> usize {
-        self.code_action_dropdown.items().len()
     }
 
     pub fn handle_dispatch(
@@ -310,26 +228,6 @@ impl SuggestiveEditor {
                 } else {
                     Ok(Vec::new().into())
                 }
-            }
-            DispatchSuggestiveEditor::CodeActions(code_actions) => {
-                if self.editor.mode != Mode::Normal || code_actions.is_empty() {
-                    return Ok(Vec::new().into());
-                }
-                self.code_action_dropdown.set_items(
-                    code_actions
-                        .into_iter()
-                        .map(|code_action| {
-                            code_action.into_dropdown_item(self.editor.get_request_params())
-                        })
-                        .collect(),
-                );
-                let render = self.code_action_dropdown.render();
-                Ok([Dispatch::RenderDropdown {
-                    owner_id: self.id(),
-                    render,
-                }]
-                .to_vec()
-                .into())
             }
         }
     }
@@ -371,17 +269,14 @@ impl SuggestiveEditor {
 pub enum DispatchSuggestiveEditor {
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
-    CodeActions(Vec<CodeAction>),
 }
 
 #[cfg(test)]
 mod test_suggestive_editor {
     use crate::components::editor::DispatchEditor::*;
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
-    use crate::lsp::code_action::CodeAction;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
     use crate::lsp::documentation::Documentation;
-    use crate::lsp::workspace_edit::{TextDocumentEdit, WorkspaceEdit};
     use crate::position::Position;
     use crate::{
         app::Dispatch,
@@ -677,84 +572,6 @@ mod test_suggestive_editor {
                 Expect(CurrentComponentContent("Spongebob")),
                 App(HandleKeyEvents(keys!("e n d").to_vec())),
                 Expect(CurrentComponentContent("Spongebobend")),
-            ])
-        })
-    }
-
-    #[test]
-    fn code_action() -> anyhow::Result<()> {
-        execute_test(|s| {
-            let code_action = |new_text: &str| CodeAction {
-                title: format!("Use {}", new_text),
-                kind: None,
-                edit: Some(WorkspaceEdit {
-                    edits: [TextDocumentEdit {
-                        path: s.main_rs(),
-                        edits: [PositionalEdit {
-                            range: Position::new(0, 2)..Position::new(0, 6),
-                            new_text: new_text.to_string(),
-                        }]
-                        .to_vec(),
-                    }]
-                    .to_vec(),
-                    resource_operations: Vec::new(),
-                }),
-                command: None,
-            };
-            let expected_grid_1 = format!(
-                "{}\n{}",
-                "
- 🦀  src/main.rs
-1│█.to_s
-
-
-
-Code Actions
-1│■┬ Misc.
-2│█├─ Use to_soup
-3│ └─ Use to_string
-"
-                .trim_matches('\n'),
-                &s.temp_dir().display_absolute()[0..20]
-            );
-            let expected_grid_2 = format!(
-                "{}\n{}",
-                "
-
- 🦀  src/main.rs
-1│█.to_s
-
-
-
-Code Actions
-1│■┬ Misc.
-2│ ├─ Use to_soup
-3│█└─ Use to_string
-"
-                .trim_matches('\n'),
-                &s.temp_dir().display_absolute()[0..20]
-            );
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("a.to_s".to_string())),
-                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
-                App(TerminalDimensionChanged(crate::app::Dimension {
-                    height: 10,
-                    width: 20,
-                })),
-                App(ReceiveCodeActions(
-                    [code_action("to_soup"), code_action("to_string")].to_vec(),
-                )),
-                Expect(AppGrid(expected_grid_1.clone())),
-                App(HandleKeyEvent(key!("ctrl+n"))),
-                Expect(AppGrid(expected_grid_2.clone())),
-                App(HandleKeyEvent(key!("ctrl+p"))),
-                Expect(AppGrid(expected_grid_1)),
-                App(HandleKeyEvent(key!("ctrl+n"))),
-                Expect(AppGrid(expected_grid_2)),
-                App(HandleKeyEvent(key!("enter"))),
-                Expect(CurrentComponentContent("a.to_string")),
-                Expect(CodeActionsLength(0)),
             ])
         })
     }

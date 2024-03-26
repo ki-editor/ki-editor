@@ -582,13 +582,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
             Dispatch::ReceiveCodeActions(code_actions) => {
-                if let Some(component) = self.layout.get_current_suggestive_editor() {
-                    let dispatches = component
-                        .borrow_mut()
-                        .handle_dispatch(DispatchSuggestiveEditor::CodeActions(code_actions))?;
-
-                    self.handle_dispatches(dispatches)?;
-                }
+                self.open_code_actions_prompt(code_actions)?;
             }
         }
         Ok(())
@@ -1861,14 +1855,6 @@ impl<T: Frontend> App<T> {
         self.layout.editor_info_content()
     }
 
-    #[cfg(test)]
-    pub(crate) fn current_code_actions_length(&self) -> usize {
-        self.layout
-            .get_current_suggestive_editor()
-            .map(|c| c.borrow().code_actions_length())
-            .unwrap_or_default()
-    }
-
     fn reveal_path_in_explorer(&mut self, path: &CanonicalizedPath) -> anyhow::Result<()> {
         let dispatches = self.layout.reveal_path_in_explorer(path)?;
         self.handle_dispatches(dispatches)
@@ -1877,6 +1863,26 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn file_explorer_content(&self) -> String {
         self.layout.file_explorer_content()
+    }
+
+    fn open_code_actions_prompt(
+        &mut self,
+        code_actions: Vec<crate::lsp::code_action::CodeAction>,
+    ) -> anyhow::Result<()> {
+        if let Some(component) = self.layout.get_current_suggestive_editor() {
+            let params = component.borrow().editor().get_request_params();
+            self.open_prompt(PromptConfig {
+                history: Vec::new(),
+                on_enter: DispatchPrompt::Null,
+                items: code_actions
+                    .into_iter()
+                    .map(move |code_action| code_action.into_dropdown_item(params.clone()))
+                    .collect(),
+                title: "Code Actions".to_string(),
+                enter_selects_first_matching_item: true,
+            })?;
+        };
+        Ok(())
     }
 }
 
@@ -2217,6 +2223,9 @@ pub enum DispatchPrompt {
     MovePath {
         from: CanonicalizedPath,
     },
+    Null,
+    // TODO: remove the following variants
+    // Because the following action already embeds dispatches
     SelectSymbol {
         symbols: Symbols,
     },
@@ -2347,6 +2356,7 @@ impl DispatchPrompt {
             DispatchPrompt::SetContent => Ok(Dispatches::new(
                 [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),
             )),
+            DispatchPrompt::Null => Ok(Default::default()),
         }
     }
 }
