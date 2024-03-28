@@ -102,7 +102,15 @@ pub struct SyntaxStyles {
     pub default: Style,
 }
 
-pub const HIGHLIGHT_NAMES: &[&str] = &["comment", "keyword", "string", "type", "function"];
+pub const HIGHLIGHT_NAMES: &[&str] = &[
+    "comment",
+    "keyword",
+    "string",
+    "type",
+    "function",
+    "function.method",
+    "function.call",
+];
 
 impl SyntaxStyles {
     /// The `index` should tally with the `HIGHLIGHT_NAMES` array.
@@ -112,7 +120,7 @@ impl SyntaxStyles {
             1 => Some(self.keyword),
             2 => Some(self.string),
             3 => Some(self.type_),
-            4 => Some(self.function),
+            4 | 5 | 6 => Some(self.function),
             _ => None,
         }
     }

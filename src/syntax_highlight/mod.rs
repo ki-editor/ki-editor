@@ -33,9 +33,10 @@ impl GetHighlightConfig for Language {
             return Ok(None);
         };
 
+        let highlights_query = &self.highlight_query().unwrap_or_default();
         let mut config = HighlightConfiguration::new(
             tree_sitter_language,
-            &self.highlight_query().unwrap_or_default(),
+            highlights_query,
             self.injection_query().unwrap_or_default(),
             self.locals_query().unwrap_or_default(),
         )?;
@@ -53,9 +54,7 @@ impl Highlight for HighlightConfiguration {
     fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans> {
         let mut highlighter = Highlighter::new();
 
-        let highlights = highlighter
-            .highlight(self, source_code.as_bytes(), None, |_| None)
-            .unwrap();
+        let highlights = highlighter.highlight(self, source_code.as_bytes(), None, |_| None)?;
 
         let mut highlight = None;
 
@@ -113,13 +112,17 @@ pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightReque
     std::thread::spawn(move || {
         let mut highlight_configs = HighlightConfigs::new();
         while let Ok(request) = receiver.recv() {
-            if let Ok(highlighted_spans) =
-                highlight_configs.highlight(request.theme, request.language, &request.source_code)
+            match highlight_configs.highlight(request.theme, request.language, &request.source_code)
             {
-                let _ = callback.send(AppMessage::SyntaxHighlightResponse {
-                    component_id: request.component_id,
-                    highlighted_spans,
-                });
+                Ok(highlighted_spans) => {
+                    let _ = callback.send(AppMessage::SyntaxHighlightResponse {
+                        component_id: request.component_id,
+                        highlighted_spans,
+                    });
+                }
+                Err(error) => {
+                    log::info!("syntax_highlight_error = {:#?}", error)
+                }
             }
         }
     });
