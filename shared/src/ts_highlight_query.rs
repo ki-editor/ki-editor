@@ -13,14 +13,19 @@ pub fn cache_dir() -> PathBuf {
 }
 
 pub fn clear_cache() -> anyhow::Result<()> {
-    Ok(std::fs::remove_dir_all(cache_dir())?)
+    let path = cache_dir();
+    if path.exists() {
+        Ok(std::fs::remove_dir_all(path)?)
+    } else {
+        Ok(())
+    }
 }
 
 /// Get highlight query from cache or `nvim-treesitter` repo.
 pub fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQueryResult> {
     let cache_dir = cache_dir();
     std::fs::create_dir_all(cache_dir.clone())?;
-    let cache_path = cache_dir.join(language_id).join("scm");
+    let cache_path = cache_dir.join(format!("{}.scm", language_id));
     if let Ok(text) = std::fs::read_to_string(cache_path.clone()) {
         return Ok(GetHighlightQueryResult {
             query: text,

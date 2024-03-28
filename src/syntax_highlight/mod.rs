@@ -1,12 +1,13 @@
 use std::{collections::HashMap, ops::Range, sync::mpsc::Sender};
 
+use itertools::Itertools;
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
     app::AppMessage,
     components::component::ComponentId,
     grid::{Style, StyleKey},
-    themes::Theme,
+    themes::{Theme, HIGHLIGHT_NAMES},
 };
 use shared::language::Language;
 
@@ -41,7 +42,12 @@ impl GetHighlightConfig for Language {
             self.locals_query().unwrap_or_default(),
         )?;
 
-        config.configure(crate::themes::HIGHLIGHT_NAMES);
+        config.configure(
+            &crate::themes::HIGHLIGHT_NAMES
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect_vec(),
+        );
 
         Ok(Some(config))
     }
@@ -70,18 +76,16 @@ impl Highlight for HighlightConfiguration {
                 }
                 HighlightEvent::Source { start, end } => {
                     if let Some(highlight) = highlight {
-                        if let Some(color) = theme.syntax.get_color(highlight.0) {
+                        if let Some(color) = HIGHLIGHT_NAMES
+                            .get(highlight.0)
+                            .map(|(_, style_key)| theme.get_style(style_key))
+                        {
                             highlighted_spans.push(HighlighedSpan {
                                 byte_range: start..end,
                                 style: color,
-                                source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0) {
-                                    Some(&"comment") => Some(StyleKey::SyntaxComment),
-                                    Some(&"keyword") => Some(StyleKey::SyntaxKeyword),
-                                    Some(&"string") => Some(StyleKey::SyntaxString),
-                                    Some(&"type") => Some(StyleKey::SyntaxType),
-                                    Some(&"function") => Some(StyleKey::SyntaxFunction),
-                                    _ => None,
-                                },
+                                source: crate::themes::HIGHLIGHT_NAMES
+                                    .get(highlight.0)
+                                    .map(|(_, key)| key.clone()),
                             });
                         }
                     }

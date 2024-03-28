@@ -319,7 +319,7 @@ impl Editor {
                 .flatten()
                 .chain(
                     self.buffer()
-                        .get_current_node(&self.selection_set.primary, true)
+                        .get_current_node(&self.selection_set.primary, false)
                         .ok()
                         .map(|node| KeymapLegendSection {
                             title: "Tree-sitter node".to_string(),
