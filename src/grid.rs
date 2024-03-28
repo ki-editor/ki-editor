@@ -371,6 +371,9 @@ pub enum StyleKey {
     HunkNew,
     HunkNewEmphasized,
     SyntaxDefault,
+    TypeBuiltin,
+    Variable,
+    SyntaxKeywordModifier,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]

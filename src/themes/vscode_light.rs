@@ -5,11 +5,14 @@ use my_proc_macros::hex;
 pub const VSCODE_LIGHT: Theme = Theme {
     name: "vscode-light",
     syntax: SyntaxStyles {
-        keyword: Style::new().foreground_color(hex!("#0000ff")),
+        variable: Style::new().foreground_color(hex!("#001080")),
+        keyword: Style::new().foreground_color(hex!("#af00db")),
+        keyword_modifier: Style::new().foreground_color(hex!("#0000ff")),
         function: Style::new().foreground_color(hex!("#795e26")),
         type_: Style::new().foreground_color(hex!("#267f99")),
+        type_builtin: Style::new().foreground_color(hex!("#0000ff")),
         string: Style::new().foreground_color(hex!("#a31515")),
-        comment: Style::new().foreground_color(hex!("#6a9955")),
+        comment: Style::new().foreground_color(hex!("#008000")),
         default: Style::new().foreground_color(hex!("#ffffff")),
     },
     ui: UiStyles {

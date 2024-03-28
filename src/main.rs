@@ -33,6 +33,7 @@ mod terminal;
 mod test_app;
 pub mod themes;
 pub mod transformation;
+pub mod tree_sitter_traversal;
 pub mod undo_tree;
 mod utils;
 

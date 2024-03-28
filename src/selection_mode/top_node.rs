@@ -14,9 +14,9 @@ impl SelectionMode for TopNode {
         let buffer = params.buffer;
         let root_node_id = buffer.tree().root_node().id();
         Ok(Box::new(
-            tree_sitter_traversal::traverse(
+            crate::tree_sitter_traversal::traverse(
                 buffer.tree().walk(),
-                tree_sitter_traversal::Order::Pre,
+                crate::tree_sitter_traversal::Order::Pre,
             )
             .filter(|node| node.id() != root_node_id)
             .group_by(|node| node.byte_range().start)

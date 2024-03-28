@@ -9,10 +9,11 @@ pub struct AstGrep {
 
 impl AstGrep {
     pub fn new(buffer: &crate::buffer::Buffer, pattern: &str) -> anyhow::Result<Self> {
-        let lang = ast_grep_core::language::TSLanguage::from(buffer.treesitter_language());
-        let pattern = ast_grep_core::matcher::Pattern::try_new(pattern, lang.clone())?;
-        let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
-        Ok(Self { pattern, grep })
+        // let lang = ast_grep_core::language::TSLanguage::from(buffer.treesitter_language());
+        // let pattern = ast_grep_core::matcher::Pattern::try_new(pattern, lang.clone())?;
+        // let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
+        // Ok(Self { pattern, grep })
+        todo!()
     }
     pub fn replace(
         language: tree_sitter::Language,
@@ -20,12 +21,14 @@ impl AstGrep {
         pattern: &str,
         replacement: &str,
     ) -> anyhow::Result<Vec<ast_grep_core::source::Edit<std::string::String>>> {
-        let lang = ast_grep_core::language::TSLanguage::from(language);
-        let pattern = ast_grep_core::matcher::Pattern::try_new(pattern, lang.clone())?;
-        let mut source_code = source_code.to_string();
-        let grep = ast_grep_core::AstGrep::new(std::mem::take(&mut source_code), lang.clone());
-        Ok(grep.root().replace_all(pattern.clone(), replacement))
+        // let lang = ast_grep_core::language::TSLanguage::from(language);
+        // let pattern = ast_grep_core::matcher::Pattern::try_new(pattern, lang.clone())?;
+        // let mut source_code = source_code.to_string();
+        // let grep = ast_grep_core::AstGrep::new(std::mem::take(&mut source_code), lang.clone());
+        // Ok(grep.root().replace_all(pattern.clone(), replacement))
+        todo!()
     }
+
     pub fn find_all(&self) -> impl Iterator<Item = NodeMatch<StrDoc<TSLanguage>>> {
         self.grep.root().find_all(self.pattern.clone())
     }

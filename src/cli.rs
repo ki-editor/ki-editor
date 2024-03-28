@@ -20,7 +20,6 @@ enum Commands {
     /// Edit the file of the given path, creates a new file at the path
     /// if not exist
     Edit(EditArgs),
-    New,
 }
 #[derive(Args)]
 struct EditArgs {
@@ -57,10 +56,18 @@ pub fn cli() -> anyhow::Result<()> {
                     HighlightQuery::Clean => shared::ts_highlight_query::clear_cache()?,
                     HighlightQuery::CachePath => {
                         println!("{}", shared::ts_highlight_query::cache_dir().display())
-        }
+                    }
                 };
                 Ok(())
             }
+            Commands::Edit(args) => {
+                let path = std::path::PathBuf::from(args.path.clone());
+                if !path.exists() {
+                    std::fs::write(path, "")?;
+                }
+                crate::run(Some(args.path.try_into()?))
+            }
+        }
     } else {
         crate::run(None)
     }

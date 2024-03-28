@@ -37,6 +37,7 @@ impl GetHighlightConfig for Language {
         let highlights_query = &self.highlight_query().unwrap_or_default();
         let mut config = HighlightConfiguration::new(
             tree_sitter_language,
+            "highlight".to_string(),
             highlights_query,
             self.injection_query().unwrap_or_default(),
             self.locals_query().unwrap_or_default(),

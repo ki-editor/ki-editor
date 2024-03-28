@@ -52,6 +52,9 @@ impl Theme {
             StyleKey::HunkNewEmphasized => {
                 Style::new().background_color(self.hunk_new_emphasized_background)
             }
+            StyleKey::TypeBuiltin => self.syntax.type_builtin,
+            StyleKey::Variable => self.syntax.variable,
+            StyleKey::SyntaxKeywordModifier => self.syntax.keyword_modifier,
         }
     }
 }
@@ -97,21 +100,28 @@ pub struct SyntaxStyles {
     pub function: Style,
     pub keyword: Style,
     pub string: Style,
+    pub type_builtin: Style,
     pub type_: Style,
     pub comment: Style,
     pub default: Style,
+    pub variable: Style,
+    pub keyword_modifier: Style,
 }
 
 pub const HIGHLIGHT_NAMES: &[(&str, StyleKey)] = &[
-    ("comment", StyleKey::SyntaxComment),
-    ("keyword", StyleKey::SyntaxKeyword),
-    ("string", StyleKey::SyntaxString),
-    ("type", StyleKey::SyntaxType),
-    ("tag", StyleKey::SyntaxType),
     ("function", StyleKey::SyntaxFunction),
     ("function.method", StyleKey::SyntaxFunction),
     ("function.call", StyleKey::SyntaxFunction),
     ("function.method.call", StyleKey::SyntaxFunction),
+    ("comment", StyleKey::SyntaxComment),
+    ("keyword", StyleKey::SyntaxKeyword),
+    ("keyword.modifier", StyleKey::SyntaxKeywordModifier),
+    ("string", StyleKey::SyntaxString),
+    ("type", StyleKey::SyntaxType),
+    ("type.builtin", StyleKey::TypeBuiltin),
+    ("variable", StyleKey::Variable),
+    ("variable.member", StyleKey::Variable),
+    ("tag", StyleKey::SyntaxType),
 ];
 
 /// This should be constructed using the `color!` macro.
