@@ -1,7 +1,10 @@
 pub mod vscode_light;
+use std::collections::HashMap;
+
+use itertools::Itertools;
 pub use vscode_light::VSCODE_LIGHT;
 
-use crate::grid::{Style, StyleKey};
+use crate::{grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Theme {
@@ -38,12 +41,7 @@ impl Theme {
             StyleKey::DiagnosticsWarning => self.diagnostic.warning,
             StyleKey::DiagnosticsInformation => self.diagnostic.information,
             StyleKey::DiagnosticsDefault => self.diagnostic.default,
-            StyleKey::SyntaxKeyword => self.syntax.keyword,
-            StyleKey::SyntaxFunction => self.syntax.function,
-            StyleKey::SyntaxComment => self.syntax.comment,
-            StyleKey::SyntaxString => self.syntax.string,
-            StyleKey::SyntaxDefault => self.syntax.default,
-            StyleKey::SyntaxType => self.syntax.type_,
+
             StyleKey::HunkOld => Style::new().background_color(self.hunk_old_background),
             StyleKey::HunkNew => Style::new().background_color(self.hunk_new_background),
             StyleKey::HunkOldEmphasized => {
@@ -52,9 +50,10 @@ impl Theme {
             StyleKey::HunkNewEmphasized => {
                 Style::new().background_color(self.hunk_new_emphasized_background)
             }
-            StyleKey::TypeBuiltin => self.syntax.type_builtin,
-            StyleKey::Variable => self.syntax.variable,
-            StyleKey::SyntaxKeywordModifier => self.syntax.keyword_modifier,
+
+            StyleKey::Syntax(highlight_group) => {
+                self.syntax.get_style(highlight_group).unwrap_or_default()
+            }
         }
     }
 }
@@ -95,36 +94,157 @@ pub struct UiStyles {
     pub bookmark: Style,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+/// Refer https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#highlights
+/// The capture groups should tally with that of `nvim-treesitter` so that their highlight queries can be used in
+/// this editor without modifications.
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct SyntaxStyles {
-    pub function: Style,
-    pub keyword: Style,
-    pub string: Style,
-    pub type_builtin: Style,
-    pub type_: Style,
-    pub comment: Style,
-    pub default: Style,
-    pub variable: Style,
-    pub keyword_modifier: Style,
+    map: once_cell::sync::OnceCell<HashMap<String, Style>>,
+    groups: &'static [(&'static str, Style)],
+}
+impl SyntaxStyles {
+    pub const fn new(groups: &'static [(&'static str, Style)]) -> Self {
+        Self {
+            groups,
+            map: once_cell::sync::OnceCell::new(),
+        }
+    }
+    fn map(&self) -> &HashMap<String, Style> {
+        self.map.get_or_init(|| {
+            self.groups
+                .into_iter()
+                .map(|(key, style)| {
+                    if !HIGHLIGHT_NAMES.contains(key) {
+                        panic!("Invalid highlight group: {}", key)
+                    }
+                    (key.to_string(), style.to_owned())
+                })
+                .collect()
+        })
+    }
+    fn get_style(&self, highlight_group: &str) -> Option<Style> {
+        let group = HighlightGroup::new(highlight_group);
+        self.map()
+            .get(&group.full_name)
+            .or_else(|| self.map().get(&group.parent?))
+            .cloned()
+    }
 }
 
-pub const HIGHLIGHT_NAMES: &[(&str, StyleKey)] = &[
-    ("function", StyleKey::SyntaxFunction),
-    ("function.method", StyleKey::SyntaxFunction),
-    ("function.call", StyleKey::SyntaxFunction),
-    ("function.method.call", StyleKey::SyntaxFunction),
-    ("comment", StyleKey::SyntaxComment),
-    ("keyword", StyleKey::SyntaxKeyword),
-    ("keyword.modifier", StyleKey::SyntaxKeywordModifier),
-    ("string", StyleKey::SyntaxString),
-    ("type", StyleKey::SyntaxType),
-    ("type.builtin", StyleKey::TypeBuiltin),
-    ("variable", StyleKey::Variable),
-    ("variable.member", StyleKey::Variable),
-    ("tag", StyleKey::SyntaxType),
+pub struct HighlightGroup {
+    full_name: String,
+    parent: Option<String>,
+}
+
+impl HighlightGroup {
+    fn new(group: &str) -> HighlightGroup {
+        match group.split(".").collect_vec().split_last() {
+            Some((_, parent)) => HighlightGroup {
+                parent: Some(parent.join(".")),
+                full_name: group.to_string(),
+            },
+            None => HighlightGroup {
+                parent: None,
+                full_name: group.to_string(),
+            },
+        }
+    }
+}
+
+pub const HIGHLIGHT_NAMES: &[&str] = &[
+    "variable",
+    "variable.builtin",
+    "variable.parameter",
+    "variable.parameter.builtin",
+    "variable.member",
+    "constant",
+    "constant.builtin",
+    "constant.macro",
+    "module",
+    "module.builtin",
+    "label",
+    "string",
+    "string.documentation",
+    "string.regexp",
+    "string.escape",
+    "string.special",
+    "string.special.symbol",
+    "string.special.url",
+    "string.special.path",
+    "character",
+    "character.special",
+    "boolean",
+    "number",
+    "number.float",
+    "type",
+    "type.builtin",
+    "type.definition",
+    "attribute",
+    "attribute.builtin",
+    "property",
+    "function",
+    "function.builtin",
+    "function.call",
+    "function.macro",
+    "function.method",
+    "function.method.call",
+    "constructor",
+    "operator",
+    "keyword",
+    "keyword.coroutine",
+    "keyword.function",
+    "keyword.operator",
+    "keyword.import",
+    "keyword.type",
+    "keyword.modifier",
+    "keyword.repeat",
+    "keyword.return",
+    "keyword.debug",
+    "keyword.exception",
+    "keyword.conditional",
+    "keyword.conditional.ternary",
+    "keyword.directive",
+    "keyword.directive.define",
+    "punctuation.delimiter",
+    "punctuation.bracket",
+    "punctuation.special",
+    "comment",
+    "comment.documentation",
+    "comment.error",
+    "comment.warning",
+    "comment.todo",
+    "comment.note",
+    "markup.strong",
+    "markup.italic",
+    "markup.strikethrough",
+    "markup.underline",
+    "markup.heading",
+    "markup.heading.1",
+    "markup.heading.2",
+    "markup.heading.3",
+    "markup.heading.4",
+    "markup.heading.5",
+    "markup.heading.6",
+    "markup.quote",
+    "markup.math",
+    "markup.link",
+    "markup.link.label",
+    "markup.link.url",
+    "markup.raw",
+    "markup.raw.block",
+    "markup.list",
+    "markup.list.checked",
+    "markup.list.unchecked",
+    "diff.plus",
+    "diff.minus",
+    "diff.delta",
+    "tag",
+    "tag.builtin",
+    "tag.attribute",
+    "tag.delimiter",
 ];
 
-/// This should be constructed using the `color!` macro.
+/// This should be constructed using the `hex!` macro.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Color {
     r: u8,
@@ -135,6 +255,38 @@ pub struct Color {
 impl Color {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b }
+    }
+
+    pub(crate) fn from_hex(hex: String) -> anyhow::Result<Color> {
+        let regex = lazy_regex::regex!(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$");
+        if !regex.is_match(&hex) {
+            return Err(anyhow::anyhow!("Invalid hex color: {}", hex));
+        }
+        let hex = &hex[1..];
+
+        let r = u8::from_str_radix(&hex[0..2], 16)?;
+        let g = u8::from_str_radix(&hex[2..4], 16)?;
+        let b = u8::from_str_radix(&hex[4..6], 16)?;
+
+        Ok(Color { r, g, b })
+    }
+
+    /// Refer https://docs.rs/colorsys/latest/src/colorsys/rgb/transform.rs.html#61
+    /// Refer https://sl.bing.net/b69EKNHqrLw
+    pub fn get_contrasting_color(&self) -> Color {
+        let Color { r, g, b } = self;
+        // Calculate the luminance of the color
+        let luminance = (0.299 * (*r as f64) + 0.587 * (*g as f64) + 0.114 * (*b as f64)) / 255.0;
+        // Return black for bright colors, white for dark colors
+        if luminance > 0.5 {
+            Color { r: 0, g: 0, b: 0 }
+        } else {
+            Color {
+                r: 255,
+                g: 255,
+                b: 255,
+            }
+        }
     }
 }
 

@@ -116,6 +116,19 @@ impl Language {
                 )
                 .ok(),
             )
+            .map(|query| {
+                query
+                    // Replace `nvim-treesitter`-specific predicates with builtin predicates supported by `tree-sitter-highlight` crate
+                    // Reference: https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#predicates
+                    .replace("lua-match", "match")
+                    .replace("vim-match", "match")
+                    // Remove non-highlight captures, as they are not handled by this editor
+                    // See https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#non-highlighting-captures
+                    .replace("@none", "")
+                    .replace("@conceal", "")
+                    .replace("@spell", "")
+                    .replace("@nospell", "")
+            })
     }
 
     pub fn locals_query(&self) -> Option<&'static str> {

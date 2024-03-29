@@ -1,4 +1,4 @@
-use crate::{app::Dimension, position::Position, themes::Color};
+use crate::{app::Dimension, position::Position, style::Style, themes::Color};
 
 use itertools::Itertools;
 use my_proc_macros::hex;
@@ -52,7 +52,7 @@ impl Cell {
                 .unwrap_or(self.background_color),
             undercurl: choose(self.undercurl, update.style.undercurl),
             is_cursor: update.is_cursor || self.is_cursor,
-            source: update.source.or(self.source),
+            source: update.source.or(self.source.clone()),
         }
     }
 
@@ -348,9 +348,11 @@ impl Grid {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
 pub enum StyleKey {
+    Syntax(String),
     UiPrimarySelection,
+
     UiPrimarySelectionAnchors,
     UiSecondarySelection,
     UiSecondarySelectionAnchors,
@@ -360,65 +362,12 @@ pub enum StyleKey {
     DiagnosticsInformation,
     UiBookmark,
     UiPossibleSelection,
-    SyntaxKeyword,
-    SyntaxFunction,
-    SyntaxComment,
-    SyntaxString,
-    SyntaxType,
+
     DiagnosticsDefault,
     HunkOld,
     HunkOldEmphasized,
     HunkNew,
     HunkNewEmphasized,
-    SyntaxDefault,
-    TypeBuiltin,
-    Variable,
-    SyntaxKeywordModifier,
-}
-
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
-pub struct Style {
-    pub foreground_color: Option<Color>,
-    pub background_color: Option<Color>,
-    pub undercurl: Option<Color>,
-}
-
-impl Style {
-    pub const fn new() -> Style {
-        Style {
-            foreground_color: None,
-            background_color: None,
-            undercurl: None,
-        }
-    }
-
-    pub const fn foreground_color(self, color: Color) -> Style {
-        Style {
-            foreground_color: Some(color),
-            ..self
-        }
-    }
-
-    pub const fn background_color(self, color: Color) -> Style {
-        Style {
-            background_color: Some(color),
-            ..self
-        }
-    }
-
-    pub const fn undercurl(self, color: Option<Color>) -> Style {
-        Style {
-            undercurl: color,
-            ..self
-        }
-    }
-
-    pub(crate) fn set_some_background_color(self, background_color: Option<Color>) -> Style {
-        Style {
-            background_color,
-            ..self
-        }
-    }
 }
 
 /// TODO: in the future, tab size should be configurable

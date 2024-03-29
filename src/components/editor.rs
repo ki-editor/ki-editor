@@ -4,11 +4,12 @@ use crate::{
     char_index_range::CharIndexRange,
     components::component::{Cursor, SetCursorStyle},
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
-    grid::{CellUpdate, Style, StyleKey},
+    grid::{CellUpdate, StyleKey},
     lsp::process::ResponseContext,
     selection::{Filter, Filters},
     selection_mode::{self, inside::InsideKind, ByteRange},
     soft_wrap,
+    style::Style,
     transformation::Transformation,
 };
 
@@ -195,7 +196,11 @@ impl Component for Editor {
                 .filter_map(|char_index| {
                     let position = buffer.char_to_position(char_index).ok()?;
                     let style = theme.get_style(&source);
-                    Some(CellUpdate::new(position).style(style).source(Some(source)))
+                    Some(
+                        CellUpdate::new(position)
+                            .style(style)
+                            .source(Some(source.clone())),
+                    )
                 })
                 .collect()
         }
@@ -331,7 +336,7 @@ impl Component for Editor {
                         .to_char_index_range(&buffer)
                         .ok()?,
                     theme,
-                    *decoration.style_key(),
+                    decoration.style_key().clone(),
                 ))
             })
             .flatten()
@@ -343,9 +348,28 @@ impl Component for Editor {
                     Some(
                         CellUpdate::new(buffer.byte_to_position(byte).ok()?)
                             .style(highlighted_span.style)
-                            .source(highlighted_span.source),
+                            .source(highlighted_span.source.clone()),
                     )
                 })
+            })
+            .collect_vec();
+
+        let custom_regex_highlights = lazy_regex::regex!("#[0-9a-f]{6}")
+            .find_iter(&rope.to_string())
+            .map(|m| (m.as_str().to_string(), m.range()))
+            .flat_map(|(hex, range)| {
+                range
+                    .filter_map(|byte| buffer.byte_to_position(byte).ok())
+                    .filter_map(move |position| {
+                        let color = crate::themes::Color::from_hex(hex.clone()).ok()?;
+                        Some(
+                            CellUpdate::new(position).style(
+                                Style::new()
+                                    .background_color(color)
+                                    .foreground_color(color.get_contrasting_color()),
+                            ),
+                        )
+                    })
             })
             .collect_vec();
 
@@ -363,7 +387,8 @@ impl Component for Editor {
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)
-            .chain(secondary_selection_cursors);
+            .chain(secondary_selection_cursors)
+            .chain(custom_regex_highlights);
 
         #[derive(Debug, Clone)]
         struct RenderLine {

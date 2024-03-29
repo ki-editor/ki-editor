@@ -1,12 +1,12 @@
 use std::{collections::HashMap, ops::Range, sync::mpsc::Sender};
 
-use itertools::Itertools;
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
     app::AppMessage,
     components::component::ComponentId,
-    grid::{Style, StyleKey},
+    grid::StyleKey,
+    style::Style,
     themes::{Theme, HIGHLIGHT_NAMES},
 };
 use shared::language::Language;
@@ -43,12 +43,7 @@ impl GetHighlightConfig for Language {
             self.locals_query().unwrap_or_default(),
         )?;
 
-        config.configure(
-            &crate::themes::HIGHLIGHT_NAMES
-                .into_iter()
-                .map(|(name, _)| name)
-                .collect_vec(),
-        );
+        config.configure(&crate::themes::HIGHLIGHT_NAMES);
 
         Ok(Some(config))
     }
@@ -77,16 +72,15 @@ impl Highlight for HighlightConfiguration {
                 }
                 HighlightEvent::Source { start, end } => {
                     if let Some(highlight) = highlight {
-                        if let Some(color) = HIGHLIGHT_NAMES
-                            .get(highlight.0)
-                            .map(|(_, style_key)| theme.get_style(style_key))
-                        {
+                        if let Some(color) = HIGHLIGHT_NAMES.get(highlight.0).map(|style_key| {
+                            theme.get_style(&StyleKey::Syntax(style_key.to_string()))
+                        }) {
                             highlighted_spans.push(HighlighedSpan {
                                 byte_range: start..end,
                                 style: color,
                                 source: crate::themes::HIGHLIGHT_NAMES
                                     .get(highlight.0)
-                                    .map(|(_, key)| key.clone()),
+                                    .map(|key| StyleKey::Syntax(key.to_string())),
                             });
                         }
                     }

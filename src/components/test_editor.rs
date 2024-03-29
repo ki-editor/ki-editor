@@ -3,11 +3,12 @@ use crate::components::editor::Movement::*;
 
 use crate::rectangle::Rectangle;
 
+use crate::style::Style;
 use crate::test_app::*;
 
 use crate::{
     components::editor::{Direction, Mode, ViewAlignment},
-    grid::{Style, StyleKey},
+    grid::StyleKey,
     position::Position,
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
@@ -1163,7 +1164,10 @@ fn main() { // too long
                 ]
                 .into_iter()
                 .map(|position| {
-                    ExpectKind::GridCellStyleKey(position, Some(StyleKey::SyntaxKeyword))
+                    ExpectKind::GridCellStyleKey(
+                        position,
+                        Some(StyleKey::Syntax("keyword".to_string())),
+                    )
                 })
                 .collect(),
             ),

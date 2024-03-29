@@ -725,7 +725,7 @@ impl<T: Frontend> App<T> {
             title: "Command".to_string(),
             history: vec![],
             on_enter: DispatchPrompt::RunCommand,
-            items: crate::command::commands()
+            items: crate::command::COMMANDS
                 .iter()
                 .flat_map(|command| command.to_dropdown_items())
                 .collect(),

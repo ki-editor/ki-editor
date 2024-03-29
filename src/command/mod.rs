@@ -38,22 +38,20 @@ impl Command {
 }
 
 pub fn find(name: &str) -> Option<&'static Command> {
-    commands().iter().find(|c| c.matches(name))
+    COMMANDS.iter().find(|c| c.matches(name))
 }
 
-pub const fn commands() -> &'static [Command] {
-    &[
-        Command {
-            name: "quit-all",
-            aliases: &["qa"],
-            description: "Quit the editor",
-            dispatch: Dispatch::QuitAll,
-        },
-        Command {
-            name: "write-quit-all",
-            aliases: &["wqa"],
-            description: "Save all buffers and quite the editor",
-            dispatch: Dispatch::SaveQuitAll,
-        },
-    ]
-}
+pub const COMMANDS: &'static [Command] = &[
+    Command {
+        name: "quit-all",
+        aliases: &["qa"],
+        description: "Quit the editor",
+        dispatch: Dispatch::QuitAll,
+    },
+    Command {
+        name: "write-quit-all",
+        aliases: &["wqa"],
+        description: "Save all buffers and quite the editor",
+        dispatch: Dispatch::SaveQuitAll,
+    },
+];
