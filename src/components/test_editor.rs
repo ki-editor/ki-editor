@@ -1151,7 +1151,18 @@ fn main() { // too long
                     // Expect the `fn` keyword of the outbound parent line "fn main() { // too long" is highlighted properly
                     Position::new(1, 2),
                     Position::new(1, 3),
-                    //
+                ]
+                .into_iter()
+                .map(|position| {
+                    ExpectKind::GridCellStyleKey(
+                        position,
+                        Some(StyleKey::Syntax("keyword.function".to_string())),
+                    )
+                })
+                .collect(),
+            ),
+            ExpectMulti(
+                [
                     // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
                     Position::new(2, 4),
                     Position::new(2, 5),

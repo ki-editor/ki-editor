@@ -341,6 +341,7 @@ impl Component for Editor {
             })
             .flatten()
             .collect_vec();
+
         let highlighted_spans = highlighted_spans
             .iter()
             .flat_map(|highlighted_span| {
@@ -1453,7 +1454,9 @@ impl Editor {
             SwitchViewAlignment => self.switch_view_alignment(),
             SetScrollOffset(n) => self.set_scroll_offset(n),
             SetLanguage(language) => self.set_language(language)?,
-            ApplySyntaxHighlight => self.apply_syntax_highlighting(context)?,
+            ApplySyntaxHighlight => {
+                self.apply_syntax_highlighting(context)?;
+            }
             Save => return self.save(),
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))

@@ -164,6 +164,7 @@ mod test_syntax_styles {
                 .unwrap(),
             fg(hex!("#abcdef"))
         );
+        assert_eq!(SYNTAX_STYLE.get_style("character"), None);
     }
 }
 
@@ -175,11 +176,11 @@ pub struct HighlightGroup {
 impl HighlightGroup {
     fn new(group: &str) -> HighlightGroup {
         match group.split(".").collect_vec().split_last() {
-            Some((_, parent)) => HighlightGroup {
-                parent: Some(parent.join(".")),
+            Some((_, parents)) if !parents.is_empty() => HighlightGroup {
+                parent: Some(parents.join(".")),
                 full_name: group.to_string(),
             },
-            None => HighlightGroup {
+            _ => HighlightGroup {
                 parent: None,
                 full_name: group.to_string(),
             },

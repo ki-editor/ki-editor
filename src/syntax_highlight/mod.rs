@@ -52,6 +52,7 @@ impl GetHighlightConfig for Language {
 pub trait Highlight {
     fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans>;
 }
+
 impl Highlight for HighlightConfiguration {
     fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans> {
         let mut highlighter = Highlighter::new();
