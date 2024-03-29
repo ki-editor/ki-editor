@@ -126,8 +126,44 @@ impl SyntaxStyles {
         let group = HighlightGroup::new(highlight_group);
         self.map()
             .get(&group.full_name)
-            .or_else(|| self.map().get(&group.parent?))
             .cloned()
+            .or_else(|| self.get_style(&group.parent?))
+    }
+}
+
+#[cfg(test)]
+mod test_syntax_styles {
+    use my_proc_macros::hex;
+
+    use crate::style::fg;
+
+    use super::*;
+
+    const SYNTAX_STYLE: SyntaxStyles = SyntaxStyles::new(&[
+        ("string", fg(hex!("#267f99"))),
+        ("string.special", fg(hex!("#e50000"))),
+        ("variable", fg(hex!("#abcdef"))),
+    ]);
+    #[test]
+    fn test_get_style() {
+        assert_eq!(
+            SYNTAX_STYLE.get_style("string").unwrap(),
+            fg(hex!("#267f99"))
+        );
+        assert_eq!(
+            SYNTAX_STYLE.get_style("string.special").unwrap(),
+            fg(hex!("#e50000"))
+        );
+        assert_eq!(
+            SYNTAX_STYLE.get_style("string.special.symbol").unwrap(),
+            fg(hex!("#e50000"))
+        );
+        assert_eq!(
+            SYNTAX_STYLE
+                .get_style("variable.parameter.builtin")
+                .unwrap(),
+            fg(hex!("#abcdef"))
+        );
     }
 }
 
