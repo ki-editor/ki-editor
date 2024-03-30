@@ -5,7 +5,7 @@ use crate::{
 };
 use my_proc_macros::hex;
 
-pub const VSCODE_LIGHT: Theme = Theme {
+pub static VSCODE_LIGHT: Theme = Theme {
     name: "vscode-light",
     syntax: SyntaxStyles::new(&[
         ("variable", fg(hex!("#001080"))),

@@ -60,7 +60,7 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        VSCODE_LIGHT
+        VSCODE_LIGHT.clone()
     }
 }
 
@@ -112,7 +112,7 @@ impl SyntaxStyles {
     fn map(&self) -> &HashMap<String, Style> {
         self.map.get_or_init(|| {
             self.groups
-                .into_iter()
+                .iter()
                 .map(|(key, style)| {
                     if !HIGHLIGHT_NAMES.contains(key) {
                         panic!("Invalid highlight group: {}", key)
@@ -139,7 +139,7 @@ mod test_syntax_styles {
 
     use super::*;
 
-    const SYNTAX_STYLE: SyntaxStyles = SyntaxStyles::new(&[
+    static SYNTAX_STYLE: SyntaxStyles = SyntaxStyles::new(&[
         ("string", fg(hex!("#267f99"))),
         ("string.special", fg(hex!("#e50000"))),
         ("variable", fg(hex!("#abcdef"))),
@@ -175,7 +175,7 @@ pub struct HighlightGroup {
 
 impl HighlightGroup {
     fn new(group: &str) -> HighlightGroup {
-        match group.split(".").collect_vec().split_last() {
+        match group.split('.').collect_vec().split_last() {
             Some((_, parents)) if !parents.is_empty() => HighlightGroup {
                 parent: Some(parents.join(".")),
                 full_name: group.to_string(),

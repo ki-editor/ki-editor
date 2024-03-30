@@ -296,7 +296,7 @@ impl Editor {
             .chain(primary_selection_secondary_cursor)
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
-            .flat_map(|span| span.to_cell_update(&buffer, &theme, boundaries))
+            .flat_map(|span| span.to_cell_update(&buffer, theme, boundaries))
             .chain(primary_selection_primary_cursor)
             .collect_vec();
 
@@ -565,7 +565,7 @@ impl HighlightSpans {
                                 symbol: self.set_symbol.clone(),
                                 style: match &self.source {
                                     Source::StyleKey(key) => theme.get_style(key),
-                                    Source::Style(style) => style.clone(),
+                                    Source::Style(style) => *style,
                                 },
                                 is_cursor: self.is_cursor,
                                 source: match &self.source {

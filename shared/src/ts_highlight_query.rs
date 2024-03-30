@@ -59,12 +59,12 @@ pub fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQuer
 fn get_highlight_query_parents(content: &str) -> Vec<String> {
     regex::Regex::new(r"inherits:\s*([\w,]+)")
         .unwrap()
-        .captures(&content)
+        .captures(content)
         .and_then(|capture| capture.get(1))
         .map(|content| {
             content
                 .as_str()
-                .split(",")
+                .split(',')
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>()
         })
@@ -78,10 +78,10 @@ mod test_language {
     fn test_get_highlight_query() -> anyhow::Result<()> {
         clear_cache()?;
         let result1 = get_highlight_query("tsx")?;
-        assert_eq!(result1.is_cache, false);
+        assert!(!result1.is_cache);
         assert!(result1.query.contains("\"require\" @keyword.import"));
         let result2 = get_highlight_query("tsx")?;
-        assert_eq!(result2.is_cache, true);
+        assert!(result2.is_cache);
         assert_eq!(result1.query, result2.query);
 
         Ok(())

@@ -38,7 +38,7 @@ impl GetHighlightConfig for Language {
             self.locals_query().unwrap_or_default(),
         )?;
 
-        config.configure(&crate::themes::HIGHLIGHT_NAMES);
+        config.configure(crate::themes::HIGHLIGHT_NAMES);
 
         Ok(Some(config))
     }

@@ -41,7 +41,7 @@ pub fn find(name: &str) -> Option<&'static Command> {
     COMMANDS.iter().find(|c| c.matches(name))
 }
 
-pub const COMMANDS: &'static [Command] = &[
+pub const COMMANDS: &[Command] = &[
     Command {
         name: "quit-all",
         aliases: &["qa"],
