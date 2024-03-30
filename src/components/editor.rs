@@ -169,6 +169,48 @@ impl Component for Editor {
             .collect::<Vec<_>>();
         let theme = context.theme();
 
+        let byte_start = buffer.line_to_byte(scroll_offset as usize).unwrap_or(0);
+        let byte_end = buffer
+            .line_to_byte((scroll_offset + height) as usize)
+            .unwrap_or(u32::MAX as usize);
+        let char_start = buffer
+            .line_to_char(scroll_offset as usize)
+            .unwrap_or(CharIndex(0));
+        let char_end = buffer
+            .line_to_char((scroll_offset + height) as usize)
+            .unwrap_or(CharIndex(u32::MAX as usize));
+
+        let char_index_to_cell_update = |buffer: &Buffer, char_index: CharIndex, style: Style| {
+            if char_index < char_start || char_index > char_end {
+                return None;
+            }
+            buffer
+                .char_to_position(char_index)
+                .ok()
+                .map(|position| CellUpdate::new(position).style(style))
+        };
+        let range_to_cell_update = |buffer: &Buffer,
+                                    range: CharIndexRange,
+                                    theme: &crate::themes::Theme,
+                                    source: StyleKey| {
+            range
+                .iter()
+                .filter_map(|char_index| {
+                    if char_index < char_start || char_index > char_end {
+                        return None;
+                    };
+
+                    let position = buffer.char_to_position(char_index).ok()?;
+                    let style = theme.get_style(&source);
+                    Some(
+                        CellUpdate::new(position)
+                            .style(style)
+                            .source(Some(source.clone())),
+                    )
+                })
+                .collect_vec()
+        };
+
         let possible_selections = self
             .possible_selections_in_line_number_range(&self.selection_set.primary, context)
             .unwrap_or_default()
@@ -182,39 +224,7 @@ impl Component for Editor {
         let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
             range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
         });
-
         let secondary_selections = &editor.selection_set.secondary;
-
-        fn range_to_cell_update(
-            buffer: &Buffer,
-            range: CharIndexRange,
-            theme: &crate::themes::Theme,
-            source: StyleKey,
-        ) -> Vec<CellUpdate> {
-            range
-                .iter()
-                .filter_map(|char_index| {
-                    let position = buffer.char_to_position(char_index).ok()?;
-                    let style = theme.get_style(&source);
-                    Some(
-                        CellUpdate::new(position)
-                            .style(style)
-                            .source(Some(source.clone())),
-                    )
-                })
-                .collect()
-        }
-
-        fn char_index_to_cell_update(
-            buffer: &Buffer,
-            char_index: CharIndex,
-            style: Style,
-        ) -> Option<CellUpdate> {
-            buffer
-                .char_to_position(char_index)
-                .ok()
-                .map(|position| CellUpdate::new(position).style(style))
-        }
 
         let primary_selection = range_to_cell_update(
             &buffer,
@@ -341,11 +351,18 @@ impl Component for Editor {
             })
             .flatten()
             .collect_vec();
-
-        let highlighted_spans = highlighted_spans
+        let highlighted_spans = buffer
+            .highlighted_spans()
             .iter()
+            .filter(|highlighted_span| {
+                highlighted_span.byte_range.end >= byte_start
+                    || highlighted_span.byte_range.start <= byte_end
+            })
             .flat_map(|highlighted_span| {
                 highlighted_span.byte_range.clone().filter_map(|byte| {
+                    if byte < byte_start || byte > byte_end {
+                        return None;
+                    }
                     Some(
                         CellUpdate::new(buffer.byte_to_position(byte).ok()?)
                             .style(highlighted_span.style)
