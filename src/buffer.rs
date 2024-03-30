@@ -292,6 +292,7 @@ impl Buffer {
         Ok(self.rope.try_char_to_byte(char_index.0)?)
     }
 
+    /// Note: this method is expensive, be sure not pass in an out-of-view `char_index`
     pub fn char_to_position(&self, char_index: CharIndex) -> anyhow::Result<Position> {
         let line = self.char_to_line(char_index)?;
         Ok(Position {

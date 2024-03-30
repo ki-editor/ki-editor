@@ -33,7 +33,7 @@ use crate::{
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
-    themes::{Theme, VSCODE_LIGHT},
+    themes::Theme,
 };
 use event::event::Event;
 use itertools::Itertools;
@@ -1234,7 +1234,6 @@ impl<T: Frontend> App<T> {
                 component_id,
                 language,
                 source_code: content,
-                theme: Box::new(VSCODE_LIGHT),
             })?;
         }
         Ok(())

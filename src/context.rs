@@ -146,8 +146,7 @@ impl Context {
         language: shared::language::Language,
         source_code: &str,
     ) -> anyhow::Result<crate::syntax_highlight::HighlighedSpans> {
-        self.highlight_configs
-            .highlight(self.theme.clone(), language, source_code)
+        self.highlight_configs.highlight(language, source_code)
     }
 
     pub(crate) fn current_working_directory(&self) -> Option<&CanonicalizedPath> {

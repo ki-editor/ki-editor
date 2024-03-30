@@ -100,10 +100,6 @@ impl CellUpdate {
         }
     }
 
-    pub fn source(self, source: Option<StyleKey>) -> CellUpdate {
-        CellUpdate { source, ..self }
-    }
-
     pub fn move_up(self, scroll_offset: usize) -> Option<CellUpdate> {
         if scroll_offset > self.position.line {
             None
@@ -116,10 +112,6 @@ impl CellUpdate {
                 ..self
             })
         }
-    }
-
-    pub fn style(self, style: Style) -> CellUpdate {
-        CellUpdate { style, ..self }
     }
 
     pub fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
@@ -140,6 +132,7 @@ impl CellUpdate {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn set_symbol(self, symbol: Option<String>) -> CellUpdate {
         CellUpdate { symbol, ..self }
     }
