@@ -13,10 +13,6 @@ pub struct HighlighedSpan {
     pub style_key: StyleKey,
 }
 
-/// In hex format, e.g. "#FF0000"
-#[derive(Debug, Clone, Copy)]
-pub struct Color(&'static str);
-
 pub trait GetHighlightConfig {
     fn get_highlight_config(&self) -> anyhow::Result<Option<HighlightConfiguration>>;
 }
