@@ -2,7 +2,10 @@ use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
 
 pub use crate::process_command::ProcessCommand;
-use crate::{canonicalized_path::CanonicalizedPath, formatter::Formatter};
+use crate::{
+    canonicalized_path::CanonicalizedPath, formatter::Formatter,
+    ts_highlight_query::get_highlight_query,
+};
 
 pub use crate::languages::LANGUAGES;
 
@@ -101,11 +104,31 @@ impl Language {
     }
 
     pub fn highlight_query(&self) -> Option<String> {
-        grammar::grammar::load_runtime_file(
-            &self.tree_sitter_grammar_config()?.grammar_id,
-            "highlights.scm",
-        )
-        .ok()
+        // Get highlight query from `nvim-treesitter` first
+        get_highlight_query(self.tree_sitter_grammar_config.clone()?.id)
+            .ok()
+            .map(|result| result.query)
+            .or(
+                // Otherwise, get from the default highlight queries defined in the grammar repo
+                grammar::grammar::load_runtime_file(
+                    &self.tree_sitter_grammar_config()?.grammar_id,
+                    "highlights.scm",
+                )
+                .ok(),
+            )
+            .map(|query| {
+                query
+                    // Replace `nvim-treesitter`-specific predicates with builtin predicates supported by `tree-sitter-highlight` crate
+                    // Reference: https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#predicates
+                    .replace("lua-match", "match")
+                    .replace("vim-match", "match")
+                    // Remove non-highlight captures, as they are not handled by this editor
+                    // See https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#non-highlighting-captures
+                    .replace("@none", "")
+                    .replace("@conceal", "")
+                    .replace("@spell", "")
+                    .replace("@nospell", "")
+            })
     }
 
     pub fn locals_query(&self) -> Option<&'static str> {

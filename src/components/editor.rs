@@ -2,13 +2,10 @@ use crate::{
     app::{Dispatches, RequestParams, Scope, SelectionSetHistoryKind},
     buffer::Line,
     char_index_range::CharIndexRange,
-    components::component::{Cursor, SetCursorStyle},
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
-    grid::{CellUpdate, Style, StyleKey},
     lsp::process::ResponseContext,
     selection::{Filter, Filters},
-    selection_mode::{self, inside::InsideKind, ByteRange},
-    soft_wrap,
+    selection_mode::{self, inside::InsideKind},
     transformation::Transformation,
 };
 
@@ -22,7 +19,6 @@ use std::{
 use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use event::KeyEvent;
 use itertools::{Either, Itertools};
-use lsp_types::DiagnosticSeverity;
 use my_proc_macros::key;
 use ropey::Rope;
 
@@ -31,7 +27,6 @@ use crate::{
     buffer::Buffer,
     components::component::Component,
     edit::{Action, ActionGroup, Edit, EditTransaction},
-    grid::Grid,
     lsp::completion::PositionalEdit,
     position::Position,
     rectangle::Rectangle,
@@ -40,11 +35,7 @@ use crate::{
 
 use DispatchEditor::*;
 
-use super::{
-    component::{ComponentId, GetGridResult},
-    dropdown::DropdownRender,
-    suggestive_editor::Info,
-};
+use super::{component::ComponentId, dropdown::DropdownRender, suggestive_editor::Info};
 
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum Mode {
@@ -99,456 +90,6 @@ impl Component for Editor {
 
     fn set_title(&mut self, title: String) {
         self.title = Some(title);
-    }
-
-    fn get_grid(&self, context: &Context) -> GetGridResult {
-        let editor = self;
-        let Dimension { height, width } = editor.render_area();
-        let buffer = editor.buffer();
-        let rope = buffer.rope();
-
-        let highlighted_spans = buffer.highlighted_spans();
-        let diagnostics = context.get_diagnostics(self.path());
-
-        let len_lines = rope.len_lines().max(1) as u16;
-        let max_line_number_len = len_lines.to_string().len() as u16;
-        let line_number_separator_width = 1;
-        let (hidden_parent_lines, visible_parent_lines) =
-            self.get_parent_lines().unwrap_or_default();
-
-        let top_offset = hidden_parent_lines.len() as u16;
-
-        let scroll_offset = self.scroll_offset;
-
-        let visible_lines = &rope
-            .lines()
-            .skip(scroll_offset as usize)
-            .take(height as usize)
-            .map(|slice| slice.to_string())
-            .collect_vec();
-
-        let content_container_width = (width
-            .saturating_sub(max_line_number_len)
-            .saturating_sub(line_number_separator_width))
-            as usize;
-
-        let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
-
-        let parent_lines_numbers = visible_parent_lines
-            .iter()
-            .chain(hidden_parent_lines.iter())
-            .map(|line| line.line)
-            .collect_vec();
-
-        let visible_lines_grid: Grid = Grid::new(Dimension {
-            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
-            width,
-        });
-
-        let selection = &editor.selection_set.primary;
-        // If the buffer selection is updated less recently than the window's scroll offset,
-
-        // use the window's scroll offset.
-
-        let lines = wrapped_lines
-            .lines()
-            .iter()
-            .flat_map(|line| {
-                let line_number = line.line_number();
-                line.lines()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, line)| RenderLine {
-                        line_number: line_number + (scroll_offset as usize),
-                        content: line,
-                        wrapped: index > 0,
-                    })
-                    .collect_vec()
-            })
-            .collect::<Vec<_>>();
-        let theme = context.theme();
-
-        let possible_selections = self
-            .possible_selections_in_line_number_range(&self.selection_set.primary, context)
-            .unwrap_or_default()
-            .into_iter()
-            .flat_map(|range| buffer.byte_range_to_char_index_range(range.range()))
-            .flat_map(|bookmark| {
-                range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiPossibleSelection)
-            })
-            .collect_vec();
-
-        let bookmarks = buffer.bookmarks().into_iter().flat_map(|bookmark| {
-            range_to_cell_update(&buffer, bookmark, theme, StyleKey::UiBookmark)
-        });
-
-        let secondary_selections = &editor.selection_set.secondary;
-
-        fn range_to_cell_update(
-            buffer: &Buffer,
-            range: CharIndexRange,
-            theme: &crate::themes::Theme,
-            source: StyleKey,
-        ) -> Vec<CellUpdate> {
-            range
-                .iter()
-                .filter_map(|char_index| {
-                    let position = buffer.char_to_position(char_index).ok()?;
-                    let style = theme.get_style(&source);
-                    Some(CellUpdate::new(position).style(style).source(Some(source)))
-                })
-                .collect()
-        }
-
-        fn char_index_to_cell_update(
-            buffer: &Buffer,
-            char_index: CharIndex,
-            style: Style,
-        ) -> Option<CellUpdate> {
-            buffer
-                .char_to_position(char_index)
-                .ok()
-                .map(|position| CellUpdate::new(position).style(style))
-        }
-
-        let primary_selection = range_to_cell_update(
-            &buffer,
-            selection.extended_range(),
-            theme,
-            StyleKey::UiPrimarySelection,
-        );
-
-        let primary_selection_anchors = selection.anchors().into_iter().flat_map(|range| {
-            range_to_cell_update(&buffer, range, theme, StyleKey::UiPrimarySelectionAnchors)
-        });
-
-        let primary_selection_primary_cursor = char_index_to_cell_update(
-            &buffer,
-            selection.to_char_index(&editor.cursor_direction),
-            Style::default(),
-        )
-        .map(|cell_update| cell_update.set_is_cursor(true));
-
-        let primary_selection_secondary_cursor = if self.mode == Mode::Insert {
-            None
-        } else {
-            char_index_to_cell_update(
-                &buffer,
-                selection.to_char_index(&editor.cursor_direction.reverse()),
-                theme.ui.primary_selection_secondary_cursor,
-            )
-        };
-
-        let secondary_selection = secondary_selections.iter().flat_map(|secondary_selection| {
-            range_to_cell_update(
-                &buffer,
-                secondary_selection.extended_range(),
-                theme,
-                StyleKey::UiSecondarySelection,
-            )
-        });
-        let seconday_selection_anchors = secondary_selections.iter().flat_map(|selection| {
-            selection.anchors().into_iter().flat_map(|range| {
-                range_to_cell_update(&buffer, range, theme, StyleKey::UiSecondarySelectionAnchors)
-            })
-        });
-
-        let secondary_selection_cursors = secondary_selections
-            .iter()
-            .flat_map(|secondary_selection| {
-                [
-                    char_index_to_cell_update(
-                        &buffer,
-                        secondary_selection.to_char_index(&editor.cursor_direction.reverse()),
-                        theme.ui.secondary_selection_secondary_cursor,
-                    ),
-                    char_index_to_cell_update(
-                        &buffer,
-                        secondary_selection.to_char_index(&editor.cursor_direction),
-                        theme.ui.secondary_selection_primary_cursor,
-                    ),
-                ]
-                .into_iter()
-                .collect::<Vec<_>>()
-            })
-            .flatten();
-
-        let diagnostics = diagnostics
-            .iter()
-            .sorted_by(|a, b| a.severity.cmp(&b.severity))
-            .rev()
-            .filter_map(|diagnostic| {
-                // We use `.ok()` to ignore diagnostics that are outside the buffer's range.
-                let start = buffer.position_to_char(diagnostic.range.start).ok()?;
-                let end = buffer.position_to_char(diagnostic.range.end).ok()?;
-                let end = if start == end { end + 1 } else { end };
-                let char_index_range = (start..end).into();
-
-                let style_source = match diagnostic.severity {
-                    Some(DiagnosticSeverity::ERROR) => StyleKey::DiagnosticsError,
-                    Some(DiagnosticSeverity::WARNING) => StyleKey::DiagnosticsWarning,
-                    Some(DiagnosticSeverity::INFORMATION) => StyleKey::DiagnosticsInformation,
-                    Some(DiagnosticSeverity::HINT) => StyleKey::DiagnosticsHint,
-                    _ => StyleKey::DiagnosticsDefault,
-                };
-                Some(range_to_cell_update(
-                    &buffer,
-                    char_index_range,
-                    theme,
-                    style_source,
-                ))
-            })
-            .flatten();
-        let jumps = editor
-            .jumps()
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, jump)| {
-                let position = buffer
-                    .char_to_position(jump.selection.to_char_index(&self.cursor_direction))
-                    .ok()?;
-
-                let style = if index % 2 == 0 {
-                    theme.ui.jump_mark_even
-                } else {
-                    theme.ui.jump_mark_odd
-                };
-
-                Some(
-                    CellUpdate::new(position)
-                        .style(style)
-                        .set_symbol(Some(jump.character.to_string())),
-                )
-            });
-        let extra_decorations = buffer
-            .decorations()
-            .iter()
-            .flat_map(|decoration| {
-                Some(range_to_cell_update(
-                    &buffer,
-                    decoration
-                        .selection_range()
-                        .to_char_index_range(&buffer)
-                        .ok()?,
-                    theme,
-                    *decoration.style_key(),
-                ))
-            })
-            .flatten()
-            .collect_vec();
-        let highlighted_spans = highlighted_spans
-            .iter()
-            .flat_map(|highlighted_span| {
-                highlighted_span.byte_range.clone().filter_map(|byte| {
-                    Some(
-                        CellUpdate::new(buffer.byte_to_position(byte).ok()?)
-                            .style(highlighted_span.style)
-                            .source(highlighted_span.source),
-                    )
-                })
-            })
-            .collect_vec();
-
-        let updates = vec![]
-            .into_iter()
-            .chain(highlighted_spans)
-            .chain(extra_decorations)
-            .chain(primary_selection_primary_cursor)
-            .chain(possible_selections)
-            .chain(primary_selection)
-            .chain(secondary_selection)
-            .chain(primary_selection_anchors)
-            .chain(seconday_selection_anchors)
-            .chain(bookmarks)
-            .chain(diagnostics)
-            .chain(jumps)
-            .chain(primary_selection_secondary_cursor)
-            .chain(secondary_selection_cursors);
-
-        #[derive(Debug, Clone)]
-        struct RenderLine {
-            line_number: usize,
-            content: String,
-            wrapped: bool,
-        }
-
-        let render_lines = |grid: Grid, lines: Vec<RenderLine>| {
-            lines.into_iter().enumerate().fold(
-                grid,
-                |grid,
-                 (
-                    line_index,
-                    RenderLine {
-                        line_number,
-                        content: line,
-                        wrapped,
-                    },
-                )| {
-                    let background_color = if parent_lines_numbers.iter().contains(&line_number) {
-                        Some(theme.ui.parent_lines_background)
-                    } else {
-                        None
-                    };
-                    let line_number_str = {
-                        let line_number = if wrapped {
-                            "↪".to_string()
-                        } else {
-                            (line_number + 1).to_string()
-                        };
-                        format!(
-                            "{: >width$}",
-                            line_number.to_string(),
-                            width = max_line_number_len as usize
-                        )
-                    };
-                    Grid::new(Dimension {
-                        height,
-                        width: max_line_number_len,
-                    });
-                    grid.set_row(
-                        line_index,
-                        Some(0),
-                        Some(max_line_number_len as usize),
-                        &line_number_str,
-                        &theme
-                            .ui
-                            .line_number
-                            .set_some_background_color(background_color),
-                    )
-                    .set_row(
-                        line_index,
-                        Some(max_line_number_len as usize),
-                        Some((max_line_number_len + 1) as usize),
-                        "│",
-                        &theme
-                            .ui
-                            .line_number_separator
-                            .set_some_background_color(background_color),
-                    )
-                    .set_row(
-                        line_index,
-                        Some((max_line_number_len + 1) as usize),
-                        None,
-                        &line.chars().take(width as usize).collect::<String>(),
-                        &theme.ui.text.set_some_background_color(background_color),
-                    )
-                },
-            )
-        };
-        let visible_lines_updates = updates
-            .clone()
-            .filter_map(|update| {
-                let update = update.move_up((scroll_offset).into())?;
-
-                let position = wrapped_lines.calibrate(update.position).ok()?;
-
-                let position =
-                    position.move_right(max_line_number_len + line_number_separator_width);
-
-                Some(CellUpdate { position, ..update })
-            })
-            .collect::<Vec<_>>();
-        let visible_render_lines = if lines.is_empty() {
-            [RenderLine {
-                line_number: 0,
-                content: String::new(),
-                wrapped: false,
-            }]
-            .to_vec()
-        } else {
-            lines
-        };
-
-        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines)
-            .apply_cell_updates(visible_lines_updates);
-
-        let (hidden_parent_lines_grid, hidden_parent_lines_updates) = {
-            let height = hidden_parent_lines.len() as u16;
-            let hidden_parent_lines = hidden_parent_lines
-                .iter()
-                .map(|line| RenderLine {
-                    line_number: line.line,
-                    content: line.content.clone(),
-                    wrapped: false,
-                })
-                .collect_vec();
-            let updates = {
-                let hidden_parent_lines_with_index =
-                    hidden_parent_lines.iter().enumerate().collect_vec();
-                updates
-                    .filter_map(|update| {
-                        if let Some((index, _)) = hidden_parent_lines_with_index
-                            .iter()
-                            .find(|(_, line)| update.position.line == line.line_number)
-                        {
-                            Some(
-                                update
-                                    .set_position_line(*index)
-                                    .move_right(max_line_number_len + line_number_separator_width),
-                            )
-                        } else {
-                            None
-                        }
-                    })
-                    .collect_vec()
-            };
-
-            let grid = render_lines(
-                Grid::new(Dimension {
-                    width: editor.dimension().width,
-                    height,
-                }),
-                hidden_parent_lines,
-            );
-            (grid, updates)
-        };
-        let hidden_parent_lines_grid =
-            hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);
-
-        let cursor_beyond_view_bottom =
-            if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
-                cursor_position
-                    .line
-                    .saturating_sub(height.saturating_sub(1).saturating_sub(top_offset) as usize)
-            } else {
-                0
-            };
-        let grid = {
-            let visible_lines_grid = visible_lines_grid.clamp_top(cursor_beyond_view_bottom);
-            let clamp_bottom_by = visible_lines_grid
-                .dimension()
-                .height
-                .saturating_sub(height)
-                .saturating_add(top_offset)
-                .saturating_sub(cursor_beyond_view_bottom as u16);
-            let bottom = visible_lines_grid.clamp_bottom(clamp_bottom_by);
-
-            hidden_parent_lines_grid.merge_vertical(bottom)
-        };
-        let window_title_style = theme.ui.window_title;
-
-        // NOTE: due to performance issue, we only highlight the content that are within view
-        // This might result in some incorrectness, but that's a reasonable trade-off, because
-        // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
-
-        let title_grid = Grid::new(Dimension {
-            height: 1,
-            width: editor.dimension().width,
-        })
-        .set_line(0, &self.title(context), &window_title_style);
-
-        let grid = title_grid.merge_vertical(grid);
-        let cursor_position = grid.get_cursor_position();
-        let style = match self.mode {
-            Mode::Normal => SetCursorStyle::BlinkingBlock,
-            Mode::Insert => SetCursorStyle::BlinkingBar,
-            _ => SetCursorStyle::BlinkingUnderScore,
-        };
-
-        GetGridResult {
-            cursor: cursor_position.map(|position| Cursor::new(position, style)),
-            grid,
-        }
     }
 
     fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
@@ -969,7 +510,7 @@ impl Editor {
         ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
     }
 
-    fn get_selection_mode_trait_object(
+    pub(crate) fn get_selection_mode_trait_object(
         &self,
         selection: &Selection,
         context: &Context,
@@ -983,29 +524,6 @@ impl Editor {
         )
     }
 
-    fn possible_selections_in_line_number_range(
-        &self,
-        selection: &Selection,
-        context: &Context,
-    ) -> anyhow::Result<Vec<ByteRange>> {
-        let object = self.get_selection_mode_trait_object(selection, context)?;
-        if self.selection_set.mode.is_contiguous() && self.selection_set.filters.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let line_range = self.line_range();
-        object.selections_in_line_number_range(
-            &selection_mode::SelectionModeParams {
-                context,
-                buffer: &self.buffer(),
-                current_selection: selection,
-                cursor_direction: &self.cursor_direction,
-                filters: &self.selection_set.filters,
-            },
-            line_range,
-        )
-    }
-
     fn jump_from_selection(
         &mut self,
         selection: &Selection,
@@ -1015,7 +533,7 @@ impl Editor {
 
         let object = self.get_selection_mode_trait_object(selection, context)?;
 
-        let line_range = self.line_range();
+        let line_range = self.visible_line_range();
         let jumps = object.jumps(
             selection_mode::SelectionModeParams {
                 context,
@@ -1428,7 +946,9 @@ impl Editor {
             SwitchViewAlignment => self.switch_view_alignment(),
             SetScrollOffset(n) => self.set_scroll_offset(n),
             SetLanguage(language) => self.set_language(language)?,
-            ApplySyntaxHighlight => self.apply_syntax_highlighting(context)?,
+            ApplySyntaxHighlight => {
+                self.apply_syntax_highlighting(context)?;
+            }
             Save => return self.save(),
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
@@ -2415,7 +1935,7 @@ impl Editor {
         }
     }
 
-    fn line_range(&self) -> Range<usize> {
+    pub fn visible_line_range(&self) -> Range<usize> {
         let start = self.scroll_offset;
         let end = (start as usize + self.rectangle.height as usize).min(self.buffer().len_lines());
 
@@ -2625,7 +2145,7 @@ impl Editor {
         self.buffer_mut().set_language(language)
     }
 
-    fn render_area(&self) -> Dimension {
+    pub fn render_area(&self) -> Dimension {
         let Dimension { height, width } = self.dimension();
         Dimension {
             height: height.saturating_sub(WINDOW_TITLE_HEIGHT as u16),
@@ -2752,6 +2272,10 @@ impl Editor {
             }
             other => self.handle_normal_mode(context, other),
         }
+    }
+
+    pub(crate) fn scroll_offset(&self) -> u16 {
+        self.scroll_offset
     }
 }
 

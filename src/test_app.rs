@@ -233,8 +233,9 @@ impl ExpectKind {
             GridCellStyleKey(position, style_key) => contextualize(
                 component.borrow().editor().get_grid(context).grid.rows[position.line]
                     [position.column]
-                    .source,
-                *style_key,
+                    .source
+                    .clone(),
+                style_key.clone(),
             ),
             CompletionDropdownIsOpen(is_open) => {
                 contextualize(app.completion_dropdown_is_open(), *is_open)

@@ -1,3 +1,4 @@
+use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
@@ -19,7 +20,6 @@ use shared::{
 };
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
-use tree_sitter_traversal::{traverse, Order};
 
 #[derive(Clone)]
 pub struct Buffer {
@@ -46,11 +46,11 @@ impl Buffer {
     pub fn new(language: tree_sitter::Language, text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
-            treesitter_language: language,
+            treesitter_language: language.clone(),
             language: None,
             tree: {
                 let mut parser = Parser::new();
-                parser.set_language(language).unwrap();
+                parser.set_language(&language).unwrap();
                 parser.parse(text, None).unwrap()
             },
             path: None,
@@ -168,7 +168,7 @@ impl Buffer {
 
     fn get_rope_and_tree(language: tree_sitter::Language, text: &str) -> (Rope, Tree) {
         let mut parser = Parser::new();
-        parser.set_language(language).unwrap();
+        parser.set_language(&language).unwrap();
         let tree = parser.parse(text, None).unwrap();
         // let start_char_index = edit.start;
         // let old_end_char_index = edit.end();
@@ -224,7 +224,7 @@ impl Buffer {
     }
 
     pub fn update(&mut self, text: &str) {
-        (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language, text);
+        (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
     }
 
     pub fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
@@ -292,6 +292,7 @@ impl Buffer {
         Ok(self.rope.try_char_to_byte(char_index.0)?)
     }
 
+    /// Note: this method is expensive, be sure not pass in an out-of-view `char_index`
     pub fn char_to_position(&self, char_index: CharIndex) -> anyhow::Result<Position> {
         let line = self.char_to_line(char_index)?;
         Ok(Position {
@@ -544,7 +545,7 @@ impl Buffer {
 
     fn reparse_tree(&mut self) -> anyhow::Result<()> {
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(self.tree.language())?;
+        parser.set_language(&self.tree.language())?;
         if let Some(tree) = parser.parse(&self.rope.to_string(), None) {
             self.tree = tree
         }
@@ -616,7 +617,7 @@ impl Buffer {
     }
 
     pub fn treesitter_language(&self) -> tree_sitter::Language {
-        self.treesitter_language
+        self.treesitter_language.clone()
     }
 
     pub fn get_char_at_position(&self, position: Position) -> Option<char> {

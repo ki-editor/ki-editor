@@ -3,23 +3,15 @@ use std::{collections::HashMap, ops::Range, sync::mpsc::Sender};
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
-    app::AppMessage,
-    components::component::ComponentId,
-    grid::{Style, StyleKey},
-    themes::Theme,
+    app::AppMessage, components::component::ComponentId, grid::StyleKey, themes::HIGHLIGHT_NAMES,
 };
 use shared::language::Language;
 
 #[derive(Clone, Debug)]
 pub struct HighlighedSpan {
     pub byte_range: Range<usize>,
-    pub style: Style,
-    pub source: Option<StyleKey>,
+    pub style_key: StyleKey,
 }
-
-/// In hex format, e.g. "#FF0000"
-#[derive(Debug, Clone, Copy)]
-pub struct Color(&'static str);
 
 pub trait GetHighlightConfig {
     fn get_highlight_config(&self) -> anyhow::Result<Option<HighlightConfiguration>>;
@@ -33,9 +25,11 @@ impl GetHighlightConfig for Language {
             return Ok(None);
         };
 
+        let highlights_query = &self.highlight_query().unwrap_or_default();
         let mut config = HighlightConfiguration::new(
             tree_sitter_language,
-            &self.highlight_query().unwrap_or_default(),
+            "highlight".to_string(),
+            highlights_query,
             self.injection_query().unwrap_or_default(),
             self.locals_query().unwrap_or_default(),
         )?;
@@ -47,15 +41,14 @@ impl GetHighlightConfig for Language {
 }
 
 pub trait Highlight {
-    fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans>;
+    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlighedSpans>;
 }
+
 impl Highlight for HighlightConfiguration {
-    fn highlight(&self, theme: Box<Theme>, source_code: &str) -> anyhow::Result<HighlighedSpans> {
+    fn highlight(&self, source_code: &str) -> anyhow::Result<HighlighedSpans> {
         let mut highlighter = Highlighter::new();
 
-        let highlights = highlighter
-            .highlight(self, source_code.as_bytes(), None, |_| None)
-            .unwrap();
+        let highlights = highlighter.highlight(self, source_code.as_bytes(), None, |_| None)?;
 
         let mut highlight = None;
 
@@ -71,18 +64,11 @@ impl Highlight for HighlightConfiguration {
                 }
                 HighlightEvent::Source { start, end } => {
                     if let Some(highlight) = highlight {
-                        if let Some(color) = theme.syntax.get_color(highlight.0) {
+                        if let Some(style_key) = HIGHLIGHT_NAMES.get(highlight.0) {
+                            let style_key = StyleKey::Syntax(style_key.to_string());
                             highlighted_spans.push(HighlighedSpan {
                                 byte_range: start..end,
-                                style: color,
-                                source: match crate::themes::HIGHLIGHT_NAMES.get(highlight.0) {
-                                    Some(&"comment") => Some(StyleKey::SyntaxComment),
-                                    Some(&"keyword") => Some(StyleKey::SyntaxKeyword),
-                                    Some(&"string") => Some(StyleKey::SyntaxString),
-                                    Some(&"type") => Some(StyleKey::SyntaxType),
-                                    Some(&"function") => Some(StyleKey::SyntaxFunction),
-                                    _ => None,
-                                },
+                                style_key,
                             });
                         }
                     }
@@ -99,7 +85,6 @@ pub struct HighlighedSpans(pub Vec<HighlighedSpan>);
 pub struct SyntaxHighlightRequest {
     pub component_id: ComponentId,
     pub language: Language,
-    pub theme: Box<Theme>,
     pub source_code: String,
 }
 
@@ -113,13 +98,16 @@ pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightReque
     std::thread::spawn(move || {
         let mut highlight_configs = HighlightConfigs::new();
         while let Ok(request) = receiver.recv() {
-            if let Ok(highlighted_spans) =
-                highlight_configs.highlight(request.theme, request.language, &request.source_code)
-            {
-                let _ = callback.send(AppMessage::SyntaxHighlightResponse {
-                    component_id: request.component_id,
-                    highlighted_spans,
-                });
+            match highlight_configs.highlight(request.language, &request.source_code) {
+                Ok(highlighted_spans) => {
+                    let _ = callback.send(AppMessage::SyntaxHighlightResponse {
+                        component_id: request.component_id,
+                        highlighted_spans,
+                    });
+                }
+                Err(error) => {
+                    log::info!("syntax_highlight_error = {:#?}", error)
+                }
             }
         }
     });
@@ -138,7 +126,6 @@ impl HighlightConfigs {
 
     pub(crate) fn highlight(
         &mut self,
-        theme: Box<Theme>,
         language: Language,
         source_code: &str,
     ) -> Result<HighlighedSpans, anyhow::Error> {
@@ -159,6 +146,6 @@ impl HighlightConfigs {
                 }
             }
         };
-        config.highlight(theme, source_code)
+        config.highlight(source_code)
     }
 }

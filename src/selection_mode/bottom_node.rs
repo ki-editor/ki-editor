@@ -14,9 +14,9 @@ impl SelectionMode for BottomNode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         Ok(Box::new(
-            tree_sitter_traversal::traverse(
+            crate::tree_sitter_traversal::traverse(
                 buffer.tree().walk(),
-                tree_sitter_traversal::Order::Post,
+                crate::tree_sitter_traversal::Order::Post,
             )
             .filter(|node| node.child_count() == 0)
             .map(|node| ByteRange::new(node.byte_range())),

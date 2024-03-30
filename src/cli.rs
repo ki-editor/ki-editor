@@ -13,8 +13,13 @@ enum Commands {
         #[command(subcommand)]
         command: Grammar,
     },
+    HighlightQuery {
+        #[command(subcommand)]
+        command: HighlightQuery,
+    },
+    /// Edit the file of the given path, creates a new file at the path
+    /// if not exist
     Edit(EditArgs),
-    New,
 }
 #[derive(Args)]
 struct EditArgs {
@@ -24,6 +29,14 @@ struct EditArgs {
 enum Grammar {
     Build,
     Fetch,
+}
+
+#[derive(Subcommand)]
+enum HighlightQuery {
+    /// Remove all donwloaded Tree-sitter highlight queries
+    Clean,
+    /// Prints the cache path
+    CachePath,
 }
 
 pub fn cli() -> anyhow::Result<()> {
@@ -38,8 +51,22 @@ pub fn cli() -> anyhow::Result<()> {
                 };
                 Ok(())
             }
-            Commands::Edit(args) => crate::run(Some(args.path.try_into()?)),
-            Commands::New => todo!(),
+            Commands::HighlightQuery { command } => {
+                match command {
+                    HighlightQuery::Clean => shared::ts_highlight_query::clear_cache()?,
+                    HighlightQuery::CachePath => {
+                        println!("{}", shared::ts_highlight_query::cache_dir().display())
+                    }
+                };
+                Ok(())
+            }
+            Commands::Edit(args) => {
+                let path = std::path::PathBuf::from(args.path.clone());
+                if !path.exists() {
+                    std::fs::write(path, "")?;
+                }
+                crate::run(Some(args.path.try_into()?))
+            }
         }
     } else {
         crate::run(None)

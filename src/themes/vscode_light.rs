@@ -1,17 +1,24 @@
 use super::{DiagnosticStyles, Theme, UiStyles};
-use crate::{grid::Style, themes::SyntaxStyles};
+use crate::{
+    style::{fg, Style},
+    themes::SyntaxStyles,
+};
 use my_proc_macros::hex;
 
-pub const VSCODE_LIGHT: Theme = Theme {
+pub static VSCODE_LIGHT: Theme = Theme {
     name: "vscode-light",
-    syntax: SyntaxStyles {
-        keyword: Style::new().foreground_color(hex!("#0000ff")),
-        function: Style::new().foreground_color(hex!("#795e26")),
-        type_: Style::new().foreground_color(hex!("#267f99")),
-        string: Style::new().foreground_color(hex!("#a31515")),
-        comment: Style::new().foreground_color(hex!("#6a9955")),
-        default: Style::new().foreground_color(hex!("#ffffff")),
-    },
+    syntax: SyntaxStyles::new(&[
+        ("variable", fg(hex!("#001080"))),
+        ("keyword", fg(hex!("#af00db"))),
+        ("keyword.modifier", fg(hex!("#0000ff"))),
+        ("function", fg(hex!("#795e26"))),
+        ("type", fg(hex!("#267f99"))),
+        ("type.builtin", fg(hex!("#0000ff"))),
+        ("string", fg(hex!("#a31515"))),
+        ("comment", fg(hex!("#008000"))),
+        ("tag", fg(hex!("#267f99"))),
+        ("tag.attribute", fg(hex!("#e50000"))),
+    ]),
     ui: UiStyles {
         global_title: Style::new()
             .foreground_color(hex!("#ffffff"))

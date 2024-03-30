@@ -27,12 +27,14 @@ mod selection;
 pub mod selection_mode;
 pub mod selection_range;
 pub mod soft_wrap;
+pub mod style;
 pub mod syntax_highlight;
 mod terminal;
 #[cfg(test)]
 mod test_app;
 pub mod themes;
 pub mod transformation;
+pub mod tree_sitter_traversal;
 pub mod undo_tree;
 mod utils;
 
