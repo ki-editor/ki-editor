@@ -35,7 +35,10 @@ use crate::{
 
 use DispatchEditor::*;
 
-use super::{component::ComponentId, dropdown::DropdownRender, suggestive_editor::Info};
+use super::{
+    component::ComponentId, dropdown::DropdownRender, render_editor::HighlightSpan,
+    suggestive_editor::Info,
+};
 
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum Mode {
@@ -205,12 +208,14 @@ impl Clone for Editor {
             title: self.title.clone(),
             id: self.id,
             current_view_alignment: None,
+            regex_highlight_rules: Vec::new(),
         }
     }
 }
 
 pub struct Editor {
     pub mode: Mode,
+    pub regex_highlight_rules: Vec<RegexHighlightRule>,
 
     pub selection_set: SelectionSet,
 
@@ -226,6 +231,11 @@ pub struct Editor {
     title: Option<String>,
     id: ComponentId,
     pub current_view_alignment: Option<ViewAlignment>,
+}
+
+pub struct RegexHighlightRule {
+    pub regex: regex::Regex,
+    pub get_highlight_spans: Box<dyn Fn(regex::Captures) -> Vec<HighlightSpan>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -314,6 +324,7 @@ impl Editor {
             title: None,
             id: ComponentId::new(),
             current_view_alignment: None,
+            regex_highlight_rules: Vec::new(),
         }
     }
 
@@ -334,6 +345,7 @@ impl Editor {
             title: None,
             id: ComponentId::new(),
             current_view_alignment: None,
+            regex_highlight_rules: Vec::new(),
         }
     }
 
@@ -2276,6 +2288,13 @@ impl Editor {
 
     pub(crate) fn scroll_offset(&self) -> u16 {
         self.scroll_offset
+    }
+
+    pub(crate) fn set_regex_highlight_rules(
+        &mut self,
+        regex_highlight_rules: Vec<RegexHighlightRule>,
+    ) {
+        self.regex_highlight_rules = regex_highlight_rules
     }
 }
 

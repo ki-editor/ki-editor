@@ -54,6 +54,10 @@ impl Theme {
             StyleKey::Syntax(highlight_group) => {
                 self.syntax.get_style(highlight_group).unwrap_or_default()
             }
+            StyleKey::KeymapHint => self.ui.keymap_hint,
+            StyleKey::KeymapArrow => self.ui.keymap_arrow,
+            StyleKey::KeymapDescription => self.ui.keymap_description,
+            StyleKey::KeymapKey => self.ui.keymap_key,
         }
     }
 }
@@ -92,6 +96,10 @@ pub struct UiStyles {
     pub line_number: Style,
     pub line_number_separator: Style,
     pub bookmark: Style,
+    pub keymap_key: Style,
+    pub keymap_arrow: Style,
+    pub keymap_hint: Style,
+    pub keymap_description: Style,
 }
 
 /// Refer https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#highlights
