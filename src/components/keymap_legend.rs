@@ -1,4 +1,5 @@
 use event::{parse_key_event, KeyEvent};
+use regex::Regex;
 use unicode_width::UnicodeWidthStr;
 
 use itertools::Itertools;
@@ -6,12 +7,15 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
+    components::editor::RegexHighlightRuleCaptureStyle,
+    grid::StyleKey,
     rectangle::Rectangle,
 };
 
 use super::{
     component::{Component, ComponentId},
-    editor::{Direction, Editor, Mode},
+    editor::{Direction, Editor, Mode, RegexHighlightRule},
+    render_editor::Source,
 };
 
 pub struct KeymapLegend {
@@ -31,6 +35,7 @@ pub enum KeymapLegendBody {
     SingleSection { keymaps: Keymaps },
     MultipleSections { sections: Vec<KeymapLegendSection> },
 }
+const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Keymaps(Vec<Keymap>);
@@ -49,8 +54,7 @@ impl Keymaps {
             .map(|keymap| keymap.description.len())
             .max()
             .unwrap_or(0);
-        let between_key_and_description = " → ";
-        let key_description_gap = UnicodeWidthStr::width(between_key_and_description);
+        let key_description_gap = UnicodeWidthStr::width(BETWEEN_KEY_AND_DESCRIPTION);
         let column_gap = key_description_gap * 2;
         let column_width = max_key_width + key_description_gap + max_description_width + column_gap;
         let column_count = width / column_width;
@@ -64,7 +68,7 @@ impl Keymaps {
                 let formatted = format!(
                     "{: >width$}{}{}",
                     keymap.key,
-                    between_key_and_description,
+                    BETWEEN_KEY_AND_DESCRIPTION,
                     keymap.description,
                     width = max_key_width
                 );
@@ -167,6 +171,69 @@ impl KeymapLegendConfig {
     pub fn keymaps(&self) -> Vec<&Keymap> {
         self.body.keymaps()
     }
+
+    fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {
+        self.keymaps()
+            .into_iter()
+            .flat_map(|keymap| {
+                let keymap_key = RegexHighlightRule {
+                    regex: Regex::new(&format!(
+                        "(?<key>{})(?<arrow>{})(?<description>{})",
+                        regex::escape(keymap.key),
+                        BETWEEN_KEY_AND_DESCRIPTION,
+                        regex::escape(&keymap.description),
+                    ))
+                    .unwrap(),
+                    capture_styles: vec![
+                        RegexHighlightRuleCaptureStyle::new(
+                            "key",
+                            Source::StyleKey(StyleKey::KeymapKey),
+                        ),
+                        RegexHighlightRuleCaptureStyle::new(
+                            "arrow",
+                            Source::StyleKey(StyleKey::KeymapArrow),
+                        ),
+                        RegexHighlightRuleCaptureStyle::new(
+                            "description",
+                            Source::StyleKey(StyleKey::KeymapDescription),
+                        ),
+                    ],
+                };
+                let keymap_hint = (|| {
+                    let index = keymap
+                        .description
+                        .to_lowercase()
+                        .find(&keymap.key.to_lowercase())?;
+                    let range = index..index + 1;
+                    let marked_description = {
+                        let mut description = keymap.description.clone();
+                        description.replace_range(
+                            range.clone(),
+                            &format!("___OPEN___{}___CLOSE___", keymap.description.get(range)?),
+                        );
+                        regex::escape(&description)
+                            .replace("___OPEN___", "(?<hint>")
+                            .replace("___CLOSE___", ")")
+                    };
+                    Some(RegexHighlightRule {
+                        regex: regex::Regex::new(
+                            &(format!(
+                                "{}{}{}",
+                                keymap.key, BETWEEN_KEY_AND_DESCRIPTION, marked_description
+                            )),
+                        )
+                        .unwrap(),
+                        capture_styles: vec![RegexHighlightRuleCaptureStyle::new(
+                            "hint",
+                            Source::StyleKey(StyleKey::KeymapHint),
+                        )],
+                    })
+                })();
+                vec![Some(keymap_key), keymap_hint]
+            })
+            .flatten()
+            .collect_vec()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -217,6 +284,7 @@ impl KeymapLegend {
         let mut editor = Editor::from_text(tree_sitter_md::language(), "");
         editor.set_title(config.title.clone());
         editor.enter_insert_mode(Direction::End).unwrap_or_default();
+        editor.set_regex_highlight_rules(config.get_regex_highlight_rules());
         KeymapLegend { editor, config }
     }
 
@@ -362,5 +430,39 @@ mod test_keymap_legend {
                 Dispatch::Custom("Spongebob".to_string())
             ])
         )
+    }
+
+    #[test]
+    fn test_regex_keymap_hint() {
+        let keymaps = Keymaps(
+            [
+                Keymap::new("a", "Aloha".to_string(), Dispatch::Null),
+                Keymap::new("b", "Cob".to_string(), Dispatch::Null),
+                Keymap::new("f", "Find (Local)".to_string(), Dispatch::Null),
+                Keymap::new("g", "Find (Global)".to_string(), Dispatch::Null),
+            ]
+            .to_vec(),
+        );
+        let regexes = KeymapLegendConfig {
+            title: "".to_string(),
+            body: KeymapLegendBody::SingleSection { keymaps },
+            owner_id: ComponentId::new(),
+        }
+        .get_regex_highlight_rules()
+        .into_iter()
+        .map(|rule| rule.regex.as_str().to_string())
+        .collect_vec();
+
+        let expected = [
+            "(?<key>a)(?<arrow> → )(?<description>Aloha)",
+            "a → (?<hint>A)loha",
+            "(?<key>b)(?<arrow> → )(?<description>Cob)",
+            "b → Co(?<hint>b)",
+            "(?<key>f)(?<arrow> → )(?<description>Find \\(Local\\))",
+            "f → (?<hint>F)ind \\(Local\\)",
+            "(?<key>g)(?<arrow> → )(?<description>Find \\(Global\\))",
+            "g → Find \\((?<hint>G)lobal\\)",
+        ];
+        assert_eq!(regexes, expected)
     }
 }

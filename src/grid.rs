@@ -19,15 +19,24 @@ pub struct Cell {
     pub symbol: String,
     pub foreground_color: Color,
     pub background_color: Color,
-    pub undercurl: Option<Color>,
+    pub line: Option<CellLine>,
     pub is_cursor: bool,
     /// For debugging purposes, so that we can trace this Cell is updated by which
     /// decoration, e.g. Diagnostic
     pub source: Option<StyleKey>,
+    pub is_bold: bool,
 }
 
-fn choose<T>(old: Option<T>, new: Option<T>) -> Option<T> {
-    new.or(old)
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
+pub struct CellLine {
+    pub color: Color,
+    pub style: CellLineStyle,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
+pub enum CellLineStyle {
+    Undercurl,
+    Underline,
 }
 
 impl Cell {
@@ -50,9 +59,10 @@ impl Cell {
                 .style
                 .background_color
                 .unwrap_or(self.background_color),
-            undercurl: choose(self.undercurl, update.style.undercurl),
+            line: self.line.or(update.style.line),
             is_cursor: update.is_cursor || self.is_cursor,
             source: update.source.or(self.source.clone()),
+            is_bold: update.style.is_bold || self.is_bold,
         }
     }
 
@@ -71,9 +81,10 @@ impl Default for Cell {
             symbol: " ".to_string(),
             foreground_color: hex!("#ffffff"),
             background_color: hex!("#ffffff"),
-            undercurl: None,
+            line: None,
             is_cursor: false,
             source: None,
+            is_bold: false,
         }
     }
 }
@@ -361,6 +372,10 @@ pub enum StyleKey {
     HunkOldEmphasized,
     HunkNew,
     HunkNewEmphasized,
+    KeymapHint,
+    KeymapArrow,
+    KeymapDescription,
+    KeymapKey,
 }
 
 /// TODO: in the future, tab size should be configurable

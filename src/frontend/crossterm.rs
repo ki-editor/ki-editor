@@ -107,17 +107,26 @@ impl Frontend for Crossterm {
             queue!(
                 self.stdout,
                 MoveTo(cell.position.column as u16, cell.position.line as u16),
+                SetAttribute(if cell.cell.is_bold {
+                    Attribute::Bold
+                } else {
+                    Attribute::NoBold
+                }),
                 SetUnderlineColor(
                     cell.cell
-                        .undercurl
-                        .map(|color| color.into())
-                        .unwrap_or(Color::Reset)
+                        .line
+                        .map(|line| line.color.into())
+                        .unwrap_or(Color::Reset),
                 ),
-                SetAttribute(if cell.cell.undercurl.is_some() {
-                    Attribute::Undercurled
-                } else {
-                    Attribute::NoUnderline
-                }),
+                SetAttribute(
+                    cell.cell
+                        .line
+                        .map(|line| match line.style {
+                            crate::grid::CellLineStyle::Undercurl => Attribute::Undercurled,
+                            crate::grid::CellLineStyle::Underline => Attribute::Underlined,
+                        })
+                        .unwrap_or(Attribute::NoUnderline),
+                ),
                 SetBackgroundColor(cell.cell.background_color.into()),
                 SetForegroundColor(cell.cell.foreground_color.into()),
                 Print(reveal(&cell.cell.symbol)),

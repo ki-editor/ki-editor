@@ -124,7 +124,7 @@ impl Editor {
             ),
             Keymap::new(
                 "u",
-                "Character".to_string(),
+                "Character (Unicode)".to_string(),
                 Dispatch::ToEditor(SetSelectionMode(Character)),
             ),
             Keymap::new(
@@ -582,7 +582,7 @@ impl Editor {
                         .map(|search| {
                             Keymap::new(
                                 "c",
-                                "Search current selection".to_string(),
+                                "Current selection".to_string(),
                                 Dispatch::UpdateLocalSearchConfig {
                                     owner_id: self.id(),
                                     scope,
