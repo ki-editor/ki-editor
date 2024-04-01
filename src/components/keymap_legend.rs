@@ -7,6 +7,7 @@ use my_proc_macros::key;
 
 use crate::{
     app::{Dispatch, Dispatches},
+    components::editor::RegexHighlightRuleCaptureStyle,
     grid::StyleKey,
     rectangle::Rectangle,
 };
@@ -14,7 +15,7 @@ use crate::{
 use super::{
     component::{Component, ComponentId},
     editor::{Direction, Editor, Mode, RegexHighlightRule},
-    render_editor::{HighlightSpan, HighlightSpanRange, Source},
+    render_editor::Source,
 };
 
 pub struct KeymapLegend {
@@ -34,7 +35,7 @@ pub enum KeymapLegendBody {
     SingleSection { keymaps: Keymaps },
     MultipleSections { sections: Vec<KeymapLegendSection> },
 }
-const BETWEEN_KEY_AND_DESCRIPTION: &'static str = " → ";
+const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Keymaps(Vec<Keymap>);
@@ -177,31 +178,26 @@ impl KeymapLegendConfig {
             .flat_map(|keymap| {
                 let keymap_key = RegexHighlightRule {
                     regex: Regex::new(&format!(
-                        "({})({})({})",
+                        "(?<key>{})(?<arrow>{})(?<description>{})",
                         regex::escape(keymap.key),
                         BETWEEN_KEY_AND_DESCRIPTION,
                         regex::escape(&keymap.description),
                     ))
                     .unwrap(),
-                    get_highlight_spans: Box::new(|captures| {
-                        let get_highlight_span = |index: usize, style_key: StyleKey| {
-                            let match_ = captures.get(index)?;
-                            Some(HighlightSpan {
-                                source: Source::StyleKey(style_key),
-                                ranges: HighlightSpanRange::ByteRange(match_.range()),
-                                set_symbol: None,
-                                is_cursor: false,
-                            })
-                        };
-                        [
-                            get_highlight_span(1, StyleKey::KeymapKey),
-                            get_highlight_span(2, StyleKey::KeymapArrow),
-                            get_highlight_span(3, StyleKey::KeymapDescription),
-                        ]
-                        .into_iter()
-                        .flatten()
-                        .collect_vec()
-                    }),
+                    capture_styles: vec![
+                        RegexHighlightRuleCaptureStyle::new(
+                            "key",
+                            Source::StyleKey(StyleKey::KeymapKey),
+                        ),
+                        RegexHighlightRuleCaptureStyle::new(
+                            "arrow",
+                            Source::StyleKey(StyleKey::KeymapArrow),
+                        ),
+                        RegexHighlightRuleCaptureStyle::new(
+                            "description",
+                            Source::StyleKey(StyleKey::KeymapDescription),
+                        ),
+                    ],
                 };
                 let keymap_hint = (|| {
                     let index = keymap
@@ -216,7 +212,7 @@ impl KeymapLegendConfig {
                             &format!("___OPEN___{}___CLOSE___", keymap.description.get(range)?),
                         );
                         regex::escape(&description)
-                            .replace("___OPEN___", "(")
+                            .replace("___OPEN___", "(?<hint>")
                             .replace("___CLOSE___", ")")
                     };
                     Some(RegexHighlightRule {
@@ -227,18 +223,10 @@ impl KeymapLegendConfig {
                             )),
                         )
                         .unwrap(),
-                        get_highlight_spans: Box::new(|captures| {
-                            if let Some(match_) = captures.get(1) {
-                                vec![HighlightSpan {
-                                    source: Source::StyleKey(StyleKey::KeymapHint),
-                                    ranges: HighlightSpanRange::ByteRange(match_.range()),
-                                    set_symbol: None,
-                                    is_cursor: false,
-                                }]
-                            } else {
-                                Default::default()
-                            }
-                        }),
+                        capture_styles: vec![RegexHighlightRuleCaptureStyle::new(
+                            "hint",
+                            Source::StyleKey(StyleKey::KeymapHint),
+                        )],
                     })
                 })();
                 vec![Some(keymap_key), keymap_hint]
@@ -465,22 +453,16 @@ mod test_keymap_legend {
         .map(|rule| rule.regex.as_str().to_string())
         .collect_vec();
 
-        assert_eq!(
-            regexes,
-            vec![
-                "(a) → ",
-                "a → (Aloha)",
-                "a → (A)loha",
-                "(b) → ",
-                "b → (Cob)",
-                "b → Co(b)",
-                "(f) → ",
-                "f → (Find \\(Local\\))",
-                "f → (F)ind \\(Local\\)",
-                "(g) → ",
-                "g → (Find \\(Global\\))",
-                "g → Find \\((G)lobal\\)"
-            ]
-        )
+        let expected = [
+            "(?<key>a)(?<arrow> → )(?<description>Aloha)",
+            "a → (?<hint>A)loha",
+            "(?<key>b)(?<arrow> → )(?<description>Cob)",
+            "b → Co(?<hint>b)",
+            "(?<key>f)(?<arrow> → )(?<description>Find \\(Local\\))",
+            "f → (?<hint>F)ind \\(Local\\)",
+            "(?<key>g)(?<arrow> → )(?<description>Find \\(Global\\))",
+            "g → Find \\((?<hint>G)lobal\\)",
+        ];
+        assert_eq!(regexes, expected)
     }
 }

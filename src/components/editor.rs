@@ -36,7 +36,7 @@ use crate::{
 use DispatchEditor::*;
 
 use super::{
-    component::ComponentId, dropdown::DropdownRender, render_editor::HighlightSpan,
+    component::ComponentId, dropdown::DropdownRender, render_editor::Source,
     suggestive_editor::Info,
 };
 
@@ -235,7 +235,22 @@ pub struct Editor {
 
 pub struct RegexHighlightRule {
     pub regex: regex::Regex,
-    pub get_highlight_spans: Box<dyn Fn(regex::Captures) -> Vec<HighlightSpan>>,
+    pub capture_styles: Vec<RegexHighlightRuleCaptureStyle>,
+}
+
+pub struct RegexHighlightRuleCaptureStyle {
+    /// 0 means the entire match.
+    /// Refer https://docs.rs/regex/latest/regex/struct.Regex.html#method.captures
+    pub capture_name: &'static str,
+    pub source: Source,
+}
+impl RegexHighlightRuleCaptureStyle {
+    pub(crate) fn new(capture_name: &'static str, source: Source) -> Self {
+        Self {
+            capture_name,
+            source,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

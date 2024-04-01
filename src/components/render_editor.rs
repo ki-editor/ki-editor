@@ -31,6 +31,7 @@ impl Editor {
         let Dimension { height, width } = editor.render_area();
         let buffer = editor.buffer();
         let rope = buffer.rope();
+        let content = rope.to_string();
 
         let diagnostics = context.get_diagnostics(self.path());
 
@@ -275,9 +276,27 @@ impl Editor {
             .regex_highlight_rules
             .iter()
             .filter_map(|rule| {
-                Some((rule.get_highlight_spans)(
-                    rule.regex.captures(&rope.to_string())?,
-                ))
+                let captures = rule.regex.captures(&content)?;
+                let get_highlight_span = |name: &'static str, source: Source| {
+                    let match_ = captures.name(name)?;
+                    Some(HighlightSpan {
+                        source,
+                        ranges: HighlightSpanRange::ByteRange(match_.range()),
+                        set_symbol: None,
+                        is_cursor: false,
+                    })
+                };
+                Some(
+                    rule.capture_styles
+                        .iter()
+                        .flat_map(|capture_style| {
+                            get_highlight_span(
+                                capture_style.capture_name,
+                                capture_style.source.clone(),
+                            )
+                        })
+                        .collect_vec(),
+                )
             })
             .flatten()
             .collect_vec();
@@ -603,6 +622,8 @@ fn range_intersection<T: Ord>(a: Range<T>, b: Range<T>) -> Option<Range<T>> {
         None
     }
 }
+
+#[derive(Clone)]
 pub enum Source {
     StyleKey(StyleKey),
     Style(Style),
