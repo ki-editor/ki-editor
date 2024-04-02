@@ -51,16 +51,6 @@ impl ToByteRange for CharIndexRange {
 }
 
 impl CharIndexRange {
-    pub fn apply_edit(self, edit: &crate::edit::Edit) -> Option<CharIndexRange> {
-        if edit.range.start >= self.end {
-            Some(self)
-        } else if edit.range.overlaps(&self) {
-            None
-        } else {
-            Some(self.apply_offset(edit.offset()))
-        }
-    }
-
     pub fn iter(&self) -> CharIndexRangeIter {
         CharIndexRangeIter {
             range: *self,
@@ -105,6 +95,19 @@ impl CharIndexRange {
     pub(crate) fn start(&self) -> CharIndex {
         self.start
     }
+
+    pub(crate) fn apply_edit(
+        &self,
+        range: &CharIndexRange,
+        chars_offset: isize,
+    ) -> Option<CharIndexRange> {
+        let range = apply_edit(
+            self.start.0..self.end.0,
+            &(range.start.0..range.end.0),
+            chars_offset,
+        )?;
+        Some((CharIndex(range.start)..(CharIndex(range.end))).into())
+    }
 }
 
 pub struct CharIndexRangeIter {
@@ -130,6 +133,25 @@ impl From<Range<CharIndex>> for CharIndexRange {
         Self {
             start: value.start,
             end: value.end,
+        }
+    }
+}
+
+/// `change` = new length - old length
+pub fn apply_edit(
+    range: Range<usize>,
+    edited_range: &Range<usize>,
+    change: isize,
+) -> Option<Range<usize>> {
+    if edited_range.start >= range.end {
+        Some(range)
+    } else if is_overlapping(edited_range, &range) {
+        None
+    } else {
+        if change.is_positive() {
+            Some(range.start + (change as usize)..range.end + (change as usize))
+        } else {
+            Some(range.start - change.unsigned_abs()..range.end - change.unsigned_abs())
         }
     }
 }

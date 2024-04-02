@@ -1,3 +1,4 @@
+use crate::char_index_range::apply_edit;
 use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
@@ -443,11 +444,16 @@ impl Buffer {
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
         // Update all the bookmarks
-        let bookmarks = std::mem::take(&mut self.bookmarks);
-        self.bookmarks = bookmarks
+        self.bookmarks = std::mem::take(&mut self.bookmarks)
             .into_iter()
-            .filter_map(|bookmark| bookmark.apply_edit(edit))
+            .filter_map(|bookmark| bookmark.apply_edit(&edit.range, edit.chars_offset()))
             .collect();
+        if let Some(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
+            self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
+                &byte_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            )
+        };
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
@@ -909,6 +915,10 @@ impl Buffer {
         let after = self.content();
         let modified = before != after;
         Ok((modified, selection_set))
+    }
+
+    pub fn char_index_range_to_byte_range(&self, range: CharIndexRange) -> Option<Range<usize>> {
+        Some(self.char_to_byte(range.start).ok()?..self.char_to_byte(range.end).ok()?)
     }
 }
 

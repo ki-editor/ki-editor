@@ -133,7 +133,7 @@ const fn rust() -> Language {
             commit: "master",
             subpath: None,
         }),
-        formatter_command: Some(Command("rustfmt", &[])),
+        formatter_command: Some(Command("rustfmt", &["--edition=2021"])),
     }
 }
 

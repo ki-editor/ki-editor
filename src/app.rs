@@ -50,17 +50,18 @@ use std::{
         Arc, Mutex,
     },
 };
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use DispatchEditor::*;
 
 pub struct App<T: Frontend> {
     context: Context,
 
-    sender: Sender<AppMessage>,
+    sender: UnboundedSender<AppMessage>,
 
     /// Used for receiving message from various sources:
     /// - Events from crossterm
     /// - Notifications from language server
-    receiver: Receiver<AppMessage>,
+    receiver: UnboundedReceiver<AppMessage>,
 
     lsp_manager: LspManager,
     enable_lsp: bool,
@@ -103,7 +104,7 @@ impl<T: Frontend> App<T> {
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
     ) -> anyhow::Result<App<T>> {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         Self::from_channel(frontend, working_directory, sender, receiver)
     }
 
@@ -115,8 +116,8 @@ impl<T: Frontend> App<T> {
     pub fn from_channel(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        sender: Sender<AppMessage>,
-        receiver: Receiver<AppMessage>,
+        sender: UnboundedSender<AppMessage>,
+        receiver: UnboundedReceiver<AppMessage>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
@@ -147,7 +148,7 @@ impl<T: Frontend> App<T> {
             .update_highlighted_spans(component_id, highlighted_spans)
     }
 
-    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
+    pub async fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
         {
             let mut frontend = self.frontend.lock().unwrap();
             frontend.enter_alternate_screen()?;
@@ -164,7 +165,7 @@ impl<T: Frontend> App<T> {
 
         self.render()?;
 
-        while let Ok(message) = self.receiver.recv() {
+        while let Some(message) = self.receiver.recv().await {
             let should_quit = match message {
                 AppMessage::Event(event) => self.handle_event(event),
                 AppMessage::LspNotification(notification) => {
@@ -1140,7 +1141,7 @@ impl<T: Frontend> App<T> {
         Ok(self.sender.send(AppMessage::QuitAll)?)
     }
 
-    pub fn sender(&self) -> Sender<AppMessage> {
+    pub fn sender(&self) -> UnboundedSender<AppMessage> {
         self.sender.clone()
     }
 

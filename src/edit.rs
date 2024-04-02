@@ -4,6 +4,7 @@ use itertools::Itertools;
 use ropey::Rope;
 
 use crate::{
+    buffer::Buffer,
     char_index_range::CharIndexRange,
     selection::{CharIndex, Selection, SelectionSet},
 };
@@ -25,11 +26,16 @@ impl Edit {
         self.range.end
     }
 
-    fn range(&self) -> CharIndexRange {
+    pub fn range(&self) -> CharIndexRange {
         self.range
     }
 
-    pub fn offset(&self) -> isize {
+    pub fn bytes_offset(&self, buffer: &Buffer) -> Option<isize> {
+        let byte_range = buffer.char_index_range_to_byte_range(self.range)?;
+        Some(self.new.len_bytes() as isize - byte_range.len() as isize)
+    }
+
+    pub fn chars_offset(&self) -> isize {
         self.new.len_chars() as isize - self.range.len() as isize
     }
 }
@@ -230,7 +236,7 @@ impl ActionGroup {
         self.actions
             .iter()
             .map(|action| match action {
-                Action::Edit(edit) => edit.offset(),
+                Action::Edit(edit) => edit.chars_offset(),
                 _ => 0,
             })
             .sum()

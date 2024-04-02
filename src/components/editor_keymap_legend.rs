@@ -171,6 +171,16 @@ impl Editor {
                 Dispatch::ToEditor(ReplaceCut),
             ),
             Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
+            Keymap::new(
+                "alt+h",
+                "Exchange (Previous)".to_string(),
+                Dispatch::ToEditor(Exchange(Previous)),
+            ),
+            Keymap::new(
+                "alt+l",
+                "Exchange (Next)".to_string(),
+                Dispatch::ToEditor(Exchange(Next)),
+            ),
         ]
         .to_vec()
     }

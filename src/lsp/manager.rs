@@ -8,10 +8,11 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language, LanguageId},
 };
+use tokio::sync::mpsc::UnboundedSender;
 
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
-    sender: Sender<AppMessage>,
+    sender: UnboundedSender<AppMessage>,
     current_working_directory: CanonicalizedPath,
 }
 
@@ -23,12 +24,12 @@ impl Drop for LspManager {
 
 impl LspManager {
     pub fn new(
-        clone: Sender<AppMessage>,
+        sender: UnboundedSender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> LspManager {
         LspManager {
             lsp_server_process_channels: HashMap::new(),
-            sender: clone,
+            sender,
             current_working_directory,
         }
     }
