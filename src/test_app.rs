@@ -103,6 +103,7 @@ pub enum ExpectKind {
         /*Background color*/ Color,
     ),
     GridCellStyleKey(Position, Option<StyleKey>),
+    HighlightSpans(std::ops::Range<usize>, StyleKey),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -284,6 +285,19 @@ impl ExpectKind {
                     .borrow()
                     .editor()
                     .cursor_direction,
+            ),
+            HighlightSpans(expected_range, expected_key) => contextualize(
+                expected_key,
+                &app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .highlighted_spans()
+                    .into_iter()
+                    .find(|span| &span.byte_range == expected_range)
+                    .unwrap()
+                    .style_key,
             ),
         })
     }

@@ -1,4 +1,3 @@
-use crate::char_index_range::apply_edit;
 use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,

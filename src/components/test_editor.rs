@@ -367,15 +367,16 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(Bookmark)),
             // Expect bookmark position is updated, and still selects "spim"
             Expect(CurrentSelectedTexts(&["spim"])),
-            // Remove "m" from "spim"
-            Editor(EnterInsertMode(Direction::End)),
-            Editor(Backspace),
-            Expect(CurrentComponentContent("bar spi")),
+            // Remove "spim"
+            Editor(Change),
+            Expect(CurrentComponentContent("bar ")),
             Editor(EnterNormalMode),
+            Editor(SetSelectionMode(Word)),
+            Expect(CurrentSelectedTexts(&["bar"])),
             Editor(SetSelectionMode(Bookmark)),
             // Expect the "spim" bookmark is removed
-            // By the fact that "spi" is not selected
-            Expect(CurrentSelectedTexts(&["i"])),
+            // By the fact that "bar" is still selected
+            Expect(CurrentSelectedTexts(&["bar"])),
         ])
     })
 }
@@ -1100,6 +1101,36 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             )),
             // Expect the cursor is after 'd'
             Expect(EditorGridCursorPosition(Position { line: 2, column: 7 })),
+        ])
+    })
+}
+
+#[test]
+fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let theme = Theme::default();
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(SetTheme(theme.clone())),
+            Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
+            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 2,
+            })),
+            Editor(ApplySyntaxHighlight),
+            Expect(ExpectKind::HighlightSpans(
+                0..2,
+                StyleKey::Syntax("keyword.function".to_string()),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            Expect(ExpectKind::HighlightSpans(
+                5..7,
+                StyleKey::Syntax("keyword.function".to_string()),
+            )),
         ])
     })
 }

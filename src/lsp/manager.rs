@@ -1,5 +1,5 @@
 use crate::app::RequestParams;
-use std::{collections::HashMap, sync::mpsc::Sender};
+use std::collections::HashMap;
 
 use crate::app::AppMessage;
 
