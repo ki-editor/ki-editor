@@ -1,8 +1,6 @@
 use std::ops::Range;
 
-use crate::{
-    buffer::Buffer, components::editor::Direction, edit::is_overlapping, selection::CharIndex,
-};
+use crate::{buffer::Buffer, components::editor::Direction, edit::Edit, selection::CharIndex};
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
@@ -85,17 +83,17 @@ impl CharIndexRange {
         self.start
     }
 
-    pub(crate) fn apply_edit(
-        &self,
-        range: &CharIndexRange,
-        chars_offset: isize,
-    ) -> Option<CharIndexRange> {
+    pub(crate) fn apply_edit(&self, edit: &Edit) -> Option<CharIndexRange> {
         let range = apply_edit(
             self.start.0..self.end.0,
-            &(range.start.0..range.end.0),
-            chars_offset,
+            &(edit.range.start.0..edit.range.end.0),
+            edit.chars_offset(),
         )?;
         Some((CharIndex(range.start)..(CharIndex(range.end))).into())
+    }
+
+    pub(crate) fn contains(&self, char_index: &CharIndex) -> bool {
+        &self.start <= char_index && char_index <= &self.end
     }
 }
 

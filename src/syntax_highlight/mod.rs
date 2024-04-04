@@ -1,16 +1,10 @@
-use std::{
-    collections::HashMap,
-    ops::Range,
-    sync::mpsc::Sender,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, ops::Range, sync::mpsc::Sender, time::Duration};
 
-use tokio::sync::mpsc::UnboundedSender;
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
     app::AppMessage, char_index_range::apply_edit, components::component::ComponentId,
-    edit::is_overlapping, grid::StyleKey, themes::HIGHLIGHT_NAMES,
+    grid::StyleKey, themes::HIGHLIGHT_NAMES,
 };
 use shared::language::Language;
 
@@ -118,20 +112,19 @@ pub struct SyntaxHighlightResponse {
     pub highlighted_spans: HighlighedSpans,
 }
 
-pub fn start_thread(callback: UnboundedSender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
-    let (sender, mut receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
+pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
+    let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
     use debounce::EventDebouncer;
     struct Event(SyntaxHighlightRequest);
     impl PartialEq for Event {
         fn eq(&self, other: &Self) -> bool {
-            // Always return true, because every syntax highlight request should be debounced
-            true
+            self.0.component_id == other.0.component_id
         }
     }
 
     std::thread::spawn(move || {
         let mut highlight_configs = HighlightConfigs::new();
-        let debounce = EventDebouncer::new(Duration::from_millis(300), move |Event(request)| {
+        let debounce = EventDebouncer::new(Duration::from_millis(150), move |Event(request)| {
             match highlight_configs.highlight(request.language, &request.source_code) {
                 Ok(highlighted_spans) => {
                     let _ = callback.send(AppMessage::SyntaxHighlightResponse {

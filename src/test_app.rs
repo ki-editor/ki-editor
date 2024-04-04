@@ -26,6 +26,7 @@ use crate::{
         App, Dimension, Dispatch, GlobalSearchConfigUpdate, GlobalSearchFilterGlob,
         LocalSearchConfigUpdate, Scope,
     },
+    char_index_range::CharIndexRange,
     components::{
         component::{Component, ComponentId},
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
@@ -104,6 +105,7 @@ pub enum ExpectKind {
     ),
     GridCellStyleKey(Position, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
+    DiagnosticsRanges(Vec<CharIndexRange>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -298,6 +300,18 @@ impl ExpectKind {
                     .find(|span| &span.byte_range == expected_range)
                     .unwrap()
                     .style_key,
+            ),
+            DiagnosticsRanges(expected) => contextualize(
+                expected.to_vec(),
+                app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .diagnostics()
+                    .into_iter()
+                    .map(|d| d.range)
+                    .collect_vec(),
             ),
         })
     }

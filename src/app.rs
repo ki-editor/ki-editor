@@ -20,7 +20,6 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
-        diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
         process::{LspNotification, ResponseContext},
@@ -45,20 +44,22 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{
+        mpsc::{Receiver, Sender},
+        Arc, Mutex,
+    },
 };
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use DispatchEditor::*;
 
 pub struct App<T: Frontend> {
     context: Context,
 
-    sender: UnboundedSender<AppMessage>,
+    sender: Sender<AppMessage>,
 
     /// Used for receiving message from various sources:
     /// - Events from crossterm
     /// - Notifications from language server
-    receiver: UnboundedReceiver<AppMessage>,
+    receiver: Receiver<AppMessage>,
 
     lsp_manager: LspManager,
     enable_lsp: bool,
@@ -101,7 +102,7 @@ impl<T: Frontend> App<T> {
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
     ) -> anyhow::Result<App<T>> {
-        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let (sender, receiver) = std::sync::mpsc::channel();
         Self::from_channel(frontend, working_directory, sender, receiver)
     }
 
@@ -113,8 +114,8 @@ impl<T: Frontend> App<T> {
     pub fn from_channel(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
-        sender: UnboundedSender<AppMessage>,
-        receiver: UnboundedReceiver<AppMessage>,
+        sender: Sender<AppMessage>,
+        receiver: Receiver<AppMessage>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
@@ -145,7 +146,7 @@ impl<T: Frontend> App<T> {
             .update_highlighted_spans(component_id, highlighted_spans)
     }
 
-    pub async fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
+    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
         {
             let mut frontend = self.frontend.lock().unwrap();
             frontend.enter_alternate_screen()?;
@@ -162,7 +163,7 @@ impl<T: Frontend> App<T> {
 
         self.render()?;
 
-        while let Some(message) = self.receiver.recv().await {
+        while let Ok(message) = self.receiver.recv() {
             let should_quit = match message {
                 AppMessage::Event(event) => self.handle_event(event),
                 AppMessage::LspNotification(notification) => {
@@ -762,11 +763,10 @@ impl<T: Frontend> App<T> {
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
-        position_range: Option<Range<Position>>,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path) {
+        if let Some(matching_editor) = self.layout.open_file(path, focus_editor) {
             return Ok(matching_editor);
         }
 
@@ -775,14 +775,6 @@ impl<T: Frontend> App<T> {
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
-        let _selection_set = position_range
-            .map(|position_range| {
-                editor
-                    .editor()
-                    .position_range_to_selection_set(position_range)
-            })
-            .transpose()?
-            .unwrap_or_default();
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
 
@@ -808,7 +800,7 @@ impl<T: Frontend> App<T> {
         path: &CanonicalizedPath,
         focus_editor: bool,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
-        self.open_file_custom(path, focus_editor, None)
+        self.open_file_custom(path, focus_editor)
     }
 
     fn get_suggestive_editor(
@@ -870,11 +862,6 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
-                let diagnostics = params
-                    .diagnostics
-                    .into_iter()
-                    .map(Diagnostic::try_from)
-                    .collect::<Result<Vec<_>, _>>()?;
                 self.update_diagnostics(
                     params
                         .uri
@@ -883,8 +870,8 @@ impl<T: Frontend> App<T> {
                             anyhow::anyhow!("Couldn't convert URI to file path: {:?}", err)
                         })?
                         .try_into()?,
-                    diagnostics,
-                );
+                    params.diagnostics,
+                )?;
                 Ok(())
             }
             LspNotification::PrepareRenameResponse(context, response) => {
@@ -947,8 +934,18 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
-        self.context.update_diagnostics(path, diagnostics);
+    fn update_diagnostics(
+        &mut self,
+        path: CanonicalizedPath,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    ) -> anyhow::Result<()> {
+        let component = self.open_file_custom(&path, false)?;
+        component
+            .borrow_mut()
+            .editor_mut()
+            .buffer_mut()
+            .set_diagnostics(diagnostics);
+        Ok(())
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
@@ -979,16 +976,19 @@ impl<T: Frontend> App<T> {
         match r#type {
             QuickfixListType::LspDiagnostic(severity) => {
                 let quickfix_list = QuickfixList::new(
-                    self.context
+                    self.layout
                         .diagnostics()
                         .into_iter()
-                        .filter(|(_, diagnostic)| diagnostic.severity == severity)
-                        .map(|(path, diagnostic)| {
+                        .filter(|(_, diagnostic, _)| {
+                            if severity.is_none() {
+                                true
+                            } else {
+                                diagnostic.severity == severity
+                            }
+                        })
+                        .map(|(path, diagnostic, range)| {
                             QuickfixListItem::new(
-                                Location {
-                                    path: (*path).clone(),
-                                    range: diagnostic.range.clone(),
-                                },
+                                Location { path, range },
                                 Some(Info::new("Diagnostic".to_string(), diagnostic.message())),
                             )
                         })
@@ -1138,7 +1138,7 @@ impl<T: Frontend> App<T> {
         Ok(self.sender.send(AppMessage::QuitAll)?)
     }
 
-    pub fn sender(&self) -> UnboundedSender<AppMessage> {
+    pub fn sender(&self) -> Sender<AppMessage> {
         self.sender.clone()
     }
 

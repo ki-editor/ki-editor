@@ -1,5 +1,4 @@
 use globset::Glob;
-use std::collections::HashMap;
 
 use indexmap::IndexSet;
 use itertools::Itertools;
@@ -12,7 +11,6 @@ use crate::{
     },
     clipboard::Clipboard,
     list::grep::RegexConfig,
-    lsp::diagnostic::Diagnostic,
     quickfix_list::{QuickfixList, QuickfixListItem, QuickfixLists},
     syntax_highlight::HighlightConfigs,
     themes::Theme,
@@ -21,7 +19,6 @@ use crate::{
 pub struct Context {
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
-    diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
     theme: Box<Theme>,
     quickfix_lists: QuickfixLists,
 
@@ -56,7 +53,6 @@ impl Default for Context {
         Self {
             clipboard: Clipboard::new(),
             theme: Box::<Theme>::default(),
-            diagnostics: Default::default(),
             mode: None,
             quickfix_lists: QuickfixLists::new(),
             highlight_configs: HighlightConfigs::new(),
@@ -95,29 +91,6 @@ impl Context {
 
     pub fn theme(&self) -> &Theme {
         &self.theme
-    }
-
-    pub fn diagnostics(&self) -> Vec<(&CanonicalizedPath, &Diagnostic)> {
-        self.diagnostics
-            .iter()
-            .flat_map(|(path, diagnostics)| {
-                diagnostics.iter().map(move |diagnostic| (path, diagnostic))
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
-        self.diagnostics.insert(path, diagnostics);
-    }
-
-    pub fn get_diagnostics(&self, path: Option<CanonicalizedPath>) -> Vec<&Diagnostic> {
-        path.map(|path| {
-            self.diagnostics
-                .get(&path)
-                .map(|diagnostics| diagnostics.iter().collect::<Vec<_>>())
-                .unwrap_or_default()
-        })
-        .unwrap_or_default()
     }
 
     pub fn clear_clipboard(&mut self) {

@@ -1,5 +1,5 @@
 use crate::app::RequestParams;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::mpsc::Sender};
 
 use crate::app::AppMessage;
 
@@ -8,11 +8,10 @@ use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language, LanguageId},
 };
-use tokio::sync::mpsc::UnboundedSender;
 
 pub struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
-    sender: UnboundedSender<AppMessage>,
+    sender: Sender<AppMessage>,
     current_working_directory: CanonicalizedPath,
 }
 
@@ -24,7 +23,7 @@ impl Drop for LspManager {
 
 impl LspManager {
     pub fn new(
-        sender: UnboundedSender<AppMessage>,
+        sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> LspManager {
         LspManager {

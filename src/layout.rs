@@ -9,6 +9,8 @@ use crate::{
         prompt::Prompt,
         suggestive_editor::{Info, SuggestiveEditor},
     },
+    lsp::diagnostic::Diagnostic,
+    position::Position,
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
 };
@@ -16,7 +18,7 @@ use anyhow::anyhow;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
@@ -335,9 +337,15 @@ impl Layout {
             .cloned()
     }
 
-    pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+    pub fn open_file(
+        &mut self,
+        path: &CanonicalizedPath,
+        focus_editor: bool,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         if let Some(matching_editor) = self.get_existing_editor(path) {
-            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
+            if focus_editor {
+                self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
+            }
             Some(matching_editor)
         } else {
             None
@@ -498,7 +506,7 @@ impl Layout {
         path: &CanonicalizedPath,
         selection_set: SelectionSet,
     ) -> anyhow::Result<()> {
-        self.open_file(path);
+        self.open_file(path, true);
         if let Some(editor) = self.main_panel.editor.clone() {
             editor
                 .borrow_mut()
@@ -654,6 +662,28 @@ impl Layout {
     #[cfg(test)]
     pub(crate) fn file_explorer_content(&self) -> String {
         self.file_explorer.borrow().content()
+    }
+
+    pub(crate) fn diagnostics(&self) -> Vec<(CanonicalizedPath, Diagnostic, Range<Position>)> {
+        self.buffers()
+            .iter()
+            .filter_map(|buffer| {
+                let buffer = buffer.borrow();
+                let path = buffer.path()?;
+                Some(
+                    buffer
+                        .diagnostics()
+                        .into_iter()
+                        .filter_map(move |diagnostic| {
+                            let position_range = buffer
+                                .char_index_range_to_position_range(diagnostic.range)
+                                .ok()?;
+                            Some((path.clone(), diagnostic, position_range))
+                        }),
+                )
+            })
+            .flatten()
+            .collect()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

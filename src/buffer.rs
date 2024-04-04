@@ -1,3 +1,4 @@
+use crate::lsp::diagnostic::Diagnostic;
 use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
@@ -31,6 +32,8 @@ pub struct Buffer {
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
     bookmarks: Vec<CharIndexRange>,
+    /// TODO: use charIndexRange for Diagnostic, otherwise `apply_edit` does not work as usual
+    diagnostics: Vec<Diagnostic>,
     decorations: Vec<Decoration>,
 }
 
@@ -58,6 +61,7 @@ impl Buffer {
             bookmarks: Vec::new(),
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
+            diagnostics: Vec::new(),
         }
     }
     pub fn reload(&mut self) -> anyhow::Result<()> {
@@ -100,6 +104,17 @@ impl Buffer {
         self.path = Some(path);
     }
 
+    pub fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {
+        self.diagnostics = diagnostics
+            .into_iter()
+            .filter_map(|diagnostic| Diagnostic::try_from(self, diagnostic).ok())
+            .collect()
+    }
+
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        self.diagnostics.clone()
+    }
+
     pub fn words(&self) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
@@ -111,7 +126,7 @@ impl Buffer {
     }
 
     pub fn find_words(&self, substring: &str) -> Vec<String> {
-        let word = regex::Regex::new(r"\b\w+").unwrap();
+        let word = lazy_regex::regex!(r"\b\w+");
         let str = self.rope.to_string();
         word.find_iter(&str)
             .map(|m| m.as_str().to_string())
@@ -442,20 +457,30 @@ impl Buffer {
     }
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
+        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
+        self.rope
+            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+
         // Update all the bookmarks
         self.bookmarks = std::mem::take(&mut self.bookmarks)
             .into_iter()
-            .filter_map(|bookmark| bookmark.apply_edit(&edit.range, edit.chars_offset()))
+            .filter_map(|bookmark| bookmark.apply_edit(edit))
             .collect();
+        self.diagnostics = std::mem::take(&mut self.diagnostics)
+            .into_iter()
+            .filter_map(|diagnostic| {
+                Some(Diagnostic {
+                    range: diagnostic.range.apply_edit(edit)?,
+                    ..diagnostic
+                })
+            })
+            .collect_vec();
         if let Some(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
                 &byte_range,
                 edit.new.len_bytes() as isize - byte_range.len() as isize,
             )
-        };
-        self.rope.try_remove(edit.range.start.0..edit.end().0)?;
-        self.rope
-            .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+        }
         Ok(())
     }
 
@@ -1364,4 +1389,10 @@ impl PartialEq for Patch {
         // Always return false, assuming that no two patches can be identical
         false
     }
+}
+
+#[must_use]
+#[derive(Default)]
+pub struct UpdatableGlobalRanges {
+    pub diagnostics: Vec<Diagnostic>,
 }

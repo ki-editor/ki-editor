@@ -103,6 +103,8 @@ pub struct SelectionModeParams<'a> {
     pub buffer: &'a Buffer,
     pub current_selection: &'a Selection,
     pub cursor_direction: &'a Direction,
+    /// TODO: remove this field as it is only used by the Diagnostic selection mode
+    /// And since we are already passing in diagnostics via UpdatableRanges, we can remove context
     pub context: &'a Context,
     pub filters: &'a Filters,
 }

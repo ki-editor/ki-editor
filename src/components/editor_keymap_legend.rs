@@ -215,7 +215,7 @@ impl Editor {
         ]
         .to_vec()
     }
-    pub fn keymap_others(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_others(&self) -> Vec<Keymap> {
         [
             Keymap::new(
                 "/",
@@ -225,7 +225,7 @@ impl Editor {
             Keymap::new(
                 "\\",
                 "Context menu".to_string(),
-                Dispatch::ShowKeymapLegend(self.context_menu_legend_config(context)),
+                Dispatch::ShowKeymapLegend(self.context_menu_legend_config()),
             ),
             Keymap::new(
                 "space",
@@ -267,7 +267,7 @@ impl Editor {
                     },
                     KeymapLegendSection {
                         title: "Others".to_string(),
-                        keymaps: Keymaps::new(&self.keymap_others(context)),
+                        keymaps: Keymaps::new(&self.keymap_others()),
                     },
                 ]
                 .to_vec(),
@@ -285,7 +285,7 @@ impl Editor {
                 .collect_vec(),
         )
     }
-    pub(crate) fn context_menu_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn context_menu_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Context menu".to_string(),
             body: KeymapLegendBody::MultipleSections {
@@ -302,27 +302,24 @@ impl Editor {
                             "Rename".to_string(),
                             Dispatch::PrepareRename(params.clone()),
                         ),
-                        Keymap::new(
-                            "c",
-                            "Code Actions".to_string(),
+                        Keymap::new("c", "Code Actions".to_string(), {
+                            let cursor_char_index = self.get_cursor_char_index();
                             Dispatch::RequestCodeAction {
                                 params,
-                                diagnostics: context
-                                    .get_diagnostics(self.path())
+                                diagnostics: self
+                                    .buffer()
+                                    .diagnostics()
                                     .into_iter()
                                     .filter_map(|diagnostic| {
-                                        if diagnostic
-                                            .range
-                                            .contains(&self.get_cursor_position().ok()?)
-                                        {
+                                        if diagnostic.range.contains(&cursor_char_index) {
                                             diagnostic.original_value.clone()
                                         } else {
                                             None
                                         }
                                     })
                                     .collect_vec(),
-                            },
-                        ),
+                            }
+                        }),
                     ]),
                 })]
                 .into_iter()

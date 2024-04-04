@@ -82,8 +82,6 @@ indexmap = "2.2.2"
 globset = "0.4.14"
 unicode-width = "0.1.11"
 lazy-regex = "3.1.0"
-tokio = {version = "1.37.0", features = ["full"]}
-debounced = "0.1.0"
 debounce = "0.2.2"
 
 [dev-dependencies]

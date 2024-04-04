@@ -15,11 +15,9 @@ impl Diagnostic {
         severity: Option<DiagnosticSeverity>,
         params: super::SelectionModeParams<'_>,
     ) -> Self {
-        let buffer = params.buffer;
-        let diagnostics = params.context.get_diagnostics(buffer.path());
         Self {
             severity,
-            diagnostics: diagnostics.into_iter().cloned().collect(),
+            diagnostics: params.buffer.diagnostics(),
         }
     }
 }
@@ -42,9 +40,7 @@ impl SelectionMode for Diagnostic {
                 })
                 .filter_map(|diagnostic| {
                     Some(super::ByteRange::with_info(
-                        buffer
-                            .position_range_to_byte_range(&diagnostic.range)
-                            .ok()?,
+                        buffer.char_index_range_to_byte_range(diagnostic.range)?,
                         Info::new("Diagnostics".to_string(), diagnostic.message.clone()),
                     ))
                 }),

@@ -895,7 +895,7 @@ impl Editor {
         )
     }
 
-    fn get_cursor_char_index(&self) -> CharIndex {
+    pub fn get_cursor_char_index(&self) -> CharIndex {
         self.selection_set
             .primary
             .to_char_index(&self.cursor_direction)

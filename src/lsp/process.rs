@@ -8,7 +8,6 @@ use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::Language;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
-use tokio::sync::mpsc::UnboundedSender;
 
 use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
@@ -39,7 +38,7 @@ struct LspServerProcess {
     current_working_directory: CanonicalizedPath,
     next_request_id: RequestId,
     pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
-    app_message_sender: UnboundedSender<AppMessage>,
+    app_message_sender: Sender<AppMessage>,
 
     receiver: Receiver<LspServerProcessMessage>,
     sender: Sender<LspServerProcessMessage>,
@@ -156,7 +155,7 @@ pub struct LspServerProcessChannel {
 impl LspServerProcessChannel {
     pub fn new(
         language: Language,
-        screen_message_sender: UnboundedSender<AppMessage>,
+        screen_message_sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> Result<Option<LspServerProcessChannel>, anyhow::Error> {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
@@ -348,7 +347,7 @@ impl LspServerProcessChannel {
 impl LspServerProcess {
     fn start(
         language: Language,
-        app_message_sender: UnboundedSender<AppMessage>,
+        app_message_sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> anyhow::Result<Option<LspServerProcessChannel>> {
         let process_command = match language.lsp_process_command() {

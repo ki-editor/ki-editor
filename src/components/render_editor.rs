@@ -13,7 +13,6 @@ use crate::{
     },
     context::Context,
     grid::{CellUpdate, Grid, StyleKey},
-    position::Position,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     soft_wrap,
@@ -33,7 +32,7 @@ impl Editor {
         let rope = buffer.rope();
         let content = rope.to_string();
 
-        let diagnostics = context.get_diagnostics(self.path());
+        let diagnostics = buffer.diagnostics();
 
         let len_lines = rope.len_lines().max(1) as u16;
         let max_line_number_len = len_lines.to_string().len() as u16;
@@ -202,7 +201,7 @@ impl Editor {
             .map(|diagnostic| HighlightSpan {
                 set_symbol: None,
                 is_cursor: false,
-                ranges: HighlightSpanRange::PositionRange(diagnostic.range.clone()),
+                ranges: HighlightSpanRange::CharIndexRange(diagnostic.range),
                 source: Source::StyleKey(match diagnostic.severity {
                     Some(DiagnosticSeverity::ERROR) => DiagnosticsError,
                     Some(DiagnosticSeverity::WARNING) => DiagnosticsWarning,
@@ -574,12 +573,6 @@ impl HighlightSpan {
                             boundary.byte_range.clone(),
                         )?)
                         .ok()?,
-                    HighlightSpanRange::PositionRange(range) => buffer
-                        .position_range_to_char_index_range(&range_intersection(
-                            range.clone(),
-                            boundary.position_range.clone(),
-                        )?)
-                        .ok()?,
                     HighlightSpanRange::CharIndex(char_index) => range_intersection(
                         *char_index..(*char_index + 1),
                         boundary.char_index_range.clone(),
@@ -632,14 +625,12 @@ pub enum Source {
 pub enum HighlightSpanRange {
     CharIndexRange(CharIndexRange),
     ByteRange(Range<usize>),
-    PositionRange(Range<Position>),
     CharIndex(CharIndex),
 }
 
 struct Boundary {
     byte_range: Range<usize>,
     char_index_range: Range<CharIndex>,
-    position_range: Range<Position>,
 }
 impl Boundary {
     fn new(buffer: &Buffer, visible_line_range: Range<usize>) -> Self {
@@ -653,7 +644,6 @@ impl Boundary {
         Self {
             byte_range: byte_start..byte_end,
             char_index_range: char_index_start..char_index_end,
-            position_range: Position::new(start, 0)..Position::new(end + 1, 0),
         }
     }
 }
