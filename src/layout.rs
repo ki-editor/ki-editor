@@ -9,8 +9,10 @@ use crate::{
         prompt::Prompt,
         suggestive_editor::{Info, SuggestiveEditor},
     },
+    context::QuickfixListSource,
     lsp::diagnostic::Diagnostic,
     position::Position,
+    quickfix_list::{Location, QuickfixListItem},
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
 };
@@ -684,6 +686,57 @@ impl Layout {
             })
             .flatten()
             .collect()
+    }
+
+    pub(crate) fn get_quickfix_list_items(
+        &self,
+        source: &QuickfixListSource,
+    ) -> Vec<QuickfixListItem> {
+        self.buffers()
+            .into_iter()
+            .flat_map(|buffer| {
+                let buffer = buffer.borrow();
+                match source {
+                    QuickfixListSource::Diagnostic => buffer
+                        .diagnostics()
+                        .into_iter()
+                        .filter_map(|d| {
+                            let position_range =
+                                buffer.char_index_range_to_position_range(d.range).ok()?;
+                            Some(QuickfixListItem::new(
+                                Location {
+                                    path: buffer.path()?,
+                                    range: position_range,
+                                },
+                                None,
+                            ))
+                        })
+                        .collect_vec(),
+                    QuickfixListSource::Bookmark => buffer
+                        .bookmarks()
+                        .into_iter()
+                        .filter_map(|bookmark| {
+                            let position_range =
+                                buffer.char_index_range_to_position_range(bookmark).ok()?;
+                            Some(QuickfixListItem::new(
+                                Location {
+                                    path: buffer.path()?,
+                                    range: position_range,
+                                },
+                                None,
+                            ))
+                        })
+                        .collect_vec(),
+                    QuickfixListSource::Custom => buffer.quickfix_list_items(),
+                }
+            })
+            .collect_vec()
+    }
+
+    pub(crate) fn clear_quickfix_list_items(&mut self) {
+        for buffer in self.buffers() {
+            buffer.borrow_mut().clear_quickfix_list_items()
+        }
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

@@ -11,7 +11,7 @@ impl LocalQuickfix {
         let ranges = params
             .buffer
             .path()
-            .and_then(|path| params.context.get_quickfix_items(&path))
+            .map(|path| buffer.quickfix_list_items())
             .map(|items| {
                 items
                     .into_iter()

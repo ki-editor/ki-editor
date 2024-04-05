@@ -97,7 +97,9 @@ impl QuickfixLists {
     /// Get the next item of the latest quickfix list based on the given `movement`
     pub(crate) fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
         if let Some(quickfix_list) = self.current_mut() {
-            quickfix_list.get_item(movement)
+            quickfix_list
+                .get_item(movement)
+                .map(|(_, dispatches)| dispatches)
         } else {
             None
         }
@@ -157,13 +159,22 @@ impl QuickfixList {
         self.dropdown.render()
     }
 
-    pub fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
+    /// Returns the current item index after `movement` is applied
+    pub fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
         self.dropdown.apply_movement(movement);
-        Some(self.dropdown.current_item()?.dispatches)
+        Some((
+            self.dropdown.current_item_index(),
+            self.dropdown.current_item()?.dispatches,
+        ))
     }
 
     pub(crate) fn title(&self) -> Option<String> {
         self.title.clone()
+    }
+
+    pub(crate) fn set_current_item_index(mut self, item_index: usize) -> Self {
+        self.dropdown.set_current_item_index(item_index);
+        self
     }
 }
 

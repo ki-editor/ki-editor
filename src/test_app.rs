@@ -141,8 +141,9 @@ impl ExpectKind {
             }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                app.get_quickfixes()
-                    .unwrap_or_default()
+                app.get_quickfix_list()
+                    .unwrap()
+                    .items()
                     .into_iter()
                     .map(|quickfix| {
                         let info = quickfix
@@ -259,17 +260,17 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.quickfix_list().unwrap().borrow().content();
+                let actual = app.get_quickfix_list().unwrap().render().content;
                 println!("actual =\n{actual}");
                 contextualize(actual, content.to_string())
             }
             DropdownInfosCount(expected) => {
                 contextualize(app.get_dropdown_infos_count(), *expected)
             }
-            QuickfixListCurrentLine(expected) => contextualize(
-                app.quickfix_list().unwrap().borrow().current_line()?,
-                expected.to_string(),
-            ),
+            QuickfixListCurrentLine(expected) => {
+                let render = app.get_quickfix_list().unwrap().render();
+                contextualize(render.current_line(), expected.to_string())
+            }
             EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
             EditorInfoContent(expected) => {
                 contextualize(app.editor_info_content(), Some(expected.to_string()))
@@ -1049,12 +1050,12 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├─ 2:1  foo b // Line 2")),
+            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo b // Line 2")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
-            Expect(QuickfixListCurrentLine("└─ 10:1  foo a // Line 10")),
+            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),

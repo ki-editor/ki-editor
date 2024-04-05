@@ -1,4 +1,5 @@
 use crate::lsp::diagnostic::Diagnostic;
+use crate::quickfix_list::QuickfixListItem;
 use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
@@ -32,8 +33,13 @@ pub struct Buffer {
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
     bookmarks: Vec<CharIndexRange>,
-    /// TODO: use charIndexRange for Diagnostic, otherwise `apply_edit` does not work as usual
     diagnostics: Vec<Diagnostic>,
+    quickfix_list_items: Vec<QuickfixListItem>,
+    // TODO: store quickfix lists here, with ID
+    // the global app state will store the ID of each quickfix list
+    // then it shall retrieve the quickfixes through each buffer
+    // pros: quickfixes range can be updated by edit
+    // cons: cannot retrieve old quickfixes if the buffer is quitted
     decorations: Vec<Decoration>,
 }
 
@@ -62,7 +68,14 @@ impl Buffer {
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
             diagnostics: Vec::new(),
+            quickfix_list_items: Vec::new(),
         }
+    }
+    pub fn clear_quickfix_list_items(&mut self) {
+        self.quickfix_list_items.clear()
+    }
+    pub fn update_quickfix_list_items(&mut self, quickfix_list_items: Vec<QuickfixListItem>) {
+        self.quickfix_list_items = quickfix_list_items
     }
     pub fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
@@ -943,6 +956,10 @@ impl Buffer {
 
     pub fn char_index_range_to_byte_range(&self, range: CharIndexRange) -> Option<Range<usize>> {
         Some(self.char_to_byte(range.start).ok()?..self.char_to_byte(range.end).ok()?)
+    }
+
+    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
+        self.quickfix_list_items.clone()
     }
 }
 

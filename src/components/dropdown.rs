@@ -294,6 +294,14 @@ impl Dropdown {
     pub(crate) fn items(&self) -> Vec<DropdownItem> {
         self.items.clone()
     }
+
+    pub(crate) fn set_current_item_index(&mut self, current_item_index: usize) {
+        self.current_item_index = current_item_index
+    }
+
+    pub(crate) fn current_item_index(&self) -> usize {
+        self.current_item_index
+    }
 }
 
 #[cfg(test)]
@@ -496,4 +504,9 @@ pub struct DropdownRender {
     pub title: String,
     pub highlight_line_index: usize,
     pub info: Option<Info>,
+}
+impl DropdownRender {
+    pub(crate) fn current_line(&self) -> String {
+        self.content.lines().collect_vec()[self.highlight_line_index].to_string()
+    }
 }
