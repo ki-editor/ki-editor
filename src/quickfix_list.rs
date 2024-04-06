@@ -1,11 +1,4 @@
-use std::{
-    cell::RefCell,
-    fs::File,
-    io::{self, BufRead},
-    ops::Range,
-    path::Path,
-    rc::Rc,
-};
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use itertools::Itertools;
 use lsp_types::DiagnosticSeverity;
@@ -13,33 +6,24 @@ use lsp_types::DiagnosticSeverity;
 use crate::{
     app::Dispatches,
     buffer::Buffer,
-    char_index_range::CharIndexRange,
     components::{
-        component::Component,
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
-        editor::{Editor, Movement},
+        editor::Movement,
         suggestive_editor::Info,
     },
     position::Position,
 };
 use shared::canonicalized_path::CanonicalizedPath;
 
-pub struct QuickfixLists {
-    lists: Vec<QuickfixList>,
-}
-
 impl QuickfixListItem {
-    fn into_dropdown_item(
-        self: QuickfixListItem,
-        buffers: &Vec<Rc<RefCell<Buffer>>>,
-    ) -> DropdownItem {
+    fn into_dropdown_item(self: QuickfixListItem, buffers: &[Rc<RefCell<Buffer>>]) -> DropdownItem {
         let location = self.location();
         let Position { line, column } = location.range.start;
         DropdownItem {
             info: self.info.clone(),
             display: {
                 let content = location
-                    .read_from_buffers(&buffers)
+                    .read_from_buffers(buffers)
                     .unwrap_or_else(|| "[Failed to read file]".to_string())
                     .trim_matches(|c: char| c.is_whitespace())
                     .to_string();
@@ -71,70 +55,10 @@ impl QuickfixListItem {
     }
 }
 
-fn read_specific_line<P>(filename: &P, line_number: usize) -> anyhow::Result<String>
-where
-    P: AsRef<Path> + Clone,
-{
-    let file = File::open(filename.clone())?;
-    let reader = io::BufReader::new(file);
-    for (i, line) in reader.lines().enumerate() {
-        if i == line_number {
-            return Ok(line?);
-        }
-    }
-    Err(anyhow::anyhow!(
-        "Line {} not found for {}",
-        line_number,
-        filename.as_ref().display()
-    ))
-}
-
-impl QuickfixLists {
-    pub fn new() -> QuickfixLists {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), "");
-        editor.set_title("Quickfixes".to_string());
-        QuickfixLists { lists: vec![] }
-    }
-
-    pub fn current(&self) -> Option<&QuickfixList> {
-        self.lists.last()
-    }
-
-    pub fn current_mut(&mut self) -> Option<&mut QuickfixList> {
-        self.lists.last_mut()
-    }
-
-    pub fn push(&mut self, quickfix_list: QuickfixList) {
-        self.lists.push(quickfix_list);
-    }
-
-    /// Get items from the latest quickfix list
-    pub fn get_items(&self) -> Option<Vec<QuickfixListItem>> {
-        self.lists.last().map(|list| list.items())
-    }
-
-    /// Get the next item of the latest quickfix list based on the given `movement`
-    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<Dispatches> {
-        if let Some(quickfix_list) = self.current_mut() {
-            quickfix_list
-                .get_item(movement)
-                .map(|(_, dispatches)| dispatches)
-        } else {
-            None
-        }
-    }
-}
-
-impl Default for QuickfixLists {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 pub struct QuickfixList {
     dropdown: Dropdown,
+    #[cfg(test)]
     items: Vec<QuickfixListItem>,
-    title: Option<String>,
 }
 
 impl QuickfixList {
@@ -165,18 +89,15 @@ impl QuickfixList {
         );
 
         QuickfixList {
+            #[cfg(test)]
             items,
             dropdown,
-            title: None,
         }
     }
 
+    #[cfg(test)]
     pub fn items(&self) -> Vec<QuickfixListItem> {
         self.items.clone()
-    }
-
-    pub fn set_title(self, title: Option<String>) -> QuickfixList {
-        Self { title, ..self }
     }
 
     pub(crate) fn render(&self) -> crate::components::dropdown::DropdownRender {
@@ -190,10 +111,6 @@ impl QuickfixList {
             self.dropdown.current_item_index(),
             self.dropdown.current_item()?.dispatches,
         ))
-    }
-
-    pub(crate) fn title(&self) -> Option<String> {
-        self.title.clone()
     }
 
     pub(crate) fn set_current_item_index(mut self, item_index: usize) -> Self {
@@ -293,7 +210,7 @@ impl Location {
             })
     }
 
-    fn read_from_buffers(&self, buffers: &Vec<Rc<RefCell<Buffer>>>) -> Option<String> {
+    fn read_from_buffers(&self, buffers: &[Rc<RefCell<Buffer>>]) -> Option<String> {
         buffers
             .iter()
             .find(|buffer| {
@@ -362,14 +279,26 @@ pub enum DiagnosticSeverityRange {
 }
 impl DiagnosticSeverityRange {
     pub(crate) fn contains(&self, severity: Option<DiagnosticSeverity>) -> bool {
-        match (self, severity) {
-            (DiagnosticSeverityRange::All, _) => true,
-            (DiagnosticSeverityRange::Error, Some(DiagnosticSeverity::ERROR)) => true,
-            (DiagnosticSeverityRange::Warning, Some(DiagnosticSeverity::WARNING)) => true,
-            (DiagnosticSeverityRange::Information, Some(DiagnosticSeverity::INFORMATION)) => true,
-            (DiagnosticSeverityRange::Hint, Some(DiagnosticSeverity::HINT)) => true,
-            _ => false,
-        }
+        matches!(
+            (self, severity),
+            (DiagnosticSeverityRange::All, _)
+                | (
+                    DiagnosticSeverityRange::Error,
+                    Some(DiagnosticSeverity::ERROR)
+                )
+                | (
+                    DiagnosticSeverityRange::Warning,
+                    Some(DiagnosticSeverity::WARNING)
+                )
+                | (
+                    DiagnosticSeverityRange::Information,
+                    Some(DiagnosticSeverity::INFORMATION)
+                )
+                | (
+                    DiagnosticSeverityRange::Hint,
+                    Some(DiagnosticSeverity::HINT)
+                )
+        )
     }
 }
 

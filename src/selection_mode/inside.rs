@@ -155,7 +155,6 @@ mod test_inside {
     use crate::{
         buffer::Buffer,
         components::editor::{Direction, Movement},
-        context::Context,
         selection::{CharIndex, Filters},
     };
 

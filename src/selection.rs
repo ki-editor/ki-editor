@@ -291,7 +291,6 @@ impl SelectionSet {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &Direction,
-        context: &Context,
     ) -> anyhow::Result<SelectionSet> {
         let result = self
             .map(|selection| {
@@ -301,7 +300,6 @@ impl SelectionSet {
                     mode,
                     direction,
                     cursor_direction,
-                    context,
                     &self.filters,
                 )
             })
@@ -329,7 +327,6 @@ impl SelectionSet {
         buffer: &Buffer,
         direction: &Movement,
         cursor_direction: &Direction,
-        context: &Context,
     ) -> anyhow::Result<()> {
         let last_selection = &self.primary;
 
@@ -339,7 +336,6 @@ impl SelectionSet {
             &self.mode,
             direction,
             cursor_direction,
-            context,
             &self.filters,
         )?
         .selection;
@@ -361,12 +357,7 @@ impl SelectionSet {
         Ok(())
     }
 
-    pub fn add_all(
-        &mut self,
-        buffer: &Buffer,
-        cursor_direction: &Direction,
-        context: &Context,
-    ) -> anyhow::Result<()> {
+    pub fn add_all(&mut self, buffer: &Buffer, cursor_direction: &Direction) -> anyhow::Result<()> {
         if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
@@ -375,7 +366,6 @@ impl SelectionSet {
                         buffer,
                         selection,
                         cursor_direction,
-                        context,
                         &self.filters,
                     )
                     .ok()?;
@@ -533,7 +523,6 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        context: &Context,
         filters: &Filters,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         let params = SelectionModeParams {
@@ -678,7 +667,6 @@ impl Selection {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &Direction,
-        context: &Context,
         filters: &Filters,
     ) -> anyhow::Result<ApplyMovementResult> {
         // NOTE: cursor_char_index should only be used where the Direction is Current
@@ -694,7 +682,6 @@ impl Selection {
             buffer,
             current_selection,
             cursor_direction,
-            context,
             filters,
         )?;
 

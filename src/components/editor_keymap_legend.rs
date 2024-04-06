@@ -5,7 +5,6 @@ use SelectionMode::*;
 use convert_case::Case;
 use event::KeyEvent;
 use itertools::Itertools;
-use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, MakeFilterMechanism, Scope},

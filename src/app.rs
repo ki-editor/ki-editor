@@ -953,17 +953,13 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn get_quickfix_list(&self) -> Option<QuickfixList> {
-        if let Some(state) = self.context.quickfix_list_state() {
-            Some(
-                QuickfixList::new(
-                    self.layout.get_quickfix_list_items(&state.source),
-                    self.layout.buffers(),
-                )
-                .set_current_item_index(state.current_item_index),
+        self.context.quickfix_list_state().as_ref().map(|state| {
+            QuickfixList::new(
+                self.layout.get_quickfix_list_items(&state.source),
+                self.layout.buffers(),
             )
-        } else {
-            None
-        }
+            .set_current_item_index(state.current_item_index)
+        })
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
@@ -1035,7 +1031,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
-                SelectionMode::LocalQuickfix { title: title },
+                SelectionMode::LocalQuickfix { title },
             ))),
         }
     }

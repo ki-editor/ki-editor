@@ -941,6 +941,7 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                             character: 3,
                         },
                     ),
+                    message: "To err is normal, but to err again is not.".to_string(),
                     ..Default::default()
                 }]
                 .to_vec(),
@@ -960,14 +961,20 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                         path: s.foo_rs(),
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
                     },
-                    None,
+                    Some(Info::new(
+                        "Diagnostics".to_string(),
+                        "To err is normal, but to err again is not.".to_string(),
+                    )),
                 ),
                 QuickfixListItem::new(
                     Location {
                         path: s.main_rs(),
                         range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
                     },
-                    None,
+                    Some(Info::new(
+                        "Diagnostics".to_string(),
+                        "To err is normal, but to err again is not.".to_string(),
+                    )),
                 ),
             ]))),
         ])

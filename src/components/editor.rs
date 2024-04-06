@@ -391,12 +391,8 @@ impl Editor {
         ))
     }
 
-    pub fn select_line(
-        &mut self,
-        movement: Movement,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
-        self.select(SelectionMode::LineTrimmed, movement, context)
+    pub fn select_line(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
+        self.select(SelectionMode::LineTrimmed, movement)
     }
 
     pub fn select_line_at(&mut self, line: usize) -> anyhow::Result<Dispatches> {
@@ -520,7 +516,6 @@ impl Editor {
         &mut self,
         selection_mode: SelectionMode,
         movement: Movement,
-        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         //  There are a few selection modes where Current make sense.
         let direction = if self.selection_set.mode != selection_mode {
@@ -529,7 +524,7 @@ impl Editor {
             movement
         };
 
-        let selection_set = self.get_selection_set(&selection_mode, direction, context)?;
+        let selection_set = self.get_selection_set(&selection_mode, direction)?;
 
         Ok(self.update_selection_set(selection_set, true))
     }
@@ -541,25 +536,19 @@ impl Editor {
     pub(crate) fn get_selection_mode_trait_object(
         &self,
         selection: &Selection,
-        context: &Context,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         self.selection_set.mode.to_selection_mode_trait_object(
             &self.buffer(),
             selection,
             &self.cursor_direction,
-            context,
             &self.selection_set.filters,
         )
     }
 
-    fn jump_from_selection(
-        &mut self,
-        selection: &Selection,
-        context: &Context,
-    ) -> anyhow::Result<()> {
+    fn jump_from_selection(&mut self, selection: &Selection) -> anyhow::Result<()> {
         let chars = Self::jump_characters();
 
-        let object = self.get_selection_mode_trait_object(selection, context)?;
+        let object = self.get_selection_mode_trait_object(selection)?;
 
         let line_range = self.visible_line_range();
         let jumps = object.jumps(
@@ -577,8 +566,8 @@ impl Editor {
         Ok(())
     }
 
-    pub fn show_jumps(&mut self, context: &Context) -> anyhow::Result<()> {
-        self.jump_from_selection(&self.selection_set.primary.clone(), context)
+    pub fn show_jumps(&mut self) -> anyhow::Result<()> {
+        self.jump_from_selection(&self.selection_set.primary.clone())
     }
 
     pub fn cut(&mut self) -> anyhow::Result<Dispatches> {
@@ -631,7 +620,7 @@ impl Editor {
         dispatches
     }
 
-    pub fn kill(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    pub fn kill(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -644,7 +633,6 @@ impl Editor {
                         &self.selection_set.mode,
                         &Movement::Next,
                         &self.cursor_direction,
-                        context,
                         &self.selection_set.filters,
                     )?
                     .selection;
@@ -884,14 +872,12 @@ impl Editor {
         &self,
         mode: &SelectionMode,
         movement: Movement,
-        context: &Context,
     ) -> anyhow::Result<SelectionSet> {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
             &movement,
             &self.cursor_direction,
-            context,
         )
     }
 
@@ -917,7 +903,7 @@ impl Editor {
             AlignViewBottom => self.align_cursor_to_bottom(),
             Transform(transformation) => return self.transform_selection(transformation),
             SetSelectionMode(selection_mode) => {
-                return self.set_selection_mode(context, selection_mode);
+                return self.set_selection_mode(selection_mode);
             }
 
             FindOneChar => self.enter_single_character_mode(),
@@ -932,20 +918,18 @@ impl Editor {
             ToggleHighlightMode => self.toggle_highlight_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
-            Kill => return self.kill(context),
+            Kill => return self.kill(),
             Insert(string) => return self.insert(&string),
-            MatchLiteral(literal) => return self.match_literal(context, &literal),
+            MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleBookmark => self.toggle_bookmarks(),
-            EnterInsideMode(kind) => {
-                return self.set_selection_mode(context, SelectionMode::Inside(kind))
-            }
+            EnterInsideMode(kind) => return self.set_selection_mode(SelectionMode::Inside(kind)),
             EnterNormalMode => self.enter_normal_mode()?,
             FilterPush(filter) => return Ok(self.filters_push(context, filter)),
-            CursorAddToAllSelections => self.add_cursor_to_all_selections(context)?,
+            CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
-            Raise => return self.replace(context, &Movement::Parent),
-            Exchange(movement) => return self.exchange(context, movement),
+            Raise => return self.replace(&Movement::Parent),
+            Exchange(movement) => return self.exchange(movement),
             EnterExchangeMode => self.enter_exchange_mode(),
             Replace { config } => {
                 let selection_set = self.selection_set.clone();
@@ -957,11 +941,11 @@ impl Editor {
             Undo => return self.undo(),
             KillLine(direction) => return self.kill_line(direction),
             Reset => self.reset(),
-            DeleteWordBackward => return self.delete_word_backward(context),
+            DeleteWordBackward => return self.delete_word_backward(),
             Backspace => return self.backspace(),
             MoveToLineStart => return self.move_to_line_start(),
             MoveToLineEnd => return self.move_to_line_end(),
-            SelectLine(movement) => return self.select_line(movement, context),
+            SelectLine(movement) => return self.select_line(movement),
             SelectKids => return self.select_kids(),
             Redo => return self.redo(),
             OpenNewLine => return self.open_new_line(),
@@ -969,7 +953,7 @@ impl Editor {
             SetRectangle(rectangle) => self.set_rectangle(rectangle),
             ScrollPageDown => return self.scroll_page_down(),
             ScrollPageUp => return self.scroll_page_up(),
-            ShowJumps => self.show_jumps(context)?,
+            ShowJumps => self.show_jumps()?,
             SwitchViewAlignment => self.switch_view_alignment(),
             SetScrollOffset(n) => self.set_scroll_offset(n),
             SetLanguage(language) => self.set_language(language)?,
@@ -980,7 +964,7 @@ impl Editor {
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
             }
-            ReplacePreviousWord(word) => return self.replace_previous_word(&word, context),
+            ReplacePreviousWord(word) => return self.replace_previous_word(&word),
             ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
             SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
@@ -1012,9 +996,9 @@ impl Editor {
                 } else {
                     match &self.mode {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
-                        Mode::Insert => self.handle_insert_mode(context, key_event),
+                        Mode::Insert => self.handle_insert_mode(key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
-                        Mode::FindOneChar => self.handle_find_one_char_mode(context, key_event),
+                        Mode::FindOneChar => self.handle_find_one_char_mode(key_event),
                         Mode::Exchange => self.handle_exchange_mode(context, key_event),
                         Mode::UndoTree => self.handle_undo_tree_mode(context, key_event),
                         Mode::Replace => self.handle_replace_mode(context, key_event),
@@ -1162,11 +1146,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    fn handle_insert_mode(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
+    fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Dispatches> {
         match event {
             key!("esc") => self.enter_normal_mode()?,
             key!("backspace") => return self.backspace(),
@@ -1174,7 +1154,7 @@ impl Editor {
             key!("tab") => return self.insert("\t"),
             key!("ctrl+a") | key!("home") => return self.move_to_line_start(),
             key!("ctrl+e") | key!("end") => return self.move_to_line_end(),
-            key!("alt+backspace") => return self.delete_word_backward(context),
+            key!("alt+backspace") => return self.delete_word_backward(),
             key!("ctrl+k") => {
                 return Ok(([Dispatch::ToEditor(KillLine(Direction::End))].to_vec()).into())
             }
@@ -1208,11 +1188,9 @@ impl Editor {
 
     pub fn set_selection_mode(
         &mut self,
-        context: &Context,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Dispatches> {
         self.move_selection_with_selection_mode_without_global_mode(
-            context,
             Movement::Current,
             selection_mode,
         )
@@ -1244,11 +1222,7 @@ impl Editor {
                 }
             }
         } else {
-            self.move_selection_with_selection_mode_without_global_mode(
-                context,
-                movement,
-                selection_mode,
-            )
+            self.move_selection_with_selection_mode_without_global_mode(movement, selection_mode)
         }
     }
 
@@ -1263,12 +1237,10 @@ impl Editor {
                 movement,
                 self.selection_set.mode.clone(),
             ),
-            Mode::Exchange => self.exchange(context, movement),
-            Mode::Replace => self.replace(context, &movement),
+            Mode::Exchange => self.exchange(movement),
+            Mode::Replace => self.replace(&movement),
             Mode::UndoTree => self.navigate_undo_tree(movement),
-            Mode::MultiCursor => self
-                .add_cursor(context, &movement)
-                .map(|_| Default::default()),
+            Mode::MultiCursor => self.add_cursor(&movement).map(|_| Default::default()),
             _ => Ok(Default::default()),
         }
     }
@@ -1369,7 +1341,6 @@ impl Editor {
         current_selection: &Selection,
         selection_mode: &SelectionMode,
         direction: &Movement,
-        context: &Context,
         get_actual_edit_transaction: impl Fn(
             /* current */ &Selection,
             /* next */ &Selection,
@@ -1386,7 +1357,6 @@ impl Editor {
             selection_mode,
             direction,
             &self.cursor_direction,
-            context,
             &self.selection_set.filters,
         )?
         .selection;
@@ -1446,7 +1416,6 @@ impl Editor {
                 selection_mode,
                 direction,
                 &self.cursor_direction,
-                context,
                 &self.selection_set.filters,
             )?
             .selection;
@@ -1465,7 +1434,6 @@ impl Editor {
         &mut self,
         selection_mode: &SelectionMode,
         movement: Movement,
-        context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let get_edit_transaction = |current_selection: &Selection,
@@ -1507,13 +1475,7 @@ impl Editor {
         };
 
         let edit_transactions = self.selection_set.map(|selection| {
-            self.get_valid_selection(
-                selection,
-                selection_mode,
-                &movement,
-                context,
-                get_edit_transaction,
-            )
+            self.get_valid_selection(selection, selection_mode, &movement, get_edit_transaction)
         });
 
         self.apply_edit_transaction(EditTransaction::merge(
@@ -1525,21 +1487,16 @@ impl Editor {
         ))
     }
 
-    pub fn exchange(
-        &mut self,
-        context: &Context,
-        movement: Movement,
-    ) -> anyhow::Result<Dispatches> {
+    pub fn exchange(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
         let mode = self.selection_set.mode.clone();
-        self.replace_faultlessly(&mode, movement, context)
+        self.replace_faultlessly(&mode, movement)
     }
 
-    pub fn add_cursor(&mut self, context: &Context, direction: &Movement) -> anyhow::Result<()> {
+    pub fn add_cursor(&mut self, direction: &Movement) -> anyhow::Result<()> {
         self.selection_set.add_selection(
             &self.buffer.borrow(),
             direction,
             &self.cursor_direction,
-            context,
         )?;
         self.recalculate_scroll_offset();
         Ok(())
@@ -1601,7 +1558,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn delete_word_backward(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+    pub fn delete_word_backward(&mut self) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
@@ -1622,7 +1579,6 @@ impl Editor {
                             &SelectionMode::Word,
                             &movement,
                             &self.cursor_direction,
-                            context,
                             &self.selection_set.filters,
                         )
                     };
@@ -1659,11 +1615,7 @@ impl Editor {
     }
 
     /// Replace the parent node of the current node with the current node
-    pub fn replace(
-        &mut self,
-        context: &Context,
-        movement: &Movement,
-    ) -> anyhow::Result<Dispatches> {
+    pub fn replace(&mut self, movement: &Movement) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -1699,7 +1651,6 @@ impl Editor {
                 selection,
                 &self.selection_set.mode,
                 movement,
-                context,
                 get_edit_transaction,
             )
         });
@@ -1750,13 +1701,9 @@ impl Editor {
         Ok(dispatch)
     }
 
-    pub fn replace_previous_word(
-        &mut self,
-        completion: &str,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Dispatches> {
         // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
-        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current, context)?;
+        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current)?;
         Ok(self.update_selection_set(selection, false).chain(
             [Dispatch::ToEditor(ReplaceCurrentSelectionWith(
                 completion.to_string(),
@@ -1976,16 +1923,16 @@ impl Editor {
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event {
             key!("esc") => self.enter_normal_mode(),
-            key!("a") => self.add_cursor_to_all_selections(context),
+            key!("a") => self.add_cursor_to_all_selections(),
             key!("o") => self.cursor_keep_primary_only(),
             other => return self.handle_normal_mode(context, other),
         }?;
         Ok(Default::default())
     }
 
-    pub fn add_cursor_to_all_selections(&mut self, context: &Context) -> Result<(), anyhow::Error> {
+    pub fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set
-            .add_all(&self.buffer.borrow(), &self.cursor_direction, context)?;
+            .add_all(&self.buffer.borrow(), &self.cursor_direction)?;
         self.recalculate_scroll_offset();
         self.enter_normal_mode()?;
         Ok(())
@@ -2002,27 +1949,23 @@ impl Editor {
 
     fn handle_find_one_char_mode(
         &mut self,
-        context: &Context,
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
                 self.enter_normal_mode()?;
-                self.set_selection_mode(
-                    context,
-                    SelectionMode::Find {
-                        search: Search {
-                            search: c.to_string(),
-                            mode: crate::context::LocalSearchConfigMode::Regex(
-                                crate::list::grep::RegexConfig {
-                                    escaped: true,
-                                    case_sensitive: true,
-                                    match_whole_word: false,
-                                },
-                            ),
-                        },
+                self.set_selection_mode(SelectionMode::Find {
+                    search: Search {
+                        search: c.to_string(),
+                        mode: crate::context::LocalSearchConfigMode::Regex(
+                            crate::list::grep::RegexConfig {
+                                escaped: true,
+                                case_sensitive: true,
+                                match_whole_word: false,
+                            },
+                        ),
                     },
-                )
+                })
             }
             KeyCode::Esc => {
                 self.enter_normal_mode()?;
@@ -2040,20 +1983,17 @@ impl Editor {
         (self.dimension().height / 2) as usize
     }
 
-    pub fn match_literal(&mut self, context: &Context, search: &str) -> anyhow::Result<Dispatches> {
-        self.set_selection_mode(
-            context,
-            SelectionMode::Find {
-                search: Search {
-                    mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
-                        escaped: true,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    }),
-                    search: search.to_string(),
-                },
+    pub fn match_literal(&mut self, search: &str) -> anyhow::Result<Dispatches> {
+        self.set_selection_mode(SelectionMode::Find {
+            search: Search {
+                mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }),
+                search: search.to_string(),
             },
-        )
+        })
     }
 
     fn handle_exchange_mode(
@@ -2100,11 +2040,10 @@ impl Editor {
 
     fn move_selection_with_selection_mode_without_global_mode(
         &mut self,
-        context: &Context,
         movement: Movement,
         selection_mode: SelectionMode,
     ) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = self.select(selection_mode, movement, context)?;
+        let dispatches = self.select(selection_mode, movement)?;
         self.current_view_alignment = None;
         log::info!("dispatches = {:?}", dispatches);
 

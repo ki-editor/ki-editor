@@ -8,26 +8,20 @@ pub struct LocalQuickfix {
 impl LocalQuickfix {
     pub fn new(params: super::SelectionModeParams<'_>) -> Self {
         let buffer = params.buffer;
-        let ranges = params
-            .buffer
-            .path()
-            .map(|path| buffer.quickfix_list_items())
-            .map(|items| {
-                items
-                    .into_iter()
-                    .filter_map(|item| {
-                        Some(
-                            super::ByteRange::new(
-                                buffer
-                                    .position_range_to_byte_range(&item.location().range)
-                                    .ok()?,
-                            )
-                            .set_info(item.info().clone()),
-                        )
-                    })
-                    .collect()
+        let ranges = buffer
+            .quickfix_list_items()
+            .into_iter()
+            .filter_map(|item| {
+                Some(
+                    super::ByteRange::new(
+                        buffer
+                            .position_range_to_byte_range(&item.location().range)
+                            .ok()?,
+                    )
+                    .set_info(item.info().clone()),
+                )
             })
-            .unwrap_or_default();
+            .collect();
         Self { ranges }
     }
 }

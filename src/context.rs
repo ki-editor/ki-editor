@@ -5,10 +5,7 @@ use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{
-        Dispatches, GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate,
-        Scope,
-    },
+    app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::Clipboard,
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,

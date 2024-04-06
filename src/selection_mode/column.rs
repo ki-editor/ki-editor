@@ -103,7 +103,6 @@ impl Column {
 mod test_column {
     use crate::{
         buffer::Buffer,
-        context::Context,
         selection::{Filters, Selection},
     };
 

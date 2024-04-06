@@ -10,8 +10,6 @@ use crate::{
         suggestive_editor::{Info, SuggestiveEditor},
     },
     context::QuickfixListSource,
-    lsp::diagnostic::Diagnostic,
-    position::Position,
     quickfix_list::{Location, QuickfixListItem},
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
@@ -20,7 +18,7 @@ use anyhow::anyhow;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
@@ -625,11 +623,6 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
-        self.quickfix_list.clone()
-    }
-
-    #[cfg(test)]
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
         self.dropdown_infos.len()
     }
@@ -666,28 +659,6 @@ impl Layout {
         self.file_explorer.borrow().content()
     }
 
-    pub(crate) fn diagnostics(&self) -> Vec<(CanonicalizedPath, Diagnostic, Range<Position>)> {
-        self.buffers()
-            .iter()
-            .filter_map(|buffer| {
-                let buffer = buffer.borrow();
-                let path = buffer.path()?;
-                Some(
-                    buffer
-                        .diagnostics()
-                        .into_iter()
-                        .filter_map(move |diagnostic| {
-                            let position_range = buffer
-                                .char_index_range_to_position_range(diagnostic.range)
-                                .ok()?;
-                            Some((path.clone(), diagnostic, position_range))
-                        }),
-                )
-            })
-            .flatten()
-            .collect()
-    }
-
     pub(crate) fn get_quickfix_list_items(
         &self,
         source: &QuickfixListSource,
@@ -713,7 +684,10 @@ impl Layout {
                                     path: buffer.path()?,
                                     range: position_range,
                                 },
-                                None,
+                                Some(Info::new(
+                                    "Diagnostics".to_string(),
+                                    diagnostic.message.clone(),
+                                )),
                             ))
                         })
                         .collect_vec(),

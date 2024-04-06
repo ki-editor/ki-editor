@@ -38,7 +38,6 @@ use crate::{
         editor::{Direction, Jump, Movement},
         suggestive_editor::Info,
     },
-    context::Context,
     edit::is_overlapping,
     selection::{Filters, Selection},
 };
@@ -512,7 +511,6 @@ mod test_selection_mode {
             editor::{Direction, Movement},
             suggestive_editor::Info,
         },
-        context::Context,
         selection::{CharIndex, Filters, Selection},
         selection_mode::LineTrimmed,
     };

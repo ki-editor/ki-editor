@@ -92,7 +92,6 @@ fn get_node(node: tree_sitter::Node, go_up: bool) -> Option<tree_sitter::Node> {
 mod test_syntax_tree {
     use crate::{
         buffer::Buffer,
-        context::Context,
         selection::{CharIndex, Filters, Selection},
         selection_mode::SelectionModeParams,
     };
@@ -130,7 +129,6 @@ mod test_syntax_tree {
         );
 
         let child_range = (CharIndex(23)..CharIndex(24)).into();
-        let context = Context::default();
         let selection = SyntaxTree.parent(SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
@@ -165,7 +163,6 @@ fn main() {
 
         // Let the range be the space before `let`
         let range = (CharIndex(12)..CharIndex(13)).into();
-        let context = Context::default();
         let selection = SyntaxTree.current(SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(range),

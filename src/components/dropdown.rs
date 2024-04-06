@@ -506,6 +506,7 @@ pub struct DropdownRender {
     pub info: Option<Info>,
 }
 impl DropdownRender {
+    #[cfg(test)]
     pub(crate) fn current_line(&self) -> String {
         self.content.lines().collect_vec()[self.highlight_line_index].to_string()
     }

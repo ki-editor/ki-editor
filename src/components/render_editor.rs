@@ -93,7 +93,7 @@ impl Editor {
         let theme = context.theme();
 
         let possible_selections = self
-            .possible_selections_in_line_number_range(&self.selection_set.primary, context)
+            .possible_selections_in_line_number_range(&self.selection_set.primary)
             .unwrap_or_default()
             .into_iter()
             .map(|range| HighlightSpan {
@@ -520,9 +520,8 @@ impl Editor {
     pub fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
-        context: &Context,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let object = self.get_selection_mode_trait_object(selection, context)?;
+        let object = self.get_selection_mode_trait_object(selection)?;
         if self.selection_set.mode.is_contiguous() && self.selection_set.filters.is_empty() {
             return Ok(Vec::new());
         }
