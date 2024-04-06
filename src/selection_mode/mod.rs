@@ -103,9 +103,6 @@ pub struct SelectionModeParams<'a> {
     pub buffer: &'a Buffer,
     pub current_selection: &'a Selection,
     pub cursor_direction: &'a Direction,
-    /// TODO: remove this field as it is only used by the Diagnostic selection mode
-    /// And since we are already passing in diagnostics via UpdatableRanges, we can remove context
-    pub context: &'a Context,
     pub filters: &'a Filters,
 }
 impl<'a> SelectionModeParams<'a> {
@@ -196,7 +193,6 @@ pub trait SelectionMode {
             buffer,
             current_selection,
             cursor_direction,
-            context,
             filters,
         } = params;
         let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
@@ -215,7 +211,6 @@ pub trait SelectionMode {
                     buffer,
                     cursor_direction,
                     current_selection: &current_selection.clone().set_range(char_index_range),
-                    context,
                     filters,
                 })
             })
@@ -454,7 +449,6 @@ pub trait SelectionMode {
                 buffer,
                 current_selection: &current_selection,
                 cursor_direction: &Direction::default(),
-                context: &Context::default(),
                 filters: &Filters::default(),
             })
             .unwrap()
@@ -483,7 +477,6 @@ pub trait SelectionMode {
             buffer,
             current_selection: &Selection::default(),
             cursor_direction: &Direction::default(),
-            context: &Context::default(),
             filters: &Filters::default(),
         };
         Ok((0..up_to)
@@ -556,7 +549,6 @@ mod test_selection_mode {
                 end: CharIndex(current_selection_byte_range.end),
             }),
             cursor_direction: &Direction::default(),
-            context: &Context::default(),
             filters: &Filters::default(),
         };
         let actual = Dummy
@@ -625,7 +617,6 @@ mod test_selection_mode {
                     "Spongebob".to_string(),
                 ))),
             cursor_direction: &Direction::default(),
-            context: &Context::default(),
             filters: &Filters::default(),
         };
         struct Dummy;
@@ -681,7 +672,6 @@ mod test_selection_mode {
                     end: CharIndex(6),
                 })),
             cursor_direction: &Direction::default(),
-            context: &Context::default(),
             filters: &Filters::default(),
         };
         let actual = Dummy
@@ -705,7 +695,6 @@ mod test_selection_mode {
                 end: CharIndex(5),
             }),
             cursor_direction: &Direction::default(),
-            context: &Context::default(),
             filters: &Filters::default(),
         };
         let actual = LineTrimmed
@@ -743,7 +732,6 @@ fn f() {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &Direction::default(),
-                    context: &Context::default(),
                     filters: &Filters::default(),
                 })
                 .unwrap()

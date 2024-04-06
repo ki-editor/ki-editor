@@ -564,7 +564,6 @@ impl Editor {
         let line_range = self.visible_line_range();
         let jumps = object.jumps(
             selection_mode::SelectionModeParams {
-                context,
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,

@@ -385,7 +385,6 @@ impl SelectionSet {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
-                        context,
                         filters: &self.filters,
                     })
                     .ok()?;
@@ -541,7 +540,6 @@ impl SelectionMode {
             buffer,
             current_selection,
             cursor_direction,
-            context,
             filters,
         };
         Ok(match self {
@@ -701,7 +699,6 @@ impl Selection {
         )?;
 
         let params = SelectionModeParams {
-            context,
             buffer,
             current_selection,
             cursor_direction,

@@ -530,7 +530,6 @@ impl Editor {
         let line_range = self.visible_line_range();
         object.selections_in_line_number_range(
             &selection_mode::SelectionModeParams {
-                context,
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,

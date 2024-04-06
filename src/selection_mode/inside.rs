@@ -172,7 +172,6 @@ mod test_inside {
             buffer: &buffer,
             current_selection: &Selection::default(),
             cursor_direction: &Direction::default(),
-            context: &Context::default(),
             filters: &Filters::default(),
         };
 
@@ -207,7 +206,6 @@ mod test_inside {
                 current_selection: &Selection::default()
                     .set_range((CharIndex(range.start)..CharIndex(range.end)).into()),
                 cursor_direction: &Direction::default(),
-                context: &Context::default(),
                 filters: &Filters::default(),
             })?;
             let current_text = buffer.slice(&current.unwrap().extended_range())?;
