@@ -893,6 +893,38 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn local_lsp_references() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
+            )),
+            App(HandleLspNotification(LspNotification::References(
+                crate::lsp::process::ResponseContext {
+                    scope: Some(Scope::Local),
+                    component_id: Default::default(),
+                    description: None,
+                },
+                [
+                    Location {
+                        path: s.main_rs(),
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                    },
+                    Location {
+                        path: s.main_rs(),
+                        range: Position { line: 0, column: 3 }..Position { line: 0, column: 4 },
+                    },
+                ]
+                .to_vec(),
+            ))),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["fn", "f"])),
+        ])
+    })
+}
+
+#[test]
 fn global_diagnostics() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let publish_diagnostics = |path: CanonicalizedPath| {

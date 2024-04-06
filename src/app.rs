@@ -457,7 +457,9 @@ impl<T: Frontend> App<T> {
                 self.lsp_manager.document_did_save(path)?;
             }
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
-            Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
+            Dispatch::SetQuickfixList(r#type) => {
+                self.set_quickfix_list_type(Default::default(), r#type)?
+            }
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
                 self.goto_selection_history_contiguous(movement)?;
@@ -826,20 +828,24 @@ impl<T: Frontend> App<T> {
                                 "No definitions found".to_string(),
                             ));
                         } else {
-                            self.set_quickfix_list_type(QuickfixListType::Items(
-                                locations.into_iter().map(QuickfixListItem::from).collect(),
-                            ))?;
+                            self.set_quickfix_list_type(
+                                context,
+                                QuickfixListType::Items(
+                                    locations.into_iter().map(QuickfixListItem::from).collect(),
+                                ),
+                            )?;
                         }
                     }
                 }
 
                 Ok(())
             }
-            LspNotification::References(context, locations) => {
-                self.set_quickfix_list_type(QuickfixListType::Items(
+            LspNotification::References(context, locations) => self.set_quickfix_list_type(
+                context,
+                QuickfixListType::Items(
                     locations.into_iter().map(QuickfixListItem::from).collect(),
-                ))
-            }
+                ),
+            ),
             LspNotification::Completion(_context, completion) => {
                 self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::Completion(
                     completion,
@@ -987,7 +993,12 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
+    fn set_quickfix_list_type(
+        &mut self,
+        context: ResponseContext,
+        r#type: QuickfixListType,
+    ) -> anyhow::Result<()> {
+        let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
@@ -1017,8 +1028,16 @@ impl<T: Frontend> App<T> {
                 self.context
                     .set_quickfix_list_source(QuickfixListSource::Bookmark);
             }
-        };
-        self.goto_quickfix_list_item(Movement::Current)
+        }
+        match context.scope {
+            None | Some(Scope::Global) => {
+                self.goto_quickfix_list_item(Movement::Current)?;
+                Ok(())
+            }
+            Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
+                SelectionMode::LocalQuickfix { title: title },
+            ))),
+        }
     }
 
     fn apply_workspace_edit(&mut self, workspace_edit: WorkspaceEdit) -> Result<(), anyhow::Error> {
@@ -1083,12 +1102,15 @@ impl<T: Frontend> App<T> {
                 list::ast_grep::run(config.search().clone(), walk_builder_config)
             }
         }?;
-        self.set_quickfix_list_type(QuickfixListType::Items(
-            locations
-                .into_iter()
-                .map(|location| QuickfixListItem::new(location, None))
-                .collect_vec(),
-        ))?;
+        self.set_quickfix_list_type(
+            ResponseContext::default().set_description("Global search"),
+            QuickfixListType::Items(
+                locations
+                    .into_iter()
+                    .map(|location| QuickfixListItem::new(location, None))
+                    .collect_vec(),
+            ),
+        )?;
         Ok(())
     }
 
@@ -1241,31 +1263,34 @@ impl<T: Frontend> App<T> {
         let working_directory = self.working_directory.clone();
         let repo = git::GitRepo::try_from(&working_directory)?;
         let diffs = repo.diffs()?;
-        self.set_quickfix_list_type(QuickfixListType::Items(
-            diffs
-                .into_iter()
-                .flat_map(|file_diff| {
-                    file_diff
-                        .hunks()
-                        .iter()
-                        .map(|hunk| {
-                            let line_range = hunk.line_range();
-                            let location = Location {
-                                path: file_diff.path().clone(),
-                                range: Position {
-                                    line: line_range.start,
-                                    column: 0,
-                                }..Position {
-                                    line: line_range.end,
-                                    column: 0,
-                                },
-                            };
-                            QuickfixListItem::new(location, hunk.to_info())
-                        })
-                        .collect_vec()
-                })
-                .collect_vec(),
-        ))
+        self.set_quickfix_list_type(
+            ResponseContext::default().set_description("Git Hunks"),
+            QuickfixListType::Items(
+                diffs
+                    .into_iter()
+                    .flat_map(|file_diff| {
+                        file_diff
+                            .hunks()
+                            .iter()
+                            .map(|hunk| {
+                                let line_range = hunk.line_range();
+                                let location = Location {
+                                    path: file_diff.path().clone(),
+                                    range: Position {
+                                        line: line_range.start,
+                                        column: 0,
+                                    }..Position {
+                                        line: line_range.end,
+                                        column: 0,
+                                    },
+                                };
+                                QuickfixListItem::new(location, hunk.to_info())
+                            })
+                            .collect_vec()
+                    })
+                    .collect_vec(),
+            ),
+        )
     }
 
     fn set_global_title(&mut self, title: String) {
