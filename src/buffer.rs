@@ -35,11 +35,6 @@ pub struct Buffer {
     bookmarks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
     quickfix_list_items: Vec<QuickfixListItem>,
-    // TODO: store quickfix lists here, with ID
-    // the global app state will store the ID of each quickfix list
-    // then it shall retrieve the quickfixes through each buffer
-    // pros: quickfixes range can be updated by edit
-    // cons: cannot retrieve old quickfixes if the buffer is quitted
     decorations: Vec<Decoration>,
 }
 
