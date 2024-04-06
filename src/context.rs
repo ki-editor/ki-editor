@@ -11,7 +11,7 @@ use crate::{
     },
     clipboard::Clipboard,
     list::grep::RegexConfig,
-    quickfix_list::{QuickfixList, QuickfixListItem, QuickfixLists},
+    quickfix_list::DiagnosticSeverityRange,
     syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
@@ -34,7 +34,7 @@ pub struct QuickfixListState {
 }
 
 pub enum QuickfixListSource {
-    Diagnostic,
+    Diagnostic(DiagnosticSeverityRange),
     Bookmark,
     Custom,
 }

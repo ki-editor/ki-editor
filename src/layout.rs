@@ -697,12 +697,17 @@ impl Layout {
             .flat_map(|buffer| {
                 let buffer = buffer.borrow();
                 match source {
-                    QuickfixListSource::Diagnostic => buffer
+                    QuickfixListSource::Diagnostic(severity_range) => buffer
                         .diagnostics()
                         .into_iter()
-                        .filter_map(|d| {
-                            let position_range =
-                                buffer.char_index_range_to_position_range(d.range).ok()?;
+                        .filter_map(|diagnostic| {
+                            if !severity_range.contains(diagnostic.severity) {
+                                return None;
+                            }
+
+                            let position_range = buffer
+                                .char_index_range_to_position_range(diagnostic.range)
+                                .ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,

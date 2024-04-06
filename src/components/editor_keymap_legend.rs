@@ -12,7 +12,7 @@ use crate::{
     components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
-    quickfix_list::QuickfixListType,
+    quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     selection::{FilterKind, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
     transformation::Transformation,
@@ -529,11 +529,11 @@ impl Editor {
 
     fn keymap_diagnostics(&self, scope: Scope) -> KeymapLegendSection {
         let keymaps = [
-            ("a", "Any", None),
-            ("e", "Error", Some(DiagnosticSeverity::ERROR)),
-            ("h", "Hint", Some(DiagnosticSeverity::HINT)),
-            ("I", "Information", Some(DiagnosticSeverity::INFORMATION)),
-            ("w", "Warning", Some(DiagnosticSeverity::WARNING)),
+            ("a", "All", DiagnosticSeverityRange::All),
+            ("e", "Error", DiagnosticSeverityRange::Error),
+            ("h", "Hint", DiagnosticSeverityRange::Hint),
+            ("I", "Information", DiagnosticSeverityRange::Information),
+            ("w", "Warning", DiagnosticSeverityRange::Warning),
         ]
         .into_iter()
         .map(|(char, description, severity)| {
@@ -543,7 +543,7 @@ impl Editor {
                 match scope {
                     Scope::Local => Dispatch::ToEditor(SetSelectionMode(Diagnostic(severity))),
                     Scope::Global => {
-                        Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic(severity))
+                        Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(severity))
                     }
                 },
             )

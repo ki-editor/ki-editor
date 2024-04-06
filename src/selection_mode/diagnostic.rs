@@ -1,22 +1,20 @@
-use lsp_types::DiagnosticSeverity;
-
-use crate::components::suggestive_editor::Info;
+use crate::{components::suggestive_editor::Info, quickfix_list::DiagnosticSeverityRange};
 
 use super::SelectionMode;
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
 pub struct Diagnostic {
-    severity: Option<DiagnosticSeverity>,
+    severity_range: DiagnosticSeverityRange,
     diagnostics: Vec<crate::lsp::diagnostic::Diagnostic>,
 }
 
 impl Diagnostic {
     pub fn new(
-        severity: Option<DiagnosticSeverity>,
+        severity_range: DiagnosticSeverityRange,
         params: super::SelectionModeParams<'_>,
     ) -> Self {
         Self {
-            severity,
+            severity_range,
             diagnostics: params.buffer.diagnostics(),
         }
     }
@@ -35,9 +33,7 @@ impl SelectionMode for Diagnostic {
         Ok(Box::new(
             self.diagnostics
                 .iter()
-                .filter(|diagnostic| {
-                    self.severity.is_none() || diagnostic.severity == self.severity
-                })
+                .filter(|diagnostic| self.severity_range.contains(diagnostic.severity))
                 .filter_map(|diagnostic| {
                     Some(super::ByteRange::with_info(
                         buffer.char_index_range_to_byte_range(diagnostic.range)?,

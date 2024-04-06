@@ -962,7 +962,6 @@ impl<T: Frontend> App<T> {
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
         if let Some(mut quickfix_list) = self.get_quickfix_list() {
             if let Some((current_item_index, dispatches)) = quickfix_list.get_item(movement) {
-                println!("current_item_index = {}", current_item_index);
                 self.context
                     .set_quickfix_list_current_item_idex(current_item_index);
                 self.handle_dispatches(dispatches)?;
@@ -990,28 +989,9 @@ impl<T: Frontend> App<T> {
     fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         match r#type {
-            QuickfixListType::LspDiagnostic(severity) => {
-                let quickfix_list = QuickfixList::new(
-                    self.layout
-                        .diagnostics()
-                        .into_iter()
-                        .filter(|(_, diagnostic, _)| {
-                            if severity.is_none() {
-                                true
-                            } else {
-                                diagnostic.severity == severity
-                            }
-                        })
-                        .map(|(path, diagnostic, range)| {
-                            QuickfixListItem::new(
-                                Location { path, range },
-                                Some(Info::new("Diagnostic".to_string(), diagnostic.message())),
-                            )
-                        })
-                        .collect(),
-                );
-
-                // self.set_quickfix_list( ResponseContext::default().set_description("Diagnostic"), quickfix_list, )
+            QuickfixListType::Diagnostic(severity_range) => {
+                self.context
+                    .set_quickfix_list_source(QuickfixListSource::Diagnostic(severity_range));
             }
             QuickfixListType::Items(items) => {
                 self.layout.clear_quickfix_list_items();

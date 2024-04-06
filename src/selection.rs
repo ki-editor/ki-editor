@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use lsp_types::DiagnosticSeverity;
 use std::ops::{Add, Range, Sub};
 
 use ropey::Rope;
@@ -14,6 +13,7 @@ use crate::{
     },
     context::{Context, LocalSearchConfigMode, Search},
     position::Position,
+    quickfix_list::DiagnosticSeverityRange,
     selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
 };
 
@@ -480,7 +480,7 @@ pub enum SelectionMode {
     SyntaxTree,
 
     // LSP
-    Diagnostic(Option<DiagnosticSeverity>),
+    Diagnostic(DiagnosticSeverityRange),
 
     // Git
     GitHunk,
@@ -518,10 +518,7 @@ impl SelectionMode {
                 format!("FIND {} {:?}", search.mode.display(), search.search)
             }
             SelectionMode::Diagnostic(severity) => {
-                let severity = severity
-                    .map(|severity| format!("{:?}", severity))
-                    .unwrap_or("ANY".to_string())
-                    .to_uppercase();
+                let severity = format!("{:?}", severity).to_uppercase();
                 format!("DIAGNOSTIC:{}", severity)
             }
             SelectionMode::GitHunk => "GIT HUNK".to_string(),

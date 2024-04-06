@@ -879,6 +879,56 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn global_diagnostics() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let publish_diagnostics = |path: CanonicalizedPath| {
+            LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
+                uri: path.to_url().unwrap(),
+                diagnostics: [lsp_types::Diagnostic {
+                    range: lsp_types::Range::new(
+                        lsp_types::Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        lsp_types::Position {
+                            line: 0,
+                            character: 3,
+                        },
+                    ),
+                    ..Default::default()
+                }]
+                .to_vec(),
+                version: None,
+            })
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(HandleLspNotification(publish_diagnostics(s.main_rs()))),
+            App(HandleLspNotification(publish_diagnostics(s.foo_rs()))),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Diagnostic(DiagnosticSeverityRange::All),
+            )),
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                    },
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                    },
+                    None,
+                ),
+            ]))),
+        ])
+    })
+}
+
+#[test]
 fn search_config_history() -> Result<(), anyhow::Error> {
     let owner_id = ComponentId::new();
     let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Step {
@@ -1096,7 +1146,7 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                     version: None,
                 }),
             )),
-            Editor(SetSelectionMode(Diagnostic(None))),
+            Editor(SetSelectionMode(Diagnostic(DiagnosticSeverityRange::All))),
             Expect(EditorInfoOpen(true)),
             Expect(EditorInfoContent("Hello world")),
         ])

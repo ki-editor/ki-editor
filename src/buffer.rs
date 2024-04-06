@@ -474,7 +474,7 @@ impl Buffer {
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
 
-        // Update all the bookmarks
+        // Update all the spans
         self.bookmarks = std::mem::take(&mut self.bookmarks)
             .into_iter()
             .filter_map(|bookmark| bookmark.apply_edit(edit))

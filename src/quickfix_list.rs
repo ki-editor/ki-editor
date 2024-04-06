@@ -303,9 +303,30 @@ impl Ord for Location {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuickfixListType {
-    LspDiagnostic(Option<DiagnosticSeverity>),
+    Diagnostic(DiagnosticSeverityRange),
     Items(Vec<QuickfixListItem>),
     Bookmark,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum DiagnosticSeverityRange {
+    All,
+    Error,
+    Warning,
+    Information,
+    Hint,
+}
+impl DiagnosticSeverityRange {
+    pub(crate) fn contains(&self, severity: Option<DiagnosticSeverity>) -> bool {
+        match (self, severity) {
+            (DiagnosticSeverityRange::All, _) => true,
+            (DiagnosticSeverityRange::Error, Some(DiagnosticSeverity::ERROR)) => true,
+            (DiagnosticSeverityRange::Warning, Some(DiagnosticSeverity::WARNING)) => true,
+            (DiagnosticSeverityRange::Information, Some(DiagnosticSeverity::INFORMATION)) => true,
+            (DiagnosticSeverityRange::Hint, Some(DiagnosticSeverity::HINT)) => true,
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]
