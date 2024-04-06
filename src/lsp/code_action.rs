@@ -42,32 +42,30 @@ impl CodeAction {
     }
     pub fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
         let value = self;
-        DropdownItem {
-            rank: None,
-            info: None,
-            display: value.title,
-            group: Some(
+        DropdownItem::new(value.title)
+            .set_group(Some(
                 value
                     .kind
                     .and_then(|kind| if kind.is_empty() { None } else { Some(kind) })
                     .unwrap_or("Misc.".to_string()),
-            ),
-            dispatches: value
-                .edit
-                .map(Dispatch::ApplyWorkspaceEdit)
-                .into_iter()
-                // A command this code action executes. If a code action
-                // provides an edit and a command, first the edit is
-                // executed and then the command.
-                // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-                .chain(params.and_then(|params| {
-                    value
-                        .command
-                        .map(|command| Dispatch::LspExecuteCommand { command, params })
-                }))
-                .collect_vec()
-                .into(),
-        }
+            ))
+            .set_dispatches(
+                value
+                    .edit
+                    .map(Dispatch::ApplyWorkspaceEdit)
+                    .into_iter()
+                    // A command this code action executes. If a code action
+                    // provides an edit and a command, first the edit is
+                    // executed and then the command.
+                    // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
+                    .chain(params.and_then(|params| {
+                        value
+                            .command
+                            .map(|command| Dispatch::LspExecuteCommand { command, params })
+                    }))
+                    .collect_vec()
+                    .into(),
+            )
     }
 }
 

@@ -42,20 +42,16 @@ pub enum SuggestiveEditorFilter {
 
 impl From<CompletionItem> for DropdownItem {
     fn from(value: CompletionItem) -> Self {
-        Self {
-            display: format!("{} {}", value.emoji(), value.label()),
-            info: value.info(),
-            dispatches: Dispatches::one(match value.edit {
+        DropdownItem::new(format!("{} {}", value.emoji(), value.label()))
+            .set_info(value.info())
+            .set_dispatches(Dispatches::one(match value.edit {
                 None => Dispatch::ToEditor(ReplacePreviousWord(value.label())),
                 Some(edit) => match edit {
                     CompletionItemEdit::PositionalEdit(edit) => {
                         Dispatch::ToEditor(ApplyPositionalEdit(edit))
                     }
                 },
-            }),
-            group: None,
-            rank: None,
-        }
+            }))
     }
 }
 

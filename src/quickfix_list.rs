@@ -19,28 +19,26 @@ impl QuickfixListItem {
     fn into_dropdown_item(self: QuickfixListItem, buffers: &[Rc<RefCell<Buffer>>]) -> DropdownItem {
         let location = self.location();
         let Position { line, column } = location.range.start;
-        DropdownItem {
-            info: self.info.clone(),
-            display: {
-                let content = location
-                    .read_from_buffers(buffers)
-                    .unwrap_or_else(|| "[Failed to read file]".to_string())
-                    .trim_matches(|c: char| c.is_whitespace())
-                    .to_string();
-                format!("{}:{}  {}", line + 1, column + 1, content)
-            },
-            group: {
-                let path = self.location().path.clone();
-                Some(
-                    path.display_relative()
-                        .unwrap_or_else(|_| path.display_absolute()),
-                )
-            },
-            dispatches: Dispatches::one(crate::app::Dispatch::GotoLocation(
-                self.location().to_owned(),
-            )),
-            rank: Some(Box::new([line, column])),
-        }
+        DropdownItem::new({
+            let content = location
+                .read_from_buffers(buffers)
+                .unwrap_or_else(|| "[Failed to read file]".to_string())
+                .trim_matches(|c: char| c.is_whitespace())
+                .to_string();
+            format!("{}:{}  {}", line + 1, column + 1, content)
+        })
+        .set_info(self.info.clone())
+        .set_group({
+            let path = self.location().path.clone();
+            Some(
+                path.display_relative()
+                    .unwrap_or_else(|_| path.display_absolute()),
+            )
+        })
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::GotoLocation(
+            self.location().to_owned(),
+        )))
+        .set_rank(Some(Box::new([line, column])))
     }
 
     pub(crate) fn set_location_range(self, range: Range<Position>) -> QuickfixListItem {

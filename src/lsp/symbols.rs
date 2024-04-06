@@ -66,12 +66,10 @@ impl Symbol {
 impl From<Symbol> for DropdownItem {
     fn from(symbol: Symbol) -> Self {
         let dispatches = Dispatches::one(Dispatch::GotoLocation(symbol.location.to_owned()));
-        Self {
-            dispatches,
-            display: symbol.display(),
-            group: Some(symbol.container_name.unwrap_or("[TOP LEVEL]".to_string())),
-            info: None,
-            rank: None,
-        }
+        DropdownItem::new(symbol.display())
+            .set_group(Some(
+                symbol.container_name.unwrap_or("[TOP LEVEL]".to_string()),
+            ))
+            .set_dispatches(dispatches)
     }
 }

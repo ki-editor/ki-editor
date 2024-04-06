@@ -1679,14 +1679,10 @@ impl<T: Frontend> App<T> {
                     .buffer()
                     .words()
                     .into_iter()
-                    .map(|word| DropdownItem {
-                        dispatches: Dispatches::one(Dispatch::ToEditor(
-                            ReplaceCurrentSelectionWith(word.clone()),
-                        )),
-                        display: word,
-                        group: None,
-                        info: None,
-                        rank: None,
+                    .map(|word| {
+                        DropdownItem::new("".to_string()).set_dispatches(Dispatches::one(
+                            Dispatch::ToEditor(ReplaceCurrentSelectionWith(word.clone())),
+                        ))
                     })
                     .collect_vec()
             })

@@ -1,6 +1,7 @@
 use crate::{app::Dispatches, components::editor::Movement};
 
 use itertools::Itertools;
+
 use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
 
 use super::suggestive_editor::Info;
@@ -10,10 +11,17 @@ use super::suggestive_editor::Info;
 pub struct DropdownItem {
     pub dispatches: Dispatches,
     pub display: String,
-    pub group: Option<String>,
+    group: Option<String>,
     pub info: Option<Info>,
     /// Sorting will be based on `rank` if defined, otherwise sorting will be based on `display`
     pub rank: Option<Box<[usize]>>,
+    group_and_display: String,
+}
+
+impl AsRef<str> for DropdownItem {
+    fn as_ref(&self) -> &str {
+        &self.group_and_display
+    }
 }
 
 impl DropdownItem {
@@ -24,6 +32,7 @@ impl DropdownItem {
     pub(crate) fn new(display: String) -> Self {
         Self {
             dispatches: Default::default(),
+            group_and_display: display.clone(),
             display,
             group: Default::default(),
             info: Default::default(),
@@ -38,44 +47,46 @@ impl DropdownItem {
     pub(crate) fn set_dispatches(self, dispatches: Dispatches) -> DropdownItem {
         Self { dispatches, ..self }
     }
+
+    pub fn set_group(self, group: Option<String>) -> Self {
+        Self {
+            group_and_display: format!("{} {}", group.clone().unwrap_or_default(), self.display),
+            group,
+            ..self
+        }
+    }
+
+    pub(crate) fn set_rank(self, rank: Option<Box<[usize]>>) -> DropdownItem {
+        Self { rank, ..self }
+    }
 }
 
 impl From<CanonicalizedPath> for DropdownItem {
     fn from(value: CanonicalizedPath) -> Self {
-        Self {
-            display: {
-                let name = value
-                    .to_path_buf()
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
-                let icon = value.icon();
-                format!("{icon} {name}")
-            },
-            group: value.parent().ok().flatten().map(|parent| {
-                format!(
-                    "{} {}",
-                    get_icon_config().folder,
-                    parent.try_display_relative()
-                )
-            }),
-            dispatches: Dispatches::one(crate::app::Dispatch::OpenFile(value)),
-            info: None,
-            rank: None,
-        }
+        DropdownItem::new({
+            let name = value
+                .to_path_buf()
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            let icon = value.icon();
+            format!("{icon} {name}")
+        })
+        .set_group(value.parent().ok().flatten().map(|parent| {
+            format!(
+                "{} {}",
+                get_icon_config().folder,
+                parent.try_display_relative()
+            )
+        }))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(value)))
     }
 }
 
 impl From<String> for DropdownItem {
     fn from(value: String) -> Self {
-        Self {
-            display: value.clone(),
-            dispatches: Dispatches::default(),
-            group: None,
-            info: None,
-            rank: None,
-        }
+        Self::new(value)
     }
 }
 
@@ -208,20 +219,21 @@ impl Dropdown {
     }
 
     fn compute_filtered_items(&mut self) {
-        self.filtered_items = self
-            .items
-            .iter()
-            .filter(|item| {
-                item.display
-                    .to_lowercase()
-                    .contains(&self.filter.to_lowercase())
-            })
+        use nucleo_matcher::{
+            pattern::{CaseMatching, Normalization, Pattern},
+            Config, Matcher,
+        };
+        let mut matcher = Matcher::new(Config::DEFAULT.match_paths());
+        let matches = Pattern::parse(&self.filter, CaseMatching::Ignore, Normalization::Smart)
+            .match_list(self.items.clone(), &mut matcher);
+        self.filtered_items = matches
+            .into_iter()
+            .map(|(m, _)| m)
             .sorted_by(|a, b| match (&a.rank, &b.rank) {
                 (Some(rank_a), Some(rank_b)) => (&a.group, rank_a).cmp(&(&b.group, rank_b)),
                 _ => (&a.group, &a.display).cmp(&(&b.group, &b.display)),
             })
-            .cloned()
-            .collect();
+            .collect_vec();
     }
 
     pub fn set_filter(&mut self, filter: &str) {
@@ -345,6 +357,7 @@ mod test_dropdown {
                 group: Some(value.group.clone()),
                 dispatches: Default::default(),
                 rank: None,
+                group_and_display: value.label.to_string(),
             }
         }
     }
