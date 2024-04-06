@@ -10,6 +10,7 @@ use my_proc_macros::{key, keys};
 use serial_test::serial;
 
 use std::{
+    ops::Range,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -44,7 +45,7 @@ use crate::{
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
     position::Position,
-    quickfix_list::{Location, QuickfixListItem},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
 };
 use crate::{lsp::process::LspNotification, themes::Color};
@@ -106,6 +107,7 @@ pub enum ExpectKind {
     GridCellStyleKey(Position, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
+    BufferQuickfixListItems(Vec<Range<Position>>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -312,6 +314,18 @@ impl ExpectKind {
                     .diagnostics()
                     .into_iter()
                     .map(|d| d.range)
+                    .collect_vec(),
+            ),
+            BufferQuickfixListItems(expected) => contextualize(
+                expected,
+                &app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .quickfix_list_items()
+                    .into_iter()
+                    .map(|d| d.location().range.clone())
                     .collect_vec(),
             ),
         })

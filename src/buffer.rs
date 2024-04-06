@@ -470,11 +470,36 @@ impl Buffer {
     }
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
+        // We have to get the char index range of positional spans before updating the content
+        let quickfix_list_items_with_char_index_range =
+            std::mem::take(&mut self.quickfix_list_items)
+                .into_iter()
+                .filter_map(|item| {
+                    Some((
+                        self.position_range_to_char_index_range(&item.location().range)
+                            .ok()?,
+                        item,
+                    ))
+                })
+                .collect_vec();
+
+        // Update the content
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
 
-        // Update all the spans
+        // Update all the positional spans (by using the char index ranges computed before the content is updated
+        self.quickfix_list_items = quickfix_list_items_with_char_index_range
+            .into_iter()
+            .filter_map(|(char_index_range, item)| {
+                let position_range = self
+                    .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
+                    .ok()?;
+                Some(item.set_location_range(position_range))
+            })
+            .collect_vec();
+
+        // Update all the non-positional spans
         self.bookmarks = std::mem::take(&mut self.bookmarks)
             .into_iter()
             .filter_map(|bookmark| bookmark.apply_edit(edit))

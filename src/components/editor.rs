@@ -57,6 +57,7 @@ pub struct Jump {
     pub selection: Selection,
 }
 const WINDOW_TITLE_HEIGHT: usize = 1;
+
 impl Component for Editor {
     fn id(&self) -> ComponentId {
         self.id

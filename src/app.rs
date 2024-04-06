@@ -12,9 +12,7 @@ use crate::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
-    context::{
-        Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, QuickfixListState, Search,
-    },
+    context::{Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, Search},
     frontend::Frontend,
     git,
     grid::Grid,
@@ -951,8 +949,11 @@ impl<T: Frontend> App<T> {
     pub fn get_quickfix_list(&self) -> Option<QuickfixList> {
         if let Some(state) = self.context.quickfix_list_state() {
             Some(
-                QuickfixList::new(self.layout.get_quickfix_list_items(&state.source))
-                    .set_current_item_index(state.current_item_index),
+                QuickfixList::new(
+                    self.layout.get_quickfix_list_items(&state.source),
+                    self.layout.buffers(),
+                )
+                .set_current_item_index(state.current_item_index),
             )
         } else {
             None

@@ -1,8 +1,10 @@
 use std::{
+    cell::RefCell,
     fs::File,
     io::{self, BufRead},
     ops::Range,
     path::Path,
+    rc::Rc,
 };
 
 use itertools::Itertools;
@@ -10,6 +12,8 @@ use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::Dispatches,
+    buffer::Buffer,
+    char_index_range::CharIndexRange,
     components::{
         component::Component,
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
@@ -24,30 +28,45 @@ pub struct QuickfixLists {
     lists: Vec<QuickfixList>,
 }
 
-impl From<QuickfixListItem> for DropdownItem {
-    fn from(value: QuickfixListItem) -> Self {
-        let location = value.location();
+impl QuickfixListItem {
+    fn into_dropdown_item(
+        self: QuickfixListItem,
+        buffers: &Vec<Rc<RefCell<Buffer>>>,
+    ) -> DropdownItem {
+        let location = self.location();
         let Position { line, column } = location.range.start;
-        Self {
-            info: value.info.clone(),
+        DropdownItem {
+            info: self.info.clone(),
             display: {
-                let content = read_specific_line(&location.path, line)
-                    .unwrap_or("[Failed to read file]".to_string())
-                    .trim_start_matches(|c: char| c.is_whitespace())
+                let content = location
+                    .read_from_buffers(&buffers)
+                    .unwrap_or_else(|| "[Failed to read file]".to_string())
+                    .trim_matches(|c: char| c.is_whitespace())
                     .to_string();
                 format!("{}:{}  {}", line + 1, column + 1, content)
             },
             group: {
-                let path = value.location().path.clone();
+                let path = self.location().path.clone();
                 Some(
                     path.display_relative()
                         .unwrap_or_else(|_| path.display_absolute()),
                 )
             },
             dispatches: Dispatches::one(crate::app::Dispatch::GotoLocation(
-                value.location().to_owned(),
+                self.location().to_owned(),
             )),
             rank: Some(Box::new([line, column])),
+        }
+    }
+
+    pub(crate) fn set_location_range(self, range: Range<Position>) -> QuickfixListItem {
+        let QuickfixListItem {
+            location: Location { path, .. },
+            info,
+        } = self;
+        QuickfixListItem {
+            info,
+            location: Location { path, range },
         }
     }
 }
@@ -119,7 +138,7 @@ pub struct QuickfixList {
 }
 
 impl QuickfixList {
-    pub fn new(items: Vec<QuickfixListItem>) -> QuickfixList {
+    pub fn new(items: Vec<QuickfixListItem>, buffers: Vec<Rc<RefCell<Buffer>>>) -> QuickfixList {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "Quickfix".to_string(),
         });
@@ -138,7 +157,12 @@ impl QuickfixList {
                     .reduce(Info::join),
             })
             .collect_vec();
-        dropdown.set_items(items.iter().map(|item| item.to_owned().into()).collect());
+        dropdown.set_items(
+            items
+                .iter()
+                .map(|item| item.to_owned().into_dropdown_item(&buffers))
+                .collect(),
+        );
 
         QuickfixList {
             items,
@@ -268,6 +292,26 @@ impl Location {
                 )
             })
     }
+
+    fn read_from_buffers(&self, buffers: &Vec<Rc<RefCell<Buffer>>>) -> Option<String> {
+        buffers
+            .iter()
+            .find(|buffer| {
+                if let Some(path) = buffer.borrow().path() {
+                    path == self.path
+                } else {
+                    false
+                }
+            })
+            .and_then(|buffer| {
+                Some(
+                    buffer
+                        .borrow()
+                        .get_line_by_line_index(self.range.start.line)?
+                        .to_string(),
+                )
+            })
+    }
 }
 
 impl TryFrom<lsp_types::Location> for Location {
@@ -359,7 +403,8 @@ mod test_quickfix_list {
             },
             info: None,
         };
-        let quickfix_list = QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()]);
+        let quickfix_list =
+            QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()], Vec::new());
         assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
     }
 
@@ -383,7 +428,7 @@ mod test_quickfix_list {
         ]
         .to_vec();
 
-        let quickfix_list = QuickfixList::new(items);
+        let quickfix_list = QuickfixList::new(items, Vec::new());
 
         assert_eq!(
             quickfix_list.items(),

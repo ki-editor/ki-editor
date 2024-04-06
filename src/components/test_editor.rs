@@ -3,6 +3,8 @@ use crate::components::editor::DispatchEditor::*;
 use crate::components::editor::Movement::*;
 
 use crate::lsp::process::LspNotification;
+use crate::quickfix_list::Location;
+use crate::quickfix_list::QuickfixListItem;
 use crate::rectangle::Rectangle;
 
 use crate::selection::CharIndex;
@@ -1145,6 +1147,60 @@ fn diagnostics_range_updated_by_edit() -> anyhow::Result<()> {
                 [CharIndexRange::from(
                     CharIndex(3 + hello.len())..CharIndex(7 + hello.len()),
                 )]
+                .to_vec(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_items_updated_by_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() { 
+  let x = 123 
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                        },
+                        None,
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            Expect(ExpectKind::BufferQuickfixListItems(
+                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+            )),
+            // 1. Testing edit that does not affect the line of the quickfix item
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            // 1a. The position range should remain the same
+            Expect(ExpectKind::BufferQuickfixListItems(
+                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+            )),
+            Editor(EnterNormalMode),
+            // 2. Testing edit that affects the line of the quickfix item
+            Editor(MatchLiteral("let".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            // 2a. The position range should be updated
+            Expect(ExpectKind::BufferQuickfixListItems(
+                [Position { line: 1, column: 7 }..Position {
+                    line: 1,
+                    column: 10,
+                }]
                 .to_vec(),
             )),
         ])
