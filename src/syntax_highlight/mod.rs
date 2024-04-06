@@ -1,9 +1,10 @@
-use std::{collections::HashMap, ops::Range, sync::mpsc::Sender};
+use std::{collections::HashMap, ops::Range, sync::mpsc::Sender, time::Duration};
 
 use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
 
 use crate::{
-    app::AppMessage, components::component::ComponentId, grid::StyleKey, themes::HIGHLIGHT_NAMES,
+    app::AppMessage, char_index_range::apply_edit, components::component::ComponentId,
+    grid::StyleKey, themes::HIGHLIGHT_NAMES,
 };
 use shared::language::Language;
 
@@ -11,6 +12,14 @@ use shared::language::Language;
 pub struct HighlighedSpan {
     pub byte_range: Range<usize>,
     pub style_key: StyleKey,
+}
+impl HighlighedSpan {
+    fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> Option<HighlighedSpan> {
+        Some(HighlighedSpan {
+            byte_range: apply_edit(self.byte_range, edited_range, change)?,
+            ..self
+        })
+    }
 }
 
 pub trait GetHighlightConfig {
@@ -81,6 +90,16 @@ impl Highlight for HighlightConfiguration {
 
 #[derive(Clone, Default, Debug)]
 pub struct HighlighedSpans(pub Vec<HighlighedSpan>);
+impl HighlighedSpans {
+    pub(crate) fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> HighlighedSpans {
+        HighlighedSpans(
+            self.0
+                .into_iter()
+                .filter_map(|span| span.apply_edit(edited_range, change))
+                .collect(),
+        )
+    }
+}
 
 pub struct SyntaxHighlightRequest {
     pub component_id: ComponentId,
@@ -95,9 +114,17 @@ pub struct SyntaxHighlightResponse {
 
 pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
     let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
+    use debounce::EventDebouncer;
+    struct Event(SyntaxHighlightRequest);
+    impl PartialEq for Event {
+        fn eq(&self, other: &Self) -> bool {
+            self.0.component_id == other.0.component_id
+        }
+    }
+
     std::thread::spawn(move || {
         let mut highlight_configs = HighlightConfigs::new();
-        while let Ok(request) = receiver.recv() {
+        let debounce = EventDebouncer::new(Duration::from_millis(150), move |Event(request)| {
             match highlight_configs.highlight(request.language, &request.source_code) {
                 Ok(highlighted_spans) => {
                     let _ = callback.send(AppMessage::SyntaxHighlightResponse {
@@ -109,8 +136,13 @@ pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightReque
                     log::info!("syntax_highlight_error = {:#?}", error)
                 }
             }
+        });
+
+        while let Ok(request) = receiver.recv() {
+            debounce.put(Event(request))
         }
     });
+
     sender
 }
 type TreeSitterGrammarId = String;

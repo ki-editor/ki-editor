@@ -1,11 +1,6 @@
 use std::ops::Range;
 
-use crate::{
-    buffer::Buffer,
-    components::editor::Direction,
-    edit::{is_overlapping, ApplyOffset},
-    selection::CharIndex,
-};
+use crate::{buffer::Buffer, components::editor::Direction, edit::Edit, selection::CharIndex};
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
 pub struct CharIndexRange {
@@ -51,16 +46,6 @@ impl ToByteRange for CharIndexRange {
 }
 
 impl CharIndexRange {
-    pub fn apply_edit(self, edit: &crate::edit::Edit) -> Option<CharIndexRange> {
-        if edit.range.start >= self.end {
-            Some(self)
-        } else if edit.range.overlaps(&self) {
-            None
-        } else {
-            Some(self.apply_offset(edit.offset()))
-        }
-    }
-
     pub fn iter(&self) -> CharIndexRangeIter {
         CharIndexRangeIter {
             range: *self,
@@ -90,20 +75,25 @@ impl CharIndexRange {
         }
     }
 
-    fn overlaps(&self, other: &CharIndexRange) -> bool {
-        is_overlapping(&self.to_range(), &other.to_range())
-    }
-
-    fn to_range(self) -> Range<CharIndex> {
-        self.start..self.end
-    }
-
     pub(crate) fn end(&self) -> CharIndex {
         self.end
     }
 
     pub(crate) fn start(&self) -> CharIndex {
         self.start
+    }
+
+    pub(crate) fn apply_edit(&self, edit: &Edit) -> Option<CharIndexRange> {
+        let range = apply_edit(
+            self.start.0..self.end.0,
+            &(edit.range.start.0..edit.range.end.0),
+            edit.chars_offset(),
+        )?;
+        Some((CharIndex(range.start)..(CharIndex(range.end))).into())
+    }
+
+    pub(crate) fn contains(&self, char_index: &CharIndex) -> bool {
+        &self.start <= char_index && char_index <= &self.end
     }
 }
 
@@ -131,5 +121,87 @@ impl From<Range<CharIndex>> for CharIndexRange {
             start: value.start,
             end: value.end,
         }
+    }
+}
+
+/// `change` = new length - old length
+pub fn apply_edit(
+    range: Range<usize>,
+    edited_range: &Range<usize>,
+    change: isize,
+) -> Option<Range<usize>> {
+    // `edited_range` comes after
+    if edited_range.start >= range.end {
+        Some(range)
+    }
+    // `edited_range` comes before
+    else if edited_range.end <= range.start {
+        if change.is_positive() {
+            let change = change as usize;
+            Some(range.start + change..range.end + change)
+        } else {
+            let change = change.unsigned_abs();
+            Some(range.start - change..range.end - change)
+        }
+    }
+    // `edited_range` is equal or superset
+    else if edited_range.start <= range.start && edited_range.end >= range.end {
+        None
+    }
+    // `edited_range` is subset
+    else if range.start <= edited_range.start && range.end >= edited_range.end {
+        Some(range.start..(range.end as isize + change) as usize)
+    }
+    // `edited_range` intersects front
+    else if range.contains(&edited_range.end) {
+        Some(edited_range.end..range.end)
+    }
+    // `edited_range` intessects back
+    else if range.contains(&edited_range.start) {
+        Some(range.start..edited_range.start)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod test_apply_edit {
+    use super::apply_edit;
+    #[test]
+    fn none_if_edited_range_is_equal() {
+        assert_eq!(apply_edit(10..20, &(10..20), 0), None)
+    }
+
+    #[test]
+    fn none_if_edited_range_is_superset() {
+        assert_eq!(apply_edit(10..20, &(9..20), 0), None);
+        assert_eq!(apply_edit(10..20, &(10..21), 0), None);
+    }
+
+    #[test]
+    fn unaffected_if_edited_range_comes_after() {
+        assert_eq!(apply_edit(10..20, &(20..30), 0), Some(10..20))
+    }
+
+    #[test]
+    fn adjusted_by_offset_if_edited_range_comes_before() {
+        assert_eq!(apply_edit(10..20, &(0..5), 3), Some(13..23));
+        assert_eq!(apply_edit(10..20, &(0..5), -3), Some(7..17))
+    }
+
+    #[test]
+    fn trim_front_if_edited_range_intersects_front() {
+        assert_eq!(apply_edit(10..20, &(0..12), 3), Some(12..20));
+    }
+
+    #[test]
+    fn trim_back_if_edited_range_intersects_back() {
+        assert_eq!(apply_edit(10..20, &(18..22), 3), Some(10..18));
+    }
+
+    #[test]
+    fn resize_if_edited_range_is_subset() {
+        assert_eq!(apply_edit(10..20, &(11..12), 3), Some(10..23));
+        assert_eq!(apply_edit(10..20, &(11..13), -1), Some(10..19));
     }
 }

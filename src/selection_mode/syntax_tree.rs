@@ -92,7 +92,6 @@ fn get_node(node: tree_sitter::Node, go_up: bool) -> Option<tree_sitter::Node> {
 mod test_syntax_tree {
     use crate::{
         buffer::Buffer,
-        context::Context,
         selection::{CharIndex, Filters, Selection},
         selection_mode::SelectionModeParams,
     };
@@ -130,9 +129,7 @@ mod test_syntax_tree {
         );
 
         let child_range = (CharIndex(23)..CharIndex(24)).into();
-        let context = Context::default();
         let selection = SyntaxTree.parent(SelectionModeParams {
-            context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -143,7 +140,6 @@ mod test_syntax_tree {
         assert_eq!(parent_range, (CharIndex(22)..CharIndex(31)).into());
 
         let selection = SyntaxTree.first_child(SelectionModeParams {
-            context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(parent_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -167,9 +163,7 @@ fn main() {
 
         // Let the range be the space before `let`
         let range = (CharIndex(12)..CharIndex(13)).into();
-        let context = Context::default();
         let selection = SyntaxTree.current(SelectionModeParams {
-            context: &context,
             buffer: &buffer,
             current_selection: &Selection::new(range),
             cursor_direction: &crate::components::editor::Direction::Start,

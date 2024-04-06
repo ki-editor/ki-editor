@@ -9,6 +9,8 @@ use crate::{
         prompt::Prompt,
         suggestive_editor::{Info, SuggestiveEditor},
     },
+    context::QuickfixListSource,
+    quickfix_list::{Location, QuickfixListItem},
     rectangle::{Border, LayoutKind, Rectangle},
     selection::SelectionSet,
 };
@@ -335,9 +337,15 @@ impl Layout {
             .cloned()
     }
 
-    pub fn open_file(&mut self, path: &CanonicalizedPath) -> Option<Rc<RefCell<SuggestiveEditor>>> {
+    pub fn open_file(
+        &mut self,
+        path: &CanonicalizedPath,
+        focus_editor: bool,
+    ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         if let Some(matching_editor) = self.get_existing_editor(path) {
-            self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
+            if focus_editor {
+                self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
+            }
             Some(matching_editor)
         } else {
             None
@@ -498,7 +506,7 @@ impl Layout {
         path: &CanonicalizedPath,
         selection_set: SelectionSet,
     ) -> anyhow::Result<()> {
-        self.open_file(path);
+        self.open_file(path, true);
         if let Some(editor) = self.main_panel.editor.clone() {
             editor
                 .borrow_mut()
@@ -615,11 +623,6 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
-        self.quickfix_list.clone()
-    }
-
-    #[cfg(test)]
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
         self.dropdown_infos.len()
     }
@@ -654,6 +657,65 @@ impl Layout {
     #[cfg(test)]
     pub(crate) fn file_explorer_content(&self) -> String {
         self.file_explorer.borrow().content()
+    }
+
+    pub(crate) fn get_quickfix_list_items(
+        &self,
+        source: &QuickfixListSource,
+    ) -> Vec<QuickfixListItem> {
+        self.buffers()
+            .into_iter()
+            .flat_map(|buffer| {
+                let buffer = buffer.borrow();
+                match source {
+                    QuickfixListSource::Diagnostic(severity_range) => buffer
+                        .diagnostics()
+                        .into_iter()
+                        .filter_map(|diagnostic| {
+                            if !severity_range.contains(diagnostic.severity) {
+                                return None;
+                            }
+
+                            let position_range = buffer
+                                .char_index_range_to_position_range(diagnostic.range)
+                                .ok()?;
+                            Some(QuickfixListItem::new(
+                                Location {
+                                    path: buffer.path()?,
+                                    range: position_range,
+                                },
+                                Some(Info::new(
+                                    "Diagnostics".to_string(),
+                                    diagnostic.message.clone(),
+                                )),
+                            ))
+                        })
+                        .collect_vec(),
+                    QuickfixListSource::Bookmark => buffer
+                        .bookmarks()
+                        .into_iter()
+                        .filter_map(|bookmark| {
+                            let position_range =
+                                buffer.char_index_range_to_position_range(bookmark).ok()?;
+                            Some(QuickfixListItem::new(
+                                Location {
+                                    path: buffer.path()?,
+                                    range: position_range,
+                                },
+                                None,
+                            ))
+                        })
+                        .collect_vec(),
+                    QuickfixListSource::Custom => buffer.quickfix_list_items(),
+                }
+            })
+            .collect_vec()
+    }
+
+    pub(crate) fn clear_quickfix_list_items(&mut self) {
+        for buffer in self.buffers() {
+            buffer.borrow_mut().clear_quickfix_list_items()
+        }
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

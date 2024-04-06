@@ -10,6 +10,7 @@ use my_proc_macros::{key, keys};
 use serial_test::serial;
 
 use std::{
+    ops::Range,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -26,6 +27,7 @@ use crate::{
         App, Dimension, Dispatch, GlobalSearchConfigUpdate, GlobalSearchFilterGlob,
         LocalSearchConfigUpdate, Scope,
     },
+    char_index_range::CharIndexRange,
     components::{
         component::{Component, ComponentId},
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
@@ -43,7 +45,7 @@ use crate::{
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
     position::Position,
-    quickfix_list::{Location, QuickfixListItem},
+    quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
 };
 use crate::{lsp::process::LspNotification, themes::Color};
@@ -103,6 +105,9 @@ pub enum ExpectKind {
         /*Background color*/ Color,
     ),
     GridCellStyleKey(Position, Option<StyleKey>),
+    HighlightSpans(std::ops::Range<usize>, StyleKey),
+    DiagnosticsRanges(Vec<CharIndexRange>),
+    BufferQuickfixListItems(Vec<Range<Position>>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -138,8 +143,9 @@ impl ExpectKind {
             }
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
-                app.get_quickfixes()
-                    .unwrap_or_default()
+                app.get_quickfix_list()
+                    .unwrap()
+                    .items()
                     .into_iter()
                     .map(|quickfix| {
                         let info = quickfix
@@ -256,17 +262,17 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.quickfix_list().unwrap().borrow().content();
+                let actual = app.get_quickfix_list().unwrap().render().content;
                 println!("actual =\n{actual}");
                 contextualize(actual, content.to_string())
             }
             DropdownInfosCount(expected) => {
                 contextualize(app.get_dropdown_infos_count(), *expected)
             }
-            QuickfixListCurrentLine(expected) => contextualize(
-                app.quickfix_list().unwrap().borrow().current_line()?,
-                expected.to_string(),
-            ),
+            QuickfixListCurrentLine(expected) => {
+                let render = app.get_quickfix_list().unwrap().render();
+                contextualize(render.current_line(), expected.to_string())
+            }
             EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
             EditorInfoContent(expected) => {
                 contextualize(app.editor_info_content(), Some(expected.to_string()))
@@ -284,6 +290,43 @@ impl ExpectKind {
                     .borrow()
                     .editor()
                     .cursor_direction,
+            ),
+            HighlightSpans(expected_range, expected_key) => contextualize(
+                expected_key,
+                &app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .highlighted_spans()
+                    .into_iter()
+                    .find(|span| &span.byte_range == expected_range)
+                    .unwrap()
+                    .style_key,
+            ),
+            DiagnosticsRanges(expected) => contextualize(
+                expected.to_vec(),
+                app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .diagnostics()
+                    .into_iter()
+                    .map(|d| d.range)
+                    .collect_vec(),
+            ),
+            BufferQuickfixListItems(expected) => contextualize(
+                expected,
+                &app.current_component()
+                    .unwrap()
+                    .borrow()
+                    .editor()
+                    .buffer()
+                    .quickfix_list_items()
+                    .into_iter()
+                    .map(|d| d.location().range.clone())
+                    .collect_vec(),
             ),
         })
     }
@@ -850,6 +893,95 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn local_lsp_references() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
+            )),
+            App(HandleLspNotification(LspNotification::References(
+                crate::lsp::process::ResponseContext {
+                    scope: Some(Scope::Local),
+                    component_id: Default::default(),
+                    description: None,
+                },
+                [
+                    Location {
+                        path: s.main_rs(),
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 2 },
+                    },
+                    Location {
+                        path: s.main_rs(),
+                        range: Position { line: 0, column: 3 }..Position { line: 0, column: 4 },
+                    },
+                ]
+                .to_vec(),
+            ))),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["fn", "f"])),
+        ])
+    })
+}
+
+#[test]
+fn global_diagnostics() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let publish_diagnostics = |path: CanonicalizedPath| {
+            LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
+                uri: path.to_url().unwrap(),
+                diagnostics: [lsp_types::Diagnostic {
+                    range: lsp_types::Range::new(
+                        lsp_types::Position {
+                            line: 0,
+                            character: 0,
+                        },
+                        lsp_types::Position {
+                            line: 0,
+                            character: 3,
+                        },
+                    ),
+                    message: "To err is normal, but to err again is not.".to_string(),
+                    ..Default::default()
+                }]
+                .to_vec(),
+                version: None,
+            })
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(HandleLspNotification(publish_diagnostics(s.main_rs()))),
+            App(HandleLspNotification(publish_diagnostics(s.foo_rs()))),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Diagnostic(DiagnosticSeverityRange::All),
+            )),
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                    },
+                    Some(Info::new(
+                        "Diagnostics".to_string(),
+                        "To err is normal, but to err again is not.".to_string(),
+                    )),
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: Position { line: 0, column: 0 }..Position { line: 0, column: 3 },
+                    },
+                    Some(Info::new(
+                        "Diagnostics".to_string(),
+                        "To err is normal, but to err again is not.".to_string(),
+                    )),
+                ),
+            ]))),
+        ])
+    })
+}
+
+#[test]
 fn search_config_history() -> Result<(), anyhow::Error> {
     let owner_id = ComponentId::new();
     let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Step {
@@ -1021,12 +1153,12 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├─ 2:1  foo b // Line 2")),
+            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo b // Line 2")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
-            Expect(QuickfixListCurrentLine("└─ 10:1  foo a // Line 10")),
+            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
@@ -1067,7 +1199,7 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                     version: None,
                 }),
             )),
-            Editor(SetSelectionMode(Diagnostic(None))),
+            Editor(SetSelectionMode(Diagnostic(DiagnosticSeverityRange::All))),
             Expect(EditorInfoOpen(true)),
             Expect(EditorInfoContent("Hello world")),
         ])

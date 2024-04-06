@@ -1,12 +1,12 @@
-use std::ops::Range;
-
-use crate::{position::Position, quickfix_list::Location};
+use crate::{
+    buffer::Buffer, char_index_range::CharIndexRange, position::Position, quickfix_list::Location,
+};
 
 use lsp_types::DiagnosticSeverity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
-    pub range: Range<Position>,
+    pub range: CharIndexRange,
     pub message: String,
     pub severity: Option<DiagnosticSeverity>,
     pub related_information: Option<Vec<DiagnosticRelatedInformation>>,
@@ -15,16 +15,6 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(range: Range<Position>, message: String) -> Self {
-        Self {
-            range,
-            message,
-            severity: None,
-            related_information: None,
-            code_description: None,
-            original_value: None,
-        }
-    }
     pub fn message(&self) -> String {
         let severity = self.severity.map(|severity| match severity {
             DiagnosticSeverity::ERROR => "ERROR",
@@ -67,13 +57,12 @@ impl Diagnostic {
                 .unwrap_or_else(|| "N/A".to_string())
         )
     }
-}
 
-impl TryFrom<lsp_types::Diagnostic> for Diagnostic {
-    type Error = anyhow::Error;
-    fn try_from(value: lsp_types::Diagnostic) -> Result<Self, Self::Error> {
+    pub fn try_from(buffer: &Buffer, value: lsp_types::Diagnostic) -> anyhow::Result<Self> {
         Ok(Self {
-            range: Position::from(value.range.start)..Position::from(value.range.end),
+            range: buffer.position_range_to_char_index_range(
+                &(Position::from(value.range.start)..Position::from(value.range.end)),
+            )?,
             message: value.message.clone(),
             severity: value.severity,
             code_description: value.code_description.clone(),

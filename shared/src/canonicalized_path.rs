@@ -1,5 +1,7 @@
 use std::path::{Path, PathBuf};
 
+use url::Url;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CanonicalizedPath(PathBuf);
 
@@ -147,5 +149,9 @@ impl CanonicalizedPath {
     pub fn try_display_relative(&self) -> String {
         self.display_relative()
             .unwrap_or_else(|_| self.display_absolute())
+    }
+
+    pub fn to_url(&self) -> Option<Url> {
+        Url::from_file_path(self.0.clone()).ok()
     }
 }

@@ -103,7 +103,6 @@ impl Column {
 mod test_column {
     use crate::{
         buffer::Buffer,
-        context::Context,
         selection::{Filters, Selection},
     };
 
@@ -153,7 +152,6 @@ gam
             let result = method(
                 &selection_mode,
                 crate::selection_mode::SelectionModeParams {
-                    context: &Context::default(),
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &crate::components::editor::Direction::Start,

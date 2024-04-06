@@ -12,7 +12,7 @@ use crate::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
     },
-    context::{Context, GlobalMode, LocalSearchConfigMode, Search},
+    context::{Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, Search},
     frontend::Frontend,
     git,
     grid::Grid,
@@ -20,7 +20,6 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
-        diagnostic::Diagnostic,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
         process::{LspNotification, ResponseContext},
@@ -458,7 +457,9 @@ impl<T: Frontend> App<T> {
                 self.lsp_manager.document_did_save(path)?;
             }
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
-            Dispatch::SetQuickfixList(r#type) => self.set_quickfix_list_type(r#type)?,
+            Dispatch::SetQuickfixList(r#type) => {
+                self.set_quickfix_list_type(Default::default(), r#type)?
+            }
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
                 self.goto_selection_history_contiguous(movement)?;
@@ -764,11 +765,10 @@ impl<T: Frontend> App<T> {
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
-        position_range: Option<Range<Position>>,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path) {
+        if let Some(matching_editor) = self.layout.open_file(path, focus_editor) {
             return Ok(matching_editor);
         }
 
@@ -777,14 +777,6 @@ impl<T: Frontend> App<T> {
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));
         let editor = SuggestiveEditor::from_buffer(buffer, SuggestiveEditorFilter::CurrentWord);
-        let _selection_set = position_range
-            .map(|position_range| {
-                editor
-                    .editor()
-                    .position_range_to_selection_set(position_range)
-            })
-            .transpose()?
-            .unwrap_or_default();
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
 
@@ -810,7 +802,7 @@ impl<T: Frontend> App<T> {
         path: &CanonicalizedPath,
         focus_editor: bool,
     ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
-        self.open_file_custom(path, focus_editor, None)
+        self.open_file_custom(path, focus_editor)
     }
 
     fn get_suggestive_editor(
@@ -836,21 +828,23 @@ impl<T: Frontend> App<T> {
                                 "No definitions found".to_string(),
                             ));
                         } else {
-                            self.set_quickfix_list(
+                            self.set_quickfix_list_type(
                                 context,
-                                QuickfixList::new(
+                                QuickfixListType::Items(
                                     locations.into_iter().map(QuickfixListItem::from).collect(),
                                 ),
-                            )?
+                            )?;
                         }
                     }
                 }
 
                 Ok(())
             }
-            LspNotification::References(context, locations) => self.set_quickfix_list(
+            LspNotification::References(context, locations) => self.set_quickfix_list_type(
                 context,
-                QuickfixList::new(locations.into_iter().map(QuickfixListItem::from).collect()),
+                QuickfixListType::Items(
+                    locations.into_iter().map(QuickfixListItem::from).collect(),
+                ),
             ),
             LspNotification::Completion(_context, completion) => {
                 self.handle_dispatch_suggestive_editor(DispatchSuggestiveEditor::Completion(
@@ -872,11 +866,6 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::PublishDiagnostics(params) => {
-                let diagnostics = params
-                    .diagnostics
-                    .into_iter()
-                    .map(Diagnostic::try_from)
-                    .collect::<Result<Vec<_>, _>>()?;
                 self.update_diagnostics(
                     params
                         .uri
@@ -885,8 +874,8 @@ impl<T: Frontend> App<T> {
                             anyhow::anyhow!("Couldn't convert URI to file path: {:?}", err)
                         })?
                         .try_into()?,
-                    diagnostics,
-                );
+                    params.diagnostics,
+                )?;
                 Ok(())
             }
             LspNotification::PrepareRenameResponse(context, response) => {
@@ -949,15 +938,38 @@ impl<T: Frontend> App<T> {
         }
     }
 
-    fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
-        self.context.update_diagnostics(path, diagnostics);
+    fn update_diagnostics(
+        &mut self,
+        path: CanonicalizedPath,
+        diagnostics: Vec<lsp_types::Diagnostic>,
+    ) -> anyhow::Result<()> {
+        let component = self.open_file_custom(&path, false)?;
+        component
+            .borrow_mut()
+            .editor_mut()
+            .buffer_mut()
+            .set_diagnostics(diagnostics);
+        Ok(())
+    }
+
+    pub fn get_quickfix_list(&self) -> Option<QuickfixList> {
+        self.context.quickfix_list_state().as_ref().map(|state| {
+            QuickfixList::new(
+                self.layout.get_quickfix_list_items(&state.source),
+                self.layout.buffers(),
+            )
+            .set_current_item_index(state.current_item_index)
+        })
     }
 
     fn goto_quickfix_list_item(&mut self, movement: Movement) -> anyhow::Result<()> {
-        let dispatches = self.context.goto_quickfix_list_item(movement);
-        if let Some(dispatches) = dispatches {
-            self.handle_dispatches(dispatches)?;
-            self.render_quickfix_list()?;
+        if let Some(mut quickfix_list) = self.get_quickfix_list() {
+            if let Some((current_item_index, dispatches)) = quickfix_list.get_item(movement) {
+                self.context
+                    .set_quickfix_list_current_item_idex(current_item_index);
+                self.handle_dispatches(dispatches)?;
+                self.render_quickfix_list(quickfix_list)?;
+            }
         }
 
         Ok(())
@@ -977,87 +989,49 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn set_quickfix_list_type(&mut self, r#type: QuickfixListType) -> anyhow::Result<()> {
-        match r#type {
-            QuickfixListType::LspDiagnostic(severity) => {
-                let quickfix_list = QuickfixList::new(
-                    self.context
-                        .diagnostics()
-                        .into_iter()
-                        .filter(|(_, diagnostic)| diagnostic.severity == severity)
-                        .map(|(path, diagnostic)| {
-                            QuickfixListItem::new(
-                                Location {
-                                    path: (*path).clone(),
-                                    range: diagnostic.range.clone(),
-                                },
-                                Some(Info::new("Diagnostic".to_string(), diagnostic.message())),
-                            )
-                        })
-                        .collect(),
-                );
-
-                self.set_quickfix_list(
-                    ResponseContext::default().set_description("Diagnostic"),
-                    quickfix_list,
-                )
-            }
-            QuickfixListType::Items(items) => {
-                self.set_quickfix_list(ResponseContext::default(), QuickfixList::new(items))
-            }
-            QuickfixListType::Bookmark => {
-                let quickfix_list = QuickfixList::new(
-                    self.layout
-                        .buffers()
-                        .into_iter()
-                        .flat_map(|buffer| {
-                            buffer
-                                .borrow()
-                                .bookmarks()
-                                .into_iter()
-                                .filter_map(|bookmark| {
-                                    let buffer = buffer.borrow();
-                                    let position_range =
-                                        buffer.char_index_range_to_position_range(bookmark).ok()?;
-                                    Some(QuickfixListItem::new(
-                                        Location {
-                                            path: buffer.path()?,
-                                            range: position_range,
-                                        },
-                                        None,
-                                    ))
-                                })
-                                .collect_vec()
-                        })
-                        .collect_vec(),
-                );
-                self.set_quickfix_list(
-                    ResponseContext::default().set_description("Marks"),
-                    quickfix_list,
-                )
-            }
-        }
-    }
-
-    fn set_quickfix_list(
+    fn set_quickfix_list_type(
         &mut self,
         context: ResponseContext,
-        quickfix_list: QuickfixList,
+        r#type: QuickfixListType,
     ) -> anyhow::Result<()> {
+        let title = context.description.unwrap_or_default();
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
-        let quickfix_list = quickfix_list.set_title(context.description.clone());
-        let title = quickfix_list.title();
-        self.context.set_quickfix_list(quickfix_list);
+        match r#type {
+            QuickfixListType::Diagnostic(severity_range) => {
+                self.context
+                    .set_quickfix_list_source(QuickfixListSource::Diagnostic(severity_range));
+            }
+            QuickfixListType::Items(items) => {
+                self.layout.clear_quickfix_list_items();
+                items
+                    .into_iter()
+                    .group_by(|item| item.location().path.clone())
+                    .into_iter()
+                    .map(|(path, items)| -> anyhow::Result<()> {
+                        let editor = self.open_file_custom(&path, false)?;
+                        editor
+                            .borrow_mut()
+                            .editor_mut()
+                            .buffer_mut()
+                            .update_quickfix_list_items(items.collect_vec());
+                        Ok(())
+                    })
+                    .collect::<anyhow::Result<Vec<_>>>()?;
+                self.context
+                    .set_quickfix_list_source(QuickfixListSource::Custom);
+            }
+            QuickfixListType::Bookmark => {
+                self.context
+                    .set_quickfix_list_source(QuickfixListSource::Bookmark);
+            }
+        }
         match context.scope {
             None | Some(Scope::Global) => {
-                self.render_quickfix_list()?;
                 self.goto_quickfix_list_item(Movement::Current)?;
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
-                SelectionMode::LocalQuickfix {
-                    title: title.unwrap_or_default(),
-                },
+                SelectionMode::LocalQuickfix { title },
             ))),
         }
     }
@@ -1124,9 +1098,9 @@ impl<T: Frontend> App<T> {
                 list::ast_grep::run(config.search().clone(), walk_builder_config)
             }
         }?;
-        self.set_quickfix_list(
+        self.set_quickfix_list_type(
             ResponseContext::default().set_description("Global search"),
-            QuickfixList::new(
+            QuickfixListType::Items(
                 locations
                     .into_iter()
                     .map(|location| QuickfixListItem::new(location, None))
@@ -1285,9 +1259,9 @@ impl<T: Frontend> App<T> {
         let working_directory = self.working_directory.clone();
         let repo = git::GitRepo::try_from(&working_directory)?;
         let diffs = repo.diffs()?;
-        self.set_quickfix_list(
-            ResponseContext::default().set_description("Repo Git Hunks"),
-            QuickfixList::new(
+        self.set_quickfix_list_type(
+            ResponseContext::default().set_description("Git Hunks"),
+            QuickfixListType::Items(
                 diffs
                     .into_iter()
                     .flat_map(|file_diff| {
@@ -1313,11 +1287,6 @@ impl<T: Frontend> App<T> {
                     .collect_vec(),
             ),
         )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn get_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
-        self.context.get_latest_quickfixes()
     }
 
     fn set_global_title(&mut self, title: String) {
@@ -1823,20 +1792,14 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn quickfix_list(&self) -> Option<Rc<RefCell<Editor>>> {
-        self.layout.quickfix_list()
-    }
-
-    #[cfg(test)]
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
         self.layout.get_dropdown_infos_count()
     }
 
-    fn render_quickfix_list(&mut self) -> anyhow::Result<()> {
+    pub fn render_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
         let editor = self.layout.show_quickfix_list();
-        if let Some(render) = self.context.current_quickfix_list().map(|q| q.render()) {
-            self.render_dropdown(None, editor, render)?;
-        }
+        let render = quickfix_list.render();
+        self.render_dropdown(None, editor, render)?;
         Ok(())
     }
 

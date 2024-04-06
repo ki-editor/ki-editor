@@ -1,8 +1,13 @@
+use crate::char_index_range::CharIndexRange;
 use crate::components::editor::DispatchEditor::*;
 use crate::components::editor::Movement::*;
 
+use crate::lsp::process::LspNotification;
+use crate::quickfix_list::Location;
+use crate::quickfix_list::QuickfixListItem;
 use crate::rectangle::Rectangle;
 
+use crate::selection::CharIndex;
 use crate::style::Style;
 use crate::test_app::*;
 
@@ -367,15 +372,16 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(Bookmark)),
             // Expect bookmark position is updated, and still selects "spim"
             Expect(CurrentSelectedTexts(&["spim"])),
-            // Remove "m" from "spim"
-            Editor(EnterInsertMode(Direction::End)),
-            Editor(Backspace),
-            Expect(CurrentComponentContent("bar spi")),
+            // Remove "spim"
+            Editor(Change),
+            Expect(CurrentComponentContent("bar ")),
             Editor(EnterNormalMode),
+            Editor(SetSelectionMode(Word)),
+            Expect(CurrentSelectedTexts(&["bar"])),
             Editor(SetSelectionMode(Bookmark)),
             // Expect the "spim" bookmark is removed
-            // By the fact that "spi" is not selected
-            Expect(CurrentSelectedTexts(&["i"])),
+            // By the fact that "bar" is still selected
+            Expect(CurrentSelectedTexts(&["bar"])),
         ])
     })
 }
@@ -1100,6 +1106,133 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             )),
             // Expect the cursor is after 'd'
             Expect(EditorGridCursorPosition(Position { line: 2, column: 7 })),
+        ])
+    })
+}
+
+#[test]
+fn diagnostics_range_updated_by_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let hello = &"hello";
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
+            App(HandleLspNotification(LspNotification::PublishDiagnostics(
+                lsp_types::PublishDiagnosticsParams {
+                    uri: s.main_rs().to_url().unwrap(),
+                    diagnostics: [lsp_types::Diagnostic {
+                        range: lsp_types::Range::new(
+                            lsp_types::Position {
+                                line: 0,
+                                character: 3,
+                            },
+                            lsp_types::Position {
+                                line: 0,
+                                character: 7,
+                            },
+                        ),
+                        ..Default::default()
+                    }]
+                    .to_vec(),
+                    version: None,
+                },
+            ))),
+            Expect(ExpectKind::DiagnosticsRanges(
+                [CharIndexRange::from(CharIndex(3)..CharIndex(7))].to_vec(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert(hello.to_string())),
+            Expect(ExpectKind::DiagnosticsRanges(
+                [CharIndexRange::from(
+                    CharIndex(3 + hello.len())..CharIndex(7 + hello.len()),
+                )]
+                .to_vec(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_items_updated_by_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() { 
+  let x = 123 
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                        },
+                        None,
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            Expect(ExpectKind::BufferQuickfixListItems(
+                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+            )),
+            // 1. Testing edit that does not affect the line of the quickfix item
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            // 1a. The position range should remain the same
+            Expect(ExpectKind::BufferQuickfixListItems(
+                [Position { line: 1, column: 2 }..Position { line: 1, column: 5 }].to_vec(),
+            )),
+            Editor(EnterNormalMode),
+            // 2. Testing edit that affects the line of the quickfix item
+            Editor(MatchLiteral("let".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            // 2a. The position range should be updated
+            Expect(ExpectKind::BufferQuickfixListItems(
+                [Position { line: 1, column: 7 }..Position {
+                    line: 1,
+                    column: 10,
+                }]
+                .to_vec(),
+            )),
+        ])
+    })
+}
+
+#[test]
+fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let theme = Theme::default();
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(SetTheme(theme.clone())),
+            Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
+            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 2,
+            })),
+            Editor(ApplySyntaxHighlight),
+            Expect(ExpectKind::HighlightSpans(
+                0..2,
+                StyleKey::Syntax("keyword.function".to_string()),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Insert("hello".to_string())),
+            Expect(ExpectKind::HighlightSpans(
+                5..7,
+                StyleKey::Syntax("keyword.function".to_string()),
+            )),
         ])
     })
 }

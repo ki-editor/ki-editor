@@ -17,7 +17,7 @@ exclude = [
 ]
 
 [workspace.dependencies]
-crossterm = "0.26.1"
+crossterm = "0.27.0"
 regex = "1.8.1"
 tree-sitter = "0.21.0"
 serde_json = "1.0.96"
@@ -82,7 +82,7 @@ indexmap = "2.2.2"
 globset = "0.4.14"
 unicode-width = "0.1.11"
 lazy-regex = "3.1.0"
-
+debounce = "0.2.2"
 
 [dev-dependencies]
 serial_test = "2.0.0"

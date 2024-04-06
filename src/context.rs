@@ -1,19 +1,14 @@
 use globset::Glob;
-use std::collections::HashMap;
 
 use indexmap::IndexSet;
 use itertools::Itertools;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{
-        Dispatches, GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate,
-        Scope,
-    },
+    app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::Clipboard,
     list::grep::RegexConfig,
-    lsp::diagnostic::Diagnostic,
-    quickfix_list::{QuickfixList, QuickfixListItem, QuickfixLists},
+    quickfix_list::DiagnosticSeverityRange,
     syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
@@ -21,14 +16,24 @@ use crate::{
 pub struct Context {
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
-    diagnostics: HashMap<CanonicalizedPath, Vec<Diagnostic>>,
     theme: Box<Theme>,
-    quickfix_lists: QuickfixLists,
 
     highlight_configs: HighlightConfigs,
     current_working_directory: Option<CanonicalizedPath>,
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
+    quickfix_list_state: Option<QuickfixListState>,
+}
+
+pub struct QuickfixListState {
+    pub source: QuickfixListSource,
+    pub current_item_index: usize,
+}
+
+pub enum QuickfixListSource {
+    Diagnostic(DiagnosticSeverityRange),
+    Bookmark,
+    Custom,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -56,13 +61,12 @@ impl Default for Context {
         Self {
             clipboard: Clipboard::new(),
             theme: Box::<Theme>::default(),
-            diagnostics: Default::default(),
             mode: None,
-            quickfix_lists: QuickfixLists::new(),
             highlight_configs: HighlightConfigs::new(),
             current_working_directory: None,
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
+            quickfix_list_state: Default::default(),
         }
     }
 }
@@ -73,10 +77,6 @@ impl Context {
             current_working_directory: Some(current_working_directory),
             ..Self::default()
         }
-    }
-
-    pub fn quickfix_lists(&self) -> &QuickfixLists {
-        &self.quickfix_lists
     }
 
     pub fn get_clipboard_content(&self) -> Option<String> {
@@ -97,41 +97,8 @@ impl Context {
         &self.theme
     }
 
-    pub fn diagnostics(&self) -> Vec<(&CanonicalizedPath, &Diagnostic)> {
-        self.diagnostics
-            .iter()
-            .flat_map(|(path, diagnostics)| {
-                diagnostics.iter().map(move |diagnostic| (path, diagnostic))
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub fn update_diagnostics(&mut self, path: CanonicalizedPath, diagnostics: Vec<Diagnostic>) {
-        self.diagnostics.insert(path, diagnostics);
-    }
-
-    pub fn get_diagnostics(&self, path: Option<CanonicalizedPath>) -> Vec<&Diagnostic> {
-        path.map(|path| {
-            self.diagnostics
-                .get(&path)
-                .map(|diagnostics| diagnostics.iter().collect::<Vec<_>>())
-                .unwrap_or_default()
-        })
-        .unwrap_or_default()
-    }
-
     pub fn clear_clipboard(&mut self) {
         self.clipboard.clear()
-    }
-
-    pub fn get_quickfix_items(&self, path: &CanonicalizedPath) -> Option<Vec<QuickfixListItem>> {
-        self.quickfix_lists.current().map(|list| {
-            list.items()
-                .iter()
-                .filter(|item| &item.location().path == path)
-                .cloned()
-                .collect()
-        })
     }
 
     pub fn set_theme(self, theme: Theme) -> Self {
@@ -205,24 +172,24 @@ impl Context {
         }
     }
 
-    pub(crate) fn set_quickfix_list(&mut self, quickfix_list: crate::quickfix_list::QuickfixList) {
-        self.quickfix_lists.push(quickfix_list)
+    pub(crate) fn quickfix_list_state(&self) -> &Option<QuickfixListState> {
+        &self.quickfix_list_state
     }
 
-    #[cfg(test)]
-    pub(crate) fn get_latest_quickfixes(&self) -> Option<Vec<QuickfixListItem>> {
-        self.quickfix_lists.get_items()
+    pub(crate) fn set_quickfix_list_current_item_idex(&mut self, current_item_index: usize) {
+        if let Some(state) = self.quickfix_list_state.take() {
+            self.quickfix_list_state = Some(QuickfixListState {
+                current_item_index,
+                ..state
+            })
+        }
     }
 
-    pub(crate) fn current_quickfix_list(&self) -> std::option::Option<&QuickfixList> {
-        self.quickfix_lists.current()
-    }
-
-    pub(crate) fn goto_quickfix_list_item(
-        &mut self,
-        movement: crate::components::editor::Movement,
-    ) -> Option<Dispatches> {
-        self.quickfix_lists.get_item(movement)
+    pub(crate) fn set_quickfix_list_source(&mut self, source: QuickfixListSource) {
+        self.quickfix_list_state = Some(QuickfixListState {
+            source,
+            current_item_index: 0,
+        })
     }
 }
 

@@ -1,3 +1,5 @@
+use crate::lsp::diagnostic::Diagnostic;
+use crate::quickfix_list::QuickfixListItem;
 use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
@@ -31,6 +33,8 @@ pub struct Buffer {
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
     bookmarks: Vec<CharIndexRange>,
+    diagnostics: Vec<Diagnostic>,
+    quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
 }
 
@@ -58,7 +62,15 @@ impl Buffer {
             bookmarks: Vec::new(),
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
+            diagnostics: Vec::new(),
+            quickfix_list_items: Vec::new(),
         }
+    }
+    pub fn clear_quickfix_list_items(&mut self) {
+        self.quickfix_list_items.clear()
+    }
+    pub fn update_quickfix_list_items(&mut self, quickfix_list_items: Vec<QuickfixListItem>) {
+        self.quickfix_list_items = quickfix_list_items
     }
     pub fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
@@ -100,6 +112,17 @@ impl Buffer {
         self.path = Some(path);
     }
 
+    pub fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {
+        self.diagnostics = diagnostics
+            .into_iter()
+            .filter_map(|diagnostic| Diagnostic::try_from(self, diagnostic).ok())
+            .collect()
+    }
+
+    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+        self.diagnostics.clone()
+    }
+
     pub fn words(&self) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
@@ -111,7 +134,7 @@ impl Buffer {
     }
 
     pub fn find_words(&self, substring: &str) -> Vec<String> {
-        let word = regex::Regex::new(r"\b\w+").unwrap();
+        let word = lazy_regex::regex!(r"\b\w+");
         let str = self.rope.to_string();
         word.find_iter(&str)
             .map(|m| m.as_str().to_string())
@@ -442,15 +465,55 @@ impl Buffer {
     }
 
     fn apply_edit(&mut self, edit: &Edit) -> Result<(), anyhow::Error> {
-        // Update all the bookmarks
-        let bookmarks = std::mem::take(&mut self.bookmarks);
-        self.bookmarks = bookmarks
-            .into_iter()
-            .filter_map(|bookmark| bookmark.apply_edit(edit))
-            .collect();
+        // We have to get the char index range of positional spans before updating the content
+        let quickfix_list_items_with_char_index_range =
+            std::mem::take(&mut self.quickfix_list_items)
+                .into_iter()
+                .filter_map(|item| {
+                    Some((
+                        self.position_range_to_char_index_range(&item.location().range)
+                            .ok()?,
+                        item,
+                    ))
+                })
+                .collect_vec();
+
+        // Update the content
         self.rope.try_remove(edit.range.start.0..edit.end().0)?;
         self.rope
             .try_insert(edit.range.start.0, edit.new.to_string().as_str())?;
+
+        // Update all the positional spans (by using the char index ranges computed before the content is updated
+        self.quickfix_list_items = quickfix_list_items_with_char_index_range
+            .into_iter()
+            .filter_map(|(char_index_range, item)| {
+                let position_range = self
+                    .char_index_range_to_position_range(char_index_range.apply_edit(edit)?)
+                    .ok()?;
+                Some(item.set_location_range(position_range))
+            })
+            .collect_vec();
+
+        // Update all the non-positional spans
+        self.bookmarks = std::mem::take(&mut self.bookmarks)
+            .into_iter()
+            .filter_map(|bookmark| bookmark.apply_edit(edit))
+            .collect();
+        self.diagnostics = std::mem::take(&mut self.diagnostics)
+            .into_iter()
+            .filter_map(|diagnostic| {
+                Some(Diagnostic {
+                    range: diagnostic.range.apply_edit(edit)?,
+                    ..diagnostic
+                })
+            })
+            .collect_vec();
+        if let Some(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
+            self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
+                &byte_range,
+                edit.new.len_bytes() as isize - byte_range.len() as isize,
+            )
+        }
         Ok(())
     }
 
@@ -910,6 +973,14 @@ impl Buffer {
         let modified = before != after;
         Ok((modified, selection_set))
     }
+
+    pub fn char_index_range_to_byte_range(&self, range: CharIndexRange) -> Option<Range<usize>> {
+        Some(self.char_to_byte(range.start).ok()?..self.char_to_byte(range.end).ok()?)
+    }
+
+    pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
+        self.quickfix_list_items.clone()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1355,4 +1426,10 @@ impl PartialEq for Patch {
         // Always return false, assuming that no two patches can be identical
         false
     }
+}
+
+#[must_use]
+#[derive(Default)]
+pub struct UpdatableGlobalRanges {
+    pub diagnostics: Vec<Diagnostic>,
 }

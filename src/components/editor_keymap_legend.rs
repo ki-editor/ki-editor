@@ -5,14 +5,13 @@ use SelectionMode::*;
 use convert_case::Case;
 use event::KeyEvent;
 use itertools::Itertools;
-use lsp_types::DiagnosticSeverity;
 
 use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, MakeFilterMechanism, Scope},
     components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
     list::grep::RegexConfig,
-    quickfix_list::QuickfixListType,
+    quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     selection::{FilterKind, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
     transformation::Transformation,
@@ -171,6 +170,16 @@ impl Editor {
                 Dispatch::ToEditor(ReplaceCut),
             ),
             Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
+            Keymap::new(
+                "alt+h",
+                "Exchange (Previous)".to_string(),
+                Dispatch::ToEditor(Exchange(Previous)),
+            ),
+            Keymap::new(
+                "alt+l",
+                "Exchange (Next)".to_string(),
+                Dispatch::ToEditor(Exchange(Next)),
+            ),
         ]
         .to_vec()
     }
@@ -205,7 +214,7 @@ impl Editor {
         ]
         .to_vec()
     }
-    pub fn keymap_others(&self, context: &Context) -> Vec<Keymap> {
+    pub fn keymap_others(&self) -> Vec<Keymap> {
         [
             Keymap::new(
                 "/",
@@ -215,7 +224,7 @@ impl Editor {
             Keymap::new(
                 "\\",
                 "Context menu".to_string(),
-                Dispatch::ShowKeymapLegend(self.context_menu_legend_config(context)),
+                Dispatch::ShowKeymapLegend(self.context_menu_legend_config()),
             ),
             Keymap::new(
                 "space",
@@ -257,7 +266,7 @@ impl Editor {
                     },
                     KeymapLegendSection {
                         title: "Others".to_string(),
-                        keymaps: Keymaps::new(&self.keymap_others(context)),
+                        keymaps: Keymaps::new(&self.keymap_others()),
                     },
                 ]
                 .to_vec(),
@@ -275,7 +284,7 @@ impl Editor {
                 .collect_vec(),
         )
     }
-    pub(crate) fn context_menu_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn context_menu_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Context menu".to_string(),
             body: KeymapLegendBody::MultipleSections {
@@ -292,27 +301,24 @@ impl Editor {
                             "Rename".to_string(),
                             Dispatch::PrepareRename(params.clone()),
                         ),
-                        Keymap::new(
-                            "c",
-                            "Code Actions".to_string(),
+                        Keymap::new("c", "Code Actions".to_string(), {
+                            let cursor_char_index = self.get_cursor_char_index();
                             Dispatch::RequestCodeAction {
                                 params,
-                                diagnostics: context
-                                    .get_diagnostics(self.path())
+                                diagnostics: self
+                                    .buffer()
+                                    .diagnostics()
                                     .into_iter()
                                     .filter_map(|diagnostic| {
-                                        if diagnostic
-                                            .range
-                                            .contains(&self.get_cursor_position().ok()?)
-                                        {
+                                        if diagnostic.range.contains(&cursor_char_index) {
                                             diagnostic.original_value.clone()
                                         } else {
                                             None
                                         }
                                     })
                                     .collect_vec(),
-                            },
-                        ),
+                            }
+                        }),
                     ]),
                 })]
                 .into_iter()
@@ -522,11 +528,11 @@ impl Editor {
 
     fn keymap_diagnostics(&self, scope: Scope) -> KeymapLegendSection {
         let keymaps = [
-            ("a", "Any", None),
-            ("e", "Error", Some(DiagnosticSeverity::ERROR)),
-            ("h", "Hint", Some(DiagnosticSeverity::HINT)),
-            ("I", "Information", Some(DiagnosticSeverity::INFORMATION)),
-            ("w", "Warning", Some(DiagnosticSeverity::WARNING)),
+            ("a", "All", DiagnosticSeverityRange::All),
+            ("e", "Error", DiagnosticSeverityRange::Error),
+            ("h", "Hint", DiagnosticSeverityRange::Hint),
+            ("I", "Information", DiagnosticSeverityRange::Information),
+            ("w", "Warning", DiagnosticSeverityRange::Warning),
         ]
         .into_iter()
         .map(|(char, description, severity)| {
@@ -536,7 +542,7 @@ impl Editor {
                 match scope {
                     Scope::Local => Dispatch::ToEditor(SetSelectionMode(Diagnostic(severity))),
                     Scope::Global => {
-                        Dispatch::SetQuickfixList(QuickfixListType::LspDiagnostic(severity))
+                        Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(severity))
                     }
                 },
             )
