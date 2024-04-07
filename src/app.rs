@@ -1680,8 +1680,8 @@ impl<T: Frontend> App<T> {
                     .words()
                     .into_iter()
                     .map(|word| {
-                        DropdownItem::new("".to_string()).set_dispatches(Dispatches::one(
-                            Dispatch::ToEditor(ReplaceCurrentSelectionWith(word.clone())),
+                        DropdownItem::new(word.clone()).set_dispatches(Dispatches::one(
+                            Dispatch::ToEditor(ReplaceCurrentSelectionWith(word)),
                         ))
                     })
                     .collect_vec()

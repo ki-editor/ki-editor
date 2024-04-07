@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use crate::{app::Dispatches, components::editor::Movement};
 
 use itertools::Itertools;
@@ -10,11 +12,11 @@ use super::suggestive_editor::Info;
 /// Note: filtering will be done on the combination of `display` and `group` (if applicable)
 pub struct DropdownItem {
     pub dispatches: Dispatches,
-    pub display: String,
+    display: String,
     group: Option<String>,
-    pub info: Option<Info>,
+    info: Option<Info>,
     /// Sorting will be based on `rank` if defined, otherwise sorting will be based on `display`
-    pub rank: Option<Box<[usize]>>,
+    rank: Option<Box<[usize]>>,
     group_and_display: String,
 }
 
@@ -164,7 +166,6 @@ impl Dropdown {
             .iter()
             .flat_map(|item| item.group.clone())
             .unique()
-            .sorted()
             .collect_vec();
         if groups.is_empty() {
             None
@@ -226,13 +227,48 @@ impl Dropdown {
         let mut matcher = Matcher::new(Config::DEFAULT.match_paths());
         let matches = Pattern::parse(&self.filter, CaseMatching::Ignore, Normalization::Smart)
             .match_list(self.items.clone(), &mut matcher);
+        println!("=========");
         self.filtered_items = matches
             .into_iter()
-            .map(|(m, _)| m)
-            .sorted_by(|a, b| match (&a.rank, &b.rank) {
-                (Some(rank_a), Some(rank_b)) => (&a.group, rank_a).cmp(&(&b.group, rank_b)),
-                _ => (&a.group, &a.display).cmp(&(&b.group, &b.display)),
+            .sorted_by_key(|(item, _)| item.group.clone())
+            // Sort by group first
+            .group_by(|(item, _)| item.group.clone())
+            .into_iter()
+            .map(|(group, items)| {
+                let items = items.collect_vec();
+                println!(
+                    "group: {group:?} [{}]",
+                    items
+                        .clone()
+                        .into_iter()
+                        .map(|item| item.0.display)
+                        .join(", ")
+                );
+                (
+                    group,
+                    // Then for each group, sort by fuzzy score
+                    items
+                        .into_iter()
+                        .sorted_by_key(|(item, fuzzy_score)| {
+                            (Reverse(*fuzzy_score), item.display.clone())
+                        })
+                        .collect_vec(),
+                )
             })
+            // Then sort the group by the best fuzzy score of each group
+            .sorted_by_key(|(group, items)| {
+                (
+                    Reverse(
+                        items
+                            .iter()
+                            .map(|(_, fuzzy_score)| (*fuzzy_score))
+                            .max()
+                            .unwrap_or_default(),
+                    ),
+                    group.clone(),
+                )
+            })
+            .flat_map(|group| group.1.into_iter().map(|(item, _)| item).collect_vec())
             .collect_vec();
     }
 
@@ -318,6 +354,8 @@ impl Dropdown {
 
 #[cfg(test)]
 mod test_dropdown {
+    use itertools::Itertools as _;
+
     use crate::components::{
         dropdown::{Dropdown, DropdownConfig, DropdownItem},
         suggestive_editor::Info,
@@ -507,6 +545,53 @@ mod test_dropdown {
 
         assert_eq!(dropdown.current_item().unwrap().display, "b");
         assert_eq!(dropdown.render().info.unwrap().content(), "info b");
+        Ok(())
+    }
+
+    #[test]
+    /// 1. Group items by their group
+    /// 2. Sort the items of each group, by fuzzy score desc, followed by rank asc, display asc
+    /// 3. Rank each group by their highest fuzzy score item desc, followed by group name asc
+    fn items_sorting() -> anyhow::Result<()> {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+        });
+        let items = [
+            Item::new("test_redditor", "", "z"),
+            Item::new("test_reddit", "", "c"),
+            Item::new("test_editor", "", "z"),
+            Item::new("patrick", "", "e"),
+            Item::new("crab", "", "c"),
+            Item::new("patrick", "", "d"),
+        ];
+        dropdown.set_items(items.clone().into_iter().map(|s| s.into()).collect());
+        dropdown.set_filter("test edit");
+
+        assert_eq!(
+            dropdown
+                .filtered_items
+                .clone()
+                .into_iter()
+                .map(|item| item.display)
+                .collect_vec(),
+            &[
+                "test_editor",
+                "test_redditor",
+                // "test_reddit" is ranked lower than "test_redditor" although it's fuzzy score is higher,
+                // because "test_reddit" score is lowest that the fuzzy score of the highest fuzzy score of "test_redditor"'s group
+                "test_reddit"
+            ]
+        );
+
+        dropdown.set_filter("");
+
+        // When fuzzy rank is the same across all items, sort by their group name, then by their display
+        let expected = items
+            .into_iter()
+            .map(|item| -> DropdownItem { item.into() })
+            .sorted_by_key(|item| (item.group.clone(), item.display.clone()))
+            .collect_vec();
+        assert_eq!(dropdown.filtered_items, expected);
         Ok(())
     }
 }
