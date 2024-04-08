@@ -376,6 +376,7 @@ pub enum StyleKey {
     KeymapArrow,
     KeymapDescription,
     KeymapKey,
+    UiFuzzyMatchedChar,
 }
 
 /// TODO: in the future, tab size should be configurable

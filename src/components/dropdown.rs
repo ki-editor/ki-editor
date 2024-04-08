@@ -1,12 +1,13 @@
 use std::cmp::Reverse;
 
-use crate::{app::Dispatches, components::editor::Movement};
+use crate::{app::Dispatches, components::editor::Movement, position::Position};
 
 use itertools::Itertools;
 
+use nucleo_matcher::Utf32Str;
 use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
 
-use super::suggestive_editor::Info;
+use super::suggestive_editor::{Decoration, Info};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Note: filtering will be done on the combination of `display` and `group` (if applicable)
@@ -22,7 +23,8 @@ pub struct DropdownItem {
 
 impl AsRef<str> for DropdownItem {
     fn as_ref(&self) -> &str {
-        &self.group_and_display
+        &self.display
+        // &self.group_and_display
     }
 }
 
@@ -52,7 +54,7 @@ impl DropdownItem {
 
     pub fn set_group(self, group: Option<String>) -> Self {
         Self {
-            group_and_display: format!("{} {}", group.clone().unwrap_or_default(), self.display),
+            group_and_display: format!("{} {}", self.display, group.clone().unwrap_or_default()),
             group,
             ..self
         }
@@ -105,7 +107,7 @@ pub struct Dropdown {
     title: String,
     filter: String,
     items: Vec<DropdownItem>,
-    filtered_items: Vec<DropdownItem>,
+    filtered_items: Vec<FilteredDropdownItem>,
     current_item_index: usize,
 }
 
@@ -125,23 +127,27 @@ impl Dropdown {
     }
 
     pub fn change_index(&mut self, index: usize) {
-        if !(0..self.items.len()).contains(&index) {
+        if !(0..self.filtered_items.len()).contains(&index) {
             return;
         }
         self.current_item_index = index;
     }
 
-    fn highlight_line_index(&self) -> usize {
+    fn current_item_line_index(&self) -> usize {
+        self.item_line_index(self.current_item_index)
+    }
+
+    fn item_line_index(&self, item_index: usize) -> usize {
         let group_title_size = self
-            .items
+            .filtered_items
             .first()
-            .and_then(|item| item.group.as_ref().map(|_| 1))
+            .and_then(|item| item.item.group.as_ref().map(|_| 1))
             .unwrap_or(0);
         let gap_size = 1;
-        let group_index = self.get_current_item_group_index().unwrap_or(0);
+        let group_index = self.get_item_group_index(item_index).unwrap_or(0);
         let group_gap = group_index * gap_size;
 
-        self.current_item_index + group_index * group_title_size + group_gap + group_title_size
+        item_index + group_index * group_title_size + group_gap + group_title_size
     }
 
     pub fn next_item(&mut self) {
@@ -153,7 +159,7 @@ impl Dropdown {
     }
 
     fn last_item(&mut self) {
-        self.change_index(self.items.len().saturating_sub(1))
+        self.change_index(self.filtered_items.len().saturating_sub(1))
     }
 
     fn first_item(&mut self) {
@@ -164,7 +170,7 @@ impl Dropdown {
         let groups = self
             .filtered_items
             .iter()
-            .flat_map(|item| item.group.clone())
+            .flat_map(|item| item.item.group.clone())
             .unique()
             .collect_vec();
         if groups.is_empty() {
@@ -175,16 +181,19 @@ impl Dropdown {
     }
 
     fn get_current_item_group_index(&self) -> Option<usize> {
-        let current_group = self.current_item()?.group?;
+        self.get_item_group_index(self.current_item_index)
+    }
+
+    fn get_item_group_index(&self, item_index: usize) -> Option<usize> {
+        let item = self.get_item_by_index(item_index)?;
+        let item_group = item.group?;
         let groups = self.groups()?;
-        let (current_group_index, _) = groups
-            .iter()
-            .find_position(|group| group == &&current_group)?;
+        let (current_group_index, _) =
+            groups.iter().find_position(|group| group == &&item_group)?;
         Some(current_group_index)
     }
 
     fn change_group_index(&mut self, increment: bool) -> Option<()> {
-        let _groups = self.groups();
         let groups = self.groups()?;
         let current_group_index = self.get_current_item_group_index()?;
         let new_group_index = if increment {
@@ -196,7 +205,7 @@ impl Dropdown {
         let (new_item_index, _) = self
             .filtered_items
             .iter()
-            .find_position(|item| item.group.as_ref() == Some(new_group))?;
+            .find_position(|item| item.item.group.as_ref() == Some(new_group))?;
         self.change_index(new_item_index);
         Some(())
     }
@@ -210,7 +219,13 @@ impl Dropdown {
     }
 
     pub fn current_item(&self) -> Option<DropdownItem> {
-        self.filtered_items.get(self.current_item_index).cloned()
+        self.get_item_by_index(self.current_item_index)
+    }
+
+    fn get_item_by_index(&self, item_index: usize) -> Option<DropdownItem> {
+        self.filtered_items
+            .get(item_index)
+            .map(|item| item.item.clone())
     }
 
     pub fn set_items(&mut self, items: Vec<DropdownItem>) {
@@ -227,7 +242,9 @@ impl Dropdown {
         let mut matcher = Matcher::new(Config::DEFAULT.match_paths());
         let matches = Pattern::parse(&self.filter, CaseMatching::Ignore, Normalization::Smart)
             .match_list(self.items.clone(), &mut matcher);
-        println!("=========");
+        let mut haystack_buf = Vec::new();
+        let mut needle_buf = Vec::new();
+        let mut matched_char_indices = Vec::new();
         self.filtered_items = matches
             .into_iter()
             .sorted_by_key(|(item, _)| item.group.clone())
@@ -236,21 +253,28 @@ impl Dropdown {
             .into_iter()
             .map(|(group, items)| {
                 let items = items.collect_vec();
-                println!(
-                    "group: {group:?} [{}]",
-                    items
-                        .clone()
-                        .into_iter()
-                        .map(|item| item.0.display)
-                        .join(", ")
-                );
+
                 (
                     group,
                     // Then for each group, sort by fuzzy score
                     items
                         .into_iter()
-                        .sorted_by_key(|(item, fuzzy_score)| {
-                            (Reverse(*fuzzy_score), item.display.clone())
+                        .map(|(item, fuzzy_score)| {
+                            let haystack = Utf32Str::new(item.as_ref(), &mut haystack_buf);
+                            let needle = Utf32Str::new(&self.filter, &mut needle_buf);
+                            matcher.fuzzy_indices(haystack, needle, &mut matched_char_indices);
+                            let result = FilteredDropdownItem {
+                                item,
+                                fuzzy_score,
+                                matched_char_indices: matched_char_indices.clone(),
+                            };
+                            haystack_buf.clear();
+                            needle_buf.clear();
+                            matched_char_indices.clear();
+                            result
+                        })
+                        .sorted_by_key(|item| {
+                            (Reverse(item.fuzzy_score), item.item.display.clone())
                         })
                         .collect_vec(),
                 )
@@ -261,14 +285,14 @@ impl Dropdown {
                     Reverse(
                         items
                             .iter()
-                            .map(|(_, fuzzy_score)| (*fuzzy_score))
+                            .map(|item| item.fuzzy_score)
                             .max()
                             .unwrap_or_default(),
                     ),
                     group.clone(),
                 )
             })
-            .flat_map(|group| group.1.into_iter().map(|(item, _)| item).collect_vec())
+            .flat_map(|group| group.1.into_iter().map(|item| item).collect_vec())
             .collect_vec();
     }
 
@@ -282,7 +306,8 @@ impl Dropdown {
         DropdownRender {
             title: self.title.clone(),
             content: self.content(),
-            highlight_line_index: self.highlight_line_index(),
+            decorations: self.decorations(),
+            highlight_line_index: self.current_item_line_index(),
             info: self.current_item().and_then(|item| item.info),
         }
     }
@@ -290,7 +315,7 @@ impl Dropdown {
     fn content(&self) -> String {
         self.filtered_items
             .iter()
-            .group_by(|item| &item.group)
+            .group_by(|item| &item.item.group)
             .into_iter()
             .map(|(group_key, items)| {
                 if let Some(group_key) = group_key {
@@ -300,7 +325,7 @@ impl Dropdown {
                         .into_iter()
                         .enumerate()
                         .map(|(index, item)| {
-                            let content = item.display();
+                            let content = item.item.display();
                             let indicator = if index == items_len.saturating_sub(1) {
                                 "└─"
                             } else {
@@ -311,7 +336,7 @@ impl Dropdown {
                         .join("\n");
                     format!("■┬ {}\n{}", group_key, items)
                 } else {
-                    items.into_iter().map(|item| item.display()).join("\n")
+                    items.into_iter().map(|item| item.item.display()).join("\n")
                 }
             })
             .collect::<Vec<String>>()
@@ -350,15 +375,47 @@ impl Dropdown {
     pub(crate) fn current_item_index(&self) -> usize {
         self.current_item_index
     }
+
+    fn decorations(&self) -> Vec<Decoration> {
+        self.filtered_items
+            .iter()
+            .enumerate()
+            .flat_map(|(index, item)| {
+                let line_index = self.item_line_index(index);
+                let pad_left = if item.item.group.is_some() { 4 } else { 0 };
+                item.matched_char_indices
+                    .iter()
+                    .map(move |matched_char_index| {
+                        let column_index = (matched_char_index + pad_left) as usize;
+                        Decoration::new(
+                            crate::selection_range::SelectionRange::Position(
+                                Position {
+                                    line: line_index,
+                                    column: column_index,
+                                }..Position {
+                                    line: line_index,
+                                    column: column_index + 1,
+                                },
+                            ),
+                            crate::grid::StyleKey::UiFuzzyMatchedChar,
+                        )
+                    })
+            })
+            .collect_vec()
+    }
 }
 
 #[cfg(test)]
 mod test_dropdown {
     use itertools::Itertools as _;
 
-    use crate::components::{
-        dropdown::{Dropdown, DropdownConfig, DropdownItem},
-        suggestive_editor::Info,
+    use crate::{
+        components::{
+            dropdown::{Dropdown, DropdownConfig, DropdownItem},
+            suggestive_editor::{Decoration, Info},
+        },
+        position::Position,
+        selection_range::SelectionRange,
     };
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct Item {
@@ -398,6 +455,43 @@ mod test_dropdown {
                 group_and_display: value.label.to_string(),
             }
         }
+    }
+
+    #[test]
+    fn fuzzy_match_chars_decorations() {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+        });
+        dropdown.set_items(
+            ["bytes_offset".to_string(), "len_bytes".to_string()]
+                .into_iter()
+                .map(|s| s.into())
+                .collect(),
+        );
+        dropdown.set_filter("byts");
+        assert_eq!(
+            dropdown.decorations(),
+            [
+                (0, 0),
+                (0, 1),
+                (0, 2),
+                (0, 4),
+                (1, 4),
+                (1, 5),
+                (1, 6),
+                (1, 8),
+            ]
+            .into_iter()
+            .map(|(line, column)| {
+                Decoration::new(
+                    SelectionRange::Position(
+                        Position::new(line, column)..Position::new(line, column + 1),
+                    ),
+                    crate::grid::StyleKey::UiFuzzyMatchedChar,
+                )
+            })
+            .collect_vec(),
+        )
     }
 
     #[test]
@@ -566,13 +660,14 @@ mod test_dropdown {
         ];
         dropdown.set_items(items.clone().into_iter().map(|s| s.into()).collect());
         dropdown.set_filter("test edit");
+        println!("{:?}", dropdown.decorations());
 
         assert_eq!(
             dropdown
                 .filtered_items
                 .clone()
                 .into_iter()
-                .map(|item| item.display)
+                .map(|item| item.item.display)
                 .collect_vec(),
             &[
                 "test_editor",
@@ -591,7 +686,14 @@ mod test_dropdown {
             .map(|item| -> DropdownItem { item.into() })
             .sorted_by_key(|item| (item.group.clone(), item.display.clone()))
             .collect_vec();
-        assert_eq!(dropdown.filtered_items, expected);
+        assert_eq!(
+            dropdown
+                .filtered_items
+                .into_iter()
+                .map(|item| item.item)
+                .collect_vec(),
+            expected
+        );
         Ok(())
     }
 }
@@ -599,6 +701,7 @@ mod test_dropdown {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DropdownRender {
     pub content: String,
+    pub decorations: Vec<Decoration>,
     pub title: String,
     pub highlight_line_index: usize,
     pub info: Option<Info>,
@@ -608,4 +711,11 @@ impl DropdownRender {
     pub(crate) fn current_line(&self) -> String {
         self.content.lines().collect_vec()[self.highlight_line_index].to_string()
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct FilteredDropdownItem {
+    item: DropdownItem,
+    fuzzy_score: u32,
+    matched_char_indices: Vec<u32>,
 }
