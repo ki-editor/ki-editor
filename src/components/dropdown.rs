@@ -296,7 +296,7 @@ impl Dropdown {
                     .as_ref()
                     .map(|group| {
                         haystack_buf.clear();
-                        let haystack = Utf32Str::new(&group, &mut haystack_buf);
+                        let haystack = Utf32Str::new(group, &mut haystack_buf);
                         matched_char_indices.clear();
                         pattern.atoms.iter().for_each(|atom| {
                             let _ = atom.indices(haystack, &mut matcher, &mut matched_char_indices);
@@ -889,21 +889,17 @@ mod test_dropdown {
     impl quickcheck::Arbitrary for DropdownItems {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
             fn random_range(g: &mut quickcheck::Gen) -> std::ops::Range<i32> {
-                1..*(g
-                    .choose((1..100).into_iter().collect_vec().as_slice())
-                    .unwrap())
+                1..*(g.choose((1..100).collect_vec().as_slice()).unwrap())
             }
             fn random_string(g: &mut quickcheck::Gen) -> String {
-                let chars = ('0'..'z').into_iter().collect_vec();
+                let chars = ('0'..'z').collect_vec();
                 random_range(g)
-                    .into_iter()
                     .map(|_| g.choose(chars.as_slice()).unwrap())
                     .join("")
                     .to_string()
             }
             Self(
                 random_range(g)
-                    .into_iter()
                     .map(|_| {
                         Item::new(&random_string(g), &random_string(g), &random_string(g)).into()
                     })
