@@ -520,7 +520,7 @@ mod test_suggestive_editor {
                     trigger_characters: vec![".".to_string()],
                     items: vec![
                         completion_item("Spongebob", Some("krabby patty maker")),
-                        completion_item("patrick", None),
+                        completion_item("Zatrick Mazerick", None),
                     ]
                     .into_iter()
                     .map(|item| item.into())
@@ -529,7 +529,7 @@ mod test_suggestive_editor {
                 // Expect the "Completion Info" panel is shown, because "Spongebob" has doc
                 Expect(AppGridContains("Completion Info")),
                 Expect(AppGridContains("patty maker")),
-                App(HandleKeyEvents(keys!("p a t r i c k").to_vec())),
+                App(HandleKeyEvents(keys!("Z a t r i c k").to_vec())),
                 Expect(AppGridContains("atrick")),
                 // Expect the "Completion Info" panel is hidden, because "patrick" has no doc
                 Expect(Not(Box::new(AppGridContains("Completion Info")))),
