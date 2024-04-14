@@ -36,8 +36,10 @@ use crate::{
 use DispatchEditor::*;
 
 use super::{
-    component::ComponentId, dropdown::DropdownRender, render_editor::Source,
-    suggestive_editor::Info,
+    component::ComponentId,
+    dropdown::DropdownRender,
+    render_editor::Source,
+    suggestive_editor::{Decoration, Info},
 };
 
 #[derive(PartialEq, Clone, Debug, Eq)]
@@ -317,6 +319,7 @@ impl Editor {
             context,
             [
                 SetContent(render.content.clone()),
+                SetDecorations(render.decorations.clone()),
                 SelectLineAt(render.highlight_line_index),
             ]
             .to_vec(),
@@ -980,6 +983,7 @@ impl Editor {
             EnterReplaceMode => self.enter_replace_mode(),
             Paste(direction) => return self.paste(direction, context),
             ChangeCursorDirection => self.change_cursor_direction(),
+            SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
         }
         Ok(Default::default())
     }
@@ -2288,6 +2292,7 @@ pub enum DispatchEditor {
     ReplaceWithClipboard,
     SelectAll,
     SetContent(String),
+    SetDecorations(Vec<Decoration>),
     SetRectangle(Rectangle),
     ToggleHighlightMode,
     Change,

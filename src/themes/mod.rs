@@ -58,6 +58,7 @@ impl Theme {
             StyleKey::KeymapArrow => self.ui.keymap_arrow,
             StyleKey::KeymapDescription => self.ui.keymap_description,
             StyleKey::KeymapKey => self.ui.keymap_key,
+            StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
         }
     }
 }
@@ -79,6 +80,7 @@ pub struct DiagnosticStyles {
 
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
 pub struct UiStyles {
+    pub fuzzy_matched_char: Style,
     pub global_title: Style,
     pub window_title: Style,
     pub parent_lines_background: Color,
