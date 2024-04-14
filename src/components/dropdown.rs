@@ -18,7 +18,6 @@ pub struct DropdownItem {
     info: Option<Info>,
     /// Sorting will be based on `rank` if defined, otherwise sorting will be based on `display`
     rank: Option<Box<[usize]>>,
-    group_and_display: String,
 }
 
 impl DropdownItem {
@@ -29,7 +28,6 @@ impl DropdownItem {
     pub(crate) fn new(display: String) -> Self {
         Self {
             dispatches: Default::default(),
-            group_and_display: display.clone(),
             display,
             group: Default::default(),
             info: Default::default(),
@@ -46,11 +44,7 @@ impl DropdownItem {
     }
 
     pub fn set_group(self, group: Option<String>) -> Self {
-        Self {
-            group_and_display: format!("{} {}", self.display, group.clone().unwrap_or_default()),
-            group,
-            ..self
-        }
+        Self { group, ..self }
     }
 
     pub(crate) fn set_rank(self, rank: Option<Box<[usize]>>) -> DropdownItem {
@@ -252,57 +246,8 @@ impl Dropdown {
             Config, Matcher,
         };
         let mut matcher = Matcher::new(Config::DEFAULT);
-        struct IndexedStr<'a> {
-            str: &'a str,
-            index: usize,
-        }
-        impl<'a> AsRef<str> for IndexedStr<'a> {
-            fn as_ref(&self) -> &str {
-                self.str
-            }
-        }
         let pattern = Pattern::parse(&self.filter, CaseMatching::Ignore, Normalization::Smart);
         let mut haystack = Vec::new();
-        let matches = {
-            // Match by either `item.display` or `item.group`
-
-            let displays = self
-                .items
-                .iter()
-                .enumerate()
-                .map(|(index, item)| IndexedStr {
-                    str: &item.display,
-                    index,
-                })
-                .collect_vec();
-            let groups = self
-                .items
-                .iter()
-                .enumerate()
-                .filter_map(|(index, item)| {
-                    Some(IndexedStr {
-                        str: item.group.as_ref()?,
-                        index,
-                    })
-                })
-                .unique_by(|i| i.str)
-                .collect_vec();
-            let display_matches = pattern.match_list(displays, &mut matcher);
-            let group_matches = pattern.match_list(groups, &mut matcher);
-            display_matches
-                .into_iter()
-                .chain(group_matches)
-                .group_by(|item| item.0.index)
-                .into_iter()
-                .map(|(group, items)| (group, items.collect_vec()))
-                .map(|(item_index, items)| {
-                    let fuzzy_score: u32 =
-                        items.into_iter().map(|(_, fuzzy_score)| fuzzy_score).sum();
-                    let item = self.items.get(item_index).unwrap();
-                    (item, fuzzy_score)
-                })
-                .collect_vec()
-        };
         let matches = self.items.iter().filter_map(|item| {
             let score = pattern
                 .atoms
@@ -328,6 +273,7 @@ impl Dropdown {
         let mut haystack_buf = Vec::new();
         let mut matched_char_indices = Vec::new();
         let mut item_index = 0;
+        /// This struct is necessary because these item can only be indexed after sorting
         struct FilteredDropdownItemWithoutIndex {
             item: DropdownItem,
             fuzzy_score: u32,
@@ -422,6 +368,8 @@ impl Dropdown {
                                      fuzzy_matched_char_indices,
                                  }| FilteredDropdownItem {
                                     item,
+                                    // Remember that the index can only be assigned after all sorting
+                                    // No sorting should be done after indexing
                                     item_index: {
                                         let result = item_index;
                                         item_index += 1;
@@ -584,6 +532,7 @@ impl Dropdown {
 #[cfg(test)]
 mod test_dropdown {
     use itertools::Itertools as _;
+    use quickcheck_macros::quickcheck;
 
     use crate::{
         components::{
@@ -932,6 +881,57 @@ mod test_dropdown {
             expected
         );
         Ok(())
+    }
+
+    #[derive(Debug, Clone)]
+    struct DropdownItems(Vec<DropdownItem>);
+
+    impl quickcheck::Arbitrary for DropdownItems {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            fn random_range(g: &mut quickcheck::Gen) -> std::ops::Range<i32> {
+                1..*(g
+                    .choose((1..100).into_iter().collect_vec().as_slice())
+                    .unwrap())
+            }
+            fn random_string(g: &mut quickcheck::Gen) -> String {
+                let chars = ('0'..'z').into_iter().collect_vec();
+                random_range(g)
+                    .into_iter()
+                    .map(|_| g.choose(chars.as_slice()).unwrap())
+                    .join("")
+                    .to_string()
+            }
+            Self(
+                random_range(g)
+                    .into_iter()
+                    .map(|_| {
+                        Item::new(&random_string(g), &random_string(g), &random_string(g)).into()
+                    })
+                    .collect_vec(),
+            )
+        }
+    }
+
+    #[quickcheck]
+    fn filtered_item_index_should_tally_with_their_order(items: DropdownItems) -> bool {
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "hello".to_string(),
+        });
+        dropdown.set_items(items.0);
+        let indices = dropdown
+            .filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .map(|item| item.item_index as usize)
+            .collect_vec();
+        let order = dropdown
+            .filtered_item_groups
+            .iter()
+            .flat_map(|group| &group.items)
+            .enumerate()
+            .map(|(index, _)| index)
+            .collect_vec();
+        indices == order
     }
 }
 
