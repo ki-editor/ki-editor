@@ -1521,7 +1521,7 @@ fn cursor_direction() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(SetSelectionMode(LineTrimmed)),
-            Editor(ChangeCursorDirection),
+            Editor(SwapCursorWithAnchor),
             Editor(SetSelectionMode(Character)),
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed

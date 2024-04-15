@@ -257,6 +257,10 @@ impl Keymap {
     pub(crate) fn dispatch(&self) -> Dispatch {
         self.dispatch.clone()
     }
+
+    pub(crate) fn event(&self) -> &KeyEvent {
+        &self.event
+    }
 }
 
 impl KeymapLegend {

@@ -863,7 +863,7 @@ impl Editor {
         self.navigate_undo_tree(Movement::Next)
     }
 
-    pub fn change_cursor_direction(&mut self) {
+    pub fn swap_cursor_with_anchor(&mut self) {
         self.cursor_direction = match self.cursor_direction {
             Direction::Start => Direction::End,
             Direction::End => Direction::Start,
@@ -973,6 +973,20 @@ impl Editor {
             EnterMultiCursorMode => self.enter_multicursor_mode(),
             ReplaceCut => return self.replace_cut(context),
             Surround(open, close) => return self.enclose(open, close),
+            ShowKeymapLegendInsertMode => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.insert_mode_keymap_legend_config(),
+                )]
+                .to_vec()
+                .into())
+            }
+            ShowKeymapLegendHelp => {
+                return Ok(
+                    [Dispatch::ShowKeymapLegend(self.help_keymap_legend_config())]
+                        .to_vec()
+                        .into(),
+                )
+            }
             ShowKeymapLegendNormalMode => {
                 return Ok([Dispatch::ShowKeymapLegend(
                     self.normal_mode_keymap_legend_config(context),
@@ -982,8 +996,10 @@ impl Editor {
             }
             EnterReplaceMode => self.enter_replace_mode(),
             Paste(direction) => return self.paste(direction, context),
-            ChangeCursorDirection => self.change_cursor_direction(),
+            SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
+            MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
+            MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
         }
         Ok(Default::default())
     }
@@ -1010,44 +1026,6 @@ impl Editor {
                 }
             }
             HandleEventResult::Handled(dispatches) => Ok(dispatches),
-        }
-    }
-
-    fn handle_universal_key(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<HandleEventResult> {
-        match event {
-            key!("left") | key!("ctrl+b") => {
-                self.selection_set.move_left(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(Default::default()))
-            }
-            key!("right") | key!("ctrl+f") => {
-                self.selection_set.move_right(&self.cursor_direction);
-                Ok(HandleEventResult::Handled(Default::default()))
-            }
-            key!("ctrl+c") => {
-                let dispatches = self.copy(context)?;
-                Ok(HandleEventResult::Handled(dispatches))
-            }
-
-            key!("ctrl+l") => {
-                self.switch_view_alignment();
-                Ok(HandleEventResult::Handled(Default::default()))
-            }
-            key!("ctrl+s") => {
-                let dispatches = self.save()?;
-                self.mode = Mode::Normal;
-                Ok(HandleEventResult::Handled(dispatches))
-            }
-            key!("ctrl+x") => Ok(HandleEventResult::Handled(self.cut()?)),
-            key!("ctrl+v") => Ok(HandleEventResult::Handled(
-                self.replace_with_clipboard(context)?,
-            )),
-            key!("ctrl+y") => Ok(HandleEventResult::Handled(self.redo()?)),
-            key!("ctrl+z") => Ok(HandleEventResult::Handled(self.undo()?)),
-            _ => Ok(HandleEventResult::Ignored(event)),
         }
     }
 
@@ -1148,32 +1126,6 @@ impl Editor {
             }));
 
         self.apply_edit_transaction(edit_transaction)
-    }
-
-    fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Dispatches> {
-        match event {
-            key!("esc") => self.enter_normal_mode()?,
-            key!("backspace") => return self.backspace(),
-            key!("enter") => return self.insert("\n"),
-            key!("tab") => return self.insert("\t"),
-            key!("ctrl+a") | key!("home") => return self.move_to_line_start(),
-            key!("ctrl+e") | key!("end") => return self.move_to_line_end(),
-            key!("alt+backspace") => return self.delete_word_backward(),
-            key!("ctrl+k") => {
-                return Ok(([Dispatch::ToEditor(KillLine(Direction::End))].to_vec()).into())
-            }
-            key!("ctrl+u") => {
-                return Ok(([Dispatch::ToEditor(KillLine(Direction::Start))].to_vec()).into())
-            }
-            // key!("alt+left") => self.move_word_backward(),
-            // key!("alt+right") => self.move_word_forward(),
-            event => {
-                if let KeyCode::Char(c) = event.code {
-                    return self.insert(&c.to_string());
-                }
-            }
-        };
-        Ok((vec![]).into())
     }
 
     pub fn get_request_params(&self) -> Option<RequestParams> {
@@ -2333,6 +2285,10 @@ pub enum DispatchEditor {
     SelectLineAt(usize),
     ReplaceCut,
     ShowKeymapLegendNormalMode,
+    ShowKeymapLegendInsertMode,
     Paste(Direction),
-    ChangeCursorDirection,
+    SwapCursorWithAnchor,
+    MoveCharacterBack,
+    MoveCharacterForward,
+    ShowKeymapLegendHelp,
 }

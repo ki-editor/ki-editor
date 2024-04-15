@@ -210,6 +210,7 @@ impl<T: Frontend> App<T> {
             Event::Key(key!("enter")) if self.context.mode().is_some() => {
                 self.context.set_mode(None);
             }
+            // TODO: this should be moved to editor_keymap_legend
             Event::Key(key!("ctrl+q")) => {
                 if self.quit() {
                     return Ok(true);

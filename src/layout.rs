@@ -418,6 +418,9 @@ impl Layout {
         self.keymap_legend = vec![];
         self.quickfix_list = None;
         self.prompts = vec![];
+        self.dropdowns.clear();
+        self.dropdown_infos.clear();
+        self.editor_infos.clear();
         if let Some(id) = self.focused_component_id {
             self.close_dropdown(id);
             self.close_editor_info(id);
