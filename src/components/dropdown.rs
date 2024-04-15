@@ -891,17 +891,15 @@ mod test_dropdown {
             fn random_range(g: &mut quickcheck::Gen) -> std::ops::Range<i32> {
                 1..*(g.choose((1..100).collect_vec().as_slice()).unwrap())
             }
-            fn random_string(g: &mut quickcheck::Gen) -> String {
-                let chars = ('0'..'z').collect_vec();
-                random_range(g)
-                    .map(|_| g.choose(chars.as_slice()).unwrap())
-                    .join("")
-                    .to_string()
-            }
             Self(
                 random_range(g)
                     .map(|_| {
-                        Item::new(&random_string(g), &random_string(g), &random_string(g)).into()
+                        Item::new(
+                            &String::arbitrary(g),
+                            &String::arbitrary(g),
+                            &String::arbitrary(g),
+                        )
+                        .into()
                     })
                     .collect_vec(),
             )
