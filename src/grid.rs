@@ -204,6 +204,9 @@ impl Grid {
         let mut cells = vec![];
         for (row_index, row) in self.rows.iter().enumerate() {
             let mut offset = 0;
+            if row_index >= self.dimension().height as usize {
+                return cells;
+            }
             for (column_index, cell) in row.iter().enumerate() {
                 let width = get_string_width(cell.symbol.as_str());
                 for index in 0..width {

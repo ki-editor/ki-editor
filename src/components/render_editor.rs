@@ -498,7 +498,7 @@ impl Editor {
         // highlighting the entire file becomes sluggish when the file has more than a thousand lines.
 
         let title_grid = Grid::new(Dimension {
-            height: 1,
+            height: editor.dimension().height - grid.rows.len() as u16,
             width: editor.dimension().width,
         })
         .set_line(0, &self.title(context), &window_title_style);
@@ -643,5 +643,39 @@ impl Boundary {
             byte_range: byte_start..byte_end,
             char_index_range: char_index_start..char_index_end,
         }
+    }
+}
+
+#[cfg(test)]
+mod test_render_editor {
+    use quickcheck::Arbitrary;
+    use quickcheck_macros::quickcheck;
+
+    use crate::{
+        components::{component::Component, editor::Editor},
+        context::Context,
+        rectangle::Rectangle,
+    };
+
+    impl Arbitrary for Rectangle {
+        fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            Self {
+                origin: Default::default(),
+                width: (u8::arbitrary(g) / 10) as u16,
+                height: (u8::arbitrary(g) / 10) as u16,
+            }
+        }
+    }
+
+    #[quickcheck]
+    fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
+        let mut editor = Editor::from_text(tree_sitter_md::language(), &content);
+        editor.set_rectangle(rectangle.clone());
+        let grid = editor.get_grid(&Context::default());
+        let cells = grid.grid.to_positioned_cells();
+        cells.into_iter().all(|cell| {
+            cell.position.line < (rectangle.height as usize)
+                && cell.position.column < (rectangle.width as usize)
+        })
     }
 }
