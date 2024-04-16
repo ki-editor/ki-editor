@@ -290,7 +290,11 @@ impl Layout {
 
     pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
         self.remove_current_component();
-        self.focused_component_id = change_focused_to;
+        self.focused_component_id = change_focused_to.or_else(|| {
+            self.components()
+                .first()
+                .map(|component| component.borrow().id())
+        });
     }
 
     pub fn add_and_focus_prompt(&mut self, prompt: Rc<RefCell<Prompt>>) {

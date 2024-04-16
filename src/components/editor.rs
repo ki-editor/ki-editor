@@ -931,10 +931,10 @@ impl Editor {
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
-            Raise => return self.replace(&Movement::Parent),
+            Raise => return self.replace_with_movement(&Movement::Parent),
             Exchange(movement) => return self.exchange(movement),
             EnterExchangeMode => self.enter_exchange_mode(),
-            Replace { config } => {
+            ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
                 let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
                 return Ok(self
@@ -1000,6 +1000,15 @@ impl Editor {
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
+            ReplaceWithMovement(movement) => return self.replace_with_movement(&movement),
+            EnterExchangeModeJump => {
+                self.enter_exchange_mode();
+                self.show_jumps()?;
+            }
+            EnterReplaceModeJump => {
+                self.enter_replace_mode();
+                self.show_jumps()?;
+            }
         }
         Ok(Default::default())
     }
@@ -1050,8 +1059,9 @@ impl Editor {
                     .collect_vec();
                 match matching_jumps.split_first() {
                     None => Ok(Default::default()),
-                    Some((jump, [])) => self
-                        .handle_movement(context, Movement::Jump(jump.selection.extended_range())),
+                    Some((jump, [])) => Ok(self
+                        .handle_movement(context, Movement::Jump(jump.selection.extended_range()))?
+                        .append(Dispatch::ToEditor(EnterNormalMode))),
                     Some(_) => {
                         self.jumps = Some(
                             matching_jumps
@@ -1194,7 +1204,7 @@ impl Editor {
                 self.selection_set.mode.clone(),
             ),
             Mode::Exchange => self.exchange(movement),
-            Mode::Replace => self.replace(&movement),
+            Mode::Replace => self.replace_with_movement(&movement),
             Mode::UndoTree => self.navigate_undo_tree(movement),
             Mode::MultiCursor => self.add_cursor(&movement).map(|_| Default::default()),
             _ => Ok(Default::default()),
@@ -1571,7 +1581,7 @@ impl Editor {
     }
 
     /// Replace the parent node of the current node with the current node
-    pub fn replace(&mut self, movement: &Movement) -> anyhow::Result<Dispatches> {
+    pub fn replace_with_movement(&mut self, movement: &Movement) -> anyhow::Result<Dispatches> {
         let buffer = self.buffer.borrow().clone();
         let edit_transactions = self.selection_set.map(|selection| {
             let get_edit_transaction =
@@ -1760,7 +1770,8 @@ impl Editor {
         self.clamp()?;
         self.cursor_keep_primary_only()?;
         Ok(Dispatches::new(vec![Dispatch::DocumentDidSave { path }])
-            .chain(self.get_document_did_change_dispatch()))
+            .chain(self.get_document_did_change_dispatch())
+            .append(Dispatch::CloseAllExceptMainPanel))
     }
 
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
@@ -2241,7 +2252,6 @@ pub enum DispatchEditor {
     Copy,
     Cut,
     ReplaceSelectionWithCopiedText,
-    ReplaceWithClipboard,
     SelectAll,
     SetContent(String),
     SetDecorations(Vec<Decoration>),
@@ -2250,6 +2260,8 @@ pub enum DispatchEditor {
     Change,
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
+    ReplaceWithMovement(Movement),
+    ReplaceWithClipboard,
     SelectLine(Movement),
     Backspace,
     Kill,
@@ -2269,7 +2281,7 @@ pub enum DispatchEditor {
     CursorAddToAllSelections,
     CursorKeepPrimaryOnly,
     Raise,
-    Replace {
+    ReplacePattern {
         config: crate::context::LocalSearchConfig,
     },
     Undo,
@@ -2291,4 +2303,6 @@ pub enum DispatchEditor {
     MoveCharacterBack,
     MoveCharacterForward,
     ShowKeymapLegendHelp,
+    EnterExchangeModeJump,
+    EnterReplaceModeJump,
 }

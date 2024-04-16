@@ -164,12 +164,15 @@ impl<T: Frontend> App<T> {
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            let should_quit = match message {
+            match message {
                 AppMessage::Event(event) => self.handle_event(event),
                 AppMessage::LspNotification(notification) => {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
-                AppMessage::QuitAll => Ok(true),
+                AppMessage::QuitAll => {
+                    self.quit()?;
+                    Ok(true)
+                }
                 AppMessage::SyntaxHighlightResponse {
                     component_id,
                     highlighted_spans,
@@ -182,19 +185,22 @@ impl<T: Frontend> App<T> {
                 false
             });
 
-            if should_quit {
+            if self.should_quit() {
                 break;
             }
 
             self.render()?;
         }
 
+        self.quit()
+    }
+
+    pub fn quit(&mut self) -> anyhow::Result<()> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
         // self.lsp_manager.shutdown();
 
-        // TODO: this line is a hack
         std::process::exit(0);
     }
 
@@ -207,16 +213,7 @@ impl<T: Frontend> App<T> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
-            Event::Key(key!("enter")) if self.context.mode().is_some() => {
-                self.context.set_mode(None);
-            }
-            // TODO: this should be moved to editor_keymap_legend
-            Event::Key(key!("ctrl+q")) => {
-                if self.quit() {
-                    return Ok(true);
-                }
-            }
-            Event::Key(key!("ctrl+w")) => self.layout.change_view(),
+            // Event::Key(key!("enter")) if self.context.mode().is_some() => { self.context.set_mode(None); }
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
                     height: rows,
@@ -238,8 +235,8 @@ impl<T: Frontend> App<T> {
     }
 
     /// Return true if there's no more windows
-    fn quit(&mut self) -> bool {
-        self.layout.remove_current_component()
+    fn should_quit(&mut self) -> bool {
+        self.layout.components().is_empty()
     }
 
     fn render(&mut self) -> Result<(), anyhow::Error> {
@@ -385,7 +382,7 @@ impl<T: Frontend> App<T> {
     pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
-                self.close_current_window(change_focused_to)
+                self.close_current_window(change_focused_to);
             }
             Dispatch::OpenSearchPrompt { scope, owner_id } => {
                 self.open_search_prompt(scope, owner_id)?
@@ -553,7 +550,7 @@ impl<T: Frontend> App<T> {
                 self.open_update_search_prompt(owner_id, scope)?
             }
             Dispatch::Replace { scope } => match scope {
-                Scope::Local => self.handle_dispatch_editor(Replace {
+                Scope::Local => self.handle_dispatch_editor(ReplacePattern {
                     config: self.context.local_search_config().clone(),
                 })?,
                 Scope::Global => self.global_replace()?,
@@ -586,6 +583,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
+            Dispatch::CycleWindow => self.layout.change_view(),
         }
         Ok(())
     }
@@ -2055,6 +2053,7 @@ pub enum Dispatch {
         owner_id: ComponentId,
     },
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
+    CycleWindow,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
