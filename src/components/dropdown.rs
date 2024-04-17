@@ -844,8 +844,6 @@ mod test_dropdown {
         ];
         dropdown.set_items(items.clone().into_iter().map(|s| s.into()).collect());
         dropdown.set_filter("test edit");
-        println!("{:?}", dropdown.decorations());
-
         assert_eq!(
             dropdown
                 .filtered_item_groups

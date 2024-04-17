@@ -17,34 +17,33 @@ use crate::{
 use anyhow::anyhow;
 use indexmap::IndexMap;
 use itertools::Itertools;
+use nary_tree::{NodeId, RemoveBehavior, Tree};
 use shared::canonicalized_path::CanonicalizedPath;
-use std::{cell::RefCell, rc::Rc};
+use std::{any::TypeId, cell::RefCell, rc::Rc};
+
+struct Owned<T> {
+    owner_id: ComponentId,
+    component: T,
+}
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
 /// The main panel is where the user edits code, and the info panel is for displaying info like
 /// hover text, diagnostics, etc.
 pub struct Layout {
-    main_panel: MainPanel,
-    global_info: Option<Rc<RefCell<Editor>>>,
-    keymap_legend: Vec<Rc<RefCell<KeymapLegend>>>,
-    quickfix_list: Option<Rc<RefCell<Editor>>>,
-    prompts: Vec<Rc<RefCell<Prompt>>>,
     background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
     file_explorer: Rc<RefCell<FileExplorer>>,
-    dropdowns: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
-    dropdown_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
-    editor_infos: IndexMap</*Owner ID*/ ComponentId, Rc<RefCell<Editor>>>,
-
-    file_explorer_open: bool,
+    quickfix_list: Option<Rc<RefCell<Editor>>>,
 
     rectangles: Vec<Rectangle>,
     borders: Vec<Border>,
 
-    focused_component_id: Option<ComponentId>,
+    focused_component_id: Option<NodeId>,
 
     terminal_dimension: Dimension,
     working_directory: CanonicalizedPath,
+
+    tree: Tree<KindedComponent>,
 }
 
 #[derive(Clone)]
@@ -100,90 +99,36 @@ impl Layout {
     ) -> anyhow::Result<Layout> {
         let (layout_kind, ratio) = layout_kind(&terminal_dimension);
         let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
+        let mut untitled_editor = SuggestiveEditor::from_text(tree_sitter_md::language(), "");
+        untitled_editor.set_title("[Untitled]".to_string());
+        let mut tree = Tree::new();
+        let component = Rc::new(RefCell::new(untitled_editor));
+        let root_id = tree.set_root(KindedComponent::new(
+            ComponentKind::SuggestiveEditor,
+            component.clone(),
+        ));
         Ok(Layout {
-            main_panel: MainPanel {
-                editor: None,
-                working_directory: working_directory.clone(),
-            },
-            global_info: None,
-            keymap_legend: vec![],
+            focused_component_id: Some(root_id),
             quickfix_list: None,
-            prompts: vec![],
-            focused_component_id: Some(ComponentId::new()),
-            background_suggestive_editors: vec![],
+            background_suggestive_editors: vec![component],
             file_explorer: Rc::new(RefCell::new(FileExplorer::new(working_directory)?)),
             rectangles,
             borders,
             terminal_dimension,
-            file_explorer_open: false,
             working_directory: working_directory.clone(),
-            dropdowns: IndexMap::new(),
-            dropdown_infos: IndexMap::new(),
-            editor_infos: IndexMap::new(),
+            tree,
         })
     }
 
     pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        let root_components = vec![]
-            .into_iter()
-            .chain(
-                self.main_panel
-                    .editor
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                if self.file_explorer_open {
-                    Some(self.file_explorer.clone())
-                } else {
-                    None
-                }
-                .iter()
-                .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.keymap_legend
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.prompts
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.dropdowns
-                    .iter()
-                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.dropdown_infos
-                    .iter()
-                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.editor_infos
-                    .iter()
-                    .map(|(_, c)| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.global_info
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .chain(
-                self.quickfix_list
-                    .iter()
-                    .map(|c| c.clone() as Rc<RefCell<dyn Component>>),
-            )
-            .collect::<Vec<_>>();
-
-        let mut components = root_components.clone();
-        for component in root_components.iter() {
-            components.extend(component.borrow().descendants());
-        }
-
-        components
+        self.tree
+            .root()
+            .map(|root| {
+                root.traverse_pre_order()
+                    .map(|node| node.data().component.clone())
+                    .collect_vec()
+            })
+            .unwrap_or_default()
     }
 
     pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
@@ -191,19 +136,13 @@ impl Layout {
             .and_then(|id| self.get_component(id))
     }
 
-    pub(crate) fn get_current_suggestive_editor(&self) -> Option<Rc<RefCell<SuggestiveEditor>>> {
-        self.focused_component_id.and_then(|id| {
-            self.background_suggestive_editors
-                .iter()
-                .find(|editor| editor.borrow().id() == id)
-                .cloned()
-        })
+    pub(crate) fn get_current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.focused_component_id
+            .and_then(|id| self.get_component(id))
     }
 
-    fn get_component(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
-        self.components()
-            .into_iter()
-            .find(|c| c.borrow().id() == id)
+    fn get_component(&self, id: NodeId) -> Option<Rc<RefCell<dyn Component>>> {
+        self.tree.get(id).map(|node| node.data().component.clone())
     }
 
     fn new_main_panel(
@@ -218,39 +157,15 @@ impl Layout {
 
     /// Return true if there's no more windows
     pub fn remove_current_component(&mut self) -> bool {
-        if let Some(id) = self.focused_component_id {
-            self.prompts.retain(|c| c.borrow().id() != id);
-
-            let main_panel = self.main_panel.take();
-            self.main_panel = self.new_main_panel(
-                main_panel
-                    .filter(|c| c.borrow().id() != id)
-                    .or_else(|| self.background_suggestive_editors.last().cloned()),
-            );
-
-            self.keymap_legend.retain(|c| c.borrow().id() != id);
-
-            self.global_info = self.global_info.take().filter(|c| c.borrow().id() != id);
-
-            self.quickfix_list = self.quickfix_list.take().filter(|c| c.borrow().id() != id);
-
-            self.close_editor_info(id);
-            self.background_suggestive_editors
-                .retain(|c| c.borrow().id() != id);
-
-            self.close_dropdown(id);
-
-            if self.file_explorer.borrow().id() == id {
-                self.file_explorer_open = false
+        self.focused_component_id.map(|id| {
+            if let Some(node) = self.tree.get(id) {
+                self.focused_component_id = node.parent().map(|parent| parent.node_id());
+                self.tree
+                    .remove(node.node_id(), RemoveBehavior::DropChildren);
             }
+        });
 
-            self.components().into_iter().for_each(|c| {
-                c.borrow_mut().remove_child(id);
-            });
-        };
-
-        if let Some(component) = self.components().last() {
-            self.focused_component_id = Some(component.borrow().id());
+        if self.focused_component_id.is_some() {
             self.recalculate_layout();
             false
         } else {
@@ -258,48 +173,35 @@ impl Layout {
         }
     }
 
-    fn set_main_panel(&mut self, new: MainPanel) {
-        self.focused_component_id = new.id();
-        self.main_panel = new;
-    }
-
     pub fn change_view(&mut self) {
-        let components = self.components();
-        if let Some(component) = components
-            .iter()
-            .sorted_by_key(|component| component.borrow().id())
-            .find(|component| {
-                if let Some(id) = self.focused_component_id {
-                    component.borrow().id() > id
-                } else {
-                    true
-                }
+        self.focused_component_id = self
+            .focused_component_id
+            .and_then(|id| self.tree.get_mut(id))
+            .and_then(|mut node| {
+                node.next_sibling()
+                    .map(|node| node.node_id())
+                    .or_else(|| Some(node.parent()?.node_id()))
+                    .or_else(|| Some(node.first_child()?.node_id()))
             })
-            .map_or_else(
-                || {
-                    components
-                        .iter()
-                        .min_by(|x, y| x.borrow().id().cmp(&y.borrow().id()))
-                },
-                Some,
-            )
-        {
-            self.focused_component_id = Some(component.borrow().id())
-        }
+            .or_else(|| self.focused_component_id);
     }
 
     pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
         self.remove_current_component();
-        self.focused_component_id = change_focused_to.or_else(|| {
-            self.components()
-                .first()
-                .map(|component| component.borrow().id())
-        });
     }
 
-    pub fn add_and_focus_prompt(&mut self, prompt: Rc<RefCell<Prompt>>) {
-        self.focused_component_id = Some(prompt.borrow().id());
-        self.prompts.push(prompt);
+    pub fn add_and_focus_component(
+        &mut self,
+        kind: ComponentKind,
+        component: Rc<RefCell<dyn Component>>,
+    ) {
+        self.focused_component_id
+            .or_else(|| self.tree.root_id())
+            .and_then(|id| self.tree.get_mut(id))
+            .map(|mut current_node| {
+                let new_node = current_node.append(KindedComponent::new(kind, component));
+                self.focused_component_id = Some(new_node.node_id())
+            });
         self.recalculate_layout();
     }
 
@@ -348,7 +250,8 @@ impl Layout {
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         if let Some(matching_editor) = self.get_existing_editor(path) {
             if focus_editor {
-                self.set_main_panel(self.new_main_panel(Some(matching_editor.clone())));
+                self.focused_component_id =
+                    self.replace_current_suggestive_editor(matching_editor.clone());
             }
             Some(matching_editor)
         } else {
@@ -366,7 +269,7 @@ impl Layout {
     }
 
     pub fn focused_component_id(&self) -> Option<ComponentId> {
-        self.focused_component_id
+        Some(self.get_current_component()?.borrow().id())
     }
 
     pub fn borders(&self) -> Vec<Border> {
@@ -382,8 +285,7 @@ impl Layout {
         suggestive_editor: Rc<RefCell<SuggestiveEditor>>,
     ) {
         self.add_suggestive_editor(suggestive_editor.clone());
-
-        self.set_main_panel(self.new_main_panel(Some(suggestive_editor)));
+        self.add_and_focus_component(ComponentKind::SuggestiveEditor, suggestive_editor);
     }
 
     pub fn get_suggestive_editor(
@@ -398,41 +300,43 @@ impl Layout {
     }
 
     pub fn show_info(&mut self, info: Info) -> anyhow::Result<()> {
-        let info_panel = self.global_info.take().unwrap_or_else(|| {
-            Rc::new(RefCell::new(Editor::from_text(
-                tree_sitter_md::language(),
-                "",
-            )))
-        });
+        let info_panel = Rc::new(RefCell::new(Editor::from_text(
+            tree_sitter_md::language(),
+            "",
+        )));
         info_panel.borrow_mut().show_info(info)?;
-        self.global_info = Some(info_panel);
+        self.tree.root_mut().map(|mut root| {
+            root.append(KindedComponent::new(ComponentKind::Info, info_panel));
+        });
 
         Ok(())
     }
 
-    pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+    pub fn show_keymap_legend(
+        &mut self,
+        keymap_legend_config: KeymapLegendConfig,
+    ) -> anyhow::Result<()> {
+        let mut node = self
+            .focused_component_id
+            .and_then(|id| self.tree.get_mut(id))
+            .ok_or_else(|| {
+                anyhow!("Unable to show keymap legend because there is no owner can be found.")
+            })?;
         let keymap_legend = KeymapLegend::new(keymap_legend_config);
-        self.focused_component_id = Some(keymap_legend.id());
-        self.keymap_legend
-            .push(Rc::new(RefCell::new(keymap_legend)));
+        let new_node = node.append(KindedComponent::new(
+            ComponentKind::KeymapLegend,
+            Rc::new(RefCell::new(keymap_legend)),
+        ));
+        self.focused_component_id = Some(new_node.node_id());
+        Ok(())
     }
 
     pub fn close_all_except_main_panel(&mut self) {
-        self.global_info = None;
-        self.keymap_legend = vec![];
-        self.quickfix_list = None;
-        self.prompts = vec![];
-        self.dropdowns.clear();
-        self.dropdown_infos.clear();
-        self.editor_infos.clear();
-        if let Some(id) = self.focused_component_id {
-            self.close_dropdown(id);
-            self.close_editor_info(id);
-        } else {
-            self.focused_component_id = self
-                .background_suggestive_editors
-                .last()
-                .map(|editor| editor.borrow().id())
+        if let Some(component) = self
+            .focused_component_id
+            .and_then(|id| self.tree.get(id).map(|node| node.data().clone()))
+        {
+            self.tree.set_root(component);
         }
     }
 
@@ -456,9 +360,7 @@ impl Layout {
         path: &CanonicalizedPath,
     ) -> anyhow::Result<Dispatches> {
         let dispatches = self.file_explorer.borrow_mut().reveal(path)?;
-
-        self.focused_component_id = Some(self.file_explorer.borrow().id());
-        self.file_explorer_open = true;
+        self.open_file_explorer();
 
         Ok(dispatches)
     }
@@ -478,7 +380,13 @@ impl Layout {
     }
 
     pub fn open_file_explorer(&mut self) {
-        self.file_explorer_open = true
+        self.tree.root_mut().map(|mut root| {
+            let new_node = root.append(KindedComponent::new(
+                ComponentKind::FileExplorer,
+                self.file_explorer.clone(),
+            ));
+            self.focused_component_id = Some(new_node.node_id())
+        });
     }
 
     pub fn update_highlighted_spans(
@@ -513,8 +421,7 @@ impl Layout {
         path: &CanonicalizedPath,
         selection_set: SelectionSet,
     ) -> anyhow::Result<()> {
-        self.open_file(path, true);
-        if let Some(editor) = self.main_panel.editor.clone() {
+        if let Some(editor) = self.open_file(path, true) {
             editor
                 .borrow_mut()
                 .editor_mut()
@@ -547,9 +454,9 @@ impl Layout {
     }
 
     #[cfg(test)]
-    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
-        self.current_component()
-            .and_then(|c| self.dropdowns.get(&c.borrow().id()).cloned())
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
+        self.get_current_node_child_id(ComponentKind::Dropdown)
+            .and_then(|mut node_id| Some(self.tree.get(node_id)?.data().component.clone()))
     }
 
     pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Rc<RefCell<Editor>> {
@@ -557,17 +464,40 @@ impl Layout {
             tree_sitter_md::language(),
             "",
         )));
-        self.dropdowns.insert(owner_id, dropdown.clone());
+        self.focused_component_id
+            .and_then(|id| self.replace_node_child(id, ComponentKind::Dropdown, dropdown.clone()));
         self.recalculate_layout(); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
         dropdown
     }
 
     /// `id` is either the `id` of the dropdown or of its owner
     pub(crate) fn close_dropdown(&mut self, id: ComponentId) {
-        self.dropdowns
-            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
-        self.dropdown_infos
-            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+        if let Some(node_id) = self.get_current_node_child_id(ComponentKind::Dropdown) {
+            self.tree.remove(node_id, RemoveBehavior::DropChildren);
+        }
+    }
+
+    fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
+        self.get_node_child_id_by_kind(self.focused_component_id?, kind)
+    }
+
+    fn get_node_child_id_by_kind(&self, node_id: NodeId, kind: ComponentKind) -> Option<NodeId> {
+        Some(
+            self.tree
+                .get(node_id)?
+                .traverse_pre_order()
+                .find(|node| node.node_id() != node_id && node.data().kind == kind)?
+                .node_id(),
+        )
+    }
+
+    fn remove_node_child<'a>(
+        &mut self,
+        node_id: NodeId,
+        kind: ComponentKind,
+    ) -> Option<KindedComponent> {
+        self.get_node_child_id_by_kind(node_id, kind)
+            .and_then(|child_id| self.tree.remove(child_id, RemoveBehavior::DropChildren))
     }
 
     pub(crate) fn show_dropdown_info(
@@ -575,22 +505,23 @@ impl Layout {
         owner_id: ComponentId,
         info: Info,
     ) -> anyhow::Result<()> {
-        let editor = self
-            .dropdown_infos
-            .shift_remove(&owner_id)
-            .unwrap_or_else(|| {
-                Rc::new(RefCell::new(Editor::from_text(
-                    tree_sitter_md::language(),
-                    "",
-                )))
-            });
-        editor.borrow_mut().show_info(info)?;
-        self.dropdown_infos.insert(owner_id, editor);
+        if let Some(mut node_id) = self.get_current_node_child_id(ComponentKind::Dropdown) {
+            let mut editor = Editor::from_text(tree_sitter_md::language(), "");
+            editor.show_info(info)?;
+            self.replace_node_child(
+                node_id,
+                ComponentKind::DropdownInfo,
+                Rc::new(RefCell::new(editor)),
+            );
+        }
+
         Ok(())
     }
 
     pub(crate) fn hide_dropdown_info(&mut self, owner_id: ComponentId) {
-        self.dropdown_infos.shift_remove(&owner_id);
+        if let Some(node_id) = self.get_current_node_child_id(ComponentKind::Dropdown) {
+            self.remove_node_child(node_id, ComponentKind::DropdownInfo);
+        }
     }
 
     pub(crate) fn get_component_by_id(
@@ -607,17 +538,11 @@ impl Layout {
         id: &ComponentId,
         selection_set: SelectionSet,
     ) {
-        if let Some(component) = self.get_component_by_id(id) {
-            component
-                .borrow_mut()
-                .editor_mut()
-                .__update_selection_set_for_real(selection_set);
-            self.focused_component_id = Some(component.borrow().id())
-        }
+        log::info!("This is not implemented yet!")
     }
 
     pub(crate) fn show_quickfix_list(&mut self) -> Rc<RefCell<Editor>> {
-        if let Some(quickfix_list) = self.quickfix_list.clone() {
+        let quickfix_list = if let Some(quickfix_list) = self.quickfix_list.clone() {
             quickfix_list.clone()
         } else {
             let editor = Rc::new(RefCell::new(Editor::from_text(
@@ -626,12 +551,26 @@ impl Layout {
             )));
             self.quickfix_list = Some(editor.clone());
             editor.clone()
-        }
+        };
+        self.tree.root_mut().map(|mut root| {
+            root.append(KindedComponent::new(
+                ComponentKind::QuickfixList,
+                quickfix_list.clone(),
+            ));
+        });
+        quickfix_list
     }
 
     #[cfg(test)]
     pub(crate) fn get_dropdown_infos_count(&self) -> usize {
-        self.dropdown_infos.len()
+        self.tree
+            .root()
+            .map(|root| {
+                root.traverse_pre_order()
+                    .filter(|node| node.data().kind == ComponentKind::DropdownInfo)
+                    .count()
+            })
+            .unwrap_or_default()
     }
 
     pub(crate) fn show_editor_info(
@@ -641,24 +580,47 @@ impl Layout {
     ) -> anyhow::Result<()> {
         let mut editor = Editor::from_text(tree_sitter_md::language(), info.content());
         editor.show_info(info)?;
-        self.editor_infos
-            .insert(owner_id, Rc::new(RefCell::new(editor)));
+        self.focused_component_id.map(|id| {
+            self.replace_node_child(id, ComponentKind::EditorInfo, Rc::new(RefCell::new(editor)));
+        });
         Ok(())
+    }
+
+    fn replace_node_child(
+        &mut self,
+        id: NodeId,
+        kind: ComponentKind,
+        component: Rc<RefCell<dyn Component>>,
+    ) -> Option<NodeId> {
+        self.remove_node_child(id, kind);
+        self.append_node_child(id, KindedComponent::new(kind, component))
     }
 
     #[cfg(test)]
     pub(crate) fn editor_info_open(&self) -> bool {
-        !self.editor_infos.is_empty()
-    }
-
-    pub(crate) fn close_editor_info(&mut self, id: ComponentId) {
-        self.editor_infos
-            .retain(|owner_id, c| owner_id != &id && c.borrow().id() != id);
+        self.tree
+            .root()
+            .map(|root| {
+                root.traverse_pre_order()
+                    .filter(|node| node.data().kind == ComponentKind::EditorInfo)
+                    .count()
+            })
+            .unwrap_or_default()
+            > 0
     }
 
     #[cfg(test)]
     pub(crate) fn editor_info_content(&self) -> Option<String> {
-        Some(self.editor_infos.first()?.1.borrow().content())
+        Some(
+            self.tree
+                .root()?
+                .traverse_pre_order()
+                .find(|node| node.data().kind == ComponentKind::EditorInfo)?
+                .data()
+                .component
+                .borrow()
+                .content(),
+        )
     }
 
     #[cfg(test)]
@@ -724,6 +686,21 @@ impl Layout {
             buffer.borrow_mut().clear_quickfix_list_items()
         }
     }
+
+    fn replace_current_suggestive_editor(
+        &mut self,
+        editor: Rc<RefCell<SuggestiveEditor>>,
+    ) -> Option<NodeId> {
+        self.tree.root_id().and_then(|root_id| {
+            self.replace_node_child(root_id, ComponentKind::SuggestiveEditor, editor)
+        })
+    }
+
+    fn append_node_child(&mut self, id: NodeId, component: KindedComponent) -> Option<NodeId> {
+        self.tree
+            .get_mut(id)
+            .map(|mut node| node.append(component).node_id())
+    }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;
@@ -733,4 +710,28 @@ fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     } else {
         (LayoutKind::Wide, 0.65)
     }
+}
+
+#[derive(Clone)]
+struct KindedComponent {
+    component: Rc<RefCell<dyn Component>>,
+    kind: ComponentKind,
+}
+impl KindedComponent {
+    fn new(kind: ComponentKind, component: Rc<RefCell<dyn Component>>) -> KindedComponent {
+        Self { kind, component }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum ComponentKind {
+    Dropdown,
+    SuggestiveEditor,
+    Info,
+    DropdownInfo,
+    KeymapLegend,
+    FileExplorer,
+    Prompt,
+    QuickfixList,
+    EditorInfo,
 }

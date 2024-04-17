@@ -1,5 +1,4 @@
 use crossterm::event::KeyCode;
-use my_proc_macros::key;
 
 use SelectionMode::*;
 
@@ -457,11 +456,7 @@ impl Editor {
         }
     }
 
-    pub fn handle_universal_key(
-        &mut self,
-        context: &Context,
-        event: KeyEvent,
-    ) -> anyhow::Result<HandleEventResult> {
+    pub fn handle_universal_key(&mut self, event: KeyEvent) -> anyhow::Result<HandleEventResult> {
         if let Some(keymap) = self.keymap_universal().keymaps.get(&event) {
             Ok(HandleEventResult::Handled(Dispatches::one(
                 keymap.dispatch(),

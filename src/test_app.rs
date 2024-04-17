@@ -30,6 +30,7 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, ComponentId},
+        dropdown::Dropdown,
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
         suggestive_editor::{DispatchSuggestiveEditor, Info},
     },
@@ -257,6 +258,7 @@ impl ExpectKind {
                 app.current_completion_dropdown()
                     .unwrap()
                     .borrow()
+                    .editor()
                     .get_selected_texts()[0]
                     .trim(),
                 item,

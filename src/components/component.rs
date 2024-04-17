@@ -84,7 +84,6 @@ impl Cursor {
         Cursor { position, ..self }
     }
 }
-
 pub trait Component: Any + AnyComponent {
     fn id(&self) -> ComponentId {
         self.editor().id()

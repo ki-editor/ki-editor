@@ -26,8 +26,6 @@ use super::{
 /// Editor with auto-complete
 pub struct SuggestiveEditor {
     editor: Editor,
-    info_panel: Option<Rc<RefCell<Editor>>>,
-
     completion_dropdown: Dropdown,
 
     trigger_characters: Vec<String>,
@@ -136,65 +134,47 @@ impl Component for SuggestiveEditor {
         } else {
             None
         };
-        let dispatches = dispatches
-            .chain(match event {
-                key!("esc") => [
-                    Dispatch::CloseDropdown {
-                        owner_id: self.id(),
-                    },
-                    Dispatch::CloseEditorInfo {
-                        owner_id: self.id(),
-                    },
-                    Dispatch::ToEditor(EnterNormalMode),
-                ]
-                .to_vec()
+        Ok(dispatches.chain(match event {
+            key!("esc") => [
+                Dispatch::CloseDropdown {
+                    owner_id: self.id(),
+                },
+                Dispatch::ToEditor(EnterNormalMode),
+            ]
+            .to_vec()
+            .into(),
+            _ if self.editor.mode == Mode::Insert => self
+                .editor
+                .get_request_params()
+                .map(|params| {
+                    vec![
+                        Dispatch::RequestCompletion(params.clone()),
+                        Dispatch::RequestSignatureHelp(params),
+                    ]
+                })
+                .unwrap_or_default()
+                .into_iter()
+                .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
+                    render,
+                    owner_id: self.id(),
+                }))
+                .collect_vec()
                 .into(),
-                _ => Default::default(),
-            })
-            .chain(if self.editor.mode == Mode::Insert {
-                self.editor
-                    .get_request_params()
-                    .map(|params| {
-                        vec![
-                            Dispatch::RequestCompletion(params.clone()),
-                            Dispatch::RequestSignatureHelp(params),
-                        ]
-                    })
-                    .unwrap_or_default()
-                    .into_iter()
-                    .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
-                        render,
-                        owner_id: self.id(),
-                    }))
-                    .collect_vec()
-                    .into()
-            } else {
-                Default::default()
-            });
-
-        Ok(dispatches)
+            _ => Default::default(),
+        }))
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        vec![self
-            .info_panel
-            .clone()
-            .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>)]
+        Default::default()
     }
 
-    fn remove_child(&mut self, component_id: ComponentId) {
-        if matches!(&self.info_panel, Some(info_panel) if info_panel.borrow().id() == component_id)
-        {
-            self.info_panel = None;
-        }
-    }
+    fn remove_child(&mut self, component_id: ComponentId) {}
 }
 
 impl SuggestiveEditor {
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
-            info_panel: None,
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
             }),
@@ -258,6 +238,17 @@ impl SuggestiveEditor {
         }]
         .to_vec()
         .into()
+    }
+
+    pub(crate) fn from_text(language: tree_sitter::Language, s: &str) -> Self {
+        Self {
+            editor: Editor::from_text(language, s),
+            completion_dropdown: Dropdown::new(DropdownConfig {
+                title: "[Untitled dropdown]".to_string(),
+            }),
+            trigger_characters: Default::default(),
+            filter: SuggestiveEditorFilter::CurrentWord,
+        }
     }
 }
 

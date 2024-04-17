@@ -448,7 +448,7 @@ impl Editor {
                     .buffer()
                     .path()
                     .map(SelectionSetHistoryKind::Path)
-                    .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(self.id())),
+                    .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(Some(self.id()))),
                 store_history,
             }]
             .to_vec(),
@@ -926,11 +926,11 @@ impl Editor {
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleBookmark => self.toggle_bookmarks(),
             EnterInsideMode(kind) => return self.set_selection_mode(SelectionMode::Inside(kind)),
-            EnterNormalMode => self.enter_normal_mode()?,
+            EnterNormalMode => return self.enter_normal_mode(),
             FilterPush(filter) => return Ok(self.filters_push(context, filter)),
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             FilterClear => return Ok(self.filters_clear()),
-            CursorKeepPrimaryOnly => self.cursor_keep_primary_only()?,
+            CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             Raise => return self.replace_with_movement(&Movement::Parent),
             Exchange(movement) => return self.exchange(movement),
             EnterExchangeMode => self.enter_exchange_mode(),
@@ -1018,7 +1018,7 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> anyhow::Result<Dispatches> {
-        match self.handle_universal_key(context, key_event)? {
+        match self.handle_universal_key(key_event)? {
             HandleEventResult::Ignored(key_event) => {
                 if let Some(jumps) = self.jumps.take() {
                     self.handle_jump_mode(context, key_event, jumps)
@@ -1238,7 +1238,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
+    pub fn enter_normal_mode(&mut self) -> anyhow::Result<Dispatches> {
         if self.mode == Mode::Insert {
             // This is necessary for cursor to not overflow after exiting insert mode
             self.selection_set =
@@ -1258,11 +1258,15 @@ impl Editor {
                         };
                         Ok(selection.clone().set_range(range))
                     })?;
+            self.clamp()?;
         }
+        // TODO: continue from here, need to add test: upon exiting insert mode, should close all panels
+        // Maybe we should call this function the exit_insert_mode?
 
         self.mode = Mode::Normal;
+        self.selection_set.unset_initial_range();
 
-        Ok(())
+        Ok(Dispatches::one(Dispatch::CloseAllExceptMainPanel))
     }
 
     #[cfg(test)]
@@ -1768,8 +1772,10 @@ impl Editor {
             return Ok(Default::default());
         };
         self.clamp()?;
-        self.cursor_keep_primary_only()?;
-        Ok(Dispatches::new(vec![Dispatch::DocumentDidSave { path }])
+        self.cursor_keep_primary_only();
+        let dispatches = self.enter_normal_mode()?;
+        Ok(dispatches
+            .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::CloseAllExceptMainPanel))
     }
@@ -1889,25 +1895,32 @@ impl Editor {
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event {
-            key!("esc") => self.enter_normal_mode(),
-            key!("a") => self.add_cursor_to_all_selections(),
-            key!("o") => self.cursor_keep_primary_only(),
+            key!("esc") => {
+                self.mode = Mode::Normal;
+                Ok(Default::default())
+            }
+            // TODO: put this into keymap legend
+            key!("a") => {
+                self.add_cursor_to_all_selections()?;
+                Ok(Default::default())
+            }
+            key!("o") => {
+                self.cursor_keep_primary_only();
+                Ok(Default::default())
+            }
             other => return self.handle_normal_mode(context, other),
-        }?;
-        Ok(Default::default())
+        }
     }
 
     pub fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction)?;
         self.recalculate_scroll_offset();
-        self.enter_normal_mode()?;
         Ok(())
     }
 
-    pub fn cursor_keep_primary_only(&mut self) -> Result<(), anyhow::Error> {
+    pub fn cursor_keep_primary_only(&mut self) {
         self.selection_set.only();
-        self.enter_normal_mode()
     }
 
     fn enter_single_character_mode(&mut self) {
@@ -1920,7 +1933,7 @@ impl Editor {
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
-                self.enter_normal_mode()?;
+                self.mode = Mode::Normal;
                 self.set_selection_mode(SelectionMode::Find {
                     search: Search {
                         search: c.to_string(),
@@ -1935,7 +1948,7 @@ impl Editor {
                 })
             }
             KeyCode::Esc => {
-                self.enter_normal_mode()?;
+                self.mode = Mode::Normal;
                 Ok(Default::default())
             }
             _ => Ok(Default::default()),
@@ -1968,13 +1981,7 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.enter_normal_mode()?;
-                Ok(Default::default())
-            }
-            other => self.handle_normal_mode(context, other),
-        }
+        self.handle_normal_mode(context, key_event)
     }
 
     pub fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
@@ -2052,13 +2059,7 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.enter_normal_mode()?;
-                Ok(Default::default())
-            }
-            other => self.handle_normal_mode(context, other),
-        }
+        self.handle_normal_mode(context, key_event)
     }
 
     fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Dispatches, anyhow::Error> {
@@ -2198,13 +2199,7 @@ impl Editor {
         context: &Context,
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
-        match key_event {
-            key!("esc") => {
-                self.enter_normal_mode()?;
-                Ok(Default::default())
-            }
-            other => self.handle_normal_mode(context, other),
-        }
+        self.handle_normal_mode(context, key_event)
     }
 
     pub(crate) fn scroll_offset(&self) -> u16 {

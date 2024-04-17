@@ -322,10 +322,7 @@ impl Component for KeymapLegend {
         };
         if self.editor.mode == Mode::Insert {
             match &event {
-                key!("esc") => {
-                    self.editor.enter_normal_mode()?;
-                    Ok(Default::default())
-                }
+                key!("esc") => self.editor.enter_normal_mode(),
                 key_event => {
                     if let Some(keymap) = self
                         .config
@@ -361,9 +358,31 @@ impl Component for KeymapLegend {
 
 #[cfg(test)]
 mod test_keymap_legend {
+    use crate::test_app::*;
     use my_proc_macros::keys;
 
     use super::*;
+
+    #[test]
+    fn test_esc() -> anyhow::Result<()> {
+        execute_test(|s| {
+            let input = "fn main() { x + 1 }";
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(ShowKeymapLegend(KeymapLegendConfig {
+                    title: "".to_string(),
+                    body: KeymapLegendBody::SingleSection {
+                        keymaps: Keymaps::new(&[]),
+                    },
+                    owner_id: todo!(),
+                })),
+                Editor(MatchLiteral("x".to_string())),
+                Editor(SetSelectionMode(BottomNode)),
+                Editor(Raise),
+                Expect(CurrentComponentContent("fn main() { x }")),
+            ])
+        })
+    }
 
     #[test]
     fn test_display_1() {

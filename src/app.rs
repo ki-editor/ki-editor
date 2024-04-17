@@ -17,7 +17,7 @@ use crate::{
     git,
     grid::Grid,
     history::History,
-    layout::Layout,
+    layout::{ComponentKind, Layout},
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
         goto_definition_response::GotoDefinitionResponse,
@@ -36,7 +36,6 @@ use crate::{
 };
 use event::event::Event;
 use itertools::Itertools;
-use my_proc_macros::key;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
@@ -85,7 +84,7 @@ struct SelectionSetHistory {
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum SelectionSetHistoryKind {
     Path(CanonicalizedPath),
-    ComponentId(ComponentId),
+    ComponentId(Option<ComponentId>),
 }
 
 struct Null;
@@ -466,7 +465,7 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)?;
             }
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
-                self.show_keymap_legend(keymap_legend_config)
+                self.show_keymap_legend(keymap_legend_config)?
             }
 
             #[cfg(test)]
@@ -541,7 +540,7 @@ impl<T: Frontend> App<T> {
                 filter_glob,
             } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob)?,
             Dispatch::ShowSearchConfig { owner_id, scope } => {
-                self.show_search_config(owner_id, scope)
+                self.show_search_config(owner_id, scope)?
             }
             Dispatch::OpenUpdateReplacementPrompt { owner_id, scope } => {
                 self.open_update_replacement_prompt(owner_id, scope)?
@@ -579,7 +578,6 @@ impl<T: Frontend> App<T> {
                     self.show_editor_info(component.borrow().id(), info)?
                 }
             }
-            Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
@@ -1062,7 +1060,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+    fn show_keymap_legend(
+        &mut self,
+        keymap_legend_config: KeymapLegendConfig,
+    ) -> anyhow::Result<()> {
         self.layout.show_keymap_legend(keymap_legend_config)
     }
 
@@ -1335,7 +1336,6 @@ impl<T: Frontend> App<T> {
         store_history: bool,
     ) -> anyhow::Result<()> {
         let component = self.layout.current_component();
-
         let new_to_old = component
             .as_ref()
             .map(|component| SelectionSetHistory {
@@ -1343,9 +1343,7 @@ impl<T: Frontend> App<T> {
                     .borrow()
                     .path()
                     .map(SelectionSetHistoryKind::Path)
-                    .unwrap_or_else(|| {
-                        SelectionSetHistoryKind::ComponentId(component.borrow().id())
-                    }),
+                    .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(None)),
                 selection_set: component.borrow().editor().selection_set.clone(),
             })
             .unwrap_or_else(|| SelectionSetHistory {
@@ -1354,7 +1352,8 @@ impl<T: Frontend> App<T> {
             });
         if let Some(new_component) = match &kind {
             SelectionSetHistoryKind::Path(path) => Some(self.open_file(path, true)?),
-            SelectionSetHistoryKind::ComponentId(id) => self.layout.get_component_by_id(id),
+            SelectionSetHistoryKind::ComponentId(Some(id)) => self.layout.get_component_by_id(id),
+            _ => None,
         } {
             let selection_set = match source {
                 UpdateSelectionSetSource::PositionRange(position_range) => new_component
@@ -1467,7 +1466,11 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
+    fn show_search_config(
+        &mut self,
+        owner_id: ComponentId,
+        scope: Scope,
+    ) -> Result<(), anyhow::Error> {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("{title} [{}]", if checked { "X" } else { " " })
         }
@@ -1696,9 +1699,10 @@ impl<T: Frontend> App<T> {
             SelectionSetHistoryKind::Path(path) => self
                 .layout
                 .open_file_with_selection(&path, selection_set_history.selection_set)?,
-            SelectionSetHistoryKind::ComponentId(id) => self
+            SelectionSetHistoryKind::ComponentId(Some(id)) => self
                 .layout
                 .open_component_with_selection(&id, selection_set_history.selection_set),
+            _ => {}
         };
         Ok(())
     }
@@ -1737,9 +1741,16 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
-        if let Some(component) = self.layout.get_current_suggestive_editor() {
-            let dispatches = component.borrow_mut().handle_dispatch(dispatch)?;
-
+        if let Some(component) = self.layout.get_current_component() {
+            let dispatches = component
+                .borrow_mut()
+                .as_any_mut()
+                .downcast_mut::<SuggestiveEditor>()
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Failed to downcast")
+                        .context("App::handle_dispatch_suggestive_editor")
+                })?
+                .handle_dispatch(dispatch)?;
             self.handle_dispatches(dispatches)?;
         }
         Ok(())
@@ -1751,7 +1762,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
 
@@ -1761,7 +1772,7 @@ impl<T: Frontend> App<T> {
             Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
 
         self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+            .add_and_focus_component(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
         self.handle_dispatches(dispatches)
     }
 
@@ -1826,7 +1837,7 @@ impl<T: Frontend> App<T> {
         &mut self,
         code_actions: Vec<crate::lsp::code_action::CodeAction>,
     ) -> anyhow::Result<()> {
-        if let Some(component) = self.layout.get_current_suggestive_editor() {
+        if let Some(component) = self.layout.get_current_component() {
             let params = component.borrow().editor().get_request_params();
             self.open_prompt(PromptConfig {
                 history: Vec::new(),
@@ -2049,9 +2060,6 @@ pub enum Dispatch {
     },
     OpenPrompt(PromptConfig),
     ShowEditorInfo(Info),
-    CloseEditorInfo {
-        owner_id: ComponentId,
-    },
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
     CycleWindow,
 }
