@@ -17,7 +17,7 @@ use crate::{
     git,
     grid::Grid,
     history::History,
-    layout::{ComponentKind, Layout},
+    layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
         goto_definition_response::GotoDefinitionResponse,
@@ -33,6 +33,7 @@ use crate::{
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::Theme,
+    ui_tree::ComponentKind,
 };
 use event::event::Event;
 use itertools::Itertools;
@@ -155,9 +156,6 @@ impl<T: Frontend> App<T> {
 
         if let Some(entry_path) = entry_path {
             self.open_file(&entry_path, true)?;
-        } else {
-            self.open_file_picker(FilePickerKind::NonGitIgnored)
-                .unwrap_or_else(|_| self.layout.open_file_explorer());
         }
 
         self.render()?;
@@ -465,7 +463,7 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)?;
             }
             Dispatch::ShowKeymapLegend(keymap_legend_config) => {
-                self.show_keymap_legend(keymap_legend_config)?
+                self.show_keymap_legend(keymap_legend_config)
             }
 
             #[cfg(test)]
@@ -540,7 +538,7 @@ impl<T: Frontend> App<T> {
                 filter_glob,
             } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob)?,
             Dispatch::ShowSearchConfig { owner_id, scope } => {
-                self.show_search_config(owner_id, scope)?
+                self.show_search_config(owner_id, scope)
             }
             Dispatch::OpenUpdateReplacementPrompt { owner_id, scope } => {
                 self.open_update_replacement_prompt(owner_id, scope)?
@@ -587,7 +585,7 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
-        self.layout.current_component()
+        self.layout.get_current_component()
     }
 
     fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
@@ -755,9 +753,6 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    /// This is different from `open_file` because it has the additional `update_selection_set` argument.
-    /// If Rust supports optional arguments, I do not have to do this
-    /// I do this to minimize changes
     fn open_file_custom(
         &mut self,
         path: &CanonicalizedPath,
@@ -779,7 +774,7 @@ impl<T: Frontend> App<T> {
 
         if focus_editor {
             self.layout
-                .add_and_focus_suggestive_editor(component.clone());
+                .replace_and_focus_current_suggestive_editor(component.clone());
         } else {
             self.layout.add_suggestive_editor(component.clone());
         }
@@ -916,7 +911,7 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::CodeAction(context, code_actions) => {
                 if Some(context.component_id)
-                    == self.layout.current_component().map(|c| c.borrow().id())
+                    == self.layout.get_current_component().map(|c| c.borrow().id())
                 {
                     self.handle_dispatch(Dispatch::ReceiveCodeActions(code_actions))?;
                 }
@@ -1060,10 +1055,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn show_keymap_legend(
-        &mut self,
-        keymap_legend_config: KeymapLegendConfig,
-    ) -> anyhow::Result<()> {
+    fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
         self.layout.show_keymap_legend(keymap_legend_config)
     }
 
@@ -1335,7 +1327,7 @@ impl<T: Frontend> App<T> {
         source: UpdateSelectionSetSource,
         store_history: bool,
     ) -> anyhow::Result<()> {
-        let component = self.layout.current_component();
+        let component = self.layout.get_current_component();
         let new_to_old = component
             .as_ref()
             .map(|component| SelectionSetHistory {
@@ -1466,11 +1458,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn show_search_config(
-        &mut self,
-        owner_id: ComponentId,
-        scope: Scope,
-    ) -> Result<(), anyhow::Error> {
+    fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("{title} [{}]", if checked { "X" } else { " " })
         }
@@ -1772,7 +1760,7 @@ impl<T: Frontend> App<T> {
             Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
 
         self.layout
-            .add_and_focus_component(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
+            .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
         self.handle_dispatches(dispatches)
     }
 

@@ -569,19 +569,28 @@ fn f() {
 #[test]
 fn exchange_line() -> anyhow::Result<()> {
     execute_test(|s| {
+        // Multiline source code
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent(
-                // Multiline source code
                 "
 fn main() {
     let x = 1;
     let y = 2;
 }"
                 .trim()
-                .to_string(),
+                .to_string()
+                .clone(),
             )),
             Editor(SetSelectionMode(LineTrimmed)),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+                .trim(),
+            )),
             Editor(Exchange(Next)),
             Expect(CurrentComponentContent(
                 "

@@ -109,6 +109,7 @@ pub enum ExpectKind {
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
+    ComponentCount(usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -330,6 +331,7 @@ impl ExpectKind {
                     .map(|d| d.location().range.clone())
                     .collect_vec(),
             ),
+            ComponentCount(expected) => contextualize(expected, &app.components().len()),
         })
     }
 }
@@ -1236,6 +1238,29 @@ fn code_action() -> anyhow::Result<()> {
             )),
             App(HandleKeyEvents(keys!("i n g enter").to_vec())),
             Expect(CurrentComponentContent("a.to_string")),
+        ])
+    })
+}
+
+#[test]
+fn opening_new_file_should_replace_current_window() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Expect(ExpectKind::ComponentCount(1)),
+            App(OpenFile(s.foo_rs())),
+            Expect(ExpectKind::ComponentCount(1)),
+        ])
+    })
+}
+
+#[test]
+fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            Expect(CurrentComponentContent("")),
+            App(HandleKeyEvents(keys!("i h e l l o").to_vec())),
+            Expect(CurrentComponentContent("hello")),
         ])
     })
 }
