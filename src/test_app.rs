@@ -1264,3 +1264,15 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
         ])
     })
 }
+
+#[test]
+fn cycle_window() -> anyhow::Result<()> {
+    todo!("");
+    execute_test(|_| {
+        Box::new([
+            Expect(CurrentComponentContent("")),
+            App(HandleKeyEvents(keys!("i h e l l o").to_vec())),
+            Expect(CurrentComponentContent("hello")),
+        ])
+    })
+}

@@ -32,7 +32,7 @@ struct Owned<T> {
 /// The main panel is where the user edits code, and the info panel is for displaying info like
 /// hover text, diagnostics, etc.
 pub struct Layout {
-    background_suggestive_editors: Vec<Rc<RefCell<SuggestiveEditor>>>,
+    background_suggestive_editors: IndexMap<CanonicalizedPath, Rc<RefCell<SuggestiveEditor>>>,
     background_file_explorer: Rc<RefCell<FileExplorer>>,
     background_quickfix_list: Option<Rc<RefCell<Editor>>>,
 
@@ -104,7 +104,7 @@ impl Layout {
         Ok(Layout {
             focused_component_id: tree.root_id(),
             background_quickfix_list: None,
-            background_suggestive_editors: vec![],
+            background_suggestive_editors: IndexMap::new(),
             background_file_explorer: Rc::new(RefCell::new(FileExplorer::new(working_directory)?)),
             rectangles,
             borders,
@@ -197,18 +197,7 @@ impl Layout {
         &self,
         path: &CanonicalizedPath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
-        self.background_suggestive_editors
-            .iter()
-            .find(|&component| {
-                component
-                    .borrow()
-                    .editor()
-                    .buffer()
-                    .path()
-                    .map(|p| &p == path)
-                    .unwrap_or(false)
-            })
-            .cloned()
+        self.background_suggestive_editors.get(path).cloned()
     }
 
     pub fn open_file(
@@ -244,7 +233,11 @@ impl Layout {
     }
 
     pub fn add_suggestive_editor(&mut self, suggestive_editor: Rc<RefCell<SuggestiveEditor>>) {
-        self.background_suggestive_editors.push(suggestive_editor);
+        let path = suggestive_editor.borrow().path();
+        if let Some(path) = path {
+            self.background_suggestive_editors
+                .insert(path, suggestive_editor);
+        }
     }
 
     pub fn get_suggestive_editor(
@@ -253,8 +246,8 @@ impl Layout {
     ) -> Result<Rc<RefCell<SuggestiveEditor>>, anyhow::Error> {
         self.background_suggestive_editors
             .iter()
-            .find(|editor| editor.borrow().id() == component_id)
-            .cloned()
+            .find(|(_, editor)| editor.borrow().id() == component_id)
+            .map(|(_, editor)| editor.clone())
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
@@ -286,14 +279,14 @@ impl Layout {
     pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
-            .filter_map(|editor| editor.borrow().editor().buffer().path())
+            .map(|(path, _)| path.clone())
             .collect()
     }
 
     pub fn save_all(&self) -> Result<(), anyhow::Error> {
         self.background_suggestive_editors
             .iter()
-            .map(|editor| editor.borrow_mut().editor_mut().save())
+            .map(|(_, editor)| editor.borrow_mut().editor_mut().save())
             .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
@@ -309,10 +302,7 @@ impl Layout {
     }
 
     pub fn remove_suggestive_editor(&mut self, path: &CanonicalizedPath) {
-        self.background_suggestive_editors
-            .retain(|suggestive_editor| {
-                suggestive_editor.borrow().editor().buffer().path().as_ref() != Some(path)
-            })
+        self.background_suggestive_editors.shift_remove(path);
     }
 
     pub fn refresh_file_explorer(
@@ -339,7 +329,8 @@ impl Layout {
         let component = self
             .background_suggestive_editors
             .iter()
-            .find(|component| component.borrow().id() == component_id)
+            .find(|(_, component)| component.borrow().id() == component_id)
+            .map(|(_, component)| component)
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))?;
 
         let mut component = component.borrow_mut();
@@ -354,7 +345,7 @@ impl Layout {
     pub(crate) fn buffers(&self) -> Vec<Rc<RefCell<Buffer>>> {
         self.background_suggestive_editors
             .iter()
-            .map(|editor| editor.borrow().editor().buffer_rc())
+            .map(|(_, editor)| editor.borrow().editor().buffer_rc())
             .collect_vec()
     }
 

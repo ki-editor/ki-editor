@@ -453,7 +453,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::SetQuickfixList(r#type) => {
-                self.set_quickfix_list_type(Default::default(), r#type)?
+                self.set_quickfix_list_type(Default::default(), r#type)?;
             }
             Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
@@ -936,6 +936,7 @@ impl<T: Frontend> App<T> {
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
         let component = self.open_file_custom(&path, false)?;
+
         component
             .borrow_mut()
             .editor_mut()
@@ -958,7 +959,7 @@ impl<T: Frontend> App<T> {
         if let Some(mut quickfix_list) = self.get_quickfix_list() {
             if let Some((current_item_index, dispatches)) = quickfix_list.get_item(movement) {
                 self.context
-                    .set_quickfix_list_current_item_idex(current_item_index);
+                    .set_quickfix_list_current_item_index(current_item_index);
                 self.handle_dispatches(dispatches)?;
                 self.render_quickfix_list(quickfix_list)?;
             }

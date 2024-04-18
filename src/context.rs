@@ -176,7 +176,7 @@ impl Context {
         &self.quickfix_list_state
     }
 
-    pub(crate) fn set_quickfix_list_current_item_idex(&mut self, current_item_index: usize) {
+    pub(crate) fn set_quickfix_list_current_item_index(&mut self, current_item_index: usize) {
         if let Some(state) = self.quickfix_list_state.take() {
             self.quickfix_list_state = Some(QuickfixListState {
                 current_item_index,
