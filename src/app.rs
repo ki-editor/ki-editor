@@ -579,7 +579,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
-            Dispatch::CycleWindow => self.layout.change_view(),
+            Dispatch::CycleWindow => self.layout.cycle_window(),
         }
         Ok(())
     }

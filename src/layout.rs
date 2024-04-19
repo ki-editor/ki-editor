@@ -148,17 +148,19 @@ impl Layout {
         self.recalculate_layout();
     }
 
-    pub fn change_view(&mut self) {
+    pub fn cycle_window(&mut self) {
         self.focused_component_id = self
             .tree
-            .get(self.focused_component_id)
-            .and_then(|mut node| {
-                node.next_sibling()
-                    .map(|node| node.node_id())
-                    .or_else(|| Some(node.parent()?.node_id()))
-                    .or_else(|| Some(node.first_child()?.node_id()))
-            })
-            .unwrap_or_else(|| self.focused_component_id);
+            .root()
+            .traverse_pre_order()
+            .map(|node| node.node_id())
+            .filter(|node_id| node_id != &self.tree.root_id())
+            .collect_vec()
+            .into_iter()
+            .cycle()
+            .skip_while(|node_id| node_id != &self.focused_component_id)
+            .nth(1)
+            .unwrap_or_else(|| self.tree.root_id());
     }
 
     pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {

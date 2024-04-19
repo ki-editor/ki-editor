@@ -32,7 +32,7 @@ use crate::{
         component::{Component, ComponentId},
         dropdown::Dropdown,
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
-        suggestive_editor::{DispatchSuggestiveEditor, Info},
+        suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::LocalSearchConfigMode,
     frontend::mock::MockFrontend,
@@ -41,7 +41,8 @@ use crate::{
     list::grep::RegexConfig,
     lsp::{
         code_action::CodeAction,
-        completion::PositionalEdit,
+        completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
+        documentation::Documentation,
         signature_help::SignatureInformation,
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
@@ -110,6 +111,7 @@ pub enum ExpectKind {
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
     ComponentCount(usize),
+    CurrentComponentPath(CanonicalizedPath),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -332,6 +334,10 @@ impl ExpectKind {
                     .collect_vec(),
             ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
+            CurrentComponentPath(expected) => contextualize(
+                expected,
+                &app.current_component().unwrap().borrow().path().unwrap(),
+            ),
         })
     }
 }
@@ -1267,12 +1273,65 @@ fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::R
 
 #[test]
 fn cycle_window() -> anyhow::Result<()> {
-    todo!("");
-    execute_test(|_| {
-        Box::new([
-            Expect(CurrentComponentContent("")),
-            App(HandleKeyEvents(keys!("i h e l l o").to_vec())),
-            Expect(CurrentComponentContent("hello")),
-        ])
-    })
+    {
+        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+            label: label.to_string(),
+            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                range: Position::new(0, 0)..Position::new(0, 6),
+                new_text: label.to_string(),
+            })),
+            documentation: documentation.map(Documentation::new),
+            sort_text: None,
+            kind: None,
+            detail: None,
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                    SuggestiveEditorFilter::CurrentWord,
+                )),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: Some(completion_item(
+                        "Spongebob squarepants",
+                        Some("krabby patty maker"),
+                    ))
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                Expect(ComponentCount(3)),
+                Editor(Insert("sponge".to_string())),
+                Expect(CurrentComponentContent("sponge")),
+                App(CycleWindow),
+                Expect(ComponentCount(3)),
+                Expect(CurrentComponentContent(" Spongebob squarepants")),
+                App(CycleWindow),
+                Expect(CurrentComponentContent("krabby patty maker")),
+                App(CycleWindow),
+                Expect(CurrentComponentContent("sponge")),
+            ])
+        })
+    }
+}
+
+#[test]
+fn closing_current_file_should_replace_current_window_with_another_file() -> anyhow::Result<()> {
+    {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.foo_rs())),
+                Expect(CurrentComponentPath(s.foo_rs())),
+                App(CloseCurrentWindow {
+                    change_focused_to: None,
+                }),
+                Expect(CurrentComponentPath(s.main_rs())),
+            ])
+        })
+    }
 }
