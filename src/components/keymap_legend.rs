@@ -317,9 +317,7 @@ impl Component for KeymapLegend {
         context: &crate::context::Context,
         event: event::KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
-        let close_current_window = Dispatch::CloseCurrentWindow {
-            change_focused_to: Some(self.config.owner_id),
-        };
+        let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
         if self.editor.mode == Mode::Insert {
             match &event {
                 key!("esc") => self.editor.enter_normal_mode(),
@@ -366,7 +364,6 @@ mod test_keymap_legend {
     #[test]
     fn test_esc() -> anyhow::Result<()> {
         execute_test(|s| {
-            let input = "fn main() { x + 1 }";
             Box::new([
                 App(OpenFile(s.main_rs())),
                 App(ShowKeymapLegend(KeymapLegendConfig {
@@ -374,12 +371,11 @@ mod test_keymap_legend {
                     body: KeymapLegendBody::SingleSection {
                         keymaps: Keymaps::new(&[]),
                     },
-                    owner_id: todo!(),
+                    owner_id: Default::default(),
                 })),
-                Editor(MatchLiteral("x".to_string())),
-                Editor(SetSelectionMode(BottomNode)),
-                Editor(Raise),
-                Expect(CurrentComponentContent("fn main() { x }")),
+                App(HandleKeyEvent(key!("esc"))),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(CurrentComponentPath(s.main_rs())),
             ])
         })
     }

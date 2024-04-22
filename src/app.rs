@@ -381,12 +381,16 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to);
             }
+            Dispatch::CloseCurrentWindowAndFocusParent => {
+                self.close_current_window_and_focus_parent();
+            }
             Dispatch::OpenSearchPrompt { scope, owner_id } => {
                 self.open_search_prompt(scope, owner_id)?
             }
-            Dispatch::OpenFile(path) => {
-                self.open_file(&path, true)?;
-            }
+            Dispatch::OpenFile(path) => self.go_to_location(&Location {
+                path,
+                range: Range::default(),
+            })?,
 
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
@@ -789,7 +793,7 @@ impl<T: Frontend> App<T> {
         Ok(component)
     }
 
-    pub fn open_file(
+    fn open_file(
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
@@ -1841,6 +1845,10 @@ impl<T: Frontend> App<T> {
         };
         Ok(())
     }
+
+    fn close_current_window_and_focus_parent(&mut self) {
+        self.layout.close_current_window_and_focus_parent()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2051,6 +2059,7 @@ pub enum Dispatch {
     ShowEditorInfo(Info),
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
     CycleWindow,
+    CloseCurrentWindowAndFocusParent,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

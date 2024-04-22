@@ -130,10 +130,11 @@ impl UiTree {
         )
     }
 
-    pub(crate) fn count_by_kind(&self, dropdown_info: ComponentKind) -> usize {
+    #[cfg(test)]
+    pub(crate) fn count_by_kind(&self, kind: ComponentKind) -> usize {
         self.root()
             .traverse_pre_order()
-            .filter(|node| node.data().kind == ComponentKind::DropdownInfo)
+            .filter(|node| node.data().kind == kind)
             .count()
     }
 }

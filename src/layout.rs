@@ -138,29 +138,56 @@ impl Layout {
 
     pub fn remove_current_component(&mut self) {
         if let Some(node) = self.tree.get(self.focused_component_id) {
-            self.focused_component_id = node
-                .parent()
-                .map(|parent| parent.node_id())
-                .unwrap_or_else(|| self.tree.root_id());
-            self.tree.remove(node.node_id());
+            if let Some(path) = node.data().component().borrow().path() {
+                self.background_suggestive_editors.shift_remove(&path);
+                if let Some((_, editor)) = self
+                    .background_suggestive_editors
+                    .iter()
+                    .skip_while(|(p, _)| p != &&path)
+                    .nth(1)
+                    .or_else(|| self.background_suggestive_editors.first())
+                {
+                    self.replace_and_focus_current_suggestive_editor(editor.clone())
+                };
+            } else {
+                self.tree.remove(node.node_id());
+                self.cycle_window()
+            }
         };
 
         self.recalculate_layout();
     }
 
-    pub fn cycle_window(&mut self) {
-        self.focused_component_id = self
+    fn set_focus_component_id(&mut self, id: NodeId) {
+        // This check is necessary.
+        // In case of any logical error that causes `id` to be pointing to node that is removed from the tree,
+        // it should always fallback to use root ID
+        self.focused_component_id = if self
             .tree
             .root()
             .traverse_pre_order()
-            .map(|node| node.node_id())
-            .filter(|node_id| node_id != &self.tree.root_id())
-            .collect_vec()
-            .into_iter()
-            .cycle()
-            .skip_while(|node_id| node_id != &self.focused_component_id)
-            .nth(1)
-            .unwrap_or_else(|| self.tree.root_id());
+            .any(|node| node.node_id() == id)
+        {
+            id
+        } else {
+            self.tree.root_id()
+        };
+    }
+
+    pub fn cycle_window(&mut self) {
+        self.set_focus_component_id(
+            self.tree
+                .root()
+                .traverse_pre_order()
+                .map(|node| node.node_id())
+                .filter(|node_id| node_id != &self.tree.root_id())
+                .collect_vec()
+                .into_iter()
+                .skip_while(|node_id| node_id != &self.focused_component_id)
+                .nth(1)
+                .or_else(|| self.tree.root().first_child().map(|node| node.node_id()))
+                .unwrap_or_else(|| self.tree.root_id()),
+        );
     }
 
     pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
@@ -168,10 +195,11 @@ impl Layout {
     }
 
     pub fn add_and_focus_prompt(&mut self, kind: ComponentKind, component: Rc<RefCell<Prompt>>) {
-        self.focused_component_id = self.tree.append_component(
+        let id = self.tree.append_component(
             self.focused_component_id,
             KindedComponent::new(kind, component),
         );
+        self.set_focus_component_id(id);
         self.recalculate_layout();
     }
 
@@ -265,13 +293,14 @@ impl Layout {
     }
 
     pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
-        self.focused_component_id = self.tree.append_component(
+        let id = self.tree.append_component(
             self.focused_component_id,
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
                 Rc::new(RefCell::new(KeymapLegend::new(keymap_legend_config))),
             ),
         );
+        self.set_focus_component_id(id);
     }
 
     pub fn close_all_except_main_panel(&mut self) {
@@ -317,10 +346,11 @@ impl Layout {
     }
 
     pub fn open_file_explorer(&mut self) {
-        self.focused_component_id = self.tree.append_component_to_root(KindedComponent::new(
+        let id = self.tree.append_component_to_root(KindedComponent::new(
             ComponentKind::FileExplorer,
             self.background_file_explorer.clone(),
         ));
+        self.set_focus_component_id(id);
     }
 
     pub fn update_highlighted_spans(
@@ -603,12 +633,21 @@ impl Layout {
         editor: Rc<RefCell<SuggestiveEditor>>,
     ) {
         self.add_suggestive_editor(editor.clone());
-        self.focused_component_id =
+        let id =
             self.replace_node_child(self.tree.root_id(), ComponentKind::SuggestiveEditor, editor);
+        self.set_focus_component_id(id);
     }
 
     fn append_node_child(&mut self, id: NodeId, component: KindedComponent) -> NodeId {
         self.tree.append_component(id, component)
+    }
+
+    pub(crate) fn close_current_window_and_focus_parent(&mut self) {
+        if let Some(node) = self.tree.get(self.focused_component_id) {
+            let parent_id = node.parent().map(|parent| parent.node_id());
+            self.tree.remove(node.node_id());
+            self.focused_component_id = parent_id.unwrap_or_else(|| self.tree.root_id())
+        }
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

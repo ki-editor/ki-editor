@@ -631,9 +631,10 @@ fn multi_paste() -> anyhow::Result<()> {
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent(".hello".to_owned())),
-            Editor(ReplaceWithClipboard),
+            Expect(CurrentMode(Mode::Insert)),
+            Editor(Paste(Direction::End)),
             Expect(CurrentComponentContent(
-                "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }",
+                "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
         ])
     })
@@ -1314,6 +1315,53 @@ fn cycle_window() -> anyhow::Result<()> {
                 Expect(CurrentComponentContent("krabby patty maker")),
                 App(CycleWindow),
                 Expect(CurrentComponentContent("sponge")),
+                App(CycleWindow),
+                App(CloseCurrentWindow {
+                    change_focused_to: None,
+                }),
+                Expect(CurrentComponentContent("sponge")),
+            ])
+        })
+    }
+}
+
+#[test]
+fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> anyhow::Result<()> {
+    {
+        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+            label: label.to_string(),
+            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                range: Position::new(0, 0)..Position::new(0, 6),
+                new_text: label.to_string(),
+            })),
+            documentation: documentation.map(Documentation::new),
+            sort_text: None,
+            kind: None,
+            detail: None,
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                    SuggestiveEditorFilter::CurrentWord,
+                )),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: Some(completion_item(
+                        "Spongebob squarepants",
+                        Some("krabby patty maker"),
+                    ))
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                Expect(ComponentCount(3)),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(ComponentCount(1)),
+                Expect(CurrentComponentPath(s.main_rs())),
             ])
         })
     }
@@ -1331,6 +1379,23 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
                     change_focused_to: None,
                 }),
                 Expect(CurrentComponentPath(s.main_rs())),
+            ])
+        })
+    }
+}
+
+#[test]
+fn go_to_previous_file() -> anyhow::Result<()> {
+    {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.foo_rs())),
+                Expect(CurrentComponentPath(s.foo_rs())),
+                App(GoToPreviousSelection),
+                Expect(CurrentComponentPath(s.main_rs())),
+                App(GoToNextSelection),
+                Expect(CurrentComponentPath(s.foo_rs())),
             ])
         })
     }
