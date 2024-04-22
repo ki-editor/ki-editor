@@ -410,6 +410,10 @@ impl Layout {
         self.tree.remove_current_child(ComponentKind::Dropdown);
     }
 
+    pub(crate) fn close_editor_info(&mut self) {
+        self.tree.remove_current_child(ComponentKind::EditorInfo);
+    }
+
     fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
         self.tree.get_current_node_child_id(kind)
     }
@@ -513,6 +517,14 @@ impl Layout {
 
     #[cfg(test)]
     pub(crate) fn editor_info_open(&self) -> bool {
+        println!(
+            "self.tree = {:?}",
+            self.tree
+                .root()
+                .traverse_pre_order()
+                .map(|node| node.data().kind())
+                .collect_vec()
+        );
         self.tree.count_by_kind(ComponentKind::EditorInfo) > 0
     }
 

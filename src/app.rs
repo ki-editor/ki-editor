@@ -562,6 +562,7 @@ impl<T: Frontend> App<T> {
                 self.handle_dispatch_suggestive_editor(dispatch)?
             }
             Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
+            Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::RenderDropdown { owner_id, render } => {
                 let dropdown = self.layout.open_dropdown(owner_id);
                 self.render_dropdown(Some(owner_id), dropdown, render)?
@@ -2026,6 +2027,7 @@ pub enum Dispatch {
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
     CycleWindow,
     CloseCurrentWindowAndFocusParent,
+    CloseEditorInfo,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

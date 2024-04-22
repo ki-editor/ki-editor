@@ -139,6 +139,7 @@ impl Component for SuggestiveEditor {
                 Dispatch::CloseDropdown {
                     owner_id: self.id(),
                 },
+                Dispatch::CloseEditorInfo,
                 Dispatch::ToEditor(EnterNormalMode),
             ]
             .to_vec()
