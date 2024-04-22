@@ -224,6 +224,15 @@ impl UiTree {
     pub(crate) fn current_component(&self) -> Rc<RefCell<(dyn Component)>> {
         self.get_current_node().data().component()
     }
+
+    pub(crate) fn replace_root_node_child(
+        &mut self,
+        kind: ComponentKind,
+        component: Rc<RefCell<dyn Component>>,
+        focus: bool,
+    ) {
+        self.replace_node_child(self.root_id(), kind, component, focus)
+    }
 }
 
 #[derive(Clone)]

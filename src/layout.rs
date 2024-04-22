@@ -478,8 +478,9 @@ impl Layout {
                 )))
             })
             .clone();
-        self.tree.append_component_to_root(
-            KindedComponent::new(ComponentKind::QuickfixList, quickfix_list.clone()),
+        self.tree.replace_root_node_child(
+            ComponentKind::QuickfixList,
+            quickfix_list.clone(),
             false,
         );
         quickfix_list

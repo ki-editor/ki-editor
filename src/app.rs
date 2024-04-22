@@ -451,7 +451,7 @@ impl<T: Frontend> App<T> {
             Dispatch::SetQuickfixList(r#type) => {
                 self.set_quickfix_list_type(Default::default(), r#type)?;
             }
-            Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
+            Dispatch::GotoQuickfixListItem(movement) => self.goto_quickfix_list_item(movement)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
                 self.goto_selection_history_contiguous(movement)?;
             }
