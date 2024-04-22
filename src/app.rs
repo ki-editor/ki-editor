@@ -218,13 +218,11 @@ impl<T: Frontend> App<T> {
                 });
             }
             event => {
-                if let Some(component) = component {
-                    let dispatches = component.borrow_mut().handle_event(&self.context, event);
-                    self.handle_dispatches_result(dispatches)
-                        .unwrap_or_else(|e| {
-                            self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
-                        });
-                }
+                let dispatches = component.borrow_mut().handle_event(&self.context, event);
+                self.handle_dispatches_result(dispatches)
+                    .unwrap_or_else(|e| {
+                        self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
+                    });
             }
         }
 
@@ -258,10 +256,7 @@ impl<T: Frontend> App<T> {
                 let rectangle = component.rectangle();
                 let GetGridResult { grid, cursor } = component.get_grid(&self.context);
                 let focused_component_id = self.layout.focused_component_id();
-                let cursor_position = if focused_component_id
-                    .map(|focused_component_id| component.id() == focused_component_id)
-                    .unwrap_or(false)
-                {
+                let cursor_position = if component.id() == focused_component_id {
                     if let Some(cursor) = cursor {
                         let cursor_position = cursor.position();
                         // If cursor position is not in view
@@ -291,16 +286,13 @@ impl<T: Frontend> App<T> {
 
         // Set the global title
         let global_title_window = {
-            let mode = self.context.mode().map(|mode| mode.display()).or_else(|| {
-                self.current_component()
-                    .map(|component| component.borrow().editor().display_mode())
-            });
+            let mode = self
+                .context
+                .mode()
+                .map(|mode| mode.display())
+                .unwrap_or_else(|| self.current_component().borrow().editor().display_mode());
 
-            let mode = if let Some(mode) = mode {
-                format!("[{}]", mode)
-            } else {
-                String::new()
-            };
+            let mode = format!("[{}]", mode);
 
             let title = if let Some(title) = self.global_title.as_ref() {
                 title.clone()
@@ -576,9 +568,7 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
             Dispatch::ShowEditorInfo(info) => {
-                if let Some(component) = self.current_component() {
-                    self.show_editor_info(component.borrow().id(), info)?
-                }
+                self.show_editor_info(self.current_component().borrow().id(), info)?
             }
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
@@ -588,7 +578,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
+    pub fn current_component(&self) -> Rc<RefCell<dyn Component>> {
         self.layout.get_current_component()
     }
 
@@ -609,7 +599,7 @@ impl<T: Frontend> App<T> {
                 }),
                 owner_id
                     .and_then(|owner_id| self.get_component_by_id(owner_id))
-                    .or_else(|| self.current_component()),
+                    .unwrap_or_else(|| self.current_component()),
             )?;
         }
 
@@ -914,9 +904,7 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)
             }
             LspNotification::CodeAction(context, code_actions) => {
-                if Some(context.component_id)
-                    == self.layout.get_current_component().map(|c| c.borrow().id())
-                {
+                if context.component_id == self.layout.get_current_component().borrow().id() {
                     self.handle_dispatch(Dispatch::ReceiveCodeActions(code_actions))?;
                 }
                 Ok(())
@@ -1212,9 +1200,8 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
-        let _content = self.current_component().unwrap().borrow().content();
+        let _content = self.current_component().borrow().content();
         self.current_component()
-            .unwrap()
             .borrow()
             .editor()
             .get_selected_texts()
@@ -1239,16 +1226,14 @@ impl<T: Frontend> App<T> {
     fn handle_dispatch_editor_custom(
         &mut self,
         dispatch_editor: DispatchEditor,
-        component: Option<Rc<RefCell<dyn Component>>>,
+        component: Rc<RefCell<dyn Component>>,
     ) -> anyhow::Result<()> {
-        if let Some(component) = component {
-            let dispatches = component
-                .borrow_mut()
-                .editor_mut()
-                .apply_dispatch(&mut self.context, dispatch_editor)?;
+        let dispatches = component
+            .borrow_mut()
+            .editor_mut()
+            .apply_dispatch(&mut self.context, dispatch_editor)?;
 
-            self.handle_dispatches(dispatches)?;
-        }
+        self.handle_dispatches(dispatches)?;
         Ok(())
     }
 
@@ -1296,8 +1281,7 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
-        self.current_component()
-            .and_then(|component| component.borrow().path())
+        self.current_component().borrow().path()
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
@@ -1333,20 +1317,14 @@ impl<T: Frontend> App<T> {
         store_history: bool,
     ) -> anyhow::Result<()> {
         let component = self.layout.get_current_component();
-        let new_to_old = component
-            .as_ref()
-            .map(|component| SelectionSetHistory {
-                kind: component
-                    .borrow()
-                    .path()
-                    .map(SelectionSetHistoryKind::Path)
-                    .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(None)),
-                selection_set: component.borrow().editor().selection_set.clone(),
-            })
-            .unwrap_or_else(|| SelectionSetHistory {
-                kind: SelectionSetHistoryKind::ComponentId(Default::default()),
-                selection_set: SelectionSet::default(),
-            });
+        let new_to_old = SelectionSetHistory {
+            kind: component
+                .borrow()
+                .path()
+                .map(SelectionSetHistoryKind::Path)
+                .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(None)),
+            selection_set: component.borrow().editor().selection_set.clone(),
+        };
         if let Some(new_component) = match &kind {
             SelectionSetHistoryKind::Path(path) => Some(self.open_file(path, true)?),
             SelectionSetHistoryKind::ComponentId(Some(id)) => self.layout.get_component_by_id(id),
@@ -1667,21 +1645,17 @@ impl<T: Frontend> App<T> {
 
     fn words(&self) -> Vec<DropdownItem> {
         self.current_component()
-            .map(|current_component| {
-                current_component
-                    .borrow()
-                    .editor()
-                    .buffer()
-                    .words()
-                    .into_iter()
-                    .map(|word| {
-                        DropdownItem::new(word.clone()).set_dispatches(Dispatches::one(
-                            Dispatch::ToEditor(ReplaceCurrentSelectionWith(word)),
-                        ))
-                    })
-                    .collect_vec()
+            .borrow()
+            .editor()
+            .buffer()
+            .words()
+            .into_iter()
+            .map(|word| {
+                DropdownItem::new(word.clone()).set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                    ReplaceCurrentSelectionWith(word),
+                )))
             })
-            .unwrap_or_default()
+            .collect_vec()
     }
 
     fn go_to_selection_set_history(
@@ -1716,11 +1690,7 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
-        self.current_component()
-            .unwrap()
-            .borrow()
-            .editor()
-            .content()
+        self.current_component().borrow().editor().content()
     }
 
     fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
@@ -1734,19 +1704,17 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
-        if let Some(component) = self.layout.get_current_component() {
-            let dispatches = component
-                .borrow_mut()
-                .as_any_mut()
-                .downcast_mut::<SuggestiveEditor>()
-                .ok_or_else(|| {
-                    anyhow::anyhow!("Failed to downcast")
-                        .context("App::handle_dispatch_suggestive_editor")
-                })?
-                .handle_dispatch(dispatch)?;
-            self.handle_dispatches(dispatches)?;
-        }
-        Ok(())
+        let component = self.layout.get_current_component();
+        let dispatches = component
+            .borrow_mut()
+            .as_any_mut()
+            .downcast_mut::<SuggestiveEditor>()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Failed to downcast")
+                    .context("App::handle_dispatch_suggestive_editor")
+            })?
+            .handle_dispatch(dispatch)?;
+        self.handle_dispatches(dispatches)
     }
 
     #[cfg(test)]
@@ -1761,8 +1729,7 @@ impl<T: Frontend> App<T> {
 
     fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
         let current_component = self.current_component().clone();
-        let (prompt, dispatches) =
-            Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
+        let (prompt, dispatches) = Prompt::new(prompt_config, None);
 
         self.layout
             .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
@@ -1830,19 +1797,18 @@ impl<T: Frontend> App<T> {
         &mut self,
         code_actions: Vec<crate::lsp::code_action::CodeAction>,
     ) -> anyhow::Result<()> {
-        if let Some(component) = self.layout.get_current_component() {
-            let params = component.borrow().editor().get_request_params();
-            self.open_prompt(PromptConfig {
-                history: Vec::new(),
-                on_enter: DispatchPrompt::Null,
-                items: code_actions
-                    .into_iter()
-                    .map(move |code_action| code_action.into_dropdown_item(params.clone()))
-                    .collect(),
-                title: "Code Actions".to_string(),
-                enter_selects_first_matching_item: true,
-            })?;
-        };
+        let component = self.layout.get_current_component();
+        let params = component.borrow().editor().get_request_params();
+        self.open_prompt(PromptConfig {
+            history: Vec::new(),
+            on_enter: DispatchPrompt::Null,
+            items: code_actions
+                .into_iter()
+                .map(move |code_action| code_action.into_dropdown_item(params.clone()))
+                .collect(),
+            title: "Code Actions".to_string(),
+            enter_selects_first_matching_item: true,
+        })?;
         Ok(())
     }
 

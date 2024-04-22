@@ -130,7 +130,7 @@ impl ExpectKind {
         fn to_vec(strs: &[&str]) -> Vec<String> {
             strs.iter().map(|t| t.to_string()).collect()
         }
-        let component = app.current_component().unwrap();
+        let component = app.current_component();
         Ok(match self {
             CurrentComponentContent(expected_content) => contextualize(
                 app.get_current_component_content(),
@@ -290,16 +290,11 @@ impl ExpectKind {
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
             CurrentCursorDirection(expected) => contextualize(
                 expected,
-                &app.current_component()
-                    .unwrap()
-                    .borrow()
-                    .editor()
-                    .cursor_direction,
+                &app.current_component().borrow().editor().cursor_direction,
             ),
             HighlightSpans(expected_range, expected_key) => contextualize(
                 expected_key,
                 &app.current_component()
-                    .unwrap()
                     .borrow()
                     .editor()
                     .buffer()
@@ -312,7 +307,6 @@ impl ExpectKind {
             DiagnosticsRanges(expected) => contextualize(
                 expected.to_vec(),
                 app.current_component()
-                    .unwrap()
                     .borrow()
                     .editor()
                     .buffer()
@@ -324,7 +318,6 @@ impl ExpectKind {
             BufferQuickfixListItems(expected) => contextualize(
                 expected,
                 &app.current_component()
-                    .unwrap()
                     .borrow()
                     .editor()
                     .buffer()
@@ -334,10 +327,9 @@ impl ExpectKind {
                     .collect_vec(),
             ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
-            CurrentComponentPath(expected) => contextualize(
-                expected,
-                &app.current_component().unwrap().borrow().path().unwrap(),
-            ),
+            CurrentComponentPath(expected) => {
+                contextualize(expected, &app.current_component().borrow().path().unwrap())
+            }
         })
     }
 }

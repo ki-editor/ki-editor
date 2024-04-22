@@ -39,8 +39,6 @@ pub struct Layout {
     rectangles: Vec<Rectangle>,
     borders: Vec<Border>,
 
-    focused_component_id: NodeId,
-
     terminal_dimension: Dimension,
     working_directory: CanonicalizedPath,
 
@@ -102,7 +100,6 @@ impl Layout {
         let (rectangles, borders) = Rectangle::generate(layout_kind, 1, ratio, terminal_dimension);
         let tree = UiTree::new();
         Ok(Layout {
-            focused_component_id: tree.root_id(),
             background_quickfix_list: None,
             background_suggestive_editors: IndexMap::new(),
             background_file_explorer: Rc::new(RefCell::new(FileExplorer::new(working_directory)?)),
@@ -118,12 +115,15 @@ impl Layout {
         self.tree.components()
     }
 
-    pub fn get_current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
-        self.get_component(self.focused_component_id)
+    pub fn get_current_component(&self) -> Rc<RefCell<dyn Component>> {
+        self.get_component(self.tree.focused_component_id())
     }
 
-    fn get_component(&self, id: NodeId) -> Option<Rc<RefCell<dyn Component>>> {
-        self.tree.get(id).map(|node| node.data().component())
+    fn get_component(&self, id: NodeId) -> Rc<RefCell<dyn Component>> {
+        self.tree
+            .get(id)
+            .map(|node| node.data().component())
+            .unwrap_or_else(|| self.tree.root().data().component().clone())
     }
 
     fn new_main_panel(
@@ -137,7 +137,7 @@ impl Layout {
     }
 
     pub fn remove_current_component(&mut self) {
-        if let Some(node) = self.tree.get(self.focused_component_id) {
+        if let node = self.tree.get_current_node() {
             if let Some(path) = node.data().component().borrow().path() {
                 self.background_suggestive_editors.shift_remove(&path);
                 if let Some((_, editor)) = self
@@ -158,36 +158,8 @@ impl Layout {
         self.recalculate_layout();
     }
 
-    fn set_focus_component_id(&mut self, id: NodeId) {
-        // This check is necessary.
-        // In case of any logical error that causes `id` to be pointing to node that is removed from the tree,
-        // it should always fallback to use root ID
-        self.focused_component_id = if self
-            .tree
-            .root()
-            .traverse_pre_order()
-            .any(|node| node.node_id() == id)
-        {
-            id
-        } else {
-            self.tree.root_id()
-        };
-    }
-
     pub fn cycle_window(&mut self) {
-        self.set_focus_component_id(
-            self.tree
-                .root()
-                .traverse_pre_order()
-                .map(|node| node.node_id())
-                .filter(|node_id| node_id != &self.tree.root_id())
-                .collect_vec()
-                .into_iter()
-                .skip_while(|node_id| node_id != &self.focused_component_id)
-                .nth(1)
-                .or_else(|| self.tree.root().first_child().map(|node| node.node_id()))
-                .unwrap_or_else(|| self.tree.root_id()),
-        );
+        self.tree.cycle_component()
     }
 
     pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
@@ -195,11 +167,8 @@ impl Layout {
     }
 
     pub fn add_and_focus_prompt(&mut self, kind: ComponentKind, component: Rc<RefCell<Prompt>>) {
-        let id = self.tree.append_component(
-            self.focused_component_id,
-            KindedComponent::new(kind, component),
-        );
-        self.set_focus_component_id(id);
+        self.tree
+            .append_component_to_current(KindedComponent::new(kind, component), true);
         self.recalculate_layout();
     }
 
@@ -254,8 +223,8 @@ impl Layout {
         self.terminal_dimension
     }
 
-    pub fn focused_component_id(&self) -> Option<ComponentId> {
-        Some(self.get_current_component()?.borrow().id())
+    pub fn focused_component_id(&self) -> ComponentId {
+        self.tree.current_component().borrow().id()
     }
 
     pub fn borders(&self) -> Vec<Border> {
@@ -288,23 +257,22 @@ impl Layout {
         )));
         info_panel.borrow_mut().show_info(info)?;
         self.tree
-            .append_component_to_root(KindedComponent::new(ComponentKind::Info, info_panel));
+            .append_component_to_root(KindedComponent::new(ComponentKind::Info, info_panel), true);
         Ok(())
     }
 
     pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
-        let id = self.tree.append_component(
-            self.focused_component_id,
+        self.tree.append_component_to_current(
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
                 Rc::new(RefCell::new(KeymapLegend::new(keymap_legend_config))),
             ),
-        );
-        self.set_focus_component_id(id);
+            true,
+        )
     }
 
     pub fn close_all_except_main_panel(&mut self) {
-        self.tree.remove_all_except(self.focused_component_id)
+        self.tree.remove_all_except_current()
     }
 
     pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
@@ -346,11 +314,13 @@ impl Layout {
     }
 
     pub fn open_file_explorer(&mut self) {
-        let id = self.tree.append_component_to_root(KindedComponent::new(
-            ComponentKind::FileExplorer,
-            self.background_file_explorer.clone(),
-        ));
-        self.set_focus_component_id(id);
+        self.tree.append_component_to_root(
+            KindedComponent::new(
+                ComponentKind::FileExplorer,
+                self.background_file_explorer.clone(),
+            ),
+            true,
+        )
     }
 
     pub fn update_highlighted_spans(
@@ -429,24 +399,19 @@ impl Layout {
             tree_sitter_md::language(),
             "",
         )));
-        self.replace_node_child(
-            self.focused_component_id,
-            ComponentKind::Dropdown,
-            dropdown.clone(),
-        );
+        self.tree
+            .replace_current_node_child(ComponentKind::Dropdown, dropdown.clone(), false);
         self.recalculate_layout(); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
         dropdown
     }
 
     /// `id` is either the `id` of the dropdown or of its owner
     pub(crate) fn close_dropdown(&mut self, id: ComponentId) {
-        self.tree
-            .remove_node_child(self.focused_component_id, ComponentKind::Dropdown);
+        self.tree.remove_current_child(ComponentKind::Dropdown);
     }
 
     fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
-        self.tree
-            .get_current_node_child_id(self.focused_component_id, kind)
+        self.tree.get_current_node_child_id(kind)
     }
 
     fn remove_node_child<'a>(
@@ -469,6 +434,7 @@ impl Layout {
                 node_id,
                 ComponentKind::DropdownInfo,
                 Rc::new(RefCell::new(editor)),
+                false,
             );
         }
 
@@ -508,10 +474,10 @@ impl Layout {
                 )))
             })
             .clone();
-        self.tree.append_component_to_root(KindedComponent::new(
-            ComponentKind::QuickfixList,
-            quickfix_list.clone(),
-        ));
+        self.tree.append_component_to_root(
+            KindedComponent::new(ComponentKind::QuickfixList, quickfix_list.clone()),
+            false,
+        );
         quickfix_list
     }
 
@@ -527,10 +493,10 @@ impl Layout {
     ) -> anyhow::Result<()> {
         let mut editor = Editor::from_text(tree_sitter_md::language(), info.content());
         editor.show_info(info)?;
-        self.replace_node_child(
-            self.focused_component_id,
+        self.tree.replace_current_node_child(
             ComponentKind::EditorInfo,
             Rc::new(RefCell::new(editor)),
+            false,
         );
         Ok(())
     }
@@ -540,9 +506,9 @@ impl Layout {
         id: NodeId,
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
-    ) -> NodeId {
-        self.remove_node_child(id, kind);
-        self.append_node_child(id, KindedComponent::new(kind, component))
+        focus: bool,
+    ) {
+        self.tree.replace_node_child(id, kind, component, focus);
     }
 
     #[cfg(test)]
@@ -633,21 +599,16 @@ impl Layout {
         editor: Rc<RefCell<SuggestiveEditor>>,
     ) {
         self.add_suggestive_editor(editor.clone());
-        let id =
-            self.replace_node_child(self.tree.root_id(), ComponentKind::SuggestiveEditor, editor);
-        self.set_focus_component_id(id);
-    }
-
-    fn append_node_child(&mut self, id: NodeId, component: KindedComponent) -> NodeId {
-        self.tree.append_component(id, component)
+        self.replace_node_child(
+            self.tree.root_id(),
+            ComponentKind::SuggestiveEditor,
+            editor,
+            true,
+        );
     }
 
     pub(crate) fn close_current_window_and_focus_parent(&mut self) {
-        if let Some(node) = self.tree.get(self.focused_component_id) {
-            let parent_id = node.parent().map(|parent| parent.node_id());
-            self.tree.remove(node.node_id());
-            self.focused_component_id = parent_id.unwrap_or_else(|| self.tree.root_id())
-        }
+        self.tree.close_current_and_focus_parent()
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

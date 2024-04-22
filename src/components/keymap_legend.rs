@@ -320,7 +320,10 @@ impl Component for KeymapLegend {
         let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
         if self.editor.mode == Mode::Insert {
             match &event {
-                key!("esc") => self.editor.enter_normal_mode(),
+                key!("esc") => {
+                    self.editor.enter_normal_mode()?;
+                    Ok(Default::default())
+                }
                 key_event => {
                     if let Some(keymap) = self
                         .config
@@ -443,9 +446,7 @@ mod test_keymap_legend {
         assert_eq!(
             dispatches,
             Dispatches::new(vec![
-                Dispatch::CloseCurrentWindow {
-                    change_focused_to: Some(owner_id)
-                },
+                Dispatch::CloseCurrentWindowAndFocusParent,
                 Dispatch::Custom("Spongebob".to_string())
             ])
         )

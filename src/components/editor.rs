@@ -926,7 +926,7 @@ impl Editor {
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleBookmark => self.toggle_bookmarks(),
             EnterInsideMode(kind) => return self.set_selection_mode(SelectionMode::Inside(kind)),
-            EnterNormalMode => return self.enter_normal_mode(),
+            EnterNormalMode => self.enter_normal_mode()?,
             FilterPush(filter) => return Ok(self.filters_push(context, filter)),
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             FilterClear => return Ok(self.filters_clear()),
@@ -1240,7 +1240,7 @@ impl Editor {
         Ok(())
     }
 
-    pub fn enter_normal_mode(&mut self) -> anyhow::Result<Dispatches> {
+    pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         if self.mode == Mode::Insert {
             // This is necessary for cursor to not overflow after exiting insert mode
             self.selection_set =
@@ -1267,8 +1267,7 @@ impl Editor {
 
         self.mode = Mode::Normal;
         self.selection_set.unset_initial_range();
-
-        Ok(Dispatches::one(Dispatch::CloseAllExceptMainPanel))
+        Ok(())
     }
 
     #[cfg(test)]
@@ -1777,7 +1776,7 @@ impl Editor {
         self.clamp()?;
         self.cursor_keep_primary_only();
         let dispatches = self.enter_normal_mode()?;
-        Ok(dispatches
+        Ok(Dispatches::one(Dispatch::CloseAllExceptMainPanel)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::CloseAllExceptMainPanel))
