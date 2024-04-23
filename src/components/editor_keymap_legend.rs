@@ -204,7 +204,7 @@ impl Editor {
                     Keymap::new(
                         "r",
                         "Replace".to_string(),
-                        Dispatch::ToEditor(ReplaceWithClipboard),
+                        Dispatch::ToEditor(ReplaceWithCopiedText),
                     ),
                     Keymap::new(
                         "R",

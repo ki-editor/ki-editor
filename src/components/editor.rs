@@ -775,7 +775,12 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn replace_cut(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
+    /// If `cut` if true, the replaced text will override the clipboard
+    pub fn replace_with_copied_text(
+        &mut self,
+        context: &Context,
+        cut: bool,
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -790,13 +795,17 @@ impl Editor {
                                         range,
                                         new: replacement.clone(),
                                     }),
-                                    Action::Select(
-                                        Selection::new(
+                                    Action::Select({
+                                        let selection = Selection::new(
                                             (range.start..range.start + replacement_text_len)
                                                 .into(),
-                                        )
-                                        .set_copied_text(Some(replaced_text)),
-                                    ),
+                                        );
+                                        if cut {
+                                            selection.set_copied_text(Some(replaced_text))
+                                        } else {
+                                            selection
+                                        }
+                                    }),
                                 ]
                                 .to_vec(),
                             )]
@@ -917,10 +926,10 @@ impl Editor {
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy => return self.copy(context),
-            ReplaceWithClipboard => return self.replace_with_clipboard(context),
+            ReplaceWithCopiedText => return self.replace_with_copied_text(context, false),
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
-            ReplaceSelectionWithCopiedText => return self.replace_cut(context),
+            ReplaceCut => return self.replace_with_copied_text(context, true),
             Cut => return self.cut(),
             ToggleHighlightMode => self.toggle_highlight_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
@@ -975,7 +984,6 @@ impl Editor {
             ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
             SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
-            ReplaceCut => return self.replace_cut(context),
             Surround(open, close) => return self.enclose(open, close),
             ShowKeymapLegendInsertMode => {
                 return Ok([Dispatch::ShowKeymapLegend(
@@ -2252,7 +2260,7 @@ pub enum DispatchEditor {
     SelectKids,
     Copy,
     Cut,
-    ReplaceSelectionWithCopiedText,
+    ReplaceCut,
     SelectAll,
     SetContent(String),
     SetDecorations(Vec<Decoration>),
@@ -2262,7 +2270,7 @@ pub enum DispatchEditor {
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
     ReplaceWithMovement(Movement),
-    ReplaceWithClipboard,
+    ReplaceWithCopiedText,
     SelectLine(Movement),
     Backspace,
     Kill,
@@ -2296,7 +2304,6 @@ pub enum DispatchEditor {
     ReplacePreviousWord(String),
     ApplyPositionalEdit(crate::lsp::completion::PositionalEdit),
     SelectLineAt(usize),
-    ReplaceCut,
     ShowKeymapLegendNormalMode,
     ShowKeymapLegendInsertMode,
     Paste(Direction),

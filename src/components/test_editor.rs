@@ -714,7 +714,7 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             App(SetClipboardContent("let z = S(c);".to_string())),
-            Editor(ReplaceWithClipboard),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent(
                 "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
             )),
