@@ -649,6 +649,10 @@ impl Layout {
     ) -> Option<Rc<RefCell<dyn Component>>> {
         self.tree.get_component_by_kind(kind)
     }
+
+    pub(crate) fn hide_editor_info(&mut self) {
+        self.tree.remove_current_child(ComponentKind::EditorInfo);
+    }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;

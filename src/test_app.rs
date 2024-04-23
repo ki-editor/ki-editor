@@ -675,11 +675,35 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(EnterInsertMode(Direction::End)),
             App(HandleLspNotification(signature_help())),
-            Expect(ComponentsLength(2)),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+            // Receiving signature help again should increase the components length
             App(HandleLspNotification(signature_help())),
-            Expect(ComponentsLength(2)),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+            // Pressing esc should close signature help
             App(HandleKeyEvent(key!("esc"))),
-            Expect(ComponentsLength(1)),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+            ])),
+            // ----
+            App(HandleLspNotification(signature_help())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+            // Receiving null signature help should close the signature help
+            App(HandleLspNotification(LspNotification::SignatureHelp(
+                Default::default(),
+                None,
+            ))),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+            ])),
         ])
     })
 }

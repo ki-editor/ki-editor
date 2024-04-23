@@ -913,6 +913,8 @@ impl<T: Frontend> App<T> {
             LspNotification::SignatureHelp(context, signature_help) => {
                 if let Some(info) = signature_help.and_then(|s| s.into_info()) {
                     self.show_editor_info(context.component_id, info)?;
+                } else {
+                    self.hide_editor_info()
                 }
                 Ok(())
             }
@@ -1835,6 +1837,11 @@ impl<T: Frontend> App<T> {
     ) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.get_component_by_kind(kind)
     }
+
+    fn hide_editor_info(&mut self) {
+        self.layout.hide_editor_info()
+    }
+
     pub(crate) fn components_order(&self) -> Vec<ComponentKind> {
         self.layout
             .components()
