@@ -265,7 +265,7 @@ impl Layout {
         )));
         info_panel.borrow_mut().show_info(info)?;
         self.tree
-            .append_component(node_id, KindedComponent::new(kind, info_panel), false);
+            .replace_node_child(node_id, kind, info_panel, false);
         Ok(())
     }
 

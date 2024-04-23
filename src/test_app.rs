@@ -643,8 +643,27 @@ fn multi_paste() -> anyhow::Result<()> {
 }
 
 #[test]
-fn esc_should_close_signature_help() -> anyhow::Result<()> {
+fn signature_help() -> anyhow::Result<()> {
     execute_test(|s| {
+        fn signature_help() -> LspNotification {
+            LspNotification::SignatureHelp(
+                crate::lsp::process::ResponseContext {
+                    component_id: Default::default(),
+                    scope: None,
+                    description: None,
+                },
+                Some(crate::lsp::signature_help::SignatureHelp {
+                    signatures: [SignatureInformation {
+                        label: "Signature Help".to_string(),
+                        documentation: Some(crate::lsp::documentation::Documentation {
+                            content: "spongebob".to_string(),
+                        }),
+                        active_parameter_byte_range: None,
+                    }]
+                    .to_vec(),
+                }),
+            )
+        };
         Box::new([
             App(OpenFile(s.main_rs())),
             Expect(ComponentsLength(1)),
@@ -653,25 +672,9 @@ fn esc_should_close_signature_help() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(EnterInsertMode(Direction::End)),
-            WithApp(Box::new(|app: &App<MockFrontend>| {
-                HandleLspNotification(LspNotification::SignatureHelp(
-                    crate::lsp::process::ResponseContext {
-                        component_id: app.components()[0].borrow().id(),
-                        scope: None,
-                        description: None,
-                    },
-                    Some(crate::lsp::signature_help::SignatureHelp {
-                        signatures: [SignatureInformation {
-                            label: "Signature Help".to_string(),
-                            documentation: Some(crate::lsp::documentation::Documentation {
-                                content: "spongebob".to_string(),
-                            }),
-                            active_parameter_byte_range: None,
-                        }]
-                        .to_vec(),
-                    }),
-                ))
-            })),
+            App(HandleLspNotification(signature_help())),
+            Expect(ComponentsLength(2)),
+            App(HandleLspNotification(signature_help())),
             Expect(ComponentsLength(2)),
             App(HandleKeyEvent(key!("esc"))),
             Expect(ComponentsLength(1)),
