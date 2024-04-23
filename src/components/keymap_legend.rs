@@ -378,7 +378,7 @@ mod test_keymap_legend {
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
-                Expect(CurrentComponentPath(s.main_rs())),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
             ])
         })
     }

@@ -111,7 +111,7 @@ pub enum ExpectKind {
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
     ComponentCount(usize),
-    CurrentComponentPath(CanonicalizedPath),
+    CurrentComponentPath(Option<CanonicalizedPath>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -328,7 +328,7 @@ impl ExpectKind {
             ),
             ComponentCount(expected) => contextualize(expected, &app.components().len()),
             CurrentComponentPath(expected) => {
-                contextualize(expected, &app.current_component().borrow().path().unwrap())
+                contextualize(expected, &app.current_component().borrow().path())
             }
         })
     }
@@ -1355,7 +1355,7 @@ fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> a
                 Expect(ComponentCount(3)),
                 App(HandleKeyEvent(key!("esc"))),
                 Expect(ComponentCount(1)),
-                Expect(CurrentComponentPath(s.main_rs())),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
             ])
         })
     }
@@ -1368,11 +1368,15 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
             Box::new([
                 App(OpenFile(s.main_rs())),
                 App(OpenFile(s.foo_rs())),
-                Expect(CurrentComponentPath(s.foo_rs())),
+                Expect(CurrentComponentPath(Some(s.foo_rs()))),
                 App(CloseCurrentWindow {
                     change_focused_to: None,
                 }),
-                Expect(CurrentComponentPath(s.main_rs())),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+                App(CloseCurrentWindow {
+                    change_focused_to: None,
+                }),
+                Expect(CurrentComponentPath(None)),
             ])
         })
     }
@@ -1385,11 +1389,11 @@ fn go_to_previous_file() -> anyhow::Result<()> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 App(OpenFile(s.foo_rs())),
-                Expect(CurrentComponentPath(s.foo_rs())),
+                Expect(CurrentComponentPath(Some(s.foo_rs()))),
                 App(GoToPreviousSelection),
-                Expect(CurrentComponentPath(s.main_rs())),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
                 App(GoToNextSelection),
-                Expect(CurrentComponentPath(s.foo_rs())),
+                Expect(CurrentComponentPath(Some(s.foo_rs()))),
             ])
         })
     }

@@ -137,22 +137,24 @@ impl Layout {
     }
 
     pub fn remove_current_component(&mut self) {
-        if let node = self.tree.get_current_node() {
-            if let Some(path) = node.data().component().borrow().path() {
-                self.background_suggestive_editors.shift_remove(&path);
-                if let Some((_, editor)) = self
-                    .background_suggestive_editors
-                    .iter()
-                    .skip_while(|(p, _)| p != &&path)
-                    .nth(1)
-                    .or_else(|| self.background_suggestive_editors.first())
-                {
-                    self.replace_and_focus_current_suggestive_editor(editor.clone())
-                };
+        let node = self.tree.get_current_node();
+        if let Some(path) = node.data().component().borrow().path() {
+            self.background_suggestive_editors.shift_remove(&path);
+            if let Some((_, editor)) = self
+                .background_suggestive_editors
+                .iter()
+                .skip_while(|(p, _)| p != &&path)
+                .nth(1)
+                .or_else(|| self.background_suggestive_editors.first())
+            {
+                self.replace_and_focus_current_suggestive_editor(editor.clone())
             } else {
                 self.tree.remove(node.node_id());
                 self.cycle_window()
             }
+        } else {
+            self.tree.remove(node.node_id());
+            self.cycle_window()
         };
 
         self.recalculate_layout();
