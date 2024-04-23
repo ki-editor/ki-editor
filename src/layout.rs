@@ -1,3 +1,4 @@
+use crate::quickfix_list::QuickfixList;
 use crate::ui_tree::{ComponentKind, KindedComponent, UiTree};
 use crate::{
     app::{Dimension, Dispatches},
@@ -252,15 +253,24 @@ impl Layout {
             .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
     }
 
-    pub fn show_info(&mut self, info: Info) -> anyhow::Result<()> {
+    fn show_info_on(
+        &mut self,
+        node_id: NodeId,
+        info: Info,
+        kind: ComponentKind,
+    ) -> anyhow::Result<()> {
         let info_panel = Rc::new(RefCell::new(Editor::from_text(
             tree_sitter_md::language(),
             "",
         )));
         info_panel.borrow_mut().show_info(info)?;
         self.tree
-            .append_component_to_root(KindedComponent::new(ComponentKind::Info, info_panel), true);
+            .append_component(node_id, KindedComponent::new(kind, info_panel), false);
         Ok(())
+    }
+
+    pub fn show_global_info(&mut self, info: Info) -> anyhow::Result<()> {
+        self.show_info_on(self.tree.root_id(), info, ComponentKind::GlobalInfo)
     }
 
     pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
@@ -322,7 +332,7 @@ impl Layout {
                 self.background_file_explorer.clone(),
             ),
             true,
-        )
+        );
     }
 
     pub fn update_highlighted_spans(
@@ -433,15 +443,8 @@ impl Layout {
         owner_id: ComponentId,
         info: Info,
     ) -> anyhow::Result<()> {
-        if let Some(mut node_id) = self.get_current_node_child_id(ComponentKind::Dropdown) {
-            let mut editor = Editor::from_text(tree_sitter_md::language(), "");
-            editor.show_info(info)?;
-            self.replace_node_child(
-                node_id,
-                ComponentKind::DropdownInfo,
-                Rc::new(RefCell::new(editor)),
-                false,
-            );
+        if let Some(node_id) = self.tree.get_current_node_child_id(ComponentKind::Dropdown) {
+            self.show_info_on(node_id, info, ComponentKind::DropdownInfo)?;
         }
 
         Ok(())
@@ -470,22 +473,32 @@ impl Layout {
         log::info!("This is not implemented yet!")
     }
 
-    pub(crate) fn show_quickfix_list(&mut self) -> Rc<RefCell<Editor>> {
-        let quickfix_list = self
-            .background_quickfix_list
-            .get_or_insert_with(|| {
-                Rc::new(RefCell::new(Editor::from_text(
-                    tree_sitter_md::language(),
-                    "",
-                )))
-            })
-            .clone();
-        self.tree.replace_root_node_child(
-            ComponentKind::QuickfixList,
-            quickfix_list.clone(),
-            false,
-        );
-        quickfix_list
+    pub(crate) fn show_quickfix_list(
+        &mut self,
+        quickfix_list: QuickfixList,
+    ) -> anyhow::Result<Dispatches> {
+        let render = quickfix_list.render();
+        let editor = self.background_quickfix_list.get_or_insert_with(|| {
+            Rc::new(RefCell::new(Editor::from_text(
+                tree_sitter_md::language(),
+                "",
+            )))
+        });
+        let node_id =
+            self.tree
+                .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);
+
+        let dispatches = {
+            let mut editor = editor.borrow_mut();
+            editor.set_content(&render.content)?;
+            editor.set_decorations(&render.decorations);
+            editor.set_title("Quickfix list".to_string());
+            editor.select_line_at(render.highlight_line_index)?
+        };
+        if let Some(info) = render.info {
+            self.show_info_on(node_id, info, ComponentKind::QuickfixListInfo)?;
+        }
+        Ok(dispatches)
     }
 
     #[cfg(test)]
@@ -498,14 +511,11 @@ impl Layout {
         owner_id: ComponentId,
         info: Info,
     ) -> anyhow::Result<()> {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), info.content());
-        editor.show_info(info)?;
-        self.tree.replace_current_node_child(
+        self.show_info_on(
+            self.tree.focused_component_id(),
+            info,
             ComponentKind::EditorInfo,
-            Rc::new(RefCell::new(editor)),
-            false,
-        );
-        Ok(())
+        )
     }
 
     fn replace_node_child(
@@ -520,14 +530,6 @@ impl Layout {
 
     #[cfg(test)]
     pub(crate) fn editor_info_open(&self) -> bool {
-        println!(
-            "self.tree = {:?}",
-            self.tree
-                .root()
-                .traverse_pre_order()
-                .map(|node| node.data().kind())
-                .collect_vec()
-        );
         self.tree.count_by_kind(ComponentKind::EditorInfo) > 0
     }
 
@@ -624,6 +626,22 @@ impl Layout {
 
     pub(crate) fn close_current_window_and_focus_parent(&mut self) {
         self.tree.close_current_and_focus_parent()
+    }
+
+    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
+        Some(
+            self.tree
+                .get_component_by_kind(ComponentKind::QuickfixListInfo)?
+                .borrow()
+                .content(),
+        )
+    }
+
+    pub(crate) fn get_component_by_kind(
+        &self,
+        kind: ComponentKind,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.tree.get_component_by_kind(kind)
     }
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {

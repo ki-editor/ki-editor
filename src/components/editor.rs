@@ -1775,7 +1775,7 @@ impl Editor {
         };
         self.clamp()?;
         self.cursor_keep_primary_only();
-        let dispatches = self.enter_normal_mode()?;
+        self.enter_normal_mode()?;
         Ok(Dispatches::one(Dispatch::CloseAllExceptMainPanel)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())

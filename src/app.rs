@@ -954,7 +954,9 @@ impl<T: Frontend> App<T> {
                 self.context
                     .set_quickfix_list_current_item_index(current_item_index);
                 self.handle_dispatches(dispatches)?;
-                self.render_quickfix_list(quickfix_list)?;
+                self.render_quickfix_list(
+                    quickfix_list.set_current_item_index(current_item_index),
+                )?;
             }
         }
 
@@ -962,7 +964,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_global_info(&mut self, info: Info) {
-        self.layout.show_info(info).unwrap_or_else(|err| {
+        self.layout.show_global_info(info).unwrap_or_else(|err| {
             log::error!("Error showing info: {:?}", err);
         });
     }
@@ -1764,10 +1766,8 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn render_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
-        let editor = self.layout.show_quickfix_list();
-        let render = quickfix_list.render();
-        self.render_dropdown(None, editor, render)?;
-        Ok(())
+        let dispatches = self.layout.show_quickfix_list(quickfix_list)?;
+        self.handle_dispatches(dispatches)
     }
 
     fn show_editor_info(&mut self, owner_id: ComponentId, info: Info) -> anyhow::Result<()> {
@@ -1820,6 +1820,17 @@ impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn opened_files_count(&self) -> usize {
         self.layout.get_opened_files().len()
+    }
+
+    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
+        self.layout.quickfix_list_info()
+    }
+
+    pub(crate) fn get_component_by_kind(
+        &self,
+        kind: ComponentKind,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.get_component_by_kind(kind)
     }
 }
 

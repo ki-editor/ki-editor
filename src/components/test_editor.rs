@@ -656,6 +656,24 @@ fn multi_insert() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
+fn paste_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(SetClipboardContent("haha".to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            Editor(Paste(Direction::End)),
+            Expect(CurrentComponentContent("foo barhaha spam")),
+            Editor(Insert("Hello".to_string())),
+            Expect(CurrentComponentContent("foo barhahaHello spam")),
+        ])
+    })
+}
+
+#[serial]
+#[test]
 fn paste_after() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

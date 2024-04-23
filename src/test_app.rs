@@ -34,7 +34,7 @@ use crate::{
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
-    context::LocalSearchConfigMode,
+    context::{GlobalMode, LocalSearchConfigMode},
     frontend::mock::MockFrontend,
     grid::StyleKey,
     integration_test::TestRunner,
@@ -49,6 +49,7 @@ use crate::{
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
+    ui_tree::ComponentKind,
 };
 use crate::{lsp::process::LspNotification, themes::Color};
 
@@ -113,6 +114,7 @@ pub enum ExpectKind {
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
+    QuickfixListInfo(&'static str),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -276,8 +278,11 @@ impl ExpectKind {
                 contextualize(app.get_dropdown_infos_count(), *expected)
             }
             QuickfixListCurrentLine(expected) => {
-                let render = app.get_quickfix_list().unwrap().render();
-                contextualize(render.current_line(), expected.to_string())
+                let component = app
+                    .get_component_by_kind(ComponentKind::QuickfixList)
+                    .unwrap();
+                let actual = component.borrow().editor().current_line().unwrap();
+                contextualize(actual, expected.to_string())
             }
             EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
             EditorInfoContent(expected) => {
@@ -332,6 +337,9 @@ impl ExpectKind {
                 contextualize(expected, &app.current_component().borrow().path())
             }
             OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
+            QuickfixListInfo(expected) => {
+                contextualize(*expected, &app.quickfix_list_info().unwrap())
+            }
         })
     }
 }
@@ -1158,14 +1166,14 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo b // Line 2")),
+            Expect(QuickfixListCurrentLine("├─ 2:1  foo b // Line 2")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Expect(ComponentCount(2)),
             Editor(MoveSelection(Next)),
             Expect(ComponentCount(2)),
-            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10")),
+            Expect(QuickfixListCurrentLine("└─ 10:1  foo a // Line 10")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
@@ -1183,6 +1191,41 @@ foo a // Line 10
             Editor(MoveSelection(Previous)),
             Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_show_info_if_possible() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() { 
+  let x = 123 
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                        },
+                        Some(Info::new(
+                            "Hello world".to_string(),
+                            "This is fine".to_string(),
+                        )),
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            Expect(ExpectKind::QuickfixListInfo("This is fine")),
         ])
     })
 }

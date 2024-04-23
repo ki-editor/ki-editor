@@ -67,7 +67,7 @@ impl UiTree {
         node_id: NodeId,
         component: KindedComponent,
         focus: bool,
-    ) {
+    ) -> NodeId {
         let id = if let Some(mut node) = self.get_mut(node_id) {
             node.append(component).node_id()
         } else {
@@ -76,10 +76,11 @@ impl UiTree {
         if focus {
             self.set_focus_component_id(id)
         }
+        id
     }
 
     pub(crate) fn append_component_to_current(&mut self, component: KindedComponent, focus: bool) {
-        self.append_component(self.focused_component_id, component, focus)
+        self.append_component(self.focused_component_id, component, focus);
     }
 
     fn root_mut<'a>(&'a mut self) -> NodeMut<'a, KindedComponent> {
@@ -103,7 +104,11 @@ impl UiTree {
         }
     }
 
-    pub(crate) fn append_component_to_root(&mut self, component: KindedComponent, focus: bool) {
+    pub(crate) fn append_component_to_root(
+        &mut self,
+        component: KindedComponent,
+        focus: bool,
+    ) -> NodeId {
         self.append_component(self.root_id(), component, focus)
     }
 
@@ -134,13 +139,7 @@ impl UiTree {
 
     pub(crate) fn get_current_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
         let node_id = self.focused_component_id;
-        Some(
-            self.get(node_id)?
-                .traverse_pre_order()
-                .filter(|node| node.node_id() != node_id)
-                .find(|node| node.data().kind == kind)?
-                .node_id(),
-        )
+        self.get_node_child_id(node_id, kind)
     }
 
     #[cfg(test)]
@@ -196,7 +195,7 @@ impl UiTree {
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
         focus: bool,
-    ) {
+    ) -> NodeId {
         self.remove_node_child(id, kind);
         self.append_component(id, KindedComponent::new(kind, component), focus)
     }
@@ -206,7 +205,7 @@ impl UiTree {
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
         focus: bool,
-    ) {
+    ) -> NodeId {
         let id = self.focused_component_id;
         self.remove_node_child(id, kind);
         self.append_component(id, KindedComponent::new(kind, component), focus)
@@ -230,8 +229,35 @@ impl UiTree {
         kind: ComponentKind,
         component: Rc<RefCell<dyn Component>>,
         focus: bool,
-    ) {
+    ) -> NodeId {
         self.replace_node_child(self.root_id(), kind, component, focus)
+    }
+
+    pub(crate) fn get_component_by_kind(
+        &self,
+        kind: ComponentKind,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        Some(
+            self.root()
+                .traverse_pre_order()
+                .find(|node| node.data().kind() == kind)?
+                .data()
+                .component(),
+        )
+    }
+
+    fn get_node_child_id(&self, node_id: NodeId, kind: ComponentKind) -> Option<NodeId> {
+        Some(
+            self.get(node_id)?
+                .traverse_pre_order()
+                .filter(|node| node.node_id() != node_id)
+                .find(|node| node.data().kind == kind)?
+                .node_id(),
+        )
+    }
+
+    pub(crate) fn get_root_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
+        self.get_node_child_id(self.root_id(), kind)
     }
 }
 
@@ -263,15 +289,16 @@ impl std::fmt::Debug for KindedComponent {
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum ComponentKind {
-    Dropdown,
     SuggestiveEditor,
-    Info,
-    DropdownInfo,
+    GlobalInfo,
     KeymapLegend,
+    QuickfixList,
+    QuickfixListInfo,
+    Dropdown,
+    DropdownInfo,
+    EditorInfo,
     FileExplorer,
     Prompt,
-    QuickfixList,
-    EditorInfo,
     /// The root should not be rendered
     Root,
 }
