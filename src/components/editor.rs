@@ -750,16 +750,20 @@ impl Editor {
                     let insertion_range = insertion_range_start..insertion_range_start;
                     let copied_text = selection.copied_text(context).unwrap_or_default();
                     let copied_text_len = copied_text.len_chars();
+
+                    let selection_range = if self.mode == Mode::Normal {
+                        (insertion_range_start..insertion_range_start + copied_text_len).into()
+                    } else {
+                        let start = insertion_range_start + copied_text_len;
+                        start..start
+                    };
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
                                 range: insertion_range.into(),
                                 new: copied_text,
                             }),
-                            Action::Select(Selection::new(
-                                (insertion_range_start..insertion_range_start + copied_text_len)
-                                    .into(),
-                            )),
+                            Action::Select(Selection::new(selection_range.into())),
                         ]
                         .to_vec(),
                     ))
