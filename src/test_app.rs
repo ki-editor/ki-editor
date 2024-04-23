@@ -112,6 +112,7 @@ pub enum ExpectKind {
     BufferQuickfixListItems(Vec<Range<Position>>),
     ComponentCount(usize),
     CurrentComponentPath(Option<CanonicalizedPath>),
+    OpenedFilesCount(usize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -330,6 +331,7 @@ impl ExpectKind {
             CurrentComponentPath(expected) => {
                 contextualize(expected, &app.current_component().borrow().path())
             }
+            OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
         })
     }
 }
@@ -1373,9 +1375,11 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
                     change_focused_to: None,
                 }),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
+                Expect(OpenedFilesCount(1)),
                 App(CloseCurrentWindow {
                     change_focused_to: None,
                 }),
+                Expect(OpenedFilesCount(0)),
                 Expect(CurrentComponentPath(None)),
             ])
         })

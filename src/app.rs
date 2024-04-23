@@ -1816,6 +1816,11 @@ impl<T: Frontend> App<T> {
     fn close_current_window_and_focus_parent(&mut self) {
         self.layout.close_current_window_and_focus_parent()
     }
+
+    #[cfg(test)]
+    pub(crate) fn opened_files_count(&self) -> usize {
+        self.layout.get_opened_files().len()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
