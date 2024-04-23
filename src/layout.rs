@@ -112,7 +112,7 @@ impl Layout {
         })
     }
 
-    pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    pub fn components(&self) -> Vec<KindedComponent> {
         self.tree.components()
     }
 
@@ -191,7 +191,10 @@ impl Layout {
             .into_iter()
             .zip(self.rectangles.iter())
             .for_each(|(component, rectangle)| {
-                component.borrow_mut().set_rectangle(rectangle.clone())
+                component
+                    .component()
+                    .borrow_mut()
+                    .set_rectangle(rectangle.clone())
             });
     }
 
@@ -460,9 +463,12 @@ impl Layout {
         &self,
         id: &ComponentId,
     ) -> Option<Rc<RefCell<dyn Component>>> {
-        self.components()
-            .into_iter()
-            .find(|c| &c.borrow().id() == id)
+        Some(
+            self.components()
+                .into_iter()
+                .find(|c| &c.component().borrow().id() == id)?
+                .component(),
+        )
     }
 
     pub(crate) fn open_component_with_selection(

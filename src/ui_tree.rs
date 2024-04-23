@@ -89,17 +89,16 @@ impl UiTree {
 
     /// This return everything except the root, but if only root exists, then the root will be returned.
     /// This behaviour ensures that the tree always contain a component.
-    pub(crate) fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    pub(crate) fn components(&self) -> Vec<KindedComponent> {
         if self.root().children().count() == 0 {
-            Some(self.root().data().component())
-                .into_iter()
-                .collect_vec()
+            Some(self.root().data().clone()).into_iter().collect_vec()
         } else {
             let root_id = self.root().node_id();
             self.root()
                 .traverse_pre_order()
                 .filter(|node| node.node_id() != root_id)
-                .map(|node| node.data().component())
+                .sorted_by_key(|node| node.data().kind)
+                .map(|node| node.data().clone())
                 .collect_vec()
         }
     }
@@ -287,18 +286,20 @@ impl std::fmt::Debug for KindedComponent {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, PartialOrd, Ord)]
+/// The order of variants in this enum is significant
+/// Higher-rank variant will be rendered before lower-rank variant
 pub enum ComponentKind {
     SuggestiveEditor,
     GlobalInfo,
     KeymapLegend,
     QuickfixList,
     QuickfixListInfo,
+    Prompt,
     Dropdown,
     DropdownInfo,
     EditorInfo,
     FileExplorer,
-    Prompt,
     /// The root should not be rendered
     Root,
 }

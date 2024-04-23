@@ -33,7 +33,7 @@ use crate::{
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::Theme,
-    ui_tree::ComponentKind,
+    ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
 use itertools::Itertools;
@@ -201,7 +201,7 @@ impl<T: Frontend> App<T> {
         std::process::exit(0);
     }
 
-    pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    pub fn components(&self) -> Vec<KindedComponent> {
         self.layout.components()
     }
 
@@ -251,12 +251,12 @@ impl<T: Frontend> App<T> {
             .components()
             .into_iter()
             .map(|component| {
-                let component = component.borrow();
-
-                let rectangle = component.rectangle();
-                let GetGridResult { grid, cursor } = component.get_grid(&self.context);
+                let rectangle = component.component().borrow().rectangle().clone();
+                let GetGridResult { grid, cursor } =
+                    component.component().borrow().get_grid(&self.context);
                 let focused_component_id = self.layout.focused_component_id();
-                let cursor_position = if component.id() == focused_component_id {
+                let cursor_position = if component.component().borrow().id() == focused_component_id
+                {
                     if let Some(cursor) = cursor {
                         let cursor_position = cursor.position();
                         // If cursor position is not in view
@@ -1416,9 +1416,12 @@ impl<T: Frontend> App<T> {
     }
 
     fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
-        self.components()
-            .into_iter()
-            .find(|component| component.borrow().id() == id)
+        Some(
+            self.components()
+                .into_iter()
+                .find(|component| component.component().borrow().id() == id)?
+                .component(),
+        )
     }
 
     fn open_set_global_search_filter_glob_prompt(
@@ -1832,6 +1835,13 @@ impl<T: Frontend> App<T> {
     ) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.get_component_by_kind(kind)
     }
+    pub(crate) fn components_order(&self) -> Vec<ComponentKind> {
+        self.layout
+            .components()
+            .into_iter()
+            .map(|c| c.kind())
+            .collect_vec()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1898,7 +1908,7 @@ impl Dispatches {
 }
 
 #[must_use]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     SetTheme(Theme),

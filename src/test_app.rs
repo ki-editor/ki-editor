@@ -115,6 +115,7 @@ pub enum ExpectKind {
     CurrentComponentPath(Option<CanonicalizedPath>),
     OpenedFilesCount(usize),
     QuickfixListInfo(&'static str),
+    ComponentsOrder(Vec<ComponentKind>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -340,6 +341,7 @@ impl ExpectKind {
             QuickfixListInfo(expected) => {
                 contextualize(*expected, &app.quickfix_list_info().unwrap())
             }
+            ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
         })
     }
 }
@@ -1492,4 +1494,40 @@ fn go_to_previous_file() -> anyhow::Result<()> {
             ])
         })
     }
+}
+
+#[test]
+fn editor_info_should_always_come_after_dropdown() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // Show editor info first
+            App(ShowEditorInfo(Info::new(
+                "Title".to_string(),
+                "hello".to_string(),
+            ))),
+            // The show dropdown
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(CompletionItem::from_label(
+                    "Spongebob squarepants".to_string(),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            })),
+            Expect(ComponentCount(3)),
+            // But dropdown still comes before editor info
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::Dropdown,
+                ComponentKind::EditorInfo,
+            ])),
+        ])
+    })
 }
