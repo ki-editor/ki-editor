@@ -125,10 +125,6 @@ impl Component for Prompt {
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         self.editor.children()
     }
-
-    fn remove_child(&mut self, id: ComponentId) {
-        self.editor.remove_child(id)
-    }
 }
 
 #[cfg(test)]

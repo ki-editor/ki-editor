@@ -369,6 +369,7 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
+        log::info!("App::handle_dispatch {}", dispatch.variant_name());
         match dispatch {
             Dispatch::CloseCurrentWindow { change_focused_to } => {
                 self.close_current_window(change_focused_to);
@@ -564,8 +565,9 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::RenderDropdown { owner_id, render } => {
-                let dropdown = self.layout.open_dropdown(owner_id);
-                self.render_dropdown(Some(owner_id), dropdown, render)?
+                if let Some(dropdown) = self.layout.open_dropdown(owner_id) {
+                    self.render_dropdown(Some(owner_id), dropdown, render)?
+                }
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
             Dispatch::ShowEditorInfo(info) => {
@@ -574,7 +576,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
-            Dispatch::CycleWindow => self.layout.cycle_window(),
+            Dispatch::OscillateWindow => self.layout.cycle_window(),
         }
         Ok(())
     }
@@ -1674,9 +1676,11 @@ impl<T: Frontend> App<T> {
             SelectionSetHistoryKind::Path(path) => self
                 .layout
                 .open_file_with_selection(&path, selection_set_history.selection_set)?,
-            SelectionSetHistoryKind::ComponentId(Some(id)) => self
-                .layout
-                .open_component_with_selection(&id, selection_set_history.selection_set),
+            SelectionSetHistoryKind::ComponentId(Some(_)) => {
+                return Err(anyhow::anyhow!(
+                    "App::go_to_selection_set_history This is not handled yet"
+                ))
+            }
             _ => {}
         };
         Ok(())
@@ -1712,14 +1716,20 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
-        let component = self.layout.get_current_component();
+        let component = self
+            .layout
+            .get_component_by_kind(ComponentKind::SuggestiveEditor)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "App::handle_dispatch_suggestive_editor Cannot find suggestive editor"
+                )
+            })?;
         let dispatches = component
             .borrow_mut()
             .as_any_mut()
             .downcast_mut::<SuggestiveEditor>()
             .ok_or_else(|| {
-                anyhow::anyhow!("Failed to downcast")
-                    .context("App::handle_dispatch_suggestive_editor")
+                anyhow::anyhow!("App::handle_dispatch_suggestive_editor Failed to downcast")
             })?
             .handle_dispatch(dispatch)?;
         self.handle_dispatches(dispatches)
@@ -1736,7 +1746,6 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
-        let current_component = self.current_component().clone();
         let (prompt, dispatches) = Prompt::new(prompt_config, None);
 
         self.layout
@@ -1827,10 +1836,12 @@ impl<T: Frontend> App<T> {
         self.layout.get_opened_files().len()
     }
 
+    #[cfg(test)]
     pub(crate) fn quickfix_list_info(&self) -> Option<String> {
         self.layout.quickfix_list_info()
     }
 
+    #[cfg(test)]
     pub(crate) fn get_component_by_kind(
         &self,
         kind: ComponentKind,
@@ -1842,6 +1853,7 @@ impl<T: Frontend> App<T> {
         self.layout.hide_editor_info()
     }
 
+    #[cfg(test)]
     pub(crate) fn components_order(&self) -> Vec<ComponentKind> {
         self.layout
             .components()
@@ -2058,7 +2070,7 @@ pub enum Dispatch {
     OpenPrompt(PromptConfig),
     ShowEditorInfo(Info),
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
-    CycleWindow,
+    OscillateWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
 }

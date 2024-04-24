@@ -30,7 +30,6 @@ use crate::{
     char_index_range::CharIndexRange,
     components::{
         component::{Component, ComponentId},
-        dropdown::Dropdown,
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
@@ -644,7 +643,7 @@ fn signature_help() -> anyhow::Result<()> {
                     .to_vec(),
                 }),
             )
-        };
+        }
         Box::new([
             App(OpenFile(s.main_rs())),
             Expect(ComponentsLength(1)),
@@ -1355,14 +1354,14 @@ fn cycle_window() -> anyhow::Result<()> {
                 Expect(ComponentCount(3)),
                 Editor(Insert("sponge".to_string())),
                 Expect(CurrentComponentContent("sponge")),
-                App(CycleWindow),
+                App(OscillateWindow),
                 Expect(ComponentCount(3)),
                 Expect(CurrentComponentContent(" Spongebob squarepants")),
-                App(CycleWindow),
+                App(OscillateWindow),
                 Expect(CurrentComponentContent("krabby patty maker")),
-                App(CycleWindow),
+                App(OscillateWindow),
                 Expect(CurrentComponentContent("sponge")),
-                App(CycleWindow),
+                App(OscillateWindow),
                 App(CloseCurrentWindow {
                     change_focused_to: None,
                 }),
@@ -1531,6 +1530,39 @@ fn editor_info_should_always_come_after_dropdown() -> anyhow::Result<()> {
                 ComponentKind::Dropdown,
                 ComponentKind::EditorInfo,
             ])),
+        ])
+    })
+}
+
+#[test]
+fn dropdown_can_only_be_rendered_on_suggestive_editor_or_prompt() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let received_completion = || {
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(CompletionItem::from_label(
+                    "Spongebob squarepants".to_string(),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            }))
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // The show dropdown
+            received_completion(),
+            Expect(ComponentCount(2)),
+            Expect(CurrentComponentContent("hello")),
+            App(OscillateWindow),
+            Expect(CurrentComponentContent(" Spongebob squarepants")),
+            received_completion(),
+            Expect(ComponentCount(2)),
         ])
     })
 }

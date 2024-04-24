@@ -1363,6 +1363,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "name-variant"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6c053f5dc2372fc0489f34614d5064df83b42c9918b6df8f8d9410010d547f6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "nary_tree"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2304,6 +2315,7 @@ dependencies = [
  "log",
  "lsp-types",
  "my_proc_macros",
+ "name-variant",
  "nary_tree",
  "nucleo-matcher",
  "once_cell",

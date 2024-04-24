@@ -19,14 +19,9 @@ use crate::{
 use anyhow::anyhow;
 use indexmap::IndexMap;
 use itertools::Itertools;
-use nary_tree::{NodeId, NodeMut, NodeRef, RemoveBehavior};
+use nary_tree::NodeId;
 use shared::canonicalized_path::CanonicalizedPath;
-use std::{any::TypeId, cell::RefCell, rc::Rc};
-
-struct Owned<T> {
-    owner_id: ComponentId,
-    component: T,
-}
+use std::{cell::RefCell, rc::Rc};
 
 /// The layout of the app is split into multiple sections: the main panel, info panel, quickfix
 /// lists, prompts, and etc.
@@ -409,15 +404,22 @@ impl Layout {
             .and_then(|mut node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
-    pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Rc<RefCell<Editor>> {
+    pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Option<Rc<RefCell<Editor>>> {
         let dropdown = Rc::new(RefCell::new(Editor::from_text(
             tree_sitter_md::language(),
             "",
         )));
+        // Dropdown can only be rendered if the current node is SuggestiveEditor or Prompt
+        if !matches!(
+            self.tree.get_current_node().data().kind(),
+            ComponentKind::SuggestiveEditor | ComponentKind::Prompt
+        ) {
+            return None;
+        }
         self.tree
             .replace_current_node_child(ComponentKind::Dropdown, dropdown.clone(), false);
         self.recalculate_layout(); // This is important to give Dropdown the render area, otherwise during render, height 0 is assume, causing weird behavior when scrolling
-        dropdown
+        Some(dropdown)
     }
 
     /// `id` is either the `id` of the dropdown or of its owner
@@ -433,7 +435,7 @@ impl Layout {
         self.tree.get_current_node_child_id(kind)
     }
 
-    fn remove_node_child<'a>(
+    fn remove_node_child(
         &mut self,
         node_id: NodeId,
         kind: ComponentKind,
@@ -469,14 +471,6 @@ impl Layout {
                 .find(|c| &c.component().borrow().id() == id)?
                 .component(),
         )
-    }
-
-    pub(crate) fn open_component_with_selection(
-        &mut self,
-        id: &ComponentId,
-        selection_set: SelectionSet,
-    ) {
-        log::info!("This is not implemented yet!")
     }
 
     pub(crate) fn show_quickfix_list(

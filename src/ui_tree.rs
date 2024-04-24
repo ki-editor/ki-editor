@@ -28,11 +28,11 @@ impl UiTree {
         }
     }
 
-    pub fn root<'a>(&'a self) -> NodeRef<'a, KindedComponent> {
+    pub fn root(&self) -> NodeRef<'_, KindedComponent> {
         self.tree.root().unwrap()
     }
 
-    pub fn get<'a>(&'a self, id: NodeId) -> Option<NodeRef<'a, KindedComponent>> {
+    pub fn get(&self, id: NodeId) -> Option<NodeRef<'_, KindedComponent>> {
         self.tree.get(id)
     }
 
@@ -44,7 +44,7 @@ impl UiTree {
         self.tree.remove(node_id, RemoveBehavior::DropChildren)
     }
 
-    fn get_mut<'a>(&'a mut self, id: NodeId) -> Option<NodeMut<'a, KindedComponent>> {
+    fn get_mut(&mut self, id: NodeId) -> Option<NodeMut<'_, KindedComponent>> {
         self.tree.get_mut(id)
     }
 
@@ -83,7 +83,7 @@ impl UiTree {
         self.append_component(self.focused_component_id, component, focus);
     }
 
-    fn root_mut<'a>(&'a mut self) -> NodeMut<'a, KindedComponent> {
+    fn root_mut(&mut self) -> NodeMut<'_, KindedComponent> {
         self.tree.root_mut().unwrap()
     }
 
@@ -183,7 +183,7 @@ impl UiTree {
         );
     }
 
-    pub(crate) fn get_current_node<'a>(&'a self) -> NodeRef<'a, KindedComponent> {
+    pub(crate) fn get_current_node(&self) -> NodeRef<'_, KindedComponent> {
         self.get(self.focused_component_id)
             .unwrap_or_else(|| self.root())
     }
@@ -254,9 +254,11 @@ impl UiTree {
                 .node_id(),
         )
     }
+}
 
-    pub(crate) fn get_root_node_child_id(&self, kind: ComponentKind) -> Option<NodeId> {
-        self.get_node_child_id(self.root_id(), kind)
+impl Default for UiTree {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -935,13 +935,6 @@ pub struct DropdownRender {
     pub highlight_line_index: usize,
     pub info: Option<Info>,
 }
-impl DropdownRender {
-    #[cfg(test)]
-    pub(crate) fn current_line(&self) -> String {
-        self.content.lines().collect_vec()[self.highlight_line_index].to_string()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 struct FilteredDropdownItem {
     item_index: u32,

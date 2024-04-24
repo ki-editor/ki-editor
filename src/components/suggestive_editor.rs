@@ -14,7 +14,6 @@ use itertools::Itertools;
 use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
-use super::component::ComponentId;
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::DispatchEditor;
 use super::{
@@ -168,8 +167,6 @@ impl Component for SuggestiveEditor {
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
         Default::default()
     }
-
-    fn remove_child(&mut self, component_id: ComponentId) {}
 }
 
 impl SuggestiveEditor {
@@ -240,17 +237,6 @@ impl SuggestiveEditor {
         .to_vec()
         .into()
     }
-
-    pub(crate) fn from_text(language: tree_sitter::Language, s: &str) -> Self {
-        Self {
-            editor: Editor::from_text(language, s),
-            completion_dropdown: Dropdown::new(DropdownConfig {
-                title: "[Untitled dropdown]".to_string(),
-            }),
-            trigger_characters: Default::default(),
-            filter: SuggestiveEditorFilter::CurrentWord,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -261,7 +247,7 @@ pub enum DispatchSuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::components::editor::{DispatchEditor::*, Mode};
+    use crate::components::editor::DispatchEditor::*;
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
     use crate::lsp::documentation::Documentation;

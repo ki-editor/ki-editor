@@ -186,8 +186,6 @@ pub trait Component: Any + AnyComponent {
             })
             .collect::<Vec<_>>()
     }
-
-    fn remove_child(&mut self, component_id: ComponentId);
 }
 
 /// Modified from https://github.com/helix-editor/helix/blob/91da0dc172dde1a972be7708188a134db70562c3/helix-term/src/compositor.rs#L212
@@ -247,10 +245,6 @@ mod test_component {
                 vec![]
             }
 
-            fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
-                todo!()
-            }
-
             fn handle_key_event(
                 &mut self,
                 _context: &crate::context::Context,
@@ -276,10 +270,6 @@ mod test_component {
 
             fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
                 vec![Some(self.grand_child.clone())]
-            }
-
-            fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
-                todo!()
             }
 
             fn handle_key_event(
@@ -308,10 +298,6 @@ mod test_component {
 
             fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
                 vec![Some(self.child.clone())]
-            }
-
-            fn remove_child(&mut self, _component_id: crate::components::component::ComponentId) {
-                todo!()
             }
 
             fn handle_key_event(

@@ -321,7 +321,11 @@ impl Editor {
                     "Switch view alignment".to_string(),
                     Dispatch::ToEditor(SwitchViewAlignment),
                 ),
-                Keymap::new("ctrl+o", "Cycle window".to_string(), Dispatch::CycleWindow),
+                Keymap::new(
+                    "ctrl+o",
+                    "Oscillate window".to_string(),
+                    Dispatch::OscillateWindow,
+                ),
                 Keymap::new(
                     "ctrl+q",
                     "Close current window".to_string(),

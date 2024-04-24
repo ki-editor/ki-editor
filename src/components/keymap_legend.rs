@@ -351,10 +351,6 @@ impl Component for KeymapLegend {
     fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
         self.editor.children()
     }
-
-    fn remove_child(&mut self, component_id: super::component::ComponentId) {
-        self.editor.remove_child(component_id)
-    }
 }
 
 #[cfg(test)]
