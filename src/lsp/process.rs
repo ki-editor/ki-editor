@@ -57,14 +57,14 @@ pub enum LspNotification {
     Initialized(Language),
     PublishDiagnostics(PublishDiagnosticsParams),
     Completion(ResponseContext, Completion),
-    Hover(ResponseContext, Hover),
+    Hover(Hover),
     Definition(ResponseContext, GotoDefinitionResponse),
     References(ResponseContext, Vec<Location>),
     PrepareRenameResponse(ResponseContext, PrepareRenameResponse),
     Error(String),
     WorkspaceEdit(WorkspaceEdit),
     CodeAction(ResponseContext, Vec<CodeAction>),
-    SignatureHelp(ResponseContext, Option<SignatureHelp>),
+    SignatureHelp(Option<SignatureHelp>),
     Symbols(ResponseContext, Symbols),
 }
 
@@ -710,7 +710,6 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Hover(
-                                    response_context,
                                     payload.into(),
                                 )))
                                 .unwrap();
@@ -844,7 +843,6 @@ impl LspServerProcess {
 
                         self.app_message_sender
                             .send(AppMessage::LspNotification(LspNotification::SignatureHelp(
-                                response_context,
                                 payload.map(|payload| payload.into()),
                             )))
                             .unwrap();

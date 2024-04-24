@@ -371,8 +371,8 @@ impl<T: Frontend> App<T> {
     pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch {}", dispatch.variant_name());
         match dispatch {
-            Dispatch::CloseCurrentWindow { change_focused_to } => {
-                self.close_current_window(change_focused_to);
+            Dispatch::CloseCurrentWindow => {
+                self.close_current_window();
             }
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
@@ -562,17 +562,15 @@ impl<T: Frontend> App<T> {
             Dispatch::ToSuggestiveEditor(dispatch) => {
                 self.handle_dispatch_suggestive_editor(dispatch)?
             }
-            Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
+            Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
-            Dispatch::RenderDropdown { owner_id, render } => {
-                if let Some(dropdown) = self.layout.open_dropdown(owner_id) {
-                    self.render_dropdown(Some(owner_id), dropdown, render)?
+            Dispatch::RenderDropdown { render } => {
+                if let Some(dropdown) = self.layout.open_dropdown() {
+                    self.render_dropdown(dropdown, render)?
                 }
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
-            Dispatch::ShowEditorInfo(info) => {
-                self.show_editor_info(self.current_component().borrow().id(), info)?
-            }
+            Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
@@ -585,8 +583,8 @@ impl<T: Frontend> App<T> {
         self.layout.get_current_component()
     }
 
-    fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
-        self.layout.close_current_window(change_focused_to)
+    fn close_current_window(&mut self) {
+        self.layout.close_current_window()
     }
 
     fn local_search(&mut self, owner_id: Option<ComponentId>) -> anyhow::Result<()> {
@@ -803,10 +801,10 @@ impl<T: Frontend> App<T> {
 
     pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::Hover(context, hover) => self.show_editor_info(
-                context.component_id,
-                Info::new("Hover Info".to_string(), hover.contents.join("\n\n")),
-            ),
+            LspNotification::Hover(hover) => self.show_editor_info(Info::new(
+                "Hover Info".to_string(),
+                hover.contents.join("\n\n"),
+            )),
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
@@ -912,9 +910,9 @@ impl<T: Frontend> App<T> {
                 }
                 Ok(())
             }
-            LspNotification::SignatureHelp(context, signature_help) => {
+            LspNotification::SignatureHelp(signature_help) => {
                 if let Some(info) = signature_help.and_then(|s| s.into_info()) {
-                    self.show_editor_info(context.component_id, info)?;
+                    self.show_editor_info(info)?;
                 } else {
                     self.hide_editor_info()
                 }
@@ -1746,7 +1744,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
-        let (prompt, dispatches) = Prompt::new(prompt_config, None);
+        let (prompt, dispatches) = Prompt::new(prompt_config);
 
         self.layout
             .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
@@ -1755,7 +1753,6 @@ impl<T: Frontend> App<T> {
 
     fn render_dropdown(
         &mut self,
-        owner_id: Option<ComponentId>,
         editor: Rc<RefCell<Editor>>,
         render: DropdownRender,
     ) -> Result<(), anyhow::Error> {
@@ -1764,12 +1761,11 @@ impl<T: Frontend> App<T> {
             .render_dropdown(&mut self.context, &render)?;
         editor.borrow_mut().set_title(render.title);
 
-        let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
         match render.info {
             Some(info) => {
-                self.layout.show_dropdown_info(owner_id, info)?;
+                self.layout.show_dropdown_info(info)?;
             }
-            _ => self.layout.hide_dropdown_info(owner_id),
+            _ => self.layout.hide_dropdown_info(),
         }
         self.handle_dispatches(dispatches)
     }
@@ -1784,8 +1780,8 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches)
     }
 
-    fn show_editor_info(&mut self, owner_id: ComponentId, info: Info) -> anyhow::Result<()> {
-        self.layout.show_editor_info(owner_id, info)
+    fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
+        self.layout.show_editor_info(info)
     }
 
     #[cfg(test)]
@@ -1931,9 +1927,7 @@ impl Dispatches {
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     SetTheme(Theme),
-    CloseCurrentWindow {
-        change_focused_to: Option<ComponentId>,
-    },
+    CloseCurrentWindow,
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
         scope: Scope,
@@ -2060,11 +2054,8 @@ pub enum Dispatch {
     GoToNextSelection,
     HandleLspNotification(LspNotification),
     ToSuggestiveEditor(DispatchSuggestiveEditor),
-    CloseDropdown {
-        owner_id: ComponentId,
-    },
+    CloseDropdown,
     RenderDropdown {
-        owner_id: ComponentId,
         render: DropdownRender,
     },
     OpenPrompt(PromptConfig),

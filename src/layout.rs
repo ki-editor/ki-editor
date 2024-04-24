@@ -36,55 +36,7 @@ pub struct Layout {
     borders: Vec<Border>,
 
     terminal_dimension: Dimension,
-    working_directory: CanonicalizedPath,
-
     tree: UiTree,
-}
-
-#[derive(Clone)]
-struct MainPanel {
-    editor: Option<Rc<RefCell<SuggestiveEditor>>>,
-    working_directory: CanonicalizedPath,
-}
-
-impl PartialEq for MainPanel {
-    fn eq(&self, other: &Self) -> bool {
-        match (&self.editor, &other.editor) {
-            (Some(a), Some(b)) => a.borrow().path() == b.borrow().path(),
-            (None, None) => true,
-            _ => false,
-        }
-    }
-}
-
-impl MainPanel {
-    fn path(&self) -> Option<CanonicalizedPath> {
-        self.editor
-            .as_ref()
-            .and_then(|editor| editor.borrow().path())
-    }
-
-    fn take(&mut self) -> Option<Rc<RefCell<SuggestiveEditor>>> {
-        self.editor.take()
-    }
-
-    fn id(&self) -> Option<ComponentId> {
-        self.editor.as_ref().map(|editor| editor.borrow().id())
-    }
-}
-
-impl std::fmt::Display for MainPanel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(path) = self.path() {
-            f.write_str(
-                &path
-                    .display_relative_to(&self.working_directory)
-                    .unwrap_or_else(|_| path.display_absolute()),
-            )
-        } else {
-            f.write_str("[UNTITLED]")
-        }
-    }
 }
 
 impl Layout {
@@ -102,7 +54,6 @@ impl Layout {
             rectangles,
             borders,
             terminal_dimension,
-            working_directory: working_directory.clone(),
             tree,
         })
     }
@@ -120,16 +71,6 @@ impl Layout {
             .get(id)
             .map(|node| node.data().component())
             .unwrap_or_else(|| self.tree.root().data().component().clone())
-    }
-
-    fn new_main_panel(
-        &self,
-        suggestive_editor: Option<Rc<RefCell<SuggestiveEditor>>>,
-    ) -> MainPanel {
-        MainPanel {
-            editor: suggestive_editor,
-            working_directory: self.working_directory.clone(),
-        }
     }
 
     pub fn remove_current_component(&mut self) {
@@ -160,7 +101,7 @@ impl Layout {
         self.tree.cycle_component()
     }
 
-    pub fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
+    pub fn close_current_window(&mut self) {
         self.remove_current_component();
     }
 
@@ -401,10 +342,10 @@ impl Layout {
     #[cfg(test)]
     pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.get_current_node_child_id(ComponentKind::Dropdown)
-            .and_then(|mut node_id| Some(self.tree.get(node_id)?.data().component().clone()))
+            .and_then(|node_id| Some(self.tree.get(node_id)?.data().component().clone()))
     }
 
-    pub(crate) fn open_dropdown(&mut self, owner_id: ComponentId) -> Option<Rc<RefCell<Editor>>> {
+    pub(crate) fn open_dropdown(&mut self) -> Option<Rc<RefCell<Editor>>> {
         let dropdown = Rc::new(RefCell::new(Editor::from_text(
             tree_sitter_md::language(),
             "",
@@ -422,8 +363,7 @@ impl Layout {
         Some(dropdown)
     }
 
-    /// `id` is either the `id` of the dropdown or of its owner
-    pub(crate) fn close_dropdown(&mut self, id: ComponentId) {
+    pub(crate) fn close_dropdown(&mut self) {
         self.tree.remove_current_child(ComponentKind::Dropdown);
     }
 
@@ -443,11 +383,7 @@ impl Layout {
         self.tree.remove_node_child(node_id, kind)
     }
 
-    pub(crate) fn show_dropdown_info(
-        &mut self,
-        owner_id: ComponentId,
-        info: Info,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn show_dropdown_info(&mut self, info: Info) -> anyhow::Result<()> {
         if let Some(node_id) = self.tree.get_current_node_child_id(ComponentKind::Dropdown) {
             self.show_info_on(node_id, info, ComponentKind::DropdownInfo)?;
         }
@@ -455,7 +391,7 @@ impl Layout {
         Ok(())
     }
 
-    pub(crate) fn hide_dropdown_info(&mut self, owner_id: ComponentId) {
+    pub(crate) fn hide_dropdown_info(&mut self) {
         if let Some(node_id) = self.get_current_node_child_id(ComponentKind::Dropdown) {
             self.remove_node_child(node_id, ComponentKind::DropdownInfo);
         }
@@ -506,11 +442,7 @@ impl Layout {
         self.tree.count_by_kind(ComponentKind::DropdownInfo)
     }
 
-    pub(crate) fn show_editor_info(
-        &mut self,
-        owner_id: ComponentId,
-        info: Info,
-    ) -> anyhow::Result<()> {
+    pub(crate) fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
         self.show_info_on(
             self.tree.focused_component_id(),
             info,
@@ -628,6 +560,7 @@ impl Layout {
         self.tree.close_current_and_focus_parent()
     }
 
+    #[cfg(test)]
     pub(crate) fn quickfix_list_info(&self) -> Option<String> {
         Some(
             self.tree

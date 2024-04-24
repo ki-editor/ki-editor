@@ -52,11 +52,8 @@ use crate::{
 };
 use crate::{lsp::process::LspNotification, themes::Color};
 
-type WithApp = Box<dyn Fn(&App<MockFrontend>) -> Dispatch>;
-
 pub enum Step {
     App(Dispatch),
-    WithApp(WithApp),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
     Editor(DispatchEditor),
@@ -400,10 +397,6 @@ pub fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<(
                     log(dispatch);
                     app.handle_dispatch_editor(dispatch.to_owned())?
                 }
-                WithApp(f) => {
-                    let dispatch = f(&app);
-                    app.handle_dispatch(dispatch)?
-                }
                 ExpectCustom(f) => {
                     f();
                 }
@@ -628,23 +621,16 @@ fn multi_paste() -> anyhow::Result<()> {
 fn signature_help() -> anyhow::Result<()> {
     execute_test(|s| {
         fn signature_help() -> LspNotification {
-            LspNotification::SignatureHelp(
-                crate::lsp::process::ResponseContext {
-                    component_id: Default::default(),
-                    scope: None,
-                    description: None,
-                },
-                Some(crate::lsp::signature_help::SignatureHelp {
-                    signatures: [SignatureInformation {
-                        label: "Signature Help".to_string(),
-                        documentation: Some(crate::lsp::documentation::Documentation {
-                            content: "spongebob".to_string(),
-                        }),
-                        active_parameter_byte_range: None,
-                    }]
-                    .to_vec(),
-                }),
-            )
+            LspNotification::SignatureHelp(Some(crate::lsp::signature_help::SignatureHelp {
+                signatures: [SignatureInformation {
+                    label: "Signature Help".to_string(),
+                    documentation: Some(crate::lsp::documentation::Documentation {
+                        content: "spongebob".to_string(),
+                    }),
+                    active_parameter_byte_range: None,
+                }]
+                .to_vec(),
+            }))
         }
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -677,10 +663,7 @@ fn signature_help() -> anyhow::Result<()> {
                 ComponentKind::EditorInfo,
             ])),
             // Receiving null signature help should close the signature help
-            App(HandleLspNotification(LspNotification::SignatureHelp(
-                Default::default(),
-                None,
-            ))),
+            App(HandleLspNotification(LspNotification::SignatureHelp(None))),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
             ])),
@@ -1364,9 +1347,7 @@ fn cycle_window() -> anyhow::Result<()> {
                 App(OscillateWindow),
                 Expect(CurrentComponentContent("sponge")),
                 App(OscillateWindow),
-                App(CloseCurrentWindow {
-                    change_focused_to: None,
-                }),
+                App(CloseCurrentWindow),
                 Expect(CurrentComponentContent("sponge")),
             ])
         })
@@ -1468,14 +1449,10 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
                 App(OpenFile(s.main_rs())),
                 App(OpenFile(s.foo_rs())),
                 Expect(CurrentComponentPath(Some(s.foo_rs()))),
-                App(CloseCurrentWindow {
-                    change_focused_to: None,
-                }),
+                App(CloseCurrentWindow),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
                 Expect(OpenedFilesCount(1)),
-                App(CloseCurrentWindow {
-                    change_focused_to: None,
-                }),
+                App(CloseCurrentWindow),
                 Expect(OpenedFilesCount(0)),
                 Expect(CurrentComponentPath(None)),
             ])

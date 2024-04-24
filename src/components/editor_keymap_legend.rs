@@ -30,285 +30,270 @@ impl Editor {
     pub(crate) fn keymap_movements(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Movement".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new(
-                        ",",
-                        "First".to_string(),
-                        Dispatch::ToEditor(MoveSelection(First)),
-                    ),
-                    Keymap::new(
-                        ".",
-                        "Last".to_string(),
-                        Dispatch::ToEditor(MoveSelection(Last)),
-                    ),
-                    Keymap::new(
-                        "h",
-                        "Higher (Previous)".to_string(),
-                        Dispatch::ToEditor(MoveSelection(Movement::Previous)),
-                    ),
-                    Keymap::new(
-                        "j",
-                        "Down".to_string(),
-                        Dispatch::ToEditor(MoveSelection(Down)),
-                    ),
-                    Keymap::new("k", "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
-                    Keymap::new(
-                        "l",
-                        "Lower (Next)".to_string(),
-                        Dispatch::ToEditor(MoveSelection(Next)),
-                    ),
-                    Keymap::new(
-                        "o",
-                        "Older (Parent)".to_string(),
-                        Dispatch::ToEditor(MoveSelection(Parent)),
-                    ),
-                    Keymap::new(
-                        "q",
-                        "First child".to_string(),
-                        Dispatch::ToEditor(MoveSelection(FirstChild)),
-                    ),
-                    Keymap::new(
-                        "s",
-                        "Skip (Jump)".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ShowJumps),
-                    ),
-                    Keymap::new(
-                        "-",
-                        "Parent Line".to_string(),
-                        Dispatch::ToEditor(MoveSelection(ToParentLine)),
-                    ),
-                    Keymap::new(
-                        "0",
-                        "To Index (1-based)".to_string(),
-                        Dispatch::OpenMoveToIndexPrompt,
-                    ),
-                    Keymap::new(
-                        "%",
-                        "Swap cursor with anchor".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
-                    ),
-                    Keymap::new(
-                        "ctrl+d",
-                        "Scroll page down".to_string(),
-                        Dispatch::ToEditor(ScrollPageDown),
-                    ),
-                    Keymap::new(
-                        "ctrl+u",
-                        "Scroll page up".to_string(),
-                        Dispatch::ToEditor(ScrollPageUp),
-                    ),
-                    Keymap::new(
-                        "backspace",
-                        "Go to previous selection".to_string(),
-                        Dispatch::GoToPreviousSelection,
-                    ),
-                    Keymap::new(
-                        "tab",
-                        "Go to next selection".to_string(),
-                        Dispatch::GoToNextSelection,
-                    ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    ",",
+                    "First".to_string(),
+                    Dispatch::ToEditor(MoveSelection(First)),
+                ),
+                Keymap::new(
+                    ".",
+                    "Last".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Last)),
+                ),
+                Keymap::new(
+                    "h",
+                    "Higher (Previous)".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Movement::Previous)),
+                ),
+                Keymap::new(
+                    "j",
+                    "Down".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Down)),
+                ),
+                Keymap::new("k", "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
+                Keymap::new(
+                    "l",
+                    "Lower (Next)".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Next)),
+                ),
+                Keymap::new(
+                    "o",
+                    "Older (Parent)".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Parent)),
+                ),
+                Keymap::new(
+                    "q",
+                    "First child".to_string(),
+                    Dispatch::ToEditor(MoveSelection(FirstChild)),
+                ),
+                Keymap::new(
+                    "s",
+                    "Skip (Jump)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowJumps),
+                ),
+                Keymap::new(
+                    "-",
+                    "Parent Line".to_string(),
+                    Dispatch::ToEditor(MoveSelection(ToParentLine)),
+                ),
+                Keymap::new(
+                    "0",
+                    "To Index (1-based)".to_string(),
+                    Dispatch::OpenMoveToIndexPrompt,
+                ),
+                Keymap::new(
+                    "%",
+                    "Swap cursor with anchor".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
+                ),
+                Keymap::new(
+                    "ctrl+d",
+                    "Scroll page down".to_string(),
+                    Dispatch::ToEditor(ScrollPageDown),
+                ),
+                Keymap::new(
+                    "ctrl+u",
+                    "Scroll page up".to_string(),
+                    Dispatch::ToEditor(ScrollPageUp),
+                ),
+                Keymap::new(
+                    "backspace",
+                    "Go to previous selection".to_string(),
+                    Dispatch::GoToPreviousSelection,
+                ),
+                Keymap::new(
+                    "tab",
+                    "Go to next selection".to_string(),
+                    Dispatch::GoToNextSelection,
+                ),
+            ]),
         }
     }
 
     pub(crate) fn keymap_selection_modes(&self, context: &Context) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Selection mode".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new(
-                        "b",
-                        "Between".to_string(),
-                        Dispatch::ShowKeymapLegend(self.inside_mode_keymap_legend_config()),
-                    ),
-                    Keymap::new(
-                        "e",
-                        "Line Trimmed".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
-                    ),
-                    Keymap::new(
-                        "f",
-                        "Find (Local)".to_string(),
-                        Dispatch::ShowKeymapLegend(self.find_local_keymap_legend_config(context)),
-                    ),
-                    Keymap::new(
-                        "g",
-                        "Find (Global)".to_string(),
-                        Dispatch::ShowKeymapLegend(self.find_global_keymap_legend_config(context)),
-                    ),
-                    Keymap::new(
-                        "n",
-                        "Node".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(SyntaxTree)),
-                    ),
-                    Keymap::new(
-                        "t",
-                        "Token".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(BottomNode)),
-                    ),
-                    Keymap::new(
-                        "u",
-                        "Character (Unicode)".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(Character)),
-                    ),
-                    Keymap::new(
-                        "w",
-                        "Word".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(Word)),
-                    ),
-                    Keymap::new(
-                        "x",
-                        "Line (Extended)".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(LineFull)),
-                    ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "b",
+                    "Between".to_string(),
+                    Dispatch::ShowKeymapLegend(self.inside_mode_keymap_legend_config()),
+                ),
+                Keymap::new(
+                    "e",
+                    "Line Trimmed".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
+                ),
+                Keymap::new(
+                    "f",
+                    "Find (Local)".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_local_keymap_legend_config(context)),
+                ),
+                Keymap::new(
+                    "g",
+                    "Find (Global)".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_global_keymap_legend_config(context)),
+                ),
+                Keymap::new(
+                    "n",
+                    "Node".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(SyntaxTree)),
+                ),
+                Keymap::new(
+                    "t",
+                    "Token".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(BottomNode)),
+                ),
+                Keymap::new(
+                    "u",
+                    "Character (Unicode)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(Character)),
+                ),
+                Keymap::new(
+                    "w",
+                    "Word".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(Word)),
+                ),
+                Keymap::new(
+                    "x",
+                    "Line (Extended)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(LineFull)),
+                ),
+            ]),
         }
     }
     pub(crate) fn keymap_actions(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Action".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
-                    Keymap::new("d", "Delete".to_string(), Dispatch::ToEditor(Kill)),
-                    Keymap::new(
-                        "enter",
-                        "Open new line".to_string(),
-                        Dispatch::ToEditor(OpenNewLine),
-                    ),
-                    Keymap::new(
-                        "m",
-                        "Mark (Toggle)".to_string(),
-                        Dispatch::ToEditor(ToggleBookmark),
-                    ),
-                    Keymap::new(
-                        "p",
-                        "Paste (after selection)".to_string(),
-                        Dispatch::ToEditor(Paste(Direction::End)),
-                    ),
-                    Keymap::new(
-                        "P",
-                        "Paste (before selection)".to_string(),
-                        Dispatch::ToEditor(Paste(Direction::Start)),
-                    ),
-                    Keymap::new(
-                        "!",
-                        "Transform".to_string(),
-                        Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
-                    ),
-                    Keymap::new(
-                        "r",
-                        "Replace".to_string(),
-                        Dispatch::ToEditor(ReplaceWithCopiedText),
-                    ),
-                    Keymap::new(
-                        "R",
-                        "Replace Cut".to_string(),
-                        Dispatch::ToEditor(ReplaceCut),
-                    ),
-                    Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
-                    Keymap::new("ctrl+x", "Cut".to_string(), Dispatch::ToEditor(Cut)),
-                    Keymap::new(
-                        "alt+h",
-                        "Exchange (Previous)".to_string(),
-                        Dispatch::ToEditor(Exchange(Previous)),
-                    ),
-                    Keymap::new(
-                        "alt+l",
-                        "Exchange (Next)".to_string(),
-                        Dispatch::ToEditor(Exchange(Next)),
-                    ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
+                Keymap::new("d", "Delete".to_string(), Dispatch::ToEditor(Kill)),
+                Keymap::new(
+                    "enter",
+                    "Open new line".to_string(),
+                    Dispatch::ToEditor(OpenNewLine),
+                ),
+                Keymap::new(
+                    "m",
+                    "Mark (Toggle)".to_string(),
+                    Dispatch::ToEditor(ToggleBookmark),
+                ),
+                Keymap::new(
+                    "p",
+                    "Paste (after selection)".to_string(),
+                    Dispatch::ToEditor(Paste(Direction::End)),
+                ),
+                Keymap::new(
+                    "P",
+                    "Paste (before selection)".to_string(),
+                    Dispatch::ToEditor(Paste(Direction::Start)),
+                ),
+                Keymap::new(
+                    "!",
+                    "Transform".to_string(),
+                    Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
+                ),
+                Keymap::new(
+                    "r",
+                    "Replace".to_string(),
+                    Dispatch::ToEditor(ReplaceWithCopiedText),
+                ),
+                Keymap::new(
+                    "R",
+                    "Replace Cut".to_string(),
+                    Dispatch::ToEditor(ReplaceCut),
+                ),
+                Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
+                Keymap::new("ctrl+x", "Cut".to_string(), Dispatch::ToEditor(Cut)),
+                Keymap::new(
+                    "alt+h",
+                    "Exchange (Previous)".to_string(),
+                    Dispatch::ToEditor(Exchange(Previous)),
+                ),
+                Keymap::new(
+                    "alt+l",
+                    "Exchange (Next)".to_string(),
+                    Dispatch::ToEditor(Exchange(Next)),
+                ),
+            ]),
         }
     }
 
     pub(crate) fn keymap_exchange(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Exchange (alt+<movement>)".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new(
-                        "alt+h",
-                        "Previous".to_string(),
-                        Dispatch::ToEditor(Exchange(Previous)),
-                    ),
-                    Keymap::new(
-                        "alt+l",
-                        "Next".to_string(),
-                        Dispatch::ToEditor(Exchange(Next)),
-                    ),
-                    Keymap::new(
-                        "alt+j",
-                        "Down".to_string(),
-                        Dispatch::ToEditor(Exchange(Down)),
-                    ),
-                    Keymap::new("alt+k", "Up".to_string(), Dispatch::ToEditor(Exchange(Up))),
-                    Keymap::new(
-                        "alt+s",
-                        "Skip (Jump)".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::EnterExchangeModeJump),
-                    ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "alt+h",
+                    "Previous".to_string(),
+                    Dispatch::ToEditor(Exchange(Previous)),
+                ),
+                Keymap::new(
+                    "alt+l",
+                    "Next".to_string(),
+                    Dispatch::ToEditor(Exchange(Next)),
+                ),
+                Keymap::new(
+                    "alt+j",
+                    "Down".to_string(),
+                    Dispatch::ToEditor(Exchange(Down)),
+                ),
+                Keymap::new("alt+k", "Up".to_string(), Dispatch::ToEditor(Exchange(Up))),
+                Keymap::new(
+                    "alt+s",
+                    "Skip (Jump)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::EnterExchangeModeJump),
+                ),
+            ]),
         }
     }
 
     pub(crate) fn keymap_replace(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Replace (shift+<movement>)".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new(
-                        "H",
-                        "Previous".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(Previous)),
-                    ),
-                    Keymap::new(
-                        "L",
-                        "Next".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(Next)),
-                    ),
-                    Keymap::new(
-                        "J",
-                        "Down".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(Down)),
-                    ),
-                    Keymap::new(
-                        "K",
-                        "Up".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(Up)),
-                    ),
-                    Keymap::new(
-                        "O",
-                        "Parent".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(Parent)),
-                    ),
-                    Keymap::new(
-                        "<",
-                        "First".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(First)),
-                    ),
-                    Keymap::new(
-                        ">",
-                        "Last".to_string(),
-                        Dispatch::ToEditor(ReplaceWithMovement(Last)),
-                    ),
-                    Keymap::new(
-                        "S",
-                        "Skip (Jump)".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::EnterReplaceModeJump),
-                    ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "H",
+                    "Previous".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(Previous)),
+                ),
+                Keymap::new(
+                    "L",
+                    "Next".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(Next)),
+                ),
+                Keymap::new(
+                    "J",
+                    "Down".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(Down)),
+                ),
+                Keymap::new(
+                    "K",
+                    "Up".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(Up)),
+                ),
+                Keymap::new(
+                    "O",
+                    "Parent".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(Parent)),
+                ),
+                Keymap::new(
+                    "<",
+                    "First".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(First)),
+                ),
+                Keymap::new(
+                    ">",
+                    "Last".to_string(),
+                    Dispatch::ToEditor(ReplaceWithMovement(Last)),
+                ),
+                Keymap::new(
+                    "S",
+                    "Skip (Jump)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::EnterReplaceModeJump),
+                ),
+            ]),
         }
     }
 
@@ -329,9 +314,7 @@ impl Editor {
                 Keymap::new(
                     "ctrl+q",
                     "Close current window".to_string(),
-                    Dispatch::CloseCurrentWindow {
-                        change_focused_to: None,
-                    },
+                    Dispatch::CloseCurrentWindow,
                 ),
                 Keymap::new("ctrl+s", "Save".to_string(), Dispatch::ToEditor(Save)),
                 Keymap::new(
@@ -473,73 +456,67 @@ impl Editor {
     pub fn keymap_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Mode".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new(
-                        "a",
-                        "Insert after selection".to_string(),
-                        Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                    ),
-                    Keymap::new(
-                        "i",
-                        "Insert before selection".to_string(),
-                        Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                    ),
-                    Keymap::new(
-                        "v",
-                        "Visual (Extend selection)".to_string(),
-                        Dispatch::ToEditor(ToggleHighlightMode),
-                    ),
-                    Keymap::new(
-                        "z",
-                        "Omni-cursor (Multi-cursor)".to_string(),
-                        Dispatch::ToEditor(EnterMultiCursorMode),
-                    ),
-                    // Keymap::new( "z", "Replace".to_string(), Dispatch::ToEditor(EnterReplaceMode), ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "a",
+                    "Insert after selection".to_string(),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                ),
+                Keymap::new(
+                    "i",
+                    "Insert before selection".to_string(),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                ),
+                Keymap::new(
+                    "v",
+                    "Visual (Extend selection)".to_string(),
+                    Dispatch::ToEditor(ToggleHighlightMode),
+                ),
+                Keymap::new(
+                    "z",
+                    "Omni-cursor (Multi-cursor)".to_string(),
+                    Dispatch::ToEditor(EnterMultiCursorMode),
+                ),
+                // Keymap::new( "z", "Replace".to_string(), Dispatch::ToEditor(EnterReplaceMode), ),
+            ]),
         }
     }
     pub fn keymap_others(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Others".to_string(),
-            keymaps: Keymaps::new(
-                &[
-                    Keymap::new(
-                        "space",
-                        "Search (List)".to_string(),
-                        Dispatch::ShowKeymapLegend(self.search_list_mode_keymap_legend_config()),
-                    ),
-                    Keymap::new(
-                        "\\",
-                        "Context menu".to_string(),
-                        Dispatch::ShowKeymapLegend(self.context_menu_legend_config()),
-                    ),
-                    Keymap::new("*", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
-                    Keymap::new(
-                        ":",
-                        "Open command prompt".to_string(),
-                        Dispatch::OpenCommandPrompt,
-                    ),
-                    Keymap::new(
-                        "/",
-                        "Omit selection".to_string(),
-                        Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
-                    ),
-                    Keymap::new(
-                        "?",
-                        "Help (Normal mode)".to_string(),
-                        Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
-                    ),
-                    Keymap::new(
-                        "esc",
-                        "Remain only this window".to_string(),
-                        Dispatch::RemainOnlyCurrentComponent,
-                    ),
-                ]
-                .to_vec(),
-            ),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "space",
+                    "Search (List)".to_string(),
+                    Dispatch::ShowKeymapLegend(self.search_list_mode_keymap_legend_config()),
+                ),
+                Keymap::new(
+                    "\\",
+                    "Context menu".to_string(),
+                    Dispatch::ShowKeymapLegend(self.context_menu_legend_config()),
+                ),
+                Keymap::new("*", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
+                Keymap::new(
+                    ":",
+                    "Open command prompt".to_string(),
+                    Dispatch::OpenCommandPrompt,
+                ),
+                Keymap::new(
+                    "/",
+                    "Omit selection".to_string(),
+                    Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
+                ),
+                Keymap::new(
+                    "?",
+                    "Help (Normal mode)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
+                ),
+                Keymap::new(
+                    "esc",
+                    "Remain only this window".to_string(),
+                    Dispatch::RemainOnlyCurrentComponent,
+                ),
+            ]),
         }
     }
 

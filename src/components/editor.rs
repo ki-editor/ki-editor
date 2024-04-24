@@ -750,7 +750,7 @@ impl Editor {
                     let copied_text_len = copied_text.len_chars();
 
                     let selection_range = if self.mode == Mode::Normal {
-                        (insertion_range_start..insertion_range_start + copied_text_len).into()
+                        insertion_range_start..insertion_range_start + copied_text_len
                     } else {
                         let start = insertion_range_start + copied_text_len;
                         start..start
@@ -1166,19 +1166,17 @@ impl Editor {
         &mut self,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Dispatches> {
-        let dispatches = self
-            .move_selection_with_selection_mode_without_global_mode(
-                Movement::Current,
-                selection_mode,
-            )
-            .map(|dispatches| {
-                Some(Dispatch::SetGlobalMode(None))
-                    .into_iter()
-                    .chain(dispatches.into_vec())
-                    .collect::<Vec<_>>()
-                    .into()
-            });
-        dispatches
+        self.move_selection_with_selection_mode_without_global_mode(
+            Movement::Current,
+            selection_mode,
+        )
+        .map(|dispatches| {
+            Some(Dispatch::SetGlobalMode(None))
+                .into_iter()
+                .chain(dispatches.into_vec())
+                .collect::<Vec<_>>()
+                .into()
+        })
     }
 
     fn move_selection_with_selection_mode(
@@ -1470,8 +1468,7 @@ impl Editor {
 
     pub fn exchange(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
         let mode = self.selection_set.mode.clone();
-        let dispatches = self.replace_faultlessly(&mode, movement);
-        dispatches
+        self.replace_faultlessly(&mode, movement)
     }
 
     pub fn add_cursor(&mut self, direction: &Movement) -> anyhow::Result<()> {
@@ -1920,7 +1917,7 @@ impl Editor {
                 self.cursor_keep_primary_only();
                 Ok(Default::default())
             }
-            other => return self.handle_normal_mode(context, other),
+            other => self.handle_normal_mode(context, other),
         }
     }
 

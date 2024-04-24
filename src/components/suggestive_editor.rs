@@ -71,7 +71,6 @@ impl Component for SuggestiveEditor {
                 key!("ctrl+n") | key!("down") => {
                     self.completion_dropdown.next_item();
                     return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
                     .to_vec()
@@ -80,7 +79,6 @@ impl Component for SuggestiveEditor {
                 key!("ctrl+p") | key!("up") => {
                     self.completion_dropdown.previous_item();
                     return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
                     .to_vec()
@@ -89,10 +87,9 @@ impl Component for SuggestiveEditor {
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
-                        return Ok(Dispatches::one(Dispatch::CloseDropdown {
-                            owner_id: self.id(),
-                        })
-                        .chain(completion.dispatches));
+                        return Ok(
+                            Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches)
+                        );
                     }
                 }
 
@@ -135,9 +132,7 @@ impl Component for SuggestiveEditor {
         };
         Ok(dispatches.chain(match event {
             key!("esc") => [
-                Dispatch::CloseDropdown {
-                    owner_id: self.id(),
-                },
+                Dispatch::CloseDropdown,
                 Dispatch::CloseEditorInfo,
                 Dispatch::ToEditor(EnterNormalMode),
             ]
@@ -154,10 +149,7 @@ impl Component for SuggestiveEditor {
                 })
                 .unwrap_or_default()
                 .into_iter()
-                .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
-                    render,
-                    owner_id: self.id(),
-                }))
+                .chain(dropdown_render.map(|render| Dispatch::RenderDropdown { render }))
                 .collect_vec()
                 .into(),
             _ => Default::default(),
@@ -194,7 +186,6 @@ impl SuggestiveEditor {
                 if self.editor.mode == Mode::Insert {
                     self.set_completion(completion);
                     Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
                     .to_vec()
@@ -231,7 +222,6 @@ impl SuggestiveEditor {
 
     pub(crate) fn render_completion_dropdown(&self) -> Dispatches {
         [Dispatch::RenderDropdown {
-            owner_id: self.id(),
             render: self.completion_dropdown.render(),
         }]
         .to_vec()

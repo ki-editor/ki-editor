@@ -10,7 +10,7 @@ use crate::{
 };
 
 use super::{
-    component::{Component, ComponentId},
+    component::Component,
     dropdown::DropdownItem,
     editor::{Editor, Mode},
     suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
@@ -18,7 +18,6 @@ use super::{
 
 pub struct Prompt {
     editor: SuggestiveEditor,
-    owner_id: Option<ComponentId>,
     /// This will only be run on user input if the user input matches no dropdown item.
     on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
@@ -34,7 +33,7 @@ pub struct PromptConfig {
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig, owner_id: Option<ComponentId>) -> (Self, Dispatches) {
+    pub fn new(config: PromptConfig) -> (Self, Dispatches) {
         let text = &if config.history.is_empty() {
             "".to_string()
         } else {
@@ -60,7 +59,6 @@ impl Prompt {
                 editor,
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
-                owner_id,
             },
             dispatches,
         )
@@ -81,10 +79,7 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
-                Ok(vec![Dispatch::CloseCurrentWindow {
-                    change_focused_to: self.owner_id,
-                }]
-                .into())
+                Ok(vec![Dispatch::CloseCurrentWindow].into())
             }
             key!("tab") => {
                 if self.editor.completion_dropdown_opened() {
@@ -110,13 +105,7 @@ impl Component for Prompt {
                         .to_dispatches(&self.editor().current_line()?)?
                 };
 
-                Ok(Dispatches::new(
-                    [Dispatch::CloseCurrentWindow {
-                        change_focused_to: self.owner_id,
-                    }]
-                    .to_vec(),
-                )
-                .chain(dispatches))
+                Ok(Dispatches::new([Dispatch::CloseCurrentWindow].to_vec()).chain(dispatches))
             }
             _ => self.editor.handle_key_event(context, event),
         }
