@@ -281,8 +281,8 @@ impl Layout {
         )
     }
 
-    pub fn close_all_except_main_panel(&mut self) {
-        self.tree.remove_all_except_current()
+    pub fn remain_only_current_component(&mut self) {
+        self.tree.remain_only_current_component()
     }
 
     pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {

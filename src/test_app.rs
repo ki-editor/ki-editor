@@ -270,9 +270,11 @@ impl ExpectKind {
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.get_quickfix_list().unwrap().render().content;
+                let expected = app.get_quickfix_list().unwrap().render().content;
+                let actual = content.to_string();
+                println!("expected =\n{expected}");
                 println!("actual =\n{actual}");
-                contextualize(actual, content.to_string())
+                contextualize(expected, actual)
             }
             DropdownInfosCount(expected) => {
                 contextualize(app.get_dropdown_infos_count(), *expected)
@@ -1562,6 +1564,39 @@ fn dropdown_can_only_be_rendered_on_suggestive_editor_or_prompt() -> anyhow::Res
             App(OscillateWindow),
             Expect(CurrentComponentContent(" Spongebob squarepants")),
             received_completion(),
+            Expect(ComponentCount(2)),
+        ])
+    })
+}
+
+#[test]
+fn only_children_of_root_can_remove_all_other_components() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let received_completion = || {
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(CompletionItem::from_label(
+                    "Spongebob squarepants".to_string(),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            }))
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // The show dropdown
+            received_completion(),
+            Expect(ComponentCount(2)),
+            Expect(CurrentComponentContent("hello")),
+            App(OscillateWindow),
+            Expect(CurrentComponentContent(" Spongebob squarepants")),
+            App(RemainOnlyCurrentComponent),
             Expect(ComponentCount(2)),
         ])
     })

@@ -534,8 +534,8 @@ impl Editor {
                     ),
                     Keymap::new(
                         "esc",
-                        "Close all sub-windows".to_string(),
-                        Dispatch::CloseAllExceptMainPanel,
+                        "Remain only this window".to_string(),
+                        Dispatch::RemainOnlyCurrentComponent,
                     ),
                 ]
                 .to_vec(),

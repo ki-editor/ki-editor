@@ -465,7 +465,7 @@ impl<T: Frontend> App<T> {
 
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
-            Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
+            Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::GlobalSearch => self.global_search()?,
@@ -1974,7 +1974,7 @@ pub enum Dispatch {
     GotoQuickfixListItem(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
-    CloseAllExceptMainPanel,
+    RemainOnlyCurrentComponent,
 
     #[cfg(test)]
     /// Used for testing

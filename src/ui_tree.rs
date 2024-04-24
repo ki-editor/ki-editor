@@ -48,7 +48,14 @@ impl UiTree {
         self.tree.get_mut(id)
     }
 
-    pub fn remove_all_except_current(&mut self) {
+    pub fn remain_only_current_component(&mut self) {
+        if !self
+            .root()
+            .children()
+            .any(|child| child.node_id() == self.focused_component_id())
+        {
+            return;
+        }
         let root = self.root();
         let root_id = root.node_id();
         for node_id in root
