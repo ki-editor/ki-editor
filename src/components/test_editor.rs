@@ -1525,18 +1525,17 @@ fn omit() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+/// We should rethink how surrond should work, because now angular brackets was taken
 fn surround() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("( { [ < ' `").to_vec())),
+            App(HandleKeyEvents(keys!("( { [ ' `").to_vec())),
             App(HandleKeyEvent(key!('"'))),
-            Expect(CurrentComponentContent(
-                "fn main() { \"`'<[{(x.y())}]>'`\" }",
-            )),
-            Expect(CurrentSelectedTexts(&["\"`'<[{(x.y())}]>'`\""])),
+            Expect(CurrentComponentContent("fn main() { \"`'[{(x.y())}]'`\" }")),
+            Expect(CurrentSelectedTexts(&["\"`'[{(x.y())}]'`\""])),
         ])
     })
 }

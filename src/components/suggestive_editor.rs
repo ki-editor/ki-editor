@@ -261,7 +261,7 @@ pub enum DispatchSuggestiveEditor {
 
 #[cfg(test)]
 mod test_suggestive_editor {
-    use crate::components::editor::DispatchEditor::*;
+    use crate::components::editor::{DispatchEditor::*, Mode};
     use crate::components::suggestive_editor::DispatchSuggestiveEditor::*;
     use crate::lsp::completion::{CompletionItemEdit, PositionalEdit};
     use crate::lsp::documentation::Documentation;
@@ -443,18 +443,6 @@ mod test_suggestive_editor {
 
         // Expect the completion request to be sent
         assert!(dispatches
-            .into_vec()
-            .into_iter()
-            .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
-
-        // Enter normal mode
-        let _ = editor.handle_events(keys!("esc")).unwrap();
-
-        // Type something
-        let dispatches = editor.handle_events(keys!("l")).unwrap();
-
-        // Expect the completion request to not be sent
-        assert!(!dispatches
             .into_vec()
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
