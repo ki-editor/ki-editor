@@ -408,8 +408,6 @@ impl Component for FileExplorer {
     fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
         Vec::new()
     }
-
-    fn remove_child(&mut self, _component_id: super::component::ComponentId) {}
 }
 
 #[cfg(test)]

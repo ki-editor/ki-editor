@@ -43,6 +43,20 @@ impl SelectionMode for SyntaxTree {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         super::TopNode.current(params)
     }
+    fn up(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let result = self.parent(params)?;
+        Ok(result.map(|result| result.selection))
+    }
+    fn down(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let result = self.first_child(params)?;
+        Ok(result.map(|result| result.selection))
+    }
     fn parent(
         &self,
         params: super::SelectionModeParams,

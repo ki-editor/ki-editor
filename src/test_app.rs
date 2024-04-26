@@ -31,30 +31,29 @@ use crate::{
     components::{
         component::{Component, ComponentId},
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
-        suggestive_editor::{DispatchSuggestiveEditor, Info},
+        suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
-    context::LocalSearchConfigMode,
+    context::{GlobalMode, LocalSearchConfigMode},
     frontend::mock::MockFrontend,
     grid::StyleKey,
     integration_test::TestRunner,
     list::grep::RegexConfig,
     lsp::{
         code_action::CodeAction,
-        completion::PositionalEdit,
+        completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
+        documentation::Documentation,
         signature_help::SignatureInformation,
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
+    ui_tree::ComponentKind,
 };
 use crate::{lsp::process::LspNotification, themes::Color};
 
-type WithApp = Box<dyn Fn(&App<MockFrontend>) -> Dispatch>;
-
 pub enum Step {
     App(Dispatch),
-    WithApp(WithApp),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
     Editor(DispatchEditor),
@@ -108,6 +107,11 @@ pub enum ExpectKind {
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
     BufferQuickfixListItems(Vec<Range<Position>>),
+    ComponentCount(usize),
+    CurrentComponentPath(Option<CanonicalizedPath>),
+    OpenedFilesCount(usize),
+    QuickfixListInfo(&'static str),
+    ComponentsOrder(Vec<ComponentKind>),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -126,7 +130,7 @@ impl ExpectKind {
         fn to_vec(strs: &[&str]) -> Vec<String> {
             strs.iter().map(|t| t.to_string()).collect()
         }
-        let component = app.current_component().unwrap();
+        let component = app.current_component();
         Ok(match self {
             CurrentComponentContent(expected_content) => contextualize(
                 app.get_current_component_content(),
@@ -257,21 +261,27 @@ impl ExpectKind {
                 app.current_completion_dropdown()
                     .unwrap()
                     .borrow()
+                    .editor()
                     .get_selected_texts()[0]
                     .trim(),
                 item,
             ),
             QuickfixListContent(content) => {
-                let actual = app.get_quickfix_list().unwrap().render().content;
+                let expected = app.get_quickfix_list().unwrap().render().content;
+                let actual = content.to_string();
+                println!("expected =\n{expected}");
                 println!("actual =\n{actual}");
-                contextualize(actual, content.to_string())
+                contextualize(expected, actual)
             }
             DropdownInfosCount(expected) => {
                 contextualize(app.get_dropdown_infos_count(), *expected)
             }
             QuickfixListCurrentLine(expected) => {
-                let render = app.get_quickfix_list().unwrap().render();
-                contextualize(render.current_line(), expected.to_string())
+                let component = app
+                    .get_component_by_kind(ComponentKind::QuickfixList)
+                    .unwrap();
+                let actual = component.borrow().editor().current_line().unwrap();
+                contextualize(actual, expected.to_string())
             }
             EditorInfoOpen(expected) => contextualize(app.editor_info_open(), *expected),
             EditorInfoContent(expected) => {
@@ -285,16 +295,11 @@ impl ExpectKind {
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
             CurrentCursorDirection(expected) => contextualize(
                 expected,
-                &app.current_component()
-                    .unwrap()
-                    .borrow()
-                    .editor()
-                    .cursor_direction,
+                &app.current_component().borrow().editor().cursor_direction,
             ),
             HighlightSpans(expected_range, expected_key) => contextualize(
                 expected_key,
                 &app.current_component()
-                    .unwrap()
                     .borrow()
                     .editor()
                     .buffer()
@@ -307,7 +312,6 @@ impl ExpectKind {
             DiagnosticsRanges(expected) => contextualize(
                 expected.to_vec(),
                 app.current_component()
-                    .unwrap()
                     .borrow()
                     .editor()
                     .buffer()
@@ -319,7 +323,6 @@ impl ExpectKind {
             BufferQuickfixListItems(expected) => contextualize(
                 expected,
                 &app.current_component()
-                    .unwrap()
                     .borrow()
                     .editor()
                     .buffer()
@@ -328,6 +331,15 @@ impl ExpectKind {
                     .map(|d| d.location().range.clone())
                     .collect_vec(),
             ),
+            ComponentCount(expected) => contextualize(expected, &app.components().len()),
+            CurrentComponentPath(expected) => {
+                contextualize(expected, &app.current_component().borrow().path())
+            }
+            OpenedFilesCount(expected) => contextualize(expected, &app.opened_files_count()),
+            QuickfixListInfo(expected) => {
+                contextualize(*expected, &app.quickfix_list_info().unwrap())
+            }
+            ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
         })
     }
 }
@@ -385,10 +397,6 @@ pub fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<(
                     log(dispatch);
                     app.handle_dispatch_editor(dispatch.to_owned())?
                 }
-                WithApp(f) => {
-                    let dispatch = f(&app);
-                    app.handle_dispatch(dispatch)?
-                }
                 ExpectCustom(f) => {
                     f();
                 }
@@ -420,7 +428,7 @@ fn run_test(
 
 #[test]
 #[serial]
-fn copy_paste_from_different_file() -> anyhow::Result<()> {
+fn copy_replace_from_different_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -433,9 +441,29 @@ fn copy_paste_from_different_file() -> anyhow::Result<()> {
             Editor(SelectAll),
             Editor(Copy),
             App(OpenFile(s.main_rs())),
+            Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
-            Editor(ReplaceWithClipboard),
+            Editor(ReplaceWithCopiedText),
             Expect(FileContentEqual(s.main_rs, s.foo_rs)),
+        ])
+    })
+}
+
+#[test]
+#[serial]
+fn replace_cut() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn main() { let x = 1; }".to_string())),
+            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(Copy),
+            Editor(MoveSelection(Movement::Next)),
+            Editor(ReplaceCut),
+            Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
+            Editor(ReplaceCut),
+            Expect(CurrentComponentContent("fn main() { let x = 1; }")),
+            Expect(CurrentSelectedTexts(&["main"])),
         ])
     })
 }
@@ -450,37 +478,19 @@ fn copy_replace() -> anyhow::Result<()> {
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(Copy),
             Editor(MoveSelection(Movement::Next)),
-            Editor(ReplaceSelectionWithCopiedText),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
-            Editor(ReplaceSelectionWithCopiedText),
-            Expect(CurrentSelectedTexts(&["main"])),
-        ])
-    })
-}
-
-#[test]
-#[serial]
-fn copy_paste() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
-            Editor(Copy),
-            Editor(MoveSelection(Movement::Next)),
-            Editor(ReplaceWithClipboard),
-            Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
-            Expect(CurrentSelectedTexts(&[""])),
+            Expect(CurrentSelectedTexts(&["fn"])),
             Editor(MoveSelection(Next)),
-            Editor(ReplaceWithClipboard),
-            Expect(CurrentComponentContent("fn fn(fn { let x = 1; }")),
+            Editor(ReplaceWithCopiedText),
+            Expect(CurrentComponentContent("fn fnfn) { let x = 1; }")),
         ])
     })
 }
 
 #[test]
 #[serial]
-fn cut_paste() -> anyhow::Result<()> {
+fn cut_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -491,7 +501,7 @@ fn cut_paste() -> anyhow::Result<()> {
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
             Editor(MoveSelection(Current)),
             Expect(CurrentSelectedTexts(&["main"])),
-            Editor(ReplaceWithClipboard),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent(" fn() { let x = 1; }")),
         ])
     })
@@ -514,7 +524,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Cut),
             Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
-            Editor(ReplaceWithClipboard),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = S(a); let y = S(b); }",
             )),
@@ -540,7 +550,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(Copy),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
-            Editor(ReplaceWithClipboard),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent(
                 "fn f()fn f() let x = S(a); let y = S(b); }",
             )),
@@ -567,31 +577,8 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(SelectionMode::TopNode)),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
-            Editor(ReplaceSelectionWithCopiedText),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent("fn f()fn f()")),
-        ])
-    })
-}
-
-#[test]
-#[serial]
-fn highlight_mode_paste() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent(
-                "fn f(){ let x = S(a); let y = S(b); }".to_string(),
-            )),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
-            Editor(Copy),
-            Expect(CurrentSelectedTexts(&["fn"])),
-            Editor(ToggleHighlightMode),
-            Editor(MoveSelection(Next)),
-            Editor(MoveSelection(Next)),
-            Editor(MoveSelection(Next)),
-            Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(ReplaceWithClipboard),
-            Expect(CurrentComponentContent("fn{ let x = S(a); let y = S(b); }")),
         ])
     })
 }
@@ -614,24 +601,37 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(Cut),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(ReplaceWithClipboard),
+            Editor(Paste(Direction::End)),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
             )),
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent(".hello".to_owned())),
-            Editor(ReplaceWithClipboard),
+            Expect(CurrentMode(Mode::Insert)),
+            Editor(Paste(Direction::End)),
             Expect(CurrentComponentContent(
-                "fn f(){ let x = Some(S(spongebob_squarepants).hello; let y = Some(S(b)); }",
+                "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
         ])
     })
 }
 
 #[test]
-fn esc_should_close_signature_help() -> anyhow::Result<()> {
+fn signature_help() -> anyhow::Result<()> {
     execute_test(|s| {
+        fn signature_help() -> LspNotification {
+            LspNotification::SignatureHelp(Some(crate::lsp::signature_help::SignatureHelp {
+                signatures: [SignatureInformation {
+                    label: "Signature Help".to_string(),
+                    documentation: Some(crate::lsp::documentation::Documentation {
+                        content: "spongebob".to_string(),
+                    }),
+                    active_parameter_byte_range: None,
+                }]
+                .to_vec(),
+            }))
+        }
         Box::new([
             App(OpenFile(s.main_rs())),
             Expect(ComponentsLength(1)),
@@ -640,28 +640,33 @@ fn esc_should_close_signature_help() -> anyhow::Result<()> {
             )),
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(EnterInsertMode(Direction::End)),
-            WithApp(Box::new(|app: &App<MockFrontend>| {
-                HandleLspNotification(LspNotification::SignatureHelp(
-                    crate::lsp::process::ResponseContext {
-                        component_id: app.components()[0].borrow().id(),
-                        scope: None,
-                        description: None,
-                    },
-                    Some(crate::lsp::signature_help::SignatureHelp {
-                        signatures: [SignatureInformation {
-                            label: "Signature Help".to_string(),
-                            documentation: Some(crate::lsp::documentation::Documentation {
-                                content: "spongebob".to_string(),
-                            }),
-                            active_parameter_byte_range: None,
-                        }]
-                        .to_vec(),
-                    }),
-                ))
-            })),
-            Expect(ComponentsLength(2)),
+            App(HandleLspNotification(signature_help())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+            // Receiving signature help again should increase the components length
+            App(HandleLspNotification(signature_help())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+            // Pressing esc should close signature help
             App(HandleKeyEvent(key!("esc"))),
-            Expect(ComponentsLength(1)),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+            ])),
+            // ----
+            App(HandleLspNotification(signature_help())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::EditorInfo,
+            ])),
+            // Receiving null signature help should close the signature help
+            App(HandleLspNotification(LspNotification::SignatureHelp(None))),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+            ])),
         ])
     })
 }
@@ -1153,12 +1158,14 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine(" ├─ 2:1  foo b // Line 2")),
+            Expect(QuickfixListCurrentLine("├─ 2:1  foo b // Line 2")),
             Expect(CurrentPath(s.foo_rs())),
             Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
+            Expect(ComponentCount(2)),
             Editor(MoveSelection(Next)),
-            Expect(QuickfixListCurrentLine(" └─ 10:1  foo a // Line 10")),
+            Expect(ComponentCount(2)),
+            Expect(QuickfixListCurrentLine("└─ 10:1  foo a // Line 10")),
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Next)),
@@ -1176,6 +1183,41 @@ foo a // Line 10
             Editor(MoveSelection(Previous)),
             Expect(CurrentLine("foo b // Line 2")),
             Expect(CurrentSelectedTexts(&["foo"])),
+        ])
+    })
+}
+
+#[test]
+fn quickfix_list_show_info_if_possible() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() { 
+  let x = 123 
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            App(SetQuickfixList(
+                crate::quickfix_list::QuickfixListType::Items(
+                    [QuickfixListItem::new(
+                        Location {
+                            path: s.main_rs(),
+                            range: Position { line: 1, column: 2 }..Position { line: 1, column: 5 },
+                        },
+                        Some(Info::new(
+                            "Hello world".to_string(),
+                            "This is fine".to_string(),
+                        )),
+                    )]
+                    .to_vec(),
+                ),
+            )),
+            App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            Expect(ExpectKind::QuickfixListInfo("This is fine")),
         ])
     })
 }
@@ -1234,6 +1276,305 @@ fn code_action() -> anyhow::Result<()> {
             )),
             App(HandleKeyEvents(keys!("i n g enter").to_vec())),
             Expect(CurrentComponentContent("a.to_string")),
+        ])
+    })
+}
+
+#[test]
+fn opening_new_file_should_replace_current_window() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Expect(ExpectKind::ComponentCount(1)),
+            App(OpenFile(s.foo_rs())),
+            Expect(ExpectKind::ComponentCount(1)),
+        ])
+    })
+}
+
+#[test]
+fn should_be_able_to_handle_key_event_even_when_no_file_is_opened() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            Expect(CurrentComponentContent("")),
+            App(HandleKeyEvents(keys!("i h e l l o").to_vec())),
+            Expect(CurrentComponentContent("hello")),
+        ])
+    })
+}
+
+#[test]
+fn cycle_window() -> anyhow::Result<()> {
+    {
+        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+            label: label.to_string(),
+            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                range: Position::new(0, 0)..Position::new(0, 6),
+                new_text: label.to_string(),
+            })),
+            documentation: documentation.map(Documentation::new),
+            sort_text: None,
+            kind: None,
+            detail: None,
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                    SuggestiveEditorFilter::CurrentWord,
+                )),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: Some(completion_item(
+                        "Spongebob squarepants",
+                        Some("krabby patty maker"),
+                    ))
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                Expect(ComponentCount(3)),
+                Editor(Insert("sponge".to_string())),
+                Expect(CurrentComponentContent("sponge")),
+                App(OscillateWindow),
+                Expect(ComponentCount(3)),
+                Expect(CurrentComponentContent(" Spongebob squarepants")),
+                App(OscillateWindow),
+                Expect(CurrentComponentContent("krabby patty maker")),
+                App(OscillateWindow),
+                Expect(CurrentComponentContent("sponge")),
+                App(OscillateWindow),
+                App(CloseCurrentWindow),
+                Expect(CurrentComponentContent("sponge")),
+            ])
+        })
+    }
+}
+
+#[test]
+fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> anyhow::Result<()> {
+    {
+        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+            label: label.to_string(),
+            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                range: Position::new(0, 0)..Position::new(0, 6),
+                new_text: label.to_string(),
+            })),
+            documentation: documentation.map(Documentation::new),
+            sort_text: None,
+            kind: None,
+            detail: None,
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                    SuggestiveEditorFilter::CurrentWord,
+                )),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: Some(completion_item(
+                        "Spongebob squarepants",
+                        Some("krabby patty maker"),
+                    ))
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                Expect(ComponentCount(3)),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(ComponentCount(1)),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+            ])
+        })
+    }
+}
+
+#[test]
+fn saving_in_insert_mode_in_suggestive_editor_should_close_all_other_windows() -> anyhow::Result<()>
+{
+    {
+        let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
+            label: label.to_string(),
+            edit: Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
+                range: Position::new(0, 0)..Position::new(0, 6),
+                new_text: label.to_string(),
+            })),
+            documentation: documentation.map(Documentation::new),
+            sort_text: None,
+            kind: None,
+            detail: None,
+        };
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                    SuggestiveEditorFilter::CurrentWord,
+                )),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: Some(completion_item(
+                        "Spongebob squarepants",
+                        Some("krabby patty maker"),
+                    ))
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                Expect(ComponentCount(3)),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(Insert("hello".to_string())),
+                Editor(Save),
+                Expect(ComponentCount(1)),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+            ])
+        })
+    }
+}
+
+#[test]
+fn closing_current_file_should_replace_current_window_with_another_file() -> anyhow::Result<()> {
+    {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.foo_rs())),
+                Expect(CurrentComponentPath(Some(s.foo_rs()))),
+                App(CloseCurrentWindow),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+                Expect(OpenedFilesCount(1)),
+                App(CloseCurrentWindow),
+                Expect(OpenedFilesCount(0)),
+                Expect(CurrentComponentPath(None)),
+            ])
+        })
+    }
+}
+
+#[test]
+fn go_to_previous_file() -> anyhow::Result<()> {
+    {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(OpenFile(s.foo_rs())),
+                Expect(CurrentComponentPath(Some(s.foo_rs()))),
+                App(GoToPreviousSelection),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+                App(GoToNextSelection),
+                Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            ])
+        })
+    }
+}
+
+#[test]
+fn editor_info_should_always_come_after_dropdown() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // Show editor info first
+            App(ShowEditorInfo(Info::new(
+                "Title".to_string(),
+                "hello".to_string(),
+            ))),
+            // The show dropdown
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(CompletionItem::from_label(
+                    "Spongebob squarepants".to_string(),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            })),
+            Expect(ComponentCount(3)),
+            // But dropdown still comes before editor info
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+                ComponentKind::Dropdown,
+                ComponentKind::EditorInfo,
+            ])),
+        ])
+    })
+}
+
+#[test]
+fn dropdown_can_only_be_rendered_on_suggestive_editor_or_prompt() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let received_completion = || {
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(CompletionItem::from_label(
+                    "Spongebob squarepants".to_string(),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            }))
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // The show dropdown
+            received_completion(),
+            Expect(ComponentCount(2)),
+            Expect(CurrentComponentContent("hello")),
+            App(OscillateWindow),
+            Expect(CurrentComponentContent(" Spongebob squarepants")),
+            received_completion(),
+            Expect(ComponentCount(2)),
+        ])
+    })
+}
+
+#[test]
+fn only_children_of_root_can_remove_all_other_components() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let received_completion = || {
+            SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
+                trigger_characters: vec![".".to_string()],
+                items: Some(CompletionItem::from_label(
+                    "Spongebob squarepants".to_string(),
+                ))
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            }))
+        };
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
+                SuggestiveEditorFilter::CurrentWord,
+            )),
+            // The show dropdown
+            received_completion(),
+            Expect(ComponentCount(2)),
+            Expect(CurrentComponentContent("hello")),
+            App(OscillateWindow),
+            Expect(CurrentComponentContent(" Spongebob squarepants")),
+            App(RemainOnlyCurrentComponent),
+            Expect(ComponentCount(2)),
         ])
     })
 }

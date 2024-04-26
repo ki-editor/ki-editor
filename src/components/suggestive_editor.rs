@@ -14,7 +14,6 @@ use itertools::Itertools;
 use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
-use super::component::ComponentId;
 use super::dropdown::{Dropdown, DropdownConfig};
 use super::editor::DispatchEditor;
 use super::{
@@ -26,8 +25,6 @@ use super::{
 /// Editor with auto-complete
 pub struct SuggestiveEditor {
     editor: Editor,
-    info_panel: Option<Rc<RefCell<Editor>>>,
-
     completion_dropdown: Dropdown,
 
     trigger_characters: Vec<String>,
@@ -74,7 +71,6 @@ impl Component for SuggestiveEditor {
                 key!("ctrl+n") | key!("down") => {
                     self.completion_dropdown.next_item();
                     return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
                     .to_vec()
@@ -83,7 +79,6 @@ impl Component for SuggestiveEditor {
                 key!("ctrl+p") | key!("up") => {
                     self.completion_dropdown.previous_item();
                     return Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
                     .to_vec()
@@ -92,10 +87,9 @@ impl Component for SuggestiveEditor {
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
-                        return Ok(Dispatches::one(Dispatch::CloseDropdown {
-                            owner_id: self.id(),
-                        })
-                        .chain(completion.dispatches));
+                        return Ok(
+                            Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches)
+                        );
                     }
                 }
 
@@ -136,57 +130,34 @@ impl Component for SuggestiveEditor {
         } else {
             None
         };
-        let dispatches = dispatches
-            .chain(match event {
-                key!("esc") => [
-                    Dispatch::CloseDropdown {
-                        owner_id: self.id(),
-                    },
-                    Dispatch::CloseEditorInfo {
-                        owner_id: self.id(),
-                    },
-                    Dispatch::ToEditor(EnterNormalMode),
-                ]
-                .to_vec()
+        Ok(dispatches.chain(match event {
+            key!("esc") => [
+                Dispatch::CloseDropdown,
+                Dispatch::CloseEditorInfo,
+                Dispatch::ToEditor(EnterNormalMode),
+            ]
+            .to_vec()
+            .into(),
+            _ if self.editor.mode == Mode::Insert => self
+                .editor
+                .get_request_params()
+                .map(|params| {
+                    vec![
+                        Dispatch::RequestCompletion(params.clone()),
+                        Dispatch::RequestSignatureHelp(params),
+                    ]
+                })
+                .unwrap_or_default()
+                .into_iter()
+                .chain(dropdown_render.map(|render| Dispatch::RenderDropdown { render }))
+                .collect_vec()
                 .into(),
-                _ => Default::default(),
-            })
-            .chain(if self.editor.mode == Mode::Insert {
-                self.editor
-                    .get_request_params()
-                    .map(|params| {
-                        vec![
-                            Dispatch::RequestCompletion(params.clone()),
-                            Dispatch::RequestSignatureHelp(params),
-                        ]
-                    })
-                    .unwrap_or_default()
-                    .into_iter()
-                    .chain(dropdown_render.map(|render| Dispatch::RenderDropdown {
-                        render,
-                        owner_id: self.id(),
-                    }))
-                    .collect_vec()
-                    .into()
-            } else {
-                Default::default()
-            });
-
-        Ok(dispatches)
+            _ => Default::default(),
+        }))
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        vec![self
-            .info_panel
-            .clone()
-            .map(|info_panel| info_panel as Rc<RefCell<dyn Component>>)]
-    }
-
-    fn remove_child(&mut self, component_id: ComponentId) {
-        if matches!(&self.info_panel, Some(info_panel) if info_panel.borrow().id() == component_id)
-        {
-            self.info_panel = None;
-        }
+        Default::default()
     }
 }
 
@@ -194,7 +165,6 @@ impl SuggestiveEditor {
     pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
-            info_panel: None,
             completion_dropdown: Dropdown::new(DropdownConfig {
                 title: "Completion".to_string(),
             }),
@@ -216,7 +186,6 @@ impl SuggestiveEditor {
                 if self.editor.mode == Mode::Insert {
                     self.set_completion(completion);
                     Ok([Dispatch::RenderDropdown {
-                        owner_id: self.id(),
                         render: self.completion_dropdown.render(),
                     }]
                     .to_vec()
@@ -253,7 +222,6 @@ impl SuggestiveEditor {
 
     pub(crate) fn render_completion_dropdown(&self) -> Dispatches {
         [Dispatch::RenderDropdown {
-            owner_id: self.id(),
             render: self.completion_dropdown.render(),
         }]
         .to_vec()
@@ -451,18 +419,6 @@ mod test_suggestive_editor {
 
         // Expect the completion request to be sent
         assert!(dispatches
-            .into_vec()
-            .into_iter()
-            .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
-
-        // Enter normal mode
-        let _ = editor.handle_events(keys!("esc")).unwrap();
-
-        // Type something
-        let dispatches = editor.handle_events(keys!("l")).unwrap();
-
-        // Expect the completion request to not be sent
-        assert!(!dispatches
             .into_vec()
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));

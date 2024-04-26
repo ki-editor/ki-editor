@@ -84,6 +84,8 @@ unicode-width = "0.1.11"
 lazy-regex = "3.1.0"
 debounce = "0.2.2"
 nucleo-matcher = "0.3.1"
+nary_tree = "0.4.3"
+name-variant = "0.1.0"
 
 [dev-dependencies]
 serial_test = "2.0.0"

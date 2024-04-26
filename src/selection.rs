@@ -452,6 +452,10 @@ impl SelectionSet {
             ..self
         }
     }
+
+    pub(crate) fn unset_initial_range(&mut self) {
+        self.apply_mut(|selection| selection.initial_range = None);
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
