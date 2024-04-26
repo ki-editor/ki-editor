@@ -462,7 +462,8 @@ impl SelectionSet {
 pub enum SelectionMode {
     // Regex
     EmptyLine,
-    Word,
+    WordShort,
+    WordLong,
     LineTrimmed,
     Character,
     Custom,
@@ -499,7 +500,8 @@ impl SelectionMode {
 
     pub fn display(&self) -> String {
         match self {
-            SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::WordShort => "WORD(SHORT)".to_string(),
+            SelectionMode::WordLong => "WORD(LONG)".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::LineTrimmed => "LINE(TRIMMED)".to_string(),
             SelectionMode::LineFull => "LINE(FULL)".to_string(),
@@ -536,7 +538,8 @@ impl SelectionMode {
             filters,
         };
         Ok(match self {
-            SelectionMode::Word => Box::new(selection_mode::SmallWord::as_regex(buffer)?),
+            SelectionMode::WordShort => Box::new(selection_mode::WordShort::as_regex(buffer)?),
+            SelectionMode::WordLong => Box::new(selection_mode::WordLong::as_regex(buffer)?),
             SelectionMode::LineTrimmed => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Character => {
@@ -575,7 +578,8 @@ impl SelectionMode {
     pub(crate) fn is_contiguous(&self) -> bool {
         matches!(
             self,
-            SelectionMode::Word
+            SelectionMode::WordShort
+                | SelectionMode::WordLong
                 | SelectionMode::LineTrimmed
                 | SelectionMode::LineFull
                 | SelectionMode::Character

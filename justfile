@@ -1,5 +1,8 @@
 default:
     @just fmt-check build clippy test
+    
+install:
+    cargo install --locked --path .
 
 fmt-check:
     @echo "Checking formating"

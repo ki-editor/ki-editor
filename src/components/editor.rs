@@ -1556,7 +1556,7 @@ impl Editor {
                         Selection::get_selection_(
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
-                            &SelectionMode::Word,
+                            &SelectionMode::WordShort,
                             &movement,
                             &self.cursor_direction,
                             &self.selection_set.filters,
@@ -1683,7 +1683,7 @@ impl Editor {
 
     pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Dispatches> {
         // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
-        let selection = self.get_selection_set(&SelectionMode::Word, Movement::Current)?;
+        let selection = self.get_selection_set(&SelectionMode::WordShort, Movement::Current)?;
         Ok(self.update_selection_set(selection, false).chain(
             [Dispatch::ToEditor(ReplaceCurrentSelectionWith(
                 completion.to_string(),

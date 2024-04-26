@@ -869,10 +869,10 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(ToggleBookmark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Bookmark,
