@@ -1019,6 +1019,7 @@ impl Editor {
                 self.enter_replace_mode();
                 self.show_jumps()?;
             }
+            AddCursor(movement) => self.add_cursor(&movement)?,
         }
         Ok(Default::default())
     }
@@ -1908,6 +1909,7 @@ impl Editor {
                 self.mode = Mode::Normal;
                 Ok(Default::default())
             }
+            // Look here!
             // TODO: put this into keymap legend
             key!("a") => {
                 self.add_cursor_to_all_selections()?;
@@ -2308,4 +2310,5 @@ pub enum DispatchEditor {
     ShowKeymapLegendHelp,
     EnterExchangeModeJump,
     EnterReplaceModeJump,
+    AddCursor(Movement),
 }
