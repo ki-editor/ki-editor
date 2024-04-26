@@ -6,6 +6,7 @@ pub const LANGUAGES: &[&Language] = &[
     &graphql(),
     &javascript(true),
     &javascript(false),
+    &just(),
     &json(),
     &markdown(),
     &rust(),
@@ -19,6 +20,7 @@ pub const LANGUAGES: &[&Language] = &[
 
 const fn common_lisp() -> Language {
     Language {
+        file_names: &[],
         lsp_language_id: None,
         lsp_command: None,
         extensions: &["lisp", "lsp", "l", "cl", "fasl", "sbcl", "el"],
@@ -34,6 +36,7 @@ const fn common_lisp() -> Language {
 }
 const fn csv() -> Language {
     Language {
+        file_names: &[],
         extensions: &["csv"],
         lsp_language_id: None,
         lsp_command: None,
@@ -88,6 +91,7 @@ const fn javascript(jsx: bool) -> Language {
 
 const fn json() -> Language {
     Language {
+        file_names: &[],
         extensions: &["json"],
         lsp_language_id: None,
         lsp_command: None,
@@ -99,6 +103,23 @@ const fn json() -> Language {
         }),
         highlight_query: None,
         formatter_command: Some(Command("prettierd", &[".json"])),
+    }
+}
+
+const fn just() -> Language {
+    Language {
+        file_names: &["justfile"],
+        extensions: &[],
+        lsp_language_id: None,
+        lsp_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "just",
+            url: "https://github.com/IndianBoy42/tree-sitter-just",
+            commit: "main",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
     }
 }
 
@@ -120,6 +141,7 @@ const fn markdown() -> Language {
 
 const fn rust() -> Language {
     Language {
+        file_names: &[],
         lsp_language_id: Some(LanguageId::new("rust")),
         extensions: &["rs"],
         lsp_command: Some(LspCommand {
@@ -155,6 +177,7 @@ const fn sql() -> Language {
 
 const fn toml() -> Language {
     Language {
+        file_names: &[],
         extensions: &["toml"],
         lsp_language_id: None,
         lsp_command: None,
@@ -171,6 +194,7 @@ const fn toml() -> Language {
 
 const fn tree_sitter_query() -> Language {
     Language {
+        file_names: &[],
         extensions: &["scm"],
         lsp_language_id: None,
         lsp_command: None,
@@ -218,6 +242,7 @@ const fn typescript(tsx: bool) -> Language {
 
 const fn yaml() -> Language {
     Language {
+        file_names: &[],
         lsp_language_id: Some(LanguageId::new("yaml")),
         extensions: &["yaml", "yml"],
         lsp_command: None,

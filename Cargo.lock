@@ -2033,6 +2033,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "tempfile",
  "tree-sitter 0.21.0",
  "url",
 ]

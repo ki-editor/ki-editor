@@ -37,6 +37,7 @@ impl Command {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Language {
     pub extensions: &'static [&'static str],
+    pub file_names: &'static [&'static str],
     pub lsp_language_id: Option<LanguageId>,
     pub lsp_command: Option<LspCommand>,
     pub tree_sitter_grammar_config: Option<GrammarConfig>,
@@ -62,6 +63,7 @@ impl Language {
     pub const fn new() -> Self {
         Self {
             extensions: &[""],
+            file_names: &[""],
             lsp_language_id: None,
             highlight_query: None,
             lsp_command: None,
@@ -70,9 +72,8 @@ impl Language {
         }
     }
 
-    pub fn tree_sitter_grammar_id(&self) -> Option<String> {
-        self.tree_sitter_grammar_config()
-            .map(|config| config.grammar_id)
+    fn file_names(&self) -> &'static [&'static str] {
+        self.file_names
     }
 }
 
@@ -145,6 +146,10 @@ impl Language {
             .map(|command| ProcessCommand::new(command.command.0, command.command.1))
     }
 
+    pub fn tree_sitter_grammar_id(&self) -> Option<String> {
+        Some(self.tree_sitter_grammar_config()?.grammar_id)
+    }
+
     pub fn id(&self) -> Option<LanguageId> {
         self.lsp_language_id
     }
@@ -168,7 +173,9 @@ impl Language {
 }
 
 pub fn from_path(path: &CanonicalizedPath) -> Option<Language> {
-    from_extension(path.extension()?)
+    path.extension()
+        .and_then(from_extension)
+        .or_else(|| from_filename(path))
 }
 
 pub fn from_extension(extension: &str) -> Option<Language> {
@@ -178,10 +185,41 @@ pub fn from_extension(extension: &str) -> Option<Language> {
         .map(|language| (*language).clone())
 }
 
+pub fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
+    let file_name = path.file_name()?;
+    LANGUAGES
+        .iter()
+        .find(|language| language.file_names().contains(&file_name.as_str()))
+        .map(|language| (*language).clone())
+}
+
 pub struct FormatterTestCase {
     /// The unformatted input.
     pub input: &'static str,
 
     /// The formatted output.
     pub expected: &'static str,
+}
+
+#[cfg(test)]
+mod test_language {
+    use super::*;
+    use std::fs::File;
+    #[test]
+    fn test_from_path() -> anyhow::Result<()> {
+        fn run_test_case(filename: &str, expected_language_id: &'static str) -> anyhow::Result<()> {
+            let tempdir = tempfile::tempdir()?;
+            let path = tempdir.path().join(filename);
+            File::create(path.clone())?;
+            let result = from_path(&path.to_string_lossy().to_string().try_into()?).unwrap();
+            assert_eq!(
+                result.tree_sitter_grammar_id().unwrap(),
+                expected_language_id
+            );
+            Ok(())
+        }
+        run_test_case("hello.rs", "rust")?;
+        run_test_case("justfile", "just")?;
+        Ok(())
+    }
 }
