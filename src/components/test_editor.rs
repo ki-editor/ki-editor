@@ -569,19 +569,28 @@ fn f() {
 #[test]
 fn exchange_line() -> anyhow::Result<()> {
     execute_test(|s| {
+        // Multiline source code
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent(
-                // Multiline source code
                 "
 fn main() {
     let x = 1;
     let y = 2;
 }"
                 .trim()
-                .to_string(),
+                .to_string()
+                .clone(),
             )),
             Editor(SetSelectionMode(LineTrimmed)),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+    let x = 1;
+    let y = 2;
+}"
+                .trim(),
+            )),
             Editor(Exchange(Next)),
             Expect(CurrentComponentContent(
                 "
@@ -647,6 +656,24 @@ fn multi_insert() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
+fn paste_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            App(SetClipboardContent("haha".to_string())),
+            Editor(MatchLiteral("bar".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            Editor(Paste(Direction::End)),
+            Expect(CurrentComponentContent("foo barhaha spam")),
+            Editor(Insert("Hello".to_string())),
+            Expect(CurrentComponentContent("foo barhahaHello spam")),
+        ])
+    })
+}
+
+#[serial]
+#[test]
 fn paste_after() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -687,7 +714,7 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             App(SetClipboardContent("let z = S(c);".to_string())),
-            Editor(ReplaceWithClipboard),
+            Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent(
                 "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
             )),
@@ -1498,18 +1525,17 @@ fn omit() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+/// We should rethink how surrond should work, because now angular brackets was taken
 fn surround() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("( { [ < ' `").to_vec())),
+            App(HandleKeyEvents(keys!("( { [ ' `").to_vec())),
             App(HandleKeyEvent(key!('"'))),
-            Expect(CurrentComponentContent(
-                "fn main() { \"`'<[{(x.y())}]>'`\" }",
-            )),
-            Expect(CurrentSelectedTexts(&["\"`'<[{(x.y())}]>'`\""])),
+            Expect(CurrentComponentContent("fn main() { \"`'[{(x.y())}]'`\" }")),
+            Expect(CurrentSelectedTexts(&["\"`'[{(x.y())}]'`\""])),
         ])
     })
 }
@@ -1521,7 +1547,7 @@ fn cursor_direction() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(SetSelectionMode(LineTrimmed)),
-            Editor(ChangeCursorDirection),
+            Editor(SwapCursorWithAnchor),
             Editor(SetSelectionMode(Character)),
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed

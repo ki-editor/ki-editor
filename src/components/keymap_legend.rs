@@ -257,6 +257,10 @@ impl Keymap {
     pub(crate) fn dispatch(&self) -> Dispatch {
         self.dispatch.clone()
     }
+
+    pub(crate) fn event(&self) -> &KeyEvent {
+        &self.event
+    }
 }
 
 impl KeymapLegend {
@@ -313,9 +317,7 @@ impl Component for KeymapLegend {
         context: &crate::context::Context,
         event: event::KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
-        let close_current_window = Dispatch::CloseCurrentWindow {
-            change_focused_to: Some(self.config.owner_id),
-        };
+        let close_current_window = Dispatch::CloseCurrentWindowAndFocusParent;
         if self.editor.mode == Mode::Insert {
             match &event {
                 key!("esc") => {
@@ -349,17 +351,33 @@ impl Component for KeymapLegend {
     fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
         self.editor.children()
     }
-
-    fn remove_child(&mut self, component_id: super::component::ComponentId) {
-        self.editor.remove_child(component_id)
-    }
 }
 
 #[cfg(test)]
 mod test_keymap_legend {
+    use crate::test_app::*;
     use my_proc_macros::keys;
 
     use super::*;
+
+    #[test]
+    fn test_esc() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(ShowKeymapLegend(KeymapLegendConfig {
+                    title: "".to_string(),
+                    body: KeymapLegendBody::SingleSection {
+                        keymaps: Keymaps::new(&[]),
+                    },
+                    owner_id: Default::default(),
+                })),
+                App(HandleKeyEvent(key!("esc"))),
+                App(HandleKeyEvent(key!("esc"))),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
+            ])
+        })
+    }
 
     #[test]
     fn test_display_1() {
@@ -424,9 +442,7 @@ mod test_keymap_legend {
         assert_eq!(
             dispatches,
             Dispatches::new(vec![
-                Dispatch::CloseCurrentWindow {
-                    change_focused_to: Some(owner_id)
-                },
+                Dispatch::CloseCurrentWindowAndFocusParent,
                 Dispatch::Custom("Spongebob".to_string())
             ])
         )

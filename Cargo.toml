@@ -25,6 +25,7 @@ anyhow = "1.0.70"
 once_cell = "1.18.0"
 serde = {version="1.0.163", features = ["derive"]}
 lsp-types = "0.95.0"
+tempfile = "3.6.0"
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -38,6 +39,7 @@ anyhow.workspace = true
 crossterm.workspace = true
 regex.workspace = true
 lsp-types.workspace = true
+tempfile.workspace = true
 log = "0.4.17"
 ropey = "1.6.0"
 simple-logging = "2.0.2"
@@ -84,10 +86,11 @@ unicode-width = "0.1.11"
 lazy-regex = "3.1.0"
 debounce = "0.2.2"
 nucleo-matcher = "0.3.1"
+nary_tree = "0.4.3"
+name-variant = "0.1.0"
 
 [dev-dependencies]
 serial_test = "2.0.0"
-tempfile = "3.6.0"
 pretty_assertions = "1.3.0"
 fs_extra = "1.3.0"
 rand = "0.8.5"

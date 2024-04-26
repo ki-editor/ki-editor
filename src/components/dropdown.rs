@@ -844,8 +844,6 @@ mod test_dropdown {
         ];
         dropdown.set_items(items.clone().into_iter().map(|s| s.into()).collect());
         dropdown.set_filter("test edit");
-        println!("{:?}", dropdown.decorations());
-
         assert_eq!(
             dropdown
                 .filtered_item_groups
@@ -937,13 +935,6 @@ pub struct DropdownRender {
     pub highlight_line_index: usize,
     pub info: Option<Info>,
 }
-impl DropdownRender {
-    #[cfg(test)]
-    pub(crate) fn current_line(&self) -> String {
-        self.content.lines().collect_vec()[self.highlight_line_index].to_string()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 struct FilteredDropdownItem {
     item_index: u32,

@@ -33,10 +33,10 @@ use crate::{
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::Theme,
+    ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
 use itertools::Itertools;
-use my_proc_macros::key;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
@@ -85,7 +85,7 @@ struct SelectionSetHistory {
 #[derive(PartialEq, Clone, Debug, Eq)]
 pub enum SelectionSetHistoryKind {
     Path(CanonicalizedPath),
-    ComponentId(ComponentId),
+    ComponentId(Option<ComponentId>),
 }
 
 struct Null;
@@ -156,20 +156,20 @@ impl<T: Frontend> App<T> {
 
         if let Some(entry_path) = entry_path {
             self.open_file(&entry_path, true)?;
-        } else {
-            self.open_file_picker(FilePickerKind::NonGitIgnored)
-                .unwrap_or_else(|_| self.layout.open_file_explorer());
         }
 
         self.render()?;
 
         while let Ok(message) = self.receiver.recv() {
-            let should_quit = match message {
+            match message {
                 AppMessage::Event(event) => self.handle_event(event),
                 AppMessage::LspNotification(notification) => {
                     self.handle_lsp_notification(notification).map(|_| false)
                 }
-                AppMessage::QuitAll => Ok(true),
+                AppMessage::QuitAll => {
+                    self.quit()?;
+                    Ok(true)
+                }
                 AppMessage::SyntaxHighlightResponse {
                     component_id,
                     highlighted_spans,
@@ -182,23 +182,26 @@ impl<T: Frontend> App<T> {
                 false
             });
 
-            if should_quit {
+            if self.should_quit() {
                 break;
             }
 
             self.render()?;
         }
 
+        self.quit()
+    }
+
+    pub fn quit(&mut self) -> anyhow::Result<()> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
         // self.lsp_manager.shutdown();
 
-        // TODO: this line is a hack
         std::process::exit(0);
     }
 
-    pub fn components(&self) -> Vec<Rc<RefCell<dyn Component>>> {
+    pub fn components(&self) -> Vec<KindedComponent> {
         self.layout.components()
     }
 
@@ -207,15 +210,7 @@ impl<T: Frontend> App<T> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
-            Event::Key(key!("enter")) if self.context.mode().is_some() => {
-                self.context.set_mode(None);
-            }
-            Event::Key(key!("ctrl+q")) => {
-                if self.quit() {
-                    return Ok(true);
-                }
-            }
-            Event::Key(key!("ctrl+w")) => self.layout.change_view(),
+            // Event::Key(key!("enter")) if self.context.mode().is_some() => { self.context.set_mode(None); }
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
                     height: rows,
@@ -223,13 +218,11 @@ impl<T: Frontend> App<T> {
                 });
             }
             event => {
-                if let Some(component) = component {
-                    let dispatches = component.borrow_mut().handle_event(&self.context, event);
-                    self.handle_dispatches_result(dispatches)
-                        .unwrap_or_else(|e| {
-                            self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
-                        });
-                }
+                let dispatches = component.borrow_mut().handle_event(&self.context, event);
+                self.handle_dispatches_result(dispatches)
+                    .unwrap_or_else(|e| {
+                        self.show_global_info(Info::new("ERROR".to_string(), e.to_string()))
+                    });
             }
         }
 
@@ -237,8 +230,8 @@ impl<T: Frontend> App<T> {
     }
 
     /// Return true if there's no more windows
-    fn quit(&mut self) -> bool {
-        self.layout.remove_current_component()
+    fn should_quit(&mut self) -> bool {
+        self.layout.components().is_empty()
     }
 
     fn render(&mut self) -> Result<(), anyhow::Error> {
@@ -258,14 +251,11 @@ impl<T: Frontend> App<T> {
             .components()
             .into_iter()
             .map(|component| {
-                let component = component.borrow();
-
-                let rectangle = component.rectangle();
-                let GetGridResult { grid, cursor } = component.get_grid(&self.context);
+                let rectangle = component.component().borrow().rectangle().clone();
+                let GetGridResult { grid, cursor } =
+                    component.component().borrow().get_grid(&self.context);
                 let focused_component_id = self.layout.focused_component_id();
-                let cursor_position = if focused_component_id
-                    .map(|focused_component_id| component.id() == focused_component_id)
-                    .unwrap_or(false)
+                let cursor_position = if component.component().borrow().id() == focused_component_id
                 {
                     if let Some(cursor) = cursor {
                         let cursor_position = cursor.position();
@@ -296,16 +286,13 @@ impl<T: Frontend> App<T> {
 
         // Set the global title
         let global_title_window = {
-            let mode = self.context.mode().map(|mode| mode.display()).or_else(|| {
-                self.current_component()
-                    .map(|component| component.borrow().editor().display_mode())
-            });
+            let mode = self
+                .context
+                .mode()
+                .map(|mode| mode.display())
+                .unwrap_or_else(|| self.current_component().borrow().editor().display_mode());
 
-            let mode = if let Some(mode) = mode {
-                format!("[{}]", mode)
-            } else {
-                String::new()
-            };
+            let mode = format!("[{}]", mode);
 
             let title = if let Some(title) = self.global_title.as_ref() {
                 title.clone()
@@ -382,16 +369,21 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
+        log::info!("App::handle_dispatch {}", dispatch.variant_name());
         match dispatch {
-            Dispatch::CloseCurrentWindow { change_focused_to } => {
-                self.close_current_window(change_focused_to)
+            Dispatch::CloseCurrentWindow => {
+                self.close_current_window();
+            }
+            Dispatch::CloseCurrentWindowAndFocusParent => {
+                self.close_current_window_and_focus_parent();
             }
             Dispatch::OpenSearchPrompt { scope, owner_id } => {
                 self.open_search_prompt(scope, owner_id)?
             }
-            Dispatch::OpenFile(path) => {
-                self.open_file(&path, true)?;
-            }
+            Dispatch::OpenFile(path) => self.go_to_location(&Location {
+                path,
+                range: Range::default(),
+            })?,
 
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
@@ -458,9 +450,9 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::SetQuickfixList(r#type) => {
-                self.set_quickfix_list_type(Default::default(), r#type)?
+                self.set_quickfix_list_type(Default::default(), r#type)?;
             }
-            Dispatch::GotoQuickfixListItem(direction) => self.goto_quickfix_list_item(direction)?,
+            Dispatch::GotoQuickfixListItem(movement) => self.goto_quickfix_list_item(movement)?,
             Dispatch::GotoSelectionHistoryContiguous(movement) => {
                 self.goto_selection_history_contiguous(movement)?;
             }
@@ -473,7 +465,7 @@ impl<T: Frontend> App<T> {
 
             #[cfg(test)]
             Dispatch::Custom(_) => unreachable!(),
-            Dispatch::CloseAllExceptMainPanel => self.layout.close_all_except_main_panel(),
+            Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::GlobalSearch => self.global_search()?,
@@ -552,7 +544,7 @@ impl<T: Frontend> App<T> {
                 self.open_update_search_prompt(owner_id, scope)?
             }
             Dispatch::Replace { scope } => match scope {
-                Scope::Local => self.handle_dispatch_editor(Replace {
+                Scope::Local => self.handle_dispatch_editor(ReplacePattern {
                     config: self.context.local_search_config().clone(),
                 })?,
                 Scope::Global => self.global_replace()?,
@@ -570,31 +562,29 @@ impl<T: Frontend> App<T> {
             Dispatch::ToSuggestiveEditor(dispatch) => {
                 self.handle_dispatch_suggestive_editor(dispatch)?
             }
-            Dispatch::CloseDropdown { owner_id } => self.layout.close_dropdown(owner_id),
-            Dispatch::RenderDropdown { owner_id, render } => {
-                let dropdown = self.layout.open_dropdown(owner_id);
-                self.render_dropdown(Some(owner_id), dropdown, render)?
-            }
-            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
-            Dispatch::ShowEditorInfo(info) => {
-                if let Some(component) = self.current_component() {
-                    self.show_editor_info(component.borrow().id(), info)?
+            Dispatch::CloseDropdown => self.layout.close_dropdown(),
+            Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
+            Dispatch::RenderDropdown { render } => {
+                if let Some(dropdown) = self.layout.open_dropdown() {
+                    self.render_dropdown(dropdown, render)?
                 }
             }
-            Dispatch::CloseEditorInfo { owner_id } => self.layout.close_editor_info(owner_id),
+            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
+            Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
+            Dispatch::OscillateWindow => self.layout.cycle_window(),
         }
         Ok(())
     }
 
-    pub fn current_component(&self) -> Option<Rc<RefCell<dyn Component>>> {
-        self.layout.current_component()
+    pub fn current_component(&self) -> Rc<RefCell<dyn Component>> {
+        self.layout.get_current_component()
     }
 
-    fn close_current_window(&mut self, change_focused_to: Option<ComponentId>) {
-        self.layout.close_current_window(change_focused_to)
+    fn close_current_window(&mut self) {
+        self.layout.close_current_window()
     }
 
     fn local_search(&mut self, owner_id: Option<ComponentId>) -> anyhow::Result<()> {
@@ -610,7 +600,7 @@ impl<T: Frontend> App<T> {
                 }),
                 owner_id
                     .and_then(|owner_id| self.get_component_by_id(owner_id))
-                    .or_else(|| self.current_component()),
+                    .unwrap_or_else(|| self.current_component()),
             )?;
         }
 
@@ -758,9 +748,6 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    /// This is different from `open_file` because it has the additional `update_selection_set` argument.
-    /// If Rust supports optional arguments, I do not have to do this
-    /// I do this to minimize changes
     fn open_file_custom(
         &mut self,
         path: &CanonicalizedPath,
@@ -782,7 +769,7 @@ impl<T: Frontend> App<T> {
 
         if focus_editor {
             self.layout
-                .add_and_focus_suggestive_editor(component.clone());
+                .replace_and_focus_current_suggestive_editor(component.clone());
         } else {
             self.layout.add_suggestive_editor(component.clone());
         }
@@ -797,7 +784,7 @@ impl<T: Frontend> App<T> {
         Ok(component)
     }
 
-    pub fn open_file(
+    fn open_file(
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
@@ -814,10 +801,10 @@ impl<T: Frontend> App<T> {
 
     pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
         match notification {
-            LspNotification::Hover(context, hover) => self.show_editor_info(
-                context.component_id,
-                Info::new("Hover Info".to_string(), hover.contents.join("\n\n")),
-            ),
+            LspNotification::Hover(hover) => self.show_editor_info(Info::new(
+                "Hover Info".to_string(),
+                hover.contents.join("\n\n"),
+            )),
             LspNotification::Definition(context, response) => {
                 match response {
                     GotoDefinitionResponse::Single(location) => self.go_to_location(&location)?,
@@ -918,16 +905,16 @@ impl<T: Frontend> App<T> {
                 self.apply_workspace_edit(workspace_edit)
             }
             LspNotification::CodeAction(context, code_actions) => {
-                if Some(context.component_id)
-                    == self.layout.current_component().map(|c| c.borrow().id())
-                {
+                if context.component_id == self.layout.get_current_component().borrow().id() {
                     self.handle_dispatch(Dispatch::ReceiveCodeActions(code_actions))?;
                 }
                 Ok(())
             }
-            LspNotification::SignatureHelp(context, signature_help) => {
+            LspNotification::SignatureHelp(signature_help) => {
                 if let Some(info) = signature_help.and_then(|s| s.into_info()) {
-                    self.show_editor_info(context.component_id, info)?;
+                    self.show_editor_info(info)?;
+                } else {
+                    self.hide_editor_info()
                 }
                 Ok(())
             }
@@ -944,6 +931,7 @@ impl<T: Frontend> App<T> {
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
         let component = self.open_file_custom(&path, false)?;
+
         component
             .borrow_mut()
             .editor_mut()
@@ -966,9 +954,11 @@ impl<T: Frontend> App<T> {
         if let Some(mut quickfix_list) = self.get_quickfix_list() {
             if let Some((current_item_index, dispatches)) = quickfix_list.get_item(movement) {
                 self.context
-                    .set_quickfix_list_current_item_idex(current_item_index);
+                    .set_quickfix_list_current_item_index(current_item_index);
                 self.handle_dispatches(dispatches)?;
-                self.render_quickfix_list(quickfix_list)?;
+                self.render_quickfix_list(
+                    quickfix_list.set_current_item_index(current_item_index),
+                )?;
             }
         }
 
@@ -976,7 +966,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn show_global_info(&mut self, info: Info) {
-        self.layout.show_info(info).unwrap_or_else(|err| {
+        self.layout.show_global_info(info).unwrap_or_else(|err| {
             log::error!("Error showing info: {:?}", err);
         });
     }
@@ -1215,9 +1205,8 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub fn get_current_selected_texts(&self) -> Vec<String> {
-        let _content = self.current_component().unwrap().borrow().content();
+        let _content = self.current_component().borrow().content();
         self.current_component()
-            .unwrap()
             .borrow()
             .editor()
             .get_selected_texts()
@@ -1242,16 +1231,14 @@ impl<T: Frontend> App<T> {
     fn handle_dispatch_editor_custom(
         &mut self,
         dispatch_editor: DispatchEditor,
-        component: Option<Rc<RefCell<dyn Component>>>,
+        component: Rc<RefCell<dyn Component>>,
     ) -> anyhow::Result<()> {
-        if let Some(component) = component {
-            let dispatches = component
-                .borrow_mut()
-                .editor_mut()
-                .apply_dispatch(&mut self.context, dispatch_editor)?;
+        let dispatches = component
+            .borrow_mut()
+            .editor_mut()
+            .apply_dispatch(&mut self.context, dispatch_editor)?;
 
-            self.handle_dispatches(dispatches)?;
-        }
+        self.handle_dispatches(dispatches)?;
         Ok(())
     }
 
@@ -1299,8 +1286,7 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
-        self.current_component()
-            .and_then(|component| component.borrow().path())
+        self.current_component().borrow().path()
     }
 
     fn set_global_mode(&mut self, mode: Option<GlobalMode>) {
@@ -1335,27 +1321,19 @@ impl<T: Frontend> App<T> {
         source: UpdateSelectionSetSource,
         store_history: bool,
     ) -> anyhow::Result<()> {
-        let component = self.layout.current_component();
-
-        let new_to_old = component
-            .as_ref()
-            .map(|component| SelectionSetHistory {
-                kind: component
-                    .borrow()
-                    .path()
-                    .map(SelectionSetHistoryKind::Path)
-                    .unwrap_or_else(|| {
-                        SelectionSetHistoryKind::ComponentId(component.borrow().id())
-                    }),
-                selection_set: component.borrow().editor().selection_set.clone(),
-            })
-            .unwrap_or_else(|| SelectionSetHistory {
-                kind: SelectionSetHistoryKind::ComponentId(Default::default()),
-                selection_set: SelectionSet::default(),
-            });
+        let component = self.layout.get_current_component();
+        let new_to_old = SelectionSetHistory {
+            kind: component
+                .borrow()
+                .path()
+                .map(SelectionSetHistoryKind::Path)
+                .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(None)),
+            selection_set: component.borrow().editor().selection_set.clone(),
+        };
         if let Some(new_component) = match &kind {
             SelectionSetHistoryKind::Path(path) => Some(self.open_file(path, true)?),
-            SelectionSetHistoryKind::ComponentId(id) => self.layout.get_component_by_id(id),
+            SelectionSetHistoryKind::ComponentId(Some(id)) => self.layout.get_component_by_id(id),
+            _ => None,
         } {
             let selection_set = match source {
                 UpdateSelectionSetSource::PositionRange(position_range) => new_component
@@ -1440,9 +1418,12 @@ impl<T: Frontend> App<T> {
     }
 
     fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
-        self.components()
-            .into_iter()
-            .find(|component| component.borrow().id() == id)
+        Some(
+            self.components()
+                .into_iter()
+                .find(|component| component.component().borrow().id() == id)?
+                .component(),
+        )
     }
 
     fn open_set_global_search_filter_glob_prompt(
@@ -1672,21 +1653,17 @@ impl<T: Frontend> App<T> {
 
     fn words(&self) -> Vec<DropdownItem> {
         self.current_component()
-            .map(|current_component| {
-                current_component
-                    .borrow()
-                    .editor()
-                    .buffer()
-                    .words()
-                    .into_iter()
-                    .map(|word| {
-                        DropdownItem::new(word.clone()).set_dispatches(Dispatches::one(
-                            Dispatch::ToEditor(ReplaceCurrentSelectionWith(word)),
-                        ))
-                    })
-                    .collect_vec()
+            .borrow()
+            .editor()
+            .buffer()
+            .words()
+            .into_iter()
+            .map(|word| {
+                DropdownItem::new(word.clone()).set_dispatches(Dispatches::one(Dispatch::ToEditor(
+                    ReplaceCurrentSelectionWith(word),
+                )))
             })
-            .unwrap_or_default()
+            .collect_vec()
     }
 
     fn go_to_selection_set_history(
@@ -1697,9 +1674,12 @@ impl<T: Frontend> App<T> {
             SelectionSetHistoryKind::Path(path) => self
                 .layout
                 .open_file_with_selection(&path, selection_set_history.selection_set)?,
-            SelectionSetHistoryKind::ComponentId(id) => self
-                .layout
-                .open_component_with_selection(&id, selection_set_history.selection_set),
+            SelectionSetHistoryKind::ComponentId(Some(_)) => {
+                return Err(anyhow::anyhow!(
+                    "App::go_to_selection_set_history This is not handled yet"
+                ))
+            }
+            _ => {}
         };
         Ok(())
     }
@@ -1720,11 +1700,7 @@ impl<T: Frontend> App<T> {
 
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
-        self.current_component()
-            .unwrap()
-            .borrow()
-            .editor()
-            .content()
+        self.current_component().borrow().editor().content()
     }
 
     fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
@@ -1738,12 +1714,23 @@ impl<T: Frontend> App<T> {
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<()> {
-        if let Some(component) = self.layout.get_current_suggestive_editor() {
-            let dispatches = component.borrow_mut().handle_dispatch(dispatch)?;
-
-            self.handle_dispatches(dispatches)?;
-        }
-        Ok(())
+        let component = self
+            .layout
+            .get_component_by_kind(ComponentKind::SuggestiveEditor)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "App::handle_dispatch_suggestive_editor Cannot find suggestive editor"
+                )
+            })?;
+        let dispatches = component
+            .borrow_mut()
+            .as_any_mut()
+            .downcast_mut::<SuggestiveEditor>()
+            .ok_or_else(|| {
+                anyhow::anyhow!("App::handle_dispatch_suggestive_editor Failed to downcast")
+            })?
+            .handle_dispatch(dispatch)?;
+        self.handle_dispatches(dispatches)
     }
 
     #[cfg(test)]
@@ -1752,23 +1739,20 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<Editor>>> {
+    pub(crate) fn current_completion_dropdown(&self) -> Option<Rc<RefCell<dyn Component>>> {
         self.layout.current_completion_dropdown()
     }
 
     fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
-        let current_component = self.current_component().clone();
-        let (prompt, dispatches) =
-            Prompt::new(prompt_config, current_component.map(|c| c.borrow().id()));
+        let (prompt, dispatches) = Prompt::new(prompt_config);
 
         self.layout
-            .add_and_focus_prompt(Rc::new(RefCell::new(prompt)));
+            .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
         self.handle_dispatches(dispatches)
     }
 
     fn render_dropdown(
         &mut self,
-        owner_id: Option<ComponentId>,
         editor: Rc<RefCell<Editor>>,
         render: DropdownRender,
     ) -> Result<(), anyhow::Error> {
@@ -1777,12 +1761,11 @@ impl<T: Frontend> App<T> {
             .render_dropdown(&mut self.context, &render)?;
         editor.borrow_mut().set_title(render.title);
 
-        let owner_id = owner_id.unwrap_or_else(|| editor.borrow().id());
         match render.info {
             Some(info) => {
-                self.layout.show_dropdown_info(owner_id, info)?;
+                self.layout.show_dropdown_info(info)?;
             }
-            _ => self.layout.hide_dropdown_info(owner_id),
+            _ => self.layout.hide_dropdown_info(),
         }
         self.handle_dispatches(dispatches)
     }
@@ -1793,14 +1776,12 @@ impl<T: Frontend> App<T> {
     }
 
     pub fn render_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
-        let editor = self.layout.show_quickfix_list();
-        let render = quickfix_list.render();
-        self.render_dropdown(None, editor, render)?;
-        Ok(())
+        let dispatches = self.layout.show_quickfix_list(quickfix_list)?;
+        self.handle_dispatches(dispatches)
     }
 
-    fn show_editor_info(&mut self, owner_id: ComponentId, info: Info) -> anyhow::Result<()> {
-        self.layout.show_editor_info(owner_id, info)
+    fn show_editor_info(&mut self, info: Info) -> anyhow::Result<()> {
+        self.layout.show_editor_info(info)
     }
 
     #[cfg(test)]
@@ -1827,20 +1808,54 @@ impl<T: Frontend> App<T> {
         &mut self,
         code_actions: Vec<crate::lsp::code_action::CodeAction>,
     ) -> anyhow::Result<()> {
-        if let Some(component) = self.layout.get_current_suggestive_editor() {
-            let params = component.borrow().editor().get_request_params();
-            self.open_prompt(PromptConfig {
-                history: Vec::new(),
-                on_enter: DispatchPrompt::Null,
-                items: code_actions
-                    .into_iter()
-                    .map(move |code_action| code_action.into_dropdown_item(params.clone()))
-                    .collect(),
-                title: "Code Actions".to_string(),
-                enter_selects_first_matching_item: true,
-            })?;
-        };
+        let component = self.layout.get_current_component();
+        let params = component.borrow().editor().get_request_params();
+        self.open_prompt(PromptConfig {
+            history: Vec::new(),
+            on_enter: DispatchPrompt::Null,
+            items: code_actions
+                .into_iter()
+                .map(move |code_action| code_action.into_dropdown_item(params.clone()))
+                .collect(),
+            title: "Code Actions".to_string(),
+            enter_selects_first_matching_item: true,
+        })?;
         Ok(())
+    }
+
+    fn close_current_window_and_focus_parent(&mut self) {
+        self.layout.close_current_window_and_focus_parent()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn opened_files_count(&self) -> usize {
+        self.layout.get_opened_files().len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn quickfix_list_info(&self) -> Option<String> {
+        self.layout.quickfix_list_info()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn get_component_by_kind(
+        &self,
+        kind: ComponentKind,
+    ) -> Option<Rc<RefCell<dyn Component>>> {
+        self.layout.get_component_by_kind(kind)
+    }
+
+    fn hide_editor_info(&mut self) {
+        self.layout.hide_editor_info()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn components_order(&self) -> Vec<ComponentKind> {
+        self.layout
+            .components()
+            .into_iter()
+            .map(|c| c.kind())
+            .collect_vec()
     }
 }
 
@@ -1908,13 +1923,11 @@ impl Dispatches {
 }
 
 #[must_use]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
     SetTheme(Theme),
-    CloseCurrentWindow {
-        change_focused_to: Option<ComponentId>,
-    },
+    CloseCurrentWindow,
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
         scope: Scope,
@@ -1955,7 +1968,7 @@ pub enum Dispatch {
     GotoQuickfixListItem(Movement),
     ApplyWorkspaceEdit(WorkspaceEdit),
     ShowKeymapLegend(KeymapLegendConfig),
-    CloseAllExceptMainPanel,
+    RemainOnlyCurrentComponent,
 
     #[cfg(test)]
     /// Used for testing
@@ -2041,19 +2054,16 @@ pub enum Dispatch {
     GoToNextSelection,
     HandleLspNotification(LspNotification),
     ToSuggestiveEditor(DispatchSuggestiveEditor),
-    CloseDropdown {
-        owner_id: ComponentId,
-    },
+    CloseDropdown,
     RenderDropdown {
-        owner_id: ComponentId,
         render: DropdownRender,
     },
     OpenPrompt(PromptConfig),
     ShowEditorInfo(Info),
-    CloseEditorInfo {
-        owner_id: ComponentId,
-    },
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
+    OscillateWindow,
+    CloseCurrentWindowAndFocusParent,
+    CloseEditorInfo,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
