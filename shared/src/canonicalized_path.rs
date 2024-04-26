@@ -154,4 +154,8 @@ impl CanonicalizedPath {
     pub fn to_url(&self) -> Option<Url> {
         Url::from_file_path(self.0.clone()).ok()
     }
+
+    pub(crate) fn file_name(&self) -> Option<String> {
+        Some(self.0.file_name()?.to_string_lossy().to_string())
+    }
 }
