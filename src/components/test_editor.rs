@@ -167,7 +167,7 @@ fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(ToggleBookmark),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
@@ -357,13 +357,13 @@ fn update_bookmark_position() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spim".to_string())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Editor(ToggleBookmark),
             Editor(SetSelectionMode(Bookmark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
@@ -376,7 +376,7 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(Change),
             Expect(CurrentComponentContent("bar ")),
             Editor(EnterNormalMode),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(SetSelectionMode(Bookmark)),
             // Expect the "spim" bookmark is removed
@@ -746,7 +746,7 @@ fn insert_mode_start() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
             Expect(CurrentComponentContent("hellofn main() {}")),
@@ -760,7 +760,7 @@ fn insert_mode_end() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(EnterInsertMode(Direction::End)),
             Editor(Insert("hello".to_string())),
             Expect(CurrentComponentContent("fnhello main() {}")),
@@ -830,7 +830,7 @@ fn highlight_change() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world yo".to_string())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(ToggleHighlightMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["hello world"])),
@@ -888,7 +888,7 @@ fn jump() -> anyhow::Result<()> {
             // In jump mode, the first stage labels each selection using their starting character,
             // On subsequent stages, the labels are random alphabets
             Expect(JumpChars(&[])),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(ShowJumps),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
@@ -916,7 +916,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
                 width: 100,
                 height: 1,
             })),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
             Editor(ToggleHighlightMode),
             Editor(ShowJumps),
@@ -942,7 +942,7 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
                 width: 100,
                 height: 1,
             })),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(ShowJumps),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
@@ -969,7 +969,7 @@ fn switch_view_alignment() -> anyhow::Result<()> {
                 width: 100,
                 height: 4,
             })),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["c"])),
@@ -1398,13 +1398,13 @@ fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spim".to_string())),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Editor(ToggleBookmark),
             Editor(SetSelectionMode(Bookmark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(SetSelectionMode(Word)),
+            Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
@@ -1465,7 +1465,7 @@ fn omit() -> Result<(), anyhow::Error> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent(input.to_string())),
-                Editor(SetSelectionMode(SelectionMode::Word)),
+                Editor(SetSelectionMode(SelectionMode::WordShort)),
                 Editor(FilterPush(Filter::new(kind, target, mechanism.clone()))),
                 Editor(CursorAddToAllSelections),
                 Expect(CurrentSelectedTexts(expected_output)),

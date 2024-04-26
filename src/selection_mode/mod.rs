@@ -10,9 +10,10 @@ pub mod line_full;
 pub mod line_trimmed;
 pub mod local_quickfix;
 pub mod regex;
-pub mod small_word;
 pub mod syntax_tree;
 pub mod top_node;
+pub mod word_long;
+pub mod word_short;
 pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use bookmark::Bookmark;
@@ -26,10 +27,11 @@ use itertools::Itertools;
 pub use line_full::LineFull;
 pub use line_trimmed::LineTrimmed;
 pub use local_quickfix::LocalQuickfix;
-pub use small_word::SmallWord;
 use std::ops::Range;
 pub use syntax_tree::SyntaxTree;
 pub use top_node::TopNode;
+pub use word_long::WordLong;
+pub use word_short::WordShort;
 
 use crate::{
     buffer::Buffer,

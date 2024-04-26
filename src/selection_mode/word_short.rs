@@ -1,8 +1,8 @@
 use crate::buffer::Buffer;
 
-pub struct SmallWord;
+pub struct WordShort;
 
-impl SmallWord {
+impl WordShort {
     pub fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
         super::Regex::from_config(
             buffer,
@@ -17,7 +17,7 @@ impl SmallWord {
 }
 
 #[cfg(test)]
-mod test_small_word {
+mod test_word_short {
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     use super::*;
@@ -28,7 +28,7 @@ mod test_small_word {
             tree_sitter_rust::language(),
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_>",
         );
-        SmallWord::as_regex(&buffer).unwrap().assert_all_selections(
+        WordShort::as_regex(&buffer).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[

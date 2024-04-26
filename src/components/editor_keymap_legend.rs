@@ -159,8 +159,13 @@ impl Editor {
                 ),
                 Keymap::new(
                     "w",
-                    "Word".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(Word)),
+                    "Word (Short)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(WordShort)),
+                ),
+                Keymap::new(
+                    "W",
+                    "Word (Long)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(WordLong)),
                 ),
             ]),
         }
