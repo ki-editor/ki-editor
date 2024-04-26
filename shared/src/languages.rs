@@ -3,6 +3,7 @@ use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 pub const LANGUAGES: &[&Language] = &[
     &common_lisp(),
     &csv(),
+    &dockerfile(),
     &graphql(),
     &javascript(true),
     &javascript(false),
@@ -45,6 +46,23 @@ const fn csv() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "csv",
             url: "https://github.com/arnau/tree-sitter-csv",
+            commit: "main",
+            subpath: None,
+        }),
+    }
+}
+
+const fn dockerfile() -> Language {
+    Language {
+        file_names: &["Dockerfile"],
+        extensions: &[],
+        lsp_language_id: None,
+        lsp_command: None,
+        highlight_query: None,
+        formatter_command: None,
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "dockerfile",
+            url: "https://github.com/camdencheek/tree-sitter-dockerfile",
             commit: "main",
             subpath: None,
         }),
