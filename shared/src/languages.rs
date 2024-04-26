@@ -144,8 +144,8 @@ const fn sql() -> Language {
         lsp_command: None,
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "sql",
-            url: "https://github.com/m-novikov/tree-sitter-sql",
-            commit: "main",
+            url: "https://github.com/DerekStride/tree-sitter-sql",
+            commit: "25f94f998de79bae9df28add9782f9ea6ea0e2b8",
             subpath: None,
         }),
         formatter_command: Some(Command("sql-formatter", &["--language", "postgresql"])),
