@@ -1555,3 +1555,23 @@ fn cursor_direction() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+/// Line with emoji: not wrapped
+fn consider_unicode_width() -> anyhow::Result<()> {
+    let content = "👩 abc";
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(TerminalDimensionChanged(crate::app::Dimension {
+                height: 10,
+                // Set width longer than content so that there's no wrapping
+                width: 20,
+            })),
+            Editor(SetContent(content.to_string())),
+            Editor(MatchLiteral("a".to_string())),
+            // Expect the cursor is on the letter 'a'
+            Expect(EditorGrid("🦀 src/main.rs\n1│👩 █bc\n\n\n\n\n\n\n")),
+        ])
+    })
+}

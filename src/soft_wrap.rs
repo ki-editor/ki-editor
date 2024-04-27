@@ -54,9 +54,8 @@ impl WrappedLines {
 
         let vertical_offset = {
             let previous_lines = self.lines.iter().take(position.line);
-            previous_lines.map(|line| line.wrapped.len()).sum::<usize>()
+            previous_lines.map(|line| line.count()).sum::<usize>()
         };
-
         Ok(Position {
             line: vertical_offset + new_position.line,
             column: new_position.column,
@@ -97,6 +96,42 @@ impl WrappedLine {
     }
 
     fn get_position(&self, column: usize, width: usize) -> Option<Position> {
+        let chars_with_line_index = self
+            .lines()
+            .into_iter()
+            .enumerate()
+            .flat_map(|(line_index, line)| {
+                line.chars()
+                    .into_iter()
+                    .map(|char| (line_index, char))
+                    .collect_vec()
+            })
+            .collect_vec();
+        if chars_with_line_index.is_empty() && column == 0 {
+            return Some(Position::default());
+        }
+        if column > chars_with_line_index.len() {
+            return None;
+        }
+        let (left, right) = chars_with_line_index.split_at(column);
+        let line = right
+            .split_first()
+            .map(|((line, _), _)| line)
+            .or_else(|| Some(&chars_with_line_index.last()?.0))?;
+        let previous_columns_chars = left
+            .into_iter()
+            .filter(|(line_, _)| line == line_)
+            .collect_vec();
+        let previous_columns_chars_total_width: usize = get_string_width(
+            &previous_columns_chars
+                .into_iter()
+                .map(|(_, char)| char)
+                .join(""),
+        );
+        return Some(Position {
+            line: *line,
+            column: previous_columns_chars_total_width,
+        });
         // If the column is within the primary line
         // or if the line is not wrapped and the column is within the width
         if column < self.primary.len() || self.wrapped.is_empty() && column < width {
@@ -145,6 +180,7 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
+            // let wrapped_lines: Vec<String> = { use textwrap::WordSeparator; let words = WordSeparator::UnicodeBreakProperties .find_words(text) .collect::<Vec<_>>(); // We can avoid the short line if we look ahead: use textwrap::wrap_algorithms::{wrap_optimal_fit, Penalties}; let lines = wrap_optimal_fit(&words, &[width as f64], &Penalties::new()) .unwrap_or_default(); lines .into_iter() .map(|line| { line.iter() .map(|word| &**word) .collect::<Vec<_>>() .join(" ") }) .collect_vec() };
             let wrapped_lines: Vec<String> = re.split(line).fold(vec![], |mut lines, word| {
                 match lines.last_mut() {
                     Some(last_line)
@@ -174,6 +210,8 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
 
 #[cfg(test)]
 mod test_soft_wrap {
+    use crate::position::Position;
+
     use super::soft_wrap;
     use unicode_width::UnicodeWidthStr;
 
@@ -186,11 +224,24 @@ mod test_soft_wrap {
     }
 
     #[test]
+    /// Line with emoji: wrapped
     fn consider_unicode_width_2() {
         let content = "👩 abc";
         let wrapped_lines = soft_wrap(content, 5);
         assert_eq!(UnicodeWidthStr::width("👩"), 2);
-        assert_eq!(wrapped_lines.wrapped_lines_count(), 2)
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
+
+        // The character 'a' should be placed at the next line, first column
+        assert_eq!(
+            wrapped_lines.calibrate(Position::new(0, 2)),
+            Ok(Position::new(1, 0))
+        );
+
+        // The space character between the 👩 and 'abc'should be placed at first line, 3rd column
+        assert_eq!(
+            wrapped_lines.calibrate(Position::new(0, 1)),
+            Ok(Position::new(0, 2))
+        );
     }
 
     #[test]
@@ -202,6 +253,7 @@ mod test_soft_wrap {
 
     #[cfg(test)]
     mod calibrate {
+
         use crate::position::Position;
         use crate::soft_wrap::soft_wrap;
 

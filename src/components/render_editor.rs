@@ -83,7 +83,7 @@ impl Editor {
                     .into_iter()
                     .enumerate()
                     .map(|(index, line)| RenderLine {
-                        line_number: line_number + (scroll_offset as usize),
+                        line_number,
                         content: line,
                         wrapped: index > 0,
                     })
@@ -336,83 +336,89 @@ impl Editor {
             wrapped: bool,
         }
 
-        let render_lines = |grid: Grid, lines: Vec<RenderLine>| {
-            lines.into_iter().enumerate().fold(
-                grid,
-                |grid,
-                 (
-                    line_index,
-                    RenderLine {
-                        line_number,
-                        content: line,
-                        wrapped,
-                    },
-                )| {
-                    let background_color = if parent_lines_numbers.iter().contains(&line_number) {
-                        Some(theme.ui.parent_lines_background)
-                    } else {
-                        None
-                    };
-                    let line_number_str = {
-                        let line_number = if wrapped {
-                            "↪".to_string()
-                        } else {
-                            (line_number + 1).to_string()
-                        };
-                        format!(
-                            "{: >width$}",
-                            line_number.to_string(),
-                            width = max_line_number_len as usize
-                        )
-                    };
-                    Grid::new(Dimension {
-                        height,
-                        width: max_line_number_len,
-                    });
-                    grid.set_row(
-                        line_index,
-                        Some(0),
-                        Some(max_line_number_len as usize),
-                        &line_number_str,
-                        &theme
-                            .ui
-                            .line_number
-                            .set_some_background_color(background_color),
-                    )
-                    .set_row(
-                        line_index,
-                        Some(max_line_number_len as usize),
-                        Some((max_line_number_len + 1) as usize),
-                        "│",
-                        &theme
-                            .ui
-                            .line_number_separator
-                            .set_some_background_color(background_color),
-                    )
-                    .set_row(
-                        line_index,
-                        Some((max_line_number_len + 1) as usize),
-                        None,
-                        &line.chars().take(width as usize).collect::<String>(),
-                        &theme.ui.text.set_some_background_color(background_color),
-                    )
-                },
-            )
+        struct CalibratableCellUpdate {
+            cell_update: CellUpdate,
+            should_be_calibrated: bool,
         };
-        let visible_lines_updates = updates
-            .clone()
-            .into_iter()
-            .filter_map(|update| {
-                let update = update.move_up((scroll_offset).into())?;
 
-                let position = wrapped_lines.calibrate(update.position).ok()?;
-
-                let position =
-                    position.move_right(max_line_number_len + line_number_separator_width);
-
-                Some(CellUpdate { position, ..update })
-            })
-            .collect::<Vec<_>>();
+        let render_lines = |grid: &Grid, lines: Vec<RenderLine>| {
+            lines
+                .into_iter()
+                .enumerate()
+                .flat_map(
+                    |(
+                        line_index,
+                        RenderLine {
+                            line_number,
+                            content: line,
+                            wrapped,
+                        },
+                    )| {
+                        let background_color = if parent_lines_numbers.iter().contains(&line_number)
+                        {
+                            Some(theme.ui.parent_lines_background)
+                        } else {
+                            None
+                        };
+                        let line_number_str = {
+                            let line_number = if wrapped {
+                                "↪".to_string()
+                            } else {
+                                (line_number + 1).to_string()
+                            };
+                            format!(
+                                "{: >width$}",
+                                line_number.to_string(),
+                                width = max_line_number_len as usize
+                            )
+                        };
+                        grid.get_row_cell_updates(
+                            line_index,
+                            Some(0),
+                            Some(max_line_number_len as usize),
+                            &line_number_str,
+                            &theme
+                                .ui
+                                .line_number
+                                .set_some_background_color(background_color),
+                        )
+                        .into_iter()
+                        .chain(
+                            grid.get_row_cell_updates(
+                                line_index,
+                                Some(max_line_number_len as usize),
+                                Some((max_line_number_len + 1) as usize),
+                                "│",
+                                &theme
+                                    .ui
+                                    .line_number_separator
+                                    .set_some_background_color(background_color),
+                            ),
+                        )
+                        .map(|cell_update| CalibratableCellUpdate {
+                            cell_update,
+                            should_be_calibrated: false,
+                        })
+                        .chain(
+                            grid.get_row_cell_updates(
+                                line_index,
+                                None,
+                                None,
+                                &line.chars().take(width as usize).collect::<String>(),
+                                &theme.ui.text.set_some_background_color(background_color),
+                            )
+                            .into_iter()
+                            .map(|cell_update| {
+                                CalibratableCellUpdate {
+                                    cell_update,
+                                    should_be_calibrated: true,
+                                }
+                            }),
+                        )
+                    },
+                )
+                .collect_vec()
+        };
         let visible_render_lines = if lines.is_empty() {
             [RenderLine {
                 line_number: 0,
@@ -423,13 +429,39 @@ impl Editor {
         } else {
             lines
         };
+        let visible_lines_updates = render_lines(&visible_lines_grid, visible_render_lines)
+            .into_iter()
+            .chain(
+                updates
+                    .clone()
+                    .into_iter()
+                    .map(|cell_update| CalibratableCellUpdate {
+                        cell_update,
+                        should_be_calibrated: true,
+                    }),
+            )
+            .filter_map(|update| {
+                if !update.should_be_calibrated {
+                    return Some(update.cell_update);
+                }
+                let update = update.cell_update.move_up((scroll_offset).into())?;
+                let position = wrapped_lines.calibrate(update.position).ok()?;
 
-        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines)
-            .apply_cell_updates(visible_lines_updates);
+                let position =
+                    position.move_right(max_line_number_len + line_number_separator_width);
 
-        let (hidden_parent_lines_grid, hidden_parent_lines_updates) =
+                Some(CellUpdate { position, ..update })
+            })
+            .collect_vec();
+
+        let visible_lines_grid = visible_lines_grid.apply_cell_updates(visible_lines_updates);
+
+        let hidden_parent_lines_grid = Grid::new(Dimension {
+            width: editor.dimension().width,
+            height: hidden_parent_lines.len() as u16,
+        });
+        let hidden_parent_lines_updates =
             {
-                let height = hidden_parent_lines.len() as u16;
                 let hidden_parent_lines = hidden_parent_lines
                     .iter()
                     .map(|line| RenderLine {
@@ -459,14 +491,14 @@ impl Editor {
                             .collect_vec()
                     };
 
-                let grid = render_lines(
-                    Grid::new(Dimension {
-                        width: editor.dimension().width,
-                        height,
-                    }),
-                    hidden_parent_lines,
-                );
-                (grid, updates)
+                updates
+                    .into_iter()
+                    .chain(
+                        render_lines(&hidden_parent_lines_grid, hidden_parent_lines)
+                            .into_iter()
+                            .map(|CalibratableCellUpdate { cell_update, .. }| cell_update),
+                    )
+                    .collect_vec()
             };
         let hidden_parent_lines_grid =
             hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);

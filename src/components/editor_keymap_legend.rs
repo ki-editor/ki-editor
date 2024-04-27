@@ -1,5 +1,4 @@
 use crossterm::event::KeyCode;
-
 use SelectionMode::*;
 
 use convert_case::Case;

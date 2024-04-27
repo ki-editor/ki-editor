@@ -151,7 +151,7 @@ impl Component for Editor {
                 Ok(Default::default())
 
                 // self
-                // .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
+                // 🦀 .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
             }
             _ => Ok(Default::default()),
         }

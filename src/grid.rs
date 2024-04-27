@@ -209,6 +209,7 @@ impl Grid {
             }
             for (column_index, cell) in row.iter().enumerate() {
                 let width = get_string_width(cell.symbol.as_str());
+                let width = 1;
                 for index in 0..width {
                     let adjusted_column = column_index + offset + index;
                     if adjusted_column >= self.width {
@@ -318,7 +319,7 @@ impl Grid {
         })
     }
 
-    pub(crate) fn set_row(
+    fn set_row(
         self,
         row_index: usize,
         column_start: Option<usize>,
@@ -326,6 +327,21 @@ impl Grid {
         content: &str,
         style: &Style,
     ) -> Self {
+        let grid = self;
+        // Trim or Pad end with spaces
+        let cell_updates =
+            grid.get_row_cell_updates(row_index, column_start, column_end, &content, style);
+        grid.apply_cell_updates(cell_updates)
+    }
+
+    pub(crate) fn get_row_cell_updates(
+        &self,
+        row_index: usize,
+        column_start: Option<usize>,
+        column_end: Option<usize>,
+        content: &str,
+        style: &Style,
+    ) -> Vec<CellUpdate> {
         let dimension = self.dimension();
         let grid = self;
         let column_range =
@@ -333,25 +349,23 @@ impl Grid {
         // Trim or Pad end with spaces
         let content = format!("{:<width$}", content, width = column_range.len());
         let take = grid.dimension().width as usize;
-        grid.apply_cell_updates(
-            content
-                .chars()
-                .take(take)
-                .enumerate()
-                .map(|(char_index, character)| {
-                    let column_index = column_range.start + char_index;
-                    CellUpdate {
-                        position: Position {
-                            line: row_index,
-                            column: column_index,
-                        },
-                        symbol: Some(character.to_string()),
-                        style: *style,
-                        ..CellUpdate::default()
-                    }
-                })
-                .collect_vec(),
-        )
+        content
+            .chars()
+            .take(take)
+            .enumerate()
+            .map(|(char_index, character)| {
+                let column_index = column_range.start + char_index;
+                CellUpdate {
+                    position: Position {
+                        line: row_index,
+                        column: column_index,
+                    },
+                    symbol: Some(character.to_string()),
+                    style: *style,
+                    ..CellUpdate::default()
+                }
+            })
+            .collect_vec()
     }
 }
 
