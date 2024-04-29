@@ -147,12 +147,7 @@ impl Component for Editor {
                 self.apply_scroll(Direction::End, SCROLL_HEIGHT);
                 Ok(Default::default())
             }
-            MouseEventKind::Down(MouseButton::Left) => {
-                Ok(Default::default())
-
-                // self
-                // 🦀 .set_cursor_position(mouse_event.row + window.scroll_offset(), mouse_event.column)
-            }
+            MouseEventKind::Down(MouseButton::Left) => Ok(Default::default()),
             _ => Ok(Default::default()),
         }
     }

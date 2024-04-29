@@ -873,6 +873,23 @@ fn scroll_page() -> anyhow::Result<()> {
 }
 
 #[test]
+fn scroll_offset() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("alpha\nbeta\ngamma\nlok".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 3,
+            })),
+            Editor(SetScrollOffset(2)),
+            Expect(EditorGrid("🦀 src/main.rs\n3│gamma\n4│lok")),
+        ])
+    })
+}
+
+#[test]
 fn jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -1571,7 +1588,9 @@ fn consider_unicode_width() -> anyhow::Result<()> {
             Editor(SetContent(content.to_string())),
             Editor(MatchLiteral("a".to_string())),
             // Expect the cursor is on the letter 'a'
-            Expect(EditorGrid("🦀 src/main.rs\n1│👩 █bc\n\n\n\n\n\n\n")),
+            // Expect an extra space is added between 'a' and the emoji
+            // because, the unicode width of the emoji is 2
+            Expect(EditorGrid("🦀 src/main.rs\n1│👩  █bc\n\n\n\n\n\n\n")),
         ])
     })
 }

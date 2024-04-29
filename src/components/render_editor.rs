@@ -13,6 +13,7 @@ use crate::{
     },
     context::Context,
     grid::{CellUpdate, Grid, StyleKey},
+    position::Position,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
     soft_wrap,
@@ -83,7 +84,7 @@ impl Editor {
                     .into_iter()
                     .enumerate()
                     .map(|(index, line)| RenderLine {
-                        line_number,
+                        line_number: line_number + (scroll_offset as usize),
                         content: line,
                         wrapped: index > 0,
                     })
@@ -309,24 +310,46 @@ impl Editor {
                 Boundary::new(&buffer, hidden_parent_line_range),
             ]
         };
-        let updates = vec![]
+        let content_cell_updates = visible_lines
             .into_iter()
-            .chain(highlighted_spans)
-            .chain(extra_decorations)
-            .chain(possible_selections)
-            .chain(Some(primary_selection))
-            .chain(secondary_selection)
-            .chain(primary_selection_anchors)
-            .chain(seconday_selection_anchors)
-            .chain(bookmarks)
-            .chain(diagnostics)
-            .chain(jumps)
-            .chain(primary_selection_secondary_cursor)
-            .chain(secondary_selection_cursors)
-            .chain(custom_regex_highlights)
-            .chain(regex_highlight_rules)
-            .flat_map(|span| span.to_cell_update(&buffer, theme, boundaries))
-            .chain(primary_selection_primary_cursor)
+            .enumerate()
+            .flat_map(|(line_index, line)| {
+                line.chars()
+                    .enumerate()
+                    .map(move |(column_index, character)| CellUpdate {
+                        position: Position {
+                            line: line_index + scroll_offset as usize,
+                            column: column_index,
+                        },
+                        symbol: Some(character.to_string()),
+                        style: theme.ui.text,
+                        ..CellUpdate::default()
+                    })
+            })
+            .collect_vec();
+        let updates = content_cell_updates
+            .into_iter()
+            .chain(
+                vec![]
+                    .into_iter()
+                    .chain(highlighted_spans)
+                    .chain(extra_decorations)
+                    .chain(possible_selections)
+                    .chain(Some(primary_selection))
+                    .chain(secondary_selection)
+                    .chain(primary_selection_anchors)
+                    .chain(seconday_selection_anchors)
+                    .chain(bookmarks)
+                    .chain(diagnostics)
+                    .chain(jumps)
+                    .chain(primary_selection_secondary_cursor)
+                    .chain(secondary_selection_cursors)
+                    .chain(custom_regex_highlights)
+                    .chain(regex_highlight_rules)
+                    .flat_map(|span| span.to_cell_update(&buffer, theme, boundaries))
+                    .chain(primary_selection_primary_cursor)
+                    .collect_vec(),
+            )
             .collect_vec();
 
         #[derive(Debug, Clone)]
@@ -399,22 +422,6 @@ impl Editor {
                             cell_update,
                             should_be_calibrated: false,
                         })
-                        .chain(
-                            grid.get_row_cell_updates(
-                                line_index,
-                                None,
-                                None,
-                                &line.chars().take(width as usize).collect::<String>(),
-                                &theme.ui.text.set_some_background_color(background_color),
-                            )
-                            .into_iter()
-                            .map(|cell_update| {
-                                CalibratableCellUpdate {
-                                    cell_update,
-                                    should_be_calibrated: true,
-                                }
-                            }),
-                        )
                     },
                 )
                 .collect_vec()
@@ -446,7 +453,6 @@ impl Editor {
                 }
                 let update = update.cell_update.move_up((scroll_offset).into())?;
                 let position = wrapped_lines.calibrate(update.position).ok()?;
-
                 let position =
                     position.move_right(max_line_number_len + line_number_separator_width);
 
@@ -542,7 +548,6 @@ impl Editor {
             Mode::Insert => SetCursorStyle::BlinkingBar,
             _ => SetCursorStyle::BlinkingUnderScore,
         };
-
         GetGridResult {
             cursor: cursor_position.map(|position| Cursor::new(position, style)),
             grid,
