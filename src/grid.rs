@@ -192,6 +192,16 @@ impl std::fmt::Display for Grid {
         )
     }
 }
+
+pub enum RenderContentLineNumber {
+    NoLineNumber,
+    LineNumber {
+        /// 0-based
+        start_line_index: usize,
+        max_line_number: usize,
+    },
+}
+
 impl Grid {
     pub fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
@@ -374,21 +384,35 @@ impl Grid {
             .collect_vec()
     }
 
-    /// `line_index_start` is 0-based.
+    /// This function handles a few things:
+    /// - wrapping
+    /// - Unicode width
+    /// - line numbers
+    ///
+    /// Note:
+    /// - `line_index_start` is 0-based.
+    /// - If `max_line_number` is
     pub(crate) fn render_content(
         self,
         content: &str,
-        line_index_start: usize,
-        max_line_number: usize,
+        line_number: RenderContentLineNumber,
         cell_updates: Vec<CellUpdate>,
         line_updates: Vec<LineUpdate>,
         theme: &Theme,
     ) -> Grid {
         let Dimension { height, width } = self.dimension();
-        let max_line_number_len = max_line_number.max(1).to_string().len();
-
-        let line_number_separator_width = 1;
-
+        let (line_index_start, max_line_number_len, line_number_separator_width) = match line_number
+        {
+            RenderContentLineNumber::NoLineNumber => (0, 0, 0),
+            RenderContentLineNumber::LineNumber {
+                start_line_index: start_line_number,
+                max_line_number,
+            } => (
+                start_line_number,
+                max_line_number.max(1).to_string().len(),
+                1,
+            ),
+        };
         let content_container_width = ((width as usize)
             .saturating_sub(max_line_number_len)
             .saturating_sub(line_number_separator_width))
@@ -431,11 +455,12 @@ impl Grid {
                 should_be_calibrated: true,
             })
             .collect_vec();
+        #[derive(Clone)]
         struct LineNumber {
             line_number: usize,
             wrapped: bool,
         }
-        let lines = wrapped_lines
+        let line_numbers = wrapped_lines
             .lines()
             .iter()
             .flat_map(|line| {
@@ -450,6 +475,15 @@ impl Grid {
                     .collect_vec()
             })
             .collect::<Vec<_>>();
+        let line_numbers = if line_numbers.is_empty() {
+            [LineNumber {
+                line_number: 0,
+                wrapped: false,
+            }]
+            .to_vec()
+        } else {
+            line_numbers
+        };
         #[derive(Debug)]
         struct CalibratableCellUpdate {
             cell_update: CellUpdate,
@@ -460,51 +494,59 @@ impl Grid {
             width,
         });
         let line_numbers = {
-            lines
-                .into_iter()
-                .enumerate()
-                .flat_map(
-                    |(
-                        line_index,
-                        LineNumber {
-                            line_number,
-                            wrapped,
-                        },
-                    )| {
-                        let line_number_str = {
-                            let line_number = if wrapped {
-                                "↪".to_string()
-                            } else {
-                                (line_number + 1).to_string()
+            match line_number {
+                RenderContentLineNumber::NoLineNumber => Vec::new(),
+                RenderContentLineNumber::LineNumber {
+                    start_line_index,
+                    max_line_number,
+                } => line_numbers
+                    .into_iter()
+                    .enumerate()
+                    .flat_map(
+                        |(
+                            line_index,
+                            LineNumber {
+                                line_number,
+                                wrapped,
+                            },
+                        )| {
+                            let line_number_str = {
+                                let line_number = if wrapped {
+                                    "↪".to_string()
+                                } else {
+                                    (line_number + 1).to_string()
+                                };
+                                format!(
+                                    "{: >width$}",
+                                    line_number.to_string(),
+                                    width = max_line_number_len as usize
+                                )
                             };
-                            format!(
-                                "{: >width$}",
-                                line_number.to_string(),
-                                width = max_line_number_len as usize
+                            grid.get_row_cell_updates(
+                                line_index,
+                                Some(0),
+                                Some(max_line_number_len as usize),
+                                &line_number_str,
+                                &theme.ui.line_number,
                             )
-                        };
-                        grid.get_row_cell_updates(
-                            line_index,
-                            Some(0),
-                            Some(max_line_number_len as usize),
-                            &line_number_str,
-                            &theme.ui.line_number,
-                        )
-                        .into_iter()
-                        .chain(grid.get_row_cell_updates(
-                            line_index,
-                            Some(max_line_number_len as usize),
-                            Some((max_line_number_len + 1) as usize),
-                            "│",
-                            &theme.ui.line_number_separator,
-                        ))
-                        .map(|cell_update| CalibratableCellUpdate {
-                            cell_update,
-                            should_be_calibrated: false,
-                        })
-                    },
-                )
-                .collect_vec()
+                            .into_iter()
+                            .chain(grid.get_row_cell_updates(
+                                line_index,
+                                Some(max_line_number_len as usize),
+                                Some((max_line_number_len + 1) as usize),
+                                "│",
+                                &theme.ui.line_number_separator,
+                            ))
+                            .map(|cell_update| {
+                                CalibratableCellUpdate {
+                                    cell_update,
+                                    should_be_calibrated: false,
+                                }
+                            })
+                        },
+                    )
+                    .collect_vec(),
+            }
         };
         let calibrated = line_updates
             .into_iter()
@@ -598,7 +640,10 @@ mod test_grid {
     use super::get_string_width;
 
     mod render_content {
-        use crate::{grid::LineUpdate, themes::Theme};
+        use crate::{
+            grid::{LineUpdate, RenderContentLineNumber},
+            themes::Theme,
+        };
 
         use super::*;
         use itertools::Itertools;
@@ -610,7 +655,16 @@ mod test_grid {
                 height: 1,
                 width: 10,
             })
-            .render_content("hello", 1, 1, Vec::new(), Vec::new(), &Theme::default())
+            .render_content(
+                "hello",
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 1,
+                    start_line_index: 1,
+                },
+                Vec::new(),
+                Vec::new(),
+                &Theme::default(),
+            )
             .to_string();
             assert_eq!(actual, "2│hello")
         }
@@ -624,8 +678,10 @@ mod test_grid {
             })
             .render_content(
                 "hello\nworld",
-                10,
-                10,
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 10,
+                    start_line_index: 10,
+                },
                 Vec::new(),
                 Vec::new(),
                 &Theme::default(),
@@ -648,7 +704,16 @@ mod test_grid {
                 height: 2,
                 width: 7,
             })
-            .render_content("hello tim", 0, 0, Vec::new(), Vec::new(), &Theme::default())
+            .render_content(
+                "hello tim",
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 0,
+                    start_line_index: 0,
+                },
+                Vec::new(),
+                Vec::new(),
+                &Theme::default(),
+            )
             .to_string();
             assert_eq!(
                 actual,
@@ -673,8 +738,10 @@ mod test_grid {
             })
             .render_content(
                 &content,
-                1,
-                1,
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 1,
+                    start_line_index: 1,
+                },
                 [CellUpdate {
                     symbol: Some(cursor.to_string()),
                     position: Position::new(0, 3),
@@ -710,8 +777,10 @@ mod test_grid {
             })
             .render_content(
                 &content,
-                1,
-                1,
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 1,
+                    start_line_index: 1,
+                },
                 [CellUpdate {
                     symbol: Some(cursor.to_string()),
                     position: Position::new(0, 8), // 3rd space
@@ -741,7 +810,16 @@ mod test_grid {
                 height: 1,
                 width: 10,
             })
-            .render_content(&"hello", 1, 100, [].to_vec(), Vec::new(), &Theme::default())
+            .render_content(
+                &"hello",
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 100,
+                    start_line_index: 1,
+                },
+                [].to_vec(),
+                Vec::new(),
+                &Theme::default(),
+            )
             .to_string();
             // Expect there's two extra spaces before '2'
             // Because the number of digits of the last line is 3 ('1', '0', '0')
@@ -758,8 +836,10 @@ mod test_grid {
             })
             .render_content(
                 &"hello",
-                1,
-                1,
+                RenderContentLineNumber::LineNumber {
+                    max_line_number: 1,
+                    start_line_index: 1,
+                },
                 [].to_vec(),
                 [LineUpdate {
                     line_index: 0,
@@ -790,8 +870,10 @@ mod test_grid {
             let cells = grid
                 .render_content(
                     "",
-                    0,
-                    0,
+                    RenderContentLineNumber::LineNumber {
+                        max_line_number: 0,
+                        start_line_index: 0,
+                    },
                     Vec::new(),
                     Vec::new(),
                     &Theme {
@@ -811,6 +893,25 @@ mod test_grid {
                     .filter(|cell| cell.cell.background_color == background_color)
                     .count()
             )
+        }
+
+        #[test]
+        /// No line number
+        fn case_8() {
+            let grid = Grid::new(Dimension {
+                height: 1,
+                width: 10,
+            });
+            let actual = grid
+                .render_content(
+                    "hello",
+                    RenderContentLineNumber::NoLineNumber,
+                    Vec::new(),
+                    Vec::new(),
+                    &Default::default(),
+                )
+                .to_string();
+            assert_eq!("hello", actual)
         }
     }
 
