@@ -1,4 +1,10 @@
-use crate::{app::Dimension, position::Position, style::Style, themes::Color};
+use crate::{
+    app::Dimension,
+    position::Position,
+    soft_wrap,
+    style::Style,
+    themes::{Color, Theme},
+};
 
 use itertools::Itertools;
 use my_proc_macros::hex;
@@ -367,6 +373,145 @@ impl Grid {
             })
             .collect_vec()
     }
+
+    /// `line_index_start` is 0-based.
+    pub(crate) fn render_content(
+        self,
+        content: &str,
+        line_index_start: usize,
+        cell_updates: Vec<CellUpdate>,
+        theme: &Theme,
+    ) -> Grid {
+        let len_lines = content.lines().count().max(1);
+        let Dimension { height, width } = self.dimension();
+        let max_line_number_len = (len_lines + line_index_start).to_string().len();
+
+        let line_number_separator_width = 1;
+
+        let content_container_width = ((width as usize)
+            .saturating_sub(max_line_number_len)
+            .saturating_sub(line_number_separator_width))
+            as usize;
+
+        let wrapped_lines = soft_wrap::soft_wrap(content, content_container_width);
+        let content_cell_updates = {
+            content.lines().enumerate().flat_map(|(line_index, line)| {
+                line.chars()
+                    .enumerate()
+                    .map(move |(column_index, character)| CellUpdate {
+                        position: Position {
+                            line: line_index,
+                            column: column_index,
+                        },
+                        symbol: Some(character.to_string()),
+                        style: theme.ui.text,
+                        ..CellUpdate::default()
+                    })
+            })
+        };
+        let updates = content_cell_updates
+            .into_iter()
+            .chain(cell_updates)
+            .map(|cell_update| CalibratableCellUpdate {
+                cell_update,
+                should_be_calibrated: true,
+            })
+            .collect_vec();
+        struct LineNumber {
+            line_number: usize,
+            wrapped: bool,
+        }
+        let lines = wrapped_lines
+            .lines()
+            .iter()
+            .flat_map(|line| {
+                let line_number = line.line_number();
+                line.lines()
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, _)| LineNumber {
+                        line_number: line_number + (line_index_start as usize),
+                        wrapped: index > 0,
+                    })
+                    .collect_vec()
+            })
+            .collect::<Vec<_>>();
+        #[derive(Debug)]
+        struct CalibratableCellUpdate {
+            cell_update: CellUpdate,
+            should_be_calibrated: bool,
+        }
+        let grid: Grid = Grid::new(Dimension {
+            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
+            width,
+        });
+        let line_numbers = {
+            lines
+                .into_iter()
+                .enumerate()
+                .flat_map(
+                    |(
+                        line_index,
+                        LineNumber {
+                            line_number,
+                            wrapped,
+                        },
+                    )| {
+                        let line_number_str = {
+                            let line_number = if wrapped {
+                                "↪".to_string()
+                            } else {
+                                (line_number + 1).to_string()
+                            };
+                            format!(
+                                "{: >width$}",
+                                line_number.to_string(),
+                                width = max_line_number_len as usize
+                            )
+                        };
+                        grid.get_row_cell_updates(
+                            line_index,
+                            Some(0),
+                            Some(max_line_number_len as usize),
+                            &line_number_str,
+                            &theme.ui.line_number,
+                        )
+                        .into_iter()
+                        .chain(grid.get_row_cell_updates(
+                            line_index,
+                            Some(max_line_number_len as usize),
+                            Some((max_line_number_len + 1) as usize),
+                            "│",
+                            &theme.ui.line_number_separator,
+                        ))
+                        .map(|cell_update| CalibratableCellUpdate {
+                            cell_update,
+                            should_be_calibrated: false,
+                        })
+                    },
+                )
+                .collect_vec()
+        };
+        let calibrated = updates
+            .into_iter()
+            .chain(line_numbers)
+            .filter_map(|update| {
+                Some(if update.should_be_calibrated {
+                    let calibrated_position = wrapped_lines
+                        .calibrate(update.cell_update.position)
+                        .ok()?
+                        .move_right((max_line_number_len + line_number_separator_width) as u16);
+                    CellUpdate {
+                        position: calibrated_position,
+                        ..update.cell_update
+                    }
+                } else {
+                    update.cell_update
+                })
+            })
+            .collect_vec();
+        self.apply_cell_updates(calibrated)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
@@ -419,6 +564,133 @@ mod test_grid {
     };
 
     use super::get_string_width;
+
+    mod render_content {
+        use crate::themes::Theme;
+
+        use super::*;
+        use itertools::Itertools;
+        use pretty_assertions::assert_eq;
+        #[test]
+        /// No wrap, no multi-width unicode
+        fn case_1a() {
+            let actual = Grid::new(Dimension {
+                height: 1,
+                width: 10,
+            })
+            .render_content("hello", 1, Vec::new(), &Theme::default())
+            .to_string();
+            assert_eq!(actual, "2│hello")
+        }
+
+        #[test]
+        /// No wrap, no multi-width unicode, multiline
+        fn case_1b() {
+            let actual = Grid::new(Dimension {
+                height: 2,
+                width: 10,
+            })
+            .render_content("hello\nworld", 10, Vec::new(), &Theme::default())
+            .to_string();
+            assert_eq!(
+                actual,
+                "
+11│hello
+12│world
+"
+                .trim()
+            )
+        }
+
+        /// Wrapped, no multi-width unicode
+        #[test]
+        fn case_2() {
+            let actual = Grid::new(Dimension {
+                height: 2,
+                width: 7,
+            })
+            .render_content("hello tim", 0, Vec::new(), &Theme::default())
+            .to_string();
+            assert_eq!(
+                actual,
+                "
+1│hello
+↪│ tim
+"
+                .trim()
+            )
+        }
+
+        #[test]
+        /// No wrap, with multi-width unicode
+        fn case_3() {
+            let crab = '🦀';
+            let cursor = '█';
+            assert_eq!(unicode_width::UnicodeWidthChar::width(crab), Some(2));
+            let content = [crab, 'c', 'r', 'a', 'b'].into_iter().collect::<String>();
+            let actual = Grid::new(Dimension {
+                height: 1,
+                width: 10,
+            })
+            .render_content(
+                &content,
+                1,
+                [CellUpdate {
+                    symbol: Some(cursor.to_string()),
+                    position: Position::new(0, 3),
+                    ..Default::default()
+                }]
+                .to_vec(),
+                &Theme::default(),
+            )
+            .to_string();
+            // Expect a space is inserted between the crab emoji and 'c',
+            // because the width of crab is 2
+            assert_eq!(
+                actual.chars().collect_vec(),
+                ['2', '│', crab, ' ', 'c', 'r', cursor, 'b'].to_vec()
+            )
+        }
+
+        #[test]
+        /// Wrapped, with multi-width unicode
+        fn case_4() {
+            let crab = '🦀';
+            let cursor = '█';
+            assert_eq!(unicode_width::UnicodeWidthChar::width(crab), Some(2));
+            let content = [
+                crab, ' ', 'c', 'r', 'a', 'b', ' ', crab, ' ', 'c', 'r', 'a', 'b',
+            ]
+            .into_iter()
+            .collect::<String>();
+            let actual = Grid::new(Dimension {
+                height: 4,
+                width: 7,
+            })
+            .render_content(
+                &content,
+                1,
+                [CellUpdate {
+                    symbol: Some(cursor.to_string()),
+                    position: Position::new(0, 8), // 3rd space
+                    ..Default::default()
+                }]
+                .to_vec(),
+                &Theme::default(),
+            )
+            .to_string();
+            assert_eq!(
+                actual,
+                "
+2│🦀
+↪│crab
+↪│ 🦀 █
+↪│crab
+"
+                .trim()
+            )
+        }
+    }
 
     #[test]
     fn set_row_should_pad_char_by_tab_width() {
