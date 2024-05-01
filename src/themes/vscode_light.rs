@@ -28,14 +28,13 @@ pub static VSCODE_LIGHT: Theme = Theme {
             .background_color(hex!("#505050")),
         parent_lines_background: hex!("#efefef"),
         jump_mark_odd: Style::new()
-            .background_color(hex!("#B5485D"))
+            .background_color(hex!("#b5485d"))
             .foreground_color(hex!("#ffffff")),
         jump_mark_even: Style::new()
-            .background_color(hex!("#84B701"))
+            .background_color(hex!("#84b701"))
             .foreground_color(hex!("#ffffff")),
-        text: Style::new()
-            .background_color(hex!("#ffffff"))
-            .foreground_color(hex!("#333333")),
+        background_color: hex!("#ffffff"),
+        text_foreground: hex!("#333333"),
         primary_selection_background: hex!("#c7e6ff"),
         primary_selection_anchor_background: hex!("#add6ff"),
         primary_selection_secondary_cursor: Style::new()
@@ -49,12 +48,8 @@ pub static VSCODE_LIGHT: Theme = Theme {
         secondary_selection_secondary_cursor: Style::new()
             .background_color(hex!("#808080"))
             .foreground_color(hex!("#ffffff")),
-        line_number: Style::new()
-            .background_color(hex!("#ffffff"))
-            .foreground_color(hex!("#6a9955")),
-        line_number_separator: Style::new()
-            .background_color(hex!("#ffffff"))
-            .foreground_color(hex!("#d7d7d7")),
+        line_number: Style::new().foreground_color(hex!("#6a9955")),
+        line_number_separator: Style::new().foreground_color(hex!("#d7d7d7")),
         bookmark: Style::new().background_color(hex!("#ffcc00")),
         possible_selection_background: hex!("#f6f7b2"),
         keymap_hint: Style::new().underline(hex!("#af00db")),

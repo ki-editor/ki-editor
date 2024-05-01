@@ -12,7 +12,7 @@ use crate::{
         editor::Mode,
     },
     context::Context,
-    grid::{CellUpdate, Grid, StyleKey},
+    grid::{CellUpdate, Grid, LineUpdate, StyleKey},
     position::Position,
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
@@ -25,7 +25,7 @@ use super::{component::GetGridResult, editor::Editor};
 
 use StyleKey::*;
 
-impl Editor /* 🦀 src/components/render_editor.rs */ {
+impl Editor {
     pub fn get_grid(&self, context: &Context) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.render_area();
@@ -69,10 +69,7 @@ impl Editor /* 🦀 src/components/render_editor.rs */ {
             .map(|line| line.line)
             .collect_vec();
 
-        let visible_lines_grid: Grid = Grid::new(Dimension {
-            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
-            width,
-        });
+        let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
         let selection = &editor.selection_set.primary;
         // If the buffer selection is updated less recently than the window's scroll offset,
@@ -314,64 +311,24 @@ impl Editor /* 🦀 src/components/render_editor.rs */ {
                 Boundary::new(&buffer, hidden_parent_line_range),
             ]
         };
-        let content_cell_updates = {
-            visible_lines
-                .into_iter()
-                .flat_map(|(line_index, line)| {
-                    line.chars()
-                        .enumerate()
-                        .map(move |(column_index, character)| CellUpdate {
-                            position: Position {
-                                line: *line_index,
-                                column: column_index,
-                            },
-                            symbol: Some(character.to_string()),
-                            style: theme.ui.text,
-                            ..CellUpdate::default()
-                        })
-                })
-                .collect_vec()
-        };
-        let visible_parent_lines_background = {
-            visible_parent_lines
-                .iter()
-                .flat_map(|line| {
-                    (0..width).map(|column_index| CalibratableCellUpdate {
-                        should_be_calibrated: false,
-                        cell_update: CellUpdate {
-                            style: Style::default()
-                                .set_some_background_color(Some(theme.ui.parent_lines_background)),
-                            position: Position::new(line.line, column_index as usize)
-                                .move_up(scroll_offset as usize)
-                                .move_right(max_line_number_len + line_number_separator_width),
-                            ..CellUpdate::default()
-                        },
-                    })
-                })
-                .collect_vec()
-        };
-        let updates = content_cell_updates
+        let updates = vec![]
             .into_iter()
-            .chain(
-                vec![]
-                    .into_iter()
-                    .chain(highlighted_spans)
-                    .chain(extra_decorations)
-                    .chain(possible_selections)
-                    .chain(Some(primary_selection))
-                    .chain(secondary_selection)
-                    .chain(primary_selection_anchors)
-                    .chain(seconday_selection_anchors)
-                    .chain(bookmarks)
-                    .chain(diagnostics)
-                    .chain(jumps)
-                    .chain(primary_selection_secondary_cursor)
-                    .chain(secondary_selection_cursors)
-                    .chain(custom_regex_highlights)
-                    .chain(regex_highlight_rules)
-                    .flat_map(|span| span.to_cell_update(&buffer, theme, boundaries))
-                    .chain(primary_selection_primary_cursor),
-            )
+            .chain(highlighted_spans)
+            .chain(extra_decorations)
+            .chain(possible_selections)
+            .chain(Some(primary_selection))
+            .chain(secondary_selection)
+            .chain(primary_selection_anchors)
+            .chain(seconday_selection_anchors)
+            .chain(bookmarks)
+            .chain(diagnostics)
+            .chain(jumps)
+            .chain(primary_selection_secondary_cursor)
+            .chain(secondary_selection_cursors)
+            .chain(custom_regex_highlights)
+            .chain(regex_highlight_rules)
+            .flat_map(|span| span.to_cell_update(&buffer, theme, boundaries))
+            .chain(primary_selection_primary_cursor)
             .collect_vec();
 
         #[derive(Debug, Clone)]
@@ -384,7 +341,7 @@ impl Editor /* 🦀 src/components/render_editor.rs */ {
         struct CalibratableCellUpdate {
             cell_update: CellUpdate,
             should_be_calibrated: bool,
-        };
+        }
 
         let render_lines = |grid: &Grid, lines: &Vec<RenderLine>| {
             lines
@@ -459,102 +416,127 @@ impl Editor /* 🦀 src/components/render_editor.rs */ {
             lines
         };
 
-        let visible_lines_updates = render_lines(&visible_lines_grid, &visible_render_lines)
-            .into_iter()
-            .chain(visible_parent_lines_background)
-            .chain(
-                updates
-                    .clone()
-                    .into_iter()
-                    .map(|cell_update| CalibratableCellUpdate {
-                        cell_update,
-                        should_be_calibrated: true,
-                    }),
-            )
-            .filter_map(|update| {
-                if !update.should_be_calibrated {
-                    return Some(update.cell_update);
-                }
-                let update = update.cell_update.move_up((scroll_offset).into())?;
-                let position = wrapped_lines.calibrate(update.position).ok()?;
-                let position =
-                    position.move_right(max_line_number_len + line_number_separator_width);
-
-                Some(CellUpdate { position, ..update })
-            })
-            .collect_vec();
-
-        let visible_lines_grid = visible_lines_grid.apply_cell_updates(visible_lines_updates);
+        let visible_lines_grid = visible_lines_grid.render_content(
+            &visible_lines.into_iter().map(|(_, line)| line).join(""),
+            scroll_offset as usize,
+            content.lines().count(),
+            updates
+                .clone()
+                .into_iter()
+                .map(|cell_update| CellUpdate {
+                    position: cell_update.position.move_up(scroll_offset as usize),
+                    ..cell_update
+                })
+                .collect_vec(),
+            visible_parent_lines
+                .into_iter()
+                .map(|line| LineUpdate {
+                    line_index: line.line.saturating_sub(scroll_offset as usize),
+                    style: Style::default()
+                        .set_some_background_color(Some(theme.ui.parent_lines_background)),
+                })
+                .collect_vec(),
+            theme,
+        );
 
         let hidden_parent_lines_grid = Grid::new(Dimension {
             width: editor.dimension().width,
             height: hidden_parent_lines.len() as u16,
         });
-        let hidden_parent_lines_updates =
-            {
-                let hidden_parent_lines = hidden_parent_lines
+        let hidden_parent_lines_updates = {
+            let hidden_parent_lines = hidden_parent_lines
+                .iter()
+                .map(|line| RenderLine {
+                    line_number: line.line,
+                    content: line.content.clone(),
+                    wrapped: false,
+                })
+                .collect_vec();
+            let updates = {
+                let hidden_parent_lines_with_index =
+                    hidden_parent_lines.iter().enumerate().collect_vec();
+                updates
                     .iter()
-                    .map(|line| RenderLine {
-                        line_number: line.line,
-                        content: line.content.clone(),
-                        wrapped: false,
-                    })
-                    .collect_vec();
-                let updates =
-                    {
-                        let hidden_parent_lines_with_index =
-                            hidden_parent_lines.iter().enumerate().collect_vec();
-                        updates
+                    .filter_map(|update| {
+                        if let Some((index, _)) = hidden_parent_lines_with_index
                             .iter()
-                            .filter_map(|update| {
-                                if let Some((index, _)) = hidden_parent_lines_with_index
-                                    .iter()
-                                    .find(|(_, line)| update.position.line == line.line_number)
-                                {
-                                    Some(update.clone().set_position_line(*index).move_right(
-                                        max_line_number_len + line_number_separator_width,
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect_vec()
-                    };
-                let line_number_updates =
-                    render_lines(&hidden_parent_lines_grid, &hidden_parent_lines)
-                        .into_iter()
-                        .map(|CalibratableCellUpdate { cell_update, .. }| cell_update);
-                let content_cell_updates = hidden_parent_lines
-                    .into_iter()
-                    .enumerate()
-                    .flat_map(|(line_index, line)| {
-                        line.content
-                            .chars()
-                            .enumerate()
-                            .map(move |(column_index, character)| CellUpdate {
-                                position: Position {
-                                    line: line_index,
-                                    column: column_index
-                                        + max_line_number_len as usize
-                                        + line_number_separator_width as usize,
-                                },
-                                symbol: Some(character.to_string()),
-                                style: theme.ui.text.set_some_background_color(Some(
-                                    theme.ui.parent_lines_background,
-                                )),
-                                ..CellUpdate::default()
-                            })
-                            .collect_vec()
+                            .find(|(_, line)| update.position.line == line.line_number)
+                        {
+                            Some(
+                                update
+                                    .clone()
+                                    .set_position_line(*index)
+                                    .move_right(max_line_number_len + line_number_separator_width),
+                            )
+                        } else {
+                            None
+                        }
                     })
-                    .collect_vec();
-                content_cell_updates
-                    .into_iter()
-                    .chain(updates)
-                    .chain(line_number_updates)
                     .collect_vec()
             };
-        let hidden_parent_lines_grid =
-            hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);
+            let line_number_updates = render_lines(&hidden_parent_lines_grid, &hidden_parent_lines)
+                .into_iter()
+                .map(|CalibratableCellUpdate { cell_update, .. }| cell_update);
+            let content_cell_updates = hidden_parent_lines
+                .into_iter()
+                .enumerate()
+                .flat_map(|(line_index, line)| {
+                    line.content
+                        .chars()
+                        .enumerate()
+                        .map(move |(column_index, character)| CellUpdate {
+                            position: Position {
+                                line: line_index,
+                                column: column_index
+                                    + max_line_number_len as usize
+                                    + line_number_separator_width as usize,
+                            },
+                            symbol: Some(character.to_string()),
+                            style: Style::default().foreground_color(theme.ui.text_foreground),
+                            ..CellUpdate::default()
+                        })
+                        .collect_vec()
+                })
+                .collect_vec();
+            content_cell_updates
+                .into_iter()
+                .chain(updates)
+                .collect_vec()
+        };
+        let hidden_parent_lines_grid = {
+            // hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);
+            hidden_parent_lines.into_iter().fold(
+                Grid::new(Dimension { height: 0, width }),
+                |grid, line| {
+                    let updates = updates
+                        .iter()
+                        .filter_map(|update| {
+                            if update.position.line == line.line {
+                                Some(update.clone().set_position_line(0))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    grid.merge_vertical(
+                        Grid::new(Dimension { height: 1, width }).render_content(
+                            &line.content,
+                            line.line,
+                            len_lines as usize,
+                            updates,
+                            [LineUpdate {
+                                line_index: 0,
+                                style: Style::default().set_some_background_color(Some(
+                                    theme.ui.parent_lines_background,
+                                )),
+                            }]
+                            .to_vec(),
+                            theme,
+                        ),
+                    )
+                },
+            )
+        };
 
         let cursor_beyond_view_bottom =
             if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {

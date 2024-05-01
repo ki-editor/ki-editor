@@ -379,12 +379,13 @@ impl Grid {
         self,
         content: &str,
         line_index_start: usize,
+        max_line_number: usize,
         cell_updates: Vec<CellUpdate>,
+        line_updates: Vec<LineUpdate>,
         theme: &Theme,
     ) -> Grid {
-        let len_lines = content.lines().count().max(1);
         let Dimension { height, width } = self.dimension();
-        let max_line_number_len = (len_lines + line_index_start).to_string().len();
+        let max_line_number_len = max_line_number.max(1).to_string().len();
 
         let line_number_separator_width = 1;
 
@@ -404,12 +405,25 @@ impl Grid {
                             column: column_index,
                         },
                         symbol: Some(character.to_string()),
-                        style: theme.ui.text,
+                        style: Style::default().foreground_color(theme.ui.text_foreground),
                         ..CellUpdate::default()
                     })
             })
         };
-        let updates = content_cell_updates
+        let line_updates = line_updates.into_iter().flat_map(|line_update| {
+            (0..width).map(move |column_index| CalibratableCellUpdate {
+                should_be_calibrated: false,
+                cell_update: CellUpdate {
+                    style: line_update.style,
+                    position: Position {
+                        line: line_update.line_index,
+                        column: column_index as usize,
+                    },
+                    ..Default::default()
+                },
+            })
+        });
+        let cell_updates = content_cell_updates
             .into_iter()
             .chain(cell_updates)
             .map(|cell_update| CalibratableCellUpdate {
@@ -492,8 +506,9 @@ impl Grid {
                 )
                 .collect_vec()
         };
-        let calibrated = updates
+        let calibrated = line_updates
             .into_iter()
+            .chain(cell_updates)
             .chain(line_numbers)
             .filter_map(|update| {
                 Some(if update.should_be_calibrated {
@@ -510,7 +525,17 @@ impl Grid {
                 })
             })
             .collect_vec();
-        self.apply_cell_updates(calibrated)
+        self.set_background_color(theme.ui.background_color)
+            .apply_cell_updates(calibrated)
+    }
+
+    fn set_background_color(mut self, background_color: Color) -> Self {
+        for row in self.rows.iter_mut() {
+            for cell in row {
+                cell.background_color = background_color
+            }
+        }
+        self
     }
 }
 
@@ -551,6 +576,13 @@ pub fn get_string_width(str: &str) -> usize {
         .sum()
 }
 
+#[derive(Clone)]
+pub struct LineUpdate {
+    /// 0-based
+    pub line_index: usize,
+    pub style: Style,
+}
+
 #[cfg(test)]
 mod test_grid {
 
@@ -566,7 +598,7 @@ mod test_grid {
     use super::get_string_width;
 
     mod render_content {
-        use crate::themes::Theme;
+        use crate::{grid::LineUpdate, themes::Theme};
 
         use super::*;
         use itertools::Itertools;
@@ -578,7 +610,7 @@ mod test_grid {
                 height: 1,
                 width: 10,
             })
-            .render_content("hello", 1, Vec::new(), &Theme::default())
+            .render_content("hello", 1, 1, Vec::new(), Vec::new(), &Theme::default())
             .to_string();
             assert_eq!(actual, "2│hello")
         }
@@ -590,7 +622,14 @@ mod test_grid {
                 height: 2,
                 width: 10,
             })
-            .render_content("hello\nworld", 10, Vec::new(), &Theme::default())
+            .render_content(
+                "hello\nworld",
+                10,
+                10,
+                Vec::new(),
+                Vec::new(),
+                &Theme::default(),
+            )
             .to_string();
             assert_eq!(
                 actual,
@@ -609,7 +648,7 @@ mod test_grid {
                 height: 2,
                 width: 7,
             })
-            .render_content("hello tim", 0, Vec::new(), &Theme::default())
+            .render_content("hello tim", 0, 0, Vec::new(), Vec::new(), &Theme::default())
             .to_string();
             assert_eq!(
                 actual,
@@ -635,12 +674,14 @@ mod test_grid {
             .render_content(
                 &content,
                 1,
+                1,
                 [CellUpdate {
                     symbol: Some(cursor.to_string()),
                     position: Position::new(0, 3),
                     ..Default::default()
                 }]
                 .to_vec(),
+                Vec::new(),
                 &Theme::default(),
             )
             .to_string();
@@ -670,12 +711,14 @@ mod test_grid {
             .render_content(
                 &content,
                 1,
+                1,
                 [CellUpdate {
                     symbol: Some(cursor.to_string()),
                     position: Position::new(0, 8), // 3rd space
                     ..Default::default()
                 }]
                 .to_vec(),
+                Vec::new(),
                 &Theme::default(),
             )
             .to_string();
@@ -688,6 +731,85 @@ mod test_grid {
 ↪│crab
 "
                 .trim()
+            )
+        }
+
+        #[test]
+        /// Line number width should follow max_line_numbers_len
+        fn case_5() {
+            let actual = Grid::new(Dimension {
+                height: 1,
+                width: 10,
+            })
+            .render_content(&"hello", 1, 100, [].to_vec(), Vec::new(), &Theme::default())
+            .to_string();
+            // Expect there's two extra spaces before '2'
+            // Because the number of digits of the last line is 3 ('1', '0', '0')
+            assert_eq!(actual, "  2│hello".trim())
+        }
+
+        #[test]
+        /// Line update
+        fn case_6() {
+            let color = hex!("#abcdef");
+            let actual = Grid::new(Dimension {
+                height: 1,
+                width: 10,
+            })
+            .render_content(
+                &"hello",
+                1,
+                1,
+                [].to_vec(),
+                [LineUpdate {
+                    line_index: 0,
+                    style: Style::default().background_color(color),
+                }]
+                .to_vec(),
+                &Theme::default(),
+            );
+            assert_eq!(
+                actual
+                    .to_positioned_cells()
+                    .into_iter()
+                    .filter(|cell| cell.cell.background_color == color)
+                    .map(|cell| cell.position.column)
+                    .collect_vec(),
+                (0..10).collect_vec()
+            )
+        }
+
+        #[test]
+        /// By default, background color of all cells should follow `theme.ui.background_color`.
+        fn case_7() {
+            let grid = Grid::new(Dimension {
+                height: 1,
+                width: 10,
+            });
+            let background_color = hex!("#bdfed2");
+            let cells = grid
+                .render_content(
+                    "",
+                    0,
+                    0,
+                    Vec::new(),
+                    Vec::new(),
+                    &Theme {
+                        ui: crate::themes::UiStyles {
+                            background_color,
+                            ..Default::default()
+                        },
+
+                        ..Default::default()
+                    },
+                )
+                .to_positioned_cells();
+            assert_eq!(
+                10,
+                cells
+                    .iter()
+                    .filter(|cell| cell.cell.background_color == background_color)
+                    .count()
             )
         }
     }
