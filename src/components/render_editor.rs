@@ -293,7 +293,7 @@ impl Editor {
             .collect_vec();
 
         let visible_lines_grid = visible_lines_grid.render_content(
-            &visible_lines.into_iter().map(|(_, line)| line).join(""),
+            &visible_lines.iter().map(|(_, line)| line).join(""),
             RenderContentLineNumber::LineNumber {
                 start_line_index: scroll_offset as usize,
                 max_line_number: len_lines as usize,
@@ -392,7 +392,7 @@ impl Editor {
                 style: window_title_style,
             }]
             .to_vec(),
-            &theme,
+            theme,
         );
 
         let grid = title_grid.merge_vertical(grid);

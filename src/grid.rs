@@ -71,14 +71,6 @@ impl Cell {
             is_bold: update.style.is_bold || self.is_bold,
         }
     }
-
-    #[cfg(test)]
-    fn set_background_color(self, background_color: Color) -> Cell {
-        Cell {
-            background_color,
-            ..self
-        }
-    }
 }
 
 impl Default for Cell {
@@ -138,13 +130,6 @@ impl CellUpdate {
     pub fn set_position_line(self, line: usize) -> CellUpdate {
         CellUpdate {
             position: self.position.set_line(line),
-            ..self
-        }
-    }
-
-    pub(crate) fn move_right(self, by: u16) -> CellUpdate {
-        CellUpdate {
-            position: self.position.move_right(by),
             ..self
         }
     }
@@ -224,7 +209,7 @@ impl Grid {
                 return cells;
             }
             for (column_index, cell) in row.iter().enumerate() {
-                let width = get_string_width(cell.symbol.as_str());
+                let _width = get_string_width(cell.symbol.as_str());
                 let width = 1;
                 for index in 0..width {
                     let adjusted_column = column_index + offset + index;
@@ -346,7 +331,7 @@ impl Grid {
         let grid = self;
         // Trim or Pad end with spaces
         let cell_updates =
-            grid.get_row_cell_updates(row_index, column_start, column_end, &content, style);
+            grid.get_row_cell_updates(row_index, column_start, column_end, content, style);
         grid.apply_cell_updates(cell_updates)
     }
 
@@ -413,10 +398,9 @@ impl Grid {
                 1,
             ),
         };
-        let content_container_width = ((width as usize)
+        let content_container_width = (width as usize)
             .saturating_sub(max_line_number_len)
-            .saturating_sub(line_number_separator_width))
-            as usize;
+            .saturating_sub(line_number_separator_width);
 
         let wrapped_lines = soft_wrap::soft_wrap(content, content_container_width);
         let content_cell_updates = {
@@ -475,7 +459,7 @@ impl Grid {
                     .into_iter()
                     .enumerate()
                     .map(|(index, _)| LineNumber {
-                        line_number: line_number + (line_index_start as usize),
+                        line_number: line_number + line_index_start,
                         wrapped: index > 0,
                     })
                     .collect_vec()
@@ -503,8 +487,8 @@ impl Grid {
             match line_number {
                 RenderContentLineNumber::NoLineNumber => Vec::new(),
                 RenderContentLineNumber::LineNumber {
-                    start_line_index,
-                    max_line_number,
+                    start_line_index: _,
+                    max_line_number: _,
                 } => line_numbers
                     .into_iter()
                     .enumerate()
@@ -525,21 +509,21 @@ impl Grid {
                                 format!(
                                     "{: >width$}",
                                     line_number.to_string(),
-                                    width = max_line_number_len as usize
+                                    width = { max_line_number_len }
                                 )
                             };
                             grid.get_row_cell_updates(
                                 line_index,
                                 Some(0),
-                                Some(max_line_number_len as usize),
+                                Some(max_line_number_len),
                                 &line_number_str,
                                 &theme.ui.line_number,
                             )
                             .into_iter()
                             .chain(grid.get_row_cell_updates(
                                 line_index,
-                                Some(max_line_number_len as usize),
-                                Some((max_line_number_len + 1) as usize),
+                                Some(max_line_number_len),
+                                Some(max_line_number_len + 1),
                                 "│",
                                 &theme.ui.line_number_separator,
                             ))
@@ -859,7 +843,7 @@ mod test_grid {
                 width: 10,
             })
             .render_content(
-                &"hello",
+                "hello",
                 RenderContentLineNumber::LineNumber {
                     max_line_number: 100,
                     start_line_index: 1,
@@ -883,7 +867,7 @@ mod test_grid {
                 width: 10,
             })
             .render_content(
-                &"hello",
+                "hello",
                 RenderContentLineNumber::LineNumber {
                     max_line_number: 1,
                     start_line_index: 1,

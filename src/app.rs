@@ -323,7 +323,7 @@ impl<T: Frontend> App<T> {
                     style: self.context.theme().ui.global_title,
                 }]
                 .to_vec(),
-                &self.context.theme(),
+                self.context.theme(),
             );
             Window::new(
                 grid,

@@ -104,16 +104,13 @@ impl WrappedLine {
         self.line_number
     }
 
-    fn get_positions(&self, column: usize, width: usize) -> Option<Vec<Position>> {
+    fn get_positions(&self, column: usize, _width: usize) -> Option<Vec<Position>> {
         let chars_with_line_index = self
             .lines()
             .into_iter()
             .enumerate()
             .flat_map(|(line_index, line)| {
-                line.chars()
-                    .into_iter()
-                    .map(|char| (line_index, char))
-                    .collect_vec()
+                line.chars().map(|char| (line_index, char)).collect_vec()
             })
             .collect_vec();
         if chars_with_line_index.is_empty() && column == 0 {
@@ -127,13 +124,10 @@ impl WrappedLine {
             .split_first()
             .map(|((line, _), _)| line)
             .or_else(|| Some(&chars_with_line_index.last()?.0))?;
-        let previous_columns_chars = left
-            .into_iter()
-            .filter(|(line_, _)| line == line_)
-            .collect_vec();
+        let previous_columns_chars = left.iter().filter(|(line_, _)| line == line_).collect_vec();
 
         let char_width = right
-            .get(0)
+            .first()
             .map(|(_, char)| get_char_width(*char))
             .unwrap_or(1);
         let previous_columns_chars_total_width: usize = get_string_width(
@@ -152,14 +146,6 @@ impl WrappedLine {
         )
     }
 
-    fn len(&self) -> usize {
-        self.primary.len() + self.wrapped.iter().map(|line| line.len()).sum::<usize>()
-    }
-
-    fn last_line(&self) -> String {
-        self.wrapped.last().unwrap_or(&self.primary).to_string()
-    }
-
     fn count(&self) -> usize {
         1 + self.wrapped.len()
     }
@@ -171,7 +157,6 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            // let wrapped_lines: Vec<String> = { use textwrap::WordSeparator; let words = WordSeparator::UnicodeBreakProperties .find_words(text) .collect::<Vec<_>>(); // We can avoid the short line if we look ahead: use textwrap::wrap_algorithms::{wrap_optimal_fit, Penalties}; let lines = wrap_optimal_fit(&words, &[width as f64], &Penalties::new()) .unwrap_or_default(); lines .into_iter() .map(|line| { line.iter() .map(|word| &**word) .collect::<Vec<_>>() .join(" ") }) .collect_vec() };
             let wrapped_lines: Vec<String> = re.split(line).fold(vec![], |mut lines, word| {
                 match lines.last_mut() {
                     Some(last_line)
