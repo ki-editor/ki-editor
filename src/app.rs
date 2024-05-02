@@ -1097,6 +1097,7 @@ impl<T: Frontend> App<T> {
             LocalSearchConfigMode::AstGrep => {
                 list::ast_grep::run(config.search().clone(), walk_builder_config)
             }
+            LocalSearchConfigMode::CaseAgnostic => todo!(),
         }?;
         self.set_quickfix_list_type(
             ResponseContext::default().set_description("Global search"),
@@ -1494,6 +1495,7 @@ impl<T: Frontend> App<T> {
         let regex = match local_search_config.mode {
             LocalSearchConfigMode::Regex(regex) => Some(regex),
             LocalSearchConfigMode::AstGrep => None,
+            LocalSearchConfigMode::CaseAgnostic => None,
         };
         self.show_keymap_legend(KeymapLegendConfig {
             title: format!("Configure Search ({:?})", scope),
@@ -1559,6 +1561,18 @@ impl<T: Frontend> App<T> {
                         title: "Mode".to_string(),
                         keymaps: Keymaps::new(&[
                             update_mode_keymap(
+                                "a",
+                                "AST Grep".to_string(),
+                                LocalSearchConfigMode::AstGrep,
+                                local_search_config.mode == LocalSearchConfigMode::AstGrep,
+                            ),
+                            update_mode_keymap(
+                                "c",
+                                "Case Agnostic".to_string(),
+                                LocalSearchConfigMode::CaseAgnostic,
+                                local_search_config.mode == LocalSearchConfigMode::CaseAgnostic,
+                            ),
+                            update_mode_keymap(
                                 "l",
                                 "Literal".to_string(),
                                 LocalSearchConfigMode::Regex(RegexConfig {
@@ -1575,12 +1589,6 @@ impl<T: Frontend> App<T> {
                                     ..regex.unwrap_or_default()
                                 }),
                                 regex.map(|regex| !regex.escaped).unwrap_or(false),
-                            ),
-                            update_mode_keymap(
-                                "a",
-                                "AST Grep".to_string(),
-                                LocalSearchConfigMode::AstGrep,
-                                local_search_config.mode == LocalSearchConfigMode::AstGrep,
                             ),
                         ]),
                     },
@@ -1600,7 +1608,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(
                             &[
                                 update_mode_keymap(
-                                    "c",
+                                    "i",
                                     "Case-sensitive".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         case_sensitive: !regex.case_sensitive,

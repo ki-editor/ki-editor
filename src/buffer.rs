@@ -1,5 +1,6 @@
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
+use crate::selection_mode::case_agnostic::CaseAgnostic;
 use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
@@ -936,6 +937,11 @@ impl Buffer {
     ) -> anyhow::Result<(bool, SelectionSet)> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
+            LocalSearchConfigMode::CaseAgnostic => {
+                let replaced =
+                    CaseAgnostic::new(config.search()).replace_all(&before, config.replacement());
+                self.get_edit_transaction(&replaced)?
+            }
             LocalSearchConfigMode::Regex(regex_config) => {
                 let regex = regex_config.to_regex(&config.search())?;
                 let replaced = regex.replace_all(&before, config.replacement()).to_string();

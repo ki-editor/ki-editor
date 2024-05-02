@@ -1,6 +1,7 @@
 pub mod ast_grep;
 pub mod bookmark;
 pub mod bottom_node;
+pub mod case_agnostic;
 pub mod column;
 pub mod custom;
 pub mod diagnostic;
@@ -18,6 +19,7 @@ pub use self::regex::Regex;
 pub use ast_grep::AstGrep;
 pub use bookmark::Bookmark;
 pub use bottom_node::BottomNode;
+pub use case_agnostic::CaseAgnostic;
 pub use column::Column;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;

@@ -558,6 +558,9 @@ impl SelectionMode {
                 LocalSearchConfigMode::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
+                LocalSearchConfigMode::CaseAgnostic => {
+                    Box::new(selection_mode::CaseAgnostic::new(search.search.clone()))
+                }
             },
             SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
             SelectionMode::TopNode => Box::new(selection_mode::TopNode),
