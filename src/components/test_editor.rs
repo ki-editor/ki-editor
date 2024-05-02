@@ -873,6 +873,23 @@ fn scroll_page() -> anyhow::Result<()> {
 }
 
 #[test]
+fn scroll_offset() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("alpha\nbeta\ngamma\nlok".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 100,
+                height: 3,
+            })),
+            Editor(SetScrollOffset(2)),
+            Expect(EditorGrid("🦀  src/main.rs\n3│█amma\n4│lok")),
+        ])
+    })
+}
+
+#[test]
 fn jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -1028,7 +1045,7 @@ fn main() {
             // because it is amongst the parent lines of the current selection
             Expect(EditorGrid(
                 "
-🦀 src/main.rs
+🦀  src/main.rs
 2│fn main() {
 4│  let y = 2;
 5│  for a in b {
@@ -1077,7 +1094,7 @@ fn main() {
             Editor(SetScrollOffset(3)),
             Expect(EditorGrid(
                 "
-🦀 src/main.rs
+🦀  src/main.rs
 2│fn main() {
 4│  let y = 2;
 5│  for a in b {
@@ -1124,7 +1141,7 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Expect(EditorGrid(
                 "
-🦀 src/main.r
+🦀  src/main.
 1│// hello
 ↪│world█
 2│ hey
@@ -1298,7 +1315,7 @@ fn main() { // too long
             // The "long" of "too long" is not shown, because it exceeded the view width
             Expect(EditorGrid(
                 "
-🦀 src/main.rs
+🦀  src/main.rs
 1│fn main() { // too
 3│  let █ar = baba;
 ↪│let wrapped = coco
@@ -1351,7 +1368,7 @@ fn main() { // too long
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
-🦀 src/main.rs
+🦀  src/main.rs
 1│fn main() { // too
 ↪│ long
 2│  █et foo = 1;
@@ -1383,7 +1400,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
             })),
             Expect(EditorGrid(
                 "
-🦀 src/main.rs
+🦀  src/main.rs
 1│█
 "
                 .trim(),
@@ -1552,6 +1569,28 @@ fn cursor_direction() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed
             Expect(CurrentCursorDirection(Direction::Start)),
+        ])
+    })
+}
+
+#[test]
+/// Line with emoji: not wrapped
+fn consider_unicode_width() -> anyhow::Result<()> {
+    let content = "👩 abc";
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(TerminalDimensionChanged(crate::app::Dimension {
+                height: 10,
+                // Set width longer than content so that there's no wrapping
+                width: 20,
+            })),
+            Editor(SetContent(content.to_string())),
+            Editor(MatchLiteral("a".to_string())),
+            // Expect the cursor is on the letter 'a'
+            // Expect an extra space is added between 'a' and the emoji
+            // because, the unicode width of the emoji is 2
+            Expect(EditorGrid("🦀  src/main.rs\n1│👩  █bc\n\n\n\n\n\n\n")),
         ])
     })
 }

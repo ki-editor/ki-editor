@@ -17,21 +17,17 @@ pub struct GetGridResult {
 #[cfg(test)]
 impl std::fmt::Display for GetGridResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match &self.cursor {
-                Some(cursor) => self
-                    .grid
-                    .clone()
-                    .apply_cell_update(
-                        crate::grid::CellUpdate::new(cursor.position)
-                            .set_symbol(Some("█".to_string())),
-                    )
-                    .to_string(),
-                None => self.grid.to_string(),
-            }
-        )
+        let content = match &self.cursor {
+            Some(cursor) => self
+                .grid
+                .clone()
+                .apply_cell_update(
+                    crate::grid::CellUpdate::new(cursor.position).set_symbol(Some("█".to_string())),
+                )
+                .to_string(),
+            None => self.grid.to_string(),
+        };
+        write!(f, "{}", content)
     }
 }
 

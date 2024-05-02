@@ -15,7 +15,7 @@ use crate::{
     context::{Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, Search},
     frontend::Frontend,
     git,
-    grid::Grid,
+    grid::{Grid, LineUpdate},
     history::History,
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
@@ -314,7 +314,17 @@ impl<T: Frontend> App<T> {
                 height: 1,
                 width: dimension.width,
             })
-            .set_line(0, &title, &self.context.theme().ui.global_title);
+            .render_content(
+                &title,
+                crate::grid::RenderContentLineNumber::NoLineNumber,
+                Vec::new(),
+                [LineUpdate {
+                    line_index: 0,
+                    style: self.context.theme().ui.global_title,
+                }]
+                .to_vec(),
+                self.context.theme(),
+            );
             Window::new(
                 grid,
                 crate::rectangle::Rectangle {

@@ -12,10 +12,9 @@ use crate::{
         editor::Mode,
     },
     context::Context,
-    grid::{CellUpdate, Grid, StyleKey},
+    grid::{CellUpdate, Grid, LineUpdate, RenderContentLineNumber, StyleKey},
     selection::{CharIndex, Selection},
     selection_mode::{self, ByteRange},
-    soft_wrap,
     style::Style,
     themes::Theme,
 };
@@ -35,61 +34,25 @@ impl Editor {
         let diagnostics = buffer.diagnostics();
 
         let len_lines = rope.len_lines().max(1) as u16;
-        let max_line_number_len = len_lines.to_string().len() as u16;
-        let line_number_separator_width = 1;
         let (hidden_parent_lines, visible_parent_lines) =
             self.get_parent_lines().unwrap_or_default();
-
         let top_offset = hidden_parent_lines.len() as u16;
-
         let scroll_offset = self.scroll_offset();
-
         let visible_lines = &rope
             .lines()
+            .enumerate()
             .skip(scroll_offset as usize)
             .take(height as usize)
-            .map(|slice| slice.to_string())
+            .map(|(line_index, slice)| (line_index, slice.to_string()))
             .collect_vec();
 
-        let content_container_width = (width
-            .saturating_sub(max_line_number_len)
-            .saturating_sub(line_number_separator_width))
-            as usize;
-
-        let wrapped_lines = soft_wrap::soft_wrap(&visible_lines.join(""), content_container_width);
-
-        let parent_lines_numbers = visible_parent_lines
-            .iter()
-            .chain(hidden_parent_lines.iter())
-            .map(|line| line.line)
-            .collect_vec();
-
-        let visible_lines_grid: Grid = Grid::new(Dimension {
-            height: (height as usize).max(wrapped_lines.wrapped_lines_count()) as u16,
-            width,
-        });
+        let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
         let selection = &editor.selection_set.primary;
         // If the buffer selection is updated less recently than the window's scroll offset,
 
         // use the window's scroll offset.
 
-        let lines = wrapped_lines
-            .lines()
-            .iter()
-            .flat_map(|line| {
-                let line_number = line.line_number();
-                line.lines()
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, line)| RenderLine {
-                        line_number: line_number + (scroll_offset as usize),
-                        content: line,
-                        wrapped: index > 0,
-                    })
-                    .collect_vec()
-            })
-            .collect::<Vec<_>>();
         let theme = context.theme();
 
         let possible_selections = self
@@ -329,147 +292,66 @@ impl Editor {
             .chain(primary_selection_primary_cursor)
             .collect_vec();
 
-        #[derive(Debug, Clone)]
-        struct RenderLine {
-            line_number: usize,
-            content: String,
-            wrapped: bool,
-        }
+        let visible_lines_grid = visible_lines_grid.render_content(
+            &visible_lines.iter().map(|(_, line)| line).join(""),
+            RenderContentLineNumber::LineNumber {
+                start_line_index: scroll_offset as usize,
+                max_line_number: len_lines as usize,
+            },
+            updates
+                .clone()
+                .into_iter()
+                .map(|cell_update| CellUpdate {
+                    position: cell_update.position.move_up(scroll_offset as usize),
+                    ..cell_update
+                })
+                .collect_vec(),
+            visible_parent_lines
+                .into_iter()
+                .map(|line| LineUpdate {
+                    line_index: line.line.saturating_sub(scroll_offset as usize),
+                    style: Style::default()
+                        .set_some_background_color(Some(theme.ui.parent_lines_background)),
+                })
+                .collect_vec(),
+            theme,
+        );
 
-        let render_lines = |grid: Grid, lines: Vec<RenderLine>| {
-            lines.into_iter().enumerate().fold(
-                grid,
-                |grid,
-                 (
-                    line_index,
-                    RenderLine {
-                        line_number,
-                        content: line,
-                        wrapped,
-                    },
-                )| {
-                    let background_color = if parent_lines_numbers.iter().contains(&line_number) {
-                        Some(theme.ui.parent_lines_background)
-                    } else {
-                        None
-                    };
-                    let line_number_str = {
-                        let line_number = if wrapped {
-                            "↪".to_string()
-                        } else {
-                            (line_number + 1).to_string()
-                        };
-                        format!(
-                            "{: >width$}",
-                            line_number.to_string(),
-                            width = max_line_number_len as usize
-                        )
-                    };
-                    Grid::new(Dimension {
-                        height,
-                        width: max_line_number_len,
-                    });
-                    grid.set_row(
-                        line_index,
-                        Some(0),
-                        Some(max_line_number_len as usize),
-                        &line_number_str,
-                        &theme
-                            .ui
-                            .line_number
-                            .set_some_background_color(background_color),
-                    )
-                    .set_row(
-                        line_index,
-                        Some(max_line_number_len as usize),
-                        Some((max_line_number_len + 1) as usize),
-                        "│",
-                        &theme
-                            .ui
-                            .line_number_separator
-                            .set_some_background_color(background_color),
-                    )
-                    .set_row(
-                        line_index,
-                        Some((max_line_number_len + 1) as usize),
-                        None,
-                        &line.chars().take(width as usize).collect::<String>(),
-                        &theme.ui.text.set_some_background_color(background_color),
+        let hidden_parent_lines_grid = {
+            hidden_parent_lines.into_iter().fold(
+                Grid::new(Dimension { height: 0, width }),
+                |grid, line| {
+                    let updates = updates
+                        .iter()
+                        .filter_map(|update| {
+                            if update.position.line == line.line {
+                                Some(update.clone().set_position_line(0))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect_vec();
+                    grid.merge_vertical(
+                        Grid::new(Dimension { height: 1, width }).render_content(
+                            &line.content,
+                            RenderContentLineNumber::LineNumber {
+                                start_line_index: line.line,
+                                max_line_number: len_lines as usize,
+                            },
+                            updates,
+                            [LineUpdate {
+                                line_index: 0,
+                                style: Style::default().set_some_background_color(Some(
+                                    theme.ui.parent_lines_background,
+                                )),
+                            }]
+                            .to_vec(),
+                            theme,
+                        ),
                     )
                 },
             )
         };
-        let visible_lines_updates = updates
-            .clone()
-            .into_iter()
-            .filter_map(|update| {
-                let update = update.move_up((scroll_offset).into())?;
-
-                let position = wrapped_lines.calibrate(update.position).ok()?;
-
-                let position =
-                    position.move_right(max_line_number_len + line_number_separator_width);
-
-                Some(CellUpdate { position, ..update })
-            })
-            .collect::<Vec<_>>();
-        let visible_render_lines = if lines.is_empty() {
-            [RenderLine {
-                line_number: 0,
-                content: String::new(),
-                wrapped: false,
-            }]
-            .to_vec()
-        } else {
-            lines
-        };
-
-        let visible_lines_grid = render_lines(visible_lines_grid, visible_render_lines)
-            .apply_cell_updates(visible_lines_updates);
-
-        let (hidden_parent_lines_grid, hidden_parent_lines_updates) =
-            {
-                let height = hidden_parent_lines.len() as u16;
-                let hidden_parent_lines = hidden_parent_lines
-                    .iter()
-                    .map(|line| RenderLine {
-                        line_number: line.line,
-                        content: line.content.clone(),
-                        wrapped: false,
-                    })
-                    .collect_vec();
-                let updates =
-                    {
-                        let hidden_parent_lines_with_index =
-                            hidden_parent_lines.iter().enumerate().collect_vec();
-                        updates
-                            .iter()
-                            .filter_map(|update| {
-                                if let Some((index, _)) = hidden_parent_lines_with_index
-                                    .iter()
-                                    .find(|(_, line)| update.position.line == line.line_number)
-                                {
-                                    Some(update.clone().set_position_line(*index).move_right(
-                                        max_line_number_len + line_number_separator_width,
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect_vec()
-                    };
-
-                let grid = render_lines(
-                    Grid::new(Dimension {
-                        width: editor.dimension().width,
-                        height,
-                    }),
-                    hidden_parent_lines,
-                );
-                (grid, updates)
-            };
-        let hidden_parent_lines_grid =
-            hidden_parent_lines_grid.apply_cell_updates(hidden_parent_lines_updates);
 
         let cursor_beyond_view_bottom =
             if let Some(cursor_position) = visible_lines_grid.get_cursor_position() {
@@ -501,7 +383,17 @@ impl Editor {
             height: editor.dimension().height - grid.rows.len() as u16,
             width: editor.dimension().width,
         })
-        .set_line(0, &self.title(context), &window_title_style);
+        .render_content(
+            &self.title(context),
+            RenderContentLineNumber::NoLineNumber,
+            Vec::new(),
+            [LineUpdate {
+                line_index: 0,
+                style: window_title_style,
+            }]
+            .to_vec(),
+            theme,
+        );
 
         let grid = title_grid.merge_vertical(grid);
         let cursor_position = grid.get_cursor_position();
@@ -510,7 +402,6 @@ impl Editor {
             Mode::Insert => SetCursorStyle::BlinkingBar,
             _ => SetCursorStyle::BlinkingUnderScore,
         };
-
         GetGridResult {
             cursor: cursor_position.map(|position| Cursor::new(position, style)),
             grid,
