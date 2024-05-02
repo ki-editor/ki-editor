@@ -884,7 +884,7 @@ fn scroll_offset() -> anyhow::Result<()> {
                 height: 3,
             })),
             Editor(SetScrollOffset(2)),
-            Expect(EditorGrid("🦀  src/main.rs\n3│gamma\n4│lok")),
+            Expect(EditorGrid("🦀  src/main.rs\n3│█amma\n4│lok")),
         ])
     })
 }
@@ -1141,7 +1141,7 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Expect(EditorGrid(
                 "
-🦀 src/main.r
+🦀  src/main.
 1│// hello
 ↪│world█
 2│ hey

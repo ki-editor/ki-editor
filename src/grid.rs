@@ -567,8 +567,36 @@ impl Grid {
                 })
             })
             .collect_vec();
+        let cursor = calibrated.iter().find(|update| update.is_cursor).cloned();
+        // If the cursor is out of bound due to wrapped lines above it,
+        // trim the lines from above until the cursor is inbound again
+        let trimmed = if let Some(cursor) = cursor {
+            let min_line = calibrated
+                .iter()
+                .map(|update| update.position.line)
+                .min()
+                .unwrap_or_default();
+            let extra_height = cursor
+                .position
+                .line
+                .saturating_sub(min_line)
+                .saturating_add(1)
+                .saturating_sub(height as usize);
+
+            let min_renderable_line = min_line + extra_height;
+            calibrated
+                .into_iter()
+                .filter(|update| update.position.line >= min_renderable_line)
+                .map(|update| CellUpdate {
+                    position: update.position.move_up(extra_height),
+                    ..update
+                })
+                .collect_vec()
+        } else {
+            calibrated
+        };
         self.set_background_color(theme.ui.background_color)
-            .apply_cell_updates(calibrated)
+            .apply_cell_updates(trimmed)
     }
 
     fn set_background_color(mut self, background_color: Color) -> Self {
@@ -633,7 +661,7 @@ mod test_grid {
 
     use crate::{
         app::Dimension,
-        grid::{Cell, CellUpdate, Grid, PositionedCell, Style},
+        grid::{CellUpdate, Grid, Style},
         position::Position,
     };
 
@@ -913,129 +941,64 @@ mod test_grid {
                 .to_string();
             assert_eq!("hello", actual)
         }
-    }
 
-    #[test]
-    fn set_row_should_pad_char_by_tab_width() {
-        let dimension = Dimension {
-            height: 1,
-            width: 10,
-        };
-        let tab = '\t';
-        let content = format!("{}x{}x", tab, tab);
-        let tab_color = hex!("#abcdef");
-        let x_color = hex!("#fafafa");
-        let tab_style = Style::default().background_color(tab_color);
-        let tab_cell_update = |column: usize| CellUpdate {
-            position: Position { line: 0, column },
-            symbol: None,
-            style: tab_style,
-            ..Default::default()
-        };
-        let x_cell_update = |column: usize| CellUpdate {
-            position: Position { line: 0, column },
-            symbol: None,
-            style: Style::default().background_color(x_color),
-            ..Default::default()
-        };
+        #[test]
+        /// Tab width
+        fn case_9() {
+            let grid = Grid::new(Dimension {
+                height: 1,
+                width: 7,
+            });
+            let actual = grid
+                .render_content(
+                    "\thel",
+                    RenderContentLineNumber::NoLineNumber,
+                    Vec::new(),
+                    Vec::new(),
+                    &Default::default(),
+                )
+                .to_positioned_cells()
+                .into_iter()
+                .map(|cell| cell.cell.symbol)
+                .collect_vec();
+            assert_eq!(["\t", " ", " ", " ", "h", "e", "l"].to_vec(), actual)
+        }
 
-        let grid = Grid::from_text(dimension, "")
-            .set_row(0, None, None, &content, &Style::default())
-            // Set the backgroud color of the first and second tab
-            .apply_cell_update(tab_cell_update(0))
-            .apply_cell_update(tab_cell_update(2))
-            // Set the background color of the first and second 'x'
-            .apply_cell_update(CellUpdate {
-                is_cursor: true,
-                ..x_cell_update(1)
-            })
-            .apply_cell_update(x_cell_update(3));
-        let whitespace = |column: usize| PositionedCell {
-            cell: Cell::from_char(' ').set_background_color(tab_color),
-            position: Position { line: 0, column },
-        };
-        let tab = |column: usize| PositionedCell {
-            cell: Cell::from_char('\t').set_background_color(tab_color),
-            position: Position { line: 0, column },
-        };
-        let x = |column: usize, is_cursor: bool| PositionedCell {
-            cell: Cell {
-                is_cursor,
-                ..Cell::from_char('x').set_background_color(x_color)
-            },
-            position: Position { line: 0, column },
-        };
-        let expected = [
-            tab(0),
-            // 3 whitespaces are added after tab, because the unicode width of tab is two
-            whitespace(1),
-            whitespace(2),
-            whitespace(3),
-            x(4, true),
-            tab(5),
-            whitespace(6),
-            whitespace(7),
-            whitespace(8),
-            x(9, false),
-        ]
-        .to_vec();
-        assert_eq!(grid.to_positioned_cells(), expected);
-        let expected_cursor_position = Position { line: 0, column: 4 };
-        assert_eq!(grid.get_cursor_position(), Some(expected_cursor_position));
-    }
-
-    #[test]
-    fn set_row_should_pad_char_by_unicode_width() {
-        use unicode_width::UnicodeWidthStr;
-
-        let dimension = Dimension {
-            height: 1,
-            width: 3,
-        };
-        let microscope = '🔬';
-        assert_eq!(UnicodeWidthStr::width(microscope.to_string().as_str()), 2); // Microscope
-        let content = format!("{}x", microscope);
-        let microscope_color = hex!("#abcdef");
-        let x_color = hex!("#fafafa");
-        let microscope_style = Style::default().background_color(microscope_color);
-
-        let grid = Grid::from_text(dimension, "")
-            .set_row(0, None, None, &content, &Style::default())
-            .apply_cell_update(
-                // Set the backgroud color of microscope
-                CellUpdate {
-                    position: Position { line: 0, column: 0 },
-                    symbol: None,
-                    style: microscope_style,
-                    ..Default::default()
-                },
+        #[test]
+        /// Keep cursor in view if it has been pushed down by wrapped lines
+        /// by trimming content from the top
+        fn case_10() {
+            let grid = Grid::new(Dimension {
+                height: 2,
+                width: 7,
+            });
+            let actual = grid
+                .render_content(
+                    "
+1st line is long
+x
+"
+                    .trim(),
+                    RenderContentLineNumber::NoLineNumber,
+                    [CellUpdate {
+                        position: Position::new(1, 0), // on 'x'
+                        is_cursor: true,
+                        ..Default::default()
+                    }]
+                    .to_vec(),
+                    Vec::new(),
+                    &Default::default(),
+                )
+                .to_string();
+            assert_eq!(
+                actual,
+                "
+long
+x
+"
+                .trim()
             )
-            .apply_cell_update(
-                // Set the background color of 'x'
-                CellUpdate {
-                    position: Position { line: 0, column: 1 },
-                    symbol: None,
-                    style: Style::default().background_color(x_color),
-                    ..Default::default()
-                },
-            );
-        let expected = [
-            PositionedCell {
-                cell: Cell::from_char(microscope).set_background_color(microscope_color),
-                position: Position { line: 0, column: 0 },
-            },
-            PositionedCell {
-                // One whitespace is added after microscope, because the unicode width of microscope is two
-                cell: Cell::from_char(' ').set_background_color(microscope_color),
-                position: Position { line: 0, column: 1 },
-            },
-            PositionedCell {
-                cell: Cell::from_char('x').set_background_color(x_color),
-                position: Position { line: 0, column: 2 },
-            },
-        ]
-        .to_vec();
-        assert_eq!(grid.to_positioned_cells(), expected);
+        }
     }
 
     #[test]

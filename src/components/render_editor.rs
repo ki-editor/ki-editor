@@ -38,7 +38,6 @@ impl Editor {
             self.get_parent_lines().unwrap_or_default();
         let top_offset = hidden_parent_lines.len() as u16;
         let scroll_offset = self.scroll_offset();
-
         let visible_lines = &rope
             .lines()
             .enumerate()
