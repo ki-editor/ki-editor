@@ -420,19 +420,26 @@ impl Grid {
 
         let wrapped_lines = soft_wrap::soft_wrap(content, content_container_width);
         let content_cell_updates = {
-            content.lines().enumerate().flat_map(|(line_index, line)| {
-                line.chars()
-                    .enumerate()
-                    .map(move |(column_index, character)| CellUpdate {
-                        position: Position {
-                            line: line_index,
-                            column: column_index,
-                        },
-                        symbol: Some(character.to_string()),
-                        style: Style::default().foreground_color(theme.ui.text_foreground),
-                        ..CellUpdate::default()
-                    })
-            })
+            content
+                .lines()
+                .enumerate()
+                .flat_map(|(line_index, line)| {
+                    line.chars()
+                        .enumerate()
+                        .map(move |(column_index, character)| CellUpdate {
+                            position: Position {
+                                line: line_index,
+                                column: column_index,
+                            },
+                            symbol: Some(character.to_string()),
+                            style: Style::default().foreground_color(theme.ui.text_foreground),
+                            ..CellUpdate::default()
+                        })
+                })
+                .map(|cell_update| CalibratableCellUpdate {
+                    cell_update,
+                    should_be_calibrated: true,
+                })
         };
         let line_updates = line_updates.into_iter().flat_map(|line_update| {
             (0..width).map(move |column_index| CalibratableCellUpdate {
@@ -447,9 +454,8 @@ impl Grid {
                 },
             })
         });
-        let cell_updates = content_cell_updates
+        let cell_updates = cell_updates
             .into_iter()
-            .chain(cell_updates)
             .map(|cell_update| CalibratableCellUpdate {
                 cell_update,
                 should_be_calibrated: true,
@@ -548,8 +554,9 @@ impl Grid {
                     .collect_vec(),
             }
         };
-        let calibrated = line_updates
+        let calibrated = content_cell_updates
             .into_iter()
+            .chain(line_updates)
             .chain(cell_updates)
             .chain(line_numbers)
             .filter_map(|update| {
@@ -669,7 +676,7 @@ mod test_grid {
 
     mod render_content {
         use crate::{
-            grid::{LineUpdate, RenderContentLineNumber},
+            grid::{Cell, LineUpdate, PositionedCell, RenderContentLineNumber},
             themes::Theme,
         };
 
@@ -998,6 +1005,41 @@ x
 "
                 .trim()
             )
+        }
+
+        #[test]
+        /// Line update style should take precedence over content style
+        fn case_11() {
+            let grid = Grid::new(Dimension {
+                height: 2,
+                width: 7,
+            });
+            let color = hex!("#bababa");
+            let actual = grid
+                .render_content(
+                    "hello",
+                    RenderContentLineNumber::NoLineNumber,
+                    Vec::new(),
+                    [LineUpdate {
+                        line_index: 0,
+                        style: Style::default().foreground_color(color),
+                    }]
+                    .to_vec(),
+                    &Default::default(),
+                )
+                .to_positioned_cells()
+                .into_iter()
+                .filter(|cell| cell.position == Position::new(0, 0))
+                .collect_vec();
+            let expected = PositionedCell {
+                cell: Cell {
+                    symbol: "h".to_string(),
+                    foreground_color: color,
+                    ..Default::default()
+                },
+                position: Position::default(),
+            };
+            assert_eq!(actual, [expected].to_vec())
         }
     }
 
