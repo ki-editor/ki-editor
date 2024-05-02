@@ -559,19 +559,30 @@ impl Grid {
             .chain(line_updates)
             .chain(cell_updates)
             .chain(line_numbers)
-            .filter_map(|update| {
-                Some(if update.should_be_calibrated {
-                    let calibrated_position = wrapped_lines
+            .flat_map(|update| {
+                if update.should_be_calibrated {
+                    wrapped_lines
                         .calibrate(update.cell_update.position)
-                        .ok()?
-                        .move_right((max_line_number_len + line_number_separator_width) as u16);
-                    CellUpdate {
-                        position: calibrated_position,
-                        ..update.cell_update
-                    }
+                        .ok()
+                        .unwrap_or_default()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, position)| CellUpdate {
+                            position: position.move_right(
+                                (max_line_number_len + line_number_separator_width) as u16,
+                            ),
+                            symbol: if index == 0 {
+                                update.cell_update.symbol.clone()
+                            } else {
+                                // Fill extra paddings with no-symbol cells
+                                None
+                            },
+                            ..update.cell_update.clone()
+                        })
+                        .collect_vec()
                 } else {
-                    update.cell_update
-                })
+                    vec![update.cell_update]
+                }
             })
             .collect_vec();
         let cursor = calibrated.iter().find(|update| update.is_cursor).cloned();
@@ -645,12 +656,14 @@ pub enum StyleKey {
 
 /// TODO: in the future, tab size should be configurable
 pub fn get_string_width(str: &str) -> usize {
-    str.chars()
-        .map(|char| match char {
-            '\t' => DEFAULT_TAB_SIZE,
-            _ => UnicodeWidthChar::width(char).unwrap_or(1),
-        })
-        .sum()
+    str.chars().map(get_char_width).sum()
+}
+
+pub fn get_char_width(c: char) -> usize {
+    match c {
+        '\t' => DEFAULT_TAB_SIZE,
+        _ => UnicodeWidthChar::width(c).unwrap_or(1),
+    }
 }
 
 #[derive(Clone)]

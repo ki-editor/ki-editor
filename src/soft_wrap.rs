@@ -3,7 +3,10 @@ use std::fmt::Display;
 use itertools::Itertools;
 use regex::Regex;
 
-use crate::{grid::get_string_width, position::Position};
+use crate::{
+    grid::{get_char_width, get_string_width},
+    position::Position,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct WrappedLines {
@@ -31,16 +34,18 @@ impl Display for WrappedLines {
     }
 }
 impl WrappedLines {
-    pub fn calibrate(&self, position: Position) -> Result<Position, CalibrationError> {
+    /// The returned value is not one position but potentially multiple positions
+    /// because some characters take multiple cells in terminal
+    pub fn calibrate(&self, position: Position) -> Result<Vec<Position>, CalibrationError> {
         if self.lines.is_empty() && position.line == 0 && position.column == 0 {
-            return Ok(Position::new(0, 0));
+            return Ok(vec![Position::new(0, 0)]);
         }
 
         if position.line == self.lines.len()
             && position.column == 0
             && self.ending_with_newline_character
         {
-            return Ok(Position::new(position.line, 0));
+            return Ok(vec![Position::new(position.line, 0)]);
         }
 
         let baseline = self
@@ -48,18 +53,22 @@ impl WrappedLines {
             .get(position.line)
             .ok_or(CalibrationError::LineOutOfRange)?;
 
-        let new_position = baseline
-            .get_position(position.column, self.width)
+        let new_positions = baseline
+            .get_positions(position.column, self.width)
             .ok_or(CalibrationError::ColumnOutOfRange)?;
 
         let vertical_offset = {
             let previous_lines = self.lines.iter().take(position.line);
             previous_lines.map(|line| line.count()).sum::<usize>()
         };
-        Ok(Position {
-            line: vertical_offset + new_position.line,
-            column: new_position.column,
-        })
+
+        Ok(new_positions
+            .into_iter()
+            .map(|new_position| Position {
+                line: vertical_offset + new_position.line,
+                column: new_position.column,
+            })
+            .collect_vec())
     }
 
     pub fn lines(&self) -> &Vec<WrappedLine> {
@@ -95,7 +104,7 @@ impl WrappedLine {
         self.line_number
     }
 
-    fn get_position(&self, column: usize, width: usize) -> Option<Position> {
+    fn get_positions(&self, column: usize, width: usize) -> Option<Vec<Position>> {
         let chars_with_line_index = self
             .lines()
             .into_iter()
@@ -108,7 +117,7 @@ impl WrappedLine {
             })
             .collect_vec();
         if chars_with_line_index.is_empty() && column == 0 {
-            return Some(Position::default());
+            return Some([Position::default()].to_vec());
         }
         if column > chars_with_line_index.len() {
             return None;
@@ -122,43 +131,25 @@ impl WrappedLine {
             .into_iter()
             .filter(|(line_, _)| line == line_)
             .collect_vec();
+
+        let char_width = right
+            .get(0)
+            .map(|(_, char)| get_char_width(*char))
+            .unwrap_or(1);
         let previous_columns_chars_total_width: usize = get_string_width(
             &previous_columns_chars
                 .into_iter()
                 .map(|(_, char)| char)
                 .join(""),
         );
-        return Some(Position {
-            line: *line,
-            column: previous_columns_chars_total_width,
-        });
-        // If the column is within the primary line
-        // or if the line is not wrapped and the column is within the width
-        if column < self.primary.len() || self.wrapped.is_empty() && column < width {
-            Some(Position {
-                line: self.line_number,
-                column,
-            })
-        }
-        // If the column is longer than this line but it's wrapped column is within the width
-        else if column >= self.len() && column - self.len() < width {
-            Some(Position {
-                line: self.line_number + self.wrapped.len(),
-                column: column - self.len() + self.last_line().len(),
-            })
-        } else {
-            let mut column = column - self.primary.len();
-            for (line_number, line) in self.wrapped.iter().enumerate() {
-                if column < line.len() {
-                    return Some(Position {
-                        line: self.line_number + line_number + 1,
-                        column,
-                    });
-                }
-                column -= line.len();
-            }
-            None
-        }
+        Some(
+            (0..char_width)
+                .map(|column| Position {
+                    line: *line,
+                    column: column + previous_columns_chars_total_width,
+                })
+                .collect_vec(),
+        )
     }
 
     fn len(&self) -> usize {
@@ -234,13 +225,13 @@ mod test_soft_wrap {
         // The character 'a' should be placed at the next line, first column
         assert_eq!(
             wrapped_lines.calibrate(Position::new(0, 2)),
-            Ok(Position::new(1, 0))
+            Ok(vec![Position::new(1, 0)])
         );
 
         // The space character between the 👩 and 'abc'should be placed at first line, 3rd column
         assert_eq!(
             wrapped_lines.calibrate(Position::new(0, 1)),
-            Ok(Position::new(0, 2))
+            Ok(vec![Position::new(0, 2)])
         );
     }
 
@@ -258,12 +249,22 @@ mod test_soft_wrap {
         use crate::soft_wrap::soft_wrap;
 
         #[test]
+        fn multi_width_unicode_should_be_padded() {
+            let content = "🦀";
+            let wrapped_lines = soft_wrap(content, 10);
+            assert_eq!(
+                wrapped_lines.calibrate(Position::new(0, 0)),
+                Ok([Position::new(0, 0), Position::new(0, 1)].to_vec()),
+            );
+        }
+
+        #[test]
         fn ending_with_newline_char() {
             let content = "hello\n";
             let wrapped_lines = soft_wrap(content, 10);
             assert_eq!(
                 wrapped_lines.calibrate(Position::new(1, 0)),
-                Ok(Position::new(1, 0))
+                Ok(vec![Position::new(1, 0)])
             );
         }
 
@@ -274,7 +275,7 @@ mod test_soft_wrap {
                 let wrapped_lines = soft_wrap(content, 5);
                 assert_eq!(
                     wrapped_lines.calibrate(Position::new(input.0, input.1)),
-                    Ok(Position::new(expected.0, expected.1),)
+                    Ok(vec![Position::new(expected.0, expected.1),])
                 );
             }
 
@@ -295,7 +296,7 @@ mod test_soft_wrap {
 
             assert_eq!(
                 wrapped_lines.calibrate(Position::new(1, 0)),
-                Ok(Position::new(1, 0))
+                Ok(vec![Position::new(1, 0)])
             );
         }
 
@@ -306,12 +307,12 @@ mod test_soft_wrap {
 
             assert_eq!(
                 wrapped_lines.calibrate(Position::new(0, 0)),
-                Ok(Position::new(0, 0))
+                Ok(vec![Position::new(0, 0)])
             );
 
             assert_eq!(
                 wrapped_lines.calibrate(Position::new(1, 0)),
-                Ok(Position::new(1, 0))
+                Ok(vec![Position::new(1, 0)])
             );
         }
 
@@ -322,7 +323,7 @@ mod test_soft_wrap {
 
             assert_eq!(
                 wrapped_lines.calibrate(Position::new(0, 0)),
-                Ok(Position::new(0, 0))
+                Ok(vec![Position::new(0, 0)])
             );
         }
 
@@ -336,7 +337,7 @@ mod test_soft_wrap {
             assert_eq!(
                 // Position one column after "hey"
                 wrapped_lines.calibrate(Position::new(0, 3)),
-                Ok(Position::new(0, 3))
+                Ok(vec![Position::new(0, 3)])
             );
         }
 
@@ -348,13 +349,13 @@ mod test_soft_wrap {
             assert_eq!(
                 // Position one column before "jude"
                 wrapped_lines.calibrate(Position::new(0, 4)),
-                Ok(Position::new(1, 0))
+                Ok(vec![Position::new(1, 0)])
             );
 
             assert_eq!(
                 // Position one column after "jude"
                 wrapped_lines.calibrate(Position::new(0, 8)),
-                Ok(Position::new(1, 4))
+                Ok(vec![Position::new(1, 4)])
             );
         }
     }
