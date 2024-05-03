@@ -1,7 +1,4 @@
-use crate::{
-    quickfix_list::Location,
-    selection_mode::{AstGrep, ByteRange},
-};
+use crate::{quickfix_list::Location, selection_mode::CaseAgnostic};
 
 use super::WalkBuilderConfig;
 
@@ -11,9 +8,10 @@ pub fn run(
 ) -> anyhow::Result<Vec<Location>> {
     walk_builder_config.run_with_search(Box::new(move |buffer| {
         let pattern = pattern.clone();
-        Ok(AstGrep::new(buffer, &pattern)?
-            .find_all()
-            .map(|node_match| ByteRange::new(node_match.range()))
+        Ok(CaseAgnostic::new(pattern)
+            .find_all(&buffer.content())
+            .into_iter()
+            .map(|(range, _)| range)
             .collect())
     }))
 }

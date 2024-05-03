@@ -97,7 +97,6 @@ pub enum ExpectKind {
     GlobalSearchConfigReplacements(&'static [&'static str]),
     GlobalSearchConfigIncludeGlobs(&'static [&'static str]),
     GlobalSearchConfigExcludeGlobs(&'static [&'static str]),
-    FileContentContains(CanonicalizedPath, &'static str),
     GridCellBackground(
         /*Row*/ usize,
         /*Column*/ usize,
@@ -198,13 +197,6 @@ impl ExpectKind {
                 context.global_search_config().exclude_globs(),
                 to_vec(exclude_globs),
             ),
-            FileContentContains(path, substring) => {
-                let left = app.get_file_content(path);
-                (
-                    left.contains(substring),
-                    format!("{left:?} contains {substring:?}"),
-                )
-            }
             Not(expect_kind) => {
                 let (result, context) = expect_kind.get_result(app)?;
                 (!result, format!("NOT ({context})"))
@@ -1049,8 +1041,17 @@ fn search_config_history() -> Result<(), anyhow::Error> {
     })
 }
 
-#[test]
-fn global_search_and_replace() -> Result<(), anyhow::Error> {
+fn test_global_search_replace(
+    TestGlobalSearchReplaceArgs {
+        mode,
+        main_content,
+        foo_content,
+        search,
+        replacement,
+        main_replaced,
+        foo_replaced,
+    }: TestGlobalSearchReplaceArgs,
+) -> anyhow::Result<()> {
     execute_test(|s| {
         let owner_id = ComponentId::new();
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
@@ -1062,36 +1063,24 @@ fn global_search_and_replace() -> Result<(), anyhow::Error> {
             }
         };
         let main_rs = s.main_rs();
-        let main_rs_initial_content = main_rs.read().unwrap();
         Box::new([
             App(OpenFile(s.foo_rs())),
+            Editor(SetContent(foo_content.to_string())),
             App(OpenFile(s.main_rs())),
-            // Initiall, expect main.rs and foo.rs to contain the word "foo"
-            Expect(FileContentContains(s.main_rs(), "foo")),
-            Expect(FileContentContains(s.foo_rs(), "foo")),
-            App(new_dispatch(LocalSearchConfigUpdate::Mode(
-                LocalSearchConfigMode::Regex(RegexConfig {
-                    escaped: true,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                }),
-            ))),
-            // Replace "foo" with "haha" globally
+            Editor(SetContent(main_content.to_string())),
+            App(SaveAll),
+            App(new_dispatch(LocalSearchConfigUpdate::Mode(mode))),
             App(new_dispatch(LocalSearchConfigUpdate::Search(
-                "foo".to_string(),
+                search.to_string(),
             ))),
             App(new_dispatch(LocalSearchConfigUpdate::Replacement(
-                "haha".to_string(),
+                replacement.to_string(),
             ))),
             App(Dispatch::Replace {
                 scope: Scope::Global,
             }),
-            // Expect main.rs and foo.rs to not contain the word "foo"
-            Expect(Not(Box::new(FileContentContains(s.main_rs(), "foo")))),
-            Expect(Not(Box::new(FileContentContains(s.foo_rs(), "foo")))),
-            // Expect main.rs and foo.rs to contain the word "haha"
-            Expect(FileContentContains(s.main_rs(), "haha")),
-            Expect(FileContentContains(s.foo_rs(), "haha")),
+            Expect(FileContent(s.main_rs(), main_replaced.to_string())),
+            Expect(FileContent(s.foo_rs(), foo_replaced.to_string())),
             // Expect the main.rs buffer to be updated as well
             ExpectLater(Box::new(move || {
                 FileContent(main_rs.clone(), main_rs.read().unwrap())
@@ -1100,8 +1089,62 @@ fn global_search_and_replace() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(Undo),
             // Expect the content of the main.rs buffer to be reverted
-            Expect(FileContent(s.main_rs(), main_rs_initial_content)),
+            Expect(FileContent(s.main_rs(), main_content.to_string())),
         ])
+    })
+}
+struct TestGlobalSearchReplaceArgs {
+    mode: LocalSearchConfigMode,
+    main_content: &'static str,
+    foo_content: &'static str,
+    search: &'static str,
+    replacement: &'static str,
+    main_replaced: &'static str,
+    foo_replaced: &'static str,
+}
+
+#[test]
+fn global_search_replace_regex() -> Result<(), anyhow::Error> {
+    test_global_search_replace(TestGlobalSearchReplaceArgs {
+        mode: LocalSearchConfigMode::Regex(RegexConfig {
+            escaped: true,
+            case_sensitive: false,
+            match_whole_word: false,
+        }),
+        main_content: "main foo",
+        foo_content: "foo foo",
+        search: "foo",
+        replacement: "haha",
+        main_replaced: "main haha",
+        foo_replaced: "haha haha",
+    })
+}
+
+#[test]
+fn global_search_replace_ast_grep() -> Result<(), anyhow::Error> {
+    test_global_search_replace(TestGlobalSearchReplaceArgs {
+        mode: LocalSearchConfigMode::AstGrep,
+        main_content: "fn main() {\n    let x = a.b.foo();\n}\n",
+        foo_content: "fn main() { let x = (1+1).foo(); }",
+        search: "$X.foo()",
+        replacement: "foo($X)",
+        // Note: the replaced content has newline characters because after replacement,
+        // the formatter will be applied
+        main_replaced: "fn main() {\n    let x = foo(a.b);\n}\n",
+        foo_replaced: "fn main() {\n    let x = foo((1 + 1));\n}\n",
+    })
+}
+
+#[test]
+fn global_search_replace_case_agnostic() -> Result<(), anyhow::Error> {
+    test_global_search_replace(TestGlobalSearchReplaceArgs {
+        mode: LocalSearchConfigMode::CaseAgnostic,
+        main_content: "HelloWorld, this is good",
+        foo_content: "im-lisp (hello-world and say 'HELLO_WORLD')",
+        search: "hello world",
+        replacement: "bye sky",
+        main_replaced: "ByeSky, this is good",
+        foo_replaced: "im-lisp (bye-sky and say 'BYE_SKY')",
     })
 }
 

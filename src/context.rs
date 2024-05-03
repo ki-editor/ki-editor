@@ -241,6 +241,7 @@ impl GlobalSearchConfig {
 pub enum LocalSearchConfigMode {
     Regex(RegexConfig),
     AstGrep,
+    CaseAgnostic,
 }
 impl LocalSearchConfigMode {
     pub fn display(&self) -> String {
@@ -248,6 +249,7 @@ impl LocalSearchConfigMode {
             LocalSearchConfigMode::Regex(regex) => regex.display(),
 
             LocalSearchConfigMode::AstGrep => "AST Grep".to_string(),
+            LocalSearchConfigMode::CaseAgnostic => "Case Agnostic".to_string(),
         }
     }
 }
