@@ -287,9 +287,14 @@ impl Editor {
                                 Dispatch::ToEditor(KillLine(Direction::Start)),
                             ),
                             Keymap::new(
+                                "ctrl+w",
+                                "Delete word (long) backward".to_string(),
+                                Dispatch::ToEditor(DeleteWordBackward { short: false }),
+                            ),
+                            Keymap::new(
                                 "alt+backspace",
-                                "Delete word backward".to_string(),
-                                Dispatch::ToEditor(DeleteWordBackward),
+                                "Delete word (short) backward".to_string(),
+                                Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
                         ]),
                     },

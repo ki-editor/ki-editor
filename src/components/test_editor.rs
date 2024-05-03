@@ -186,7 +186,7 @@ fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
+fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -196,23 +196,40 @@ fn test_delete_word_backward_from_end_of_file() -> anyhow::Result<()> {
             Editor(SetSelectionMode(LineTrimmed)),
             // Go to the end of the file
             Editor(EnterInsertMode(Direction::End)),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent(
                 "fn snake_case(camelCase: String) {",
             )),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camelCase: String) ")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camelCase: String")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camelCase: ")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
         ])
     })
 }
 
 #[test]
-fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
+fn test_delete_word_long() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello_world itsMe".to_string())),
+            Editor(SetSelectionMode(LineTrimmed)),
+            // Go to the end of the file
+            Editor(EnterInsertMode(Direction::End)),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("hello_world ")),
+            Editor(DeleteWordBackward { short: false }),
+            Expect(CurrentComponentContent("")),
+        ])
+    })
+}
+
+#[test]
+fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -224,21 +241,21 @@ fn test_delete_word_backward_from_middle_of_file() -> anyhow::Result<()> {
             Editor(MoveSelection(Index(3))),
             Expect(CurrentSelectedTexts(&["camelCase"])),
             Editor(EnterInsertMode(Direction::End)),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(camel: String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case(: String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_case: String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn snake_: String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent("fn : String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent(": String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
             Expect(CurrentComponentContent(": String) {}")),
-            Editor(DeleteWordBackward),
+            Editor(DeleteWordBackward { short: true }),
         ])
     })
 }

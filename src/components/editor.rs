@@ -950,7 +950,7 @@ impl Editor {
             Undo => return self.undo(),
             KillLine(direction) => return self.kill_line(direction),
             Reset => self.reset(),
-            DeleteWordBackward => return self.delete_word_backward(),
+            DeleteWordBackward { short } => return self.delete_word_backward(short),
             Backspace => return self.backspace(),
             MoveToLineStart => return self.move_to_line_start(),
             MoveToLineEnd => return self.move_to_line_end(),
@@ -1533,7 +1533,7 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub fn delete_word_backward(&mut self) -> Result<Dispatches, anyhow::Error> {
+    pub fn delete_word_backward(&mut self, short: bool) -> Result<Dispatches, anyhow::Error> {
         let action_groups = self
             .selection_set
             .map(|current_selection| -> anyhow::Result<_> {
@@ -1551,7 +1551,11 @@ impl Editor {
                         Selection::get_selection_(
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
-                            &SelectionMode::WordShort,
+                            &if short {
+                                SelectionMode::WordShort
+                            } else {
+                                SelectionMode::WordLong
+                            },
                             &movement,
                             &self.cursor_direction,
                             &self.selection_set.filters,
@@ -2289,7 +2293,9 @@ pub enum DispatchEditor {
     Redo,
     KillLine(Direction),
     Reset,
-    DeleteWordBackward,
+    DeleteWordBackward {
+        short: bool,
+    },
     SetLanguage(shared::language::Language),
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
