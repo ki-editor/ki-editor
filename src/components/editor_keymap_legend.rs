@@ -173,8 +173,26 @@ impl Editor {
         KeymapLegendSection {
             title: "Action".to_string(),
             keymaps: Keymaps::new(&[
-                Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
-                Keymap::new("d", "Delete".to_string(), Dispatch::ToEditor(Kill)),
+                Keymap::new(
+                    "c",
+                    "Change".to_string(),
+                    Dispatch::ToEditor(Change { cut: false }),
+                ),
+                Keymap::new(
+                    "C",
+                    "Change Cut".to_string(),
+                    Dispatch::ToEditor(Change { cut: true }),
+                ),
+                Keymap::new(
+                    "d",
+                    "Delete".to_string(),
+                    Dispatch::ToEditor(Delete { cut: false }),
+                ),
+                Keymap::new(
+                    "D",
+                    "Delete Cut".to_string(),
+                    Dispatch::ToEditor(Delete { cut: true }),
+                ),
                 Keymap::new(
                     "enter",
                     "Open new line".to_string(),
@@ -211,7 +229,6 @@ impl Editor {
                     Dispatch::ToEditor(ReplaceCut),
                 ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
-                Keymap::new("ctrl+x", "Cut".to_string(), Dispatch::ToEditor(Cut)),
             ]),
         }
     }

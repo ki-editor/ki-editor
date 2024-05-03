@@ -93,7 +93,7 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(BottomNode)),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("main() {}")),
             Expect(CurrentSelectedTexts(&["main"])),
         ])
@@ -108,7 +108,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(Character)),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("n main() {}")),
             Expect(CurrentSelectedTexts(&["n"])),
         ])
@@ -124,7 +124,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(BottomNode)),
             Editor(MoveSelection(Last)),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("fn main() {")),
         ])
     })
@@ -139,7 +139,7 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("fn main(b:B) {}")),
             Expect(CurrentSelectedTexts(&["b:B"])),
         ])
@@ -153,7 +153,7 @@ fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn maima() {}".to_string())),
             Editor(MatchLiteral("ma".to_string())),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("fn ima() {}")),
             // Expect the current selection is the character after "ma"
             Expect(CurrentSelectedTexts(&["i"])),
@@ -384,13 +384,13 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("bar spim")),
             Editor(SetSelectionMode(Bookmark)),
             // Expect bookmark position is updated, and still selects "spim"
             Expect(CurrentSelectedTexts(&["spim"])),
             // Remove "spim"
-            Editor(Change),
+            Editor(Change { cut: false }),
             Expect(CurrentComponentContent("bar ")),
             Editor(EnterNormalMode),
             Editor(SetSelectionMode(WordShort)),
@@ -795,7 +795,7 @@ fn highlight_kill() -> anyhow::Result<()> {
             Editor(ToggleHighlightMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn main"])),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -851,7 +851,7 @@ fn highlight_change() -> anyhow::Result<()> {
             Editor(ToggleHighlightMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["hello world"])),
-            Editor(Change),
+            Editor(Change { cut: false }),
             Editor(Insert("wow".to_string())),
             Expect(CurrentSelectedTexts(&[""])),
             Expect(CurrentComponentContent("wow yo")),
@@ -1442,7 +1442,7 @@ fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("bar spim")),
             // Expect bookmark position is updated (still selects "spim")
             Editor(SetSelectionMode(Bookmark)),
@@ -1608,6 +1608,22 @@ fn consider_unicode_width() -> anyhow::Result<()> {
             // Expect an extra space is added between 'a' and the emoji
             // because, the unicode width of the emoji is 2
             Expect(EditorGrid("🦀  src/main.rs\n1│👩  █bc\n\n\n\n\n\n\n")),
+        ])
+    })
+}
+
+#[test]
+fn delete_cut() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello world".to_string())),
+            Editor(SetSelectionMode(WordShort)),
+            Expect(CurrentSelectedTexts(&["hello"])),
+            Editor(Delete { cut: true }),
+            Expect(CurrentSelectedTexts(&["world"])),
+            Editor(Paste(Direction::End)),
+            Expect(CurrentComponentContent("worldhello")),
         ])
     })
 }

@@ -616,7 +616,12 @@ impl Editor {
         dispatches
     }
 
-    pub fn kill(&mut self) -> anyhow::Result<Dispatches> {
+    pub fn delete(&mut self, cut: bool, context: &Context) -> anyhow::Result<Dispatches> {
+        let dispatches = if cut {
+            self.copy(context)?
+        } else {
+            Default::default()
+        };
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -684,8 +689,7 @@ impl Editor {
                 .flatten()
                 .collect()
         });
-
-        self.apply_edit_transaction(edit_transaction)
+        Ok(dispatches.chain(self.apply_edit_transaction(edit_transaction)?))
     }
 
     pub fn copy(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -923,11 +927,10 @@ impl Editor {
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
             ReplaceCut => return self.replace_with_copied_text(context, true),
-            Cut => return self.cut(),
             ToggleHighlightMode => self.toggle_highlight_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
-            Kill => return self.kill(),
+            Delete { cut } => return self.delete(cut, context),
             Insert(string) => return self.insert(&string),
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleBookmark => self.toggle_bookmarks(),
@@ -958,7 +961,7 @@ impl Editor {
             SelectKids => return self.select_kids(),
             Redo => return self.redo(),
             OpenNewLine => return self.open_new_line(),
-            Change => return self.change(),
+            Change { cut } => return self.change(cut, context),
             SetRectangle(rectangle) => self.set_rectangle(rectangle),
             ScrollPageDown => return self.scroll_page_down(),
             ScrollPageUp => return self.scroll_page_up(),
@@ -1087,7 +1090,12 @@ impl Editor {
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    pub fn change(&mut self) -> anyhow::Result<Dispatches> {
+    pub fn change(&mut self, cut: bool, context: &Context) -> anyhow::Result<Dispatches> {
+        let dispatches = if cut {
+            self.copy(context)?
+        } else {
+            Default::default()
+        };
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1113,7 +1121,7 @@ impl Editor {
                 .collect(),
         );
 
-        let dispatches = self.apply_edit_transaction(edit_transaction)?;
+        let dispatches = dispatches.chain(self.apply_edit_transaction(edit_transaction)?);
         self.enter_insert_mode(Direction::Start)?;
         Ok(dispatches)
     }
@@ -2255,21 +2263,24 @@ pub enum DispatchEditor {
     SwitchViewAlignment,
     SelectKids,
     Copy,
-    Cut,
     ReplaceCut,
     SelectAll,
     SetContent(String),
     SetDecorations(Vec<Decoration>),
     SetRectangle(Rectangle),
     ToggleHighlightMode,
-    Change,
+    Change {
+        cut: bool,
+    },
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
     ReplaceWithMovement(Movement),
     ReplaceWithCopiedText,
     SelectLine(Movement),
     Backspace,
-    Kill,
+    Delete {
+        cut: bool,
+    },
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,

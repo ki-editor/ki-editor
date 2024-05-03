@@ -227,7 +227,7 @@ impl SelectionSet {
             let copied_text = buffer.slice(&self.primary.extended_range())?;
             self.primary = Selection {
                 range: self.primary.range,
-                initial_range: None,
+                initial_range: self.primary.initial_range,
                 // `copied_text` should be `None`, so that pasting between different files can work properly
                 copied_text: None,
                 info: None,
@@ -241,7 +241,6 @@ impl SelectionSet {
             self.apply_mut(|selection| -> anyhow::Result<()> {
                 selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
                     .or_else(|| context.get_clipboard_content().map(Rope::from));
-                selection.initial_range = None;
                 Ok(())
             });
             Ok(Vec::new().into())

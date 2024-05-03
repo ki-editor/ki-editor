@@ -488,7 +488,7 @@ fn cut_replace() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(BottomNode)),
-            Editor(Cut),
+            Editor(Change { cut: true }),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
             Editor(MoveSelection(Current)),
@@ -514,7 +514,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Cut),
+            Editor(Change { cut: true }),
             Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
             Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent(
@@ -540,6 +540,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Copy),
+            Editor(Reset),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
             Editor(ReplaceWithCopiedText),
@@ -566,6 +567,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
             Editor(Copy),
+            Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(SelectionMode::TopNode)),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
@@ -590,7 +592,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::FirstChild)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
-            Editor(Cut),
+            Editor(Change { cut: true }),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
             Editor(Paste(Direction::End)),
@@ -678,7 +680,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
             // Delete the first line of main.rs
             App(OpenFile(s.main_rs().clone())),
             Editor(SetSelectionMode(LineTrimmed)),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
             Editor(Insert("// Hello".to_string())),
@@ -769,7 +771,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
             })),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
-            Editor(Kill),
+            Editor(Delete { cut: false }),
             Editor(Insert(
                 "
 fn first () {
