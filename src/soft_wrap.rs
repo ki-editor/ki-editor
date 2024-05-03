@@ -86,6 +86,9 @@ pub struct WrappedLine {
     line_number: usize,
     primary: String,
     wrapped: Vec<String>,
+    /// This can be computed on demand, but it is stored as cache to
+    /// greatly improve the performace of `WrappedLines::calibrate`
+    chars_with_line_index: Vec<(usize /* line index (0-based) */, char)>,
 }
 impl Display for WrappedLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -105,14 +108,7 @@ impl WrappedLine {
     }
 
     fn get_positions(&self, column: usize, _width: usize) -> Option<Vec<Position>> {
-        let chars_with_line_index = self
-            .lines()
-            .into_iter()
-            .enumerate()
-            .flat_map(|(line_index, line)| {
-                line.chars().map(|char| (line_index, char)).collect_vec()
-            })
-            .collect_vec();
+        let chars_with_line_index = &self.chars_with_line_index;
         if chars_with_line_index.is_empty() && column == 0 {
             return Some([Position::default()].to_vec());
         }
@@ -174,6 +170,13 @@ pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
                 primary: primary.to_string(),
                 line_number,
                 wrapped: wrapped.to_vec(),
+                chars_with_line_index: wrapped_lines
+                    .into_iter()
+                    .enumerate()
+                    .flat_map(|(line_index, line)| {
+                        line.chars().map(|char| (line_index, char)).collect_vec()
+                    })
+                    .collect_vec(),
             })
         })
         .collect();
