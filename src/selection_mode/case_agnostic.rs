@@ -1,7 +1,6 @@
-use ast_grep_core::language::TSLanguage;
 use itertools::Itertools;
 
-use super::SelectionMode;
+use super::{ByteRange, SelectionMode};
 
 pub struct CaseAgnostic {
     pattern: String,
@@ -25,20 +24,25 @@ impl CaseAgnostic {
             .collect()
     }
 
-    fn matches(&self, haystack: &str) -> Vec<(usize, String)> {
+    pub fn find_all(&self, haystack: &str) -> Vec<(ByteRange, String)> {
         self.possible_patterns()
             .into_iter()
             .flat_map(move |pattern| {
                 haystack
                     .match_indices(&pattern)
-                    .map(|(start_index, str)| (start_index, str.to_string()))
+                    .map(|(start_index, str)| {
+                        (
+                            ByteRange::new(start_index..start_index + str.len()),
+                            str.to_string(),
+                        )
+                    })
                     .collect_vec()
             })
             .collect()
     }
 
     pub(crate) fn replace_all(&self, haystack: &str, replacement: String) -> String {
-        self.matches(haystack)
+        self.find_all(haystack)
             .into_iter()
             .filter_map(move |(_, str)| {
                 let case = Self::cases()
@@ -63,9 +67,9 @@ impl SelectionMode for CaseAgnostic {
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let string = params.buffer.rope().to_string();
-        Ok(Box::new(self.matches(&string).into_iter().map(
-            |(start_index, string)| super::ByteRange::new(start_index..start_index + string.len()),
-        )))
+        Ok(Box::new(
+            self.find_all(&string).into_iter().map(|(range, _)| range),
+        ))
     }
 }
 

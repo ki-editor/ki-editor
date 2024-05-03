@@ -5,8 +5,11 @@ use globset::Glob;
 use ignore::{WalkBuilder, WalkState};
 use shared::canonicalized_path::CanonicalizedPath;
 
+use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
+
 pub mod ast_grep;
 
+pub mod case_agnostic;
 pub mod grep;
 
 pub struct WalkBuilderConfig {
@@ -15,7 +18,34 @@ pub struct WalkBuilderConfig {
     pub exclude: Option<Glob>,
 }
 
+type SearchFn = dyn Fn(&Buffer) -> anyhow::Result<Vec<ByteRange>> + Send + Sync;
 impl WalkBuilderConfig {
+    pub fn run_with_search(self, f: Box<SearchFn>) -> anyhow::Result<Vec<Location>> {
+        self.run(Box::new(move |path, sender| {
+            let path = path.try_into()?;
+            let buffer = Buffer::from_path(&path)?;
+            let _ = f(&buffer)?
+                .into_iter()
+                .flat_map(move |node_match| -> anyhow::Result<_> {
+                    let range = node_match.range();
+                    let range = buffer.byte_to_position(range.start)?
+                        ..buffer.byte_to_position(range.end)?;
+
+                    let _ = sender
+                        .send(Location {
+                            path: path.clone(),
+                            range,
+                        })
+                        .map_err(|error| {
+                            log::error!("sender.send {:?}", error);
+                        });
+
+                    Ok(())
+                })
+                .collect::<Vec<_>>();
+            Ok(())
+        }))
+    }
     pub fn run<T: Send>(
         self,
         f: Box<dyn Fn(PathBuf, Sender<T>) -> anyhow::Result<()> + Send + Sync>,

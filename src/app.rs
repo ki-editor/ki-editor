@@ -1097,7 +1097,9 @@ impl<T: Frontend> App<T> {
             LocalSearchConfigMode::AstGrep => {
                 list::ast_grep::run(config.search().clone(), walk_builder_config)
             }
-            LocalSearchConfigMode::CaseAgnostic => todo!(),
+            LocalSearchConfigMode::CaseAgnostic => {
+                list::case_agnostic::run(config.search().clone(), walk_builder_config)
+            }
         }?;
         self.set_quickfix_list_type(
             ResponseContext::default().set_description("Global search"),
