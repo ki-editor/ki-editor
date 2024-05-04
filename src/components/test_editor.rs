@@ -1133,6 +1133,19 @@ fn main() {
             // Expect the bookmarks of inbound lines are rendered properly
             // In this case, we want to check that the bookmark on "z" is rendered
             Expect(GridCellBackground(4, 10, bookmark_background_color)),
+            // Expect no cells of the line `let y = 2` is not decorated with `bookmark_background_color`
+            ExpectMulti(
+                (0..12)
+                    .into_iter()
+                    .map(|column_index| {
+                        Not(Box::new(GridCellBackground(
+                            2,
+                            column_index,
+                            bookmark_background_color,
+                        )))
+                    })
+                    .collect(),
+            ),
         ])
     })
 }

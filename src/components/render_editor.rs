@@ -263,15 +263,6 @@ impl Editor {
             .flatten()
             .collect_vec();
 
-        let boundaries = {
-            let line_indices = hidden_parent_lines.iter().map(|line| line.line);
-            let hidden_parent_line_range = line_indices.clone().min().unwrap_or_default()
-                ..line_indices.max().unwrap_or_default() + 1;
-            &[
-                Boundary::new(&buffer, self.visible_line_range()),
-                Boundary::new(&buffer, hidden_parent_line_range),
-            ]
-        };
         let updates = vec![]
             .into_iter()
             .chain(highlighted_spans)
@@ -288,9 +279,15 @@ impl Editor {
             .chain(secondary_selection_cursors)
             .chain(custom_regex_highlights)
             .chain(regex_highlight_rules)
-            .flat_map(|span| span.to_cell_update(&buffer, theme, boundaries))
-            .chain(primary_selection_primary_cursor)
             .collect_vec();
+        let visible_lines_updates = {
+            let boundaries = [Boundary::new(&buffer, self.visible_line_range())];
+            updates
+                .iter()
+                .flat_map(|span| span.to_cell_update(&buffer, theme, &boundaries))
+                .chain(primary_selection_primary_cursor)
+                .collect_vec()
+        };
 
         let visible_lines_grid = visible_lines_grid.render_content(
             &visible_lines.iter().map(|(_, line)| line).join(""),
@@ -298,7 +295,7 @@ impl Editor {
                 start_line_index: scroll_offset as usize,
                 max_line_number: len_lines as usize,
             },
-            updates
+            visible_lines_updates
                 .clone()
                 .into_iter()
                 .map(|cell_update| CellUpdate {
@@ -318,6 +315,14 @@ impl Editor {
         );
 
         let hidden_parent_lines_grid = {
+            let line_indices = hidden_parent_lines.iter().map(|line| line.line);
+            let hidden_parent_line_range = line_indices.clone().min().unwrap_or_default()
+                ..line_indices.max().unwrap_or_default() + 1;
+            let boundaries = [Boundary::new(&buffer, hidden_parent_line_range)];
+            let updates = updates
+                .into_iter()
+                .flat_map(|span| span.to_cell_update(&buffer, theme, &boundaries))
+                .collect_vec();
             hidden_parent_lines.into_iter().fold(
                 Grid::new(Dimension { height: 0, width }),
                 |grid, line| {

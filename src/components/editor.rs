@@ -1916,16 +1916,7 @@ impl Editor {
                 self.mode = Mode::Normal;
                 Ok(Default::default())
             }
-            // Look here!
-            // TODO: put this into keymap legend
-            key!("a") => {
-                self.add_cursor_to_all_selections()?;
-                Ok(Default::default())
-            }
-            key!("o") => {
-                self.cursor_keep_primary_only();
-                Ok(Default::default())
-            }
+
             other => self.handle_normal_mode(context, other),
         }
     }
