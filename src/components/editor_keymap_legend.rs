@@ -194,9 +194,14 @@ impl Editor {
                     Dispatch::ToEditor(Delete { cut: true }),
                 ),
                 Keymap::new(
-                    "enter",
-                    "Open new line".to_string(),
-                    Dispatch::ToEditor(OpenNewLine),
+                    "o",
+                    "Open (after selection)".to_string(),
+                    Dispatch::ToEditor(Open(Direction::End)),
+                ),
+                Keymap::new(
+                    "O",
+                    "Open (before selection)".to_string(),
+                    Dispatch::ToEditor(Open(Direction::Start)),
                 ),
                 Keymap::new(
                     "m",
@@ -422,8 +427,8 @@ impl Editor {
             title: "Movement Mode".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "o",
-                    "Omnom (Replace)".to_string(),
+                    "enter",
+                    "Replace".to_string(),
                     Dispatch::ToEditor(EnterReplaceMode),
                 ),
                 Keymap::new(
