@@ -1018,6 +1018,7 @@ impl Editor {
                 self.show_jumps()?;
             }
             AddCursor(movement) => self.add_cursor(&movement)?,
+            Open(direction) => return self.open(direction),
         }
         Ok(Default::default())
     }
@@ -1700,6 +1701,74 @@ impl Editor {
         ))
     }
 
+    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| {
+                    let buffer = self.buffer.borrow();
+                    let get_selection = |movement: Movement| -> Option<Selection> {
+                        let s = Selection::get_selection_(
+                            &buffer,
+                            selection,
+                            &self.selection_set.mode,
+                            &movement,
+                            &self.cursor_direction,
+                            &self.selection_set.filters,
+                        )
+                        .ok()?
+                        .selection;
+                        if s.range() == selection.range() {
+                            None
+                        } else {
+                            Some(s)
+                        }
+                    };
+                    let previous_selection = get_selection(Movement::Previous);
+                    let next_selection = get_selection(Movement::Next);
+                    let in_between = next_selection
+                        .or(previous_selection)
+                        .and_then(|other_selection| {
+                            let current_range = selection.range();
+                            let other_range = other_selection.range();
+                            let in_between_range = current_range.end.min(other_range.end)
+                                ..current_range.start.max(other_range.start);
+                            buffer.slice(&in_between_range.into()).ok()
+                        })
+                        .unwrap_or_default();
+                    let in_between_len = in_between.len_chars();
+                    Some(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: {
+                                    let start = match direction {
+                                        Direction::Start => selection.range().start,
+                                        Direction::End => selection.range().end,
+                                    };
+                                    (start..start).into()
+                                },
+                                new: in_between,
+                            }),
+                            Action::Select(selection.clone().set_range({
+                                let start = match direction {
+                                    Direction::Start => selection.range().start,
+                                    Direction::End => selection.range().end + in_between_len,
+                                };
+                                (start..start).into()
+                            })),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+
+        Ok(self
+            .apply_edit_transaction(edit_transaction)?
+            .append(Dispatch::ToEditor(EnterInsertMode(direction))))
+    }
+
     pub fn open_new_line(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
@@ -2277,6 +2346,7 @@ pub enum DispatchEditor {
     MoveToLineEnd,
     MatchLiteral(String),
     OpenNewLine,
+    Open(Direction),
     ToggleBookmark,
     EnterInsideMode(InsideKind),
     EnterNormalMode,

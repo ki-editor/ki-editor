@@ -584,6 +584,50 @@ fn f() {
 }
 
 #[test]
+fn open_before_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
+            Editor(MatchLiteral("a:A".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Open(Direction::Start)),
+            Expect(CurrentMode(Mode::Insert)),
+            Editor(Insert("c:C".to_string())),
+            Expect(CurrentComponentContent("fn x(c:C, a:A, b:B){}".trim())),
+            Editor(EnterNormalMode),
+            Editor(MatchLiteral("b:B".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Open(Direction::Start)),
+            Editor(Insert("d:D".to_string())),
+            Expect(CurrentComponentContent("fn x(c:C, a:A, d:D, b:B){}".trim())),
+        ])
+    })
+}
+
+#[test]
+fn open_after_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
+            Editor(MatchLiteral("a:A".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Open(Direction::End)),
+            Expect(CurrentMode(Mode::Insert)),
+            Editor(Insert("c:C".to_string())),
+            Expect(CurrentComponentContent("fn x(a:A, c:C, b:B){}".trim())),
+            Editor(EnterNormalMode),
+            Editor(MatchLiteral("b:B".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Open(Direction::End)),
+            Editor(Insert("d:D".to_string())),
+            Expect(CurrentComponentContent("fn x(a:A, c:C, b:B, d:D){}".trim())),
+        ])
+    })
+}
+
+#[test]
 fn exchange_line() -> anyhow::Result<()> {
     execute_test(|s| {
         // Multiline source code
