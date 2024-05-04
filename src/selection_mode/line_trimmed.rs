@@ -35,6 +35,7 @@ impl SelectionMode for LineTrimmed {
                 )
                 .filter_map(move |line_index| {
                     let line = buffer.get_line_by_line_index(line_index)?;
+
                     let start = buffer.line_to_byte(line_index).ok()?;
                     let len_bytes = line.len_bytes();
                     let end = start
@@ -43,8 +44,7 @@ impl SelectionMode for LineTrimmed {
                         } else {
                             len_bytes
                         };
-                    let start = trim_leading_spaces(start, &line.to_string());
-
+                    let start = trim_leading_spaces(start, &line.to_string()).min(end);
                     Some(super::ByteRange::new(start..end))
                 }),
         ))
@@ -72,7 +72,10 @@ mod test_line {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a\n\n\nb\nc\n  hello");
+        let buffer = Buffer::new(
+            tree_sitter_rust::language(),
+            "a\n\n\nb\nc\n  hello\n  \nbye",
+        );
         LineTrimmed.assert_all_selections(
             &buffer,
             Selection::default(),
@@ -84,6 +87,8 @@ mod test_line {
                 (6..7, "c"),
                 // Should not include leading whitespaces
                 (10..15, "hello"),
+                (18..18, ""),
+                (19..22, "bye"),
             ],
         );
     }
