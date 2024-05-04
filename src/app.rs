@@ -1524,7 +1524,7 @@ impl<T: Frontend> App<T> {
                                     .map(|config| {
                                         [
                                             Keymap::new(
-                                                "i",
+                                                "I",
                                                 format!(
                                                     "Include files (glob) = {}",
                                                     config
@@ -1538,7 +1538,7 @@ impl<T: Frontend> App<T> {
                                                 },
                                             ),
                                             Keymap::new(
-                                                "e",
+                                                "E",
                                                 format!(
                                                     "Exclude files (glob) = {}",
                                                     config
