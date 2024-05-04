@@ -1136,7 +1136,6 @@ fn main() {
             // Expect no cells of the line `let y = 2` is not decorated with `bookmark_background_color`
             ExpectMulti(
                 (0..12)
-                    .into_iter()
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             2,
