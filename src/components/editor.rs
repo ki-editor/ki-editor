@@ -824,10 +824,11 @@ impl Editor {
         &mut self,
         edit_transaction: EditTransaction,
     ) -> anyhow::Result<Dispatches> {
-        let new_selection_set = self
-            .buffer
-            .borrow_mut()
-            .apply_edit_transaction(&edit_transaction, self.selection_set.clone())?;
+        let new_selection_set = self.buffer.borrow_mut().apply_edit_transaction(
+            &edit_transaction,
+            self.selection_set.clone(),
+            self.mode != Mode::Insert,
+        )?;
 
         self.selection_set = new_selection_set;
 
@@ -1274,6 +1275,7 @@ impl Editor {
                         Ok(selection.clone().set_range(range))
                     })?;
             self.clamp()?;
+            self.buffer_mut().reparse_tree()?;
         }
         // TODO: continue from here, need to add test: upon exiting insert mode, should close all panels
         // Maybe we should call this function the exit_insert_mode?
@@ -1358,7 +1360,7 @@ impl Editor {
             let new_buffer = {
                 let mut new_buffer = self.buffer.borrow().clone();
                 if new_buffer
-                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone())
+                    .apply_edit_transaction(&edit_transaction, self.selection_set.clone(), true)
                     .is_err()
                 {
                     continue;
