@@ -1683,3 +1683,23 @@ fn delete_cut() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
+    let mut editor =
+        crate::components::editor::Editor::from_text(tree_sitter_md::language(), "fn main() {}");
+    editor.enter_insert_mode(Direction::End)?;
+
+    let current_range = editor.buffer().tree().root_node().range();
+    let _ = editor.insert("fn hello() {}")?;
+    // Modifying the content in insert mode should not cause the tree to be reparsed
+    let new_range = editor.buffer().tree().root_node().range();
+    assert_eq!(current_range, new_range);
+
+    // Entering normal mode should reparse the tree
+    editor.enter_normal_mode()?;
+    let new_range = editor.buffer().tree().root_node().range();
+    assert_ne!(current_range, new_range);
+
+    Ok(())
+}

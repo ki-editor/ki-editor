@@ -436,6 +436,7 @@ impl Buffer {
         &mut self,
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
+        reparse_tree: bool,
     ) -> Result<SelectionSet, anyhow::Error> {
         let before = self.rope.to_string();
         let new_selection_set = edit_transaction
@@ -460,7 +461,9 @@ impl Buffer {
         };
 
         self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
-        self.reparse_tree()?;
+        if reparse_tree {
+            self.reparse_tree()?;
+        }
 
         Ok(new_selection_set)
     }
@@ -607,7 +610,7 @@ impl Buffer {
         Ok(buffer)
     }
 
-    fn reparse_tree(&mut self) -> anyhow::Result<()> {
+    pub fn reparse_tree(&mut self) -> anyhow::Result<()> {
         let mut parser = tree_sitter::Parser::new();
         parser.set_language(&self.tree.language())?;
         if let Some(tree) = parser.parse(&self.rope.to_string(), None) {
@@ -664,7 +667,7 @@ impl Buffer {
         current_selection_set: SelectionSet,
     ) -> anyhow::Result<SelectionSet> {
         let edit_transaction = self.get_edit_transaction(new_content)?;
-        self.apply_edit_transaction(&edit_transaction, current_selection_set)
+        self.apply_edit_transaction(&edit_transaction, current_selection_set, true)
     }
 
     pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
@@ -974,7 +977,7 @@ impl Buffer {
             }
         };
         let selection_set =
-            self.apply_edit_transaction(&edit_transaction, current_selection_set)?;
+            self.apply_edit_transaction(&edit_transaction, current_selection_set, true)?;
         let after = self.content();
         let modified = before != after;
         Ok((modified, selection_set))
@@ -1283,7 +1286,7 @@ fn f(
             let edit_transaction = buffer.get_edit_transaction(new)?;
 
             // Apply the edit transaction
-            buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default())?;
+            buffer.apply_edit_transaction(&edit_transaction, SelectionSet::default(), true)?;
 
             // Expect the content to be the same as the 2nd files
             pretty_assertions::assert_eq!(buffer.content(), new);
