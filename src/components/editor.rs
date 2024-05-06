@@ -759,7 +759,7 @@ impl Editor {
                     [ActionGroup::new(
                         [
                             Action::Edit(Edit {
-                                range: range.into(),
+                                range,
                                 new: replacement.clone(),
                             }),
                             Action::Select(Selection::new({
