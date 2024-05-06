@@ -374,7 +374,7 @@ pub trait SelectionMode {
                     ..buffer.char_to_byte(current_selection_range.end)?
             }
             Direction::End => {
-                let start = buffer.char_to_byte(current_selection_range.end)?;
+                let start = buffer.char_to_byte(current_selection_range.end - 1)?;
                 start..(start + 1)
             }
         };
