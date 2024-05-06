@@ -70,19 +70,11 @@ impl Component for SuggestiveEditor {
             match event {
                 key!("ctrl+n") | key!("down") => {
                     self.completion_dropdown.next_item();
-                    return Ok([Dispatch::RenderDropdown {
-                        render: self.completion_dropdown.render(),
-                    }]
-                    .to_vec()
-                    .into());
+                    return Ok(Dispatches::one(self.render_completion_dropdown()));
                 }
                 key!("ctrl+p") | key!("up") => {
                     self.completion_dropdown.previous_item();
-                    return Ok([Dispatch::RenderDropdown {
-                        render: self.completion_dropdown.render(),
-                    }]
-                    .to_vec()
-                    .into());
+                    return Ok(Dispatches::one(self.render_completion_dropdown()));
                 }
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
@@ -125,35 +117,32 @@ impl Component for SuggestiveEditor {
         };
 
         self.completion_dropdown.set_filter(&filter);
-        let dropdown_render = if self.completion_dropdown_opened() {
-            Some(self.completion_dropdown.render())
-        } else {
-            None
-        };
-        Ok(dispatches.chain(match event {
-            key!("esc") => [
-                Dispatch::CloseDropdown,
-                Dispatch::CloseEditorInfo,
-                Dispatch::ToEditor(EnterNormalMode),
-            ]
-            .to_vec()
-            .into(),
-            _ if self.editor.mode == Mode::Insert => self
-                .editor
-                .get_request_params()
-                .map(|params| {
-                    vec![
-                        Dispatch::RequestCompletion(params.clone()),
-                        Dispatch::RequestSignatureHelp(params),
-                    ]
-                })
-                .unwrap_or_default()
-                .into_iter()
-                .chain(dropdown_render.map(|render| Dispatch::RenderDropdown { render }))
-                .collect_vec()
+        let render_dropdown_dispatch = self.render_completion_dropdown();
+        Ok(dispatches
+            .append(render_dropdown_dispatch)
+            .chain(match event {
+                key!("esc") => [
+                    Dispatch::CloseDropdown,
+                    Dispatch::CloseEditorInfo,
+                    Dispatch::ToEditor(EnterNormalMode),
+                ]
+                .to_vec()
                 .into(),
-            _ => Default::default(),
-        }))
+                _ if self.editor.mode == Mode::Insert => self
+                    .editor
+                    .get_request_params()
+                    .map(|params| {
+                        vec![
+                            Dispatch::RequestCompletion(params.clone()),
+                            Dispatch::RequestSignatureHelp(params),
+                        ]
+                    })
+                    .unwrap_or_default()
+                    .into_iter()
+                    .collect_vec()
+                    .into(),
+                _ => Default::default(),
+            }))
     }
 
     fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
@@ -185,11 +174,7 @@ impl SuggestiveEditor {
             DispatchSuggestiveEditor::Completion(completion) => {
                 if self.editor.mode == Mode::Insert {
                     self.set_completion(completion);
-                    Ok([Dispatch::RenderDropdown {
-                        render: self.completion_dropdown.render(),
-                    }]
-                    .to_vec()
-                    .into())
+                    Ok(Dispatches::one(self.render_completion_dropdown()))
                 } else {
                     Ok(Vec::new().into())
                 }
@@ -220,12 +205,14 @@ impl SuggestiveEditor {
         self.trigger_characters = completion.trigger_characters;
     }
 
-    pub(crate) fn render_completion_dropdown(&self) -> Dispatches {
-        [Dispatch::RenderDropdown {
-            render: self.completion_dropdown.render(),
-        }]
-        .to_vec()
-        .into()
+    pub(crate) fn render_completion_dropdown(&self) -> Dispatch {
+        if self.editor.mode != Mode::Insert || self.completion_dropdown.no_matching_candidates() {
+            Dispatch::CloseDropdown
+        } else {
+            Dispatch::RenderDropdown {
+                render: self.completion_dropdown.render(),
+            }
+        }
     }
 }
 
@@ -750,6 +737,30 @@ mod test_suggestive_editor {
                 // Expect the content of the buffer to be applied with the new edit,
                 // resulting in 'Spongebob', and does not contain emoji
                 Expect(CurrentComponentContent("Spongebob")),
+            ])
+        })
+    }
+
+    #[test]
+    fn hide_dropdown_when_no_matching_candidates() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(dummy_completion())),
+                // Expect the completion dropdown to be open,
+                Expect(CompletionDropdownContent(
+                    " Patrick\n Spongebob\n Squidward",
+                )),
+                // Type in 'zz'
+                App(HandleKeyEvents(keys!("z z").to_vec())),
+                // Expect the dropdown is closed, because there's no matching candidates
+                Expect(CompletionDropdownIsOpen(false)),
+                SuggestiveEditor(Completion(dummy_completion())),
+                Expect(CompletionDropdownIsOpen(false)),
             ])
         })
     }
