@@ -1631,12 +1631,12 @@ fn surround() -> anyhow::Result<()> {
 }
 
 #[test]
-fn cursor_direction() -> anyhow::Result<()> {
+fn swap_cursor_with_anchor() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetContent("fn main() { x.y() }".to_string())),
-            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
             Editor(SwapCursorWithAnchor),
             Editor(SetSelectionMode(Character)),
             Expect(CurrentSelectedTexts(&["}"])),
