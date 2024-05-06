@@ -290,7 +290,7 @@ impl SelectionSet {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &Direction,
-    ) -> anyhow::Result<SelectionSet> {
+    ) -> anyhow::Result<Option<SelectionSet>> {
         let result = self
             .map(|selection| {
                 Selection::get_selection_(
@@ -304,21 +304,26 @@ impl SelectionSet {
             })
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
+        let result_len = result.len();
+        let filtered = result.into_iter().flatten().collect_vec();
+        if filtered.len() != result_len {
+            return Ok(None);
+        }
         let (
             ApplyMovementResult {
                 selection,
                 mode: new_mode,
             },
             tail,
-        ) = result
+        ) = filtered
             .split_first()
             .expect("We should refactor `SelectionSet::map` to return NonEmpty instead of Vec.");
-        Ok(SelectionSet {
+        Ok(Some(SelectionSet {
             primary: selection.to_owned(),
             secondary: tail.iter().map(|it| it.selection.to_owned()).collect(),
             mode: new_mode.clone().unwrap_or_else(|| mode.clone()),
             filters: self.filters.clone(),
-        })
+        }))
     }
 
     pub fn add_selection(
@@ -329,29 +334,29 @@ impl SelectionSet {
     ) -> anyhow::Result<()> {
         let last_selection = &self.primary;
 
-        let next_selection = Selection::get_selection_(
+        if let Some(next_selection) = Selection::get_selection_(
             buffer,
             last_selection,
             &self.mode,
             direction,
             cursor_direction,
             &self.filters,
-        )?
-        .selection;
+        )? {
+            let next_selection = next_selection.selection;
 
-        let matching_index =
-            self.secondary.iter().enumerate().find(|(_, selection)| {
+            let matching_index = self.secondary.iter().enumerate().find(|(_, selection)| {
                 selection.extended_range() == next_selection.extended_range()
             });
-        let previous_primary = std::mem::replace(&mut self.primary, next_selection);
+            let previous_primary = std::mem::replace(&mut self.primary, next_selection);
 
-        if let Some((matching_index, _)) = matching_index {
-            log::info!("Remove = {}", matching_index);
-            self.secondary.remove(matching_index);
+            if let Some((matching_index, _)) = matching_index {
+                log::info!("Remove = {}", matching_index);
+                self.secondary.remove(matching_index);
+            }
+
+            log::info!("Push");
+            self.secondary.push(previous_primary);
         }
-
-        log::info!("Push");
-        self.secondary.push(previous_primary);
 
         Ok(())
     }
@@ -678,7 +683,7 @@ impl Selection {
         direction: &Movement,
         cursor_direction: &Direction,
         filters: &Filters,
-    ) -> anyhow::Result<ApplyMovementResult> {
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
         let selection_mode = mode.to_selection_mode_trait_object(
             buffer,
             current_selection,
@@ -693,9 +698,7 @@ impl Selection {
             filters,
         };
 
-        Ok(selection_mode
-            .apply_movement(params, *direction)?
-            .unwrap_or_else(|| ApplyMovementResult::from_selection(current_selection.clone())))
+        selection_mode.apply_movement(params, *direction)
     }
     pub fn escape_highlight_mode(&mut self) {
         log::info!("escape highlight mode");

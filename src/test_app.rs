@@ -1289,6 +1289,17 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
             Editor(SetSelectionMode(Diagnostic(DiagnosticSeverityRange::All))),
             Expect(EditorInfoOpen(true)),
             Expect(EditorInfoContent("Hello world")),
+            App(HandleKeyEvent(key!("esc"))),
+            Expect(EditorInfoOpen(false)),
+            App(Dispatch::HandleLspNotification(
+                LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
+                    uri: Url::from_file_path(s.foo_rs()).unwrap(),
+                    diagnostics: Default::default(),
+                    version: None,
+                }),
+            )),
+            Editor(MoveSelection(Next)),
+            Expect(EditorInfoOpen(false)),
         ])
     })
 }
