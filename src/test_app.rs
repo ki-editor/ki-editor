@@ -1167,7 +1167,7 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
             Editor(SetContent(
                 "
 hello
-foo b // Line 2
+foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
 
 
 
@@ -1191,7 +1191,7 @@ foo a // Line 10
                 format!(
                     "
 ■┬ {}
- ├─ 2:1  foo b // Line 2
+ ├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)
  └─ 10:1  foo a // Line 10
 
 ■┬ {}
@@ -1203,9 +1203,9 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            Expect(QuickfixListCurrentLine("├─ 2:1  foo b // Line 2")),
+            Expect(QuickfixListCurrentLine("├─ 2:1  foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentPath(s.foo_rs())),
-            Expect(CurrentLine("foo b // Line 2")),
+            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Expect(ComponentCount(2)),
             Editor(MoveSelection(Next)),
@@ -1226,7 +1226,7 @@ foo a // Line 10
             Expect(CurrentLine("foo a // Line 10")),
             Expect(CurrentSelectedTexts(&["foo"])),
             Editor(MoveSelection(Previous)),
-            Expect(CurrentLine("foo b // Line 2")),
+            Expect(CurrentLine("foo balatuga // Line 2 (this line is purposely made longer than Line 10 to test sorting)")),
             Expect(CurrentSelectedTexts(&["foo"])),
         ])
     })

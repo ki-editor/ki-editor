@@ -322,8 +322,11 @@ impl Dropdown {
                     })
                     .sorted_by_key(|item| {
                         (
+                            // Sort by fuzzy score first
                             Reverse(item.fuzzy_score),
-                            // Shortest display should come first
+                            // Then sort by rank
+                            item.item.rank.clone(),
+                            // Then, shortest display should come first (for better UX of autocomplete)
                             item.item.display.len(),
                             // Then only sort lexicographically
                             item.item.display.clone(),
