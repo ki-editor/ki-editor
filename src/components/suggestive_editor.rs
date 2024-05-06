@@ -42,7 +42,7 @@ impl From<CompletionItem> for DropdownItem {
         DropdownItem::new(format!("{} {}", value.emoji(), value.label()))
             .set_info(value.info())
             .set_dispatches(Dispatches::one(match value.edit {
-                None => Dispatch::ToEditor(ReplacePreviousWord(value.label())),
+                None => Dispatch::ToEditor(TryReplaceCurrentLongWord(value.label())),
                 Some(edit) => match edit {
                     CompletionItemEdit::PositionalEdit(edit) => {
                         Dispatch::ToEditor(ApplyPositionalEdit(edit))
@@ -425,7 +425,7 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    fn completion_without_edit() -> Result<(), anyhow::Error> {
+    fn completion_without_edit_1() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile(s.main_rs())),
@@ -448,6 +448,52 @@ mod test_suggestive_editor {
                 // Expect the buffer to contain the selected item
                 Expect(CurrentComponentContent("Patrick")),
                 Expect(CompletionDropdownIsOpen(false)),
+            ])
+        })
+    }
+
+    #[test]
+    /// Should not replace non-alphanumeric word
+    fn completion_without_edit_2() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(dummy_completion())),
+                // Type in '.',,
+                App(HandleKeyEvents(keys!("a .").to_vec())),
+                Expect(CurrentComponentContent("a.")),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentComponentContent("a.Patrick")),
+            ])
+        })
+    }
+
+    #[test]
+    /// Should replace long word, not short word
+    fn completion_without_edit_3() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![CompletionItem::from_label("aBigCatDog".to_string())]
+                        .into_iter()
+                        .map(|item| item.into())
+                        .collect(),
+                })),
+                // Type in 'aBigCat',,
+                Editor(Insert("aBigCat".to_string())),
+                Expect(EditorCursorPosition(Position::new(0, 7))),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentComponentContent("aBigCatDog")),
             ])
         })
     }
