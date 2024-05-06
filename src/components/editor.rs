@@ -520,9 +520,11 @@ impl Editor {
             movement
         };
 
-        let selection_set = self.get_selection_set(&selection_mode, direction)?;
-
-        Ok(self.update_selection_set(selection_set, true))
+        if let Some(selection_set) = self.get_selection_set(&selection_mode, direction)? {
+            Ok(self.update_selection_set(selection_set, true))
+        } else {
+            Ok(Default::default())
+        }
     }
 
     fn jump_characters() -> Vec<char> {
@@ -636,6 +638,7 @@ impl Editor {
                         &self.cursor_direction,
                         &self.selection_set.filters,
                     )?
+                    .unwrap_or(selection.clone().into())
                     .selection;
 
                     let next_range = next_selection.extended_range();
@@ -743,7 +746,7 @@ impl Editor {
                 &Direction::Start,
                 &Default::default(),
             );
-            if let Ok(result) = current_long_word {
+            if let Ok(Some(result)) = current_long_word {
                 // Check if the current_long_word is alphanumeric
                 let content = buffer
                     .slice(&result.selection.range())
@@ -934,7 +937,7 @@ impl Editor {
         &self,
         mode: &SelectionMode,
         movement: Movement,
-    ) -> anyhow::Result<SelectionSet> {
+    ) -> anyhow::Result<Option<SelectionSet>> {
         self.selection_set.generate(
             &self.buffer.borrow(),
             mode,
@@ -1396,6 +1399,7 @@ impl Editor {
             &self.cursor_direction,
             &self.selection_set.filters,
         )?
+        .unwrap_or_else(|| current_selection.clone().into())
         .selection;
 
         if next_selection.eq(&current_selection) {
@@ -1461,6 +1465,7 @@ impl Editor {
                 &self.cursor_direction,
                 &self.selection_set.filters,
             )?
+            .unwrap_or_else(|| next_selection.clone().into())
             .selection;
 
             if next_selection.eq(&new_selection) {
@@ -1628,6 +1633,7 @@ impl Editor {
                             &self.cursor_direction,
                             &self.selection_set.filters,
                         )
+                        .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
                     };
                     let current_word = get_word(Movement::Current)?.selection;
                     if current_word.extended_range().start <= start {
@@ -1749,14 +1755,19 @@ impl Editor {
     }
 
     pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Dispatches> {
-        let selection = self.get_selection_set(&SelectionMode::WordLong, Movement::Current)?;
-        Ok(self.update_selection_set(selection, false).chain(
-            [Dispatch::ToEditor(ReplaceCurrentSelectionWith(
-                completion.to_string(),
-            ))]
-            .to_vec()
-            .into(),
-        ))
+        if let Some(selection) =
+            self.get_selection_set(&SelectionMode::WordLong, Movement::Current)?
+        {
+            Ok(self.update_selection_set(selection, false).chain(
+                [Dispatch::ToEditor(ReplaceCurrentSelectionWith(
+                    completion.to_string(),
+                ))]
+                .to_vec()
+                .into(),
+            ))
+        } else {
+            Ok(Default::default())
+        }
     }
 
     fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
@@ -1774,6 +1785,7 @@ impl Editor {
                             &self.selection_set.filters,
                         )
                         .ok()?
+                        .unwrap_or_else(|| selection.clone().into())
                         .selection;
                         if s.range() == selection.range() {
                             None
