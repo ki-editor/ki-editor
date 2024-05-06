@@ -731,6 +731,54 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
+    fn try_replace_current_long_word(&mut self, replacement: String) -> anyhow::Result<Dispatches> {
+        let replacement: Rope = replacement.into();
+        let buffer = self.buffer();
+        let edit_transactions = self.selection_set.map(move |selection| {
+            let current_long_word = Selection::get_selection_(
+                &buffer,
+                selection,
+                &SelectionMode::WordLong,
+                &Movement::Current,
+                &Direction::Start,
+                &Default::default(),
+            );
+            if let Ok(result) = current_long_word {
+                // Check if the current_long_word is alphanumeric
+                let content = buffer
+                    .slice(&result.selection.range())
+                    .unwrap_or_default()
+                    .to_string();
+                let range = if lazy_regex::regex!(r"^[a-zA-Z0-9_\-]+$").is_match(&content) {
+                    result.selection.range()
+                } else {
+                    selection.range()
+                };
+                let start = range.start;
+                EditTransaction::from_action_groups(
+                    [ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: range.into(),
+                                new: replacement.clone(),
+                            }),
+                            Action::Select(Selection::new({
+                                let start = start + replacement.len_chars();
+                                (start..start).into()
+                            })),
+                        ]
+                        .to_vec(),
+                    )]
+                    .to_vec(),
+                )
+            } else {
+                EditTransaction::from_action_groups(vec![])
+            }
+        });
+        let edit_transaction = EditTransaction::merge(edit_transactions);
+        self.apply_edit_transaction(edit_transaction)
+    }
+
     pub fn replace_with_clipboard(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
         self.replace_current_selection_with(|selection| selection.copied_text(context))
     }
@@ -1020,6 +1068,9 @@ impl Editor {
             }
             AddCursor(movement) => self.add_cursor(&movement)?,
             Open(direction) => return self.open(direction),
+            TryReplaceCurrentLongWord(replacement) => {
+                return self.try_replace_current_long_word(replacement)
+            }
         }
         Ok(Default::default())
     }
@@ -1692,8 +1743,7 @@ impl Editor {
     }
 
     pub fn replace_previous_word(&mut self, completion: &str) -> anyhow::Result<Dispatches> {
-        // TODO: this algo is not correct, because SelectionMode::Word select small word, we need to change to Big Word
-        let selection = self.get_selection_set(&SelectionMode::WordShort, Movement::Current)?;
+        let selection = self.get_selection_set(&SelectionMode::WordLong, Movement::Current)?;
         Ok(self.update_selection_set(selection, false).chain(
             [Dispatch::ToEditor(ReplaceCurrentSelectionWith(
                 completion.to_string(),
@@ -2374,6 +2424,7 @@ pub enum DispatchEditor {
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     ReplacePreviousWord(String),
+    TryReplaceCurrentLongWord(String),
     ApplyPositionalEdit(crate::lsp::completion::PositionalEdit),
     SelectLineAt(usize),
     ShowKeymapLegendNormalMode,

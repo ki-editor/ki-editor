@@ -679,15 +679,6 @@ impl Selection {
         cursor_direction: &Direction,
         filters: &Filters,
     ) -> anyhow::Result<ApplyMovementResult> {
-        // NOTE: cursor_char_index should only be used where the Direction is Current
-        let _cursor_char_index = {
-            let index = current_selection.to_char_index(cursor_direction);
-            match cursor_direction {
-                Direction::Start => index,
-                // Minus one so that selecting line backward works
-                Direction::End => index - 1,
-            }
-        };
         let selection_mode = mode.to_selection_mode_trait_object(
             buffer,
             current_selection,
