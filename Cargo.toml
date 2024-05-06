@@ -3,6 +3,7 @@ name = "tim"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
+rust-version = "1.76.0"
 
 [workspace]
 members = [
