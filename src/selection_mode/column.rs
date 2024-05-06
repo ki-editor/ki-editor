@@ -110,7 +110,7 @@ mod test_column {
 
     #[test]
     fn case_1() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "foo\nspam");
+        let buffer = Buffer::new(None, "foo\nspam");
 
         // First line
         let selection = Selection::default();
@@ -134,7 +134,7 @@ mod test_column {
     #[test]
     fn move_vertically() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            None,
             "
 alphz
   bete

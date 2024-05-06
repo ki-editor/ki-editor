@@ -349,4 +349,8 @@ impl LocalSearchConfig {
     pub(crate) fn replacements(&self) -> Vec<String> {
         self.replacements.clone().into_iter().collect()
     }
+
+    pub(crate) fn require_tree_sitter(&self) -> bool {
+        self.mode == LocalSearchConfigMode::AstGrep
+    }
 }

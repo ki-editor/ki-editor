@@ -216,7 +216,7 @@ mod test_hunk {
         pretty_assertions::assert_eq!(actual, expected);
 
         // The inline diff should split at unicode grapheme boundary
-        let buffer = Buffer::new(tree_sitter_md::language(), &hunks[0].content);
+        let buffer = Buffer::new(None, &hunks[0].content);
         let words = expected
             .into_iter()
             .flat_map(|decoraction| -> Result<ropey::Rope, anyhow::Error> {

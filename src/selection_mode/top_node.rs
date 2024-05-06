@@ -12,10 +12,13 @@ impl SelectionMode for TopNode {
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
-        let root_node_id = buffer.tree().root_node().id();
+        let tree = buffer.tree().ok_or(anyhow::anyhow!(
+            "TopNode::iter: cannot find Treesitter language"
+        ))?;
+        let root_node_id = tree.root_node().id();
         Ok(Box::new(
             crate::tree_sitter_traversal::traverse(
-                buffer.tree().walk(),
+                tree.walk(),
                 crate::tree_sitter_traversal::Order::Pre,
             )
             .filter(|node| node.id() != root_node_id)
@@ -46,7 +49,7 @@ impl SelectionMode for TopNode {
 }
 
 #[cfg(test)]
-mod test_outermost_node {
+mod test_top_node {
     use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
@@ -54,7 +57,7 @@ mod test_outermost_node {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            Some(tree_sitter_rust::language()),
             "fn main(x: usize) { let x = 1; }",
         );
         TopNode.assert_all_selections(

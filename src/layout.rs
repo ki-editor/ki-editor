@@ -198,10 +198,7 @@ impl Layout {
         info: Info,
         kind: ComponentKind,
     ) -> anyhow::Result<()> {
-        let info_panel = Rc::new(RefCell::new(Editor::from_text(
-            tree_sitter_md::language(),
-            "",
-        )));
+        let info_panel = Rc::new(RefCell::new(Editor::from_text(None, "")));
         info_panel.borrow_mut().show_info(info)?;
         self.tree
             .replace_node_child(node_id, kind, info_panel, false);
@@ -346,10 +343,7 @@ impl Layout {
     }
 
     pub(crate) fn open_dropdown(&mut self) -> Option<Rc<RefCell<Editor>>> {
-        let dropdown = Rc::new(RefCell::new(Editor::from_text(
-            tree_sitter_md::language(),
-            "",
-        )));
+        let dropdown = Rc::new(RefCell::new(Editor::from_text(None, "")));
         // Dropdown can only be rendered if the current node is SuggestiveEditor or Prompt
         if !matches!(
             self.tree.get_current_node().data().kind(),
@@ -414,12 +408,9 @@ impl Layout {
         quickfix_list: QuickfixList,
     ) -> anyhow::Result<Dispatches> {
         let render = quickfix_list.render();
-        let editor = self.background_quickfix_list.get_or_insert_with(|| {
-            Rc::new(RefCell::new(Editor::from_text(
-                tree_sitter_md::language(),
-                "",
-            )))
-        });
+        let editor = self
+            .background_quickfix_list
+            .get_or_insert_with(|| Rc::new(RefCell::new(Editor::from_text(None, ""))));
         let node_id =
             self.tree
                 .replace_root_node_child(ComponentKind::QuickfixList, editor.clone(), false);

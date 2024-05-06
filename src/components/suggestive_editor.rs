@@ -262,10 +262,7 @@ mod test_suggestive_editor {
     }
 
     fn editor(filter: SuggestiveEditorFilter) -> SuggestiveEditor {
-        SuggestiveEditor::from_buffer(
-            Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), ""))),
-            filter,
-        )
+        SuggestiveEditor::from_buffer(Rc::new(RefCell::new(Buffer::new(None, ""))), filter)
     }
 
     #[test]

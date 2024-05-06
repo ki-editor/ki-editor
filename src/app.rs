@@ -769,7 +769,7 @@ impl<T: Frontend> App<T> {
             return Ok(matching_editor);
         }
 
-        let buffer = Buffer::from_path(path)?;
+        let buffer = Buffer::from_path(path, true)?;
         let language = buffer.language();
         let content = buffer.content();
         let buffer = Rc::new(RefCell::new(buffer));

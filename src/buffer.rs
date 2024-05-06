@@ -27,8 +27,8 @@ use tree_sitter::{Node, Parser, Tree};
 #[derive(Clone)]
 pub struct Buffer {
     rope: Rope,
-    tree: Tree,
-    treesitter_language: tree_sitter::Language,
+    tree: Option<Tree>,
+    treesitter_language: Option<tree_sitter::Language>,
     undo_tree: UndoTree<Patch>,
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
@@ -48,16 +48,35 @@ pub struct Line {
 }
 
 impl Buffer {
-    pub fn new(language: tree_sitter::Language, text: &str) -> Self {
+    pub fn new(language: Option<tree_sitter::Language>, text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
             treesitter_language: language.clone(),
             language: None,
             tree: {
                 let mut parser = Parser::new();
-                parser.set_language(&language).unwrap();
-                parser.parse(text, None).unwrap()
+                language.and_then(|language| {
+                    parser
+                        .set_language(&language)
+                        .ok()
+                        .and_then(|_| parser.parse(text, None))
+                })
             },
+            path: None,
+            highlighted_spans: HighlighedSpans::default(),
+            bookmarks: Vec::new(),
+            decorations: Vec::new(),
+            undo_tree: UndoTree::new(),
+            diagnostics: Vec::new(),
+            quickfix_list_items: Vec::new(),
+        }
+    }
+    pub fn without_tree_sitter(text: &str) -> Self {
+        Self {
+            rope: Rope::from_str(text),
+            treesitter_language: None,
+            language: None,
+            tree: None,
             path: None,
             highlighted_spans: HighlighedSpans::default(),
             bookmarks: Vec::new(),
@@ -190,10 +209,14 @@ impl Buffer {
             .collect_vec())
     }
 
-    fn get_rope_and_tree(language: tree_sitter::Language, text: &str) -> (Rope, Tree) {
+    fn get_rope_and_tree(
+        language: Option<tree_sitter::Language>,
+        text: &str,
+    ) -> (Rope, Option<Tree>) {
         let mut parser = Parser::new();
-        parser.set_language(&language).unwrap();
-        let tree = parser.parse(text, None).unwrap();
+        let tree = language
+            .map(|language| parser.set_language(&language))
+            .and_then(|_| parser.parse(text, None));
         // let start_char_index = edit.start;
         // let old_end_char_index = edit.end();
         // let new_end_char_index = edit.start + edit.new.len_chars();
@@ -237,9 +260,13 @@ impl Buffer {
         };
         let byte_range = start..end;
         self.tree
-            .root_node()
-            .descendant_for_byte_range(byte_range.start, byte_range.end)
-            .map(|node| node.byte_range() == byte_range)
+            .as_ref()
+            .map(|tree| {
+                tree.root_node()
+                    .descendant_for_byte_range(byte_range.start, byte_range.end)
+                    .map(|node| node.byte_range() == byte_range)
+                    .unwrap_or(false)
+            })
             .unwrap_or(false)
     }
 
@@ -367,14 +394,19 @@ impl Buffer {
         let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
-        traverse(self.tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
+        self.tree.as_ref().and_then(|tree| {
+            traverse(tree.root_node().walk(), Order::Pre).find(|&node| node.start_byte() >= byte)
+        })
     }
 
     pub fn get_current_node<'a>(
         &'a self,
         selection: &Selection,
         get_largest_end: bool,
-    ) -> anyhow::Result<Node<'a>> {
+    ) -> anyhow::Result<Option<Node<'a>>> {
+        let Some(tree) = self.tree.as_ref() else {
+            return Ok(None);
+        };
         let range = selection.range();
         let start = self.char_to_byte(range.start)?;
         let (start, end) = if get_largest_end {
@@ -382,11 +414,10 @@ impl Buffer {
         } else {
             (start, self.char_to_byte(range.end)?)
         };
-        let node = self
-            .tree
+        let node = tree
             .root_node()
             .descendant_for_byte_range(start, end)
-            .unwrap_or_else(|| self.tree.root_node());
+            .unwrap_or_else(|| tree.root_node());
 
         // Get the most ancestral node of this range
         //
@@ -396,7 +427,7 @@ impl Buffer {
         // If we don't get the most ancestral node, then movements like "go to next sibling" will
         // not work as expected.
         let mut result = node;
-        let root_node_id = self.tree.root_node().id();
+        let root_node_id = tree.root_node().id();
         while let Some(parent) = result.parent() {
             if parent.start_byte() == node.start_byte()
                 && root_node_id != parent.id()
@@ -404,31 +435,35 @@ impl Buffer {
             {
                 result = parent;
             } else {
-                return Ok(result);
+                return Ok(Some(result));
             }
         }
 
-        Ok(node)
+        Ok(Some(node))
     }
 
     pub fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
         let byte = self.char_to_byte(char_index).ok()?;
-        self.traverse(Order::Post).find(|&node| {
-            node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
+        self.traverse(Order::Post).and_then(|mut iter| {
+            iter.find(|&node| {
+                node.child_count() == 0 && (!is_named || node.is_named()) && node.end_byte() > byte
+            })
         })
     }
 
     pub fn get_prev_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
         let byte = self.char_to_byte(char_index).ok()?;
-        find_previous(
-            self.traverse(Order::Pre),
-            |node, _| node.child_count() == 0 && (!is_named || node.is_named()),
-            |node| node.start_byte() >= byte,
-        )
+        self.traverse(Order::Pre).and_then(|iter| {
+            find_previous(
+                iter,
+                |node, _| node.child_count() == 0 && (!is_named || node.is_named()),
+                |node| node.start_byte() >= byte,
+            )
+        })
     }
 
-    pub fn traverse(&self, order: Order) -> impl Iterator<Item = Node> {
-        traverse(self.tree.walk(), order)
+    pub fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
+        self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
     /// Returns the new selection set
@@ -582,25 +617,30 @@ impl Buffer {
 
     pub fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
         let rope = &self.rope;
-        if let Some(node) = self.tree.root_node().descendant_for_byte_range(
-            rope.try_char_to_byte(range.start.0).unwrap_or(0),
-            rope.try_char_to_byte(range.end.0).unwrap_or(0),
-        ) {
+        if let Some(node) = self.tree.as_ref().and_then(|tree| {
+            tree.root_node().descendant_for_byte_range(
+                rope.try_char_to_byte(range.start.0).unwrap_or(0),
+                rope.try_char_to_byte(range.end.0).unwrap_or(0),
+            )
+        }) {
             node.has_error()
         } else {
             false
         }
     }
 
-    pub fn from_path(path: &CanonicalizedPath) -> anyhow::Result<Buffer> {
+    pub fn from_path(path: &CanonicalizedPath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
         let content = path.read()?;
-        let language = language::from_path(path);
+        let language = if enable_tree_sitter {
+            language::from_path(path)
+        } else {
+            None
+        };
 
         let mut buffer = Buffer::new(
             language
                 .as_ref()
-                .and_then(|language| language.tree_sitter_language())
-                .unwrap_or_else(tree_sitter_md::language),
+                .and_then(|language| language.tree_sitter_language()),
             &content,
         );
 
@@ -612,11 +652,10 @@ impl Buffer {
 
     pub fn reparse_tree(&mut self) -> anyhow::Result<()> {
         let mut parser = tree_sitter::Parser::new();
-        parser.set_language(&self.tree.language())?;
-        if let Some(tree) = parser.parse(&self.rope.to_string(), None) {
-            self.tree = tree
+        if let Some(tree) = self.tree.as_ref() {
+            parser.set_language(&tree.language())?;
+            self.tree = parser.parse(&self.rope.to_string(), None);
         }
-
         Ok(())
     }
 
@@ -678,12 +717,12 @@ impl Buffer {
         self.language.clone()
     }
 
-    pub fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
+    pub fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
         self.language = Some(language);
         self.reparse_tree()
     }
 
-    pub fn treesitter_language(&self) -> tree_sitter::Language {
+    pub fn treesitter_language(&self) -> Option<tree_sitter::Language> {
         self.treesitter_language.clone()
     }
 
@@ -703,8 +742,8 @@ impl Buffer {
         Some(CharIndex(index + position.column))
     }
 
-    pub fn tree(&self) -> &Tree {
-        &self.tree
+    pub fn tree(&self) -> Option<&Tree> {
+        self.tree.as_ref()
     }
 
     pub fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {
@@ -951,12 +990,11 @@ impl Buffer {
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::AstGrep => {
-                let edits = AstGrep::replace(
-                    self.treesitter_language(),
-                    &before,
-                    &config.search(),
-                    &config.replacement(),
-                )?;
+                let edits = if let Some(language) = self.treesitter_language() {
+                    AstGrep::replace(language, &before, &config.search(), &config.replacement())?
+                } else {
+                    Default::default()
+                };
                 EditTransaction::from_action_groups(
                     edits
                         .into_iter()
@@ -1026,8 +1064,7 @@ mod test_buffer {
         let buffer = Buffer::new(
             shared::language::from_extension("yaml")
                 .unwrap()
-                .tree_sitter_language()
-                .unwrap(),
+                .tree_sitter_language(),
             "
 - spongebob
 - who:
@@ -1059,8 +1096,7 @@ mod test_buffer {
         let buffer = Buffer::new(
             shared::language::from_extension("rs")
                 .unwrap()
-                .tree_sitter_language()
-                .unwrap(),
+                .tree_sitter_language(),
             "
 fn f(
   x: X
@@ -1088,7 +1124,7 @@ fn f(
 
     #[test]
     fn find_words() {
-        let buffer = Buffer::new(tree_sitter_md::language(), "foo bar baz baz");
+        let buffer = Buffer::new(None, "foo bar baz baz");
         let words = buffer.find_words("Ba");
 
         // Should return unique words
@@ -1110,8 +1146,7 @@ fn f(
             let mut buffer = Buffer::new(
                 shared::language::from_extension("rs")
                     .unwrap()
-                    .tree_sitter_language()
-                    .unwrap(),
+                    .tree_sitter_language(),
                 input,
             );
             buffer.replace(config, SelectionSet::default())?;
@@ -1183,7 +1218,7 @@ fn f(
             let path = CanonicalizedPath::try_from(file_path).unwrap();
             path.write("").unwrap();
 
-            let buffer = Buffer::from_path(&path).unwrap();
+            let buffer = Buffer::from_path(&path, true).unwrap();
 
             f(path, buffer)
         }
@@ -1266,7 +1301,7 @@ fn f(
 
                 // The code should be deemed as valid by Tree-sitter,
                 // but not to the formatter
-                assert!(!buffer.tree.root_node().has_error());
+                assert!(!buffer.tree.as_ref().unwrap().root_node().has_error());
 
                 buffer.save(SelectionSet::default()).unwrap();
 
@@ -1281,7 +1316,7 @@ fn f(
 
         use super::*;
         fn run_test(old: &str, new: &str) -> anyhow::Result<EditTransaction> {
-            let mut buffer = Buffer::new(tree_sitter_md::language(), old);
+            let mut buffer = Buffer::new(Some(tree_sitter_md::language()), old);
 
             let edit_transaction = buffer.get_edit_transaction(new)?;
 

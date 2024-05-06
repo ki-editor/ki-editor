@@ -48,7 +48,7 @@ pub fn replace(
     Ok(walk_builder_config
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;
-            let mut buffer = Buffer::from_path(&path)?;
+            let mut buffer = Buffer::from_path(&path, local_search_config.require_tree_sitter())?;
             let (modified, _) = buffer.replace(local_search_config.clone(), Default::default())?;
             if modified {
                 buffer.save_without_formatting()?;
@@ -75,7 +75,10 @@ pub fn run(
     Ok(walk_builder_config
         .run(Box::new(move |path, sender| {
             let path = path.try_into()?;
-            let buffer = Buffer::from_path(&path)?;
+            let buffer = Buffer::from_path(&path, false)?;
+            // Tree-sitter should be disabled whenever possible during
+            // global search, because it will slow down the operation tremendously
+            debug_assert!(buffer.tree().is_none());
             let mut searcher = SearcherBuilder::new().build();
             searcher.search_path(
                 &matcher,

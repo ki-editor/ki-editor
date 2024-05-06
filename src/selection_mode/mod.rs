@@ -545,7 +545,7 @@ mod test_selection_mode {
         expected_selection_byte_range: Range<usize>,
     ) {
         let params = SelectionModeParams {
-            buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
+            buffer: &Buffer::new(None, "hello world"),
             current_selection: &Selection::default().set_range(CharIndexRange {
                 start: CharIndex(current_selection_byte_range.start),
                 end: CharIndex(current_selection_byte_range.end),
@@ -611,7 +611,7 @@ mod test_selection_mode {
     #[test]
     fn same_range_different_info() {
         let params = SelectionModeParams {
-            buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
+            buffer: &Buffer::new(None, "hello world"),
             current_selection: &Selection::default()
                 .set_range((CharIndex(1)..CharIndex(2)).into())
                 .set_info(Some(Info::new(
@@ -663,7 +663,7 @@ mod test_selection_mode {
     #[test]
     fn should_not_use_extended_range() {
         let params = SelectionModeParams {
-            buffer: &Buffer::new(tree_sitter_md::language(), "hello world"),
+            buffer: &Buffer::new(None, "hello world"),
             current_selection: &Selection::default()
                 .set_range(CharIndexRange {
                     start: CharIndex(2),
@@ -691,7 +691,7 @@ mod test_selection_mode {
     /// Should prioritize selection on the same line even though the selection on the next line might be closer to the cursor
     fn prioritize_same_line() {
         let params = SelectionModeParams {
-            buffer: &Buffer::new(tree_sitter_md::language(), "hello\nworld"),
+            buffer: &Buffer::new(None, "hello\nworld"),
             current_selection: &Selection::default().set_range(CharIndexRange {
                 start: CharIndex(4),
                 end: CharIndex(5),
@@ -713,7 +713,7 @@ mod test_selection_mode {
     #[test]
     fn to_parent_line() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            Some(tree_sitter_rust::language()),
             "
 fn f() {
     fn g() {
