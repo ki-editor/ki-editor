@@ -77,7 +77,7 @@ mod test_regex {
 
     #[test]
     fn escaped() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
+        let buffer = Buffer::new(None, "fn main() { let x = m.in; }");
         crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
@@ -93,7 +93,7 @@ mod test_regex {
 
     #[test]
     fn unescaped() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = m.in; }");
+        let buffer = Buffer::new(None, "fn main() { let x = m.in; }");
         crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
@@ -113,7 +113,7 @@ mod test_regex {
 
     #[test]
     fn ignore_case() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "fn Main() { let x = m.in; }");
+        let buffer = Buffer::new(None, "fn Main() { let x = m.in; }");
         crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",
@@ -133,10 +133,7 @@ mod test_regex {
 
     #[test]
     fn match_whole_word() {
-        let buffer = Buffer::new(
-            tree_sitter_rust::language(),
-            "fn Main() { let x = main_war; }",
-        );
+        let buffer = Buffer::new(None, "fn Main() { let x = main_war; }");
         crate::selection_mode::Regex::from_config(
             &buffer,
             "m.in",

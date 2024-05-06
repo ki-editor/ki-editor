@@ -21,8 +21,7 @@ impl FileExplorer {
         let text = tree.render();
         let mut editor = Editor::from_text(
             shared::language::from_extension("yaml")
-                .and_then(|language| language.tree_sitter_language())
-                .unwrap_or(tree_sitter_md::language()),
+                .and_then(|language| language.tree_sitter_language()),
             &format!("{}\n", text),
         );
         editor.set_title("File Explorer".to_string());

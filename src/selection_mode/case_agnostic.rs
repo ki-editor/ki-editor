@@ -82,7 +82,7 @@ mod test_case_agnostic {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            None,
             "AliBu aliBu ali-bu ali_bu Ali Bu ALI BU ali bu ALI-BU ALI_BU Ali-Bu",
         );
         let selection_mode = CaseAgnostic::new("ali bu".to_string());

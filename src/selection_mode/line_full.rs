@@ -53,7 +53,7 @@ mod test_line {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a\n\n\nb\nc\n  hello");
+        let buffer = Buffer::new(None, "a\n\n\nb\nc\n  hello");
         LineFull.assert_all_selections(
             &buffer,
             Selection::default(),
@@ -72,7 +72,7 @@ mod test_line {
 
     #[test]
     fn single_line_without_trailing_newline_character() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a");
+        let buffer = Buffer::new(None, "a");
         LineFull.assert_all_selections(&buffer, Selection::default(), &[(0..1, "a")]);
     }
 }

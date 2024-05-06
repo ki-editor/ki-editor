@@ -9,7 +9,12 @@ pub struct AstGrep {
 
 impl AstGrep {
     pub fn new(buffer: &crate::buffer::Buffer, pattern: &str) -> anyhow::Result<Self> {
-        let lang: TSLanguage = buffer.treesitter_language().into();
+        let Some(language) = buffer.treesitter_language() else {
+            return Err(anyhow::anyhow!(
+                "Unable to launch AST Grep because no Tree-sitter language is found."
+            ));
+        };
+        let lang: TSLanguage = language.into();
         let pattern = ast_grep_core::matcher::Pattern::try_new(pattern, lang.clone())?;
         let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
         Ok(Self { pattern, grep })
@@ -55,7 +60,7 @@ mod test_ast_grep {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            Some(tree_sitter_rust::language()),
             "fn main(x: usize) { let x = f(f(x)); }",
         );
         AstGrep::new(&buffer, "f($Y)")

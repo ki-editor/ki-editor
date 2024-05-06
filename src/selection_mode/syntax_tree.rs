@@ -25,7 +25,11 @@ impl SelectionMode for SyntaxTree {
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
-        let node = buffer.get_current_node(current_selection, false)?;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxTree::iter: Cannot find Treesitter language"
+            ))?;
 
         if let Some(parent) = node.parent() {
             Ok(Box::new(
@@ -77,9 +81,12 @@ impl SyntaxTree {
         params: super::SelectionModeParams,
         go_up: bool,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let mut node = params
+        let Some(mut node) = params
             .buffer
-            .get_current_node(params.current_selection, false)?;
+            .get_current_node(params.current_selection, false)?
+        else {
+            return Ok(None);
+        };
         while let Some(some_node) = get_node(node, go_up) {
             // This is necessary because sometimes the parent node can have the same range as
             // the current node
@@ -115,7 +122,7 @@ mod test_syntax_tree {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            Some(tree_sitter_rust::language()),
             "fn main() { let x = X {z,b,c:d} }",
         );
         SyntaxTree.assert_all_selections(
@@ -127,7 +134,10 @@ mod test_syntax_tree {
 
     #[test]
     fn case_2() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() { let x = S(a); }");
+        let buffer = Buffer::new(
+            Some(tree_sitter_rust::language()),
+            "fn main() { let x = S(a); }",
+        );
         SyntaxTree.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
@@ -138,7 +148,7 @@ mod test_syntax_tree {
     #[test]
     fn parent() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            Some(tree_sitter_rust::language()),
             "fn main() { let x = X {z,b,c:d} }",
         );
 
@@ -167,7 +177,7 @@ mod test_syntax_tree {
     #[test]
     fn current() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            Some(tree_sitter_rust::language()),
             "
 fn main() {
   let x = X;

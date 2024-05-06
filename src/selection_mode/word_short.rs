@@ -25,7 +25,7 @@ mod test_word_short {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            tree_sitter_rust::language(),
+            None,
             "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_>",
         );
         WordShort::as_regex(&buffer).unwrap().assert_all_selections(

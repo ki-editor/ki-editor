@@ -319,7 +319,7 @@ impl Editor {
         )
     }
 
-    pub fn from_text(language: tree_sitter::Language, text: &str) -> Self {
+    pub fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
         Self {
             selection_set: SelectionSet {
                 primary: Selection::default(),
@@ -1326,7 +1326,7 @@ impl Editor {
                         Ok(selection.clone().set_range(range))
                     })?;
             self.clamp()?;
-            self.buffer_mut().reparse_tree()?;
+            self.buffer_mut().reparse_tree()?
         }
         // TODO: continue from here, need to add test: upon exiting insert mode, should close all panels
         // Maybe we should call this function the exit_insert_mode?
@@ -1434,10 +1434,16 @@ impl Editor {
             // contains error
             if !selection_mode.is_node()
                 || (!text_at_next_selection.to_string().trim().is_empty()
-                    && next_nodes.iter().all(|next_node| {
-                        current_node.kind_id() == next_node.kind_id()
-                            && current_node.byte_range().len() == next_node.byte_range().len()
-                    })
+                    && next_nodes
+                        .iter()
+                        .all(|next_node| match (current_node, next_node) {
+                            (Some(current_node), Some(next_node)) => {
+                                current_node.kind_id() == next_node.kind_id()
+                                    && current_node.byte_range().len()
+                                        == next_node.byte_range().len()
+                            }
+                            (_, _) => true,
+                        })
                     && !new_buffer.has_syntax_error_at(edit_transaction.range()))
             {
                 return Ok(Either::Right(get_actual_edit_transaction(
@@ -2205,7 +2211,7 @@ impl Editor {
         self.scroll_offset = scroll_offset
     }
 
-    pub(crate) fn set_language(&mut self, language: Language) -> Result<(), anyhow::Error> {
+    pub(crate) fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
         self.buffer_mut().set_language(language)
     }
 

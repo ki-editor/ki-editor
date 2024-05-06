@@ -285,7 +285,7 @@ impl KeymapLegend {
             // panic!("{}", message);
         }
 
-        let mut editor = Editor::from_text(tree_sitter_md::language(), "");
+        let mut editor = Editor::from_text(None, "");
         editor.set_title(config.title.clone());
         editor.enter_insert_mode(Direction::End).unwrap_or_default();
         editor.set_regex_highlight_rules(config.get_regex_highlight_rules());

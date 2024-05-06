@@ -20,10 +20,19 @@ pub struct WalkBuilderConfig {
 
 type SearchFn = dyn Fn(&Buffer) -> anyhow::Result<Vec<ByteRange>> + Send + Sync;
 impl WalkBuilderConfig {
-    pub fn run_with_search(self, f: Box<SearchFn>) -> anyhow::Result<Vec<Location>> {
+    pub fn run_with_search(
+        self,
+        enable_tree_sitter: bool,
+        f: Box<SearchFn>,
+    ) -> anyhow::Result<Vec<Location>> {
         self.run(Box::new(move |path, sender| {
             let path = path.try_into()?;
-            let buffer = Buffer::from_path(&path)?;
+            let buffer = Buffer::from_path(&path, enable_tree_sitter)?;
+            // Tree-sitter should be disabled whenever possible during
+            // global search, because it will slow down the operation tremendously
+            if !enable_tree_sitter {
+                debug_assert!(buffer.tree().is_none())
+            }
             let _ = f(&buffer)?
                 .into_iter()
                 .flat_map(move |node_match| -> anyhow::Result<_> {

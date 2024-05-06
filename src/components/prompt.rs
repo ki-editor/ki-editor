@@ -43,7 +43,7 @@ impl Prompt {
         };
         log::info!("Prompt.text = {text}");
         let mut editor = SuggestiveEditor::from_buffer(
-            Rc::new(RefCell::new(Buffer::new(tree_sitter_md::language(), text))),
+            Rc::new(RefCell::new(Buffer::new(None, text))),
             SuggestiveEditorFilter::CurrentLine,
         );
         editor.enter_insert_mode().unwrap_or_default();

@@ -13,9 +13,12 @@ impl SelectionMode for BottomNode {
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
+        let tree = buffer
+            .tree()
+            .ok_or(anyhow::anyhow!("Unable to find Treesitter language"))?;
         Ok(Box::new(
             crate::tree_sitter_traversal::traverse(
-                buffer.tree().walk(),
+                tree.walk(),
                 crate::tree_sitter_traversal::Order::Post,
             )
             .filter(|node| node.child_count() == 0)
@@ -44,7 +47,7 @@ mod test_token {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "fn main() {}");
+        let buffer = Buffer::new(Some(tree_sitter_rust::language()), "fn main() {}");
         BottomNode.assert_all_selections(
             &buffer,
             Selection::default(),

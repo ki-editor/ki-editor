@@ -177,7 +177,7 @@ mod test_inside {
 
     #[test]
     fn current_open_close_same() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a b 'c 'd e''");
+        let buffer = Buffer::new(None, "a b 'c 'd e''");
         let inside = Inside(InsideKind::Other {
             open: "'".to_string(),
             close: "'".to_string(),
@@ -207,7 +207,7 @@ mod test_inside {
 
     #[test]
     fn current_open_close_different() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
+        let buffer = Buffer::new(None, "a b {|c {|d e|}|}");
         let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
             close: "|}".to_string(),
@@ -231,7 +231,7 @@ mod test_inside {
 
     #[test]
     fn parent() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|}");
+        let buffer = Buffer::new(None, "a b {|c {|d e|}|}");
         let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
             close: "|}".to_string(),
@@ -250,7 +250,7 @@ mod test_inside {
 
     #[test]
     fn first_child() -> anyhow::Result<()> {
-        let buffer = Buffer::new(tree_sitter_rust::language(), "a b {|c {|d e|}|} {| x |}");
+        let buffer = Buffer::new(None, "a b {|c {|d e|}|} {| x |}");
         let inside = Inside(InsideKind::Other {
             open: "{|".to_string(),
             close: "|}".to_string(),

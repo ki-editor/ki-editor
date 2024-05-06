@@ -565,7 +565,7 @@ mod test_render_editor {
 
     #[quickcheck]
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
-        let mut editor = Editor::from_text(tree_sitter_md::language(), &content);
+        let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone());
         let grid = editor.get_grid(&Context::default());
         let cells = grid.grid.to_positioned_cells();
