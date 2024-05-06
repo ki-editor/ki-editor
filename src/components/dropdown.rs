@@ -527,6 +527,10 @@ impl Dropdown {
             })
             .collect_vec()
     }
+
+    pub(crate) fn no_matching_candidates(&self) -> bool {
+        self.filtered_item_groups.is_empty()
+    }
 }
 
 #[cfg(test)]
