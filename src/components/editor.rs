@@ -738,45 +738,37 @@ impl Editor {
         let replacement: Rope = replacement.into();
         let buffer = self.buffer();
         let edit_transactions = self.selection_set.map(move |selection| {
-            let current_long_word = Selection::get_selection_(
-                &buffer,
-                selection,
-                &SelectionMode::WordLong,
-                &Movement::Current,
-                &Direction::Start,
-                &Default::default(),
-            );
-            if let Ok(Some(result)) = current_long_word {
-                // Check if the current_long_word is alphanumeric
-                let content = buffer
-                    .slice(&result.selection.range())
-                    .unwrap_or_default()
-                    .to_string();
-                let range = if lazy_regex::regex!(r"^[a-zA-Z0-9_\-]+$").is_match(&content) {
-                    result.selection.range()
-                } else {
-                    selection.range()
-                };
-                let start = range.start;
-                EditTransaction::from_action_groups(
-                    [ActionGroup::new(
-                        [
-                            Action::Edit(Edit {
-                                range,
-                                new: replacement.clone(),
-                            }),
-                            Action::Select(Selection::new({
-                                let start = start + replacement.len_chars();
-                                (start..start).into()
-                            })),
-                        ]
-                        .to_vec(),
-                    )]
+            let current_char_index = selection.range().start;
+            let word_start = buffer
+                .rope()
+                .chars()
+                .enumerate()
+                .take(current_char_index.0)
+                .collect_vec()
+                .iter()
+                .rev()
+                .take_while(|(_, c)| c.is_alphanumeric() || c == &'_' || c == &'-')
+                .last()
+                .map(|(char_index, _)| CharIndex(*char_index))
+                .unwrap_or(current_char_index);
+            let range: CharIndexRange = (word_start..selection.range().start).into();
+            let start = range.start;
+            EditTransaction::from_action_groups(
+                [ActionGroup::new(
+                    [
+                        Action::Edit(Edit {
+                            range,
+                            new: replacement.clone(),
+                        }),
+                        Action::Select(Selection::new({
+                            let start = start + replacement.len_chars();
+                            (start..start).into()
+                        })),
+                    ]
                     .to_vec(),
-                )
-            } else {
-                EditTransaction::from_action_groups(vec![])
-            }
+                )]
+                .to_vec(),
+            )
         });
         let edit_transaction = EditTransaction::merge(edit_transactions);
         self.apply_edit_transaction(edit_transaction)

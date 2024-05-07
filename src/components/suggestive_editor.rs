@@ -473,11 +473,38 @@ mod test_suggestive_editor {
                         .map(|item| item.into())
                         .collect(),
                 })),
-                // Type in 'aBigCat',,
+                // Type in 'aBigCat'
                 Editor(Insert("aBigCat".to_string())),
                 Expect(EditorCursorPosition(Position::new(0, 7))),
                 App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("aBigCatDog")),
+            ])
+        })
+    }
+
+    #[test]
+    /// Should work when surrounded by parenthesis
+    fn completion_without_edit_4() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("()".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(MatchLiteral("(".to_string())),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: vec![CompletionItem::from_label("aBigCatDog".to_string())]
+                        .into_iter()
+                        .map(|item| item.into())
+                        .collect(),
+                })),
+                Editor(EnterInsertMode(Direction::End)),
+                // Type in 'aBigCat',,
+                Editor(Insert("aBigCat".to_string())),
+                App(HandleKeyEvent(key!("tab"))),
+                Expect(CurrentComponentContent("(aBigCatDog)")),
             ])
         })
     }
