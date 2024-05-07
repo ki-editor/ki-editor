@@ -61,13 +61,13 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new(
-                    "s",
-                    "Skip (Jump)".to_string(),
+                    "f",
+                    "Find (Jump)".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps),
                 ),
                 Keymap::new(
-                    "z",
-                    "Zeus (Parent Line)".to_string(),
+                    "-",
+                    "Parent Line".to_string(),
                     Dispatch::ToEditor(MoveSelection(ToParentLine)),
                 ),
                 Keymap::new(
@@ -132,18 +132,18 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(LineFull)),
                 ),
                 Keymap::new(
-                    "f",
-                    "Find (Local)".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_local_keymap_legend_config(context)),
-                ),
-                Keymap::new(
                     "g",
-                    "Find (Global)".to_string(),
+                    "Global".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_global_keymap_legend_config(context)),
                 ),
                 Keymap::new(
                     "n",
-                    "Node".to_string(),
+                    "Native".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_local_keymap_legend_config(context)),
+                ),
+                Keymap::new(
+                    "s",
+                    "Syntax Tree".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(SyntaxTree)),
                 ),
                 Keymap::new(
@@ -869,7 +869,7 @@ impl Editor {
         let owner_id = self.id();
         let scope = Scope::Local;
         KeymapLegendConfig {
-            title: Self::find_submenu_title("", scope),
+            title: "Native".to_string(),
             owner_id,
             body: KeymapLegendBody::MultipleSections {
                 sections: Some(self.keymap_text_search(context, Scope::Local))
@@ -977,7 +977,7 @@ impl Editor {
     pub fn find_global_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         let scope = Scope::Global;
         KeymapLegendConfig {
-            title: Self::find_submenu_title("", scope),
+            title: "Global".to_string(),
             owner_id: self.id(),
             body: KeymapLegendBody::MultipleSections {
                 sections: [KeymapLegendSection {
