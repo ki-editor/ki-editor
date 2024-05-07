@@ -1,5 +1,5 @@
 use crate::{
-    app::{Dispatches, RequestParams, Scope, SelectionSetHistoryKind},
+    app::{Dispatches, RequestParams, SelectionSetHistoryKind},
     buffer::Line,
     char_index_range::CharIndexRange,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
@@ -2261,14 +2261,6 @@ impl Editor {
     fn filters_clear(&mut self) -> Dispatches {
         let selection_set = self.selection_set.clone().filter_clear();
         self.update_selection_set(selection_set, true)
-    }
-
-    pub fn find_submenu_title(title: &str, scope: Scope) -> String {
-        let scope = match scope {
-            Scope::Local => "Local".to_string(),
-            Scope::Global => "Global".to_string(),
-        };
-        format!("Find ({scope}): {title}")
     }
 
     fn enter_exchange_mode(&mut self) {
