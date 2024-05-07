@@ -1,0 +1,12 @@
+default:
+    @just build test
+    
+install:
+    npm install
+
+build:
+    tree-sitter generate
+    
+test:
+    tree-sitter test
+

@@ -1,4 +1,4 @@
-//! This crate provides yard language support for the [tree-sitter][] parsing library.
+//! This crate provides quickfix language support for the [tree-sitter][] parsing library.
 //!
 //! Typically, you will use the [language][language func] function to add this language to a
 //! tree-sitter [Parser][], and then use the parser to parse some code:
@@ -6,7 +6,7 @@
 //! ```
 //! let code = "";
 //! let mut parser = tree_sitter::Parser::new();
-//! parser.set_language(tree_sitter_quickfix::language()).expect("Error loading yard grammar");
+//! parser.set_language(&tree_sitter_quickfix::language()).expect("Error loading quickfix grammar");
 //! let tree = parser.parse(code, None).unwrap();
 //! ```
 //!
@@ -46,7 +46,7 @@ mod tests {
     fn test_can_load_grammar() {
         let mut parser = tree_sitter::Parser::new();
         parser
-            .set_language(super::language())
-            .expect("Error loading yard language");
+            .set_language(&super::language())
+            .expect("Error loading quickfix language");
     }
 }

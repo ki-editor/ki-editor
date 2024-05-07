@@ -1,5 +1,5 @@
 default:
-    @just fmt-check build clippy test
+    @just fmt-check build clippy test tree-sitter-quickfix
     
 install:
     cargo install --locked --path .
@@ -28,6 +28,9 @@ test:
     git config --get --global user.email || git config --global user.email tester@gmail.com
     cargo test --workspace
     
+tree-sitter-quickfix:
+    just -f tree_sitter_quickfix/justfile
+
 codecov:
 	cargo tarpaulin --out html
     
