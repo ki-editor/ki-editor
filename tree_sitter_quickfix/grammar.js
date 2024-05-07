@@ -8,7 +8,7 @@ const makeEnclose = (open, close) => ($) =>
   choice(seq(open, close), seq(open, $.expressions, close));
 
 module.exports = grammar({
-  name: "yard",
+  name: "quickfix",
 
   extras: ($) => [/ /, "\n"], // Ignore whitespace
 

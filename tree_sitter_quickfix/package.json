@@ -1,12 +1,9 @@
 {
   "name": "tree-sitter-quickfix",
   "version": "0.0.1",
-  "description": "yard grammar for tree-sitter",
+  "description": "quickfix grammar for tree-sitter",
   "main": "bindings/node",
-  "keywords": [
-    "parsing",
-    "incremental"
-  ],
+  "keywords": ["parsing", "incremental"],
   "dependencies": {
     "nan": "^2.12.1"
   },
