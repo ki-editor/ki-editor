@@ -1,5 +1,5 @@
 default:
-    @just fmt-check build clippy test tree-sitter-quickfix
+    @just tree-sitter-quickfix fmt-check build clippy test
     
 install:
     cargo install --locked --path .
