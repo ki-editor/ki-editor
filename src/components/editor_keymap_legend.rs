@@ -234,6 +234,7 @@ impl Editor {
                     Dispatch::ToEditor(ReplaceCut),
                 ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
+                Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
             ]),
         }
     }
@@ -257,7 +258,6 @@ impl Editor {
                     "Close current window".to_string(),
                     Dispatch::CloseCurrentWindow,
                 ),
-                Keymap::new("ctrl+s", "Save".to_string(), Dispatch::ToEditor(Save)),
                 Keymap::new(
                     "ctrl+v",
                     "Paste".to_string(),
