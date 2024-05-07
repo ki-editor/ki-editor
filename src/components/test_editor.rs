@@ -1083,7 +1083,7 @@ fn get_grid_parent_line() -> anyhow::Result<()> {
 // hello
 fn main() {
   let x = 1;
-  let y = 2;
+  let y = 2; // too long, wrapped
   for a in b {
     let z = 4;
     print()
@@ -1096,7 +1096,7 @@ fn main() {
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
                 width,
-                height: 6,
+                height: 7,
             })),
             App(SetTheme(theme.clone())),
             // Go to "print()" and skip the first 3 lines for rendering
@@ -1108,7 +1108,8 @@ fn main() {
                 "
 🦀  src/main.rs
 2│fn main() {
-4│  let y = 2;
+4│  let y = 2; //
+↪│too long, wrapped
 5│  for a in b {
 6│    let z = 4;
 7│    █rint()
@@ -1121,7 +1122,9 @@ fn main() {
             // Expect the parent lines of the current selections are highlighted with parent_lines_background,
             // regardless of whether the parent lines are inbound or outbound
             ExpectMulti(
-                [1, 3]
+                // Line 1 = `fn main() {`
+                // Line 4 = `for a in b`
+                [1, 4]
                     .into_iter()
                     .flat_map(|row_index| {
                         [0, width - 1].into_iter().map(move |column_index| {
@@ -1157,12 +1160,12 @@ fn main() {
                 "
 🦀  src/main.rs
 2│fn main() {
-4│  let y = 2;
+4│  let y = 2; //
+↪│too long, wrapped
 5│  for a in b {
 6│    let z = 4;
-7│    █rint()
-"
-                .trim(),
+7│    █rint()"
+                    .trim(),
             )),
             // Expect the bookmarks of outbound parent lines are rendered properly
             // In this case, the outbound parent line is "fn main() {"
@@ -1176,8 +1179,9 @@ fn main() {
             ),
             // Expect the bookmarks of inbound lines are rendered properly
             // In this case, we want to check that the bookmark on "z" is rendered
-            Expect(GridCellBackground(4, 10, bookmark_background_color)),
-            // Expect no cells of the line `let y = 2` is not decorated with `bookmark_background_color`
+            Expect(GridCellBackground(5, 10, bookmark_background_color)),
+            // Expect no cells of the line `let y = 2` is not decorated with
+            // `bookmark_background_color`
             ExpectMulti(
                 (0..12)
                     .map(|column_index| {

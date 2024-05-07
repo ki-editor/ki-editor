@@ -425,19 +425,27 @@ impl Grid {
                     should_be_calibrated: true,
                 })
         };
-        let line_updates = line_updates.into_iter().flat_map(|line_update| {
-            (0..width).map(move |column_index| CalibratableCellUpdate {
-                should_be_calibrated: false,
-                cell_update: CellUpdate {
-                    style: line_update.style,
-                    position: Position {
-                        line: line_update.line_index,
-                        column: column_index as usize,
+        let line_updates = line_updates
+            .into_iter()
+            .filter_map(|line_update| {
+                let line = wrapped_lines
+                    .calibrate(Position::new(line_update.line_index, 0))
+                    .ok()?
+                    .first()?
+                    .line;
+                Some((0..width).map(move |column_index| CalibratableCellUpdate {
+                    should_be_calibrated: false,
+                    cell_update: CellUpdate {
+                        style: line_update.style,
+                        position: Position {
+                            line,
+                            column: column_index as usize,
+                        },
+                        ..Default::default()
                     },
-                    ..Default::default()
-                },
+                }))
             })
-        });
+            .flatten();
         let cell_updates = cell_updates
             .into_iter()
             .map(|cell_update| CalibratableCellUpdate {
