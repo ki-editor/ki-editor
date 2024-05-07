@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::{buffer::Buffer, components::editor::Direction, edit::Edit, selection::CharIndex};
 
-#[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy)]
+#[derive(PartialEq, Clone, Debug, Eq, Hash, Default, Copy, PartialOrd, Ord)]
 pub struct CharIndexRange {
     pub start: CharIndex,
     pub end: CharIndex,
