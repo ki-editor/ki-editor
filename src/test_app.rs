@@ -1305,6 +1305,41 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        let diagnostic = |info: &str| {
+            lsp_types::Diagnostic::new_simple(
+                lsp_types::Range::new(
+                    lsp_types::Position::new(0, 1),
+                    lsp_types::Position::new(0, 2),
+                ),
+                info.to_string(),
+            )
+        };
+        let expected_info = "foo\n========\nbar\n========\nspam";
+        Box::new([
+            App(OpenFile(s.foo_rs())),
+            App(Dispatch::HandleLspNotification(
+                LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
+                    uri: Url::from_file_path(s.foo_rs()).unwrap(),
+                    diagnostics: [diagnostic("foo"), diagnostic("bar"), diagnostic("spam")]
+                        .to_vec(),
+                    version: None,
+                }),
+            )),
+            Editor(SetSelectionMode(Diagnostic(DiagnosticSeverityRange::All))),
+            Expect(EditorInfoContent(expected_info)),
+            // Expect there's only one diagnostic, by the fact that moving to the first and
+            // last diagnostic still renders the same info
+            Editor(MoveSelection(First)),
+            Expect(EditorInfoContent(expected_info)),
+            Editor(MoveSelection(Last)),
+            Expect(EditorInfoContent(expected_info)),
+        ])
+    })
+}
+
+#[test]
 fn code_action() -> anyhow::Result<()> {
     execute_test(|s| {
         let code_action = |new_text: &str| CodeAction {
