@@ -1173,7 +1173,10 @@ impl<T: Frontend> App<T> {
         self.layout.refresh_file_explorer(&self.working_directory)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
-        self.lsp_manager.document_did_rename(from, to)?;
+        self.lsp_manager
+            .document_did_rename(from.clone(), to.clone())?;
+        self.open_file(&to, true)?;
+        self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
     fn add_path_parent(&self, path: &Path) -> anyhow::Result<()> {

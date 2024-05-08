@@ -1752,3 +1752,28 @@ fn only_children_of_root_can_remove_all_other_components() -> anyhow::Result<()>
         ])
     })
 }
+
+#[test]
+fn move_file() -> anyhow::Result<()> {
+    execute_test(|s| {
+        let new_path = s
+            .main_rs()
+            .parent()
+            .unwrap()
+            .unwrap()
+            .to_path_buf()
+            .join("hello")
+            .join("world.rs");
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            App(MoveFile {
+                from: s.main_rs(),
+                to: new_path.clone(),
+            }),
+            ExpectLater(Box::new(move || {
+                CurrentComponentPath(Some(new_path.clone().try_into().unwrap()))
+            })),
+            Expect(OpenedFilesCount(1)),
+        ])
+    })
+}
