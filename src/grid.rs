@@ -207,7 +207,7 @@ impl Grid {
             .enumerate()
             .flat_map(|(line, cells)| {
                 cells
-                    .into_iter()
+                    .iter()
                     .enumerate()
                     .map(|(column, cell)| PositionedCell {
                         cell: cell.clone(),
@@ -1067,7 +1067,7 @@ mod test_cell {
         assert_eq!(cell.symbol, "b");
         assert_eq!(cell.foreground_color, hex!("#dddddd"));
         assert_eq!(cell.background_color, hex!("#eeeeee"));
-        assert_eq!(cell.is_cursor, false);
+        assert!(!cell.is_cursor);
         assert_eq!(cell.source, Some(StyleKey::KeymapHint));
         assert_eq!(
             cell.line,
