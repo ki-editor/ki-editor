@@ -5,7 +5,7 @@
 use itertools::Itertools;
 
 use lsp_types::Url;
-use my_proc_macros::{key, keys};
+use my_proc_macros::{hex, key, keys};
 
 use serial_test::serial;
 
@@ -48,6 +48,8 @@ use crate::{
     position::Position,
     quickfix_list::{DiagnosticSeverityRange, Location, QuickfixListItem},
     selection::SelectionMode,
+    style::Style,
+    themes::Theme,
     ui_tree::ComponentKind,
 };
 use crate::{lsp::process::LspNotification, themes::Color};
@@ -102,6 +104,7 @@ pub enum ExpectKind {
         /*Column*/ usize,
         /*Background color*/ Color,
     ),
+    GridCellLine(/*Row*/ usize, /*Column*/ usize, Color),
     GridCellStyleKey(Position, Option<StyleKey>),
     HighlightSpans(std::ops::Range<usize>, StyleKey),
     DiagnosticsRanges(Vec<CharIndexRange>),
@@ -231,6 +234,13 @@ impl ExpectKind {
                 component.borrow().editor().get_grid(context).grid.rows[*row_index][*column_index]
                     .background_color,
                 *background_color,
+            ),
+            GridCellLine(row_index, column_index, underline_color) => contextualize(
+                component.borrow().editor().get_grid(context).grid.rows[*row_index][*column_index]
+                    .line
+                    .unwrap()
+                    .color,
+                *underline_color,
             ),
             GridCellStyleKey(position, style_key) => contextualize(
                 component.borrow().editor().get_grid(context).grid.rows[position.line]
@@ -1300,6 +1310,79 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
             )),
             Editor(MoveSelection(Next)),
             Expect(EditorInfoOpen(false)),
+        ])
+    })
+}
+
+#[test]
+fn diagnostic_severity_decoration_precedence() -> Result<(), anyhow::Error> {
+    use lsp_types::DiagnosticSeverity as S;
+    let diagnostics = [(1, 2, S::ERROR), (0, 3, S::HINT)];
+    let expect = |column: usize, underline_color: Color| {
+        GridCellLine(
+            // The columns of the following assertions are added by 2,
+            // because of line number and the separator between the line number and the
+            // content.
+            1,
+            column + 2,
+            underline_color,
+        )
+    };
+    execute_test(|s| {
+        let diagnostic =
+            |column_start: u32, column_end: u32, severity: lsp_types::DiagnosticSeverity| {
+                lsp_types::Diagnostic {
+                    range: lsp_types::Range::new(
+                        lsp_types::Position::new(0, column_start),
+                        lsp_types::Position::new(0, column_end),
+                    ),
+                    severity: Some(severity),
+                    ..Default::default()
+                }
+            };
+        let hint_color = hex!("#abcdef");
+        let error_color = hex!("#fedbac");
+        let theme = {
+            let mut theme = Theme::default();
+            theme.diagnostic.hint = Style::default().undercurl(hint_color);
+            theme.diagnostic.error = Style::default().undercurl(error_color);
+            theme
+        };
+        Box::new([
+            App(OpenFile(s.foo_rs())),
+            App(SetTheme(theme)),
+            Editor(SetContent(
+                "who lives in a pineapple? spongebob squarepants".to_string(),
+            )),
+            App(TerminalDimensionChanged(Dimension {
+                height: 3,
+                width: 80,
+            })),
+            App(Dispatch::HandleLspNotification(
+                LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
+                    uri: Url::from_file_path(s.foo_rs()).unwrap(),
+                    diagnostics: diagnostics
+                        .into_iter()
+                        .map(|(start, end, severity)| diagnostic(start, end, severity))
+                        .collect_vec(),
+                    version: None,
+                }),
+            )),
+            ExpectMulti(
+                (0..1)
+                    .map(|column| expect(column, hint_color))
+                    .collect_vec(),
+            ),
+            ExpectMulti(
+                (1..2)
+                    .map(|column| expect(column, error_color))
+                    .collect_vec(),
+            ),
+            ExpectMulti(
+                (2..3)
+                    .map(|column| expect(column, hint_color))
+                    .collect_vec(),
+            ),
         ])
     })
 }
