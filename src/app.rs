@@ -1467,7 +1467,7 @@ impl<T: Frontend> App<T> {
 
     fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
         fn show_checkbox(title: &str, checked: bool) -> String {
-            format!("{title} [{}]", if checked { "X" } else { " " })
+            format!("[{}] {title}", if checked { "X" } else { " " })
         }
         let global_search_confing = match scope {
             Scope::Local => None,
