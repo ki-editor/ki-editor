@@ -65,8 +65,8 @@ impl Cell {
                 .style
                 .background_color
                 .unwrap_or(self.background_color),
-            line: self.line.or(update.style.line),
-            is_cursor: update.is_cursor || self.is_cursor,
+            line: update.style.line.or(self.line),
+            is_cursor: update.is_cursor,
             source: update.source.or(self.source.clone()),
             is_bold: update.style.is_bold || self.is_bold,
         }
@@ -202,40 +202,20 @@ impl Grid {
     }
 
     pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
-        let mut cells = vec![];
-        for (row_index, row) in self.rows.iter().enumerate() {
-            let mut offset = 0;
-            if row_index >= self.dimension().height as usize {
-                return cells;
-            }
-            for (column_index, cell) in row.iter().enumerate() {
-                let _width = get_string_width(cell.symbol.as_str());
-                let width = 1;
-                for index in 0..width {
-                    let adjusted_column = column_index + offset + index;
-                    if adjusted_column >= self.width {
-                        break;
-                    }
-                    cells.push(PositionedCell {
-                        cell: Cell {
-                            symbol: if index > 0 {
-                                " ".to_string()
-                            } else {
-                                cell.symbol.clone()
-                            },
-                            ..cell.clone()
-                        },
-                        position: Position {
-                            line: row_index,
-                            column: adjusted_column,
-                        },
-                    });
-                }
-                offset += width.saturating_sub(1)
-            }
-        }
-
-        cells
+        self.rows
+            .iter()
+            .enumerate()
+            .flat_map(|(line, cells)| {
+                cells
+                    .into_iter()
+                    .enumerate()
+                    .map(|(column, cell)| PositionedCell {
+                        cell: cell.clone(),
+                        position: Position { line, column },
+                    })
+                    .collect_vec()
+            })
+            .collect_vec()
     }
 
     #[cfg(test)]
@@ -1051,5 +1031,50 @@ x
     #[test]
     fn test_get_string_width() {
         assert_eq!(get_string_width("\t\t"), 8)
+    }
+}
+
+#[cfg(test)]
+mod test_cell {
+    use super::*;
+    #[test]
+    fn apply_update() {
+        let cell = Cell {
+            symbol: "a".to_string(),
+            foreground_color: hex!("#aaaaaa"),
+            background_color: hex!("#bbbbbb"),
+            line: Some(CellLine {
+                color: hex!("#cccccc"),
+                style: CellLineStyle::Undercurl,
+            }),
+            is_cursor: true,
+            source: Some(StyleKey::HunkNew),
+            is_bold: true,
+        };
+        let cell = cell.apply_update(CellUpdate {
+            position: Position::default(),
+            symbol: Some("b".to_string()),
+            style: Style::new()
+                .foreground_color(hex!("#dddddd"))
+                .background_color(hex!("#eeeeee"))
+                .line(Some(CellLine {
+                    color: hex!("#ffffff"),
+                    style: CellLineStyle::Underline,
+                })),
+            is_cursor: false,
+            source: Some(StyleKey::KeymapHint),
+        });
+        assert_eq!(cell.symbol, "b");
+        assert_eq!(cell.foreground_color, hex!("#dddddd"));
+        assert_eq!(cell.background_color, hex!("#eeeeee"));
+        assert_eq!(cell.is_cursor, false);
+        assert_eq!(cell.source, Some(StyleKey::KeymapHint));
+        assert_eq!(
+            cell.line,
+            Some(CellLine {
+                color: hex!("#ffffff"),
+                style: CellLineStyle::Underline,
+            })
+        )
     }
 }

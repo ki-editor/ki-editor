@@ -131,8 +131,6 @@ impl Window {
                 position: cell.position.translate(self.rectangle.origin),
                 ..cell
             })
-            // // Why is this necessary? Because some character takes up multiple terminal cells, such as tab
-            // .filter(|cell| self.rectangle.in_bound(cell.position))
             .collect()
     }
 

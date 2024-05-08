@@ -79,7 +79,6 @@ impl Component for Editor {
     }
 
     fn title(&self, context: &Context) -> String {
-        context.current_working_directory();
         let title = self.title.clone();
         title
             .or_else(|| {
