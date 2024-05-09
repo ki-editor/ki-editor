@@ -136,35 +136,6 @@ impl Buffer {
         self.diagnostics = diagnostics
             .into_iter()
             .filter_map(|diagnostic| Diagnostic::try_from(self, diagnostic).ok())
-            .sorted_by_key(|diagnostic| (diagnostic.severity, diagnostic.range))
-            .group_by(|diagnostic| (diagnostic.severity, diagnostic.range))
-            .into_iter()
-            .map(|((severity, range), diagnostics)| {
-                let (messages, (related_informations, (code_descriptions, original_values))): (
-                    Vec<_>,
-                    (Vec<_>, (Vec<_>, Vec<_>)),
-                ) = diagnostics
-                    .into_iter()
-                    .map(|d| {
-                        (
-                            d.message,
-                            (
-                                d.related_information,
-                                (d.code_description, d.original_value),
-                            ),
-                        )
-                    })
-                    .unzip();
-                const SEPARATOR: &str = "\n========\n";
-                Diagnostic {
-                    range,
-                    severity,
-                    message: messages.join(SEPARATOR),
-                    related_information: related_informations.into_iter().flatten().next(),
-                    code_description: code_descriptions.into_iter().flatten().next(),
-                    original_value: original_values.into_iter().flatten().next(),
-                }
-            })
             .collect()
     }
 

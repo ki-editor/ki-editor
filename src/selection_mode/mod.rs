@@ -150,7 +150,30 @@ pub trait SelectionMode {
 
         Ok(Box::new(
             self.iter(params)?
-                .filter_map(|item| filters.retain(buffer, item)),
+                .filter_map(|item| filters.retain(buffer, item))
+                .group_by(|item| item.range.clone())
+                .into_iter()
+                .map(|(range, items)| {
+                    let infos = items.into_iter().filter_map(|item| item.info).collect_vec();
+                    let info = infos.split_first().map(|(head, tail)| {
+                        Info::new(
+                            Some(head.title())
+                                .into_iter()
+                                .chain(tail.iter().map(|tail| tail.title()))
+                                .unique()
+                                .join(" & "),
+                            Some(head.content())
+                                .into_iter()
+                                .chain(tail.iter().map(|tail| tail.content()))
+                                .unique()
+                                .join("\n=======\n"),
+                        )
+                        .set_decorations(head.decorations().clone())
+                    });
+                    ByteRange::new(range).set_info(info)
+                })
+                .collect_vec()
+                .into_iter(),
         ))
     }
 
@@ -324,10 +347,6 @@ pub trait SelectionMode {
         Ok(jumps)
     }
 
-    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_by_offset_to_current_selection(params, 1)
-    }
-
     fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
             .iter_filtered(params.clone())?
@@ -339,6 +358,7 @@ pub trait SelectionMode {
                     .ok()
             }))
     }
+
     fn to_index(
         &self,
         params: SelectionModeParams,
@@ -353,7 +373,6 @@ pub trait SelectionMode {
             Err(anyhow::anyhow!("Invalid index"))
         }
     }
-
     fn get_by_offset_to_current_selection(
         &self,
         params: SelectionModeParams,
@@ -415,8 +434,39 @@ pub trait SelectionMode {
         }))
     }
 
+    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        let current_selection = params.current_selection.clone();
+        let buffer = params.buffer;
+        let Some(byte_range) = buffer.char_index_range_to_byte_range(current_selection.range())
+        else {
+            return Ok(None);
+        };
+        Ok(self
+            .iter_filtered(params)?
+            .sorted()
+            .find(|range| {
+                range.range.start > byte_range.start
+                    || (range.range.start == byte_range.start && range.range.end > byte_range.end)
+            })
+            .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
+    }
+
     fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_by_offset_to_current_selection(params, -1)
+        let current_selection = params.current_selection.clone();
+        let buffer = params.buffer;
+        let Some(byte_range) = buffer.char_index_range_to_byte_range(current_selection.range())
+        else {
+            return Ok(None);
+        };
+        Ok(self
+            .iter_filtered(params)?
+            .sorted()
+            .rev()
+            .find(|range| {
+                range.range.start < byte_range.start
+                    || (range.range.start == byte_range.start && range.range.end < byte_range.end)
+            })
+            .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
 
     fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
@@ -609,7 +659,7 @@ mod test_selection_mode {
     }
 
     #[test]
-    fn same_range_different_info() {
+    fn same_range_different_info_should_be_merged() {
         let params = SelectionModeParams {
             buffer: &Buffer::new(None, "hello world"),
             current_selection: &Selection::default()
@@ -656,8 +706,7 @@ mod test_selection_mode {
             let expected_info = Info::new("Title".to_string(), expected_info.to_string());
             assert_eq!(expected_info, actual.info().unwrap());
         };
-        run_test(Movement::Current, "Spongebob");
-        run_test(Movement::Next, "Squarepants");
+        run_test(Movement::Current, "Spongebob\n=======\nSquarepants");
     }
 
     #[test]

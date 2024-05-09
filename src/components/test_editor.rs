@@ -1709,3 +1709,33 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
+    let run_test = |next: bool| {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("1 a 2 b 3 c".to_string())),
+                Editor(MatchLiteral(if next { "1" } else { "3" }.to_string())),
+                Editor(SetSelectionMode(SelectionMode::Find {
+                    search: crate::context::Search {
+                        mode: crate::context::LocalSearchConfigMode::Regex(
+                            crate::list::grep::RegexConfig {
+                                escaped: false,
+                                case_sensitive: false,
+                                match_whole_word: false,
+                            },
+                        ),
+                        search: r"\d+".to_string(),
+                    },
+                })),
+                Editor(Delete { cut: false }),
+                Editor(MoveSelection(if next { Next } else { Previous })),
+                Expect(CurrentSelectedTexts(&["2"])),
+            ])
+        })
+    };
+    run_test(true)?;
+    run_test(false)
+}

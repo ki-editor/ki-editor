@@ -1403,7 +1403,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                 info.to_string(),
             )
         };
-        let expected_info = "foo\n========\nbar\n========\nspam";
+        let expected_info = "foo\n=======\nbar\n=======\nspam";
         Box::new([
             App(OpenFile(s.foo_rs())),
             App(Dispatch::HandleLspNotification(
