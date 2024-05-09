@@ -943,8 +943,8 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub fn toggle_highlight_mode(&mut self) {
-        self.selection_set.toggle_highlight_mode();
+    pub fn toggle_visual_mode(&mut self) {
+        self.selection_set.toggle_visual_mode();
         self.recalculate_scroll_offset()
     }
 
@@ -970,7 +970,7 @@ impl Editor {
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.update_buffer(&content),
             ReplaceCut => return self.replace_with_copied_text(context, true),
-            ToggleHighlightMode => self.toggle_highlight_mode(),
+            ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
             Delete { cut } => return self.delete(cut, context),
@@ -1292,7 +1292,10 @@ impl Editor {
                         Direction::Start => range.start,
                         Direction::End => range.end,
                     };
-                    Ok(selection.clone().set_range((char_index..char_index).into()))
+                    Ok(selection
+                        .clone()
+                        .set_range((char_index..char_index).into())
+                        .set_initial_range(None))
                 })?;
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
@@ -2144,7 +2147,7 @@ impl Editor {
     pub fn select_all(&mut self) -> Dispatches {
         [
             Dispatch::ToEditor(MoveSelection(Movement::First)),
-            Dispatch::ToEditor(ToggleHighlightMode),
+            Dispatch::ToEditor(ToggleVisualMode),
             Dispatch::ToEditor(MoveSelection(Movement::Last)),
         ]
         .to_vec()
@@ -2381,7 +2384,7 @@ pub enum DispatchEditor {
     SetContent(String),
     SetDecorations(Vec<Decoration>),
     SetRectangle(Rectangle),
-    ToggleHighlightMode,
+    ToggleVisualMode,
     Change {
         cut: bool,
     },
