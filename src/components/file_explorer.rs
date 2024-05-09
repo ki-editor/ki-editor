@@ -411,6 +411,8 @@ impl Component for FileExplorer {
 
 #[cfg(test)]
 mod test_file_explorer {
+    use my_proc_macros::key;
+
     use crate::test_app::*;
 
     #[test]
@@ -434,6 +436,35 @@ mod test_file_explorer {
                 Expect(CurrentSelectedTexts(&["   - 🦀  main.rs"])),
                 App(RevealInExplorer(s.foo_rs())),
                 Expect(CurrentSelectedTexts(&["   - 🦀  foo.rs\n"])),
+            ])
+        })
+    }
+
+    #[test]
+    fn move_file() -> anyhow::Result<()> {
+        execute_test(|s| {
+            let new_path = s
+                .main_rs()
+                .parent()
+                .unwrap()
+                .unwrap()
+                .to_path_buf()
+                .join("hello")
+                .join("world.rs");
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(RevealInExplorer(s.main_rs())),
+                Expect(ComponentCount(2)),
+                App(OpenMoveFilePrompt(s.main_rs())),
+                Expect(ComponentCount(3)),
+                Expect(CurrentComponentTitle("Move file")),
+                Editor(Insert(new_path.to_string_lossy().to_string())),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(ComponentCount(2)),
+                ExpectLater(Box::new(move || {
+                    CurrentComponentPath(Some(new_path.clone().try_into().unwrap()))
+                })),
+                Expect(OpenedFilesCount(1)),
             ])
         })
     }

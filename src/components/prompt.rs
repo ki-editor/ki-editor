@@ -105,7 +105,7 @@ impl Component for Prompt {
                         .to_dispatches(&self.editor().current_line()?)?
                 };
 
-                Ok(Dispatches::new([Dispatch::CloseCurrentWindow].to_vec()).chain(dispatches))
+                Ok(Dispatches::one(Dispatch::CloseCurrentWindow).chain(dispatches))
             }
             _ => self.editor.handle_key_event(context, event),
         }

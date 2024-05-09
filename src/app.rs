@@ -210,7 +210,6 @@ impl<T: Frontend> App<T> {
         // Pass event to focused window
         let component = self.current_component();
         match event {
-            // Event::Key(key!("enter")) if self.context.mode().is_some() => { self.context.set_mode(None); }
             Event::Resize(columns, rows) => {
                 self.resize(Dimension {
                     height: rows,
