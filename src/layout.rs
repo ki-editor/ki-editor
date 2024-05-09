@@ -262,11 +262,9 @@ impl Layout {
     }
 
     pub fn open_file_explorer(&mut self) {
-        self.tree.append_component_to_root(
-            KindedComponent::new(
-                ComponentKind::FileExplorer,
-                self.background_file_explorer.clone(),
-            ),
+        self.tree.replace_root_node_child(
+            ComponentKind::FileExplorer,
+            self.background_file_explorer.clone(),
             true,
         );
     }

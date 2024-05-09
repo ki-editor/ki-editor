@@ -110,14 +110,6 @@ impl UiTree {
         }
     }
 
-    pub(crate) fn append_component_to_root(
-        &mut self,
-        component: KindedComponent,
-        focus: bool,
-    ) -> NodeId {
-        self.append_component(self.root_id(), component, focus)
-    }
-
     pub(crate) fn root_id(&self) -> NodeId {
         self.root().node_id()
     }

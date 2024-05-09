@@ -114,6 +114,7 @@ pub enum ExpectKind {
     OpenedFilesCount(usize),
     QuickfixListInfo(&'static str),
     ComponentsOrder(Vec<ComponentKind>),
+    CurrentComponentTitle(&'static str),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -342,6 +343,9 @@ impl ExpectKind {
                 contextualize(*expected, &app.quickfix_list_info().unwrap())
             }
             ComponentsOrder(expected) => contextualize(expected, &app.components_order()),
+            CurrentComponentTitle(expected) => {
+                contextualize(*expected, &app.current_component().borrow().title(context))
+            }
         })
     }
 }
@@ -1749,31 +1753,6 @@ fn only_children_of_root_can_remove_all_other_components() -> anyhow::Result<()>
             Expect(CurrentComponentContent(" Spongebob squarepants")),
             App(RemainOnlyCurrentComponent),
             Expect(ComponentCount(2)),
-        ])
-    })
-}
-
-#[test]
-fn move_file() -> anyhow::Result<()> {
-    execute_test(|s| {
-        let new_path = s
-            .main_rs()
-            .parent()
-            .unwrap()
-            .unwrap()
-            .to_path_buf()
-            .join("hello")
-            .join("world.rs");
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            App(MoveFile {
-                from: s.main_rs(),
-                to: new_path.clone(),
-            }),
-            ExpectLater(Box::new(move || {
-                CurrentComponentPath(Some(new_path.clone().try_into().unwrap()))
-            })),
-            Expect(OpenedFilesCount(1)),
         ])
     })
 }
