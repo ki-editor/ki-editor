@@ -416,7 +416,7 @@ impl Editor {
                 Keymap::new(
                     "v",
                     "Visual (Extend selection)".to_string(),
-                    Dispatch::ToEditor(ToggleHighlightMode),
+                    Dispatch::ToEditor(ToggleVisualMode),
                 ),
             ]),
         }

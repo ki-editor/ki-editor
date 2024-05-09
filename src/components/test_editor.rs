@@ -61,7 +61,7 @@ fn raise_inside() -> anyhow::Result<()> {
 }
 
 #[test]
-fn toggle_highlight_mode() -> anyhow::Result<()> {
+fn toggle_visual_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -69,12 +69,12 @@ fn toggle_highlight_mode() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             Editor(SetSelectionMode(BottomNode)),
-            Editor(ToggleHighlightMode),
+            Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f("])),
             // Toggle the second time should inverse the initial_range
-            Editor(ToggleHighlightMode),
+            Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["f("])),
             Editor(Reset),
@@ -836,7 +836,7 @@ fn highlight_kill() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(BottomNode)),
-            Editor(ToggleHighlightMode),
+            Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn main"])),
             Editor(Delete { cut: false }),
@@ -892,7 +892,7 @@ fn highlight_change() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world yo".to_string())),
             Editor(SetSelectionMode(WordShort)),
-            Editor(ToggleHighlightMode),
+            Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["hello world"])),
             Editor(Change { cut: false }),
@@ -996,7 +996,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
             })),
             Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
-            Editor(ToggleHighlightMode),
+            Editor(ToggleVisualMode),
             Editor(ShowJumps),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
@@ -1738,4 +1738,23 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
     };
     run_test(true)?;
     run_test(false)
+}
+
+#[test]
+fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello world hey".to_string())),
+            Editor(MatchLiteral("world".to_string())),
+            Editor(SetSelectionMode(WordShort)),
+            Editor(ToggleVisualMode),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["world hey"])),
+            Editor(EnterInsertMode(Direction::Start)),
+            App(HandleKeyEvents(keys!("x x space").to_vec())),
+            Expect(CurrentComponentContent("hello xx world hey")),
+            Expect(CurrentSelectedTexts(&[""])),
+        ])
+    })
 }

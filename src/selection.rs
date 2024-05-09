@@ -405,8 +405,8 @@ impl SelectionSet {
         self.apply_mut(|selection| selection.escape_highlight_mode());
     }
 
-    pub fn toggle_highlight_mode(&mut self) {
-        self.apply_mut(|selection| selection.toggle_highlight_mode());
+    pub fn toggle_visual_mode(&mut self) {
+        self.apply_mut(|selection| selection.toggle_visual_mode());
     }
 
     pub fn clamp(&self, max_char_index: CharIndex) -> anyhow::Result<SelectionSet> {
@@ -705,7 +705,7 @@ impl Selection {
         self.initial_range = None
     }
 
-    pub fn toggle_highlight_mode(&mut self) {
+    pub fn toggle_visual_mode(&mut self) {
         match self.initial_range.take() {
             None => {
                 self.initial_range = Some(self.range);
