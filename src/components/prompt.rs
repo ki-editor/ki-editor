@@ -72,6 +72,13 @@ impl Component for Prompt {
     fn editor_mut(&mut self) -> &mut Editor {
         self.editor.editor_mut()
     }
+    fn handle_dispatch_editor(
+        &mut self,
+        context: &mut Context,
+        dispatch: super::editor::DispatchEditor,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor.handle_dispatch_editor(context, dispatch)
+    }
     fn handle_key_event(
         &mut self,
         context: &Context,
@@ -110,15 +117,11 @@ impl Component for Prompt {
             _ => self.editor.handle_key_event(context, event),
         }
     }
-
-    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        self.editor.children()
-    }
 }
 
 #[cfg(test)]
 mod test_prompt {
-    use crate::{lsp::completion::CompletionItem, test_app::*};
+    use crate::{components::editor::Direction, lsp::completion::CompletionItem, test_app::*};
     use my_proc_macros::keys;
 
     use crate::{app::Dispatch, position::Position};
@@ -210,6 +213,45 @@ mod test_prompt {
                 Expect(AppGridContains("squarepants")),
                 App(HandleKeyEvents(keys!("f o o").to_vec())),
                 Expect(Not(Box::new(AppGridContains("squarepants")))),
+            ])
+        })
+    }
+
+    #[test]
+    fn suggestion_should_update_with_ctrl_k_and_ctrl_u() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                App(Dispatch::OpenPrompt(super::PromptConfig {
+                    history: vec![],
+                    on_enter: DispatchPrompt::SetContent,
+                    items: ["Patrick", "Spongebob", "Squidward"]
+                        .into_iter()
+                        .map(|item| item.to_string().into())
+                        .collect(),
+
+                    title: "".to_string(),
+                    enter_selects_first_matching_item: true,
+                })),
+                // Expect the completion dropdown to be open,
+                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                // Type in 'pa'
+                App(HandleKeyEvents(keys!("p a").to_vec())),
+                // Expect only 'Patrick' remains in the completion dropdown
+                Expect(CompletionDropdownContent("Patrick")),
+                // Clear 'pa' using ctrl+u
+                App(HandleKeyEvent(key!("ctrl+u"))),
+                // Expect all items are shown again
+                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
+                //
+                //
+                // Perform the same test for ctrl+k
+                App(HandleKeyEvents(keys!("p a").to_vec())),
+                Expect(CompletionDropdownContent("Patrick")),
+                App(HandleKeyEvents(keys!("ctrl+a ctrl+k").to_vec())),
+                Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
             ])
         })
     }

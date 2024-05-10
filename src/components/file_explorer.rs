@@ -403,10 +403,6 @@ impl Component for FileExplorer {
             _ => self.editor.handle_key_event(context, event),
         }
     }
-
-    fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
-        Vec::new()
-    }
 }
 
 #[cfg(test)]

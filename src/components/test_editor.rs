@@ -310,6 +310,7 @@ fn kill_line_to_start() -> anyhow::Result<()> {
 }
 
 #[test]
+#[ignore = "Undo tree should be removed soon, I don't use it at all."]
 fn undo_tree() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

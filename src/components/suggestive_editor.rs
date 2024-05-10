@@ -61,6 +61,17 @@ impl Component for SuggestiveEditor {
         &mut self.editor
     }
 
+    fn handle_dispatch_editor(
+        &mut self,
+        context: &mut Context,
+        dispatch: DispatchEditor,
+    ) -> anyhow::Result<Dispatches> {
+        let dispatches = self
+            .editor_mut()
+            .handle_dispatch_editor(context, dispatch)?;
+        Ok(dispatches.append(self.update_filter()?))
+    }
+
     fn handle_key_event(
         &mut self,
         context: &Context,
@@ -79,6 +90,7 @@ impl Component for SuggestiveEditor {
                 key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
+                        self.completion_dropdown.set_items(Vec::new());
                         return Ok(
                             Dispatches::one(Dispatch::CloseDropdown).chain(completion.dispatches)
                         );
@@ -93,33 +105,9 @@ impl Component for SuggestiveEditor {
         // relevant completions.
         let dispatches = self.editor.handle_key_event(context, event.clone())?;
 
-        let filter = match self.filter {
-            SuggestiveEditorFilter::CurrentWord => {
-                // We need to subtract 1 because we need to get the character
-                // before the cursor, not the character at the cursor
-                let cursor_position = self.editor().get_cursor_position()?.sub_column(1);
-
-                match self.editor().buffer().get_char_at_position(cursor_position) {
-                    // The filter should be empty if the current character is a trigger
-                    // character, so that we can show all the completion items.
-                    Some(current_char)
-                        if self.trigger_characters.contains(&current_char.to_string()) =>
-                    {
-                        "".to_string()
-                    }
-
-                    // If the current character is not a trigger character, we should
-                    // filter based on the current word under the cursor.
-                    _ => self.editor.get_current_word()?,
-                }
-            }
-            SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
-        };
-
-        self.completion_dropdown.set_filter(&filter);
-        let render_dropdown_dispatch = self.render_completion_dropdown();
-        Ok(dispatches
-            .append(render_dropdown_dispatch)
+        let render_dropdown_dispatch = self.update_filter()?;
+        Ok(Dispatches::one(render_dropdown_dispatch)
+            .chain(dispatches)
             .chain(match event {
                 key!("esc") => [
                     Dispatch::CloseDropdown,
@@ -143,10 +131,6 @@ impl Component for SuggestiveEditor {
                     .into(),
                 _ => Default::default(),
             }))
-    }
-
-    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        Default::default()
     }
 }
 
@@ -213,6 +197,35 @@ impl SuggestiveEditor {
                 render: self.completion_dropdown.render(),
             }
         }
+    }
+
+    fn update_filter(&mut self) -> anyhow::Result<Dispatch> {
+        let filter = match self.filter {
+            SuggestiveEditorFilter::CurrentWord => {
+                // We need to subtract 1 because we need to get the character
+                // before the cursor, not the character at the cursor
+                let cursor_position = self.editor().get_cursor_position()?.sub_column(1);
+                match self.editor().buffer().get_char_at_position(cursor_position) {
+                    // The filter should be empty if the current character is a trigger
+                    // character, so that we can show all the completion items.
+                    Some(current_char)
+                        if self.trigger_characters.contains(&current_char.to_string()) =>
+                    {
+                        "".to_string()
+                    }
+
+                    // If the current character is not a trigger character, we should
+                    // filter based on the current word under the cursor.
+                    _ => self.editor.get_current_word()?,
+                }
+            }
+            SuggestiveEditorFilter::CurrentLine => self.editor().current_line()?,
+        };
+
+        self.completion_dropdown.set_filter(&filter);
+
+        let render_completion_dropdown = self.render_completion_dropdown();
+        Ok(render_completion_dropdown)
     }
 }
 
@@ -349,38 +362,6 @@ mod test_suggestive_editor {
         );
         Ok(())
     }
-
-    //    #[test]
-    //    fn dropdown_should_be_excluded_from_descendants_by_dropdown_opened() {
-    //        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
-    //
-    //        // Enter insert mode
-    //        editor
-    //            .editor_mut()
-    //            .enter_insert_mode(Direction::Start)
-    //            .unwrap();
-    //
-    //        // Pretend that the LSP server returned a completion
-    //        editor.set_completion(dummy_completion());
-    //
-    //        // Expect the completion dropdown to be opened
-    //        assert!(editor.dropdown_opened());
-    //
-    //        // Expect the dropdown to be included in descendants
-    //        assert!(editor
-    //            .descendants()
-    //            .iter()
-    //            .any(|d| d.borrow().id() == editor.dropdown.borrow().id()));
-    //
-    //        // Set the dropdown to be closed
-    //        editor.dropdown_opened = false;
-    //
-    //        // Expect the dropdown to be excluded from descendants
-    //        assert!(!editor
-    //            .descendants()
-    //            .iter()
-    //            .any(|d| d.borrow().id() == editor.dropdown.borrow().id()));
-    //    }
 
     #[test]
     fn typing_in_insert_mode_should_request_completion() {

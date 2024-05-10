@@ -347,10 +347,6 @@ impl Component for KeymapLegend {
             self.editor.handle_key_event(context, event)
         }
     }
-
-    fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
-        self.editor.children()
-    }
 }
 
 #[cfg(test)]

@@ -1,12 +1,12 @@
 use crate::app::Dispatches;
-use std::{any::Any, cell::RefCell, rc::Rc};
+use std::any::Any;
 
 use event::event::Event;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{context::Context, grid::Grid, position::Position, rectangle::Rectangle};
 
-use super::editor::Editor;
+use super::editor::{DispatchEditor, Editor};
 
 // dyn_clone::clone_trait_object!(Component);
 //
@@ -169,18 +169,12 @@ pub trait Component: Any + AnyComponent {
         self.editor_mut().set_title(title);
     }
 
-    /// This should only return the direct children of this component.
-    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>>;
-
-    /// Does not include the component itself
-    fn descendants(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        self.children()
-            .into_iter()
-            .flatten()
-            .flat_map(|component| {
-                std::iter::once(component.clone()).chain(component.borrow().descendants())
-            })
-            .collect::<Vec<_>>()
+    fn handle_dispatch_editor(
+        &mut self,
+        context: &mut Context,
+        dispatch: DispatchEditor,
+    ) -> anyhow::Result<Dispatches> {
+        self.editor_mut().handle_dispatch_editor(context, dispatch)
     }
 }
 
@@ -213,115 +207,5 @@ pub struct ComponentId(usize);
 impl ComponentId {
     pub fn new() -> ComponentId {
         ComponentId(increment_counter())
-    }
-}
-
-#[cfg(test)]
-mod test_component {
-    use std::{cell::RefCell, rc::Rc};
-
-    use crate::{app::Dispatches, components::component::Component, context::Context};
-
-    #[test]
-    fn child_should_rank_lower_than_parent() {
-        struct GrandChild {}
-        impl Component for GrandChild {
-            fn title(&self, _: &Context) -> String {
-                "GrandChild".to_string()
-            }
-            fn editor(&self) -> &crate::components::editor::Editor {
-                todo!()
-            }
-
-            fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
-                todo!()
-            }
-
-            fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-                vec![]
-            }
-
-            fn handle_key_event(
-                &mut self,
-                _context: &crate::context::Context,
-                _event: event::KeyEvent,
-            ) -> Result<Dispatches, anyhow::Error> {
-                todo!()
-            }
-        }
-        struct Child {
-            grand_child: Rc<RefCell<GrandChild>>,
-        }
-        impl Component for Child {
-            fn title(&self, _: &Context) -> String {
-                "Child".to_string()
-            }
-            fn editor(&self) -> &crate::components::editor::Editor {
-                todo!()
-            }
-
-            fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
-                todo!()
-            }
-
-            fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
-                vec![Some(self.grand_child.clone())]
-            }
-
-            fn handle_key_event(
-                &mut self,
-                _context: &crate::context::Context,
-                _event: event::KeyEvent,
-            ) -> Result<Dispatches, anyhow::Error> {
-                todo!()
-            }
-        }
-
-        struct Parent {
-            child: Rc<RefCell<Child>>,
-        }
-        impl Component for Parent {
-            fn title(&self, _: &Context) -> String {
-                "Parent".to_string()
-            }
-            fn editor(&self) -> &crate::components::editor::Editor {
-                todo!()
-            }
-
-            fn editor_mut(&mut self) -> &mut crate::components::editor::Editor {
-                todo!()
-            }
-
-            fn children(&self) -> Vec<Option<std::rc::Rc<std::cell::RefCell<dyn Component>>>> {
-                vec![Some(self.child.clone())]
-            }
-
-            fn handle_key_event(
-                &mut self,
-                _context: &crate::context::Context,
-                _event: event::KeyEvent,
-            ) -> Result<Dispatches, anyhow::Error> {
-                todo!()
-            }
-        }
-
-        let parent = Parent {
-            child: Rc::new(RefCell::new(Child {
-                grand_child: Rc::new(RefCell::new(GrandChild {})),
-            })),
-        };
-
-        let descendants = parent.descendants();
-
-        assert_eq!(descendants.len(), 2);
-        let context = Context::default();
-
-        assert_eq!(
-            descendants
-                .into_iter()
-                .map(|d| d.borrow().title(&context))
-                .collect::<Vec<_>>(),
-            vec!["Child".to_string(), "GrandChild".to_string()],
-        )
     }
 }

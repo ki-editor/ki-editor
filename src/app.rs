@@ -575,7 +575,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::RenderDropdown { render } => {
                 if let Some(dropdown) = self.layout.open_dropdown() {
-                    self.render_dropdown(dropdown, render)?
+                    self.render_dropdown(dropdown, render)?;
                 }
             }
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
@@ -1250,8 +1250,7 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         let dispatches = component
             .borrow_mut()
-            .editor_mut()
-            .apply_dispatch(&mut self.context, dispatch_editor)?;
+            .handle_dispatch_editor(&mut self.context, dispatch_editor)?;
 
         self.handle_dispatches(dispatches)?;
         Ok(())
