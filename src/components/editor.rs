@@ -120,10 +120,6 @@ impl Component for Editor {
         &self.rectangle
     }
 
-    fn children(&self) -> Vec<Option<Rc<RefCell<dyn Component>>>> {
-        vec![]
-    }
-
     fn handle_key_event(
         &mut self,
         context: &Context,
@@ -173,20 +169,133 @@ impl Component for Editor {
     ) -> anyhow::Result<Dispatches> {
         match event {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
-            event::event::Event::Paste(content) => self.handle_paste_event(content),
+            event::event::Event::Paste(content) => {
+                Ok(Dispatches::one(Dispatch::ToEditor(Insert(content))))
+            }
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
         }
     }
 
-    fn descendants(&self) -> Vec<Rc<RefCell<dyn Component>>> {
-        self.children()
-            .into_iter()
-            .flatten()
-            .flat_map(|component| {
-                std::iter::once(component.clone()).chain(component.borrow().descendants())
-            })
-            .collect::<Vec<_>>()
+    fn handle_dispatch_editor(
+        &mut self,
+        context: &mut Context,
+        dispatch: DispatchEditor,
+    ) -> anyhow::Result<Dispatches> {
+        match dispatch {
+            AlignViewTop => self.align_cursor_to_top(),
+            AlignViewCenter => self.align_cursor_to_center(),
+            AlignViewBottom => self.align_cursor_to_bottom(),
+            Transform(transformation) => return self.transform_selection(transformation),
+            SetSelectionMode(selection_mode) => {
+                return self.set_selection_mode(selection_mode);
+            }
+
+            FindOneChar => self.enter_single_character_mode(),
+
+            MoveSelection(direction) => return self.handle_movement(context, direction),
+            Copy => return self.copy(context),
+            ReplaceWithCopiedText => return self.replace_with_copied_text(context, false),
+            SelectAll => return Ok(self.select_all()),
+            SetContent(content) => self.update_buffer(&content),
+            ReplaceCut => return self.replace_with_copied_text(context, true),
+            ToggleVisualMode => self.toggle_visual_mode(),
+            EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
+            EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
+            Delete { cut } => return self.delete(cut, context),
+            Insert(string) => return self.insert(&string),
+            MatchLiteral(literal) => return self.match_literal(&literal),
+            ToggleBookmark => self.toggle_bookmarks(),
+            EnterInsideMode(kind) => return self.set_selection_mode(SelectionMode::Inside(kind)),
+            EnterNormalMode => self.enter_normal_mode()?,
+            FilterPush(filter) => return Ok(self.filters_push(context, filter)),
+            CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
+            FilterClear => return Ok(self.filters_clear()),
+            CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
+            Raise => return self.replace_with_movement(&Movement::Parent),
+            Exchange(movement) => return self.exchange(movement),
+            EnterExchangeMode => self.enter_exchange_mode(),
+            ReplacePattern { config } => {
+                let selection_set = self.selection_set.clone();
+                let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
+                return Ok(self
+                    .update_selection_set(selection_set, false)
+                    .chain(self.get_document_did_change_dispatch()));
+            }
+            Undo => return self.undo(),
+            KillLine(direction) => return self.kill_line(direction),
+            Reset => self.reset(),
+            DeleteWordBackward { short } => return self.delete_word_backward(short),
+            Backspace => return self.backspace(),
+            MoveToLineStart => return self.move_to_line_start(),
+            MoveToLineEnd => return self.move_to_line_end(),
+            SelectLine(movement) => return self.select_line(movement),
+            SelectKids => return self.select_kids(),
+            Redo => return self.redo(),
+            OpenNewLine => return self.open_new_line(),
+            Change { cut } => return self.change(cut, context),
+            SetRectangle(rectangle) => self.set_rectangle(rectangle),
+            ScrollPageDown => return self.scroll_page_down(),
+            ScrollPageUp => return self.scroll_page_up(),
+            ShowJumps => self.show_jumps()?,
+            SwitchViewAlignment => self.switch_view_alignment(),
+            SetScrollOffset(n) => self.set_scroll_offset(n),
+            SetLanguage(language) => self.set_language(language)?,
+            ApplySyntaxHighlight => {
+                self.apply_syntax_highlighting(context)?;
+            }
+            Save => return self.save(),
+            ReplaceCurrentSelectionWith(string) => {
+                return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
+            }
+            ReplacePreviousWord(word) => return self.replace_previous_word(&word),
+            ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
+            SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
+            EnterMultiCursorMode => self.enter_multicursor_mode(),
+            Surround(open, close) => return self.enclose(open, close),
+            ShowKeymapLegendInsertMode => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.insert_mode_keymap_legend_config(),
+                )]
+                .to_vec()
+                .into())
+            }
+            ShowKeymapLegendHelp => {
+                return Ok(
+                    [Dispatch::ShowKeymapLegend(self.help_keymap_legend_config())]
+                        .to_vec()
+                        .into(),
+                )
+            }
+            ShowKeymapLegendNormalMode => {
+                return Ok([Dispatch::ShowKeymapLegend(
+                    self.normal_mode_keymap_legend_config(context),
+                )]
+                .to_vec()
+                .into())
+            }
+            EnterReplaceMode => self.enter_replace_mode(),
+            Paste(direction) => return self.paste(direction, context),
+            SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
+            SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
+            MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
+            MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
+            ReplaceWithMovement(movement) => return self.replace_with_movement(&movement),
+            EnterExchangeModeJump => {
+                self.enter_exchange_mode();
+                self.show_jumps()?;
+            }
+            EnterReplaceModeJump => {
+                self.enter_replace_mode();
+                self.show_jumps()?;
+            }
+            AddCursor(movement) => self.add_cursor(&movement)?,
+            Open(direction) => return self.open(direction),
+            TryReplaceCurrentLongWord(replacement) => {
+                return self.try_replace_current_long_word(replacement)
+            }
+        }
+        Ok(Default::default())
     }
 }
 
@@ -946,127 +1055,6 @@ impl Editor {
     pub fn toggle_visual_mode(&mut self) {
         self.selection_set.toggle_visual_mode();
         self.recalculate_scroll_offset()
-    }
-
-    pub fn apply_dispatch(
-        &mut self,
-        context: &mut Context,
-        dispatch: DispatchEditor,
-    ) -> anyhow::Result<Dispatches> {
-        match dispatch {
-            AlignViewTop => self.align_cursor_to_top(),
-            AlignViewCenter => self.align_cursor_to_center(),
-            AlignViewBottom => self.align_cursor_to_bottom(),
-            Transform(transformation) => return self.transform_selection(transformation),
-            SetSelectionMode(selection_mode) => {
-                return self.set_selection_mode(selection_mode);
-            }
-
-            FindOneChar => self.enter_single_character_mode(),
-
-            MoveSelection(direction) => return self.handle_movement(context, direction),
-            Copy => return self.copy(context),
-            ReplaceWithCopiedText => return self.replace_with_copied_text(context, false),
-            SelectAll => return Ok(self.select_all()),
-            SetContent(content) => self.update_buffer(&content),
-            ReplaceCut => return self.replace_with_copied_text(context, true),
-            ToggleVisualMode => self.toggle_visual_mode(),
-            EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
-            EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
-            Delete { cut } => return self.delete(cut, context),
-            Insert(string) => return self.insert(&string),
-            MatchLiteral(literal) => return self.match_literal(&literal),
-            ToggleBookmark => self.toggle_bookmarks(),
-            EnterInsideMode(kind) => return self.set_selection_mode(SelectionMode::Inside(kind)),
-            EnterNormalMode => self.enter_normal_mode()?,
-            FilterPush(filter) => return Ok(self.filters_push(context, filter)),
-            CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
-            FilterClear => return Ok(self.filters_clear()),
-            CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
-            Raise => return self.replace_with_movement(&Movement::Parent),
-            Exchange(movement) => return self.exchange(movement),
-            EnterExchangeMode => self.enter_exchange_mode(),
-            ReplacePattern { config } => {
-                let selection_set = self.selection_set.clone();
-                let (_, selection_set) = self.buffer_mut().replace(config, selection_set)?;
-                return Ok(self
-                    .update_selection_set(selection_set, false)
-                    .chain(self.get_document_did_change_dispatch()));
-            }
-            Undo => return self.undo(),
-            KillLine(direction) => return self.kill_line(direction),
-            Reset => self.reset(),
-            DeleteWordBackward { short } => return self.delete_word_backward(short),
-            Backspace => return self.backspace(),
-            MoveToLineStart => return self.move_to_line_start(),
-            MoveToLineEnd => return self.move_to_line_end(),
-            SelectLine(movement) => return self.select_line(movement),
-            SelectKids => return self.select_kids(),
-            Redo => return self.redo(),
-            OpenNewLine => return self.open_new_line(),
-            Change { cut } => return self.change(cut, context),
-            SetRectangle(rectangle) => self.set_rectangle(rectangle),
-            ScrollPageDown => return self.scroll_page_down(),
-            ScrollPageUp => return self.scroll_page_up(),
-            ShowJumps => self.show_jumps()?,
-            SwitchViewAlignment => self.switch_view_alignment(),
-            SetScrollOffset(n) => self.set_scroll_offset(n),
-            SetLanguage(language) => self.set_language(language)?,
-            ApplySyntaxHighlight => {
-                self.apply_syntax_highlighting(context)?;
-            }
-            Save => return self.save(),
-            ReplaceCurrentSelectionWith(string) => {
-                return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
-            }
-            ReplacePreviousWord(word) => return self.replace_previous_word(&word),
-            ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
-            SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
-            EnterMultiCursorMode => self.enter_multicursor_mode(),
-            Surround(open, close) => return self.enclose(open, close),
-            ShowKeymapLegendInsertMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.insert_mode_keymap_legend_config(),
-                )]
-                .to_vec()
-                .into())
-            }
-            ShowKeymapLegendHelp => {
-                return Ok(
-                    [Dispatch::ShowKeymapLegend(self.help_keymap_legend_config())]
-                        .to_vec()
-                        .into(),
-                )
-            }
-            ShowKeymapLegendNormalMode => {
-                return Ok([Dispatch::ShowKeymapLegend(
-                    self.normal_mode_keymap_legend_config(context),
-                )]
-                .to_vec()
-                .into())
-            }
-            EnterReplaceMode => self.enter_replace_mode(),
-            Paste(direction) => return self.paste(direction, context),
-            SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
-            SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
-            MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
-            MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
-            ReplaceWithMovement(movement) => return self.replace_with_movement(&movement),
-            EnterExchangeModeJump => {
-                self.enter_exchange_mode();
-                self.show_jumps()?;
-            }
-            EnterReplaceModeJump => {
-                self.enter_replace_mode();
-                self.show_jumps()?;
-            }
-            AddCursor(movement) => self.add_cursor(&movement)?,
-            Open(direction) => return self.open(direction),
-            TryReplaceCurrentLongWord(replacement) => {
-                return self.try_replace_current_long_word(replacement)
-            }
-        }
-        Ok(Default::default())
     }
 
     pub fn handle_key_event(
@@ -2255,7 +2243,7 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         let mut result = Vec::new();
         for dispatch in dispatches {
-            result.extend(self.apply_dispatch(context, dispatch)?.into_vec());
+            result.extend(self.handle_dispatch_editor(context, dispatch)?.into_vec());
         }
         Ok(result.into())
     }
