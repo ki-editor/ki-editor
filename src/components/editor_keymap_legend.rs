@@ -17,7 +17,6 @@ use crate::{
 };
 
 use super::{
-    component::Component,
     editor::{Direction, DispatchEditor, Editor, HandleEventResult},
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
     suggestive_editor::Info,
@@ -272,7 +271,6 @@ impl Editor {
     pub fn insert_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Insert mode keymaps".to_string(),
-            owner_id: self.id(),
             body: KeymapLegendBody::MultipleSections {
                 sections: [
                     KeymapLegendSection {
@@ -500,7 +498,6 @@ impl Editor {
                     ),
                 ]),
             },
-            owner_id: self.id(),
         }
     }
 
@@ -521,7 +518,6 @@ impl Editor {
                 ]
                 .to_vec(),
             },
-            owner_id: self.id(),
         }
     }
     fn normal_mode_keymaps(&self, context: &Context) -> Keymaps {
@@ -608,7 +604,6 @@ impl Editor {
                 )
                 .collect(),
             },
-            owner_id: self.id(),
         }
     }
     pub fn handle_normal_mode(
@@ -626,7 +621,7 @@ impl Editor {
     pub fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
-            owner_id: self.id(),
+
             body: KeymapLegendBody::MultipleSections {
                 sections: [
                     KeymapLegendSection {
@@ -705,7 +700,7 @@ impl Editor {
     pub fn search_list_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
-            owner_id: self.id(),
+
             body: KeymapLegendBody::MultipleSections {
                 sections: [KeymapLegendSection {
                     title: "Files".to_string(),
@@ -804,18 +799,12 @@ impl Editor {
                     Keymap::new(
                         ",",
                         "Configure Search".to_string(),
-                        Dispatch::ShowSearchConfig {
-                            owner_id: self.id(),
-                            scope,
-                        },
+                        Dispatch::ShowSearchConfig { scope },
                     ),
                     Keymap::new(
                         "s",
                         "Search".to_string(),
-                        Dispatch::OpenSearchPrompt {
-                            scope,
-                            owner_id: self.id(),
-                        },
+                        Dispatch::OpenSearchPrompt { scope },
                     ),
                 ]
                 .into_iter()
@@ -827,7 +816,6 @@ impl Editor {
                                 "c",
                                 "Current selection".to_string(),
                                 Dispatch::UpdateLocalSearchConfig {
-                                    owner_id: self.id(),
                                     scope,
                                     update: crate::app::LocalSearchConfigUpdate::Search(
                                         search.to_string(),
@@ -866,11 +854,9 @@ impl Editor {
     }
 
     pub fn find_local_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
-        let owner_id = self.id();
         let scope = Scope::Local;
         KeymapLegendConfig {
             title: "Native".to_string(),
-            owner_id,
             body: KeymapLegendBody::MultipleSections {
                 sections: Some(self.keymap_text_search(context, Scope::Local))
                     .into_iter()
@@ -978,7 +964,7 @@ impl Editor {
         let scope = Scope::Global;
         KeymapLegendConfig {
             title: "Global".to_string(),
-            owner_id: self.id(),
+
             body: KeymapLegendBody::MultipleSections {
                 sections: [KeymapLegendSection {
                     title: "Misc".to_string(),
@@ -1010,7 +996,7 @@ impl Editor {
     pub fn inside_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Inside".to_string(),
-            owner_id: self.id(),
+
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     &[
@@ -1045,7 +1031,7 @@ impl Editor {
         let filter_mechanism_keymaps = |kind: FilterKind, target: FilterTarget| -> Dispatch {
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                 title: format!("Omit: {:?} {:?} matching", kind, target),
-                owner_id: self.id(),
+
                 body: KeymapLegendBody::SingleSection {
                     keymaps: Keymaps::new(
                         [
@@ -1076,7 +1062,7 @@ impl Editor {
         let filter_target_keymaps = |kind: FilterKind| -> Dispatch {
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                 title: format!("Omit: {:?}", kind),
-                owner_id: self.id(),
+
                 body: KeymapLegendBody::SingleSection {
                     keymaps: Keymaps::new(
                         [
@@ -1098,7 +1084,7 @@ impl Editor {
         };
         KeymapLegendConfig {
             title: "Omit".to_string(),
-            owner_id: self.id(),
+
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     [
@@ -1123,7 +1109,7 @@ impl Editor {
     pub fn show_literal_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Find literal".to_string(),
-            owner_id: self.id(),
+
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(
                     &[

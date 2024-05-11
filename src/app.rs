@@ -386,9 +386,7 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
             }
-            Dispatch::OpenSearchPrompt { scope, owner_id } => {
-                self.open_search_prompt(scope, owner_id)?
-            }
+            Dispatch::OpenSearchPrompt { scope } => self.open_search_prompt(scope)?,
             Dispatch::GoToFile(path) => {
                 self.go_to_file(path)?;
             }
@@ -529,28 +527,20 @@ impl<T: Frontend> App<T> {
             )?,
             Dispatch::UpdateLocalSearchConfig {
                 update,
-                owner_id,
                 scope,
                 show_config_after_enter,
-            } => {
-                self.update_local_search_config(update, owner_id, scope, show_config_after_enter)?
+            } => self.update_local_search_config(update, scope, show_config_after_enter)?,
+            Dispatch::UpdateGlobalSearchConfig { update } => {
+                self.update_global_search_config(update)?;
             }
-            Dispatch::UpdateGlobalSearchConfig { owner_id, update } => {
-                self.update_global_search_config(owner_id, update)?;
+            Dispatch::OpenSetGlobalSearchFilterGlobPrompt { filter_glob } => {
+                self.open_set_global_search_filter_glob_prompt(filter_glob)?
             }
-            Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                owner_id,
-                filter_glob,
-            } => self.open_set_global_search_filter_glob_prompt(owner_id, filter_glob)?,
-            Dispatch::ShowSearchConfig { owner_id, scope } => {
-                self.show_search_config(owner_id, scope)
+            Dispatch::ShowSearchConfig { scope } => self.show_search_config(scope),
+            Dispatch::OpenUpdateReplacementPrompt { scope } => {
+                self.open_update_replacement_prompt(scope)?
             }
-            Dispatch::OpenUpdateReplacementPrompt { owner_id, scope } => {
-                self.open_update_replacement_prompt(owner_id, scope)?
-            }
-            Dispatch::OpenUpdateSearchPrompt { owner_id, scope } => {
-                self.open_update_search_prompt(owner_id, scope)?
-            }
+            Dispatch::OpenUpdateSearchPrompt { scope } => self.open_update_search_prompt(scope)?,
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(ReplacePattern {
                     config: self.context.local_search_config().clone(),
@@ -595,7 +585,7 @@ impl<T: Frontend> App<T> {
         self.layout.close_current_window()
     }
 
-    fn local_search(&mut self, owner_id: Option<ComponentId>) -> anyhow::Result<()> {
+    fn local_search(&mut self) -> anyhow::Result<()> {
         let config = self.context.local_search_config();
         let search = config.search();
         if !search.is_empty() {
@@ -606,9 +596,7 @@ impl<T: Frontend> App<T> {
                         search,
                     },
                 }),
-                owner_id
-                    .and_then(|owner_id| self.get_component_by_id(owner_id))
-                    .unwrap_or_else(|| self.current_component()),
+                self.current_component(),
             )?;
         }
 
@@ -644,7 +632,7 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_search_prompt(&mut self, scope: Scope, owner_id: ComponentId) -> anyhow::Result<()> {
+    fn open_search_prompt(&mut self, scope: Scope) -> anyhow::Result<()> {
         let config = self.context.get_local_search_config(scope);
         let mode = config.mode;
         self.open_prompt(PromptConfig {
@@ -653,7 +641,6 @@ impl<T: Frontend> App<T> {
             items: self.words(),
             on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
-                owner_id,
                 show_config_after_enter: false,
             },
             enter_selects_first_matching_item: false,
@@ -1133,7 +1120,6 @@ impl<T: Frontend> App<T> {
     fn open_yes_no_prompt(&mut self, prompt: YesNoPrompt) -> anyhow::Result<()> {
         self.handle_dispatch(Dispatch::ShowKeymapLegend(KeymapLegendConfig {
             title: "Prompt".to_string(),
-            owner_id: prompt.owner_id,
             body: KeymapLegendBody::MultipleSections {
                 sections: [KeymapLegendSection {
                     title: prompt.title,
@@ -1400,47 +1386,35 @@ impl<T: Frontend> App<T> {
     fn update_local_search_config(
         &mut self,
         update: LocalSearchConfigUpdate,
-        owner_id: ComponentId,
         scope: Scope,
         show_legend: bool,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         match scope {
-            Scope::Local => self.local_search(Some(owner_id))?,
+            Scope::Local => self.local_search()?,
             Scope::Global => {
                 self.global_search()?;
             }
         }
 
         if show_legend {
-            self.show_search_config(owner_id, scope);
+            self.show_search_config(scope);
         }
         Ok(())
     }
 
     fn update_global_search_config(
         &mut self,
-        owner_id: ComponentId,
         update: GlobalSearchConfigUpdate,
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
-        self.show_search_config(owner_id, Scope::Global);
+        self.show_search_config(Scope::Global);
         Ok(())
-    }
-
-    fn get_component_by_id(&self, id: ComponentId) -> Option<Rc<RefCell<dyn Component>>> {
-        Some(
-            self.components()
-                .into_iter()
-                .find(|component| component.component().borrow().id() == id)?
-                .component(),
-        )
     }
 
     fn open_set_global_search_filter_glob_prompt(
         &mut self,
-        owner_id: ComponentId,
         filter_glob: GlobalSearchFilterGlob,
     ) -> anyhow::Result<()> {
         let _current_component = self.current_component().clone();
@@ -1452,16 +1426,13 @@ impl<T: Frontend> App<T> {
         self.open_prompt(PromptConfig {
             title: format!("Set global search {:?} files glob", filter_glob),
             history,
-            on_enter: DispatchPrompt::GlobalSearchConfigSetGlob {
-                owner_id,
-                filter_glob,
-            },
+            on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
         })
     }
 
-    fn show_search_config(&mut self, owner_id: ComponentId, scope: Scope) {
+    fn show_search_config(&mut self, scope: Scope) {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("[{}] {title}", if checked { "X" } else { " " })
         }
@@ -1479,7 +1450,6 @@ impl<T: Frontend> App<T> {
                     description,
                     Dispatch::UpdateLocalSearchConfig {
                         update,
-                        owner_id,
                         scope,
                         show_config_after_enter: true,
                     },
@@ -1509,12 +1479,12 @@ impl<T: Frontend> App<T> {
                                 Keymap::new(
                                     "s",
                                     format!("Search = {}", local_search_config.search()),
-                                    Dispatch::OpenUpdateSearchPrompt { owner_id, scope },
+                                    Dispatch::OpenUpdateSearchPrompt { scope },
                                 ),
                                 Keymap::new(
                                     "r",
                                     format!("Replacement = {}", local_search_config.replacement()),
-                                    Dispatch::OpenUpdateReplacementPrompt { owner_id, scope },
+                                    Dispatch::OpenUpdateReplacementPrompt { scope },
                                 ),
                             ]
                             .into_iter()
@@ -1532,7 +1502,6 @@ impl<T: Frontend> App<T> {
                                                         .unwrap_or_default()
                                                 ),
                                                 Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                                    owner_id,
                                                     filter_glob: GlobalSearchFilterGlob::Include,
                                                 },
                                             ),
@@ -1546,7 +1515,6 @@ impl<T: Frontend> App<T> {
                                                         .unwrap_or_default()
                                                 ),
                                                 Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
-                                                    owner_id,
                                                     filter_glob: GlobalSearchFilterGlob::Exclude,
                                                 },
                                             ),
@@ -1634,35 +1602,25 @@ impl<T: Frontend> App<T> {
                 }))
                 .collect(),
             },
-            owner_id,
         })
     }
 
-    fn open_update_replacement_prompt(
-        &mut self,
-        owner_id: ComponentId,
-        scope: Scope,
-    ) -> Result<(), anyhow::Error> {
+    fn open_update_replacement_prompt(&mut self, scope: Scope) -> Result<(), anyhow::Error> {
         self.open_prompt(PromptConfig {
             title: format!("Set Replace ({:?})", scope),
             history: self.context.get_local_search_config(scope).replacements(),
-            on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope },
+            on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { scope },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
         })
     }
 
-    fn open_update_search_prompt(
-        &mut self,
-        owner_id: ComponentId,
-        scope: Scope,
-    ) -> Result<(), anyhow::Error> {
+    fn open_update_search_prompt(&mut self, scope: Scope) -> Result<(), anyhow::Error> {
         self.open_prompt(PromptConfig {
             title: format!("Set Search ({:?})", scope),
             history: self.context.get_local_search_config(scope).searches(),
             on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
-                owner_id,
                 show_config_after_enter: true,
             },
             items: self.words(),
@@ -1966,7 +1924,6 @@ pub enum Dispatch {
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
         scope: Scope,
-        owner_id: ComponentId,
     },
     GoToFile(CanonicalizedPath),
     ShowGlobalInfo(Info),
@@ -2057,29 +2014,23 @@ pub enum Dispatch {
     },
     GotoSelectionHistoryContiguous(Movement),
     UpdateLocalSearchConfig {
-        owner_id: ComponentId,
         update: LocalSearchConfigUpdate,
         scope: Scope,
         show_config_after_enter: bool,
     },
     UpdateGlobalSearchConfig {
-        owner_id: ComponentId,
         update: GlobalSearchConfigUpdate,
     },
     OpenSetGlobalSearchFilterGlobPrompt {
-        owner_id: ComponentId,
         filter_glob: GlobalSearchFilterGlob,
     },
     ShowSearchConfig {
-        owner_id: ComponentId,
         scope: Scope,
     },
     OpenUpdateReplacementPrompt {
-        owner_id: ComponentId,
         scope: Scope,
     },
     OpenUpdateSearchPrompt {
-        owner_id: ComponentId,
         scope: Scope,
     },
     Replace {
@@ -2122,7 +2073,6 @@ pub enum LocalSearchConfigUpdate {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct YesNoPrompt {
     pub title: String,
-    pub owner_id: ComponentId,
     pub yes: Box<Dispatch>,
 }
 
@@ -2206,7 +2156,6 @@ pub enum DispatchPrompt {
         make_mechanism: MakeFilterMechanism,
     },
     GlobalSearchConfigSetGlob {
-        owner_id: ComponentId,
         filter_glob: GlobalSearchFilterGlob,
     },
     MoveSelectionByIndex,
@@ -2215,7 +2164,6 @@ pub enum DispatchPrompt {
     },
     UpdateLocalSearchConfigSearch {
         scope: Scope,
-        owner_id: ComponentId,
         show_config_after_enter: bool,
     },
     OpenInsideOtherPromptClose,
@@ -2237,7 +2185,6 @@ pub enum DispatchPrompt {
         working_directory: CanonicalizedPath,
     },
     UpdateLocalSearchConfigReplacement {
-        owner_id: ComponentId,
         scope: Scope,
     },
     SetContent,
@@ -2261,12 +2208,8 @@ impl DispatchPrompt {
                     .to_vec(),
                 ))
             }
-            DispatchPrompt::GlobalSearchConfigSetGlob {
-                owner_id,
-                filter_glob,
-            } => Ok(Dispatches::new(
+            DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob } => Ok(Dispatches::new(
                 [Dispatch::UpdateGlobalSearchConfig {
-                    owner_id,
                     update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
                 }]
                 .to_vec(),
@@ -2285,11 +2228,9 @@ impl DispatchPrompt {
             }
             DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
-                owner_id,
                 show_config_after_enter,
             } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
-                    owner_id,
                     update: LocalSearchConfigUpdate::Search(text.to_string()),
                     scope,
                     show_config_after_enter,
@@ -2345,17 +2286,14 @@ impl DispatchPrompt {
                 let path = working_directory.join(text)?;
                 Ok(Dispatches::new(vec![Dispatch::GoToFile(path)]))
             }
-            DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope } => {
-                Ok(Dispatches::new(
-                    [Dispatch::UpdateLocalSearchConfig {
-                        owner_id,
-                        scope,
-                        update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
-                        show_config_after_enter: true,
-                    }]
-                    .to_vec(),
-                ))
-            }
+            DispatchPrompt::UpdateLocalSearchConfigReplacement { scope } => Ok(Dispatches::new(
+                [Dispatch::UpdateLocalSearchConfig {
+                    scope,
+                    update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
+                    show_config_after_enter: true,
+                }]
+                .to_vec(),
+            )),
             DispatchPrompt::SetContent => Ok(Dispatches::new(
                 [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),
             )),

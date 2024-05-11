@@ -29,7 +29,7 @@ use crate::{
     },
     char_index_range::CharIndexRange,
     components::{
-        component::{Component, ComponentId},
+        component::Component,
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
@@ -1008,18 +1008,15 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
 
 #[test]
 fn search_config_history() -> Result<(), anyhow::Error> {
-    let owner_id = ComponentId::new();
     let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Step {
         App(UpdateLocalSearchConfig {
-            owner_id,
             update,
             scope,
             show_config_after_enter: true,
         })
     };
-    let update_global = |update: GlobalSearchConfigUpdate| -> Step {
-        App(UpdateGlobalSearchConfig { owner_id, update })
-    };
+    let update_global =
+        |update: GlobalSearchConfigUpdate| -> Step { App(UpdateGlobalSearchConfig { update }) };
     use GlobalSearchConfigUpdate::*;
     use GlobalSearchFilterGlob::*;
     use LocalSearchConfigUpdate::*;
@@ -1081,10 +1078,8 @@ fn test_global_search_replace(
     }: TestGlobalSearchReplaceArgs,
 ) -> anyhow::Result<()> {
     execute_test(|s| {
-        let owner_id = ComponentId::new();
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
             UpdateLocalSearchConfig {
-                owner_id,
                 update,
                 scope: Scope::Global,
                 show_config_after_enter: true,
@@ -1179,10 +1174,8 @@ fn global_search_replace_case_agnostic() -> Result<(), anyhow::Error> {
 #[test]
 fn quickfix_list() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        let owner_id = ComponentId::new();
         let new_dispatch = |update: LocalSearchConfigUpdate| -> Dispatch {
             UpdateLocalSearchConfig {
-                owner_id,
                 update,
                 scope: Scope::Global,
                 show_config_after_enter: false,
@@ -1780,6 +1773,23 @@ fn preserve_selection_after_file_changes() -> anyhow::Result<()> {
             App(GoToFile(s.foo_rs())),
             App(GoToFile(s.main_rs())),
             Expect(CurrentSelectedTexts(&["world"])),
+        ])
+    })
+}
+
+#[test]
+fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GoToFile(s.main_rs())),
+            App(RevealInExplorer(s.main_rs())),
+            Expect(CurrentComponentTitle("File Explorer")),
+            App(OpenSearchPrompt {
+                scope: Scope::Local,
+            }),
+            Expect(Not(Box::new(CurrentComponentTitle("File Explorer")))),
+            App(HandleKeyEvents(keys!("m a i n enter").to_vec())),
+            Expect(CurrentComponentTitle("File Explorer")),
         ])
     })
 }
