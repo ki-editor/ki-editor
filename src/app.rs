@@ -917,11 +917,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             LspNotification::SignatureHelp(signature_help) => {
-                if let Some(info) = signature_help.and_then(|s| s.into_info()) {
-                    self.show_editor_info(info)?;
-                } else {
-                    self.hide_editor_info()
-                }
+                self.handle_signature_help(signature_help)?;
                 Ok(())
             }
             LspNotification::Symbols(context, symbols) => {
@@ -1879,6 +1875,22 @@ impl<T: Frontend> App<T> {
             .into_iter()
             .map(|c| c.kind())
             .collect_vec()
+    }
+
+    fn handle_signature_help(
+        &mut self,
+        signature_help: Option<crate::lsp::signature_help::SignatureHelp>,
+    ) -> anyhow::Result<()> {
+        if let Some(info) = signature_help.and_then(|s| s.into_info()) {
+            if self.current_component().borrow().editor().mode
+                == crate::components::editor::Mode::Insert
+            {
+                self.show_editor_info(info)?;
+            }
+        } else {
+            self.hide_editor_info()
+        }
+        Ok(())
     }
 }
 

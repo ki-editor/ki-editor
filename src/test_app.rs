@@ -647,30 +647,42 @@ fn signature_help() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Expect(CurrentMode(Mode::Normal)),
+            //
+            // Signature help should not be shown in normal mode
+            App(HandleLspNotification(signature_help())),
+            Expect(ExpectKind::ComponentsOrder(vec![
+                ComponentKind::SuggestiveEditor,
+            ])),
+            //
+            // Signature help should only be shown in insert mode
             Editor(EnterInsertMode(Direction::End)),
             App(HandleLspNotification(signature_help())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::EditorInfo,
             ])),
+            //
             // Receiving signature help again should increase the components length
             App(HandleLspNotification(signature_help())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::EditorInfo,
             ])),
+            //
             // Pressing esc should close signature help
             App(HandleKeyEvent(key!("esc"))),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
             ])),
-            // ----
+            //
+            // Receiving null signature help should close the signature help
+            Editor(EnterInsertMode(Direction::End)),
             App(HandleLspNotification(signature_help())),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
                 ComponentKind::EditorInfo,
             ])),
-            // Receiving null signature help should close the signature help
             App(HandleLspNotification(LspNotification::SignatureHelp(None))),
             Expect(ExpectKind::ComponentsOrder(vec![
                 ComponentKind::SuggestiveEditor,
