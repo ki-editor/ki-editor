@@ -437,16 +437,16 @@ fn run_test(
 fn copy_replace_from_different_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.main_rs())),
+            App(GoToFile(s.foo_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
             Editor(Copy),
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
             Editor(Copy),
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
             Editor(ReplaceWithCopiedText),
@@ -460,7 +460,7 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
 fn replace_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(Copy),
@@ -479,7 +479,7 @@ fn replace_cut() -> anyhow::Result<()> {
 fn copy_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(Copy),
@@ -499,7 +499,7 @@ fn copy_replace() -> anyhow::Result<()> {
 fn cut_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(BottomNode)),
             Editor(Change { cut: true }),
@@ -518,7 +518,7 @@ fn cut_replace() -> anyhow::Result<()> {
 fn highlight_mode_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -543,7 +543,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
 fn highlight_mode_copy() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -570,7 +570,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
 fn highlight_mode_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -596,7 +596,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
 fn multi_paste() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
             )),
@@ -641,7 +641,7 @@ fn signature_help() -> anyhow::Result<()> {
             }))
         }
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Expect(ComponentsLength(1)),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
@@ -692,11 +692,11 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
 
         Box::new([
             // Delete the first line of main.rs
-            App(OpenFile(s.main_rs().clone())),
+            App(GoToFile(s.main_rs().clone())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(Delete { cut: false }),
             // Insert a comment at the first line of foo.rs
-            App(OpenFile(s.foo_rs().clone())),
+            App(GoToFile(s.foo_rs().clone())),
             Editor(Insert("// Hello".to_string())),
             // Save the files,
             App(SaveAll),
@@ -739,7 +739,7 @@ pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
         let temp_dir = s.temp_dir();
         Box::new([
             // Ignore *.txt files
-            App(OpenFile(s.gitignore())),
+            App(GoToFile(s.gitignore())),
             Editor(Insert("*.txt\n".to_string())),
             App(SaveAll),
             // Add new txt file
@@ -778,7 +778,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(SetGlobalTitle("[GLOBAL TITLE]".to_string())),
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             App(TerminalDimensionChanged(Dimension {
                 width: 200,
                 height: 6,
@@ -847,7 +847,7 @@ fn first () {
 fn selection_history_contiguous() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
             Editor(SetSelectionMode(Character)),
@@ -876,10 +876,10 @@ fn selection_history_contiguous() -> Result<(), anyhow::Error> {
 fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetSelectionMode(WordShort)),
             Editor(ToggleBookmark),
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             Editor(SetSelectionMode(WordShort)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
@@ -909,7 +909,7 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
 fn local_lsp_references() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
             )),
@@ -962,7 +962,7 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
             })
         };
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             App(HandleLspNotification(publish_diagnostics(s.main_rs()))),
             App(HandleLspNotification(publish_diagnostics(s.foo_rs()))),
             App(SetQuickfixList(
@@ -1080,9 +1080,9 @@ fn test_global_search_replace(
         };
         let main_rs = s.main_rs();
         Box::new([
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             Editor(SetContent(foo_content.to_string())),
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(main_content.to_string())),
             App(SaveAll),
             App(new_dispatch(LocalSearchConfigUpdate::Mode(mode))),
@@ -1102,7 +1102,7 @@ fn test_global_search_replace(
                 FileContent(main_rs.clone(), main_rs.read().unwrap())
             })),
             // Apply undo to main_rs
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(Undo),
             // Expect the content of the main.rs buffer to be reverted
             Expect(FileContent(s.main_rs(), main_content.to_string())),
@@ -1177,7 +1177,7 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
             }
         };
         Box::new([
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             Editor(SetContent(
                 "
 hello
@@ -1194,7 +1194,7 @@ foo a // Line 10
                 .trim()
                 .to_string(),
             )),
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("foo d\nfoo c".to_string())),
             App(SaveAll),
             App(new_dispatch(LocalSearchConfigUpdate::Search(
@@ -1250,7 +1250,7 @@ foo a // Line 10
 fn quickfix_list_show_info_if_possible() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent(
                 "
 fn main() { 
@@ -1285,7 +1285,7 @@ fn main() {
 fn diagnostic_info() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             App(Dispatch::HandleLspNotification(
                 LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(s.foo_rs()).unwrap(),
@@ -1353,7 +1353,7 @@ fn diagnostic_severity_decoration_precedence() -> Result<(), anyhow::Error> {
             theme
         };
         Box::new([
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             App(SetTheme(theme)),
             Editor(SetContent(
                 "who lives in a pineapple? spongebob squarepants".to_string(),
@@ -1405,7 +1405,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
         };
         let expected_info = "foo\n=======\nbar\n=======\nspam";
         Box::new([
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             App(Dispatch::HandleLspNotification(
                 LspNotification::PublishDiagnostics(lsp_types::PublishDiagnosticsParams {
                     uri: Url::from_file_path(s.foo_rs()).unwrap(),
@@ -1447,7 +1447,7 @@ fn code_action() -> anyhow::Result<()> {
             command: None,
         };
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("a.to_s".to_string())),
             App(ReceiveCodeActions(
                 [code_action("to_soup"), code_action("to_string")].to_vec(),
@@ -1462,9 +1462,9 @@ fn code_action() -> anyhow::Result<()> {
 fn opening_new_file_should_replace_current_window() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Expect(ExpectKind::ComponentCount(1)),
-            App(OpenFile(s.foo_rs())),
+            App(GoToFile(s.foo_rs())),
             Expect(ExpectKind::ComponentCount(1)),
         ])
     })
@@ -1497,7 +1497,7 @@ fn cycle_window() -> anyhow::Result<()> {
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
@@ -1548,7 +1548,7 @@ fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> a
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
@@ -1591,7 +1591,7 @@ fn saving_in_insert_mode_in_suggestive_editor_should_close_all_other_windows() -
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
@@ -1624,8 +1624,8 @@ fn closing_current_file_should_replace_current_window_with_another_file() -> any
     {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
-                App(OpenFile(s.foo_rs())),
+                App(GoToFile(s.main_rs())),
+                App(GoToFile(s.foo_rs())),
                 Expect(CurrentComponentPath(Some(s.foo_rs()))),
                 App(CloseCurrentWindow),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
@@ -1643,8 +1643,8 @@ fn go_to_previous_file() -> anyhow::Result<()> {
     {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
-                App(OpenFile(s.foo_rs())),
+                App(GoToFile(s.main_rs())),
+                App(GoToFile(s.foo_rs())),
                 Expect(CurrentComponentPath(Some(s.foo_rs()))),
                 App(GoToPreviousSelection),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
@@ -1659,7 +1659,7 @@ fn go_to_previous_file() -> anyhow::Result<()> {
 fn editor_info_should_always_come_after_dropdown() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
@@ -1706,7 +1706,7 @@ fn dropdown_can_only_be_rendered_on_suggestive_editor_or_prompt() -> anyhow::Res
             }))
         };
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("hello".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
@@ -1739,7 +1739,7 @@ fn only_children_of_root_can_remove_all_other_components() -> anyhow::Result<()>
             }))
         };
         Box::new([
-            App(OpenFile(s.main_rs())),
+            App(GoToFile(s.main_rs())),
             Editor(SetContent("hello".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
@@ -1753,6 +1753,21 @@ fn only_children_of_root_can_remove_all_other_components() -> anyhow::Result<()>
             Expect(CurrentComponentContent(" Spongebob squarepants")),
             App(RemainOnlyCurrentComponent),
             Expect(ComponentCount(2)),
+        ])
+    })
+}
+
+#[test]
+fn preserve_selection_after_file_changes() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GoToFile(s.main_rs())),
+            Editor(SetContent("hello world bar".to_string())),
+            Editor(MatchLiteral("world".to_string())),
+            Expect(CurrentSelectedTexts(&["world"])),
+            App(GoToFile(s.foo_rs())),
+            App(GoToFile(s.main_rs())),
+            Expect(CurrentSelectedTexts(&["world"])),
         ])
     })
 }
