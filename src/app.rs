@@ -389,10 +389,9 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenSearchPrompt { scope, owner_id } => {
                 self.open_search_prompt(scope, owner_id)?
             }
-            Dispatch::OpenFile(path) => self.go_to_location(&Location {
-                path,
-                range: Range::default(),
-            })?,
+            Dispatch::GoToFile(path) => {
+                self.go_to_file(path)?;
+            }
 
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
@@ -757,11 +756,21 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_file_custom(
+    fn go_to_file(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        let component = self.open_file(&path, false)?;
+        let selection_set = component.borrow().editor().selection_set.clone();
+        self.update_selection_set(
+            SelectionSetHistoryKind::Path(path),
+            UpdateSelectionSetSource::SelectionSet(selection_set),
+            true,
+        )
+    }
+
+    fn open_file(
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
-    ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
+    ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
         if let Some(matching_editor) = self.layout.open_file(path, focus_editor) {
@@ -791,14 +800,6 @@ impl<T: Frontend> App<T> {
             self.lsp_manager.open_file(path.clone())?;
         }
         Ok(component)
-    }
-
-    fn open_file(
-        &mut self,
-        path: &CanonicalizedPath,
-        focus_editor: bool,
-    ) -> anyhow::Result<Rc<RefCell<dyn Component>>> {
-        self.open_file_custom(path, focus_editor)
     }
 
     fn get_suggestive_editor(
@@ -939,7 +940,7 @@ impl<T: Frontend> App<T> {
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
-        let component = self.open_file_custom(&path, false)?;
+        let component = self.open_file(&path, false)?;
 
         component
             .borrow_mut()
@@ -1007,7 +1008,7 @@ impl<T: Frontend> App<T> {
                     .group_by(|item| item.location().path.clone())
                     .into_iter()
                     .map(|(path, items)| -> anyhow::Result<()> {
-                        let editor = self.open_file_custom(&path, false)?;
+                        let editor = self.open_file(&path, false)?;
                         editor
                             .borrow_mut()
                             .editor_mut()
@@ -1345,7 +1346,9 @@ impl<T: Frontend> App<T> {
             selection_set: component.borrow().editor().selection_set.clone(),
         };
         if let Some(new_component) = match &kind {
-            SelectionSetHistoryKind::Path(path) => Some(self.open_file(path, true)?),
+            SelectionSetHistoryKind::Path(path) => {
+                Some(self.open_file(path, true)? as Rc<RefCell<dyn Component>>)
+            }
             SelectionSetHistoryKind::ComponentId(Some(id)) => self.layout.get_component_by_id(id),
             _ => None,
         } {
@@ -1954,7 +1957,7 @@ pub enum Dispatch {
         scope: Scope,
         owner_id: ComponentId,
     },
-    OpenFile(CanonicalizedPath),
+    GoToFile(CanonicalizedPath),
     ShowGlobalInfo(Info),
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),
@@ -2329,7 +2332,7 @@ impl DispatchPrompt {
             )),
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
-                Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
+                Ok(Dispatches::new(vec![Dispatch::GoToFile(path)]))
             }
             DispatchPrompt::UpdateLocalSearchConfigReplacement { owner_id, scope } => {
                 Ok(Dispatches::new(

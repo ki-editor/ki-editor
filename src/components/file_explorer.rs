@@ -335,7 +335,7 @@ impl Component for FileExplorer {
                 if let Some(node) = self.get_current_node()? {
                     match node.kind {
                         NodeKind::File => {
-                            Ok([Dispatch::OpenFile(node.path.clone())].to_vec().into())
+                            Ok([Dispatch::GoToFile(node.path.clone())].to_vec().into())
                         }
                         NodeKind::Directory { .. } => {
                             let tree = std::mem::take(&mut self.tree);
@@ -448,7 +448,7 @@ mod test_file_explorer {
                 .join("hello")
                 .join("world.rs");
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(2)),
                 App(OpenMoveFilePrompt(s.main_rs())),

@@ -393,7 +393,7 @@ mod test_suggestive_editor {
     fn completion_without_edit_1() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -422,7 +422,7 @@ mod test_suggestive_editor {
     fn completion_without_edit_2() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -442,7 +442,7 @@ mod test_suggestive_editor {
     fn completion_without_edit_3() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -468,7 +468,7 @@ mod test_suggestive_editor {
     fn completion_without_edit_4() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("()".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 Editor(MatchLiteral("(".to_string())),
@@ -505,7 +505,7 @@ mod test_suggestive_editor {
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -535,7 +535,7 @@ mod test_suggestive_editor {
     fn completion_with_edit() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
@@ -570,7 +570,7 @@ mod test_suggestive_editor {
     fn navigate_dropdown() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -593,7 +593,7 @@ mod test_suggestive_editor {
     fn trigger_characters() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -616,7 +616,7 @@ mod test_suggestive_editor {
     fn enter_normal_mode_should_close_completion_dropdown() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(Completion(dummy_completion())),
@@ -634,7 +634,7 @@ mod test_suggestive_editor {
     fn enter_normal_mode_should_close_info() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -660,7 +660,7 @@ mod test_suggestive_editor {
         };
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -677,7 +677,7 @@ mod test_suggestive_editor {
     fn filter_with_current_word() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -697,7 +697,7 @@ mod test_suggestive_editor {
     fn setting_completion_when_not_in_insert_mode() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterNormalMode),
@@ -716,7 +716,7 @@ mod test_suggestive_editor {
     fn completion_with_emoji() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
                 Editor(EnterInsertMode(Direction::Start)),
@@ -750,7 +750,7 @@ mod test_suggestive_editor {
     fn hide_dropdown_when_no_matching_candidates() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(OpenFile(s.main_rs())),
+                App(GoToFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
