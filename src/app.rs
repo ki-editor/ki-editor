@@ -155,7 +155,7 @@ impl<T: Frontend> App<T> {
         }
 
         if let Some(entry_path) = entry_path {
-            self.open_file(&entry_path, true)?;
+            self.go_to_file(entry_path)?;
         }
 
         self.render()?;
@@ -757,7 +757,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_file(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        let component = self.open_file(&path, false)?;
+        let component = self.open_file(&path)?;
         let selection_set = component.borrow().editor().selection_set.clone();
         self.update_selection_set(
             SelectionSetHistoryKind::Path(path),
@@ -766,14 +766,15 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    /// This only opens the file in the background but does not focus it.
+    /// If you need to focus it, use `Self::go_to_file` instead.
     fn open_file(
         &mut self,
         path: &CanonicalizedPath,
-        focus_editor: bool,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path, focus_editor) {
+        if let Some(matching_editor) = self.layout.open_file(path, false) {
             return Ok(matching_editor);
         }
 
@@ -785,12 +786,7 @@ impl<T: Frontend> App<T> {
         let component_id = editor.id();
         let component = Rc::new(RefCell::new(editor));
 
-        if focus_editor {
-            self.layout
-                .replace_and_focus_current_suggestive_editor(component.clone());
-        } else {
-            self.layout.add_suggestive_editor(component.clone());
-        }
+        self.layout.add_suggestive_editor(component.clone());
 
         if let Some(language) = language {
             self.request_syntax_highlight(component_id, language, content)?;
@@ -940,7 +936,7 @@ impl<T: Frontend> App<T> {
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
-        let component = self.open_file(&path, false)?;
+        let component = self.open_file(&path)?;
 
         component
             .borrow_mut()
@@ -1008,7 +1004,7 @@ impl<T: Frontend> App<T> {
                     .group_by(|item| item.location().path.clone())
                     .into_iter()
                     .map(|(path, items)| -> anyhow::Result<()> {
-                        let editor = self.open_file(&path, false)?;
+                        let editor = self.open_file(&path)?;
                         editor
                             .borrow_mut()
                             .editor_mut()
@@ -1040,7 +1036,7 @@ impl<T: Frontend> App<T> {
         // TODO: should we wrap this in a transaction so that if one of the edit/operation fails, the whole transaction fails?
         // Such that it won't leave the workspace in an half-edited messed up state
         for edit in workspace_edit.edits {
-            let component = self.open_file(&edit.path, false)?;
+            let component = self.open_file(&edit.path)?;
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
@@ -1175,7 +1171,7 @@ impl<T: Frontend> App<T> {
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager
             .document_did_rename(from.clone(), to.clone())?;
-        self.open_file(&to, true)?;
+        self.go_to_file(to)?;
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
@@ -1347,7 +1343,10 @@ impl<T: Frontend> App<T> {
         };
         if let Some(new_component) = match &kind {
             SelectionSetHistoryKind::Path(path) => {
-                Some(self.open_file(path, true)? as Rc<RefCell<dyn Component>>)
+                let editor = self.open_file(path)?;
+                self.layout
+                    .replace_and_focus_current_suggestive_editor(editor.clone());
+                Some(editor as Rc<RefCell<dyn Component>>)
             }
             SelectionSetHistoryKind::ComponentId(Some(id)) => self.layout.get_component_by_id(id),
             _ => None,
