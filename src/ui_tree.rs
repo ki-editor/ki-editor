@@ -37,11 +37,23 @@ impl UiTree {
     }
 
     /// The root will never be removed to ensure that this tree always contain one component
-    pub fn remove(&mut self, node_id: NodeId) -> Option<KindedComponent> {
+    pub fn remove(&mut self, node_id: NodeId, change_focus: bool) -> Option<KindedComponent> {
         if node_id == self.root_id() {
             return None;
         }
-        self.tree.remove(node_id, RemoveBehavior::DropChildren)
+        let parent_id = self
+            .get(node_id)
+            .and_then(|node| Some(node.parent()?.node_id()));
+        let removed = self.tree.remove(node_id, RemoveBehavior::DropChildren);
+        if change_focus {
+            if let Some(parent_id) = parent_id {
+                self.set_focus_component_id(parent_id);
+            } else {
+                self.cycle_component()
+            }
+            debug_assert!(self.get(self.focused_component_id).is_some());
+        }
+        removed
     }
 
     fn get_mut(&mut self, id: NodeId) -> Option<NodeMut<'_, KindedComponent>> {
@@ -56,6 +68,7 @@ impl UiTree {
         {
             return;
         }
+        let current_component_id = self.focused_component_id();
         let root = self.root();
         let root_id = root.node_id();
         for node_id in root
@@ -64,8 +77,9 @@ impl UiTree {
             .map(|node| node.node_id())
             .collect_vec()
         {
-            self.remove(node_id);
+            self.remove(node_id, false);
         }
+        debug_assert_eq!(current_component_id, self.focused_component_id())
     }
 
     /// Append `component` to the Node of given `node_id`
@@ -129,7 +143,7 @@ impl UiTree {
                 .traverse_pre_order()
                 .find(|node| node.node_id() != node_id && node.data().kind == kind)?
                 .node_id();
-            self.remove(node_id)
+            self.remove(node_id, false)
         } else {
             None
         }

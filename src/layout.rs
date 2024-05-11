@@ -86,12 +86,10 @@ impl Layout {
             {
                 self.replace_and_focus_current_suggestive_editor(editor.clone())
             } else {
-                self.tree.remove(node.node_id());
-                self.cycle_window()
+                self.tree.remove(node.node_id(), true);
             }
         } else {
-            self.tree.remove(node.node_id());
-            self.cycle_window()
+            self.tree.remove(node.node_id(), true);
         };
 
         self.recalculate_layout();

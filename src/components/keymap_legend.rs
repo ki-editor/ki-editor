@@ -13,7 +13,7 @@ use crate::{
 };
 
 use super::{
-    component::{Component, ComponentId},
+    component::Component,
     editor::{Direction, Editor, Mode, RegexHighlightRule},
     render_editor::Source,
 };
@@ -27,7 +27,6 @@ pub struct KeymapLegend {
 pub struct KeymapLegendConfig {
     pub title: String,
     pub body: KeymapLegendBody,
-    pub owner_id: ComponentId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -366,7 +365,6 @@ mod test_keymap_legend {
                     body: KeymapLegendBody::SingleSection {
                         keymaps: Keymaps::new(&[]),
                     },
-                    owner_id: Default::default(),
                 })),
                 App(HandleKeyEvent(key!("esc"))),
                 App(HandleKeyEvent(key!("esc"))),
@@ -420,7 +418,6 @@ mod test_keymap_legend {
 
     #[test]
     fn should_intercept_key_event_defined_in_config() {
-        let owner_id = ComponentId::new();
         let mut keymap_legend = KeymapLegend::new(KeymapLegendConfig {
             title: "Test".to_string(),
             body: KeymapLegendBody::SingleSection {
@@ -430,7 +427,6 @@ mod test_keymap_legend {
                     Dispatch::Custom("Spongebob".to_string()),
                 )]),
             },
-            owner_id,
         });
 
         let dispatches = keymap_legend.handle_events(keys!("s")).unwrap();
@@ -458,7 +454,6 @@ mod test_keymap_legend {
         let regexes = KeymapLegendConfig {
             title: "".to_string(),
             body: KeymapLegendBody::SingleSection { keymaps },
-            owner_id: ComponentId::new(),
         }
         .get_regex_highlight_rules()
         .into_iter()

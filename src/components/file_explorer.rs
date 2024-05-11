@@ -352,7 +352,6 @@ impl Component for FileExplorer {
                 let current_node = self.get_current_node()?;
                 Ok([Dispatch::ShowKeymapLegend(
                     super::keymap_legend::KeymapLegendConfig {
-                        owner_id: self.id(),
                         title: "File Explorer Actions".to_string(),
                         body: KeymapLegendBody::SingleSection {
                             keymaps: Keymaps::new(
@@ -369,7 +368,6 @@ impl Component for FileExplorer {
                                                 "d",
                                                 "Delete path".to_string(),
                                                 Dispatch::OpenYesNoPrompt(YesNoPrompt {
-                                                    owner_id: self.id(),
                                                     title: format!(
                                                         "Delete \"{}\"?",
                                                         node.path.display_absolute()
