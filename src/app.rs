@@ -1069,6 +1069,9 @@ impl<T: Frontend> App<T> {
             exclude: global_search_config.exclude_glob(),
         };
         let config = global_search_config.local_config();
+        if config.search().is_empty() {
+            return Ok(());
+        }
         let locations = match config.mode {
             LocalSearchConfigMode::Regex(regex) => {
                 list::grep::run(&config.search(), walk_builder_config, regex)

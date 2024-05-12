@@ -151,18 +151,20 @@ impl ExpectKind {
             ComponentsLength(length) => contextualize(app.components().len(), *length),
             Quickfixes(expected_quickfixes) => contextualize(
                 app.get_quickfix_list()
-                    .unwrap()
-                    .items()
-                    .into_iter()
-                    .map(|quickfix| {
-                        let info = quickfix
-                            .info()
-                            .as_ref()
-                            .map(|info| info.clone().set_decorations(Vec::new()));
-                        quickfix.set_info(info)
+                    .map(|q| {
+                        q.items()
+                            .into_iter()
+                            .map(|quickfix| {
+                                let info = quickfix
+                                    .info()
+                                    .as_ref()
+                                    .map(|info| info.clone().set_decorations(Vec::new()));
+                                quickfix.set_info(info)
+                            })
+                            .collect_vec()
+                            .into_boxed_slice()
                     })
-                    .collect_vec()
-                    .into_boxed_slice(),
+                    .unwrap_or_default(),
                 expected_quickfixes.clone(),
             ),
             EditorGrid(grid) => contextualize(
@@ -1790,6 +1792,20 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
             Expect(Not(Box::new(CurrentComponentTitle("File Explorer")))),
             App(HandleKeyEvents(keys!("m a i n enter").to_vec())),
             Expect(CurrentComponentTitle("File Explorer")),
+        ])
+    })
+}
+
+#[test]
+fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
+    execute_test(|_| {
+        Box::new([
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("".to_string()),
+                scope: Scope::Global,
+                show_config_after_enter: true,
+            }),
+            Expect(ExpectKind::Quickfixes(Box::new([]))),
         ])
     })
 }
