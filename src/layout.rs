@@ -260,11 +260,13 @@ impl Layout {
     }
 
     pub fn open_file_explorer(&mut self) {
+        self.tree.remove_all_root_children();
         self.tree.replace_root_node_child(
             ComponentKind::FileExplorer,
             self.background_file_explorer.clone(),
             true,
         );
+        debug_assert_eq!(self.tree.root().children().count(), 1);
     }
 
     pub fn update_highlighted_spans(

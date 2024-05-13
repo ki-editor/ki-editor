@@ -334,9 +334,12 @@ impl Component for FileExplorer {
             key!("enter") => {
                 if let Some(node) = self.get_current_node()? {
                     match node.kind {
-                        NodeKind::File => {
-                            Ok([Dispatch::GoToFile(node.path.clone())].to_vec().into())
-                        }
+                        NodeKind::File => Ok([
+                            Dispatch::CloseCurrentWindow,
+                            Dispatch::GoToFile(node.path.clone()),
+                        ]
+                        .to_vec()
+                        .into()),
                         NodeKind::Directory { .. } => {
                             let tree = std::mem::take(&mut self.tree);
                             self.tree = tree.toggle(&node.path, |open| !open);
@@ -448,9 +451,9 @@ mod test_file_explorer {
             Box::new([
                 App(GoToFile(s.main_rs())),
                 App(RevealInExplorer(s.main_rs())),
-                Expect(ComponentCount(2)),
+                Expect(ComponentCount(1)),
                 App(OpenMoveFilePrompt(s.main_rs())),
-                Expect(ComponentCount(3)),
+                Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move file")),
                 Editor(Insert(new_path.to_string_lossy().to_string())),
                 App(HandleKeyEvent(key!("enter"))),
@@ -459,6 +462,19 @@ mod test_file_explorer {
                     CurrentComponentPath(Some(new_path.clone().try_into().unwrap()))
                 })),
                 Expect(OpenedFilesCount(1)),
+            ])
+        })
+    }
+
+    #[test]
+    fn open_file() -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(RevealInExplorer(s.main_rs())),
+                Expect(ComponentCount(1)),
+                App(HandleKeyEvent(key!("enter"))),
+                Expect(ComponentCount(1)),
+                Expect(CurrentComponentPath(Some(s.main_rs()))),
             ])
         })
     }

@@ -245,6 +245,18 @@ impl UiTree {
         self.replace_node_child(self.root_id(), kind, component, focus)
     }
 
+    pub fn remove_all_root_children(&mut self) {
+        let children_ids = self
+            .root()
+            .children()
+            .map(|node| node.node_id())
+            .collect_vec();
+        for child_id in children_ids {
+            self.tree.remove(child_id, RemoveBehavior::DropChildren);
+        }
+        debug_assert_eq!(self.root().children().count(), 0);
+    }
+
     pub(crate) fn get_component_by_kind(
         &self,
         kind: ComponentKind,
