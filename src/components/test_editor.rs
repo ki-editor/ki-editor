@@ -1822,3 +1822,33 @@ fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn after_save_select_current() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GoToFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+let foo = 1;
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+            Editor(MatchLiteral("let foo = 1;".to_string())),
+            Editor(Save),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+    let foo = 1;
+}
+"
+                .trim_start(),
+            )),
+            Expect(CurrentSelectedTexts(&["let foo = 1;"])),
+        ])
+    })
+}
