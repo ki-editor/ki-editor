@@ -147,7 +147,23 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
 }
 
 #[test]
-fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
+/// Should delete backward if current selection is the last selection in the current selection mode
+fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GoToFile(s.main_rs())),
+            Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
+            Editor(MatchLiteral("b:B".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Delete { cut: false }),
+            Expect(CurrentComponentContent("fn main(a:A) {}")),
+            Expect(CurrentSelectedTexts(&["a:A"])),
+        ])
+    })
+}
+
+#[test]
+fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(GoToFile(s.main_rs())),
@@ -157,6 +173,22 @@ fn delete_should_not_kill_if_not_possible() -> anyhow::Result<()> {
             Expect(CurrentComponentContent("fn ima() {}")),
             // Expect the current selection is the character after "ma"
             Expect(CurrentSelectedTexts(&["i"])),
+        ])
+    })
+}
+
+#[test]
+/// If the current selection is the only selection in the selection mode
+fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GoToFile(s.main_rs())),
+            Editor(SetContent("fn main(a:A) {}".to_string())),
+            Editor(MatchLiteral("a:A".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Delete { cut: false }),
+            Expect(CurrentComponentContent("fn main() {}")),
+            Expect(CurrentSelectedTexts(&[")"])),
         ])
     })
 }
