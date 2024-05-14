@@ -46,14 +46,14 @@ impl Prompt {
             Rc::new(RefCell::new(Buffer::new(None, text))),
             SuggestiveEditorFilter::CurrentLine,
         );
-        editor.enter_insert_mode().unwrap_or_default();
+        let dispatches = editor.enter_insert_mode().unwrap_or_default();
         // TODO: set cursor to last line
         editor.set_title(config.title);
         editor.set_completion(Completion {
             items: config.items,
             trigger_characters: vec![" ".to_string()],
         });
-        let dispatches = Dispatches::one(editor.render_completion_dropdown());
+        let dispatches = dispatches.append(editor.render_completion_dropdown());
         (
             Prompt {
                 editor,
