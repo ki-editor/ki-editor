@@ -661,6 +661,37 @@ fn open_after_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn open_use_max_gap() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(GoToFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+  // hello
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("hello".to_string())),
+            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(Open(Direction::End)),
+            Editor(Insert("// world".to_string())),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+  // hello
+  // world
+}
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn exchange_line() -> anyhow::Result<()> {
     execute_test(|s| {
         // Multiline source code

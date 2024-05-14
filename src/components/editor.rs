@@ -1763,8 +1763,8 @@ impl Editor {
             self.selection_set
                 .map(|selection| {
                     let buffer = self.buffer.borrow();
-                    let get_selection = |movement: Movement| -> Option<Selection> {
-                        let s = Selection::get_selection_(
+                    let get_in_between_gap = |movement: Movement| -> Option<Rope> {
+                        let other = Selection::get_selection_(
                             &buffer,
                             selection,
                             &self.selection_set.mode,
@@ -1772,27 +1772,32 @@ impl Editor {
                             &self.cursor_direction,
                             &self.selection_set.filters,
                         )
-                        .ok()?
-                        .unwrap_or_else(|| selection.clone().into())
+                        .ok()??
                         .selection;
-                        if s.range() == selection.range() {
+                        if other.range() == selection.range() {
                             None
                         } else {
-                            Some(s)
-                        }
-                    };
-                    let previous_selection = get_selection(Movement::Previous);
-                    let next_selection = get_selection(Movement::Next);
-                    let in_between = next_selection
-                        .or(previous_selection)
-                        .and_then(|other_selection| {
                             let current_range = selection.range();
-                            let other_range = other_selection.range();
+                            let other_range = other.range();
                             let in_between_range = current_range.end.min(other_range.end)
                                 ..current_range.start.max(other_range.start);
                             buffer.slice(&in_between_range.into()).ok()
-                        })
-                        .unwrap_or_default();
+                        }
+                    };
+                    let in_between = match (
+                        get_in_between_gap(Movement::Next),
+                        get_in_between_gap(Movement::Previous),
+                    ) {
+                        (None, None) => Default::default(),
+                        (None, Some(gap)) | (Some(gap), None) => gap,
+                        (Some(next_gap), Some(prev_gap)) => {
+                            if next_gap.len_chars() > prev_gap.len_chars() {
+                                next_gap
+                            } else {
+                                prev_gap
+                            }
+                        }
+                    };
                     let in_between_len = in_between.len_chars();
                     Some(ActionGroup::new(
                         [
