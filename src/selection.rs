@@ -761,6 +761,10 @@ impl Selection {
             Direction::End => self.extended_range().end,
         }
     }
+
+    pub(crate) fn is_extended(&self) -> bool {
+        self.initial_range.is_some()
+    }
 }
 
 // TODO: this works, but the result is not satisfactory,

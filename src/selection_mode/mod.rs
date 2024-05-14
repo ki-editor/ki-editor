@@ -116,6 +116,7 @@ impl<'a> SelectionModeParams<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct ApplyMovementResult {
     pub selection: Selection,
     pub mode: Option<crate::selection::SelectionMode>,

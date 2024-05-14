@@ -727,7 +727,7 @@ impl Editor {
     }
 
     pub fn delete(&mut self, cut: bool, context: &Context) -> anyhow::Result<Dispatches> {
-        let dispatches = if cut {
+        let cut_dispatches = if cut {
             self.copy(context)?
         } else {
             Default::default()
@@ -737,49 +737,54 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let current_range = selection.extended_range();
-                    // If the gap between the next selection and the current selection are only whitespaces, perform a "kill next" instead
-                    let next_selection = Selection::get_selection_(
-                        &buffer,
-                        selection,
-                        &self.selection_set.mode,
-                        &Movement::Next,
-                        &self.cursor_direction,
-                        &self.selection_set.filters,
-                    )?
-                    .unwrap_or(selection.clone().into())
-                    .selection;
-
-                    let next_range = next_selection.extended_range();
-
+                    let default = {
+                        let start = current_range.start;
+                        (current_range, (start..start + 1).into())
+                    };
+                    let get_selection = |movement: Movement| {
+                        Selection::get_selection_(
+                            &buffer,
+                            selection,
+                            &self.selection_set.mode,
+                            &movement,
+                            &self.cursor_direction,
+                            &self.selection_set.filters,
+                        )
+                        .ok()
+                        .flatten()
+                    };
                     let (delete_range, select_range) = {
-                        let default = {
-                            let start = current_range.start;
-                            (current_range, (start..start + 1).into())
-                        };
-                        if current_range.end > next_range.start {
+                        if !self.selection_set.mode.is_contiguous() || selection.is_extended() {
                             default
-                        } else {
-                            let inbetween_range: CharIndexRange =
-                                (current_range.end..next_range.start).into();
+                        }
+                        // If the selection mode is contiguous and the selection is not extended,
+                        // perform a "kill next/previous" instead
+                        else {
+                            let other_selection = get_selection(Movement::Next)
+                                .or_else(|| get_selection(Movement::Previous))
+                                .unwrap_or(selection.clone().into())
+                                .selection;
 
-                            let inbetween_text = buffer.slice(&inbetween_range)?.to_string();
-                            if !inbetween_text.trim().is_empty()
-                                && !self.selection_set.mode.is_contiguous()
-                            {
+                            let other_range = other_selection.range();
+                            if other_range == current_range {
                                 default
-                            } else {
-                                let delete_range: CharIndexRange = (current_range.start
-                                    ..next_selection.extended_range().start)
-                                    .into();
-                                (delete_range, {
-                                    next_selection
+                            } else if other_range.start >= current_range.end {
+                                let delete_range: CharIndexRange =
+                                    (current_range.start..other_range.start).into();
+                                let select_range = {
+                                    other_selection
                                         .extended_range()
                                         .shift_left(delete_range.len())
-                                })
+                                };
+                                (delete_range, select_range)
+                            } else {
+                                let delete_range: CharIndexRange =
+                                    (other_range.end..current_range.end).into();
+                                let select_range = other_selection.range();
+                                (delete_range, select_range)
                             }
                         }
                     };
-
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
@@ -800,7 +805,8 @@ impl Editor {
                 .flatten()
                 .collect()
         });
-        Ok(dispatches.chain(self.apply_edit_transaction(edit_transaction)?))
+        let dispatches = self.apply_edit_transaction(edit_transaction)?;
+        Ok(cut_dispatches.chain(dispatches))
     }
 
     pub fn copy(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
