@@ -894,8 +894,9 @@ impl Editor {
 
     pub fn paste(&mut self, direction: Direction, context: &Context) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            self.selection_set
-                .map(|selection| -> anyhow::Result<_> {
+            self.get_selection_set_with_gap()
+                .into_iter()
+                .map(|(selection, gap)| {
                     let current_range = selection.extended_range();
                     let insertion_range_start = match direction {
                         Direction::Start => current_range.start,
@@ -906,24 +907,42 @@ impl Editor {
                     let copied_text_len = copied_text.len_chars();
 
                     let selection_range = if self.mode == Mode::Normal {
-                        insertion_range_start..insertion_range_start + copied_text_len
+                        let range: CharIndexRange =
+                            (insertion_range_start..insertion_range_start + copied_text_len).into();
+                        match direction {
+                            Direction::Start => range,
+                            Direction::End => range.shift_right(gap.len_chars()),
+                        }
                     } else {
                         let start = insertion_range_start + copied_text_len;
-                        start..start
+                        (start..start).into()
                     };
-                    Ok(ActionGroup::new(
+                    let paste_text = {
+                        match direction {
+                            Direction::Start => {
+                                let mut paste_text = copied_text;
+                                paste_text.append(gap);
+                                paste_text
+                            }
+                            Direction::End => {
+                                let mut gap = gap;
+                                gap.append(copied_text);
+                                gap
+                            }
+                        }
+                    };
+
+                    ActionGroup::new(
                         [
                             Action::Edit(Edit {
                                 range: insertion_range.into(),
-                                new: copied_text,
+                                new: paste_text,
                             }),
-                            Action::Select(Selection::new(selection_range.into())),
+                            Action::Select(Selection::new(selection_range)),
                         ]
                         .to_vec(),
-                    ))
+                    )
                 })
-                .into_iter()
-                .flatten()
                 .collect()
         });
         self.apply_edit_transaction(edit_transaction)
@@ -1758,48 +1777,62 @@ impl Editor {
         }
     }
 
+    /// This returns a vector of selections
+    /// with a gap that is the maximum of previous-current gap and current-next gap.
+    ///
+    /// Used for `Self::open` and `Self::paste`.
+    fn get_selection_set_with_gap(&self) -> Vec<(Selection, Rope)> {
+        self.selection_set
+            .map(|selection| {
+                let buffer = self.buffer.borrow();
+                let get_in_between_gap = |movement: Movement| -> Option<Rope> {
+                    let other = Selection::get_selection_(
+                        &buffer,
+                        selection,
+                        &self.selection_set.mode,
+                        &movement,
+                        &self.cursor_direction,
+                        &self.selection_set.filters,
+                    )
+                    .ok()??
+                    .selection;
+                    if other.range() == selection.range() {
+                        None
+                    } else {
+                        let current_range = selection.range();
+                        let other_range = other.range();
+                        let in_between_range = current_range.end.min(other_range.end)
+                            ..current_range.start.max(other_range.start);
+                        buffer.slice(&in_between_range.into()).ok()
+                    }
+                };
+                let gap = match (
+                    get_in_between_gap(Movement::Next),
+                    get_in_between_gap(Movement::Previous),
+                ) {
+                    (None, None) => Default::default(),
+                    (None, Some(gap)) | (Some(gap), None) => gap,
+                    (Some(next_gap), Some(prev_gap)) => {
+                        if next_gap.len_chars() > prev_gap.len_chars() {
+                            next_gap
+                        } else {
+                            prev_gap
+                        }
+                    }
+                };
+                (selection.clone(), gap)
+            })
+            .into_iter()
+            .collect_vec()
+    }
+
     fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
-            self.selection_set
-                .map(|selection| {
-                    let buffer = self.buffer.borrow();
-                    let get_in_between_gap = |movement: Movement| -> Option<Rope> {
-                        let other = Selection::get_selection_(
-                            &buffer,
-                            selection,
-                            &self.selection_set.mode,
-                            &movement,
-                            &self.cursor_direction,
-                            &self.selection_set.filters,
-                        )
-                        .ok()??
-                        .selection;
-                        if other.range() == selection.range() {
-                            None
-                        } else {
-                            let current_range = selection.range();
-                            let other_range = other.range();
-                            let in_between_range = current_range.end.min(other_range.end)
-                                ..current_range.start.max(other_range.start);
-                            buffer.slice(&in_between_range.into()).ok()
-                        }
-                    };
-                    let in_between = match (
-                        get_in_between_gap(Movement::Next),
-                        get_in_between_gap(Movement::Previous),
-                    ) {
-                        (None, None) => Default::default(),
-                        (None, Some(gap)) | (Some(gap), None) => gap,
-                        (Some(next_gap), Some(prev_gap)) => {
-                            if next_gap.len_chars() > prev_gap.len_chars() {
-                                next_gap
-                            } else {
-                                prev_gap
-                            }
-                        }
-                    };
-                    let in_between_len = in_between.len_chars();
-                    Some(ActionGroup::new(
+            self.get_selection_set_with_gap()
+                .into_iter()
+                .map(|(selection, gap)| {
+                    let gap_len = gap.len_chars();
+                    ActionGroup::new(
                         [
                             Action::Edit(Edit {
                                 range: {
@@ -1809,21 +1842,19 @@ impl Editor {
                                     };
                                     (start..start).into()
                                 },
-                                new: in_between,
+                                new: gap,
                             }),
                             Action::Select(selection.clone().set_range({
                                 let start = match direction {
                                     Direction::Start => selection.range().start,
-                                    Direction::End => selection.range().end + in_between_len,
+                                    Direction::End => selection.range().end + gap_len,
                                 };
                                 (start..start).into()
                             })),
                         ]
                         .to_vec(),
-                    ))
+                    )
                 })
-                .into_iter()
-                .flatten()
                 .collect_vec(),
         );
 
