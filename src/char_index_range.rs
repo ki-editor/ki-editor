@@ -68,6 +68,13 @@ impl CharIndexRange {
         }
     }
 
+    pub(crate) fn shift_right(&self, len: usize) -> CharIndexRange {
+        CharIndexRange {
+            start: self.start + len,
+            end: self.end + len,
+        }
+    }
+
     pub fn cursor_position(&self, cursor_direction: &Direction) -> CharIndex {
         match cursor_direction {
             Direction::Start => self.start,

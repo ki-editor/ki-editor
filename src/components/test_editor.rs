@@ -815,6 +815,27 @@ fn paste_after() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
+fn smart_paste() -> anyhow::Result<()> {
+    fn test(direction: Direction, expected_result: &'static str) -> Result<(), anyhow::Error> {
+        execute_test(move |s| {
+            Box::new([
+                App(GoToFile(s.main_rs())),
+                Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
+                Editor(MatchLiteral("a:A".to_string())),
+                App(SetClipboardContent("c:C".to_string())),
+                Editor(SetSelectionMode(SyntaxTree)),
+                Editor(Paste(direction.clone())),
+                Expect(CurrentComponentContent(expected_result)),
+                Expect(CurrentSelectedTexts(&["c:C"])),
+            ])
+        })
+    }
+    test(Direction::End, "fn main(a:A, c:C, b:B) {}")?;
+    test(Direction::Start, "fn main(c:C, a:A, b:B) {}")
+}
+
+#[serial]
+#[test]
 fn paste_before() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
