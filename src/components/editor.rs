@@ -1926,7 +1926,8 @@ impl Editor {
         Ok(Dispatches::one(Dispatch::RemainOnlyCurrentComponent)
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
-            .append(Dispatch::RemainOnlyCurrentComponent))
+            .append(Dispatch::RemainOnlyCurrentComponent)
+            .append(Dispatch::ToEditor(MoveSelection(Movement::Current))))
     }
 
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
