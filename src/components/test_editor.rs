@@ -1779,7 +1779,7 @@ fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
         Some(tree_sitter_md::language()),
         "fn main() {}",
     );
-    editor.enter_insert_mode(Direction::End)?;
+    let _ = editor.enter_insert_mode(Direction::End)?;
 
     let current_range = editor.buffer().tree().unwrap().root_node().range();
     let _ = editor.insert("fn hello() {}")?;

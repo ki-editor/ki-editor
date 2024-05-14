@@ -201,7 +201,7 @@ impl Component for Editor {
             ReplaceCut => return self.replace_with_copied_text(context, true),
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
-            EnterInsertMode(direction) => self.enter_insert_mode(direction)?,
+            EnterInsertMode(direction) => return self.enter_insert_mode(direction),
             Delete { cut } => return self.delete(cut, context),
             Insert(string) => return self.insert(&string),
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -702,7 +702,7 @@ impl Editor {
         });
         // Set the clipboard content to the current selection
         // if there is only one cursor.
-        let dispatch = if self.selection_set.secondary.is_empty() {
+        let copy_dispatch = if self.selection_set.secondary.is_empty() {
             Some(Dispatch::SetClipboardContent(
                 self.buffer
                     .borrow()
@@ -713,17 +713,10 @@ impl Editor {
             None
         };
         let dispatches = self
-            .apply_edit_transaction(edit_transaction)
-            .map(|dispatches| {
-                dispatches
-                    .into_vec()
-                    .into_iter()
-                    .chain(dispatch)
-                    .collect_vec()
-                    .into()
-            });
-        self.enter_insert_mode(Direction::Start)?;
-        dispatches
+            .apply_edit_transaction(edit_transaction)?
+            .append_some(copy_dispatch)
+            .chain(self.enter_insert_mode(Direction::Start)?);
+        Ok(dispatches)
     }
 
     pub fn delete(&mut self, cut: bool, context: &Context) -> anyhow::Result<Dispatches> {
@@ -1181,8 +1174,9 @@ impl Editor {
                 .collect(),
         );
 
-        let dispatches = dispatches.chain(self.apply_edit_transaction(edit_transaction)?);
-        self.enter_insert_mode(Direction::Start)?;
+        let dispatches = dispatches
+            .chain(self.apply_edit_transaction(edit_transaction)?)
+            .chain(self.enter_insert_mode(Direction::Start)?);
         Ok(dispatches)
     }
 
@@ -1296,7 +1290,7 @@ impl Editor {
         self.editor().buffer().path()
     }
 
-    pub fn enter_insert_mode(&mut self, direction: Direction) -> anyhow::Result<()> {
+    pub fn enter_insert_mode(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
         self.selection_set =
             self.selection_set
                 .apply(self.selection_set.mode.clone(), |selection| {
@@ -1312,7 +1306,10 @@ impl Editor {
                 })?;
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
-        Ok(())
+        Ok(self
+            .get_request_params()
+            .map(|params| Dispatches::one(Dispatch::RequestSignatureHelp(params)))
+            .unwrap_or_default())
     }
 
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
@@ -1904,8 +1901,9 @@ impl Editor {
                 .collect_vec(),
         );
 
-        let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        self.enter_insert_mode(Direction::End)?;
+        let dispatches = self
+            .apply_edit_transaction(edit_transaction)?
+            .chain(self.enter_insert_mode(Direction::End)?);
         Ok(dispatches)
     }
 
@@ -2350,8 +2348,9 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        self.enter_insert_mode(Direction::Start)?;
+        let dispatches = self
+            .apply_edit_transaction(edit_transaction)?
+            .chain(self.enter_insert_mode(Direction::Start)?);
         Ok(dispatches)
     }
 

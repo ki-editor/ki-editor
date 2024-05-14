@@ -166,7 +166,7 @@ impl SuggestiveEditor {
         }
     }
 
-    pub fn enter_insert_mode(&mut self) -> Result<(), anyhow::Error> {
+    pub fn enter_insert_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.editor
             .enter_insert_mode(super::editor::Direction::Start)
     }
@@ -284,7 +284,7 @@ mod test_suggestive_editor {
         let mut editor = editor(SuggestiveEditorFilter::CurrentLine);
 
         // Enter insert mode
-        editor
+        let _ = editor
             .editor_mut()
             .enter_insert_mode(Direction::Start)
             .unwrap();
@@ -345,7 +345,7 @@ mod test_suggestive_editor {
         assert_eq!(editor.editor().current_line()?, "");
 
         // Type in 's'
-        editor.editor_mut().enter_insert_mode(Direction::Start)?;
+        let _ = editor.editor_mut().enter_insert_mode(Direction::Start)?;
         let _ = editor.handle_events(keys!("s"))?;
 
         // Expect the current line is 's'
@@ -374,7 +374,7 @@ mod test_suggestive_editor {
         editor.editor_mut().buffer_mut().set_path(path);
 
         // Enter insert mode
-        editor
+        let _ = editor
             .editor_mut()
             .enter_insert_mode(Direction::Start)
             .unwrap();
@@ -387,6 +387,29 @@ mod test_suggestive_editor {
             .into_vec()
             .into_iter()
             .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
+    }
+
+    #[test]
+    fn entering_insert_mode_should_request_signature_help() {
+        let mut editor = editor(SuggestiveEditorFilter::CurrentWord);
+
+        let file = tempfile::NamedTempFile::new().unwrap();
+
+        let path: CanonicalizedPath = file.path().to_path_buf().try_into().unwrap();
+
+        editor.editor_mut().buffer_mut().set_path(path);
+
+        // Enter insert mode
+        let dispatches = editor
+            .editor_mut()
+            .enter_insert_mode(Direction::Start)
+            .unwrap();
+
+        // Expect the signature help request to be sent
+        assert!(dispatches
+            .into_vec()
+            .into_iter()
+            .any(|dispatch| matches!(&dispatch, Dispatch::RequestSignatureHelp(_))));
     }
 
     #[test]
