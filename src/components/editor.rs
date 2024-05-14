@@ -1958,7 +1958,11 @@ impl Editor {
             .append(Dispatch::DocumentDidSave { path })
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
-            .append(Dispatch::ToEditor(MoveSelection(Movement::Current))))
+            .append_some(if self.selection_set.mode.is_contiguous() {
+                Some(Dispatch::ToEditor(MoveSelection(Movement::Current)))
+            } else {
+                None
+            }))
     }
 
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere

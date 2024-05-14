@@ -1846,30 +1846,55 @@ fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
 
 #[test]
 fn after_save_select_current() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(GoToFile(s.main_rs())),
-            Editor(SetContent(
-                "
+    fn test(
+        selection_mode: SelectionMode,
+        expected_selected_texts: &'static [&'static str],
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            Box::new([
+                App(GoToFile(s.main_rs())),
+                Editor(SetContent(
+                    "
 fn main() {
 let foo = 1;
 }
 "
-                .trim()
-                .to_string(),
-            )),
-            Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
-            Editor(MatchLiteral("let foo = 1;".to_string())),
-            Editor(Save),
-            Expect(CurrentComponentContent(
-                "
+                    .trim()
+                    .to_string(),
+                )),
+                Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
+                Editor(MatchLiteral("let foo = 1;".to_string())),
+                Editor(SetSelectionMode(selection_mode.clone())),
+                Editor(Save),
+                Expect(CurrentComponentContent(
+                    "
 fn main() {
     let foo = 1;
 }
 "
-                .trim_start(),
-            )),
-            Expect(CurrentSelectedTexts(&["let foo = 1;"])),
-        ])
-    })
+                    .trim_start(),
+                )),
+                Expect(CurrentSelectedTexts(expected_selected_texts)),
+            ])
+        })
+    }
+    // The SyntaxTree selection mode is contiguous, thus it should select current after save
+    test(SyntaxTree, &["let foo = 1;"])?;
+
+    // The Find selection mode is not contigouos, thus it should not select current after save
+    test(
+        SelectionMode::Find {
+            search: crate::context::Search {
+                search: "let foo = 1;".to_string(),
+                mode: crate::context::LocalSearchConfigMode::Regex(
+                    crate::list::grep::RegexConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    },
+                ),
+            },
+        },
+        &["    let foo "],
+    )
 }
