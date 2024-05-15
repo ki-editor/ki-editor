@@ -1,8 +1,9 @@
 use crate::{
-    app::{Dispatches, RequestParams, SelectionSetHistoryKind},
+    app::{Dispatches, RequestParams},
     buffer::Line,
     char_index_range::CharIndexRange,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
+    history::History,
     lsp::process::ResponseContext,
     selection::{Filter, Filters},
     selection_mode::{self, inside::InsideKind},
@@ -197,7 +198,7 @@ impl Component for Editor {
             Copy => return self.copy(context),
             ReplaceWithCopiedText => return self.replace_with_copied_text(context, false),
             SelectAll => return Ok(self.select_all()),
-            SetContent(content) => self.update_buffer(&content),
+            SetContent(content) => self.set_content(&content)?,
             ReplaceCut => return self.replace_with_copied_text(context, true),
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
@@ -222,7 +223,10 @@ impl Component for Editor {
                     .update_selection_set(selection_set, false)
                     .chain(self.get_document_did_change_dispatch()));
             }
-            Undo => return self.undo(),
+            Undo => {
+                let dispatches = self.undo();
+                return dispatches;
+            }
             KillLine(direction) => return self.kill_line(direction),
             Reset => self.reset(),
             DeleteWordBackward { short } => return self.delete_word_backward(short),
@@ -294,6 +298,8 @@ impl Component for Editor {
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
+            GoToPreviousSelection => self.go_to_previous_selection(),
+            GoToNextSelection => self.go_to_next_selection(),
         }
         Ok(Default::default())
     }
@@ -313,6 +319,7 @@ impl Clone for Editor {
             id: self.id,
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
+            selection_set_history: History::default(),
         }
     }
 }
@@ -335,6 +342,7 @@ pub struct Editor {
     title: Option<String>,
     id: ComponentId,
     pub current_view_alignment: Option<ViewAlignment>,
+    selection_set_history: History<SelectionSet>,
 }
 
 pub struct RegexHighlightRule {
@@ -445,6 +453,7 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
+            selection_set_history: Default::default(),
         }
     }
 
@@ -466,6 +475,7 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
+            selection_set_history: Default::default(),
         }
     }
 
@@ -524,15 +534,8 @@ impl Editor {
         self.selection_set.escape_highlight_mode();
     }
 
-    /// WARNING: this method should only be called by `app.rs`, not by this file    
-    pub fn __update_selection_set_for_real(&mut self, selection_set: SelectionSet) {
-        self.selection_set = selection_set;
-        self.cursor_direction = Direction::Start;
-        self.recalculate_scroll_offset()
-    }
-
     pub fn update_selection_set(
-        &self,
+        &mut self,
         selection_set: SelectionSet,
         store_history: bool,
     ) -> Dispatches {
@@ -542,19 +545,16 @@ impl Editor {
             .flatten()
             .reduce(Info::join)
             .map(Dispatch::ShowEditorInfo);
-        Dispatches::new(
-            [Dispatch::UpdateSelectionSet {
-                selection_set,
-                kind: self
-                    .buffer()
-                    .path()
-                    .map(SelectionSetHistoryKind::Path)
-                    .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(Some(self.id()))),
-                store_history,
-            }]
-            .to_vec(),
-        )
-        .append_some(show_info)
+        self.cursor_direction = Direction::Start;
+        let new_to_old = std::mem::replace(&mut self.selection_set, selection_set.clone());
+        if store_history {
+            self.selection_set_history.push(crate::undo_tree::OldNew {
+                old_to_new: selection_set,
+                new_to_old,
+            });
+        }
+        self.recalculate_scroll_offset();
+        Dispatches::default().append_some(show_info)
     }
 
     pub fn position_range_to_selection_set(
@@ -999,7 +999,7 @@ impl Editor {
             self.mode != Mode::Insert,
         )?;
 
-        self.selection_set = new_selection_set;
+        self.set_selection_set(new_selection_set);
 
         self.recalculate_scroll_offset();
 
@@ -1036,7 +1036,8 @@ impl Editor {
     }
 
     pub fn undo(&mut self) -> anyhow::Result<Dispatches> {
-        self.navigate_undo_tree(Movement::Previous)
+        let result = self.navigate_undo_tree(Movement::Previous)?;
+        Ok(result)
     }
 
     pub fn redo(&mut self) -> anyhow::Result<Dispatches> {
@@ -1248,12 +1249,6 @@ impl Editor {
                 GlobalMode::QuickfixListItem => {
                     Ok(vec![Dispatch::GotoQuickfixListItem(movement)].into())
                 }
-
-                GlobalMode::SelectionHistoryContiguous => {
-                    Ok([Dispatch::GotoSelectionHistoryContiguous(movement)]
-                        .to_vec()
-                        .into())
-                }
             }
         } else {
             self.move_selection_with_selection_mode_without_global_mode(movement, selection_mode)
@@ -1291,19 +1286,20 @@ impl Editor {
     }
 
     pub fn enter_insert_mode(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
-        self.selection_set =
-            self.selection_set
-                .apply(self.selection_set.mode.clone(), |selection| {
-                    let range = selection.extended_range();
-                    let char_index = match direction {
-                        Direction::Start => range.start,
-                        Direction::End => range.end,
-                    };
-                    Ok(selection
-                        .clone()
-                        .set_range((char_index..char_index).into())
-                        .set_initial_range(None))
-                })?;
+        self.set_selection_set(self.selection_set.apply(
+            self.selection_set.mode.clone(),
+            |selection| {
+                let range = selection.extended_range();
+                let char_index = match direction {
+                    Direction::Start => range.start,
+                    Direction::End => range.end,
+                };
+                Ok(selection
+                    .clone()
+                    .set_range((char_index..char_index).into())
+                    .set_initial_range(None))
+            },
+        )?);
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
         Ok(self
@@ -1315,23 +1311,24 @@ impl Editor {
     pub fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
         if self.mode == Mode::Insert {
             // This is necessary for cursor to not overflow after exiting insert mode
-            self.selection_set =
-                self.selection_set
-                    .apply(self.selection_set.mode.clone(), |selection| {
-                        let range = {
-                            if let Ok(position) = self
-                                .buffer()
-                                .char_to_position(selection.extended_range().start)
-                            {
-                                let start = selection.extended_range().start
-                                    - if position.column > 0 { 1 } else { 0 };
-                                (start..start + 1).into()
-                            } else {
-                                selection.extended_range()
-                            }
-                        };
-                        Ok(selection.clone().set_range(range))
-                    })?;
+            self.set_selection_set(self.selection_set.apply(
+                self.selection_set.mode.clone(),
+                |selection| {
+                    let range = {
+                        if let Ok(position) = self
+                            .buffer()
+                            .char_to_position(selection.extended_range().start)
+                        {
+                            let start = selection.extended_range().start
+                                - if position.column > 0 { 1 } else { 0 };
+                            (start..start + 1).into()
+                        } else {
+                            selection.extended_range()
+                        }
+                    };
+                    Ok(selection.clone().set_range(range))
+                },
+            )?);
             self.clamp()?;
             self.buffer_mut().reparse_tree()?
         }
@@ -1966,7 +1963,7 @@ impl Editor {
     /// Clamp everything that might be out of bound after the buffer content is modified elsewhere
     fn clamp(&mut self) -> anyhow::Result<()> {
         let len_chars = self.buffer().len_chars();
-        self.selection_set = self.selection_set.clamp(CharIndex(len_chars))?;
+        self.set_selection_set(self.selection_set.clamp(CharIndex(len_chars))?);
 
         let len_lines = self.buffer().len_lines();
         self.scroll_offset = self.scroll_offset.clamp(0, len_lines as u16);
@@ -2380,6 +2377,32 @@ impl Editor {
     ) {
         self.regex_highlight_rules = regex_highlight_rules
     }
+
+    fn go_to_previous_selection(&mut self) {
+        if let Some(selection_set) = self.selection_set_history.undo() {
+            self.set_selection_set(selection_set)
+        }
+    }
+
+    fn go_to_next_selection(&mut self) {
+        if let Some(selection_set) = self.selection_set_history.redo() {
+            self.set_selection_set(selection_set)
+        }
+    }
+
+    fn set_selection_set(&mut self, selection_set: SelectionSet) {
+        self.selection_set = selection_set;
+        self.recalculate_scroll_offset()
+    }
+
+    pub(crate) fn set_position_range(
+        &mut self,
+        range: Range<Position>,
+    ) -> Result<(), anyhow::Error> {
+        let selection_set = self.position_range_to_selection_set(range)?;
+        self.set_selection_set(selection_set);
+        Ok(())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2413,6 +2436,8 @@ pub enum DispatchEditor {
     SwitchViewAlignment,
     SelectKids,
     Copy,
+    GoToPreviousSelection,
+    GoToNextSelection,
     ReplaceCut,
     SelectAll,
     SetContent(String),

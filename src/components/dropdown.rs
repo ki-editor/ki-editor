@@ -71,7 +71,7 @@ impl From<CanonicalizedPath> for DropdownItem {
                 parent.try_display_relative()
             )
         }))
-        .set_dispatches(Dispatches::one(crate::app::Dispatch::GoToFile(value)))
+        .set_dispatches(Dispatches::one(crate::app::Dispatch::OpenFile(value)))
     }
 }
 

@@ -137,7 +137,7 @@ mod test_prompt {
         ) {
             execute_test(|s| {
                 Box::new([
-                    App(GoToFile(s.main_rs())),
+                    App(OpenFile(s.main_rs())),
                     App(OpenPrompt(super::PromptConfig {
                         history: vec![],
                         on_enter: DispatchPrompt::SetContent,
@@ -221,7 +221,7 @@ mod test_prompt {
     fn suggestion_should_update_with_ctrl_k_and_ctrl_u() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([
-                App(GoToFile(s.main_rs())),
+                App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
                 App(Dispatch::OpenPrompt(super::PromptConfig {

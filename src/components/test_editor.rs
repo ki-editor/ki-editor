@@ -32,7 +32,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
     execute_test(|s| {
         let input = "fn main() { x + 1 }";
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(input.to_string())),
             Editor(MatchLiteral("x".to_string())),
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
@@ -47,7 +47,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
 fn raise_inside() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { (a, b) }".to_string())),
             Editor(MatchLiteral("b".to_string())),
             Editor(SetSelectionMode(SelectionMode::Inside(
@@ -64,7 +64,7 @@ fn raise_inside() -> anyhow::Result<()> {
 fn toggle_visual_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -90,7 +90,7 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(BottomNode)),
             Editor(Delete { cut: false }),
@@ -105,7 +105,7 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(Character)),
             Editor(Delete { cut: false }),
@@ -120,7 +120,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(BottomNode)),
             Editor(MoveSelection(Last)),
@@ -135,7 +135,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -151,7 +151,7 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
 fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -166,7 +166,7 @@ fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
 fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn maima() {}".to_string())),
             Editor(MatchLiteral("ma".to_string())),
             Editor(Delete { cut: false }),
@@ -182,7 +182,7 @@ fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
 fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main(a:A) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -197,7 +197,7 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
 fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Editor(ToggleBookmark),
@@ -221,7 +221,7 @@ fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
 fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
@@ -247,7 +247,7 @@ fn test_delete_word_short_backward_from_end_of_file() -> anyhow::Result<()> {
 fn test_delete_word_long() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("hello_world itsMe".to_string())),
             Editor(SetSelectionMode(LineTrimmed)),
             // Go to the end of the file
@@ -264,7 +264,7 @@ fn test_delete_word_long() -> anyhow::Result<()> {
 fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
@@ -297,7 +297,7 @@ fn kill_line_to_end() -> anyhow::Result<()> {
     let input = "lala\nfoo bar spam\nyoyo";
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(input.to_string())),
             // Killing to the end of line WITH trailing newline character
             Editor(MatchLiteral("bar".to_string())),
@@ -320,7 +320,7 @@ fn kill_line_to_end() -> anyhow::Result<()> {
 fn kill_line_to_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("lala\nfoo bar spam\nyoyo".to_string())),
             // Killing to the start of line WITH leading newline character
             Editor(MatchLiteral("bar".to_string())),
@@ -346,7 +346,7 @@ fn kill_line_to_start() -> anyhow::Result<()> {
 fn undo_tree() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("\n".to_string())),
             Editor(Insert("a".to_string())),
             Editor(Insert("bc".to_string())),
@@ -376,7 +376,7 @@ fn undo_tree() -> anyhow::Result<()> {
 fn multi_exchange_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn f(x:a,y:b){} fn g(x:a,y:b){}".to_string())),
             Editor(MatchLiteral("fn f(x:a,y:b){}".to_string())),
             Expect(CurrentSelectedTexts(&["fn f(x:a,y:b){}"])),
@@ -405,7 +405,7 @@ fn multi_exchange_sibling() -> anyhow::Result<()> {
 fn update_bookmark_position() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spim".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
@@ -440,7 +440,7 @@ fn update_bookmark_position() -> anyhow::Result<()> {
 fn move_to_line_start_end() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("hello\n".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(MoveToLineEnd),
@@ -457,7 +457,7 @@ fn move_to_line_start_end() -> anyhow::Result<()> {
 fn exchange_sibling() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
             // Select first statement
             Editor(MatchLiteral("x: usize".to_string())),
@@ -475,7 +475,7 @@ fn exchange_sibling() -> anyhow::Result<()> {
 fn exchange_sibling_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("use a;\nuse b;\nuse c;".to_string())),
             // Select first statement
             Editor(SetSelectionMode(TopNode)),
@@ -494,7 +494,7 @@ fn exchange_sibling_2() -> anyhow::Result<()> {
 fn select_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(Character)),
             Expect(CurrentSelectedTexts(&["f"])),
@@ -510,7 +510,7 @@ fn select_character() -> anyhow::Result<()> {
 fn raise() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
             Editor(MatchLiteral("c()".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -526,7 +526,7 @@ fn raise() -> anyhow::Result<()> {
 fn select_kids() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
             Editor(MatchLiteral("x".to_string())),
             Editor(MoveSelection(Next)),
@@ -545,7 +545,7 @@ fn select_kids() -> anyhow::Result<()> {
 fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
             Editor(MatchLiteral("(a).b()".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -559,7 +559,7 @@ fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
 fn multi_raise() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -591,7 +591,7 @@ fn multi_raise() -> anyhow::Result<()> {
 fn open_new_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "
 fn f() {
@@ -620,7 +620,7 @@ fn f() {
 fn open_before_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -642,7 +642,7 @@ fn open_before_selection() -> anyhow::Result<()> {
 fn open_after_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -664,7 +664,7 @@ fn open_after_selection() -> anyhow::Result<()> {
 fn open_use_max_gap() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "
 fn main() {
@@ -696,7 +696,7 @@ fn exchange_line() -> anyhow::Result<()> {
     execute_test(|s| {
         // Multiline source code
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "
 fn main() {
@@ -742,7 +742,7 @@ fn main() {
 fn exchange_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(Character)),
             Editor(EnterExchangeMode),
@@ -763,7 +763,7 @@ fn exchange_character() -> anyhow::Result<()> {
 fn multi_insert() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("struct A(usize, char)".to_string())),
             Editor(MatchLiteral("usize".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
@@ -784,7 +784,7 @@ fn multi_insert() -> anyhow::Result<()> {
 fn paste_in_insert_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent("haha".to_string())),
             Editor(MatchLiteral("bar".to_string())),
@@ -802,7 +802,7 @@ fn paste_in_insert_mode() -> anyhow::Result<()> {
 fn paste_after() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent("haha".to_string())),
             Editor(MatchLiteral("bar".to_string())),
@@ -819,7 +819,7 @@ fn smart_paste() -> anyhow::Result<()> {
     fn test(direction: Direction, expected_result: &'static str) -> Result<(), anyhow::Error> {
         execute_test(move |s| {
             Box::new([
-                App(GoToFile(s.main_rs())),
+                App(OpenFile(s.main_rs())),
                 Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
                 Editor(MatchLiteral("a:A".to_string())),
                 App(SetClipboardContent("c:C".to_string())),
@@ -839,7 +839,7 @@ fn smart_paste() -> anyhow::Result<()> {
 fn paste_before() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent("haha".to_string())),
             Editor(MatchLiteral("bar".to_string())),
@@ -855,7 +855,7 @@ fn paste_before() -> anyhow::Result<()> {
 fn replace_from_clipboard() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
@@ -872,7 +872,7 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
 fn enter_newline() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
@@ -890,7 +890,7 @@ fn enter_newline() -> anyhow::Result<()> {
 fn insert_mode_start() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Editor(EnterInsertMode(Direction::Start)),
@@ -904,7 +904,7 @@ fn insert_mode_start() -> anyhow::Result<()> {
 fn insert_mode_end() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Editor(EnterInsertMode(Direction::End)),
@@ -918,7 +918,7 @@ fn insert_mode_end() -> anyhow::Result<()> {
 fn highlight_kill() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(BottomNode)),
             Editor(ToggleVisualMode),
@@ -934,7 +934,7 @@ fn highlight_kill() -> anyhow::Result<()> {
 fn multicursor_add_all() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "mod m { fn a(j:J){} fn b(k:K,l:L){} fn c(m:M,n:N,o:O){} }".to_string(),
             )),
@@ -958,7 +958,7 @@ fn multicursor_add_all() -> anyhow::Result<()> {
 fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "fn\nmain()\n{ x.y(); x.y(); x.y(); }".to_string(),
             )),
@@ -974,7 +974,7 @@ fn enter_normal_mode_should_highlight_one_character() -> anyhow::Result<()> {
 fn highlight_change() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world yo".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Editor(ToggleVisualMode),
@@ -992,7 +992,7 @@ fn highlight_change() -> anyhow::Result<()> {
 fn scroll_page() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("1\n2 hey\n3".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1022,7 +1022,7 @@ fn scroll_page() -> anyhow::Result<()> {
 fn scroll_offset() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("alpha\nbeta\ngamma\nlok".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1039,7 +1039,7 @@ fn scroll_offset() -> anyhow::Result<()> {
 fn jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "Who lives on sea shore?\n yonky donkey".to_string(),
             )),
@@ -1070,7 +1070,7 @@ fn jump() -> anyhow::Result<()> {
 fn highlight_and_jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "Who lives on sea shore?\n yonky donkey".to_string(),
             )),
@@ -1098,7 +1098,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
 fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("who who who who".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1118,7 +1118,7 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
 fn switch_view_alignment() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "abcde"
                     .split("")
@@ -1162,7 +1162,7 @@ fn get_grid_parent_line() -> anyhow::Result<()> {
     let width = 20;
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "
 // hello
@@ -1286,7 +1286,7 @@ fn main() {
 fn test_wrapped_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "
 // hello world\n hey
@@ -1321,7 +1321,7 @@ fn diagnostics_range_updated_by_edit() -> anyhow::Result<()> {
     execute_test(|s| {
         let hello = &"hello";
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
             App(HandleLspNotification(LspNotification::PublishDiagnostics(
                 lsp_types::PublishDiagnosticsParams {
@@ -1363,7 +1363,7 @@ fn diagnostics_range_updated_by_edit() -> anyhow::Result<()> {
 fn quickfix_list_items_updated_by_edit() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(
                 "
 fn main() { 
@@ -1418,7 +1418,7 @@ fn syntax_highlight_spans_updated_by_edit() -> anyhow::Result<()> {
     execute_test(|s| {
         let theme = Theme::default();
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             App(SetTheme(theme.clone())),
             Editor(SetContent("fn main() { let x = 123 }".trim().to_string())),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
@@ -1448,7 +1448,7 @@ fn syntax_highlighting() -> anyhow::Result<()> {
     execute_test(|s| {
         let theme = Theme::default();
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             App(SetTheme(theme.clone())),
             Editor(SetContent(
                 "
@@ -1553,7 +1553,7 @@ fn main() { // too long
 fn empty_content_should_have_one_line() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("".to_string())),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
@@ -1575,7 +1575,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
 fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spim".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
@@ -1611,7 +1611,7 @@ fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Re
 
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent(input.to_string())),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
             Editor(MatchLiteral("bar".to_string())),
@@ -1642,7 +1642,7 @@ fn omit() -> Result<(), anyhow::Error> {
     ) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(GoToFile(s.main_rs())),
+                App(OpenFile(s.main_rs())),
                 Editor(SetContent(input.to_string())),
                 Editor(SetSelectionMode(SelectionMode::WordShort)),
                 Editor(FilterPush(Filter::new(kind, target, mechanism.clone()))),
@@ -1708,13 +1708,11 @@ fn omit() -> Result<(), anyhow::Error> {
 fn surround() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            App(HandleKeyEvents(keys!("( { [ ' `").to_vec())),
-            App(HandleKeyEvent(key!('"'))),
-            Expect(CurrentComponentContent("fn main() { \"`'[{(x.y())}]'`\" }")),
-            Expect(CurrentSelectedTexts(&["\"`'[{(x.y())}]'`\""])),
+            Editor(Surround("(".to_string(), ")".to_string())),
+            Editor(SetContent("fn main() { (x.y()) }".to_string())),
         ])
     })
 }
@@ -1723,7 +1721,7 @@ fn surround() -> anyhow::Result<()> {
 fn swap_cursor_with_anchor() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(SyntaxTree)),
             Editor(SwapCursorWithAnchor),
@@ -1741,7 +1739,7 @@ fn consider_unicode_width() -> anyhow::Result<()> {
     let content = "👩 abc";
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             App(TerminalDimensionChanged(crate::app::Dimension {
                 height: 10,
                 // Set width longer than content so that there's no wrapping
@@ -1761,7 +1759,7 @@ fn consider_unicode_width() -> anyhow::Result<()> {
 fn delete_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world".to_string())),
             Editor(SetSelectionMode(WordShort)),
             Expect(CurrentSelectedTexts(&["hello"])),
@@ -1800,7 +1798,7 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
     let run_test = |next: bool| {
         execute_test(|s| {
             Box::new([
-                App(GoToFile(s.main_rs())),
+                App(OpenFile(s.main_rs())),
                 Editor(SetContent("1 a 2 b 3 c".to_string())),
                 Editor(MatchLiteral(if next { "1" } else { "3" }.to_string())),
                 Editor(SetSelectionMode(SelectionMode::Find {
@@ -1829,7 +1827,7 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
 fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
-            App(GoToFile(s.main_rs())),
+            App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world hey".to_string())),
             Editor(MatchLiteral("world".to_string())),
             Editor(SetSelectionMode(WordShort)),
@@ -1852,7 +1850,7 @@ fn after_save_select_current() -> anyhow::Result<()> {
     ) -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
-                App(GoToFile(s.main_rs())),
+                App(OpenFile(s.main_rs())),
                 Editor(SetContent(
                     "
 fn main() {
@@ -1897,4 +1895,37 @@ fn main() {
         },
         &["    let foo "],
     )
+}
+
+#[test]
+fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("".to_string())),
+            App(SetClipboardContent("foo".to_string())),
+            Editor(EnterInsertMode(Direction::Start)),
+            Editor(Paste(Direction::End)),
+            Expect(CurrentComponentContent("foo")),
+            Editor(Undo),
+            Expect(CurrentComponentContent("")),
+        ])
+    })
+}
+
+#[test]
+fn selection_set_history() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetSelectionMode(LineTrimmed)),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
+            Editor(SetSelectionMode(Character)),
+            Expect(CurrentSelectedTexts(&["m"])),
+            App(ToEditor(GoToPreviousSelection)),
+            Expect(CurrentSelectedTexts(&["mod foo;"])),
+            App(ToEditor(GoToNextSelection)),
+            Expect(CurrentSelectedTexts(&["m"])),
+        ])
+    })
 }
