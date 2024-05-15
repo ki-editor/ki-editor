@@ -28,6 +28,7 @@ pub mod selection_mode;
 pub mod selection_range;
 pub mod soft_wrap;
 pub mod style;
+pub mod surround;
 pub mod syntax_highlight;
 mod terminal;
 #[cfg(test)]

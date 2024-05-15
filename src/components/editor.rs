@@ -6,7 +6,8 @@ use crate::{
     history::History,
     lsp::process::ResponseContext,
     selection::{Filter, Filters},
-    selection_mode::{self, inside::InsideKind},
+    selection_mode::{self},
+    surround::EnclosureKind,
     transformation::Transformation,
 };
 
@@ -209,7 +210,6 @@ impl Component for Editor {
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleBookmark => self.toggle_bookmarks(),
-            EnterInsideMode(kind) => return self.set_selection_mode(SelectionMode::Inside(kind)),
             EnterNormalMode => self.enter_normal_mode()?,
             FilterPush(filter) => return Ok(self.filters_push(context, filter)),
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
@@ -293,6 +293,9 @@ impl Component for Editor {
             }
             GoToPreviousSelection => self.go_to_previous_selection(),
             GoToNextSelection => self.go_to_next_selection(),
+            SelectSurround { enclosure, kind } => return self.select_surround(enclosure, kind),
+            DeleteSurround(enclosure) => return self.delete_surround(enclosure),
+            ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
         }
         Ok(Default::default())
     }
@@ -2303,6 +2306,114 @@ impl Editor {
         let selection_set = self.position_range_to_selection_set(range)?;
         Ok(self.update_selection_set(selection_set, true))
     }
+
+    fn select_surround(
+        &mut self,
+        enclosure: EnclosureKind,
+        kind: SurroundKind,
+    ) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let cursor = selection.get_anchor(&self.cursor_direction);
+                    let cursor_byte_index = buffer.char_to_byte(cursor)?;
+                    if let Some((open_index, close_index)) =
+                        crate::surround::get_surrounding_indices(
+                            &buffer.content(),
+                            enclosure,
+                            cursor_byte_index,
+                        )
+                    {
+                        let offset = match kind {
+                            SurroundKind::Inside => 1,
+                            SurroundKind::Around => 0,
+                        };
+                        let range = buffer.byte_range_to_char_index_range(
+                            &((open_index + offset)..(close_index + 1 - offset)),
+                        )?;
+                        Ok(ActionGroup::new(
+                            [Action::Select(selection.clone().set_range(range))].to_vec(),
+                        ))
+                    } else {
+                        Ok(ActionGroup::new(Default::default()))
+                    }
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        let _ = self.set_selection_mode(SelectionMode::Custom);
+        self.apply_edit_transaction(edit_transaction)
+    }
+
+    fn delete_surround(&mut self, enclosure: EnclosureKind) -> Result<Dispatches, anyhow::Error> {
+        self.change_surround(enclosure, None)
+    }
+
+    fn change_surround(
+        &mut self,
+        from: EnclosureKind,
+        to: Option<EnclosureKind>,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let buffer = self.buffer();
+                    let cursor = selection.get_anchor(&self.cursor_direction);
+                    let cursor_byte_index = buffer.char_to_byte(cursor)?;
+                    if let Some((open_index, close_index)) =
+                        crate::surround::get_surrounding_indices(
+                            &buffer.content(),
+                            from,
+                            cursor_byte_index,
+                        )
+                    {
+                        let open_range =
+                            buffer.byte_range_to_char_index_range(&(open_index..open_index + 1))?;
+                        let close_range = buffer
+                            .byte_range_to_char_index_range(&(close_index..close_index + 1))?;
+                        let (new_open, new_close) = to
+                            .as_ref()
+                            .map(|to| to.open_close_symbols_str())
+                            .unwrap_or(("", ""));
+                        let select_range = buffer.byte_range_to_char_index_range(
+                            &(open_index + 1 - new_open.chars().count()
+                                ..(close_index + new_close.chars().count())),
+                        )?;
+                        Ok([
+                            ActionGroup::new(
+                                [Action::Edit(Edit {
+                                    range: open_range,
+                                    new: new_open.into(),
+                                })]
+                                .to_vec(),
+                            ),
+                            ActionGroup::new(
+                                [Action::Edit(Edit {
+                                    range: close_range,
+                                    new: new_close.into(),
+                                })]
+                                .to_vec(),
+                            ),
+                            ActionGroup::new(
+                                [Action::Select(selection.clone().set_range(select_range))]
+                                    .to_vec(),
+                            ),
+                        ]
+                        .to_vec())
+                    } else {
+                        Ok(Default::default())
+                    }
+                })
+                .into_iter()
+                .flatten()
+                .flatten()
+                .collect_vec(),
+        );
+        let _ = self.set_selection_mode(SelectionMode::Custom);
+        self.apply_edit_transaction(edit_transaction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2361,9 +2472,12 @@ pub enum DispatchEditor {
     MoveToLineEnd,
     #[cfg(test)]
     MatchLiteral(String),
+    SelectSurround {
+        enclosure: EnclosureKind,
+        kind: SurroundKind,
+    },
     Open(Direction),
     ToggleBookmark,
-    EnterInsideMode(InsideKind),
     EnterNormalMode,
     EnterExchangeMode,
     EnterReplaceMode,
@@ -2399,4 +2513,15 @@ pub enum DispatchEditor {
     MoveCharacterBack,
     MoveCharacterForward,
     ShowKeymapLegendHelp,
+    DeleteSurround(EnclosureKind),
+    ChangeSurround {
+        from: EnclosureKind,
+        to: EnclosureKind,
+    },
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub enum SurroundKind {
+    Inside,
+    Around,
 }
