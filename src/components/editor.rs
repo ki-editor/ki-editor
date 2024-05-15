@@ -6,7 +6,7 @@ use crate::{
     history::History,
     lsp::process::ResponseContext,
     selection::{Filter, Filters},
-    selection_mode::{self},
+    selection_mode,
     surround::EnclosureKind,
     transformation::Transformation,
 };
@@ -315,7 +315,7 @@ impl Clone for Editor {
             id: self.id,
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            selection_set_history: History::default(),
+            selection_set_history: History::new(),
         }
     }
 }
@@ -450,7 +450,7 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            selection_set_history: Default::default(),
+            selection_set_history: History::new(),
         }
     }
 
@@ -472,7 +472,7 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            selection_set_history: Default::default(),
+            selection_set_history: History::new(),
         }
     }
 
@@ -534,14 +534,10 @@ impl Editor {
             .reduce(Info::join)
             .map(Dispatch::ShowEditorInfo);
         self.cursor_direction = Direction::Start;
-        let new_to_old = std::mem::replace(&mut self.selection_set, selection_set.clone());
         if store_history {
-            self.selection_set_history.push(crate::undo_tree::OldNew {
-                old_to_new: selection_set,
-                new_to_old,
-            });
+            self.selection_set_history.push(selection_set.clone());
         }
-        self.recalculate_scroll_offset();
+        self.set_selection_set(selection_set);
         Dispatches::default().append_some(show_info)
     }
 

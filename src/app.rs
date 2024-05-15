@@ -118,7 +118,7 @@ impl<T: Frontend> App<T> {
             syntax_highlight_request_sender: None,
             global_title: None,
 
-            file_path_history: History::default(),
+            file_path_history: History::new(),
         };
         Ok(app)
     }
@@ -709,11 +709,7 @@ impl<T: Frontend> App<T> {
         option: OpenFileOption,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
         if option.store_history() {
-            let old_new = crate::undo_tree::OldNew {
-                old_to_new: path.clone(),
-                new_to_old: self.get_current_file_path().unwrap_or_else(|| path.clone()),
-            };
-            self.file_path_history.push(old_new)
+            self.file_path_history.push(path.clone())
         }
         // Check if the file is opened before
         // so that we won't notify the LSP twice
@@ -1248,6 +1244,7 @@ impl<T: Frontend> App<T> {
         self.syntax_highlight_request_sender = Some(sender);
     }
 
+    #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().path()
     }
