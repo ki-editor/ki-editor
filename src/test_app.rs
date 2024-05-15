@@ -115,6 +115,7 @@ pub enum ExpectKind {
     QuickfixListInfo(&'static str),
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(&'static str),
+    CurrentSelectionMode(SelectionMode),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -348,6 +349,10 @@ impl ExpectKind {
             CurrentComponentTitle(expected) => {
                 contextualize(*expected, &app.current_component().borrow().title(context))
             }
+            CurrentSelectionMode(expected) => contextualize(
+                expected,
+                &app.current_component().borrow().editor().selection_set.mode,
+            ),
         })
     }
 }

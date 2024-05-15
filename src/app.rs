@@ -30,7 +30,6 @@ use crate::{
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
-    selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     ui_tree::{ComponentKind, KindedComponent},
 };
@@ -494,10 +493,6 @@ impl<T: Frontend> App<T> {
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             #[cfg(test)]
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
-            Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open()?,
-            Dispatch::OpenInsideOtherPromptClose { open } => {
-                self.open_inside_other_prompt_close(open)?
-            }
             Dispatch::OpenOmitPrompt {
                 kind,
                 target,
@@ -626,26 +621,6 @@ impl<T: Frontend> App<T> {
                 scope,
                 show_config_after_enter: false,
             },
-            enter_selects_first_matching_item: false,
-        })
-    }
-
-    fn open_inside_other_prompt_open(&mut self) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Inside (other): Open".to_string(),
-            history: Vec::new(),
-            on_enter: DispatchPrompt::OpenInsideOtherPromptClose,
-            items: Vec::new(),
-            enter_selects_first_matching_item: false,
-        })
-    }
-
-    fn open_inside_other_prompt_close(&mut self, open: String) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: format!("Inside (other, open = '{}'): Close", open),
-            history: Vec::new(),
-            on_enter: DispatchPrompt::EnterInsideMode { open },
-            items: Vec::new(),
             enter_selects_first_matching_item: false,
         })
     }
@@ -1911,10 +1886,6 @@ pub enum Dispatch {
     TerminalDimensionChanged(Dimension),
     #[cfg(test)]
     SetGlobalTitle(String),
-    OpenInsideOtherPromptOpen,
-    OpenInsideOtherPromptClose {
-        open: String,
-    },
     OpenOmitPrompt {
         kind: FilterKind,
         target: FilterTarget,
@@ -2073,10 +2044,6 @@ pub enum DispatchPrompt {
         scope: Scope,
         show_config_after_enter: bool,
     },
-    OpenInsideOtherPromptClose,
-    EnterInsideMode {
-        open: String,
-    },
     AddPath,
     MovePath {
         from: CanonicalizedPath,
@@ -2143,19 +2110,6 @@ impl DispatchPrompt {
                     scope,
                     show_config_after_enter,
                 }]
-                .to_vec(),
-            )),
-            DispatchPrompt::OpenInsideOtherPromptClose => Ok(Dispatches::new(
-                [Dispatch::OpenInsideOtherPromptClose {
-                    open: text.to_owned(),
-                }]
-                .to_vec(),
-            )),
-            DispatchPrompt::EnterInsideMode { open } => Ok(Dispatches::new(
-                [Dispatch::ToEditor(EnterInsideMode(InsideKind::Other {
-                    open: open.clone(),
-                    close: text.to_owned(),
-                }))]
                 .to_vec(),
             )),
             DispatchPrompt::AddPath => {

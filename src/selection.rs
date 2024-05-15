@@ -14,7 +14,7 @@ use crate::{
     context::{Context, LocalSearchConfigMode, Search},
     position::Position,
     quickfix_list::DiagnosticSeverityRange,
-    selection_mode::{self, inside::InsideKind, ApplyMovementResult, SelectionModeParams},
+    selection_mode::{self, ApplyMovementResult, SelectionModeParams},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -444,7 +444,6 @@ pub enum SelectionMode {
 
     // Bookmark
     Bookmark,
-    Inside(InsideKind),
     TopNode,
     LineFull,
 }
@@ -475,7 +474,6 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Inside(kind) => format!("INSIDE {}", kind),
             SelectionMode::TopNode => "TOP NODE".to_string(),
         }
     }
@@ -530,7 +528,6 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
-            SelectionMode::Inside(kind) => Box::new(selection_mode::Inside::new(kind.clone())),
         })
     }
 

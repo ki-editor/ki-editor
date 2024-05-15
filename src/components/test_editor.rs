@@ -16,7 +16,6 @@ use crate::{
     grid::StyleKey,
     position::Position,
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
-    selection_mode::inside::InsideKind,
     themes::Theme,
 };
 
@@ -26,6 +25,8 @@ use my_proc_macros::{hex, key, keys};
 use serial_test::serial;
 
 use SelectionMode::*;
+
+use super::editor::SurroundKind;
 
 #[test]
 fn raise_bottom_node() -> anyhow::Result<()> {
@@ -38,24 +39,6 @@ fn raise_bottom_node() -> anyhow::Result<()> {
             Editor(SetSelectionMode(SelectionMode::BottomNode)),
             Editor(Raise),
             Expect(CurrentComponentContent("fn main() { x }")),
-        ])
-    })
-}
-
-#[test]
-/// Example: from "hello" -> hello
-fn raise_inside() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent("fn main() { (a, b) }".to_string())),
-            Editor(MatchLiteral("b".to_string())),
-            Editor(SetSelectionMode(SelectionMode::Inside(
-                InsideKind::Parentheses,
-            ))),
-            Expect(CurrentSelectedTexts(&["a, b"])),
-            Editor(Raise),
-            Expect(CurrentComponentContent("fn main() { a, b }")),
         ])
     })
 }
@@ -1884,5 +1867,92 @@ fn selection_set_history() -> Result<(), anyhow::Error> {
             App(ToEditor(GoToNextSelection)),
             Expect(CurrentSelectedTexts(&["m"])),
         ])
+    })
+}
+
+#[test]
+fn select_surround_inside() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("(hello (world))".to_string())),
+            Editor(MatchLiteral("rl".to_string())),
+            Editor(SelectSurround {
+                enclosure: crate::surround::EnclosureKind::Parentheses,
+                kind: SurroundKind::Inside,
+            }),
+            Expect(CurrentSelectedTexts(&["world"])),
+            Expect(CurrentSelectionMode(SelectionMode::Custom)),
+        ])
+    })
+}
+
+#[test]
+fn select_surround_around() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("(hello (world))".to_string())),
+            Editor(MatchLiteral("rl".to_string())),
+            Editor(SelectSurround {
+                enclosure: crate::surround::EnclosureKind::Parentheses,
+                kind: SurroundKind::Around,
+            }),
+            Expect(CurrentSelectedTexts(&["(world)"])),
+            Expect(CurrentSelectionMode(SelectionMode::Custom)),
+        ])
+    })
+}
+
+#[test]
+fn select_surround_inside_same_symbols() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello 'world'".to_string())),
+                Editor(MatchLiteral("rl".to_string())),
+                Editor(DeleteSurround(crate::surround::EnclosureKind::SingleQuotes)),
+                Expect(CurrentSelectedTexts(&["world"])),
+                Expect(CurrentSelectionMode(SelectionMode::Custom)),
+            ])
+        }
+    })
+}
+
+#[test]
+fn delete_surround() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("(hello (world))".to_string())),
+                Editor(MatchLiteral("rl".to_string())),
+                Editor(DeleteSurround(crate::surround::EnclosureKind::Parentheses)),
+                Expect(CurrentSelectedTexts(&["world"])),
+                Expect(CurrentSelectionMode(SelectionMode::Custom)),
+                Expect(CurrentComponentContent("(hello world)")),
+            ])
+        }
+    })
+}
+
+#[test]
+fn change_surround() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("(hello (world))".to_string())),
+                Editor(MatchLiteral("rl".to_string())),
+                Editor(ChangeSurround {
+                    from: crate::surround::EnclosureKind::Parentheses,
+                    to: crate::surround::EnclosureKind::CurlyBraces,
+                }),
+                Expect(CurrentSelectedTexts(&["{world}"])),
+                Expect(CurrentSelectionMode(SelectionMode::Custom)),
+                Expect(CurrentComponentContent("(hello {world})")),
+            ])
+        }
     })
 }

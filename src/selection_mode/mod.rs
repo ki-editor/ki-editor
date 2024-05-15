@@ -6,7 +6,7 @@ pub mod column;
 pub mod custom;
 pub mod diagnostic;
 pub mod git_hunk;
-pub mod inside;
+
 pub mod line_full;
 pub mod line_trimmed;
 pub mod local_quickfix;
@@ -24,7 +24,6 @@ pub use column::Column;
 pub use custom::Custom;
 pub use diagnostic::Diagnostic;
 pub use git_hunk::GitHunk;
-pub use inside::Inside;
 use itertools::Itertools;
 pub use line_full::LineFull;
 pub use line_trimmed::LineTrimmed;
@@ -112,14 +111,6 @@ pub struct SelectionModeParams<'a> {
     pub cursor_direction: &'a Direction,
     pub filters: &'a Filters,
 }
-impl<'a> SelectionModeParams<'a> {
-    fn selected_text(&self) -> anyhow::Result<String> {
-        self.buffer
-            .slice(&self.current_selection.extended_range())
-            .map(|rope| rope.to_string())
-    }
-}
-
 #[derive(Debug)]
 pub struct ApplyMovementResult {
     pub selection: Selection,

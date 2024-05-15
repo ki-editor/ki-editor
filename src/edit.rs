@@ -216,8 +216,8 @@ impl EditTransaction {
     }
 }
 
-/// This is for grouping actions that should not offset each other
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// This is for grouping actions that should not offset each other
 pub struct ActionGroup {
     pub actions: Vec<Action>,
 }

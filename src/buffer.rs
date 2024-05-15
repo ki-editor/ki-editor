@@ -837,81 +837,6 @@ impl Buffer {
         ))
     }
 
-    pub(crate) fn find_nearest_pair(
-        &self,
-        range: CharIndexRange,
-        open: &str,
-        close: &str,
-    ) -> Option<EnclosurePair> {
-        let pairs = self.find_pairs(open, close);
-
-        pairs
-            .into_iter()
-            .sorted_by_key(|pair| pair.outer_range().len())
-            .find(|pair| {
-                let outer_range = pair.outer_range();
-                outer_range.start < range.start && range.end < outer_range.end
-            })
-    }
-
-    pub(crate) fn find_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
-        if open == close {
-            self.find_homo_pairs(open)
-        } else {
-            self.find_hetero_pairs(open, close)
-        }
-    }
-
-    pub(crate) fn find_homo_pairs(&self, representation: &str) -> Vec<EnclosurePair> {
-        let string = self.rope.to_string();
-        let matches = string
-            .match_indices(representation)
-            .enumerate()
-            .map(|(index, x)| (x, index % 2 == 0));
-        self.get_pairs_from_enclosures(matches.collect())
-    }
-
-    pub(crate) fn find_hetero_pairs(&self, open: &str, close: &str) -> Vec<EnclosurePair> {
-        let string = self.rope.to_string();
-        let openings = string.match_indices(open).map(|x| (x, true));
-        let closings = string.match_indices(close).map(|x| (x, false));
-        self.get_pairs_from_enclosures(openings.chain(closings).collect())
-    }
-
-    fn get_pairs_from_enclosures(
-        &self,
-        enclosures: Vec<((usize, &str), bool)>,
-    ) -> Vec<EnclosurePair> {
-        let enclosures = enclosures
-            .into_iter()
-            .filter_map(|((byte_start, representation), is_opening)| {
-                Some(Enclosure {
-                    char_index_range: self
-                        .byte_range_to_char_index_range(
-                            &(byte_start..byte_start + representation.len()),
-                        )
-                        .ok()?,
-                    is_opening,
-                })
-            })
-            .sorted_by(|a, b| a.char_index_range.start.cmp(&b.char_index_range.start));
-        let mut stack = Vec::new();
-        let mut pairs = Vec::new();
-
-        for enclosure in enclosures {
-            if enclosure.is_opening {
-                stack.push(enclosure);
-            } else if let Some(opening) = stack.pop() {
-                pairs.push(EnclosurePair {
-                    open: opening,
-                    close: enclosure,
-                })
-            }
-        }
-
-        pairs
-    }
-
     /// The boolean returned indicates whether the replacement causes any modification
     pub(crate) fn replace(
         &mut self,
@@ -972,27 +897,6 @@ impl Buffer {
     pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {
         self.quickfix_list_items.clone()
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct EnclosurePair {
-    pub open: Enclosure,
-    pub close: Enclosure,
-}
-impl EnclosurePair {
-    pub(crate) fn outer_range(&self) -> CharIndexRange {
-        (self.open.char_index_range.start..self.close.char_index_range.end).into()
-    }
-
-    pub(crate) fn inner_range(&self) -> CharIndexRange {
-        (self.open.char_index_range.end..self.close.char_index_range.start).into()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Enclosure {
-    pub char_index_range: CharIndexRange,
-    is_opening: bool,
 }
 
 #[cfg(test)]
