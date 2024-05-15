@@ -336,7 +336,7 @@ impl Component for FileExplorer {
                     match node.kind {
                         NodeKind::File => Ok([
                             Dispatch::CloseCurrentWindow,
-                            Dispatch::GoToFile(node.path.clone()),
+                            Dispatch::OpenFile(node.path.clone()),
                         ]
                         .to_vec()
                         .into()),
@@ -449,7 +449,7 @@ mod test_file_explorer {
                 .join("hello")
                 .join("world.rs");
             Box::new([
-                App(GoToFile(s.main_rs())),
+                App(OpenFile(s.main_rs())),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
                 App(OpenMoveFilePrompt(s.main_rs())),

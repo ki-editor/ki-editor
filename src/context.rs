@@ -39,13 +39,11 @@ pub enum QuickfixListSource {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum GlobalMode {
     QuickfixListItem,
-    SelectionHistoryContiguous,
 }
 impl GlobalMode {
     pub fn display(&self) -> String {
         match self {
             GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
-            GlobalMode::SelectionHistoryContiguous => "SELECTION HISTORY (CONTIGUOUS)".to_string(),
         }
     }
 }

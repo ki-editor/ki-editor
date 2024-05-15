@@ -98,14 +98,24 @@ impl Editor {
                     Dispatch::ToEditor(ScrollPageUp),
                 ),
                 Keymap::new(
-                    "backspace",
+                    "[",
                     "Go to previous selection".to_string(),
-                    Dispatch::GoToPreviousSelection,
+                    Dispatch::ToEditor(GoToPreviousSelection),
                 ),
                 Keymap::new(
-                    "tab",
+                    "]",
                     "Go to next selection".to_string(),
-                    Dispatch::GoToNextSelection,
+                    Dispatch::ToEditor(GoToNextSelection),
+                ),
+                Keymap::new(
+                    "{",
+                    "Go to previous file".to_string(),
+                    Dispatch::GoToPreviousFile,
+                ),
+                Keymap::new(
+                    "}",
+                    "Go to next selection".to_string(),
+                    Dispatch::GoToNextFile,
                 ),
             ]),
         }
@@ -678,8 +688,8 @@ impl Editor {
                 &[
                     ("<", "Angular bracket", "<", ">"),
                     ("(", "Parentheses", "(", ")"),
-                    ("[", "Square bracket", "[", "]"),
-                    ("{", "Curly bracket", "{", "}"),
+                    // ("[", "Square bracket", "[", "]"),
+                    // ("{", "Curly bracket", "{", "}"),
                     ("\"", "Double quote", "\"", "\""),
                     ("'", "Single quote", "'", "'"),
                     ("`", "Backtick", "`", "`"),

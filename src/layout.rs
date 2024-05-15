@@ -14,7 +14,6 @@ use crate::{
     context::QuickfixListSource,
     quickfix_list::{Location, QuickfixListItem},
     rectangle::{Border, LayoutKind, Rectangle},
-    selection::SelectionSet,
 };
 use anyhow::anyhow;
 use indexmap::IndexMap;
@@ -297,20 +296,6 @@ impl Layout {
             .collect_vec()
     }
 
-    pub fn open_file_with_selection(
-        &mut self,
-        path: &CanonicalizedPath,
-        selection_set: SelectionSet,
-    ) -> anyhow::Result<()> {
-        if let Some(editor) = self.open_file(path, true) {
-            editor
-                .borrow_mut()
-                .editor_mut()
-                .__update_selection_set_for_real(selection_set);
-        }
-        Ok(())
-    }
-
     pub(crate) fn reload_buffers(
         &self,
         affected_paths: Vec<CanonicalizedPath>,
@@ -390,18 +375,6 @@ impl Layout {
         if let Some(node_id) = self.get_current_node_child_id(ComponentKind::Dropdown) {
             self.remove_node_child(node_id, ComponentKind::DropdownInfo);
         }
-    }
-
-    pub(crate) fn get_component_by_id(
-        &self,
-        id: &ComponentId,
-    ) -> Option<Rc<RefCell<dyn Component>>> {
-        Some(
-            self.components()
-                .into_iter()
-                .find(|c| &c.component().borrow().id() == id)?
-                .component(),
-        )
     }
 
     pub(crate) fn show_quickfix_list(

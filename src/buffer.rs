@@ -596,8 +596,8 @@ impl Buffer {
     ) -> anyhow::Result<Option<SelectionSet>> {
         let mut content = self.rope.to_string();
         let state = self.undo_tree.apply_movement(&mut content, movement)?;
-
         self.update(&content);
+
         if let Some(BufferState {
             selection_set,
             bookmarks,

@@ -29,7 +29,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
-    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode, SelectionSet},
+    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     themes::Theme,
@@ -41,7 +41,6 @@ use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
     collections::HashSet,
-    ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -73,19 +72,8 @@ pub struct App<T: Frontend> {
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
-    selection_set_history: History<SelectionSetHistory>,
-}
-
-#[derive(PartialEq, Clone, Debug, Eq)]
-struct SelectionSetHistory {
-    kind: SelectionSetHistoryKind,
-    selection_set: SelectionSet,
-}
-
-#[derive(PartialEq, Clone, Debug, Eq)]
-pub enum SelectionSetHistoryKind {
-    Path(CanonicalizedPath),
-    ComponentId(Option<ComponentId>),
+    /// Used for navigating between opened files
+    file_path_history: History<CanonicalizedPath>,
 }
 
 struct Null;
@@ -133,7 +121,7 @@ impl<T: Frontend> App<T> {
             syntax_highlight_request_sender: None,
             global_title: None,
 
-            selection_set_history: History::default(),
+            file_path_history: History::default(),
         };
         Ok(app)
     }
@@ -155,7 +143,7 @@ impl<T: Frontend> App<T> {
         }
 
         if let Some(entry_path) = entry_path {
-            self.go_to_file(entry_path)?;
+            self.open_file(&entry_path, OpenFileOption::Focus)?;
         }
 
         self.render()?;
@@ -387,8 +375,8 @@ impl<T: Frontend> App<T> {
                 self.close_current_window_and_focus_parent();
             }
             Dispatch::OpenSearchPrompt { scope } => self.open_search_prompt(scope)?,
-            Dispatch::GoToFile(path) => {
-                self.go_to_file(path)?;
+            Dispatch::OpenFile(path) => {
+                self.open_file(&path, OpenFileOption::Focus)?;
             }
 
             Dispatch::OpenFilePicker(kind) => {
@@ -459,9 +447,6 @@ impl<T: Frontend> App<T> {
                 self.set_quickfix_list_type(Default::default(), r#type)?;
             }
             Dispatch::GotoQuickfixListItem(movement) => self.goto_quickfix_list_item(movement)?,
-            Dispatch::GotoSelectionHistoryContiguous(movement) => {
-                self.goto_selection_history_contiguous(movement)?;
-            }
             Dispatch::ApplyWorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)?;
             }
@@ -516,15 +501,6 @@ impl<T: Frontend> App<T> {
             Dispatch::LspExecuteCommand { command, params } => self
                 .lsp_manager
                 .workspace_execute_command(params, command)?,
-            Dispatch::UpdateSelectionSet {
-                selection_set,
-                kind,
-                store_history,
-            } => self.update_selection_set(
-                kind,
-                UpdateSelectionSetSource::SelectionSet(selection_set),
-                store_history,
-            )?,
             Dispatch::UpdateLocalSearchConfig {
                 update,
                 scope,
@@ -547,8 +523,6 @@ impl<T: Frontend> App<T> {
                 })?,
                 Scope::Global => self.global_replace()?,
             },
-            Dispatch::GoToPreviousSelection => self.go_to_previous_selection()?,
-            Dispatch::GoToNextSelection => self.go_to_next_selection()?,
             Dispatch::HandleLspNotification(notification) => {
                 self.handle_lsp_notification(notification)?
             }
@@ -573,6 +547,8 @@ impl<T: Frontend> App<T> {
                 self.open_code_actions_prompt(code_actions)?;
             }
             Dispatch::OscillateWindow => self.layout.cycle_window(),
+            Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
+            Dispatch::GoToNextFile => self.go_to_next_file()?,
         }
         Ok(())
     }
@@ -743,25 +719,23 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn go_to_file(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        let component = self.open_file(&path)?;
-        let selection_set = component.borrow().editor().selection_set.clone();
-        self.update_selection_set(
-            SelectionSetHistoryKind::Path(path),
-            UpdateSelectionSetSource::SelectionSet(selection_set),
-            true,
-        )
-    }
-
     /// This only opens the file in the background but does not focus it.
     /// If you need to focus it, use `Self::go_to_file` instead.
     fn open_file(
         &mut self,
         path: &CanonicalizedPath,
+        option: OpenFileOption,
     ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
+        if option.store_history() {
+            let old_new = crate::undo_tree::OldNew {
+                old_to_new: path.clone(),
+                new_to_old: self.get_current_file_path().unwrap_or_else(|| path.clone()),
+            };
+            self.file_path_history.push(old_new)
+        }
         // Check if the file is opened before
         // so that we won't notify the LSP twice
-        if let Some(matching_editor) = self.layout.open_file(path, false) {
+        if let Some(matching_editor) = self.layout.open_file(path, option.is_focus()) {
             return Ok(matching_editor);
         }
 
@@ -781,6 +755,10 @@ impl<T: Frontend> App<T> {
 
         if self.enable_lsp {
             self.lsp_manager.open_file(path.clone())?;
+        }
+        if option.is_focus() {
+            self.layout
+                .replace_and_focus_current_suggestive_editor(component.clone())
         }
         Ok(component)
     }
@@ -919,7 +897,7 @@ impl<T: Frontend> App<T> {
         path: CanonicalizedPath,
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> anyhow::Result<()> {
-        let component = self.open_file(&path)?;
+        let component = self.open_file(&path, OpenFileOption::Background)?;
 
         component
             .borrow_mut()
@@ -961,11 +939,12 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        self.update_selection_set(
-            SelectionSetHistoryKind::Path(path.clone()),
-            UpdateSelectionSetSource::PositionRange(range.clone()),
-            true,
-        )
+        let component = self.open_file(path, OpenFileOption::Focus)?;
+        component
+            .borrow_mut()
+            .editor_mut()
+            .set_position_range(range.clone())?;
+        Ok(())
     }
 
     fn set_quickfix_list_type(
@@ -987,7 +966,7 @@ impl<T: Frontend> App<T> {
                     .group_by(|item| item.location().path.clone())
                     .into_iter()
                     .map(|(path, items)| -> anyhow::Result<()> {
-                        let editor = self.open_file(&path)?;
+                        let editor = self.open_file(&path, OpenFileOption::Background)?;
                         editor
                             .borrow_mut()
                             .editor_mut()
@@ -1019,7 +998,7 @@ impl<T: Frontend> App<T> {
         // TODO: should we wrap this in a transaction so that if one of the edit/operation fails, the whole transaction fails?
         // Such that it won't leave the workspace in an half-edited messed up state
         for edit in workspace_edit.edits {
-            let component = self.open_file(&edit.path)?;
+            let component = self.open_file(&edit.path, OpenFileOption::Background)?;
             let dispatches = component
                 .borrow_mut()
                 .editor_mut()
@@ -1156,7 +1135,7 @@ impl<T: Frontend> App<T> {
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager
             .document_did_rename(from.clone(), to.clone())?;
-        self.go_to_file(to)?;
+        self.open_file(&to, OpenFileOption::Focus)?;
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
@@ -1280,7 +1259,6 @@ impl<T: Frontend> App<T> {
         self.syntax_highlight_request_sender = Some(sender);
     }
 
-    #[cfg(test)]
     pub(crate) fn get_current_file_path(&self) -> Option<CanonicalizedPath> {
         self.current_component().borrow().path()
     }
@@ -1309,76 +1287,6 @@ impl<T: Frontend> App<T> {
             items: Vec::new(),
             enter_selects_first_matching_item: false,
         })
-    }
-
-    fn update_selection_set(
-        &mut self,
-        kind: SelectionSetHistoryKind,
-        source: UpdateSelectionSetSource,
-        store_history: bool,
-    ) -> anyhow::Result<()> {
-        let component = self.layout.get_current_component();
-        let new_to_old = SelectionSetHistory {
-            kind: component
-                .borrow()
-                .path()
-                .map(SelectionSetHistoryKind::Path)
-                .unwrap_or_else(|| SelectionSetHistoryKind::ComponentId(None)),
-            selection_set: component.borrow().editor().selection_set.clone(),
-        };
-        if let Some(new_component) = match &kind {
-            SelectionSetHistoryKind::Path(path) => {
-                let editor = self.open_file(path)?;
-                self.layout
-                    .replace_and_focus_current_suggestive_editor(editor.clone());
-                Some(editor as Rc<RefCell<dyn Component>>)
-            }
-            SelectionSetHistoryKind::ComponentId(Some(id)) => self.layout.get_component_by_id(id),
-            _ => None,
-        } {
-            let selection_set = match source {
-                UpdateSelectionSetSource::PositionRange(position_range) => new_component
-                    .borrow_mut()
-                    .editor_mut()
-                    .position_range_to_selection_set(position_range)?,
-                UpdateSelectionSetSource::SelectionSet(selection_set) => selection_set,
-            };
-            new_component
-                .borrow_mut()
-                .editor_mut()
-                .__update_selection_set_for_real(selection_set.clone());
-            let old_new = crate::undo_tree::OldNew {
-                old_to_new: SelectionSetHistory {
-                    kind: kind.clone(),
-                    selection_set,
-                },
-                new_to_old,
-            };
-            if store_history {
-                self.selection_set_history.push(old_new.clone());
-            }
-        }
-        Ok(())
-    }
-
-    fn goto_selection_history_contiguous(&mut self, movement: Movement) -> anyhow::Result<()> {
-        match movement {
-            Movement::Next => {
-                if let Some(go_to_selection_set_history) = self.selection_set_history.redo() {
-                    self.go_to_selection_set_history(go_to_selection_set_history)?;
-                }
-                // self.undo_tree.redo(&mut self.layout)?;
-            }
-            Movement::Previous => {
-                if let Some(file_selection_set) = self.selection_set_history.undo() {
-                    self.go_to_selection_set_history(file_selection_set)?;
-                }
-                // self.undo_tree.undo(&mut self.layout)?;
-            }
-
-            _ => {}
-        }
-        Ok(())
     }
 
     #[cfg(test)]
@@ -1646,34 +1554,16 @@ impl<T: Frontend> App<T> {
             .collect_vec()
     }
 
-    fn go_to_selection_set_history(
-        &mut self,
-        selection_set_history: SelectionSetHistory,
-    ) -> anyhow::Result<()> {
-        match selection_set_history.kind {
-            SelectionSetHistoryKind::Path(path) => self
-                .layout
-                .open_file_with_selection(&path, selection_set_history.selection_set)?,
-            SelectionSetHistoryKind::ComponentId(Some(_)) => {
-                return Err(anyhow::anyhow!(
-                    "App::go_to_selection_set_history This is not handled yet"
-                ))
-            }
-            _ => {}
-        };
-        Ok(())
-    }
-
-    fn go_to_previous_selection(&mut self) -> anyhow::Result<()> {
-        if let Some(file_selection_set) = self.selection_set_history.undo() {
-            self.go_to_selection_set_history(file_selection_set)?;
+    fn go_to_previous_file(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.file_path_history.undo() {
+            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
         }
         Ok(())
     }
 
-    fn go_to_next_selection(&mut self) -> anyhow::Result<()> {
-        if let Some(file_selection_set) = self.selection_set_history.redo() {
-            self.go_to_selection_set_history(file_selection_set)?;
+    fn go_to_next_file(&mut self) -> anyhow::Result<()> {
+        if let Some(path) = self.file_path_history.redo() {
+            self.open_file(&path, OpenFileOption::FocusNoHistory)?;
         }
         Ok(())
     }
@@ -1928,7 +1818,7 @@ pub enum Dispatch {
     OpenSearchPrompt {
         scope: Scope,
     },
-    GoToFile(CanonicalizedPath),
+    OpenFile(CanonicalizedPath),
     ShowGlobalInfo(Info),
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),
@@ -2010,12 +1900,6 @@ pub enum Dispatch {
         params: RequestParams,
         command: crate::lsp::code_action::Command,
     },
-    UpdateSelectionSet {
-        selection_set: SelectionSet,
-        kind: SelectionSetHistoryKind,
-        store_history: bool,
-    },
-    GotoSelectionHistoryContiguous(Movement),
     UpdateLocalSearchConfig {
         update: LocalSearchConfigUpdate,
         scope: Scope,
@@ -2039,8 +1923,6 @@ pub enum Dispatch {
     Replace {
         scope: Scope,
     },
-    GoToPreviousSelection,
-    GoToNextSelection,
     HandleLspNotification(LspNotification),
     ToSuggestiveEditor(DispatchSuggestiveEditor),
     CloseDropdown,
@@ -2053,6 +1935,8 @@ pub enum Dispatch {
     OscillateWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
+    GoToPreviousFile,
+    GoToNextFile,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2138,11 +2022,6 @@ pub enum AppMessage {
         component_id: ComponentId,
         highlighted_spans: HighlighedSpans,
     },
-}
-
-enum UpdateSelectionSetSource {
-    PositionRange(Range<Position>),
-    SelectionSet(SelectionSet),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2287,7 +2166,7 @@ impl DispatchPrompt {
             )),
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
-                Ok(Dispatches::new(vec![Dispatch::GoToFile(path)]))
+                Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
             }
             DispatchPrompt::UpdateLocalSearchConfigReplacement { scope } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
@@ -2302,5 +2181,21 @@ impl DispatchPrompt {
             )),
             DispatchPrompt::Null => Ok(Default::default()),
         }
+    }
+}
+
+#[derive(PartialEq)]
+enum OpenFileOption {
+    Focus,
+    FocusNoHistory,
+    Background,
+}
+impl OpenFileOption {
+    fn is_focus(&self) -> bool {
+        self != &OpenFileOption::Background
+    }
+
+    fn store_history(&self) -> bool {
+        self == &OpenFileOption::Focus
     }
 }
