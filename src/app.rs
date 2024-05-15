@@ -47,7 +47,7 @@ use std::{
 };
 use DispatchEditor::*;
 
-pub struct App<T: Frontend> {
+pub(crate) struct App<T: Frontend> {
     context: Context,
 
     sender: Sender<AppMessage>,
@@ -1739,9 +1739,9 @@ impl<T: Frontend> App<T> {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct Dimension {
-    pub height: u16,
-    pub width: u16,
+pub(crate) struct Dimension {
+    pub(crate) height: u16,
+    pub(crate) width: u16,
 }
 
 impl Dimension {
@@ -1767,7 +1767,7 @@ impl Dimension {
 
 #[must_use]
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct Dispatches(Vec<Dispatch>);
+pub(crate) struct Dispatches(Vec<Dispatch>);
 impl From<Vec<Dispatch>> for Dispatches {
     fn from(value: Vec<Dispatch>) -> Self {
         Self(value)
@@ -1806,7 +1806,7 @@ impl Dispatches {
 #[must_use]
 #[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
-pub enum Dispatch {
+pub(crate) enum Dispatch {
     #[cfg(test)]
     SetTheme(crate::themes::Theme),
     CloseCurrentWindow,
@@ -1936,31 +1936,31 @@ pub enum Dispatch {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum GlobalSearchConfigUpdate {
+pub(crate) enum GlobalSearchConfigUpdate {
     SetGlob(GlobalSearchFilterGlob, String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum GlobalSearchFilterGlob {
+pub(crate) enum GlobalSearchFilterGlob {
     Include,
     Exclude,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum LocalSearchConfigUpdate {
+pub(crate) enum LocalSearchConfigUpdate {
     Mode(LocalSearchConfigMode),
     Replacement(String),
     Search(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct YesNoPrompt {
-    pub title: String,
-    pub yes: Box<Dispatch>,
+pub(crate) struct YesNoPrompt {
+    pub(crate) title: String,
+    pub(crate) yes: Box<Dispatch>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FilePickerKind {
+pub(crate) enum FilePickerKind {
     NonGitIgnored,
     GitStatus,
     Opened,
@@ -1976,10 +1976,10 @@ impl FilePickerKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RequestParams {
-    pub path: CanonicalizedPath,
-    pub position: Position,
-    pub context: ResponseContext,
+pub(crate) struct RequestParams {
+    pub(crate) path: CanonicalizedPath,
+    pub(crate) position: Position,
+    pub(crate) context: ResponseContext,
 }
 impl RequestParams {
     pub(crate) fn set_kind(self, scope: Option<Scope>) -> Self {
@@ -2004,13 +2004,13 @@ impl RequestParams {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum Scope {
+pub(crate) enum Scope {
     Local,
     Global,
 }
 
 #[derive(Debug)]
-pub enum AppMessage {
+pub(crate) enum AppMessage {
     LspNotification(LspNotification),
     Event(Event),
     QuitAll,
@@ -2021,13 +2021,13 @@ pub enum AppMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MakeFilterMechanism {
+pub(crate) enum MakeFilterMechanism {
     Literal,
     Regex,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DispatchPrompt {
+pub(crate) enum DispatchPrompt {
     PushFilter {
         kind: FilterKind,
         target: FilterTarget,

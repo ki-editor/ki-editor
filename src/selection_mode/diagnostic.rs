@@ -3,7 +3,7 @@ use crate::{components::suggestive_editor::Info, quickfix_list::DiagnosticSeveri
 use super::SelectionMode;
 
 // TODO: change this to custom selections, so it can also hold references, definitions etc
-pub struct Diagnostic {
+pub(crate) struct Diagnostic {
     severity_range: DiagnosticSeverityRange,
     diagnostics: Vec<crate::lsp::diagnostic::Diagnostic>,
 }

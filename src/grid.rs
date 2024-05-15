@@ -13,34 +13,34 @@ use ropey::Rope;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Grid {
-    pub rows: Vec<Vec<Cell>>,
-    pub width: usize,
+pub(crate) struct Grid {
+    pub(crate) rows: Vec<Vec<Cell>>,
+    pub(crate) width: usize,
 }
 
 const DEFAULT_TAB_SIZE: usize = 4;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub struct Cell {
-    pub symbol: String,
-    pub foreground_color: Color,
-    pub background_color: Color,
-    pub line: Option<CellLine>,
-    pub is_cursor: bool,
+pub(crate) struct Cell {
+    pub(crate) symbol: String,
+    pub(crate) foreground_color: Color,
+    pub(crate) background_color: Color,
+    pub(crate) line: Option<CellLine>,
+    pub(crate) is_cursor: bool,
     /// For debugging purposes, so that we can trace this Cell is updated by which
     /// decoration, e.g. Diagnostic
-    pub source: Option<StyleKey>,
-    pub is_bold: bool,
+    pub(crate) source: Option<StyleKey>,
+    pub(crate) is_bold: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
-pub struct CellLine {
-    pub color: Color,
-    pub style: CellLineStyle,
+pub(crate) struct CellLine {
+    pub(crate) color: Color,
+    pub(crate) style: CellLineStyle,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
-pub enum CellLineStyle {
+pub(crate) enum CellLineStyle {
     Undercurl,
     Underline,
 }
@@ -88,14 +88,14 @@ impl Default for Cell {
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct CellUpdate {
-    pub position: Position,
-    pub symbol: Option<String>,
-    pub style: Style,
-    pub is_cursor: bool,
+pub(crate) struct CellUpdate {
+    pub(crate) position: Position,
+    pub(crate) symbol: Option<String>,
+    pub(crate) style: Style,
+    pub(crate) is_cursor: bool,
 
     /// For debugging purposes
-    pub source: Option<StyleKey>,
+    pub(crate) source: Option<StyleKey>,
 }
 
 impl CellUpdate {
@@ -127,9 +127,9 @@ impl CellUpdate {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default, Hash)]
-pub struct PositionedCell {
-    pub cell: Cell,
-    pub position: Position,
+pub(crate) struct PositionedCell {
+    pub(crate) cell: Cell,
+    pub(crate) position: Position,
 }
 
 impl PartialOrd for PositionedCell {
@@ -164,7 +164,7 @@ impl std::fmt::Display for Grid {
     }
 }
 
-pub enum RenderContentLineNumber {
+pub(crate) enum RenderContentLineNumber {
     NoLineNumber,
     LineNumber {
         /// 0-based
@@ -567,7 +567,7 @@ impl Grid {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord)]
-pub enum StyleKey {
+pub(crate) enum StyleKey {
     Syntax(String),
     UiPrimarySelection,
 
@@ -606,10 +606,10 @@ pub(crate) fn get_char_width(c: char) -> usize {
 }
 
 #[derive(Clone)]
-pub struct LineUpdate {
+pub(crate) struct LineUpdate {
     /// 0-based
-    pub line_index: usize,
-    pub style: Style,
+    pub(crate) line_index: usize,
+    pub(crate) style: Style,
 }
 
 #[cfg(test)]

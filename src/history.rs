@@ -1,6 +1,6 @@
 use crate::undo_tree::OldNew;
 
-pub struct History<T> {
+pub(crate) struct History<T> {
     backward_history: Vec<OldNew<T>>,
     forward_history: Vec<OldNew<T>>,
 }

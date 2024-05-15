@@ -9,7 +9,7 @@ use shared::{
     language::{self, Language, LanguageId},
 };
 
-pub struct LspManager {
+pub(crate) struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
     sender: Sender<AppMessage>,
     current_working_directory: CanonicalizedPath,

@@ -7,7 +7,7 @@ use crate::{
 };
 
 #[derive(Default, Clone)]
-pub struct Screen {
+pub(crate) struct Screen {
     windows: Vec<Window>,
     borders: Vec<Border>,
     cursor: Option<crate::components::component::Cursor>,
@@ -117,7 +117,7 @@ impl Screen {
 }
 
 #[derive(Clone)]
-pub struct Window {
+pub(crate) struct Window {
     grid: Grid,
     rectangle: Rectangle,
 }

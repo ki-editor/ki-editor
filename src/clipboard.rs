@@ -1,5 +1,5 @@
 #[derive(Clone)]
-pub struct Clipboard {
+pub(crate) struct Clipboard {
     history: Vec<String>,
 }
 

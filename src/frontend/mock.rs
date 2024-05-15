@@ -2,7 +2,7 @@
 
 use crate::{components::component::Cursor, screen::Screen};
 #[derive(Clone, Default)]
-pub struct MockFrontend {
+pub(crate) struct MockFrontend {
     screen: Option<Screen>,
 }
 

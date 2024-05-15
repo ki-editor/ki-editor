@@ -2,7 +2,7 @@ use ast_grep_core::{language::TSLanguage, NodeMatch, StrDoc};
 
 use super::{ByteRange, SelectionMode};
 
-pub struct AstGrep {
+pub(crate) struct AstGrep {
     pattern: ast_grep_core::matcher::Pattern<TSLanguage>,
     grep: ast_grep_core::AstGrep<StrDoc<TSLanguage>>,
 }

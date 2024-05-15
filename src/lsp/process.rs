@@ -53,7 +53,7 @@ struct PendingResponseRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LspNotification {
+pub(crate) enum LspNotification {
     Initialized(Language),
     PublishDiagnostics(PublishDiagnosticsParams),
     Completion(ResponseContext, Completion),
@@ -69,7 +69,7 @@ pub enum LspNotification {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ResponseContext {
+pub(crate) struct ResponseContext {
     /// This indicates that this request was sent by a component,
     /// and the response should be sent back to that component.
     ///
@@ -78,9 +78,9 @@ pub struct ResponseContext {
     ///
     /// This field is purposefully not an `Option` so that we do not need to
     /// use `unwrap()` to obtain the `component_id`.
-    pub component_id: ComponentId,
-    pub scope: Option<Scope>,
-    pub description: Option<String>,
+    pub(crate) component_id: ComponentId,
+    pub(crate) scope: Option<Scope>,
+    pub(crate) description: Option<String>,
 }
 impl ResponseContext {
     pub(crate) fn set_description(self, descrption: &str) -> Self {
@@ -145,7 +145,7 @@ enum FromEditor {
     },
 }
 
-pub struct LspServerProcessChannel {
+pub(crate) struct LspServerProcessChannel {
     language: Language,
     join_handle: JoinHandle<JoinHandle<()>>,
     sender: Sender<LspServerProcessMessage>,

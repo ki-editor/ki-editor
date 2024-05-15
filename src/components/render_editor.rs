@@ -435,11 +435,11 @@ impl Editor {
     }
 }
 
-pub struct HighlightSpan {
-    pub source: Source,
-    pub ranges: HighlightSpanRange,
-    pub set_symbol: Option<String>,
-    pub is_cursor: bool,
+pub(crate) struct HighlightSpan {
+    pub(crate) source: Source,
+    pub(crate) ranges: HighlightSpanRange,
+    pub(crate) set_symbol: Option<String>,
+    pub(crate) is_cursor: bool,
 }
 
 impl HighlightSpan {
@@ -511,12 +511,12 @@ fn range_intersection<T: Ord>(a: Range<T>, b: Range<T>) -> Option<Range<T>> {
 }
 
 #[derive(Clone)]
-pub enum Source {
+pub(crate) enum Source {
     StyleKey(StyleKey),
     Style(Style),
 }
 
-pub enum HighlightSpanRange {
+pub(crate) enum HighlightSpanRange {
     CharIndexRange(CharIndexRange),
     ByteRange(Range<usize>),
     CharIndex(CharIndex),

@@ -11,8 +11,8 @@ use super::suggestive_editor::{Decoration, Info};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 /// Note: filtering will be done on the combination of `display` and `group` (if applicable)
-pub struct DropdownItem {
-    pub dispatches: Dispatches,
+pub(crate) struct DropdownItem {
+    pub(crate) dispatches: Dispatches,
     display: String,
     group: Option<String>,
     info: Option<Info>,
@@ -90,7 +90,7 @@ pub trait FromVec<T: Clone + Into<DropdownItem>> {
     }
 }
 
-pub struct Dropdown {
+pub(crate) struct Dropdown {
     title: String,
     filter: String,
     items: Vec<DropdownItem>,
@@ -98,8 +98,8 @@ pub struct Dropdown {
     current_item_index: usize,
 }
 
-pub struct DropdownConfig {
-    pub title: String,
+pub(crate) struct DropdownConfig {
+    pub(crate) title: String,
 }
 
 impl Dropdown {
@@ -935,12 +935,12 @@ mod test_dropdown {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DropdownRender {
-    pub content: String,
-    pub decorations: Vec<Decoration>,
-    pub title: String,
-    pub highlight_line_index: usize,
-    pub info: Option<Info>,
+pub(crate) struct DropdownRender {
+    pub(crate) content: String,
+    pub(crate) decorations: Vec<Decoration>,
+    pub(crate) title: String,
+    pub(crate) highlight_line_index: usize,
+    pub(crate) info: Option<Info>,
 }
 #[derive(Debug, Clone, PartialEq)]
 struct FilteredDropdownItem {

@@ -4,7 +4,7 @@ use crate::selection::Selection;
 
 use super::{ByteRange, SelectionMode, SelectionModeParams};
 
-pub struct Column {
+pub(crate) struct Column {
     current_column: usize,
 }
 

@@ -3,7 +3,7 @@ use crate::{
     components::{dropdown::DropdownItem, suggestive_editor::Info},
 };
 
-pub struct Command {
+pub(crate) struct Command {
     name: &'static str,
     aliases: &'static [&'static str],
     description: &'static str,

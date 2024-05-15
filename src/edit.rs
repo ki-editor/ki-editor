@@ -9,9 +9,9 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Edit {
-    pub range: CharIndexRange,
-    pub new: Rope,
+pub(crate) struct Edit {
+    pub(crate) range: CharIndexRange,
+    pub(crate) new: Rope,
 }
 impl Edit {
     fn apply_offset(self, offset: isize) -> Edit {
@@ -45,7 +45,7 @@ impl ApplyOffset for CharIndexRange {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Action {
+pub(crate) enum Action {
     Select(Selection),
     Edit(Edit),
 }
@@ -87,7 +87,7 @@ impl Action {
 }
 
 #[derive(Clone, Debug)]
-pub struct EditTransaction {
+pub(crate) struct EditTransaction {
     /// This `action_group` should be always normalized.
     action_group: ActionGroup,
 }
@@ -218,8 +218,8 @@ impl EditTransaction {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// This is for grouping actions that should not offset each other
-pub struct ActionGroup {
-    pub actions: Vec<Action>,
+pub(crate) struct ActionGroup {
+    pub(crate) actions: Vec<Action>,
 }
 
 impl ActionGroup {

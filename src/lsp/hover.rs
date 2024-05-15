@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Hover {
-    pub contents: Vec<String>,
+pub(crate) struct Hover {
+    pub(crate) contents: Vec<String>,
 }
 
 impl From<lsp_types::Hover> for Hover {

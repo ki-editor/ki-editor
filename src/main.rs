@@ -1,43 +1,43 @@
 mod buffer;
 mod git;
 
-pub mod char_index_range;
+pub(crate) mod char_index_range;
 mod cli;
 mod clipboard;
-pub mod command;
+pub(crate) mod command;
 mod components;
 mod context;
 mod edit;
-pub mod frontend;
+pub(crate) mod frontend;
 mod grid;
 #[cfg(test)]
 mod integration_test;
 
 mod layout;
-pub mod list;
+pub(crate) mod list;
 mod lsp;
 mod position;
 
 mod app;
-pub mod history;
+pub(crate) mod history;
 mod quickfix_list;
 mod rectangle;
 mod screen;
 mod selection;
-pub mod selection_mode;
-pub mod selection_range;
-pub mod soft_wrap;
-pub mod style;
-pub mod surround;
-pub mod syntax_highlight;
+pub(crate) mod selection_mode;
+pub(crate) mod selection_range;
+pub(crate) mod soft_wrap;
+pub(crate) mod style;
+pub(crate) mod surround;
+pub(crate) mod syntax_highlight;
 mod terminal;
 #[cfg(test)]
 mod test_app;
-pub mod themes;
-pub mod transformation;
-pub mod tree_sitter_traversal;
-pub mod ui_tree;
-pub mod undo_tree;
+pub(crate) mod themes;
+pub(crate) mod transformation;
+pub(crate) mod tree_sitter_traversal;
+pub(crate) mod ui_tree;
+pub(crate) mod undo_tree;
 mod utils;
 
 use std::sync::{Arc, Mutex};

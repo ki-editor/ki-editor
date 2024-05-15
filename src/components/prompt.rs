@@ -16,7 +16,7 @@ use super::{
     suggestive_editor::{SuggestiveEditor, SuggestiveEditorFilter},
 };
 
-pub struct Prompt {
+pub(crate) struct Prompt {
     editor: SuggestiveEditor,
     /// This will only be run on user input if the user input matches no dropdown item.
     on_enter: DispatchPrompt,
@@ -24,12 +24,12 @@ pub struct Prompt {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PromptConfig {
-    pub history: Vec<String>,
-    pub on_enter: DispatchPrompt,
-    pub items: Vec<DropdownItem>,
-    pub title: String,
-    pub enter_selects_first_matching_item: bool,
+pub(crate) struct PromptConfig {
+    pub(crate) history: Vec<String>,
+    pub(crate) on_enter: DispatchPrompt,
+    pub(crate) items: Vec<DropdownItem>,
+    pub(crate) title: String,
+    pub(crate) enter_selects_first_matching_item: bool,
 }
 
 impl Prompt {

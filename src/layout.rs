@@ -26,7 +26,7 @@ use std::{cell::RefCell, rc::Rc};
 /// lists, prompts, and etc.
 /// The main panel is where the user edits code, and the info panel is for displaying info like
 /// hover text, diagnostics, etc.
-pub struct Layout {
+pub(crate) struct Layout {
     background_suggestive_editors: IndexMap<CanonicalizedPath, Rc<RefCell<SuggestiveEditor>>>,
     background_file_explorer: Rc<RefCell<FileExplorer>>,
     background_quickfix_list: Option<Rc<RefCell<Editor>>>,

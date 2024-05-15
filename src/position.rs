@@ -1,11 +1,11 @@
 use crate::{buffer::Buffer, selection::CharIndex};
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug, Default)]
-pub struct Position {
+pub(crate) struct Position {
     /// 0-based
-    pub line: usize,
+    pub(crate) line: usize,
     /// 0-based
-    pub column: usize,
+    pub(crate) column: usize,
 }
 
 impl Position {

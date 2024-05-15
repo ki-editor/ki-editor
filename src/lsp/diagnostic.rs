@@ -5,13 +5,13 @@ use crate::{
 use lsp_types::DiagnosticSeverity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Diagnostic {
-    pub range: CharIndexRange,
-    pub message: String,
-    pub severity: Option<DiagnosticSeverity>,
-    pub related_information: Option<Vec<DiagnosticRelatedInformation>>,
-    pub code_description: Option<lsp_types::CodeDescription>,
-    pub original_value: Option<lsp_types::Diagnostic>,
+pub(crate) struct Diagnostic {
+    pub(crate) range: CharIndexRange,
+    pub(crate) message: String,
+    pub(crate) severity: Option<DiagnosticSeverity>,
+    pub(crate) related_information: Option<Vec<DiagnosticRelatedInformation>>,
+    pub(crate) code_description: Option<lsp_types::CodeDescription>,
+    pub(crate) original_value: Option<lsp_types::Diagnostic>,
 }
 
 impl Diagnostic {
@@ -41,7 +41,7 @@ impl Diagnostic {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DiagnosticRelatedInformation {
+pub(crate) struct DiagnosticRelatedInformation {
     location: Location,
     message: String,
 }

@@ -150,7 +150,7 @@ impl<'a> Cursor for tree_sitter::TreeCursor<'a> {
 /// Order to iterate through a n-ary tree; for n-ary trees only
 /// Pre-order and Post-order make sense.
 #[derive(Eq, PartialEq, Hash, Debug, Copy, Clone)]
-pub enum Order {
+pub(crate) enum Order {
     Pre,
     Post,
 }

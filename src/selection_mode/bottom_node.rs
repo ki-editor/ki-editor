@@ -1,4 +1,4 @@
-pub struct BottomNode;
+pub(crate) struct BottomNode;
 
 use crate::selection_mode::SelectionMode;
 

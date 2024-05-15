@@ -5,7 +5,7 @@ use nary_tree::{NodeId, NodeMut, NodeRef, RemoveBehavior};
 
 use crate::components::{component::Component, editor::Editor};
 
-pub struct UiTree {
+pub(crate) struct UiTree {
     tree: nary_tree::Tree<KindedComponent>,
     focused_component_id: NodeId,
 }
@@ -292,7 +292,7 @@ impl Default for UiTree {
 }
 
 #[derive(Clone)]
-pub struct KindedComponent {
+pub(crate) struct KindedComponent {
     component: Rc<RefCell<dyn Component>>,
     kind: ComponentKind,
 }
@@ -323,7 +323,7 @@ impl std::fmt::Debug for KindedComponent {
 #[derive(PartialEq, Eq, Clone, Copy, Debug, PartialOrd, Ord)]
 /// The order of variants in this enum is significant
 /// Higher-rank variant will be rendered before lower-rank variant
-pub enum ComponentKind {
+pub(crate) enum ComponentKind {
     SuggestiveEditor,
     GlobalInfo,
     KeymapLegend,

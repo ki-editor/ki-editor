@@ -2,7 +2,7 @@ use crate::selection::Selection;
 
 use super::SelectionMode;
 
-pub struct Custom {
+pub(crate) struct Custom {
     current_selection: Selection,
 }
 

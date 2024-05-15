@@ -12,30 +12,30 @@ use crate::{
 use super::documentation::Documentation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Completion {
-    pub items: Vec<DropdownItem>,
-    pub trigger_characters: Vec<String>,
+pub(crate) struct Completion {
+    pub(crate) items: Vec<DropdownItem>,
+    pub(crate) trigger_characters: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompletionItem {
-    pub label: String,
-    pub kind: Option<CompletionItemKind>,
-    pub detail: Option<String>,
-    pub documentation: Option<Documentation>,
-    pub sort_text: Option<String>,
-    pub edit: Option<CompletionItemEdit>,
+pub(crate) struct CompletionItem {
+    pub(crate) label: String,
+    pub(crate) kind: Option<CompletionItemKind>,
+    pub(crate) detail: Option<String>,
+    pub(crate) documentation: Option<Documentation>,
+    pub(crate) sort_text: Option<String>,
+    pub(crate) edit: Option<CompletionItemEdit>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CompletionItemEdit {
+pub(crate) enum CompletionItemEdit {
     PositionalEdit(PositionalEdit),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PositionalEdit {
-    pub range: Range<Position>,
-    pub new_text: String,
+pub(crate) struct PositionalEdit {
+    pub(crate) range: Range<Position>,
+    pub(crate) new_text: String,
 }
 
 impl TryFrom<lsp_types::AnnotatedTextEdit> for PositionalEdit {

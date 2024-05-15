@@ -8,21 +8,14 @@ use crate::{
     selection_mode::regex::get_regex,
 };
 use shared::canonicalized_path::CanonicalizedPath;
-use std::path::PathBuf;
 
 use super::WalkBuilderConfig;
 
-#[derive(Debug)]
-pub struct Match {
-    pub path: PathBuf,
-    pub line_number: u64,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub struct RegexConfig {
-    pub escaped: bool,
-    pub case_sensitive: bool,
-    pub match_whole_word: bool,
+pub(crate) struct RegexConfig {
+    pub(crate) escaped: bool,
+    pub(crate) case_sensitive: bool,
+    pub(crate) match_whole_word: bool,
 }
 impl RegexConfig {
     pub(crate) fn to_regex(self, pattern: &str) -> Result<Regex, anyhow::Error> {

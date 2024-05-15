@@ -9,9 +9,9 @@ use crate::{
 use shared::language::Language;
 
 #[derive(Clone, Debug)]
-pub struct HighlighedSpan {
-    pub byte_range: Range<usize>,
-    pub style_key: StyleKey,
+pub(crate) struct HighlighedSpan {
+    pub(crate) byte_range: Range<usize>,
+    pub(crate) style_key: StyleKey,
 }
 impl HighlighedSpan {
     fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> Option<HighlighedSpan> {
@@ -89,7 +89,7 @@ impl Highlight for HighlightConfiguration {
 }
 
 #[derive(Clone, Default, Debug)]
-pub struct HighlighedSpans(pub Vec<HighlighedSpan>);
+pub(crate) struct HighlighedSpans(pub Vec<HighlighedSpan>);
 impl HighlighedSpans {
     pub(crate) fn apply_edit(self, edited_range: &Range<usize>, change: isize) -> HighlighedSpans {
         HighlighedSpans(
@@ -101,15 +101,10 @@ impl HighlighedSpans {
     }
 }
 
-pub struct SyntaxHighlightRequest {
-    pub component_id: ComponentId,
-    pub language: Language,
-    pub source_code: String,
-}
-
-pub struct SyntaxHighlightResponse {
-    pub component_id: ComponentId,
-    pub highlighted_spans: HighlighedSpans,
+pub(crate) struct SyntaxHighlightRequest {
+    pub(crate) component_id: ComponentId,
+    pub(crate) language: Language,
+    pub(crate) source_code: String,
 }
 
 pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
@@ -147,7 +142,7 @@ pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlig
 }
 type TreeSitterGrammarId = String;
 /// We have to cache the highlight configurations because they load slowly.
-pub struct HighlightConfigs(
+pub(crate) struct HighlightConfigs(
     HashMap<TreeSitterGrammarId, tree_sitter_highlight::HighlightConfiguration>,
 );
 

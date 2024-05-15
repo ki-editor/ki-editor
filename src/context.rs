@@ -12,7 +12,7 @@ use crate::{
     themes::Theme,
 };
 
-pub struct Context {
+pub(crate) struct Context {
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
     theme: Box<Theme>,
@@ -25,19 +25,19 @@ pub struct Context {
     quickfix_list_state: Option<QuickfixListState>,
 }
 
-pub struct QuickfixListState {
-    pub source: QuickfixListSource,
-    pub current_item_index: usize,
+pub(crate) struct QuickfixListState {
+    pub(crate) source: QuickfixListSource,
+    pub(crate) current_item_index: usize,
 }
 
-pub enum QuickfixListSource {
+pub(crate) enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
     Bookmark,
     Custom,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub enum GlobalMode {
+pub(crate) enum GlobalMode {
     QuickfixListItem,
 }
 impl GlobalMode {
@@ -49,9 +49,9 @@ impl GlobalMode {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct Search {
-    pub mode: LocalSearchConfigMode,
-    pub search: String,
+pub(crate) struct Search {
+    pub(crate) mode: LocalSearchConfigMode,
+    pub(crate) search: String,
 }
 
 impl Default for Context {
@@ -191,7 +191,7 @@ impl Context {
 }
 
 #[derive(Default)]
-pub struct GlobalSearchConfig {
+pub(crate) struct GlobalSearchConfig {
     include_globs: IndexSet<Glob>,
     exclude_globs: IndexSet<Glob>,
     local_config: LocalSearchConfig,
@@ -235,7 +235,7 @@ impl GlobalSearchConfig {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum LocalSearchConfigMode {
+pub(crate) enum LocalSearchConfigMode {
     Regex(RegexConfig),
     AstGrep,
     CaseAgnostic,
@@ -285,8 +285,8 @@ fn parenthesize(values: Vec<String>) -> String {
 }
 
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
-pub struct LocalSearchConfig {
-    pub mode: LocalSearchConfigMode,
+pub(crate) struct LocalSearchConfig {
+    pub(crate) mode: LocalSearchConfigMode,
     searches: IndexSet<String>,
     replacements: IndexSet<String>,
 }

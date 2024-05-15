@@ -10,7 +10,7 @@ use super::{
     keymap_legend::{Keymap, KeymapLegendBody, Keymaps},
 };
 
-pub struct FileExplorer {
+pub(crate) struct FileExplorer {
     editor: Editor,
     tree: Tree,
 }

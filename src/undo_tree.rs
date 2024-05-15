@@ -5,9 +5,9 @@ use undo::History;
 use crate::components::editor::{Direction, Movement};
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct OldNew<T> {
-    pub old_to_new: T,
-    pub new_to_old: T,
+pub(crate) struct OldNew<T> {
+    pub(crate) old_to_new: T,
+    pub(crate) new_to_old: T,
 }
 pub trait Applicable: Clone + Display + PartialEq {
     type Target;
@@ -16,7 +16,7 @@ pub trait Applicable: Clone + Display + PartialEq {
 }
 
 #[derive(Clone)]
-pub struct UndoTree<T: Applicable> {
+pub(crate) struct UndoTree<T: Applicable> {
     history: History<OldNew<T>>,
 }
 
@@ -91,6 +91,7 @@ impl<T: Applicable> UndoTree<T> {
             Movement::Parent => Err(anyhow::anyhow!(
                 "UndoTree: moving to Parent is not supported yet",
             )),
+            #[cfg(test)]
             Movement::FirstChild => Err(anyhow::anyhow!(
                 "UndoTree: moving to FirstChild is not supported yet",
             )),

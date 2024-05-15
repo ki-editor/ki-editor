@@ -1,6 +1,6 @@
-pub mod crossterm;
+pub(crate) mod crossterm;
 #[cfg(test)]
-pub mod mock;
+pub(crate) mod mock;
 
 use crate::{app::Dimension, components::component::Cursor, screen::Screen};
 

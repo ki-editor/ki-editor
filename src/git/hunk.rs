@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Hunk {
+pub(crate) struct Hunk {
     /// 0-based index
     new_line_range: Range<usize>,
 
@@ -140,7 +140,7 @@ fn leading_whitespace_count(s: &str) -> usize {
 }
 
 #[derive(Debug, Clone)]
-pub enum LineDiff {
+pub(crate) enum LineDiff {
     Context(String),
     Delete(String),
     Insert(String),

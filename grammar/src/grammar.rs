@@ -23,13 +23,13 @@ const DYLIB_EXTENSION: &str = "wasm";
 #[derive(Debug, Serialize, Deserialize)]
 struct Configuration {
     #[serde(rename = "use-grammars")]
-    pub grammar_selection: Option<GrammarSelection>,
-    pub grammar: Vec<GrammarConfiguration>,
+    pub(crate) grammar_selection: Option<GrammarSelection>,
+    pub(crate) grammar: Vec<GrammarConfiguration>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase", untagged)]
-pub enum GrammarSelection {
+pub(crate) enum GrammarSelection {
     Only { only: HashSet<String> },
     Except { except: HashSet<String> },
 }
@@ -39,7 +39,7 @@ pub enum GrammarSelection {
 pub struct GrammarConfiguration {
     #[serde(rename = "name")]
     pub grammar_id: String,
-    pub source: GrammarSource,
+    pub(crate) source: GrammarSource,
 }
 
 impl GrammarConfiguration {

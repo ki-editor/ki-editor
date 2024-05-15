@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use super::{ByteRange, SelectionMode};
 
-pub struct CaseAgnostic {
+pub(crate) struct CaseAgnostic {
     pattern: String,
 }
 

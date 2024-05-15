@@ -2,7 +2,7 @@ use crate::{components::component::Cursor, screen::Screen};
 
 use super::Frontend;
 
-pub struct Crossterm {
+pub(crate) struct Crossterm {
     stdout: std::io::Stdout,
     /// Used for diffing to reduce unnecessary re-painting.
     previous_screen: Screen,

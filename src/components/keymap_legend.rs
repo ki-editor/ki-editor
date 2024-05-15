@@ -18,26 +18,26 @@ use super::{
     render_editor::Source,
 };
 
-pub struct KeymapLegend {
+pub(crate) struct KeymapLegend {
     editor: Editor,
     config: KeymapLegendConfig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeymapLegendConfig {
-    pub title: String,
-    pub body: KeymapLegendBody,
+pub(crate) struct KeymapLegendConfig {
+    pub(crate) title: String,
+    pub(crate) body: KeymapLegendBody,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum KeymapLegendBody {
+pub(crate) enum KeymapLegendBody {
     SingleSection { keymaps: Keymaps },
     MultipleSections { sections: Vec<KeymapLegendSection> },
 }
 const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Keymaps(Vec<Keymap>);
+pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
     fn display(&self, indent: usize, width: usize) -> String {
         let width = width.saturating_sub(indent);
@@ -129,9 +129,9 @@ fn dedent(s: &str) -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeymapLegendSection {
-    pub title: String,
-    pub keymaps: Keymaps,
+pub(crate) struct KeymapLegendSection {
+    pub(crate) title: String,
+    pub(crate) keymaps: Keymaps,
 }
 
 impl KeymapLegendSection {
@@ -236,7 +236,7 @@ impl KeymapLegendConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Keymap {
+pub(crate) struct Keymap {
     key: &'static str,
     description: String,
     event: KeyEvent,

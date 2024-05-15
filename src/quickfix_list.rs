@@ -53,7 +53,7 @@ impl QuickfixListItem {
     }
 }
 
-pub struct QuickfixList {
+pub(crate) struct QuickfixList {
     dropdown: Dropdown,
     #[cfg(test)]
     items: Vec<QuickfixListItem>,
@@ -121,7 +121,7 @@ impl QuickfixList {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QuickfixListItem {
+pub(crate) struct QuickfixListItem {
     location: Location,
     info: Option<Info>,
 }
@@ -167,9 +167,9 @@ impl QuickfixListItem {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Location {
-    pub path: CanonicalizedPath,
-    pub range: Range<Position>,
+pub(crate) struct Location {
+    pub(crate) path: CanonicalizedPath,
+    pub(crate) range: Range<Position>,
 }
 
 impl Location {
@@ -226,14 +226,14 @@ impl Ord for Location {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum QuickfixListType {
+pub(crate) enum QuickfixListType {
     Diagnostic(DiagnosticSeverityRange),
     Items(Vec<QuickfixListItem>),
     Bookmark,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub enum DiagnosticSeverityRange {
+pub(crate) enum DiagnosticSeverityRange {
     All,
     Error,
     Warning,

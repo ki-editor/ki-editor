@@ -1,4 +1,4 @@
-pub mod hunk;
+pub(crate) mod hunk;
 
 use rayon::prelude::*;
 
@@ -9,7 +9,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use self::hunk::Hunk;
 
-pub struct GitRepo {
+pub(crate) struct GitRepo {
     repo: Repository,
     path: CanonicalizedPath,
 }
@@ -103,7 +103,7 @@ impl GitRepo {
     }
 }
 
-pub struct FileDiff {
+pub(crate) struct FileDiff {
     path: CanonicalizedPath,
     hunks: Vec<Hunk>,
 }

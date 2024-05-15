@@ -4,19 +4,15 @@ use crate::{
 };
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
-pub struct Style {
-    pub foreground_color: Option<Color>,
-    pub background_color: Option<Color>,
-    pub line: Option<CellLine>,
-    pub is_bold: bool,
+pub(crate) struct Style {
+    pub(crate) foreground_color: Option<Color>,
+    pub(crate) background_color: Option<Color>,
+    pub(crate) line: Option<CellLine>,
+    pub(crate) is_bold: bool,
 }
 
 pub const fn fg(color: Color) -> Style {
     Style::new().foreground_color(color)
-}
-
-pub const fn bg(color: Color) -> Style {
-    Style::new().background_color(color)
 }
 
 impl Style {

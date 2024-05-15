@@ -1,4 +1,4 @@
-pub struct Foo {
+pub(crate) struct Foo {
     a: (),
     b: (),
 }

@@ -3,7 +3,7 @@ use itertools::Itertools;
 
 use super::{ByteRange, SelectionMode};
 
-pub struct GitHunk {
+pub(crate) struct GitHunk {
     ranges: Vec<super::ByteRange>,
 }
 

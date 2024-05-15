@@ -461,7 +461,6 @@ fn exchange_sibling_2() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("use a;\nuse b;\nuse c;".to_string())),
             // Select first statement
-            Editor(SetSelectionMode(TopNode)),
             Editor(SetSelectionMode(SyntaxTree)),
             Expect(CurrentSelectedTexts(&["use a;"])),
             Editor(EnterExchangeMode),

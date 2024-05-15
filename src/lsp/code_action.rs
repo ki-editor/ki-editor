@@ -9,15 +9,15 @@ use super::workspace_edit::WorkspaceEdit;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-pub struct CodeAction {
-    pub title: String,
-    pub kind: Option<String>,
-    pub edit: Option<WorkspaceEdit>,
-    pub command: Option<Command>,
+pub(crate) struct CodeAction {
+    pub(crate) title: String,
+    pub(crate) kind: Option<String>,
+    pub(crate) edit: Option<WorkspaceEdit>,
+    pub(crate) command: Option<Command>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Command(lsp_types::Command);
+pub(crate) struct Command(lsp_types::Command);
 impl Command {
     pub(crate) fn arguments(&self) -> Vec<serde_json::Value> {
         self.0.arguments.clone().unwrap_or_default()

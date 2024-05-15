@@ -7,15 +7,15 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
 
-pub mod ast_grep;
+pub(crate) mod ast_grep;
 
-pub mod case_agnostic;
-pub mod grep;
+pub(crate) mod case_agnostic;
+pub(crate) mod grep;
 
-pub struct WalkBuilderConfig {
-    pub root: PathBuf,
-    pub include: Option<Glob>,
-    pub exclude: Option<Glob>,
+pub(crate) struct WalkBuilderConfig {
+    pub(crate) root: PathBuf,
+    pub(crate) include: Option<Glob>,
+    pub(crate) exclude: Option<Glob>,
 }
 
 type SearchFn = dyn Fn(&Buffer) -> anyhow::Result<Vec<ByteRange>> + Send + Sync;

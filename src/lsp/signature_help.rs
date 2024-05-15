@@ -9,15 +9,15 @@ use crate::{
 use super::documentation::Documentation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SignatureHelp {
-    pub signatures: Vec<SignatureInformation>,
+pub(crate) struct SignatureHelp {
+    pub(crate) signatures: Vec<SignatureInformation>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SignatureInformation {
-    pub label: String,
-    pub documentation: Option<Documentation>,
-    pub active_parameter_byte_range: Option<SelectionRange>,
+pub(crate) struct SignatureInformation {
+    pub(crate) label: String,
+    pub(crate) documentation: Option<Documentation>,
+    pub(crate) active_parameter_byte_range: Option<SelectionRange>,
 }
 
 impl From<lsp_types::SignatureHelp> for SignatureHelp {

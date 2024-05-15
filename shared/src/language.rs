@@ -1,13 +1,13 @@
 use grammar::grammar::GrammarConfiguration;
 use serde_json::Value;
 
-pub use crate::process_command::ProcessCommand;
+pub(crate) use crate::process_command::ProcessCommand;
 use crate::{
     canonicalized_path::CanonicalizedPath, formatter::Formatter,
     ts_highlight_query::get_highlight_query,
 };
 
-pub use crate::languages::LANGUAGES;
+pub(crate) use crate::languages::LANGUAGES;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 /// As defined by the LSP protocol.
@@ -36,19 +36,19 @@ impl Command {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Language {
-    pub extensions: &'static [&'static str],
-    pub file_names: &'static [&'static str],
-    pub lsp_language_id: Option<LanguageId>,
-    pub lsp_command: Option<LspCommand>,
-    pub tree_sitter_grammar_config: Option<GrammarConfig>,
-    pub highlight_query: Option<&'static str>,
-    pub formatter_command: Option<Command>,
+    pub(crate) extensions: &'static [&'static str],
+    pub(crate) file_names: &'static [&'static str],
+    pub(crate) lsp_language_id: Option<LanguageId>,
+    pub(crate) lsp_command: Option<LspCommand>,
+    pub(crate) tree_sitter_grammar_config: Option<GrammarConfig>,
+    pub(crate) highlight_query: Option<&'static str>,
+    pub(crate) formatter_command: Option<Command>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LspCommand {
-    pub command: Command,
-    pub initialization_options: Option<&'static str>,
+    pub(crate) command: Command,
+    pub(crate) initialization_options: Option<&'static str>,
 }
 impl LspCommand {
     pub const fn default() -> LspCommand {
@@ -79,10 +79,10 @@ impl Language {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrammarConfig {
-    pub id: &'static str,
-    pub url: &'static str,
-    pub commit: &'static str,
-    pub subpath: Option<&'static str>,
+    pub(crate) id: &'static str,
+    pub(crate) url: &'static str,
+    pub(crate) commit: &'static str,
+    pub(crate) subpath: Option<&'static str>,
 }
 
 impl Language {
@@ -154,21 +154,14 @@ impl Language {
         self.lsp_language_id
     }
 
-    fn formatter_command(&self) -> Option<(ProcessCommand, FormatterTestCase)> {
-        self.formatter_command.as_ref().map(|command| {
-            (
-                ProcessCommand::new(command.0, command.1),
-                FormatterTestCase {
-                    input: "",
-                    expected: "",
-                },
-            )
-        })
+    fn formatter_command(&self) -> Option<ProcessCommand> {
+        self.formatter_command
+            .as_ref()
+            .map(|command| ProcessCommand::new(command.0, command.1))
     }
 
     pub fn formatter(&self) -> Option<Formatter> {
-        self.formatter_command()
-            .map(|(command, _)| Formatter::from(command))
+        self.formatter_command().map(Formatter::from)
     }
 }
 
@@ -191,14 +184,6 @@ pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
         .iter()
         .find(|language| language.file_names().contains(&file_name.as_str()))
         .map(|language| (*language).clone())
-}
-
-pub struct FormatterTestCase {
-    /// The unformatted input.
-    pub input: &'static str,
-
-    /// The formatted output.
-    pub expected: &'static str,
 }
 
 #[cfg(test)]

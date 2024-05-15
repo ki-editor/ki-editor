@@ -1,6 +1,6 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Documentation {
-    pub content: String,
+pub(crate) struct Documentation {
+    pub(crate) content: String,
 }
 impl Documentation {
     #[cfg(test)]

@@ -45,7 +45,7 @@ use super::{
 };
 
 #[derive(PartialEq, Clone, Debug, Eq)]
-pub enum Mode {
+pub(crate) enum Mode {
     Normal,
     Insert,
     MultiCursor,
@@ -56,9 +56,9 @@ pub enum Mode {
 }
 
 #[derive(PartialEq, Clone, Debug)]
-pub struct Jump {
-    pub character: char,
-    pub selection: Selection,
+pub(crate) struct Jump {
+    pub(crate) character: char,
+    pub(crate) selection: Selection,
 }
 const WINDOW_TITLE_HEIGHT: usize = 1;
 
@@ -320,14 +320,14 @@ impl Clone for Editor {
     }
 }
 
-pub struct Editor {
-    pub mode: Mode,
-    pub regex_highlight_rules: Vec<RegexHighlightRule>,
+pub(crate) struct Editor {
+    pub(crate) mode: Mode,
+    pub(crate) regex_highlight_rules: Vec<RegexHighlightRule>,
 
-    pub selection_set: SelectionSet,
+    pub(crate) selection_set: SelectionSet,
 
-    pub jumps: Option<Vec<Jump>>,
-    pub cursor_direction: Direction,
+    pub(crate) jumps: Option<Vec<Jump>>,
+    pub(crate) cursor_direction: Direction,
 
     /// This means the number of lines to be skipped from the top during rendering.
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
@@ -337,20 +337,20 @@ pub struct Editor {
     buffer: Rc<RefCell<Buffer>>,
     title: Option<String>,
     id: ComponentId,
-    pub current_view_alignment: Option<ViewAlignment>,
+    pub(crate) current_view_alignment: Option<ViewAlignment>,
     selection_set_history: History<SelectionSet>,
 }
 
-pub struct RegexHighlightRule {
-    pub regex: regex::Regex,
-    pub capture_styles: Vec<RegexHighlightRuleCaptureStyle>,
+pub(crate) struct RegexHighlightRule {
+    pub(crate) regex: regex::Regex,
+    pub(crate) capture_styles: Vec<RegexHighlightRuleCaptureStyle>,
 }
 
-pub struct RegexHighlightRuleCaptureStyle {
+pub(crate) struct RegexHighlightRuleCaptureStyle {
     /// 0 means the entire match.
     /// Refer https://docs.rs/regex/latest/regex/struct.Regex.html#method.captures
-    pub capture_name: &'static str,
-    pub source: Source,
+    pub(crate) capture_name: &'static str,
+    pub(crate) source: Source,
 }
 impl RegexHighlightRuleCaptureStyle {
     pub(crate) fn new(capture_name: &'static str, source: Source) -> Self {
@@ -362,7 +362,7 @@ impl RegexHighlightRuleCaptureStyle {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Direction {
+pub(crate) enum Direction {
     Start,
     End,
 }
@@ -382,7 +382,7 @@ impl Direction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Movement {
+pub(crate) enum Movement {
     Next,
     Previous,
     Last,
@@ -395,6 +395,7 @@ pub enum Movement {
     Jump(CharIndexRange),
     ToParentLine,
     Parent,
+    #[cfg(test)]
     FirstChild,
 }
 
@@ -2417,19 +2418,19 @@ impl Editor {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
-pub enum ViewAlignment {
+pub(crate) enum ViewAlignment {
     Top,
     Center,
     Bottom,
 }
 
-pub enum HandleEventResult {
+pub(crate) enum HandleEventResult {
     Handled(Dispatches),
     Ignored(KeyEvent),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DispatchEditor {
+pub(crate) enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
     SetScrollOffset(u16),
@@ -2521,7 +2522,7 @@ pub enum DispatchEditor {
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub enum SurroundKind {
+pub(crate) enum SurroundKind {
     Inside,
     Around,
 }

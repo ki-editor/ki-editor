@@ -3,9 +3,9 @@ use std::ops::Range;
 use crate::position::Position;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrepareRenameResponse {
-    pub range: Option<Range<Position>>,
-    pub placeholder: Option<String>,
+pub(crate) struct PrepareRenameResponse {
+    pub(crate) range: Option<Range<Position>>,
+    pub(crate) placeholder: Option<String>,
 }
 
 impl From<lsp_types::PrepareRenameResponse> for PrepareRenameResponse {

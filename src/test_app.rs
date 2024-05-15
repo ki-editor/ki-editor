@@ -14,11 +14,11 @@ use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
 };
-pub use Dispatch::*;
-pub use DispatchEditor::*;
+pub(crate) use Dispatch::*;
+pub(crate) use DispatchEditor::*;
 
-pub use Movement::*;
-pub use SelectionMode::*;
+pub(crate) use Movement::*;
+pub(crate) use SelectionMode::*;
 
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -54,7 +54,7 @@ use crate::{
 };
 use crate::{lsp::process::LspNotification, themes::Color};
 
-pub enum Step {
+pub(crate) enum Step {
     App(Dispatch),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
@@ -65,7 +65,7 @@ pub enum Step {
 }
 
 #[derive(Debug)]
-pub enum ExpectKind {
+pub(crate) enum ExpectKind {
     FileExplorerContent(String),
     EditorInfoContent(&'static str),
     EditorInfoOpen(bool),
@@ -357,9 +357,9 @@ impl ExpectKind {
     }
 }
 
-pub use ExpectKind::*;
-pub use Step::*;
-pub struct State {
+pub(crate) use ExpectKind::*;
+pub(crate) use Step::*;
+pub(crate) struct State {
     temp_dir: CanonicalizedPath,
     main_rs: CanonicalizedPath,
     foo_rs: CanonicalizedPath,
@@ -590,7 +590,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(Copy),
             Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
-            Editor(SetSelectionMode(SelectionMode::TopNode)),
+            Editor(SetSelectionMode(SelectionMode::SyntaxTree)),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
             Editor(ReplaceWithCopiedText),
             Expect(CurrentComponentContent("fn f()fn f()")),
@@ -739,7 +739,10 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                             path: s.foo_rs(),
                             range: Position { line: 0, column: 0 }..Position { line: 1, column: 0 },
                         },
-                        strs_to_strings(&["pub struct Foo {", "// Hellopub struct Foo {"]),
+                        strs_to_strings(&[
+                            "pub(crate) struct Foo {",
+                            "// Hellopub(crate) struct Foo {",
+                        ]),
                     ),
                     QuickfixListItem::new(
                         Location {

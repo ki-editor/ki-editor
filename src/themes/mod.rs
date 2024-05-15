@@ -1,21 +1,21 @@
-pub mod vscode_light;
+pub(crate) mod vscode_light;
 use std::collections::HashMap;
 
 use itertools::Itertools;
-pub use vscode_light::VSCODE_LIGHT;
+pub(crate) use vscode_light::VSCODE_LIGHT;
 
 use crate::{grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Theme {
-    pub name: &'static str,
-    pub syntax: SyntaxStyles,
-    pub ui: UiStyles,
-    pub diagnostic: DiagnosticStyles,
-    pub hunk_old_background: Color,
-    pub hunk_new_background: Color,
-    pub hunk_old_emphasized_background: Color,
-    pub hunk_new_emphasized_background: Color,
+pub(crate) struct Theme {
+    pub(crate) name: &'static str,
+    pub(crate) syntax: SyntaxStyles,
+    pub(crate) ui: UiStyles,
+    pub(crate) diagnostic: DiagnosticStyles,
+    pub(crate) hunk_old_background: Color,
+    pub(crate) hunk_new_background: Color,
+    pub(crate) hunk_old_emphasized_background: Color,
+    pub(crate) hunk_new_emphasized_background: Color,
 }
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
@@ -70,46 +70,46 @@ impl Default for Theme {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DiagnosticStyles {
-    pub error: Style,
-    pub warning: Style,
-    pub information: Style,
-    pub hint: Style,
-    pub default: Style,
+pub(crate) struct DiagnosticStyles {
+    pub(crate) error: Style,
+    pub(crate) warning: Style,
+    pub(crate) information: Style,
+    pub(crate) hint: Style,
+    pub(crate) default: Style,
 }
 
 #[derive(Default, Clone, PartialEq, Eq, Debug)]
-pub struct UiStyles {
-    pub fuzzy_matched_char: Style,
-    pub global_title: Style,
-    pub window_title: Style,
-    pub parent_lines_background: Color,
-    pub jump_mark_odd: Style,
-    pub jump_mark_even: Style,
-    pub text_foreground: Color,
-    pub background_color: Color,
-    pub primary_selection_background: Color,
-    pub primary_selection_anchor_background: Color,
-    pub primary_selection_secondary_cursor: Style,
-    pub secondary_selection_background: Color,
-    pub secondary_selection_anchor_background: Color,
-    pub possible_selection_background: Color,
-    pub secondary_selection_primary_cursor: Style,
-    pub secondary_selection_secondary_cursor: Style,
-    pub line_number: Style,
-    pub line_number_separator: Style,
-    pub bookmark: Style,
-    pub keymap_key: Style,
-    pub keymap_arrow: Style,
-    pub keymap_hint: Style,
-    pub keymap_description: Style,
+pub(crate) struct UiStyles {
+    pub(crate) fuzzy_matched_char: Style,
+    pub(crate) global_title: Style,
+    pub(crate) window_title: Style,
+    pub(crate) parent_lines_background: Color,
+    pub(crate) jump_mark_odd: Style,
+    pub(crate) jump_mark_even: Style,
+    pub(crate) text_foreground: Color,
+    pub(crate) background_color: Color,
+    pub(crate) primary_selection_background: Color,
+    pub(crate) primary_selection_anchor_background: Color,
+    pub(crate) primary_selection_secondary_cursor: Style,
+    pub(crate) secondary_selection_background: Color,
+    pub(crate) secondary_selection_anchor_background: Color,
+    pub(crate) possible_selection_background: Color,
+    pub(crate) secondary_selection_primary_cursor: Style,
+    pub(crate) secondary_selection_secondary_cursor: Style,
+    pub(crate) line_number: Style,
+    pub(crate) line_number_separator: Style,
+    pub(crate) bookmark: Style,
+    pub(crate) keymap_key: Style,
+    pub(crate) keymap_arrow: Style,
+    pub(crate) keymap_hint: Style,
+    pub(crate) keymap_description: Style,
 }
 
 /// Refer https://github.com/nvim-treesitter/nvim-treesitter/blob/23ba63028c6acca29be6462c0a291fc4a1b9eae8/CONTRIBUTING.md#highlights
 /// The capture groups should tally with that of `nvim-treesitter` so that their highlight queries can be used in
 /// this editor without modifications.
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
-pub struct SyntaxStyles {
+pub(crate) struct SyntaxStyles {
     map: once_cell::sync::OnceCell<HashMap<String, Style>>,
     groups: &'static [(&'static str, Style)],
 }
@@ -179,7 +179,7 @@ mod test_syntax_styles {
     }
 }
 
-pub struct HighlightGroup {
+pub(crate) struct HighlightGroup {
     full_name: String,
     parent: Option<String>,
 }
@@ -294,7 +294,7 @@ pub const HIGHLIGHT_NAMES: &[&str] = &[
 
 /// This should be constructed using the `hex!` macro.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Color {
+pub(crate) struct Color {
     r: u8,
     g: u8,
     b: u8,

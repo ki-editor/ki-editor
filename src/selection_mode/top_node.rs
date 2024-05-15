@@ -1,7 +1,7 @@
 use super::{BottomNode, ByteRange, SelectionMode};
 use itertools::Itertools;
 
-pub struct TopNode;
+pub(crate) struct TopNode;
 
 impl SelectionMode for TopNode {
     fn name(&self) -> &'static str {

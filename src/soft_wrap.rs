@@ -9,14 +9,14 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct WrappedLines {
+pub(crate) struct WrappedLines {
     width: usize,
     lines: Vec<WrappedLine>,
     ending_with_newline_character: bool,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum CalibrationError {
+pub(crate) enum CalibrationError {
     LineOutOfRange,
     ColumnOutOfRange,
 }
@@ -81,7 +81,7 @@ impl WrappedLines {
 }
 
 #[derive(Debug, Clone)]
-pub struct WrappedLine {
+pub(crate) struct WrappedLine {
     /// 0-based
     line_number: usize,
     primary: String,

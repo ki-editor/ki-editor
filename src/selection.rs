@@ -18,12 +18,12 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SelectionSet {
-    pub primary: Selection,
-    pub secondary: Vec<Selection>,
-    pub mode: SelectionMode,
+pub(crate) struct SelectionSet {
+    pub(crate) primary: Selection,
+    pub(crate) secondary: Vec<Selection>,
+    pub(crate) mode: SelectionMode,
     /// TODO: filters should be stored globally, not at SelectionSet
-    pub filters: Filters,
+    pub(crate) filters: Filters,
 }
 
 /// Filters is a stack.
@@ -32,7 +32,7 @@ pub struct SelectionSet {
 /// 2. Pop latest filter
 /// 3. Clear all filters
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
-pub struct Filters(Vec<Filter>);
+pub(crate) struct Filters(Vec<Filter>);
 impl Filters {
     /// Returns `Some(item)` if it satisfy this `Filters`.
     pub(crate) fn retain(
@@ -65,7 +65,7 @@ impl Filters {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Filter {
+pub(crate) struct Filter {
     kind: FilterKind,
     mechanism: FilterMechanism,
     target: FilterTarget,
@@ -119,19 +119,19 @@ impl Filter {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum FilterTarget {
+pub(crate) enum FilterTarget {
     Info,
     Content,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub enum FilterKind {
+pub(crate) enum FilterKind {
     Keep,
     Remove,
 }
 
 #[derive(Clone, Debug)]
-pub enum FilterMechanism {
+pub(crate) enum FilterMechanism {
     Literal(String),
     Regex(regex::Regex),
     // AstGrep(ast_grep_core::Pattern),
@@ -419,7 +419,7 @@ impl SelectionSet {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum SelectionMode {
+pub(crate) enum SelectionMode {
     // Regex
     EmptyLine,
     WordShort,
@@ -444,7 +444,6 @@ pub enum SelectionMode {
 
     // Bookmark
     Bookmark,
-    TopNode,
     LineFull,
 }
 impl SelectionMode {
@@ -474,7 +473,6 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::TopNode => "TOP NODE".to_string(),
         }
     }
 
@@ -517,7 +515,6 @@ impl SelectionMode {
                 }
             },
             SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
-            SelectionMode::TopNode => Box::new(selection_mode::TopNode),
             SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
@@ -540,7 +537,6 @@ impl SelectionMode {
                 | SelectionMode::LineFull
                 | SelectionMode::Character
                 | SelectionMode::BottomNode
-                | SelectionMode::TopNode
                 | SelectionMode::SyntaxTree
         )
     }
@@ -553,7 +549,7 @@ impl From<Selection> for ApplyMovementResult {
 }
 
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
-pub struct Selection {
+pub(crate) struct Selection {
     range: CharIndexRange,
     copied_text: Option<Rope>,
 
@@ -758,7 +754,7 @@ impl Sub<usize> for CharIndex {
 }
 
 #[derive(PartialEq, Clone, Debug, Copy, PartialOrd, Eq, Ord, Hash, Default)]
-pub struct CharIndex(pub usize);
+pub(crate) struct CharIndex(pub usize);
 
 impl CharIndex {
     pub(crate) fn to_position(self, buffer: &Buffer) -> Position {

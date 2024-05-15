@@ -10,9 +10,9 @@ use super::editor::{DispatchEditor, Editor};
 
 // dyn_clone::clone_trait_object!(Component);
 //
-pub struct GetGridResult {
-    pub grid: Grid,
-    pub cursor: Option<Cursor>,
+pub(crate) struct GetGridResult {
+    pub(crate) grid: Grid,
+    pub(crate) cursor: Option<Cursor>,
 }
 #[cfg(test)]
 impl std::fmt::Display for GetGridResult {
@@ -32,7 +32,7 @@ impl std::fmt::Display for GetGridResult {
 }
 
 #[derive(Clone, Debug)]
-pub struct Cursor {
+pub(crate) struct Cursor {
     position: Position,
     style: SetCursorStyle,
 }
@@ -203,7 +203,7 @@ fn increment_counter() -> usize {
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
-pub struct ComponentId(usize);
+pub(crate) struct ComponentId(usize);
 impl ComponentId {
     pub(crate) fn new() -> ComponentId {
         ComponentId(increment_counter())

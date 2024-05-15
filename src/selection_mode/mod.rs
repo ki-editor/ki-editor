@@ -1,38 +1,38 @@
-pub mod ast_grep;
-pub mod bookmark;
-pub mod bottom_node;
-pub mod case_agnostic;
-pub mod column;
-pub mod custom;
-pub mod diagnostic;
-pub mod git_hunk;
+pub(crate) mod ast_grep;
+pub(crate) mod bookmark;
+pub(crate) mod bottom_node;
+pub(crate) mod case_agnostic;
+pub(crate) mod column;
+pub(crate) mod custom;
+pub(crate) mod diagnostic;
+pub(crate) mod git_hunk;
 
-pub mod line_full;
-pub mod line_trimmed;
-pub mod local_quickfix;
-pub mod regex;
-pub mod syntax_tree;
-pub mod top_node;
-pub mod word_long;
-pub mod word_short;
-pub use self::regex::Regex;
-pub use ast_grep::AstGrep;
-pub use bookmark::Bookmark;
-pub use bottom_node::BottomNode;
-pub use case_agnostic::CaseAgnostic;
-pub use column::Column;
-pub use custom::Custom;
-pub use diagnostic::Diagnostic;
-pub use git_hunk::GitHunk;
+pub(crate) mod line_full;
+pub(crate) mod line_trimmed;
+pub(crate) mod local_quickfix;
+pub(crate) mod regex;
+pub(crate) mod syntax_tree;
+pub(crate) mod top_node;
+pub(crate) mod word_long;
+pub(crate) mod word_short;
+pub(crate) use self::regex::Regex;
+pub(crate) use ast_grep::AstGrep;
+pub(crate) use bookmark::Bookmark;
+pub(crate) use bottom_node::BottomNode;
+pub(crate) use case_agnostic::CaseAgnostic;
+pub(crate) use column::Column;
+pub(crate) use custom::Custom;
+pub(crate) use diagnostic::Diagnostic;
+pub(crate) use git_hunk::GitHunk;
 use itertools::Itertools;
-pub use line_full::LineFull;
-pub use line_trimmed::LineTrimmed;
-pub use local_quickfix::LocalQuickfix;
+pub(crate) use line_full::LineFull;
+pub(crate) use line_trimmed::LineTrimmed;
+pub(crate) use local_quickfix::LocalQuickfix;
 use std::ops::Range;
-pub use syntax_tree::SyntaxTree;
-pub use top_node::TopNode;
-pub use word_long::WordLong;
-pub use word_short::WordShort;
+pub(crate) use syntax_tree::SyntaxTree;
+pub(crate) use top_node::TopNode;
+pub(crate) use word_long::WordLong;
+pub(crate) use word_short::WordShort;
 
 use crate::{
     buffer::Buffer,
@@ -46,7 +46,7 @@ use crate::{
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
-pub struct ByteRange {
+pub(crate) struct ByteRange {
     range: Range<usize>,
     info: Option<Info>,
 }
@@ -105,16 +105,16 @@ impl Ord for ByteRange {
 }
 
 #[derive(Clone)]
-pub struct SelectionModeParams<'a> {
-    pub buffer: &'a Buffer,
-    pub current_selection: &'a Selection,
-    pub cursor_direction: &'a Direction,
-    pub filters: &'a Filters,
+pub(crate) struct SelectionModeParams<'a> {
+    pub(crate) buffer: &'a Buffer,
+    pub(crate) current_selection: &'a Selection,
+    pub(crate) cursor_direction: &'a Direction,
+    pub(crate) filters: &'a Filters,
 }
 #[derive(Debug)]
-pub struct ApplyMovementResult {
-    pub selection: Selection,
-    pub mode: Option<crate::selection::SelectionMode>,
+pub(crate) struct ApplyMovementResult {
+    pub(crate) selection: Selection,
+    pub(crate) mode: Option<crate::selection::SelectionMode>,
 }
 
 impl ApplyMovementResult {
@@ -198,6 +198,7 @@ pub trait SelectionMode {
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
+            #[cfg(test)]
             Movement::FirstChild => self.first_child(params),
         }
     }

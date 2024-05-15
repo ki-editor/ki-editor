@@ -7,11 +7,11 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IconsConfig {
-    pub file: String,
+    pub(crate) file: String,
     pub folder: String,
     pub folder_expanded: String,
-    pub file_extensions: HashMap<String, String>,
-    pub file_names: HashMap<String, String>,
+    pub(crate) file_extensions: HashMap<String, String>,
+    pub(crate) file_names: HashMap<String, String>,
     pub completion: HashMap<String, String>,
 }
 

@@ -2,7 +2,7 @@ use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, SelectionMode, TopNode};
 
-pub struct SyntaxTree;
+pub(crate) struct SyntaxTree;
 
 impl SelectionMode for SyntaxTree {
     fn name(&self) -> &'static str {

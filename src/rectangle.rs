@@ -10,18 +10,18 @@ use crate::{
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
 /// A struct to represent a rectangle with origin, width and height
-pub struct Rectangle {
-    pub origin: Position,
-    pub width: u16,
-    pub height: u16,
+pub(crate) struct Rectangle {
+    pub(crate) origin: Position,
+    pub(crate) width: u16,
+    pub(crate) height: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 /// A struct to represent a border with direction, start and length
-pub struct Border {
-    pub direction: BorderDirection,
-    pub start: Position,
-    pub length: u16,
+pub(crate) struct Border {
+    pub(crate) direction: BorderDirection,
+    pub(crate) start: Position,
+    pub(crate) length: u16,
 }
 
 impl Border {
@@ -100,7 +100,7 @@ impl Border {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 // An enum to represent the direction of a border (horizontal or vertical)
-pub enum BorderDirection {
+pub(crate) enum BorderDirection {
     Horizontal,
     Vertical,
 }
@@ -465,7 +465,7 @@ impl Rectangle {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LayoutKind {
+pub(crate) enum LayoutKind {
     Tall,
     Wide,
 }

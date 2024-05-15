@@ -3,7 +3,7 @@ use convert_case::Casing;
 use crate::soft_wrap::soft_wrap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Transformation {
+pub(crate) enum Transformation {
     Case(convert_case::Case),
     Join,
     Wrap,

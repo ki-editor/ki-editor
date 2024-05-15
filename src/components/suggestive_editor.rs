@@ -23,7 +23,7 @@ use super::{
 };
 
 /// Editor with auto-complete
-pub struct SuggestiveEditor {
+pub(crate) struct SuggestiveEditor {
     editor: Editor,
     completion_dropdown: Dropdown,
 
@@ -32,7 +32,7 @@ pub struct SuggestiveEditor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SuggestiveEditorFilter {
+pub(crate) enum SuggestiveEditorFilter {
     CurrentWord,
     CurrentLine,
 }
@@ -233,7 +233,7 @@ impl SuggestiveEditor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DispatchSuggestiveEditor {
+pub(crate) enum DispatchSuggestiveEditor {
     #[cfg(test)]
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
@@ -799,7 +799,7 @@ mod test_suggestive_editor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub struct Info {
+pub(crate) struct Info {
     title: String,
     content: String,
     decorations: Vec<Decoration>,
@@ -854,7 +854,7 @@ impl Info {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Decoration {
+pub(crate) struct Decoration {
     selection_range: SelectionRange,
     style_key: StyleKey,
     adjustments: Vec<Adjustment>,

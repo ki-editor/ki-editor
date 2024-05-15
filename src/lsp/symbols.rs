@@ -7,8 +7,8 @@ use lsp_types::{DocumentSymbolResponse, SymbolKind};
 use shared::icons::get_icon_config;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Symbols {
-    pub symbols: Vec<Symbol>,
+pub(crate) struct Symbols {
+    pub(crate) symbols: Vec<Symbol>,
 }
 
 impl TryFrom<DocumentSymbolResponse> for Symbols {
@@ -46,11 +46,11 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Symbol {
-    pub name: String,
-    pub kind: SymbolKind,
-    pub location: Location,
-    pub container_name: Option<String>,
+pub(crate) struct Symbol {
+    pub(crate) name: String,
+    pub(crate) kind: SymbolKind,
+    pub(crate) location: Location,
+    pub(crate) container_name: Option<String>,
 }
 impl Symbol {
     pub(crate) fn display(&self) -> String {

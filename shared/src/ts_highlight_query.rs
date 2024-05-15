@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use isahc::prelude::*;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct GetHighlightQueryResult {
-    pub query: String,
+pub(crate) struct GetHighlightQueryResult {
+    pub(crate) query: String,
     is_cache: bool,
 }
 

@@ -1,7 +1,7 @@
 use super::{LineTrimmed, SelectionMode};
 use crate::selection_mode::ApplyMovementResult;
 
-pub struct LineFull;
+pub(crate) struct LineFull;
 
 impl SelectionMode for LineFull {
     fn name(&self) -> &'static str {

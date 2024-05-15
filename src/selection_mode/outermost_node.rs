@@ -1,7 +1,7 @@
 use super::{ByteRange, SelectionMode};
 use itertools::Itertools;
 
-pub struct OutermostNode;
+pub(crate) struct OutermostNode;
 
 impl SelectionMode for OutermostNode {
     fn name(&self) -> &'static str {

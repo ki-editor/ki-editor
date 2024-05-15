@@ -2,7 +2,7 @@ use crate::{buffer::Buffer, list::grep::RegexConfig};
 
 use super::{ByteRange, SelectionMode};
 
-pub struct Regex {
+pub(crate) struct Regex {
     regex: regex::Regex,
     content: String,
 }

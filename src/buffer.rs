@@ -25,7 +25,7 @@ use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
 
 #[derive(Clone)]
-pub struct Buffer {
+pub(crate) struct Buffer {
     rope: Rope,
     tree: Option<Tree>,
     treesitter_language: Option<tree_sitter::Language>,
@@ -40,11 +40,11 @@ pub struct Buffer {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Line {
+pub(crate) struct Line {
     origin_position: Position,
     /// 0-based
-    pub line: usize,
-    pub content: String,
+    pub(crate) line: usize,
+    pub(crate) content: String,
 }
 
 impl Buffer {
@@ -703,12 +703,6 @@ impl Buffer {
         self.char_to_byte(start)
     }
 
-    pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
-        let start = self.line_to_char(line)?;
-        let end = self.line_to_char(line + 1)? - 1;
-        Ok((start..end).into())
-    }
-
     pub(crate) fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
         let end = self.line_to_byte(line + 1)?.saturating_sub(1);
@@ -1269,16 +1263,16 @@ fn main() {
 }
 
 #[derive(Clone)]
-pub struct Patch {
+pub(crate) struct Patch {
     /// Why don't we store this is diffy::Patch? Because it requires a lifetime parameter
-    pub patch: String,
-    pub state: BufferState,
+    pub(crate) patch: String,
+    pub(crate) state: BufferState,
 }
 
 #[derive(Clone)]
-pub struct BufferState {
-    pub selection_set: SelectionSet,
-    pub bookmarks: Vec<CharIndexRange>,
+pub(crate) struct BufferState {
+    pub(crate) selection_set: SelectionSet,
+    pub(crate) bookmarks: Vec<CharIndexRange>,
 }
 
 impl std::fmt::Display for Patch {
@@ -1311,10 +1305,4 @@ impl PartialEq for Patch {
         // Always return false, assuming that no two patches can be identical
         false
     }
-}
-
-#[must_use]
-#[derive(Default)]
-pub struct UpdatableGlobalRanges {
-    pub diagnostics: Vec<Diagnostic>,
 }

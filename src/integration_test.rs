@@ -7,7 +7,7 @@ use std::{
 use crate::app::AppMessage;
 use shared::canonicalized_path::CanonicalizedPath;
 
-pub struct TestRunner {
+pub(crate) struct TestRunner {
     temp_dir: CanonicalizedPath,
 }
 
