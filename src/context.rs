@@ -9,7 +9,6 @@ use crate::{
     clipboard::Clipboard,
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
-    syntax_highlight::HighlightConfigs,
     themes::Theme,
 };
 
@@ -18,7 +17,8 @@ pub struct Context {
     mode: Option<GlobalMode>,
     theme: Box<Theme>,
 
-    highlight_configs: HighlightConfigs,
+    #[cfg(test)]
+    highlight_configs: crate::syntax_highlight::HighlightConfigs,
     current_working_directory: Option<CanonicalizedPath>,
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
@@ -41,7 +41,7 @@ pub enum GlobalMode {
     QuickfixListItem,
 }
 impl GlobalMode {
-    pub fn display(&self) -> String {
+    pub(crate) fn display(&self) -> String {
         match self {
             GlobalMode::QuickfixListItem => "QUICKFIX LIST ITEM".to_string(),
         }
@@ -60,7 +60,8 @@ impl Default for Context {
             clipboard: Clipboard::new(),
             theme: Box::<Theme>::default(),
             mode: None,
-            highlight_configs: HighlightConfigs::new(),
+            #[cfg(test)]
+            highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
             current_working_directory: None,
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
@@ -70,42 +71,40 @@ impl Default for Context {
 }
 
 impl Context {
-    pub fn new(current_working_directory: CanonicalizedPath) -> Self {
+    pub(crate) fn new(current_working_directory: CanonicalizedPath) -> Self {
         Self {
             current_working_directory: Some(current_working_directory),
             ..Self::default()
         }
     }
 
-    pub fn get_clipboard_content(&self) -> Option<String> {
+    pub(crate) fn get_clipboard_content(&self) -> Option<String> {
         self.clipboard.get_content()
     }
 
-    pub fn set_clipboard_content(&mut self, content: String) {
+    pub(crate) fn set_clipboard_content(&mut self, content: String) {
         self.clipboard.set_content(content.clone());
     }
-    pub fn mode(&self) -> Option<GlobalMode> {
+    pub(crate) fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()
     }
-    pub fn set_mode(&mut self, mode: Option<GlobalMode>) {
+    pub(crate) fn set_mode(&mut self, mode: Option<GlobalMode>) {
         self.mode = mode;
     }
 
-    pub fn theme(&self) -> &Theme {
+    pub(crate) fn theme(&self) -> &Theme {
         &self.theme
     }
 
-    pub fn clear_clipboard(&mut self) {
-        self.clipboard.clear()
-    }
-
-    pub fn set_theme(self, theme: Theme) -> Self {
+    #[cfg(test)]
+    pub(crate) fn set_theme(self, theme: Theme) -> Self {
         Self {
             theme: Box::new(theme),
             ..self
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn highlight(
         &mut self,
         language: shared::language::Language,
@@ -242,7 +241,7 @@ pub enum LocalSearchConfigMode {
     CaseAgnostic,
 }
 impl LocalSearchConfigMode {
-    pub fn display(&self) -> String {
+    pub(crate) fn display(&self) -> String {
         match self {
             LocalSearchConfigMode::Regex(regex) => regex.display(),
 
@@ -293,7 +292,8 @@ pub struct LocalSearchConfig {
 }
 
 impl LocalSearchConfig {
-    pub fn new(mode: LocalSearchConfigMode) -> Self {
+    #[cfg(test)]
+    pub(crate) fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
             searches: Default::default(),
@@ -313,7 +313,7 @@ impl LocalSearchConfig {
         }
     }
 
-    pub fn set_search(&mut self, search: String) -> &mut Self {
+    pub(crate) fn set_search(&mut self, search: String) -> &mut Self {
         self.searches.shift_remove(&search);
         self.searches.insert(search);
         self

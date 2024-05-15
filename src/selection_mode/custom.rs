@@ -7,7 +7,7 @@ pub struct Custom {
 }
 
 impl Custom {
-    pub fn new(current_selection: Selection) -> Custom {
+    pub(crate) fn new(current_selection: Selection) -> Custom {
         Custom { current_selection }
     }
 }

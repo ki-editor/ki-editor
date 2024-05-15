@@ -15,50 +15,7 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn message(&self) -> String {
-        let severity = self.severity.map(|severity| match severity {
-            DiagnosticSeverity::ERROR => "ERROR",
-            DiagnosticSeverity::WARNING => "WARNING",
-            DiagnosticSeverity::INFORMATION => "INFO",
-            DiagnosticSeverity::HINT => "HINT",
-            _ => "UNKNOWN",
-        });
-        format!(
-            "[{}]\n{}\n\n[RELATED INFORMATION]\n{}\n\n[REFERENCE]\n{}",
-            severity.unwrap_or("UNKNOWN"),
-            self.message,
-            self.related_information
-                .as_ref()
-                .map(|related_information| {
-                    related_information
-                        .iter()
-                        .map(|related_information| {
-                            format!(
-                                "{}\n  {}\n\n{}",
-                                related_information.location.display(),
-                                related_information.message,
-                                related_information
-                                    .location
-                                    .read()
-                                    .unwrap_or_else(|error| error.to_string())
-                                    .lines()
-                                    .map(|line| format!("    {}", line))
-                                    .collect::<Vec<_>>()
-                                    .join("\n")
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n\n")
-                })
-                .unwrap_or_else(|| "N/A".to_string()),
-            self.code_description
-                .as_ref()
-                .map(|description| description.href.to_string())
-                .unwrap_or_else(|| "N/A".to_string())
-        )
-    }
-
-    pub fn try_from(buffer: &Buffer, value: lsp_types::Diagnostic) -> anyhow::Result<Self> {
+    pub(crate) fn try_from(buffer: &Buffer, value: lsp_types::Diagnostic) -> anyhow::Result<Self> {
         Ok(Self {
             range: buffer.position_range_to_char_index_range(
                 &(Position::from(value.range.start)..Position::from(value.range.end)),

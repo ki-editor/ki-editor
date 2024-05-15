@@ -112,7 +112,7 @@ pub struct SyntaxHighlightResponse {
     pub highlighted_spans: HighlighedSpans,
 }
 
-pub fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
+pub(crate) fn start_thread(callback: Sender<AppMessage>) -> Sender<SyntaxHighlightRequest> {
     let (sender, receiver) = std::sync::mpsc::channel::<SyntaxHighlightRequest>();
     use debounce::EventDebouncer;
     struct Event(SyntaxHighlightRequest);

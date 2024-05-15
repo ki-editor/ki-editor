@@ -6,7 +6,7 @@ pub struct History<T> {
 }
 
 impl<T: Eq + Clone + std::fmt::Debug> History<T> {
-    pub fn push(&mut self, item: OldNew<T>) {
+    pub(crate) fn push(&mut self, item: OldNew<T>) {
         if self.backward_history.last() == Some(&item) {
             return;
         }
@@ -15,7 +15,7 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         self.forward_history.clear();
     }
 
-    pub fn undo(&mut self) -> Option<T> {
+    pub(crate) fn undo(&mut self) -> Option<T> {
         let item = self.backward_history.pop();
         if let Some(item) = &item {
             self.forward_history.push(item.clone());
@@ -23,7 +23,7 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         item.map(|item| item.new_to_old)
     }
 
-    pub fn redo(&mut self) -> Option<T> {
+    pub(crate) fn redo(&mut self) -> Option<T> {
         let item = self.forward_history.pop();
         if let Some(item) = &item {
             self.backward_history.push(item.clone());

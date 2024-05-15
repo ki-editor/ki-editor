@@ -25,7 +25,9 @@ fn increment_counter() -> usize {
 }
 
 impl TestRunner {
-    pub fn run(callback: impl Fn(CanonicalizedPath) -> anyhow::Result<()>) -> anyhow::Result<()> {
+    pub(crate) fn run(
+        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<()>,
+    ) -> anyhow::Result<()> {
         let (runner, _) = Self::new()?;
         callback(runner.temp_dir.clone())?;
         Ok(())

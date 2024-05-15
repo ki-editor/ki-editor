@@ -10,15 +10,15 @@ pub struct Command {
     dispatch: Dispatch,
 }
 impl Command {
-    pub fn dispatch(&self) -> Dispatch {
+    pub(crate) fn dispatch(&self) -> Dispatch {
         self.dispatch.clone()
     }
 
-    pub fn matches(&self, name: &str) -> bool {
+    pub(crate) fn matches(&self, name: &str) -> bool {
         self.aliases.contains(&name) || self.name == name
     }
 
-    pub fn to_dropdown_items(&self) -> Vec<DropdownItem> {
+    pub(crate) fn to_dropdown_items(&self) -> Vec<DropdownItem> {
         [
             DropdownItem::new(self.name.to_string()).set_info(Some(Info::new(
                 "Description".to_string(),
@@ -37,7 +37,7 @@ impl Command {
     }
 }
 
-pub fn find(name: &str) -> Option<&'static Command> {
+pub(crate) fn find(name: &str) -> Option<&'static Command> {
     COMMANDS.iter().find(|c| c.matches(name))
 }
 
@@ -53,5 +53,11 @@ pub const COMMANDS: &[Command] = &[
         aliases: &["wqa"],
         description: "Save all buffers and quite the editor",
         dispatch: Dispatch::SaveQuitAll,
+    },
+    Command {
+        name: "write-all",
+        aliases: &["wa"],
+        description: "Save all buffers",
+        dispatch: Dispatch::SaveAll,
     },
 ];

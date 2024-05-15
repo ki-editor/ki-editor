@@ -5,7 +5,7 @@ use crate::{
 
 use super::WalkBuilderConfig;
 
-pub fn run(
+pub(crate) fn run(
     pattern: String,
     walk_builder_config: WalkBuilderConfig,
 ) -> anyhow::Result<Vec<Location>> {

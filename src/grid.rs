@@ -47,7 +47,7 @@ pub enum CellLineStyle {
 
 impl Cell {
     #[cfg(test)]
-    pub fn from_char(c: char) -> Self {
+    pub(crate) fn from_char(c: char) -> Self {
         Cell {
             symbol: c.to_string(),
             ..Default::default()
@@ -99,7 +99,7 @@ pub struct CellUpdate {
 }
 
 impl CellUpdate {
-    pub fn new(position: Position) -> Self {
+    pub(crate) fn new(position: Position) -> Self {
         CellUpdate {
             position,
             symbol: None,
@@ -109,25 +109,11 @@ impl CellUpdate {
         }
     }
 
-    pub fn move_up(self, scroll_offset: usize) -> Option<CellUpdate> {
-        if scroll_offset > self.position.line {
-            None
-        } else {
-            Some(CellUpdate {
-                position: Position {
-                    line: self.position.line - scroll_offset,
-                    ..self.position
-                },
-                ..self
-            })
-        }
-    }
-
-    pub fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
+    pub(crate) fn set_is_cursor(self, is_cursor: bool) -> CellUpdate {
         CellUpdate { is_cursor, ..self }
     }
 
-    pub fn set_position_line(self, line: usize) -> CellUpdate {
+    pub(crate) fn set_position_line(self, line: usize) -> CellUpdate {
         CellUpdate {
             position: self.position.set_line(line),
             ..self
@@ -188,7 +174,7 @@ pub enum RenderContentLineNumber {
 }
 
 impl Grid {
-    pub fn new(dimension: Dimension) -> Grid {
+    pub(crate) fn new(dimension: Dimension) -> Grid {
         let mut cells: Vec<Vec<Cell>> = vec![];
         cells.resize_with(dimension.height.into(), || {
             let mut cells = vec![];
@@ -201,7 +187,7 @@ impl Grid {
         }
     }
 
-    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+    pub(crate) fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         self.rows
             .iter()
             .enumerate()
@@ -219,7 +205,7 @@ impl Grid {
     }
 
     #[cfg(test)]
-    pub fn from_text(dimension: Dimension, text: &str) -> Grid {
+    pub(crate) fn from_text(dimension: Dimension, text: &str) -> Grid {
         Grid::from_rope(dimension, &Rope::from_str(text))
     }
 
@@ -241,18 +227,14 @@ impl Grid {
         grid
     }
 
-    pub fn dimension(&self) -> Dimension {
+    pub(crate) fn dimension(&self) -> Dimension {
         Dimension {
             height: self.rows.len() as u16,
             width: self.width as u16,
         }
     }
 
-    pub fn set_line(self, row: usize, title: &str, style: &Style) -> Grid {
-        self.set_row(row, None, None, title, style)
-    }
-
-    pub fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
+    pub(crate) fn apply_cell_update(mut self, update: CellUpdate) -> Grid {
         let Position { line, column } = update.position;
         if line < self.rows.len() && column < self.rows[line].len() {
             self.rows[line][column] = self.rows[line][column].apply_update(update);
@@ -260,19 +242,19 @@ impl Grid {
         self
     }
 
-    pub fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
+    pub(crate) fn apply_cell_updates(self, updates: Vec<CellUpdate>) -> Grid {
         updates
             .into_iter()
             .fold(self, |grid, update| grid.apply_cell_update(update))
     }
 
-    pub fn merge_vertical(self, bottom: Grid) -> Grid {
+    pub(crate) fn merge_vertical(self, bottom: Grid) -> Grid {
         let mut top = self;
         top.rows.extend(bottom.rows);
         top
     }
 
-    pub fn clamp_bottom(self, by: u16) -> Grid {
+    pub(crate) fn clamp_bottom(self, by: u16) -> Grid {
         let mut grid = self;
         let dimension = grid.dimension();
         let height = dimension.height.saturating_sub(by);
@@ -290,7 +272,7 @@ impl Grid {
         }
     }
 
-    pub fn get_cursor_position(&self) -> Option<Position> {
+    pub(crate) fn get_cursor_position(&self) -> Option<Position> {
         self.to_positioned_cells().into_iter().find_map(|cell| {
             if cell.cell.is_cursor {
                 Some(cell.position)
@@ -298,21 +280,6 @@ impl Grid {
                 None
             }
         })
-    }
-
-    fn set_row(
-        self,
-        row_index: usize,
-        column_start: Option<usize>,
-        column_end: Option<usize>,
-        content: &str,
-        style: &Style,
-    ) -> Self {
-        let grid = self;
-        // Trim or Pad end with spaces
-        let cell_updates =
-            grid.get_row_cell_updates(row_index, column_start, column_end, content, style);
-        grid.apply_cell_updates(cell_updates)
     }
 
     pub(crate) fn get_row_cell_updates(
@@ -627,11 +594,11 @@ pub enum StyleKey {
 }
 
 /// TODO: in the future, tab size should be configurable
-pub fn get_string_width(str: &str) -> usize {
+pub(crate) fn get_string_width(str: &str) -> usize {
     str.chars().map(get_char_width).sum()
 }
 
-pub fn get_char_width(c: char) -> usize {
+pub(crate) fn get_char_width(c: char) -> usize {
     match c {
         '\t' => DEFAULT_TAB_SIZE,
         _ => UnicodeWidthChar::width(c).unwrap_or(1),

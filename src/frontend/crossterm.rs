@@ -9,7 +9,7 @@ pub struct Crossterm {
 }
 
 impl Crossterm {
-    pub fn new() -> Crossterm {
+    pub(crate) fn new() -> Crossterm {
         Crossterm {
             stdout: std::io::stdout(),
             previous_screen: Screen::default(),

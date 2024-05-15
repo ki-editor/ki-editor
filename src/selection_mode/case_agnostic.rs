@@ -7,7 +7,7 @@ pub struct CaseAgnostic {
 }
 
 impl CaseAgnostic {
-    pub fn new(pattern: String) -> Self {
+    pub(crate) fn new(pattern: String) -> Self {
         Self { pattern }
     }
     fn cases() -> Vec<convert_case::Case> {
@@ -24,7 +24,7 @@ impl CaseAgnostic {
             .collect()
     }
 
-    pub fn find_all(&self, haystack: &str) -> Vec<(ByteRange, String)> {
+    pub(crate) fn find_all(&self, haystack: &str) -> Vec<(ByteRange, String)> {
         self.possible_patterns()
             .into_iter()
             .flat_map(move |pattern| {

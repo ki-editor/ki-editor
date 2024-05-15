@@ -65,18 +65,18 @@ impl From<&SetCursorStyle> for crossterm::cursor::SetCursorStyle {
     }
 }
 impl Cursor {
-    pub fn style(&self) -> &SetCursorStyle {
+    pub(crate) fn style(&self) -> &SetCursorStyle {
         &self.style
     }
-    pub fn position(&self) -> &Position {
+    pub(crate) fn position(&self) -> &Position {
         &self.position
     }
 
-    pub fn new(position: Position, style: SetCursorStyle) -> Cursor {
+    pub(crate) fn new(position: Position, style: SetCursorStyle) -> Cursor {
         Cursor { position, style }
     }
 
-    pub fn set_position(self, position: Position) -> Cursor {
+    pub(crate) fn set_position(self, position: Position) -> Cursor {
         Cursor { position, ..self }
     }
 }
@@ -205,7 +205,7 @@ fn increment_counter() -> usize {
 #[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy, Hash, Default)]
 pub struct ComponentId(usize);
 impl ComponentId {
-    pub fn new() -> ComponentId {
+    pub(crate) fn new() -> ComponentId {
         ComponentId(increment_counter())
     }
 }

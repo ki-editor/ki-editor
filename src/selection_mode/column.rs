@@ -9,7 +9,7 @@ pub struct Column {
 }
 
 impl Column {
-    pub fn new(current_column: usize) -> Self {
+    pub(crate) fn new(current_column: usize) -> Self {
         Self { current_column }
     }
 }

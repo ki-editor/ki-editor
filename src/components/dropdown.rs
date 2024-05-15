@@ -21,7 +21,7 @@ pub struct DropdownItem {
 }
 
 impl DropdownItem {
-    pub fn display(&self) -> String {
+    pub(crate) fn display(&self) -> String {
         self.display.clone()
     }
 
@@ -43,7 +43,7 @@ impl DropdownItem {
         Self { dispatches, ..self }
     }
 
-    pub fn set_group(self, group: Option<String>) -> Self {
+    pub(crate) fn set_group(self, group: Option<String>) -> Self {
         Self { group, ..self }
     }
 
@@ -103,7 +103,7 @@ pub struct DropdownConfig {
 }
 
 impl Dropdown {
-    pub fn new(config: DropdownConfig) -> Self {
+    pub(crate) fn new(config: DropdownConfig) -> Self {
         Self {
             filter: String::new(),
             items: vec![],
@@ -113,7 +113,7 @@ impl Dropdown {
         }
     }
 
-    pub fn change_index(&mut self, index: usize) {
+    pub(crate) fn change_index(&mut self, index: usize) {
         if !self.filtered_item_groups.iter().any(|group| {
             group
                 .items
@@ -143,11 +143,11 @@ impl Dropdown {
         item_index + group_index * group_title_size + group_gap + group_title_size
     }
 
-    pub fn next_item(&mut self) {
+    pub(crate) fn next_item(&mut self) {
         self.change_index(self.current_item_index + 1)
     }
 
-    pub fn previous_item(&mut self) {
+    pub(crate) fn previous_item(&mut self) {
         self.change_index(self.current_item_index.saturating_sub(1))
     }
 
@@ -222,7 +222,7 @@ impl Dropdown {
         self.change_group_index(false).unwrap_or_default()
     }
 
-    pub fn current_item(&self) -> Option<DropdownItem> {
+    pub(crate) fn current_item(&self) -> Option<DropdownItem> {
         self.get_item_by_index(self.current_item_index)
     }
 
@@ -234,7 +234,7 @@ impl Dropdown {
             .map(|item| item.item.clone())
     }
 
-    pub fn set_items(&mut self, items: Vec<DropdownItem>) {
+    pub(crate) fn set_items(&mut self, items: Vec<DropdownItem>) {
         self.items = items;
         self.current_item_index = 0;
         self.compute_filtered_items();
@@ -390,13 +390,13 @@ impl Dropdown {
             .collect_vec();
     }
 
-    pub fn set_filter(&mut self, filter: &str) {
+    pub(crate) fn set_filter(&mut self, filter: &str) {
         self.filter = filter.to_string();
         self.current_item_index = 0;
         self.compute_filtered_items();
     }
 
-    pub fn render(&self) -> DropdownRender {
+    pub(crate) fn render(&self) -> DropdownRender {
         DropdownRender {
             title: self.title.clone(),
             content: self.content(),
@@ -439,7 +439,7 @@ impl Dropdown {
             .join("\n\n")
     }
 
-    pub fn apply_movement(&mut self, movement: Movement) {
+    pub(crate) fn apply_movement(&mut self, movement: Movement) {
         match movement {
             Movement::Next => self.next_item(),
             Movement::Current => {}

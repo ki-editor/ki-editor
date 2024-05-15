@@ -1,4 +1,4 @@
-pub fn find_previous<T>(
+pub(crate) fn find_previous<T>(
     iter: impl Iterator<Item = T>,
     set_last_match_predicate: impl Fn(&T, &Option<T>) -> bool,
     break_predicate: impl Fn(&T) -> bool,
@@ -16,7 +16,7 @@ pub fn find_previous<T>(
     last_match
 }
 
-pub fn consolidate_errors<T, E: std::fmt::Debug>(
+pub(crate) fn consolidate_errors<T, E: std::fmt::Debug>(
     message: &str,
     results: Vec<Result<T, E>>,
 ) -> anyhow::Result<()> {

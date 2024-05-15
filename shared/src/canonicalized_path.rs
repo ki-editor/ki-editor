@@ -91,7 +91,7 @@ impl CanonicalizedPath {
         Ok(std::fs::write(&self.0, content)?)
     }
 
-    pub fn extension(&self) -> Option<&str> {
+    pub(crate) fn extension(&self) -> Option<&str> {
         self.0.extension().and_then(|s| s.to_str())
     }
 
@@ -140,10 +140,6 @@ impl CanonicalizedPath {
 
     pub fn is_file(&self) -> bool {
         self.0.is_file()
-    }
-
-    pub fn join_as_path_buf(&self, other: &str) -> String {
-        self.to_path_buf().join(other).to_string_lossy().to_string()
     }
 
     pub fn try_display_relative(&self) -> String {

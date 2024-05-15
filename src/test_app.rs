@@ -361,28 +361,28 @@ pub struct State {
     git_ignore: CanonicalizedPath,
 }
 impl State {
-    pub fn main_rs(&self) -> CanonicalizedPath {
+    pub(crate) fn main_rs(&self) -> CanonicalizedPath {
         self.main_rs.clone()
     }
 
-    pub fn foo_rs(&self) -> CanonicalizedPath {
+    pub(crate) fn foo_rs(&self) -> CanonicalizedPath {
         self.foo_rs.clone()
     }
 
-    pub fn new_path(&self, path: &str) -> PathBuf {
+    pub(crate) fn new_path(&self, path: &str) -> PathBuf {
         self.temp_dir.to_path_buf().join(path)
     }
 
-    pub fn gitignore(&self) -> CanonicalizedPath {
+    pub(crate) fn gitignore(&self) -> CanonicalizedPath {
         self.git_ignore.clone()
     }
 
-    pub fn temp_dir(&self) -> CanonicalizedPath {
+    pub(crate) fn temp_dir(&self) -> CanonicalizedPath {
         self.temp_dir.clone()
     }
 }
 
-pub fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
+pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
     run_test(|mut app, temp_dir| {
         let steps = {
             callback(State {
@@ -696,7 +696,7 @@ fn signature_help() -> anyhow::Result<()> {
 }
 
 #[test]
-pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
+pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let path_new_file = s.new_path("new_file.md");
         fn strs_to_strings(strs: &[&str]) -> Option<Info> {
@@ -750,7 +750,7 @@ pub fn repo_git_hunks() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-pub fn non_git_ignored_files() -> Result<(), anyhow::Error> {
+pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         let temp_dir = s.temp_dir();
         Box::new([

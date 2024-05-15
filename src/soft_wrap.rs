@@ -36,7 +36,7 @@ impl Display for WrappedLines {
 impl WrappedLines {
     /// The returned value is not one position but potentially multiple positions
     /// because some characters take multiple cells in terminal
-    pub fn calibrate(&self, position: Position) -> Result<Vec<Position>, CalibrationError> {
+    pub(crate) fn calibrate(&self, position: Position) -> Result<Vec<Position>, CalibrationError> {
         if self.lines.is_empty() && position.line == 0 && position.column == 0 {
             return Ok(vec![Position::new(0, 0)]);
         }
@@ -71,7 +71,7 @@ impl WrappedLines {
             .collect_vec())
     }
 
-    pub fn lines(&self) -> &Vec<WrappedLine> {
+    pub(crate) fn lines(&self) -> &Vec<WrappedLine> {
         &self.lines
     }
 
@@ -96,14 +96,14 @@ impl Display for WrappedLine {
     }
 }
 impl WrappedLine {
-    pub fn lines(&self) -> Vec<String> {
+    pub(crate) fn lines(&self) -> Vec<String> {
         [self.primary.clone()]
             .into_iter()
             .chain(self.wrapped.iter().cloned())
             .collect()
     }
 
-    pub fn line_number(&self) -> usize {
+    pub(crate) fn line_number(&self) -> usize {
         self.line_number
     }
 
@@ -147,7 +147,7 @@ impl WrappedLine {
     }
 }
 
-pub fn soft_wrap(text: &str, width: usize) -> WrappedLines {
+pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     let re = Regex::new(r"\b").unwrap();
     let lines = text
         .lines()

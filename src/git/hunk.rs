@@ -21,7 +21,7 @@ pub struct Hunk {
     decorations: Vec<Decoration>,
 }
 impl Hunk {
-    pub fn get(old: &str, new: &str) -> Vec<Hunk> {
+    pub(crate) fn get(old: &str, new: &str) -> Vec<Hunk> {
         let diff = TextDiff::from_lines(old, new);
 
         let context_len = 0;

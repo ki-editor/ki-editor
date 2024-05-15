@@ -56,11 +56,4 @@ impl super::Frontend for MockFrontend {
     }
 }
 
-impl MockFrontend {
-    pub fn content(&mut self) -> String {
-        self.screen
-            .as_mut()
-            .map(|screen| screen.stringify())
-            .unwrap_or_default()
-    }
-}
+impl MockFrontend {}

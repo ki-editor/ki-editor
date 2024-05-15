@@ -21,7 +21,7 @@ pub struct UndoTree<T: Applicable> {
 }
 
 impl<T: Applicable> UndoTree<T> {
-    pub fn edit(
+    pub(crate) fn edit(
         &mut self,
         target: &mut T::Target,
         edit: OldNew<T>,
@@ -36,11 +36,11 @@ impl<T: Applicable> UndoTree<T> {
         }
     }
 
-    pub fn undo(&mut self, target: &mut T::Target) -> anyhow::Result<Option<T::Output>> {
+    pub(crate) fn undo(&mut self, target: &mut T::Target) -> anyhow::Result<Option<T::Output>> {
         self.history.undo(target).transpose()
     }
 
-    pub fn redo(&mut self, target: &mut T::Target) -> anyhow::Result<Option<T::Output>> {
+    pub(crate) fn redo(&mut self, target: &mut T::Target) -> anyhow::Result<Option<T::Output>> {
         self.history.redo(target).transpose()
     }
 

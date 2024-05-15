@@ -1,6 +1,6 @@
 use grammar::grammar::GrammarConfiguration;
 
-pub fn grammar_configs() -> Vec<GrammarConfiguration> {
+pub(crate) fn grammar_configs() -> Vec<GrammarConfiguration> {
     crate::languages::LANGUAGES
         .iter()
         .flat_map(|language| language.tree_sitter_grammar_config())

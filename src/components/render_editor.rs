@@ -24,7 +24,7 @@ use super::{component::GetGridResult, editor::Editor};
 use StyleKey::*;
 
 impl Editor {
-    pub fn get_grid(&self, context: &Context) -> GetGridResult {
+    pub(crate) fn get_grid(&self, context: &Context) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.render_area();
         let buffer = editor.buffer();
@@ -413,7 +413,7 @@ impl Editor {
         }
     }
 
-    pub fn possible_selections_in_line_number_range(
+    pub(crate) fn possible_selections_in_line_number_range(
         &self,
         selection: &Selection,
     ) -> anyhow::Result<Vec<ByteRange>> {

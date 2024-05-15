@@ -243,6 +243,7 @@ impl Editor {
                     Dispatch::ToEditor(ReplaceCut),
                 ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
+                Keymap::new("^", "Raise".to_string(), Dispatch::ToEditor(Raise)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
             ]),
         }
@@ -278,7 +279,7 @@ impl Editor {
         }
     }
 
-    pub fn insert_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn insert_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Insert mode keymaps".to_string(),
             body: KeymapLegendBody::MultipleSections {
@@ -381,7 +382,7 @@ impl Editor {
         }
     }
 
-    pub fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Dispatches> {
+    pub(crate) fn handle_insert_mode(&mut self, event: KeyEvent) -> anyhow::Result<Dispatches> {
         if let Some(dispatches) = self
             .insert_mode_keymap_legend_config()
             .keymaps()
@@ -397,7 +398,10 @@ impl Editor {
         }
     }
 
-    pub fn handle_universal_key(&mut self, event: KeyEvent) -> anyhow::Result<HandleEventResult> {
+    pub(crate) fn handle_universal_key(
+        &mut self,
+        event: KeyEvent,
+    ) -> anyhow::Result<HandleEventResult> {
         if let Some(keymap) = self.keymap_universal().keymaps.get(&event) {
             Ok(HandleEventResult::Handled(Dispatches::one(
                 keymap.dispatch(),
@@ -407,7 +411,7 @@ impl Editor {
         }
     }
 
-    pub fn keymap_modes(&self) -> KeymapLegendSection {
+    pub(crate) fn keymap_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Mode".to_string(),
             keymaps: Keymaps::new(&[
@@ -430,7 +434,7 @@ impl Editor {
         }
     }
 
-    pub fn keymap_movement_modes(&self) -> KeymapLegendSection {
+    pub(crate) fn keymap_movement_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Movement Mode".to_string(),
             keymaps: Keymaps::new(&[
@@ -452,7 +456,7 @@ impl Editor {
             ]),
         }
     }
-    pub fn keymap_others(&self) -> KeymapLegendSection {
+    pub(crate) fn keymap_others(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Others".to_string(),
             keymaps: Keymaps::new(&[
@@ -491,7 +495,7 @@ impl Editor {
         }
     }
 
-    pub fn help_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn help_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Help".to_string(),
             body: KeymapLegendBody::SingleSection {
@@ -511,7 +515,7 @@ impl Editor {
         }
     }
 
-    pub fn normal_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn normal_mode_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Normal mode".to_string(),
             body: KeymapLegendBody::MultipleSections {
@@ -616,7 +620,7 @@ impl Editor {
             },
         }
     }
-    pub fn handle_normal_mode(
+    pub(crate) fn handle_normal_mode(
         &mut self,
         context: &Context,
         event: KeyEvent,
@@ -628,7 +632,7 @@ impl Editor {
         Ok(vec![].into())
     }
 
-    pub fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn transform_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Transform".to_string(),
 
@@ -681,7 +685,7 @@ impl Editor {
         }
     }
 
-    pub fn keymap_surround(&self) -> KeymapLegendSection {
+    pub(crate) fn keymap_surround(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Surround".to_string(),
             keymaps: Keymaps::new(
@@ -707,7 +711,7 @@ impl Editor {
         }
     }
 
-    pub fn search_list_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn search_list_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
 
@@ -863,7 +867,7 @@ impl Editor {
         }
     }
 
-    pub fn find_local_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn find_local_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         let scope = Scope::Local;
         KeymapLegendConfig {
             title: "Native".to_string(),
@@ -970,7 +974,7 @@ impl Editor {
         }
     }
 
-    pub fn find_global_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
+    pub(crate) fn find_global_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         let scope = Scope::Global;
         KeymapLegendConfig {
             title: "Global".to_string(),
@@ -1003,7 +1007,7 @@ impl Editor {
         }
     }
 
-    pub fn inside_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn inside_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Inside".to_string(),
 
@@ -1037,7 +1041,7 @@ impl Editor {
         }
     }
 
-    pub fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
         let filter_mechanism_keymaps = |kind: FilterKind, target: FilterTarget| -> Dispatch {
             Dispatch::ShowKeymapLegend(KeymapLegendConfig {
                 title: format!("Omit: {:?} {:?} matching", kind, target),
@@ -1116,7 +1120,7 @@ impl Editor {
         }
     }
 
-    pub fn show_literal_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn show_literal_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Find literal".to_string(),
 

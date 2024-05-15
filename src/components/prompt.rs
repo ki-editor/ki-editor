@@ -33,7 +33,7 @@ pub struct PromptConfig {
 }
 
 impl Prompt {
-    pub fn new(config: PromptConfig) -> (Self, Dispatches) {
+    pub(crate) fn new(config: PromptConfig) -> (Self, Dispatches) {
         let text = &if config.history.is_empty() {
             "".to_string()
         } else {

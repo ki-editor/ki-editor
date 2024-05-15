@@ -15,7 +15,7 @@ pub struct Screen {
 }
 
 impl Screen {
-    pub fn new(
+    pub(crate) fn new(
         windows: Vec<Window>,
         borders: Vec<Border>,
         cursor: Option<crate::components::component::Cursor>,
@@ -30,7 +30,7 @@ impl Screen {
     /// This takes a `&mut self` instead of a `&self` because memoization.
     /// Memoization is necessary because there are other functions that depends on the result of this function,
     /// for example `Screen::dimension`.
-    pub fn get_positioned_cells(&mut self) -> Vec<PositionedCell> {
+    pub(crate) fn get_positioned_cells(&mut self) -> Vec<PositionedCell> {
         if let Some(positioned_cells) = self.memoized_positioned_cells.clone() {
             positioned_cells
         } else {
@@ -54,7 +54,7 @@ impl Screen {
     }
 
     /// The `new_screen` need not be the same size as the old screen (`self`).
-    pub fn diff(&mut self, old_screen: &mut Screen) -> Vec<PositionedCell> {
+    pub(crate) fn diff(&mut self, old_screen: &mut Screen) -> Vec<PositionedCell> {
         // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
         // which can cause re-render to flicker like old TV (at least on Kitty term)
 
@@ -123,7 +123,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+    pub(crate) fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         self.grid
             .to_positioned_cells()
             .into_iter()

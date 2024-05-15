@@ -14,7 +14,7 @@ pub struct UiTree {
 /// the root of this `Tree` is always defined,
 /// which makes its usage more pleasing.
 impl UiTree {
-    pub fn new() -> UiTree {
+    pub(crate) fn new() -> UiTree {
         let mut tree = nary_tree::Tree::new();
         let mut editor = Editor::from_text(Some(tree_sitter_md::language()), "");
         editor.set_title("[ROOT] (Cannot be saved)".to_string());
@@ -28,16 +28,20 @@ impl UiTree {
         }
     }
 
-    pub fn root(&self) -> NodeRef<'_, KindedComponent> {
+    pub(crate) fn root(&self) -> NodeRef<'_, KindedComponent> {
         self.tree.root().unwrap()
     }
 
-    pub fn get(&self, id: NodeId) -> Option<NodeRef<'_, KindedComponent>> {
+    pub(crate) fn get(&self, id: NodeId) -> Option<NodeRef<'_, KindedComponent>> {
         self.tree.get(id)
     }
 
     /// The root will never be removed to ensure that this tree always contain one component
-    pub fn remove(&mut self, node_id: NodeId, change_focus: bool) -> Option<KindedComponent> {
+    pub(crate) fn remove(
+        &mut self,
+        node_id: NodeId,
+        change_focus: bool,
+    ) -> Option<KindedComponent> {
         if node_id == self.root_id() {
             return None;
         }
@@ -60,7 +64,7 @@ impl UiTree {
         self.tree.get_mut(id)
     }
 
-    pub fn remain_only_current_component(&mut self) {
+    pub(crate) fn remain_only_current_component(&mut self) {
         if !self
             .root()
             .children()
@@ -245,7 +249,7 @@ impl UiTree {
         self.replace_node_child(self.root_id(), kind, component, focus)
     }
 
-    pub fn remove_all_root_children(&mut self) {
+    pub(crate) fn remove_all_root_children(&mut self) {
         let children_ids = self
             .root()
             .children()
@@ -294,7 +298,10 @@ pub struct KindedComponent {
 }
 
 impl KindedComponent {
-    pub fn new(kind: ComponentKind, component: Rc<RefCell<dyn Component>>) -> KindedComponent {
+    pub(crate) fn new(
+        kind: ComponentKind,
+        component: Rc<RefCell<dyn Component>>,
+    ) -> KindedComponent {
         Self { kind, component }
     }
 

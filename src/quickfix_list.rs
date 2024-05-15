@@ -60,7 +60,10 @@ pub struct QuickfixList {
 }
 
 impl QuickfixList {
-    pub fn new(items: Vec<QuickfixListItem>, buffers: Vec<Rc<RefCell<Buffer>>>) -> QuickfixList {
+    pub(crate) fn new(
+        items: Vec<QuickfixListItem>,
+        buffers: Vec<Rc<RefCell<Buffer>>>,
+    ) -> QuickfixList {
         let mut dropdown = Dropdown::new(DropdownConfig {
             title: "Quickfix".to_string(),
         });
@@ -94,7 +97,7 @@ impl QuickfixList {
     }
 
     #[cfg(test)]
-    pub fn items(&self) -> Vec<QuickfixListItem> {
+    pub(crate) fn items(&self) -> Vec<QuickfixListItem> {
         self.items.clone()
     }
 
@@ -103,7 +106,7 @@ impl QuickfixList {
     }
 
     /// Returns the current item index after `movement` is applied
-    pub fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
+    pub(crate) fn get_item(&mut self, movement: Movement) -> Option<(usize, Dispatches)> {
         self.dropdown.apply_movement(movement);
         Some((
             self.dropdown.current_item_index(),
@@ -145,15 +148,15 @@ impl From<Location> for QuickfixListItem {
 }
 
 impl QuickfixListItem {
-    pub fn new(location: Location, info: Option<Info>) -> QuickfixListItem {
+    pub(crate) fn new(location: Location, info: Option<Info>) -> QuickfixListItem {
         QuickfixListItem { location, info }
     }
 
-    pub fn location(&self) -> &Location {
+    pub(crate) fn location(&self) -> &Location {
         &self.location
     }
 
-    pub fn info(&self) -> &Option<Info> {
+    pub(crate) fn info(&self) -> &Option<Info> {
         &self.info
     }
 
@@ -170,44 +173,6 @@ pub struct Location {
 }
 
 impl Location {
-    pub fn display(&self) -> String {
-        format!(
-            "{}:{}:{}-{}:{}",
-            self.path
-                .display_relative()
-                .unwrap_or_else(|_| self.path.display_absolute()),
-            self.range.start.line + 1,
-            self.range.start.column + 1,
-            self.range.end.line + 1,
-            self.range.end.column + 1
-        )
-    }
-
-    pub fn read(&self) -> anyhow::Result<String> {
-        // TODO: optimize this function, should not read the whole file
-        self.path
-            .read()
-            .map(|result| {
-                // Return only the specified range
-                result
-                    .lines()
-                    .enumerate()
-                    .filter(|(line_index, _)| {
-                        line_index >= &self.range.start.line && line_index <= &self.range.end.line
-                    })
-                    .map(|(_, line)| line)
-                    .collect_vec()
-                    .join("\n")
-            })
-            .map_err(|err| {
-                anyhow::anyhow!(
-                    "Failed to read file {}: {}",
-                    self.path.display_absolute(),
-                    err.to_string()
-                )
-            })
-    }
-
     fn read_from_buffers(&self, buffers: &[Rc<RefCell<Buffer>>]) -> Option<String> {
         buffers
             .iter()

@@ -39,7 +39,7 @@ enum HighlightQuery {
     CachePath,
 }
 
-pub fn cli() -> anyhow::Result<()> {
+pub(crate) fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     if let Some(command) = cli.command {

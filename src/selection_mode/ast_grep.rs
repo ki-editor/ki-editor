@@ -8,7 +8,7 @@ pub struct AstGrep {
 }
 
 impl AstGrep {
-    pub fn new(buffer: &crate::buffer::Buffer, pattern: &str) -> anyhow::Result<Self> {
+    pub(crate) fn new(buffer: &crate::buffer::Buffer, pattern: &str) -> anyhow::Result<Self> {
         let Some(language) = buffer.treesitter_language() else {
             return Err(anyhow::anyhow!(
                 "Unable to launch AST Grep because no Tree-sitter language is found."
@@ -19,7 +19,7 @@ impl AstGrep {
         let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
         Ok(Self { pattern, grep })
     }
-    pub fn replace(
+    pub(crate) fn replace(
         language: tree_sitter::Language,
         source_code: &str,
         pattern: &str,
@@ -32,7 +32,7 @@ impl AstGrep {
         Ok(grep.root().replace_all(pattern.clone(), replacement))
     }
 
-    pub fn find_all(&self) -> impl Iterator<Item = NodeMatch<StrDoc<TSLanguage>>> {
+    pub(crate) fn find_all(&self) -> impl Iterator<Item = NodeMatch<StrDoc<TSLanguage>>> {
         self.grep.root().find_all(self.pattern.clone())
     }
 }

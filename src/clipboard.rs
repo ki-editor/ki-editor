@@ -4,12 +4,12 @@ pub struct Clipboard {
 }
 
 impl Clipboard {
-    pub fn new() -> Clipboard {
+    pub(crate) fn new() -> Clipboard {
         Clipboard { history: vec![] }
     }
 
     /// Get from OS clipboard when available
-    pub fn get_content(&self) -> Option<String> {
+    pub(crate) fn get_content(&self) -> Option<String> {
         arboard::Clipboard::new()
             .and_then(|mut clipboard| clipboard.get_text())
             .ok()
@@ -17,15 +17,10 @@ impl Clipboard {
     }
 
     /// Set OS clipboard when available
-    pub fn set_content(&mut self, content: String) {
+    pub(crate) fn set_content(&mut self, content: String) {
         if let Ok(mut clipboard) = arboard::Clipboard::new() {
             clipboard.set_text(content.clone()).ok();
         }
         self.history.push(content);
-    }
-
-    pub fn clear(&mut self) {
-        let _ = arboard::Clipboard::new().map(|mut clipboard| clipboard.clear());
-        self.history.clear()
     }
 }

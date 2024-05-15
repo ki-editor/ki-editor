@@ -3,7 +3,7 @@ use crate::buffer::Buffer;
 pub struct WordLong;
 
 impl WordLong {
-    pub fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
+    pub(crate) fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
         super::Regex::from_config(
             buffer,
             r"((\w|-)+)|([^a-zA-Z\d\s])",

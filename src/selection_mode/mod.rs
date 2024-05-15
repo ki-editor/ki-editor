@@ -52,25 +52,29 @@ pub struct ByteRange {
     info: Option<Info>,
 }
 impl ByteRange {
-    pub fn new(range: Range<usize>) -> Self {
+    pub(crate) fn new(range: Range<usize>) -> Self {
         Self { range, info: None }
     }
 
-    pub fn with_info(range: Range<usize>, info: Info) -> Self {
+    pub(crate) fn with_info(range: Range<usize>, info: Info) -> Self {
         Self {
             range,
             info: Some(info),
         }
     }
-    pub fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
+    pub(crate) fn to_char_index_range(&self, buffer: &Buffer) -> anyhow::Result<CharIndexRange> {
         Ok((buffer.byte_to_char(self.range.start)?..buffer.byte_to_char(self.range.end)?).into())
     }
 
-    pub fn to_selection(self, buffer: &Buffer, selection: &Selection) -> anyhow::Result<Selection> {
+    pub(crate) fn to_selection(
+        &self,
+        buffer: &Buffer,
+        selection: &Selection,
+    ) -> anyhow::Result<Selection> {
         Ok(selection
             .clone()
             .set_range(self.to_char_index_range(buffer)?)
-            .set_info(self.info))
+            .set_info(self.info.clone()))
     }
 
     fn set_info(self, info: Option<Info>) -> ByteRange {
@@ -123,7 +127,7 @@ pub struct ApplyMovementResult {
 }
 
 impl ApplyMovementResult {
-    pub fn from_selection(selection: Selection) -> Self {
+    pub(crate) fn from_selection(selection: Selection) -> Self {
         Self {
             selection,
             mode: None,

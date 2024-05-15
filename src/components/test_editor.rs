@@ -523,21 +523,6 @@ fn raise() -> anyhow::Result<()> {
 }
 
 #[test]
-fn select_kids() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent("fn main(x: usize, y: Vec<A>) {}".to_string())),
-            Editor(MatchLiteral("x".to_string())),
-            Editor(MoveSelection(Next)),
-            Expect(CurrentSelectedTexts(&["x"])),
-            Editor(SelectKids),
-            Expect(CurrentSelectedTexts(&["x: usize, y: Vec<A>"])),
-        ])
-    })
-}
-
-#[test]
 /// After raise the node kind should be the same
 /// Raising `(a).into()` in `Some((a).into())`
 /// should result in `(a).into()`
@@ -583,35 +568,6 @@ fn multi_raise() -> anyhow::Result<()> {
             Editor(Redo),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-        ])
-    })
-}
-
-#[test]
-fn open_new_line() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent(
-                "
-fn f() {
-    let x = S(a);
-}
-"
-                .trim()
-                .to_string(),
-            )),
-            Editor(MatchLiteral("let x = ".to_string())),
-            Editor(OpenNewLine),
-            Editor(Insert("let y = S(b);".to_string())),
-            Expect(CurrentComponentContent(
-                "
-fn f() {
-    let x = S(a);
-    let y = S(b);
-}"
-                .trim(),
-            )),
         ])
     })
 }
@@ -716,7 +672,8 @@ fn main() {
 }"
                 .trim(),
             )),
-            Editor(Exchange(Next)),
+            Editor(EnterExchangeMode),
+            Editor(MoveSelection(Next)),
             Expect(CurrentComponentContent(
                 "
 let x = 1;
@@ -725,7 +682,7 @@ let x = 1;
 }"
                 .trim(),
             )),
-            Editor(Exchange(Previous)),
+            Editor(MoveSelection(Previous)),
             Expect(CurrentComponentContent(
                 "
 fn main() {

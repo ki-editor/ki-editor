@@ -3,7 +3,7 @@ use crate::buffer::Buffer;
 pub struct WordShort;
 
 impl WordShort {
-    pub fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
+    pub(crate) fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
         super::Regex::from_config(
             buffer,
             r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*))_*)|([^\w\s]|_)|[0-9]+",

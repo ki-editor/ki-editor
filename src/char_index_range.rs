@@ -46,22 +46,18 @@ impl ToByteRange for CharIndexRange {
 }
 
 impl CharIndexRange {
-    pub fn iter(&self) -> CharIndexRangeIter {
+    pub(crate) fn iter(&self) -> CharIndexRangeIter {
         CharIndexRangeIter {
             range: *self,
             current: self.start,
         }
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.end.0.saturating_sub(self.start.0)
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn shift_left(&self, len: usize) -> CharIndexRange {
+    pub(crate) fn shift_left(&self, len: usize) -> CharIndexRange {
         CharIndexRange {
             start: self.start - len,
             end: self.end - len,
@@ -75,7 +71,7 @@ impl CharIndexRange {
         }
     }
 
-    pub fn cursor_position(&self, cursor_direction: &Direction) -> CharIndex {
+    pub(crate) fn cursor_position(&self, cursor_direction: &Direction) -> CharIndex {
         match cursor_direction {
             Direction::Start => self.start,
             Direction::End => self.end,
@@ -132,7 +128,7 @@ impl From<Range<CharIndex>> for CharIndexRange {
 }
 
 /// `change` = new length - old length
-pub fn apply_edit(
+pub(crate) fn apply_edit(
     range: Range<usize>,
     edited_range: &Range<usize>,
     change: isize,

@@ -9,7 +9,7 @@ pub enum Transformation {
     Wrap,
 }
 impl Transformation {
-    pub fn apply(&self, string: String) -> String {
+    pub(crate) fn apply(&self, string: String) -> String {
         match self {
             Transformation::Case(case) => string.to_case(*case),
             Transformation::Join => regex::Regex::new(r"\s*\n+\s*")

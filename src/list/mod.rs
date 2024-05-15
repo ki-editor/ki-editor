@@ -20,7 +20,7 @@ pub struct WalkBuilderConfig {
 
 type SearchFn = dyn Fn(&Buffer) -> anyhow::Result<Vec<ByteRange>> + Send + Sync;
 impl WalkBuilderConfig {
-    pub fn run_with_search(
+    pub(crate) fn run_with_search(
         self,
         enable_tree_sitter: bool,
         f: Box<SearchFn>,
@@ -55,7 +55,7 @@ impl WalkBuilderConfig {
             Ok(())
         }))
     }
-    pub fn run<T: Send>(
+    pub(crate) fn run<T: Send>(
         self,
         f: Box<dyn Fn(PathBuf, Sender<T>) -> anyhow::Result<()> + Send + Sync>,
     ) -> anyhow::Result<Vec<T>> {

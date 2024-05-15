@@ -8,7 +8,7 @@ pub struct GitHunk {
 }
 
 impl GitHunk {
-    pub fn new(buffer: &Buffer) -> anyhow::Result<GitHunk> {
+    pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
             return Ok(GitHunk { ranges: Vec::new() });
         };

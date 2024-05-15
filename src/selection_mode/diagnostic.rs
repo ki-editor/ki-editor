@@ -9,7 +9,7 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
-    pub fn new(
+    pub(crate) fn new(
         severity_range: DiagnosticSeverityRange,
         params: super::SelectionModeParams<'_>,
     ) -> Self {

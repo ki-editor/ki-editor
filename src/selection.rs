@@ -164,7 +164,7 @@ impl Default for SelectionSet {
 }
 
 impl SelectionSet {
-    pub fn map<F, A>(&self, f: F) -> Vec<A>
+    pub(crate) fn map<F, A>(&self, f: F) -> Vec<A>
     where
         F: Fn(&Selection) -> A,
     {
@@ -174,13 +174,13 @@ impl SelectionSet {
             .collect()
     }
 
-    pub fn only(&mut self) {
+    pub(crate) fn only(&mut self) {
         self.secondary.clear();
         self.primary.initial_range = None;
         self.primary.copied_text = None;
     }
 
-    pub fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
+    pub(crate) fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
     where
         F: Fn(&Selection) -> anyhow::Result<Selection>,
     {
@@ -196,21 +196,21 @@ impl SelectionSet {
         })
     }
 
-    pub fn move_left(&mut self, cursor_direction: &Direction) {
+    pub(crate) fn move_left(&mut self, cursor_direction: &Direction) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
             selection.range = (cursor_char_index - 1..cursor_char_index - 1).into()
         });
     }
 
-    pub fn move_right(&mut self, cursor_direction: &Direction) {
+    pub(crate) fn move_right(&mut self, cursor_direction: &Direction) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
             selection.range = (cursor_char_index + 1..cursor_char_index + 1).into()
         });
     }
 
-    pub fn apply_mut<F, A>(&mut self, f: F) -> Vec<A>
+    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> Vec<A>
     where
         F: Fn(&mut Selection) -> A,
     {
@@ -221,7 +221,11 @@ impl SelectionSet {
         result
     }
 
-    pub fn copy(&mut self, buffer: &Buffer, context: &Context) -> anyhow::Result<Dispatches> {
+    pub(crate) fn copy(
+        &mut self,
+        buffer: &Buffer,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         if self.secondary.is_empty() {
             // Copy the primary selected text to clipboard
             let copied_text = buffer.slice(&self.primary.extended_range())?;
@@ -247,44 +251,7 @@ impl SelectionSet {
         }
     }
 
-    pub fn select_kids(
-        &self,
-        buffer: &Buffer,
-        cursor_direction: &Direction,
-    ) -> anyhow::Result<SelectionSet> {
-        fn select_kids(
-            selection: &Selection,
-            buffer: &Buffer,
-            cursor_direction: &Direction,
-        ) -> Selection {
-            let cursor_char_index = selection.to_char_index(cursor_direction);
-            if let Some(node) = buffer.get_nearest_node_after_char(cursor_char_index) {
-                if let Some(parent) = node.parent() {
-                    let second_child = parent.child(1);
-                    let second_last_child = parent.child(parent.child_count() - 2).or(second_child);
-
-                    if let (Some(second_child), Some(second_last_child)) =
-                        (second_child, second_last_child)
-                    {
-                        return Selection {
-                            range: (CharIndex(second_child.start_byte())
-                                ..CharIndex(second_last_child.end_byte()))
-                                .into(),
-                            copied_text: selection.copied_text.clone(),
-                            initial_range: selection.initial_range,
-                            info: selection.info.clone(),
-                        };
-                    }
-                }
-            }
-            selection.clone()
-        }
-        self.apply(SelectionMode::Custom, |selection| {
-            Ok(select_kids(selection, buffer, cursor_direction))
-        })
-    }
-
-    pub fn generate(
+    pub(crate) fn generate(
         &self,
         buffer: &Buffer,
         mode: &SelectionMode,
@@ -326,7 +293,7 @@ impl SelectionSet {
         }))
     }
 
-    pub fn add_selection(
+    pub(crate) fn add_selection(
         &mut self,
         buffer: &Buffer,
         direction: &Movement,
@@ -361,7 +328,11 @@ impl SelectionSet {
         Ok(())
     }
 
-    pub fn add_all(&mut self, buffer: &Buffer, cursor_direction: &Direction) -> anyhow::Result<()> {
+    pub(crate) fn add_all(
+        &mut self,
+        buffer: &Buffer,
+        cursor_direction: &Direction,
+    ) -> anyhow::Result<()> {
         if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
@@ -401,34 +372,19 @@ impl SelectionSet {
         };
         Ok(())
     }
-    pub fn escape_highlight_mode(&mut self) {
+    #[cfg(test)]
+    pub(crate) fn escape_highlight_mode(&mut self) {
         self.apply_mut(|selection| selection.escape_highlight_mode());
     }
 
-    pub fn toggle_visual_mode(&mut self) {
+    pub(crate) fn toggle_visual_mode(&mut self) {
         self.apply_mut(|selection| selection.toggle_visual_mode());
     }
 
-    pub fn clamp(&self, max_char_index: CharIndex) -> anyhow::Result<SelectionSet> {
+    pub(crate) fn clamp(&self, max_char_index: CharIndex) -> anyhow::Result<SelectionSet> {
         self.apply(self.mode.clone(), |selection| {
             Ok(selection.clamp(max_char_index))
         })
-    }
-
-    pub fn delete_primary_cursor(&mut self) {
-        let nearest = self
-            .secondary
-            .iter()
-            .enumerate()
-            .sorted_by_key(|(_, selection)| {
-                ((self.primary.extended_range().start.0 as isize)
-                    - (selection.extended_range().start.0 as isize))
-                    .abs()
-            })
-            .next();
-        if let Some((index, _)) = nearest {
-            self.primary = self.secondary.remove(index);
-        }
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -493,16 +449,12 @@ pub enum SelectionMode {
     LineFull,
 }
 impl SelectionMode {
-    pub fn similar_to(&self, other: &SelectionMode) -> bool {
-        self == other || self.is_node() && other.is_node()
-    }
-
-    pub fn is_node(&self) -> bool {
+    pub(crate) fn is_node(&self) -> bool {
         use SelectionMode::*;
         matches!(self, SyntaxTree)
     }
 
-    pub fn display(&self) -> String {
+    pub(crate) fn display(&self) -> String {
         match self {
             SelectionMode::WordShort => "WORD(SHORT)".to_string(),
             SelectionMode::WordLong => "WORD(LONG)".to_string(),
@@ -528,7 +480,7 @@ impl SelectionMode {
         }
     }
 
-    pub fn to_selection_mode_trait_object(
+    pub(crate) fn to_selection_mode_trait_object(
         &self,
         buffer: &Buffer,
         current_selection: &Selection,
@@ -618,39 +570,39 @@ pub struct Selection {
 }
 
 impl Selection {
-    pub fn to_char_index(&self, cursor_direction: &Direction) -> CharIndex {
+    pub(crate) fn to_char_index(&self, cursor_direction: &Direction) -> CharIndex {
         match cursor_direction {
             Direction::Start => self.range.start,
             Direction::End => (self.range.end - 1).max(self.range.start),
         }
     }
 
-    pub fn new(range: CharIndexRange) -> Self {
+    pub(crate) fn new(range: CharIndexRange) -> Self {
         Selection {
             range,
             ..Selection::default()
         }
     }
 
-    pub fn set_copied_text(self, copied_text: Option<Rope>) -> Self {
+    pub(crate) fn set_copied_text(self, copied_text: Option<Rope>) -> Self {
         Selection {
             copied_text,
             ..self
         }
     }
 
-    pub fn set_initial_range(self, initial_range: Option<CharIndexRange>) -> Self {
+    pub(crate) fn set_initial_range(self, initial_range: Option<CharIndexRange>) -> Self {
         Selection {
             initial_range,
             ..self
         }
     }
 
-    pub fn set_info(self, info: Option<Info>) -> Self {
+    pub(crate) fn set_info(self, info: Option<Info>) -> Self {
         Selection { info, ..self }
     }
 
-    pub fn extended_range(&self) -> CharIndexRange {
+    pub(crate) fn extended_range(&self) -> CharIndexRange {
         match &self.initial_range {
             None => self.range,
             Some(extended_selection_anchor) => {
@@ -661,13 +613,8 @@ impl Selection {
         }
     }
 
-    pub fn is_start_or_end(&self, other: &CharIndex) -> bool {
-        let CharIndexRange { start, end } = self.extended_range();
-        &start == other || (end > start && &(end - 1) == other)
-    }
-
     #[cfg(test)]
-    pub fn default() -> Selection {
+    pub(crate) fn default() -> Selection {
         Selection {
             range: (CharIndex(0)..CharIndex(0)).into(),
             copied_text: None,
@@ -676,7 +623,7 @@ impl Selection {
         }
     }
 
-    pub fn get_selection_(
+    pub(crate) fn get_selection_(
         buffer: &Buffer,
         current_selection: &Selection,
         mode: &SelectionMode,
@@ -700,12 +647,13 @@ impl Selection {
 
         selection_mode.apply_movement(params, *direction)
     }
-    pub fn escape_highlight_mode(&mut self) {
+    #[cfg(test)]
+    pub(crate) fn escape_highlight_mode(&mut self) {
         log::info!("escape highlight mode");
         self.initial_range = None
     }
 
-    pub fn toggle_visual_mode(&mut self) {
+    pub(crate) fn toggle_visual_mode(&mut self) {
         match self.initial_range.take() {
             None => {
                 self.initial_range = Some(self.range);
@@ -728,26 +676,26 @@ impl Selection {
         }
     }
 
-    pub fn copied_text(&self, context: &Context) -> Option<Rope> {
+    pub(crate) fn copied_text(&self, context: &Context) -> Option<Rope> {
         self.copied_text
             .clone()
             .or_else(|| context.get_clipboard_content().map(Rope::from))
     }
 
-    pub fn info(&self) -> Option<Info> {
+    pub(crate) fn info(&self) -> Option<Info> {
         self.info.clone()
     }
 
-    pub fn set_range(self, range: CharIndexRange) -> Selection {
+    pub(crate) fn set_range(self, range: CharIndexRange) -> Selection {
         Selection { range, ..self }
     }
 
     /// WARNING: You should always use `extended_range` unless you know what you are doing
-    pub fn range(&self) -> CharIndexRange {
+    pub(crate) fn range(&self) -> CharIndexRange {
         self.range
     }
 
-    pub fn anchors(&self) -> Vec<CharIndexRange> {
+    pub(crate) fn anchors(&self) -> Vec<CharIndexRange> {
         Vec::new()
             .into_iter()
             .chain([self.range])
@@ -816,7 +764,7 @@ impl Sub<usize> for CharIndex {
 pub struct CharIndex(pub usize);
 
 impl CharIndex {
-    pub fn to_position(self, buffer: &Buffer) -> Position {
+    pub(crate) fn to_position(self, buffer: &Buffer) -> Position {
         let line = self.to_line(buffer).unwrap_or(0);
         Position {
             line,
@@ -828,11 +776,11 @@ impl CharIndex {
         }
     }
 
-    pub fn to_line(self, buffer: &Buffer) -> anyhow::Result<usize> {
+    pub(crate) fn to_line(self, buffer: &Buffer) -> anyhow::Result<usize> {
         Ok(buffer.rope().try_char_to_line(self.0)?)
     }
 
-    pub fn apply_offset(&self, change: isize) -> CharIndex {
+    pub(crate) fn apply_offset(&self, change: isize) -> CharIndex {
         if change.is_positive() {
             *self + (change as usize)
         } else {

@@ -6,7 +6,7 @@ pub struct LocalQuickfix {
 }
 
 impl LocalQuickfix {
-    pub fn new(params: super::SelectionModeParams<'_>) -> Self {
+    pub(crate) fn new(params: super::SelectionModeParams<'_>) -> Self {
         let buffer = params.buffer;
         let ranges = buffer
             .quickfix_list_items()

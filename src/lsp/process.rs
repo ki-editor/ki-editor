@@ -83,7 +83,7 @@ pub struct ResponseContext {
     pub description: Option<String>,
 }
 impl ResponseContext {
-    pub fn set_description(self, descrption: &str) -> Self {
+    pub(crate) fn set_description(self, descrption: &str) -> Self {
         Self {
             description: Some(descrption.to_owned()),
             ..self
@@ -153,7 +153,7 @@ pub struct LspServerProcessChannel {
 }
 
 impl LspServerProcessChannel {
-    pub fn new(
+    pub(crate) fn new(
         language: Language,
         screen_message_sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
@@ -161,19 +161,19 @@ impl LspServerProcessChannel {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
     }
 
-    pub fn request_hover(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn request_hover(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestHover(params),
         ))
     }
 
-    pub fn request_definition(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn request_definition(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestDefinition(params),
         ))
     }
 
-    pub fn request_references(
+    pub(crate) fn request_references(
         &self,
         params: RequestParams,
         include_declaration: bool,
@@ -186,43 +186,46 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub fn request_declaration(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn request_declaration(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestDeclaration(clone),
         ))
     }
 
-    pub fn request_implementation(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn request_implementation(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestImplementation(clone),
         ))
     }
 
-    pub fn request_type_definition(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn request_type_definition(
+        &self,
+        clone: RequestParams,
+    ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestTypeDefinition(clone),
         ))
     }
 
-    pub fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestCompletion(params),
         ))
     }
 
-    pub fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestSignatureHelp(params),
         ))
     }
 
-    pub fn prepare_rename_symbol(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn prepare_rename_symbol(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::PrepareRenameSymbol(params),
         ))
     }
 
-    pub fn rename_symbol(
+    pub(crate) fn rename_symbol(
         &self,
         params: RequestParams,
         new_name: String,
@@ -232,7 +235,7 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub fn request_code_action(
+    pub(crate) fn request_code_action(
         &self,
         params: RequestParams,
         diagnostics: Vec<lsp_types::Diagnostic>,
@@ -245,13 +248,16 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub fn request_document_symbols(&self, params: RequestParams) -> Result<(), anyhow::Error> {
+    pub(crate) fn request_document_symbols(
+        &self,
+        params: RequestParams,
+    ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::RequestDocumentSymbols(params),
         ))
     }
 
-    pub fn shutdown(self) -> anyhow::Result<()> {
+    pub(crate) fn shutdown(self) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(FromEditor::Shutdown))?;
         self.join_handle
             .join()
@@ -266,7 +272,7 @@ impl LspServerProcessChannel {
             .map_err(|err| anyhow::anyhow!("Unable to send request: {}", err))
     }
 
-    pub fn documents_did_open(
+    pub(crate) fn documents_did_open(
         &mut self,
         paths: Vec<CanonicalizedPath>,
     ) -> Result<(), anyhow::Error> {
@@ -279,7 +285,7 @@ impl LspServerProcessChannel {
         )
     }
 
-    pub fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub(crate) fn document_did_open(&self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let content = path.read()?;
         let Some(language_id) = self.language.id() else {
             return Ok(());
@@ -294,7 +300,7 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub fn document_did_change(
+    pub(crate) fn document_did_change(
         &self,
         path: &CanonicalizedPath,
         content: &str,
@@ -307,15 +313,15 @@ impl LspServerProcessChannel {
             },
         ))
     }
-    pub fn is_initialized(&self) -> bool {
+    pub(crate) fn is_initialized(&self) -> bool {
         self.is_initialized
     }
 
-    pub fn initialized(&mut self) {
+    pub(crate) fn initialized(&mut self) {
         self.is_initialized = true
     }
 
-    pub fn document_did_save(&self, path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub(crate) fn document_did_save(&self, path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
             FromEditor::TextDocumentDidSave {
                 file_path: path.clone(),
@@ -507,7 +513,7 @@ impl LspServerProcess {
         Ok(())
     }
 
-    pub fn listen(mut self) -> JoinHandle<()> {
+    pub(crate) fn listen(mut self) -> JoinHandle<()> {
         let mut reader = BufReader::new(self.stdout.take().unwrap());
         let sender = self.sender.clone();
         let handle = thread::spawn(move || {
@@ -913,7 +919,7 @@ impl LspServerProcess {
         Ok(())
     }
 
-    pub fn text_document_completion(
+    pub(crate) fn text_document_completion(
         &mut self,
         RequestParams {
             context,
@@ -952,7 +958,7 @@ impl LspServerProcess {
             .unwrap_or_default()
     }
 
-    pub fn shutdown(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn shutdown(&mut self) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), ())?;
         Ok(())
     }
@@ -1255,7 +1261,7 @@ impl LspServerProcess {
         )
     }
 
-    pub fn text_document_signature_help(
+    pub(crate) fn text_document_signature_help(
         &mut self,
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {

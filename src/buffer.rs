@@ -48,7 +48,7 @@ pub struct Line {
 }
 
 impl Buffer {
-    pub fn new(language: Option<tree_sitter::Language>, text: &str) -> Self {
+    pub(crate) fn new(language: Option<tree_sitter::Language>, text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
             treesitter_language: language.clone(),
@@ -71,28 +71,16 @@ impl Buffer {
             quickfix_list_items: Vec::new(),
         }
     }
-    pub fn without_tree_sitter(text: &str) -> Self {
-        Self {
-            rope: Rope::from_str(text),
-            treesitter_language: None,
-            language: None,
-            tree: None,
-            path: None,
-            highlighted_spans: HighlighedSpans::default(),
-            bookmarks: Vec::new(),
-            decorations: Vec::new(),
-            undo_tree: UndoTree::new(),
-            diagnostics: Vec::new(),
-            quickfix_list_items: Vec::new(),
-        }
-    }
-    pub fn clear_quickfix_list_items(&mut self) {
+    pub(crate) fn clear_quickfix_list_items(&mut self) {
         self.quickfix_list_items.clear()
     }
-    pub fn update_quickfix_list_items(&mut self, quickfix_list_items: Vec<QuickfixListItem>) {
+    pub(crate) fn update_quickfix_list_items(
+        &mut self,
+        quickfix_list_items: Vec<QuickfixListItem>,
+    ) {
         self.quickfix_list_items = quickfix_list_items
     }
-    pub fn reload(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn reload(&mut self) -> anyhow::Result<()> {
         if let Some(path) = self.path() {
             let updated_content = path.read()?;
 
@@ -100,18 +88,18 @@ impl Buffer {
         }
         Ok(())
     }
-    pub fn content(&self) -> String {
+    pub(crate) fn content(&self) -> String {
         self.rope.to_string()
     }
 
-    pub fn decorations(&self) -> &Vec<Decoration> {
+    pub(crate) fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
-    pub fn set_decorations(&mut self, decorations: &[Decoration]) {
+    pub(crate) fn set_decorations(&mut self, decorations: &[Decoration]) {
         self.decorations = decorations.to_owned();
     }
 
-    pub fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
+    pub(crate) fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
         let old_ranges = std::mem::take(&mut self.bookmarks)
             .into_iter()
             .collect::<HashSet<_>>();
@@ -124,26 +112,27 @@ impl Buffer {
             .collect_vec();
     }
 
-    pub fn path(&self) -> Option<CanonicalizedPath> {
+    pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
         self.path.clone()
     }
 
-    pub fn set_path(&mut self, path: CanonicalizedPath) {
+    #[cfg(test)]
+    pub(crate) fn set_path(&mut self, path: CanonicalizedPath) {
         self.path = Some(path);
     }
 
-    pub fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {
+    pub(crate) fn set_diagnostics(&mut self, diagnostics: Vec<lsp_types::Diagnostic>) {
         self.diagnostics = diagnostics
             .into_iter()
             .filter_map(|diagnostic| Diagnostic::try_from(self, diagnostic).ok())
             .collect()
     }
 
-    pub fn diagnostics(&self) -> Vec<Diagnostic> {
+    pub(crate) fn diagnostics(&self) -> Vec<Diagnostic> {
         self.diagnostics.clone()
     }
 
-    pub fn words(&self) -> Vec<String> {
+    pub(crate) fn words(&self) -> Vec<String> {
         let regex = regex::Regex::new(r"\b\w+").unwrap();
         let str = self.rope.to_string();
         regex
@@ -153,17 +142,7 @@ impl Buffer {
             .collect()
     }
 
-    pub fn find_words(&self, substring: &str) -> Vec<String> {
-        let word = lazy_regex::regex!(r"\b\w+");
-        let str = self.rope.to_string();
-        word.find_iter(&str)
-            .map(|m| m.as_str().to_string())
-            .filter(|m| m.to_lowercase().contains(&substring.to_lowercase()))
-            .unique()
-            .collect()
-    }
-
-    pub fn get_parent_lines(&self, line_number: usize) -> anyhow::Result<Vec<Line>> {
+    pub(crate) fn get_parent_lines(&self, line_number: usize) -> anyhow::Result<Vec<Line>> {
         let char_index = self.line_to_char(line_number)?;
         let node = self.get_nearest_node_after_char(char_index);
         fn get_parent_lines(
@@ -251,7 +230,7 @@ impl Buffer {
         (Rope::from_str(text), tree)
     }
 
-    pub fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
+    pub(crate) fn given_range_is_node(&self, range: &CharIndexRange) -> bool {
         let Some(start) = self.char_to_byte(range.start).ok() else {
             return false;
         };
@@ -270,15 +249,15 @@ impl Buffer {
             .unwrap_or(false)
     }
 
-    pub fn update_highlighted_spans(&mut self, spans: HighlighedSpans) {
+    pub(crate) fn update_highlighted_spans(&mut self, spans: HighlighedSpans) {
         self.highlighted_spans = spans;
     }
 
-    pub fn update(&mut self, text: &str) {
+    pub(crate) fn update(&mut self, text: &str) {
         (self.rope, self.tree) = Self::get_rope_and_tree(self.treesitter_language.clone(), text);
     }
 
-    pub fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
+    pub(crate) fn get_line_by_char_index(&self, char_index: CharIndex) -> anyhow::Result<Rope> {
         Ok(self
             .rope
             .get_line(self.char_to_line(char_index)?)
@@ -292,7 +271,7 @@ impl Buffer {
             .into())
     }
 
-    pub fn get_line_range_by_char_index(
+    pub(crate) fn get_line_range_by_char_index(
         &self,
         char_index: CharIndex,
     ) -> anyhow::Result<CharIndexRange> {
@@ -302,7 +281,10 @@ impl Buffer {
         Ok((line_start..line_end).into())
     }
 
-    pub fn get_word_before_char_index(&self, char_index: CharIndex) -> anyhow::Result<String> {
+    pub(crate) fn get_word_before_char_index(
+        &self,
+        char_index: CharIndex,
+    ) -> anyhow::Result<String> {
         let cursor_byte = self.char_to_byte(char_index)?;
         let regex = Regex::new(r"\b\w+").unwrap();
         let string = self.rope.to_string();
@@ -317,34 +299,24 @@ impl Buffer {
         .unwrap_or_default())
     }
 
-    pub fn len_lines(&self) -> usize {
+    pub(crate) fn len_lines(&self) -> usize {
         self.rope.len_lines()
     }
 
-    pub fn char_to_line(&self, char_index: CharIndex) -> anyhow::Result<usize> {
+    pub(crate) fn char_to_line(&self, char_index: CharIndex) -> anyhow::Result<usize> {
         Ok(self.rope.try_char_to_line(char_index.0)?)
     }
 
-    pub fn char_to_line_start(&self, char_index: CharIndex) -> anyhow::Result<CharIndex> {
-        let line = self.char_to_line(char_index)?;
-        self.line_to_char(line)
-    }
-
-    pub fn char_to_line_end(&self, char_index: CharIndex) -> anyhow::Result<CharIndex> {
-        let line = self.char_to_line(char_index)?;
-        self.line_to_char(line + 1).map(|char_index| char_index - 1)
-    }
-
-    pub fn line_to_char(&self, line_index: usize) -> anyhow::Result<CharIndex> {
+    pub(crate) fn line_to_char(&self, line_index: usize) -> anyhow::Result<CharIndex> {
         Ok(CharIndex(self.rope.try_line_to_char(line_index)?))
     }
 
-    pub fn char_to_byte(&self, char_index: CharIndex) -> anyhow::Result<usize> {
+    pub(crate) fn char_to_byte(&self, char_index: CharIndex) -> anyhow::Result<usize> {
         Ok(self.rope.try_char_to_byte(char_index.0)?)
     }
 
     /// Note: this method is expensive, be sure not pass in an out-of-view `char_index`
-    pub fn char_to_position(&self, char_index: CharIndex) -> anyhow::Result<Position> {
+    pub(crate) fn char_to_position(&self, char_index: CharIndex) -> anyhow::Result<Position> {
         let line = self.char_to_line(char_index)?;
         Ok(Position {
             line,
@@ -356,7 +328,7 @@ impl Buffer {
         })
     }
 
-    pub fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
+    pub(crate) fn position_to_char(&self, position: Position) -> anyhow::Result<CharIndex> {
         let line = position.line.clamp(0, self.len_lines());
         let column = position.column.clamp(
             0,
@@ -367,19 +339,19 @@ impl Buffer {
         Ok(CharIndex(self.rope.try_line_to_char(line)? + column))
     }
 
-    pub fn byte_to_char(&self, byte_index: usize) -> anyhow::Result<CharIndex> {
+    pub(crate) fn byte_to_char(&self, byte_index: usize) -> anyhow::Result<CharIndex> {
         Ok(CharIndex(self.rope.try_byte_to_char(byte_index)?))
     }
 
-    pub fn rope(&self) -> &Rope {
+    pub(crate) fn rope(&self) -> &Rope {
         &self.rope
     }
 
-    pub fn len_chars(&self) -> usize {
+    pub(crate) fn len_chars(&self) -> usize {
         self.rope.len_chars()
     }
 
-    pub fn slice(&self, range: &CharIndexRange) -> anyhow::Result<Rope> {
+    pub(crate) fn slice(&self, range: &CharIndexRange) -> anyhow::Result<Rope> {
         let slice = self.rope.get_slice(range.start.0..range.end.0);
         match slice {
             Some(slice) => Ok(slice.into()),
@@ -390,7 +362,7 @@ impl Buffer {
         }
     }
 
-    pub fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
+    pub(crate) fn get_nearest_node_after_char(&self, char_index: CharIndex) -> Option<Node> {
         let byte = self.char_to_byte(char_index).ok()?;
         // Preorder is the main key here,
         // because preorder traversal walks the parent first
@@ -399,7 +371,7 @@ impl Buffer {
         })
     }
 
-    pub fn get_current_node<'a>(
+    pub(crate) fn get_current_node<'a>(
         &'a self,
         selection: &Selection,
         get_largest_end: bool,
@@ -442,7 +414,8 @@ impl Buffer {
         Ok(Some(node))
     }
 
-    pub fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
+    #[cfg(test)]
+    pub(crate) fn get_next_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
         let byte = self.char_to_byte(char_index).ok()?;
         self.traverse(Order::Post).and_then(|mut iter| {
             iter.find(|&node| {
@@ -451,23 +424,13 @@ impl Buffer {
         })
     }
 
-    pub fn get_prev_token(&self, char_index: CharIndex, is_named: bool) -> Option<Node> {
-        let byte = self.char_to_byte(char_index).ok()?;
-        self.traverse(Order::Pre).and_then(|iter| {
-            find_previous(
-                iter,
-                |node, _| node.child_count() == 0 && (!is_named || node.is_named()),
-                |node| node.start_byte() >= byte,
-            )
-        })
-    }
-
-    pub fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
+    #[cfg(test)]
+    pub(crate) fn traverse(&self, order: Order) -> Option<impl Iterator<Item = Node>> {
         self.tree.as_ref().map(|tree| traverse(tree.walk(), order))
     }
 
     /// Returns the new selection set
-    pub fn apply_edit_transaction(
+    pub(crate) fn apply_edit_transaction(
         &mut self,
         edit_transaction: &EditTransaction,
         current_selection_set: SelectionSet,
@@ -582,15 +545,11 @@ impl Buffer {
             .unwrap();
     }
 
-    pub fn undo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
-        self.undo_tree_apply_movement(Movement::Previous)
-    }
-
-    pub fn display_history(&self) -> String {
+    pub(crate) fn display_history(&self) -> String {
         self.undo_tree.display()
     }
 
-    pub fn undo_tree_apply_movement(
+    pub(crate) fn undo_tree_apply_movement(
         &mut self,
         movement: Movement,
     ) -> anyhow::Result<Option<SelectionSet>> {
@@ -611,11 +570,7 @@ impl Buffer {
         }
     }
 
-    pub fn redo(&mut self) -> anyhow::Result<Option<SelectionSet>> {
-        self.undo_tree_apply_movement(Movement::Next)
-    }
-
-    pub fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
+    pub(crate) fn has_syntax_error_at(&self, range: CharIndexRange) -> bool {
         let rope = &self.rope;
         if let Some(node) = self.tree.as_ref().and_then(|tree| {
             tree.root_node().descendant_for_byte_range(
@@ -629,7 +584,10 @@ impl Buffer {
         }
     }
 
-    pub fn from_path(path: &CanonicalizedPath, enable_tree_sitter: bool) -> anyhow::Result<Buffer> {
+    pub(crate) fn from_path(
+        path: &CanonicalizedPath,
+        enable_tree_sitter: bool,
+    ) -> anyhow::Result<Buffer> {
         let content = path.read()?;
         let language = if enable_tree_sitter {
             language::from_path(path)
@@ -650,7 +608,7 @@ impl Buffer {
         Ok(buffer)
     }
 
-    pub fn reparse_tree(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn reparse_tree(&mut self) -> anyhow::Result<()> {
         let mut parser = tree_sitter::Parser::new();
         if let Some(tree) = self.tree.as_ref() {
             parser.set_language(&tree.language())?;
@@ -659,7 +617,7 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn get_formatted_content(&self) -> Option<String> {
+    pub(crate) fn get_formatted_content(&self) -> Option<String> {
         if let Some(content) = self.language.as_ref().and_then(|language| {
             language.formatter().map(|formatter| {
                 log::info!("[FORMAT]: {}", formatter.command_string());
@@ -678,7 +636,7 @@ impl Buffer {
         None
     }
 
-    pub fn save_without_formatting(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
+    pub(crate) fn save_without_formatting(&mut self) -> anyhow::Result<Option<CanonicalizedPath>> {
         if let Some(path) = &self.path.clone() {
             path.write(&self.content())?;
 
@@ -689,7 +647,7 @@ impl Buffer {
         }
     }
 
-    pub fn save(
+    pub(crate) fn save(
         &mut self,
         current_selection_set: SelectionSet,
     ) -> anyhow::Result<Option<CanonicalizedPath>> {
@@ -709,108 +667,91 @@ impl Buffer {
         self.apply_edit_transaction(&edit_transaction, current_selection_set, true)
     }
 
-    pub fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
+    pub(crate) fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
         self.highlighted_spans.0.clone()
     }
 
-    pub fn language(&self) -> Option<Language> {
+    pub(crate) fn language(&self) -> Option<Language> {
         self.language.clone()
     }
 
-    pub fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
+    #[cfg(test)]
+    pub(crate) fn set_language(&mut self, language: Language) -> anyhow::Result<()> {
         self.language = Some(language);
         self.reparse_tree()
     }
 
-    pub fn treesitter_language(&self) -> Option<tree_sitter::Language> {
+    pub(crate) fn treesitter_language(&self) -> Option<tree_sitter::Language> {
         self.treesitter_language.clone()
     }
 
-    pub fn get_char_at_position(&self, position: Position) -> Option<char> {
+    pub(crate) fn get_char_at_position(&self, position: Position) -> Option<char> {
         let char_index = position.to_char_index(self).ok()?.0;
         self.rope.get_char(char_index)
     }
 
-    pub fn contains_position_range(&self, range: &Range<Position>) -> bool {
-        self.try_position_to_char_index(range.end)
-            .map(|end| end.0 < self.rope.len_chars())
-            .unwrap_or(false)
-    }
-
-    pub fn try_position_to_char_index(&self, position: Position) -> Option<CharIndex> {
-        let index = self.rope.try_line_to_char(position.line).ok()?;
-        Some(CharIndex(index + position.column))
-    }
-
-    pub fn tree(&self) -> Option<&Tree> {
+    pub(crate) fn tree(&self) -> Option<&Tree> {
         self.tree.as_ref()
     }
 
-    pub fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {
+    pub(crate) fn line_to_byte(&self, line_index: usize) -> anyhow::Result<usize> {
         Ok(self.rope.try_line_to_byte(line_index)?)
     }
 
-    pub fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
+    pub(crate) fn position_to_byte(&self, start: Position) -> anyhow::Result<usize> {
         let start = self.position_to_char(start)?;
         self.char_to_byte(start)
     }
 
-    pub fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
+    pub(crate) fn line_to_char_range(&self, line: usize) -> anyhow::Result<CharIndexRange> {
         let start = self.line_to_char(line)?;
         let end = self.line_to_char(line + 1)? - 1;
         Ok((start..end).into())
     }
 
-    pub fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
+    pub(crate) fn line_to_byte_range(&self, line: usize) -> anyhow::Result<ByteRange> {
         let start = self.line_to_byte(line)?;
         let end = self.line_to_byte(line + 1)?.saturating_sub(1);
         Ok(ByteRange::new(start..end))
     }
 
-    pub fn bookmarks(&self) -> Vec<CharIndexRange> {
+    pub(crate) fn bookmarks(&self) -> Vec<CharIndexRange> {
         self.bookmarks.clone()
     }
 
-    pub fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
+    pub(crate) fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
         let char_index = self.byte_to_char(byte_index)?;
         self.char_to_position(char_index)
     }
 
-    /// Line is 0-indexed
-    pub fn line_to_position_range(&self, line: usize) -> anyhow::Result<Range<Position>> {
-        let start = self.line_to_char(line)?;
-        let end = self.line_to_char(line + 1)?;
-        Ok(self.char_to_position(start)?..self.char_to_position(end - 1)?)
-    }
-
-    pub fn byte_to_line(&self, byte: usize) -> anyhow::Result<usize> {
+    pub(crate) fn byte_to_line(&self, byte: usize) -> anyhow::Result<usize> {
         Ok(self.rope.try_byte_to_line(byte)?)
     }
 
-    pub fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
+    pub(crate) fn get_line_by_line_index(&self, line_index: usize) -> Option<ropey::RopeSlice<'_>> {
         self.rope.get_line(line_index)
     }
 
-    pub fn position_range_to_byte_range(
+    pub(crate) fn position_range_to_byte_range(
         &self,
         range: &Range<Position>,
     ) -> anyhow::Result<Range<usize>> {
         Ok(self.position_to_byte(range.start)?..self.position_to_byte(range.end)?)
     }
 
-    pub fn byte_range_to_char_index_range(
+    pub(crate) fn byte_range_to_char_index_range(
         &self,
         range: &Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.byte_to_char(range.start)?..self.byte_to_char(range.end)?).into())
     }
-    pub fn position_range_to_char_index_range(
+    pub(crate) fn position_range_to_char_index_range(
         &self,
         range: &Range<Position>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.position_to_char(range.start)?..self.position_to_char(range.end)?).into())
     }
-    pub fn char_index_range_to_position_range(
+    pub(crate) fn char_index_range_to_position_range(
         &self,
         range: CharIndexRange,
     ) -> anyhow::Result<Range<Position>> {
@@ -972,7 +913,7 @@ impl Buffer {
     }
 
     /// The boolean returned indicates whether the replacement causes any modification
-    pub fn replace(
+    pub(crate) fn replace(
         &mut self,
         config: LocalSearchConfig,
         current_selection_set: SelectionSet,
@@ -1021,7 +962,10 @@ impl Buffer {
         Ok((modified, selection_set))
     }
 
-    pub fn char_index_range_to_byte_range(&self, range: CharIndexRange) -> Option<Range<usize>> {
+    pub(crate) fn char_index_range_to_byte_range(
+        &self,
+        range: CharIndexRange,
+    ) -> Option<Range<usize>> {
         Some(self.char_to_byte(range.start).ok()?..self.char_to_byte(range.end).ok()?)
     }
 
@@ -1036,7 +980,7 @@ pub struct EnclosurePair {
     pub close: Enclosure,
 }
 impl EnclosurePair {
-    pub fn outer_range(&self) -> CharIndexRange {
+    pub(crate) fn outer_range(&self) -> CharIndexRange {
         (self.open.char_index_range.start..self.close.char_index_range.end).into()
     }
 
@@ -1120,15 +1064,6 @@ fn f(
             .trim()
             .to_string();
         pretty_assertions::assert_eq!(actual, expected)
-    }
-
-    #[test]
-    fn find_words() {
-        let buffer = Buffer::new(None, "foo bar baz baz");
-        let words = buffer.find_words("Ba");
-
-        // Should return unique words
-        assert_eq!(words, vec!["bar", "baz"]);
     }
 
     mod replace {
@@ -1264,7 +1199,9 @@ fn f(
                 assert_ne!(buffer.rope.to_string(), original);
 
                 // Undo the buffer
-                buffer.undo().unwrap();
+                buffer
+                    .undo_tree_apply_movement(crate::components::editor::Movement::Previous)
+                    .unwrap();
 
                 let content = buffer.rope.to_string();
 

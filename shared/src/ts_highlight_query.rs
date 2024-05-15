@@ -22,7 +22,7 @@ pub fn clear_cache() -> anyhow::Result<()> {
 }
 
 /// Get highlight query from cache or `nvim-treesitter` repo.
-pub fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQueryResult> {
+pub(crate) fn get_highlight_query(language_id: &str) -> anyhow::Result<GetHighlightQueryResult> {
     let cache_dir = cache_dir();
     std::fs::create_dir_all(cache_dir.clone())?;
     let cache_path = cache_dir.join(format!("{}.scm", language_id));

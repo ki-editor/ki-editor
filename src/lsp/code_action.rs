@@ -37,10 +37,7 @@ impl PartialEq for Command {
 impl Eq for Command {}
 
 impl CodeAction {
-    pub fn title(&self) -> String {
-        self.title.clone()
-    }
-    pub fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
+    pub(crate) fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
         let value = self;
         DropdownItem::new(value.title)
             .set_group(Some(

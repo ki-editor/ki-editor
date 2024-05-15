@@ -3,6 +3,6 @@ pub struct Foo {
     b: (),
 }
 
-pub fn foo() -> Foo {
+pub(crate) fn foo() -> Foo {
     Foo { a: (), b: () }
 }

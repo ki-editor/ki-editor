@@ -137,7 +137,7 @@ impl Component for SuggestiveEditor {
 }
 
 impl SuggestiveEditor {
-    pub fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
+    pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>, filter: SuggestiveEditorFilter) -> Self {
         Self {
             editor: Editor::from_buffer(buffer),
             completion_dropdown: Dropdown::new(DropdownConfig {
@@ -148,11 +148,12 @@ impl SuggestiveEditor {
         }
     }
 
-    pub fn handle_dispatch(
+    pub(crate) fn handle_dispatch(
         &mut self,
         dispatch: DispatchSuggestiveEditor,
     ) -> anyhow::Result<Dispatches> {
         match dispatch {
+            #[cfg(test)]
             DispatchSuggestiveEditor::CompletionFilter(filter) => {
                 self.filter = filter;
                 Ok(Default::default())
@@ -168,25 +169,25 @@ impl SuggestiveEditor {
         }
     }
 
-    pub fn enter_insert_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
+    pub(crate) fn enter_insert_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
         self.editor
             .enter_insert_mode(super::editor::Direction::Start)
     }
 
-    pub fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
+    pub(crate) fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
         self.completion_dropdown.current_item()
     }
 
-    pub fn completion_dropdown_opened(&self) -> bool {
+    pub(crate) fn completion_dropdown_opened(&self) -> bool {
         !self.completion_dropdown.items().is_empty()
     }
 
     #[cfg(test)]
-    pub fn filtered_dropdown_items(&self) -> Vec<String> {
+    pub(crate) fn filtered_dropdown_items(&self) -> Vec<String> {
         todo!("remove this method")
     }
 
-    pub fn set_completion(&mut self, completion: Completion) {
+    pub(crate) fn set_completion(&mut self, completion: Completion) {
         self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
@@ -233,6 +234,7 @@ impl SuggestiveEditor {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DispatchSuggestiveEditor {
+    #[cfg(test)]
     CompletionFilter(SuggestiveEditorFilter),
     Completion(Completion),
 }
@@ -811,24 +813,15 @@ impl Info {
         }
     }
 
-    pub fn content(&self) -> &String {
+    pub(crate) fn content(&self) -> &String {
         &self.content
     }
 
-    pub fn decorations(&self) -> &Vec<Decoration> {
+    pub(crate) fn decorations(&self) -> &Vec<Decoration> {
         &self.decorations
     }
 
-    pub fn take(self) -> (String, String, Vec<Decoration>) {
-        let Self {
-            content,
-            title,
-            decorations,
-        } = self;
-        (title, content, decorations)
-    }
-
-    pub fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
+    pub(crate) fn set_decorations(self, decorations: Vec<Decoration>) -> Info {
         Info {
             decorations,
             ..self

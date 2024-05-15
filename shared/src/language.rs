@@ -98,7 +98,7 @@ impl Language {
         grammar::grammar::get_language(&self.tree_sitter_grammar_config()?.grammar_id).ok()
     }
 
-    pub fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
+    pub(crate) fn tree_sitter_grammar_config(&self) -> Option<GrammarConfiguration> {
         self.tree_sitter_grammar_config.as_ref().map(|config| {
             GrammarConfiguration::remote(config.id, config.url, config.commit, config.subpath)
         })
@@ -185,7 +185,7 @@ pub fn from_extension(extension: &str) -> Option<Language> {
         .map(|language| (*language).clone())
 }
 
-pub fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
+pub(crate) fn from_filename(path: &CanonicalizedPath) -> Option<Language> {
     let file_name = path.file_name()?;
     LANGUAGES
         .iter()

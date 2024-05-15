@@ -9,46 +9,46 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn new(line: usize, column: usize) -> Self {
+    pub(crate) fn new(line: usize, column: usize) -> Self {
         Self { line, column }
     }
-    pub fn to_char_index(self, buffer: &Buffer) -> anyhow::Result<CharIndex> {
+    pub(crate) fn to_char_index(self, buffer: &Buffer) -> anyhow::Result<CharIndex> {
         buffer.position_to_char(self)
     }
 
-    pub fn sub_column(&self, column: usize) -> Self {
+    pub(crate) fn sub_column(&self, column: usize) -> Self {
         Self {
             line: self.line,
             column: self.column.saturating_sub(column),
         }
     }
 
-    pub fn move_right(&self, by: u16) -> Position {
+    pub(crate) fn move_right(&self, by: u16) -> Position {
         Position {
             line: self.line,
             column: self.column + by as usize,
         }
     }
 
-    pub fn move_up(&self, by: usize) -> Position {
+    pub(crate) fn move_up(&self, by: usize) -> Position {
         Position {
             line: self.line.saturating_sub(by),
             column: self.column,
         }
     }
 
-    pub fn move_left(&self, by: usize) -> Position {
+    pub(crate) fn move_left(&self, by: usize) -> Position {
         Position {
             line: self.line,
             column: self.column.saturating_sub(by),
         }
     }
 
-    pub fn set_line(self, line: usize) -> Position {
+    pub(crate) fn set_line(self, line: usize) -> Position {
         Position { line, ..self }
     }
 
-    pub fn move_down(&self, line: usize) -> Position {
+    pub(crate) fn move_down(&self, line: usize) -> Position {
         Position {
             line: self.line + line,
             column: self.column,

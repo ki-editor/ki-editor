@@ -70,7 +70,7 @@ impl Ord for CompletionItem {
 }
 
 impl CompletionItem {
-    pub fn emoji(&self) -> String {
+    pub(crate) fn emoji(&self) -> String {
         self.kind
             .map(|kind| {
                 get_icon_config()
@@ -81,7 +81,7 @@ impl CompletionItem {
             })
             .unwrap_or_default()
     }
-    pub fn info(&self) -> Option<Info> {
+    pub(crate) fn info(&self) -> Option<Info> {
         let kind = self.kind.map(|kind| {
             convert_case::Casing::to_case(&format!("{:?}", kind), convert_case::Case::Title)
         });
@@ -100,7 +100,8 @@ impl CompletionItem {
             Some(Info::new("Completion Info".to_string(), result))
         }
     }
-    pub fn from_label(label: String) -> Self {
+    #[cfg(test)]
+    pub(crate) fn from_label(label: String) -> Self {
         Self {
             label,
             kind: None,
@@ -111,15 +112,16 @@ impl CompletionItem {
         }
     }
 
-    pub fn label(&self) -> String {
+    pub(crate) fn label(&self) -> String {
         self.label.clone()
     }
 
-    pub fn documentation(&self) -> Option<Documentation> {
+    pub(crate) fn documentation(&self) -> Option<Documentation> {
         self.documentation.clone()
     }
 
-    pub fn set_documentation(self, description: Option<Documentation>) -> CompletionItem {
+    #[cfg(test)]
+    pub(crate) fn set_documentation(self, description: Option<Documentation>) -> CompletionItem {
         CompletionItem {
             documentation: description,
             ..self

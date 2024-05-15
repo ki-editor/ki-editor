@@ -32,7 +32,6 @@ use crate::{
     selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
     selection_mode::inside::InsideKind,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
-    themes::Theme,
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
@@ -40,7 +39,6 @@ use itertools::Itertools;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
-    collections::HashSet,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -86,7 +84,7 @@ impl std::fmt::Display for Null {
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 impl<T: Frontend> App<T> {
     #[cfg(test)]
-    pub fn new(
+    pub(crate) fn new(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
     ) -> anyhow::Result<App<T>> {
@@ -95,11 +93,11 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn disable_lsp(&mut self) {
+    pub(crate) fn disable_lsp(&mut self) {
         self.enable_lsp = false
     }
 
-    pub fn from_channel(
+    pub(crate) fn from_channel(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
@@ -134,7 +132,10 @@ impl<T: Frontend> App<T> {
             .update_highlighted_spans(component_id, highlighted_spans)
     }
 
-    pub fn run(mut self, entry_path: Option<CanonicalizedPath>) -> Result<(), anyhow::Error> {
+    pub(crate) fn run(
+        mut self,
+        entry_path: Option<CanonicalizedPath>,
+    ) -> Result<(), anyhow::Error> {
         {
             let mut frontend = self.frontend.lock().unwrap();
             frontend.enter_alternate_screen()?;
@@ -180,7 +181,7 @@ impl<T: Frontend> App<T> {
         self.quit()
     }
 
-    pub fn quit(&mut self) -> anyhow::Result<()> {
+    pub(crate) fn quit(&mut self) -> anyhow::Result<()> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
@@ -189,7 +190,7 @@ impl<T: Frontend> App<T> {
         std::process::exit(0);
     }
 
-    pub fn components(&self) -> Vec<KindedComponent> {
+    pub(crate) fn components(&self) -> Vec<KindedComponent> {
         self.layout.components()
     }
 
@@ -227,7 +228,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
+    pub(crate) fn get_screen(&mut self) -> Result<Screen, anyhow::Error> {
         // Recalculate layout before each render
         self.layout.recalculate_layout();
 
@@ -358,14 +359,17 @@ impl<T: Frontend> App<T> {
         self.handle_dispatches(dispatches?)
     }
 
-    pub fn handle_dispatches(&mut self, dispatches: Dispatches) -> Result<(), anyhow::Error> {
+    pub(crate) fn handle_dispatches(
+        &mut self,
+        dispatches: Dispatches,
+    ) -> Result<(), anyhow::Error> {
         for dispatch in dispatches.into_vec() {
             self.handle_dispatch(dispatch)?;
         }
         Ok(())
     }
 
-    pub fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
+    pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch {}", dispatch.variant_name());
         match dispatch {
             Dispatch::CloseCurrentWindow => {
@@ -459,7 +463,6 @@ impl<T: Frontend> App<T> {
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
-            Dispatch::GlobalSearch => self.global_search()?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
             Dispatch::RunCommand(command) => self.run_command(command)?,
             Dispatch::QuitAll => self.quit_all()?,
@@ -481,12 +484,15 @@ impl<T: Frontend> App<T> {
             Dispatch::SetClipboardContent(content) => self.context.set_clipboard_content(content),
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
 
+            #[cfg(test)]
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
             Dispatch::GetRepoGitHunks => self.get_repo_git_hunks()?,
             Dispatch::SaveAll => self.save_all()?,
+            #[cfg(test)]
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
+            #[cfg(test)]
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
             Dispatch::OpenInsideOtherPromptOpen => self.open_inside_other_prompt_open()?,
             Dispatch::OpenInsideOtherPromptClose { open } => {
@@ -523,17 +529,17 @@ impl<T: Frontend> App<T> {
                 })?,
                 Scope::Global => self.global_replace()?,
             },
+            #[cfg(test)]
             Dispatch::HandleLspNotification(notification) => {
                 self.handle_lsp_notification(notification)?
             }
+            #[cfg(test)]
             Dispatch::SetTheme(theme) => {
                 let context = std::mem::take(&mut self.context);
                 self.context = context.set_theme(theme);
             }
+            #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
-            Dispatch::ToSuggestiveEditor(dispatch) => {
-                self.handle_dispatch_suggestive_editor(dispatch)?
-            }
             Dispatch::CloseDropdown => self.layout.close_dropdown(),
             Dispatch::CloseEditorInfo => self.layout.close_editor_info(),
             Dispatch::RenderDropdown { render } => {
@@ -541,6 +547,7 @@ impl<T: Frontend> App<T> {
                     self.render_dropdown(dropdown, render)?;
                 }
             }
+            #[cfg(test)]
             Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
@@ -553,7 +560,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn current_component(&self) -> Rc<RefCell<dyn Component>> {
+    pub(crate) fn current_component(&self) -> Rc<RefCell<dyn Component>> {
         self.layout.get_current_component()
     }
 
@@ -770,7 +777,10 @@ impl<T: Frontend> App<T> {
         self.layout.get_suggestive_editor(component_id)
     }
 
-    pub fn handle_lsp_notification(&mut self, notification: LspNotification) -> anyhow::Result<()> {
+    pub(crate) fn handle_lsp_notification(
+        &mut self,
+        notification: LspNotification,
+    ) -> anyhow::Result<()> {
         match notification {
             LspNotification::Hover(hover) => self.show_editor_info(Info::new(
                 "Hover Info".to_string(),
@@ -907,7 +917,7 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn get_quickfix_list(&self) -> Option<QuickfixList> {
+    pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
             QuickfixList::new(
                 self.layout.get_quickfix_list_items(&state.source),
@@ -940,11 +950,11 @@ impl<T: Frontend> App<T> {
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
         let component = self.open_file(path, OpenFileOption::Focus)?;
-        component
+        let dispatches = component
             .borrow_mut()
             .editor_mut()
             .set_position_range(range.clone())?;
-        Ok(())
+        self.handle_dispatches(dispatches)
     }
 
     fn set_quickfix_list_type(
@@ -1074,11 +1084,11 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    pub fn quit_all(&self) -> Result<(), anyhow::Error> {
+    pub(crate) fn quit_all(&self) -> Result<(), anyhow::Error> {
         Ok(self.sender.send(AppMessage::QuitAll)?)
     }
 
-    pub fn sender(&self) -> Sender<AppMessage> {
+    pub(crate) fn sender(&self) -> Sender<AppMessage> {
         self.sender.clone()
     }
 
@@ -1180,7 +1190,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_current_selected_texts(&self) -> Vec<String> {
+    pub(crate) fn get_current_selected_texts(&self) -> Vec<String> {
         let _content = self.current_component().borrow().content();
         self.current_component()
             .borrow()
@@ -1189,7 +1199,7 @@ impl<T: Frontend> App<T> {
     }
 
     #[cfg(test)]
-    pub fn get_file_content(&self, path: &CanonicalizedPath) -> String {
+    pub(crate) fn get_file_content(&self, path: &CanonicalizedPath) -> String {
         self.layout
             .get_existing_editor(path)
             .unwrap()
@@ -1197,7 +1207,7 @@ impl<T: Frontend> App<T> {
             .content()
     }
 
-    pub fn handle_dispatch_editor(
+    pub(crate) fn handle_dispatch_editor(
         &mut self,
         dispatch_editor: DispatchEditor,
     ) -> anyhow::Result<()> {
@@ -1251,11 +1261,15 @@ impl<T: Frontend> App<T> {
         )
     }
 
+    #[cfg(test)]
     fn set_global_title(&mut self, title: String) {
         self.global_title = Some(title)
     }
 
-    pub fn set_syntax_highlight_request_sender(&mut self, sender: Sender<SyntaxHighlightRequest>) {
+    pub(crate) fn set_syntax_highlight_request_sender(
+        &mut self,
+        sender: Sender<SyntaxHighlightRequest>,
+    ) {
         self.syntax_highlight_request_sender = Some(sender);
     }
 
@@ -1573,6 +1587,7 @@ impl<T: Frontend> App<T> {
         self.current_component().borrow().editor().content()
     }
 
+    #[cfg(test)]
     fn handle_key_events(&mut self, key_events: Vec<event::KeyEvent>) -> anyhow::Result<()> {
         for key_event in key_events.into_iter() {
             self.handle_event(Event::Key(key_event.to_owned()))?;
@@ -1645,7 +1660,10 @@ impl<T: Frontend> App<T> {
         self.layout.get_dropdown_infos_count()
     }
 
-    pub fn render_quickfix_list(&mut self, quickfix_list: QuickfixList) -> anyhow::Result<()> {
+    pub(crate) fn render_quickfix_list(
+        &mut self,
+        quickfix_list: QuickfixList,
+    ) -> anyhow::Result<()> {
         let dispatches = self.layout.show_quickfix_list(quickfix_list)?;
         self.handle_dispatches(dispatches)
     }
@@ -1752,11 +1770,13 @@ pub struct Dimension {
 }
 
 impl Dimension {
-    pub fn area(&self) -> usize {
+    #[cfg(test)]
+    pub(crate) fn area(&self) -> usize {
         self.height as usize * self.width as usize
     }
 
-    pub fn positions(&self) -> HashSet<Position> {
+    #[cfg(test)]
+    pub(crate) fn positions(&self) -> std::collections::HashSet<Position> {
         (0..self.height as usize)
             .flat_map(|line| (0..self.width as usize).map(move |column| Position { column, line }))
             .collect()
@@ -1812,7 +1832,8 @@ impl Dispatches {
 #[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub enum Dispatch {
-    SetTheme(Theme),
+    #[cfg(test)]
+    SetTheme(crate::themes::Theme),
     CloseCurrentWindow,
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
@@ -1861,7 +1882,6 @@ pub enum Dispatch {
     ToEditor(DispatchEditor),
     RequestDocumentSymbols(RequestParams),
     GotoLocation(Location),
-    GlobalSearch,
     OpenMoveToIndexPrompt,
     RunCommand(String),
     QuitAll,
@@ -1881,11 +1901,15 @@ pub enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent(String),
     SetGlobalMode(Option<GlobalMode>),
+    #[cfg(test)]
     HandleKeyEvent(event::KeyEvent),
+    #[cfg(test)]
     HandleKeyEvents(Vec<event::KeyEvent>),
     GetRepoGitHunks,
     SaveAll,
+    #[cfg(test)]
     TerminalDimensionChanged(Dimension),
+    #[cfg(test)]
     SetGlobalTitle(String),
     OpenInsideOtherPromptOpen,
     OpenInsideOtherPromptClose {
@@ -1923,12 +1947,13 @@ pub enum Dispatch {
     Replace {
         scope: Scope,
     },
+    #[cfg(test)]
     HandleLspNotification(LspNotification),
-    ToSuggestiveEditor(DispatchSuggestiveEditor),
     CloseDropdown,
     RenderDropdown {
         render: DropdownRender,
     },
+    #[cfg(test)]
     OpenPrompt(PromptConfig),
     ShowEditorInfo(Info),
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
@@ -1970,7 +1995,7 @@ pub enum FilePickerKind {
     Opened,
 }
 impl FilePickerKind {
-    pub fn display(&self) -> String {
+    pub(crate) fn display(&self) -> String {
         match self {
             FilePickerKind::NonGitIgnored => "Not Git Ignored".to_string(),
             FilePickerKind::GitStatus => "Git Status".to_string(),
@@ -1986,7 +2011,7 @@ pub struct RequestParams {
     pub context: ResponseContext,
 }
 impl RequestParams {
-    pub fn set_kind(self, scope: Option<Scope>) -> Self {
+    pub(crate) fn set_kind(self, scope: Option<Scope>) -> Self {
         Self {
             context: ResponseContext {
                 scope,
@@ -1996,7 +2021,7 @@ impl RequestParams {
         }
     }
 
-    pub fn set_description(self, description: &str) -> Self {
+    pub(crate) fn set_description(self, description: &str) -> Self {
         Self {
             context: ResponseContext {
                 description: Some(description.to_string()),
@@ -2069,10 +2094,11 @@ pub enum DispatchPrompt {
     UpdateLocalSearchConfigReplacement {
         scope: Scope,
     },
+    #[cfg(test)]
     SetContent,
 }
 impl DispatchPrompt {
-    pub fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
+    pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
             DispatchPrompt::PushFilter {
                 kind,
@@ -2176,6 +2202,7 @@ impl DispatchPrompt {
                 }]
                 .to_vec(),
             )),
+            #[cfg(test)]
             DispatchPrompt::SetContent => Ok(Dispatches::new(
                 [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),
             )),

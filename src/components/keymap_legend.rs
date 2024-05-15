@@ -91,7 +91,7 @@ impl Keymaps {
             .join("\n")
     }
 
-    pub fn new(keymaps: &[Keymap]) -> Self {
+    pub(crate) fn new(keymaps: &[Keymap]) -> Self {
         Self(keymaps.to_vec())
     }
 
@@ -167,7 +167,7 @@ impl KeymapLegendConfig {
         self.body.display(width)
     }
 
-    pub fn keymaps(&self) -> Vec<&Keymap> {
+    pub(crate) fn keymaps(&self) -> Vec<&Keymap> {
         self.body.keymaps()
     }
 
@@ -244,7 +244,7 @@ pub struct Keymap {
 }
 
 impl Keymap {
-    pub fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
+    pub(crate) fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
             description,
@@ -263,7 +263,7 @@ impl Keymap {
 }
 
 impl KeymapLegend {
-    pub fn new(config: KeymapLegendConfig) -> KeymapLegend {
+    pub(crate) fn new(config: KeymapLegendConfig) -> KeymapLegend {
         // Check for duplicate keys
         let duplicates = config
             .keymaps()

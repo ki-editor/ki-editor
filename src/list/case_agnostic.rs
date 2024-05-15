@@ -2,7 +2,7 @@ use crate::{quickfix_list::Location, selection_mode::CaseAgnostic};
 
 use super::WalkBuilderConfig;
 
-pub fn run(
+pub(crate) fn run(
     pattern: String,
     walk_builder_config: WalkBuilderConfig,
 ) -> anyhow::Result<Vec<Location>> {

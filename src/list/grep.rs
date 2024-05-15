@@ -41,7 +41,7 @@ impl Default for RegexConfig {
 }
 
 /// Returns list of affected files
-pub fn replace(
+pub(crate) fn replace(
     walk_builder_config: WalkBuilderConfig,
     local_search_config: LocalSearchConfig,
 ) -> anyhow::Result<Vec<CanonicalizedPath>> {
@@ -63,7 +63,7 @@ pub fn replace(
         .collect())
 }
 
-pub fn run(
+pub(crate) fn run(
     pattern: &str,
     walk_builder_config: WalkBuilderConfig,
     grep_config: RegexConfig,

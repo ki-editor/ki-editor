@@ -16,7 +16,7 @@ pub struct FileExplorer {
 }
 
 impl FileExplorer {
-    pub fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
+    pub(crate) fn new(path: &CanonicalizedPath) -> anyhow::Result<Self> {
         let tree = Tree::new(path)?;
         let text = tree.render();
         let mut editor = Editor::from_text(
@@ -28,7 +28,7 @@ impl FileExplorer {
         Ok(Self { editor, tree })
     }
 
-    pub fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<Dispatches> {
+    pub(crate) fn reveal(&mut self, path: &CanonicalizedPath) -> anyhow::Result<Dispatches> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.reveal(path)?;
         self.refresh_editor()?;
@@ -39,7 +39,7 @@ impl FileExplorer {
         }
     }
 
-    pub fn refresh(&mut self, working_directory: &CanonicalizedPath) -> anyhow::Result<()> {
+    pub(crate) fn refresh(&mut self, working_directory: &CanonicalizedPath) -> anyhow::Result<()> {
         let tree = std::mem::take(&mut self.tree);
         self.tree = tree.refresh(working_directory)?;
         self.refresh_editor()?;

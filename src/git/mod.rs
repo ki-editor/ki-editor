@@ -26,7 +26,7 @@ impl TryFrom<&CanonicalizedPath> for GitRepo {
 }
 
 impl GitRepo {
-    pub fn git_status_files(&self) -> Result<Vec<CanonicalizedPath>, anyhow::Error> {
+    pub(crate) fn git_status_files(&self) -> Result<Vec<CanonicalizedPath>, anyhow::Error> {
         let statuses = self.repo.statuses(None)?;
 
         let new_and_modified_files: Vec<_> = statuses
@@ -44,7 +44,7 @@ impl GitRepo {
         Ok(new_and_modified_files)
     }
 
-    pub fn diffs(&self) -> anyhow::Result<Vec<FileDiff>> {
+    pub(crate) fn diffs(&self) -> anyhow::Result<Vec<FileDiff>> {
         let repo_path = self.path();
         Ok(self
             .git_status_files()?
@@ -58,7 +58,7 @@ impl GitRepo {
         &self.path
     }
 
-    pub fn non_git_ignored_files(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
+    pub(crate) fn non_git_ignored_files(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
         let git_status_files = self.git_status_files()?;
 
         let git_files = {

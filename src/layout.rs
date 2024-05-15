@@ -39,7 +39,7 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn new(
+    pub(crate) fn new(
         terminal_dimension: Dimension,
         working_directory: &CanonicalizedPath,
     ) -> anyhow::Result<Layout> {
@@ -57,11 +57,11 @@ impl Layout {
         })
     }
 
-    pub fn components(&self) -> Vec<KindedComponent> {
+    pub(crate) fn components(&self) -> Vec<KindedComponent> {
         self.tree.components()
     }
 
-    pub fn get_current_component(&self) -> Rc<RefCell<dyn Component>> {
+    pub(crate) fn get_current_component(&self) -> Rc<RefCell<dyn Component>> {
         self.get_component(self.tree.focused_component_id())
     }
 
@@ -72,7 +72,7 @@ impl Layout {
             .unwrap_or_else(|| self.tree.root().data().component().clone())
     }
 
-    pub fn remove_current_component(&mut self) {
+    pub(crate) fn remove_current_component(&mut self) {
         let node = self.tree.get_current_node();
         if let Some(path) = node.data().component().borrow().path() {
             self.background_suggestive_editors.shift_remove(&path);
@@ -94,21 +94,25 @@ impl Layout {
         self.recalculate_layout();
     }
 
-    pub fn cycle_window(&mut self) {
+    pub(crate) fn cycle_window(&mut self) {
         self.tree.cycle_component()
     }
 
-    pub fn close_current_window(&mut self) {
+    pub(crate) fn close_current_window(&mut self) {
         self.remove_current_component();
     }
 
-    pub fn add_and_focus_prompt(&mut self, kind: ComponentKind, component: Rc<RefCell<Prompt>>) {
+    pub(crate) fn add_and_focus_prompt(
+        &mut self,
+        kind: ComponentKind,
+        component: Rc<RefCell<Prompt>>,
+    ) {
         self.tree
             .append_component_to_current(KindedComponent::new(kind, component), true);
         self.recalculate_layout();
     }
 
-    pub fn recalculate_layout(&mut self) {
+    pub(crate) fn recalculate_layout(&mut self) {
         let (layout_kind, ratio) = layout_kind(&self.terminal_dimension);
 
         let (rectangles, borders) = Rectangle::generate(
@@ -131,14 +135,14 @@ impl Layout {
             });
     }
 
-    pub fn get_existing_editor(
+    pub(crate) fn get_existing_editor(
         &self,
         path: &CanonicalizedPath,
     ) -> Option<Rc<RefCell<SuggestiveEditor>>> {
         self.background_suggestive_editors.get(path).cloned()
     }
 
-    pub fn open_file(
+    pub(crate) fn open_file(
         &mut self,
         path: &CanonicalizedPath,
         focus_editor: bool,
@@ -153,24 +157,27 @@ impl Layout {
         }
     }
 
-    pub fn set_terminal_dimension(&mut self, dimension: Dimension) {
+    pub(crate) fn set_terminal_dimension(&mut self, dimension: Dimension) {
         self.terminal_dimension = dimension;
         self.recalculate_layout()
     }
 
-    pub fn terminal_dimension(&self) -> Dimension {
+    pub(crate) fn terminal_dimension(&self) -> Dimension {
         self.terminal_dimension
     }
 
-    pub fn focused_component_id(&self) -> ComponentId {
+    pub(crate) fn focused_component_id(&self) -> ComponentId {
         self.tree.current_component().borrow().id()
     }
 
-    pub fn borders(&self) -> Vec<Border> {
+    pub(crate) fn borders(&self) -> Vec<Border> {
         self.borders.clone()
     }
 
-    pub fn add_suggestive_editor(&mut self, suggestive_editor: Rc<RefCell<SuggestiveEditor>>) {
+    pub(crate) fn add_suggestive_editor(
+        &mut self,
+        suggestive_editor: Rc<RefCell<SuggestiveEditor>>,
+    ) {
         let path = suggestive_editor.borrow().path();
         if let Some(path) = path {
             self.background_suggestive_editors
@@ -178,7 +185,7 @@ impl Layout {
         }
     }
 
-    pub fn get_suggestive_editor(
+    pub(crate) fn get_suggestive_editor(
         &self,
         component_id: ComponentId,
     ) -> Result<Rc<RefCell<SuggestiveEditor>>, anyhow::Error> {
@@ -202,11 +209,11 @@ impl Layout {
         Ok(())
     }
 
-    pub fn show_global_info(&mut self, info: Info) -> anyhow::Result<()> {
+    pub(crate) fn show_global_info(&mut self, info: Info) -> anyhow::Result<()> {
         self.show_info_on(self.tree.root_id(), info, ComponentKind::GlobalInfo)
     }
 
-    pub fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
+    pub(crate) fn show_keymap_legend(&mut self, keymap_legend_config: KeymapLegendConfig) {
         self.tree.append_component_to_current(
             KindedComponent::new(
                 ComponentKind::KeymapLegend,
@@ -216,18 +223,18 @@ impl Layout {
         )
     }
 
-    pub fn remain_only_current_component(&mut self) {
+    pub(crate) fn remain_only_current_component(&mut self) {
         self.tree.remain_only_current_component()
     }
 
-    pub fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
+    pub(crate) fn get_opened_files(&self) -> Vec<CanonicalizedPath> {
         self.background_suggestive_editors
             .iter()
             .map(|(path, _)| path.clone())
             .collect()
     }
 
-    pub fn save_all(&self) -> Result<(), anyhow::Error> {
+    pub(crate) fn save_all(&self) -> Result<(), anyhow::Error> {
         self.background_suggestive_editors
             .iter()
             .map(|(_, editor)| editor.borrow_mut().editor_mut().save())
@@ -235,7 +242,7 @@ impl Layout {
         Ok(())
     }
 
-    pub fn reveal_path_in_explorer(
+    pub(crate) fn reveal_path_in_explorer(
         &mut self,
         path: &CanonicalizedPath,
     ) -> anyhow::Result<Dispatches> {
@@ -245,11 +252,11 @@ impl Layout {
         Ok(dispatches)
     }
 
-    pub fn remove_suggestive_editor(&mut self, path: &CanonicalizedPath) {
+    pub(crate) fn remove_suggestive_editor(&mut self, path: &CanonicalizedPath) {
         self.background_suggestive_editors.shift_remove(path);
     }
 
-    pub fn refresh_file_explorer(
+    pub(crate) fn refresh_file_explorer(
         &self,
         working_directory: &CanonicalizedPath,
     ) -> anyhow::Result<()> {
@@ -258,7 +265,7 @@ impl Layout {
             .refresh(working_directory)
     }
 
-    pub fn open_file_explorer(&mut self) {
+    pub(crate) fn open_file_explorer(&mut self) {
         self.tree.remove_all_root_children();
         self.tree.replace_root_node_child(
             ComponentKind::FileExplorer,
@@ -268,7 +275,7 @@ impl Layout {
         debug_assert_eq!(self.tree.root().children().count(), 1);
     }
 
-    pub fn update_highlighted_spans(
+    pub(crate) fn update_highlighted_spans(
         &self,
         component_id: ComponentId,
         highlighted_spans: crate::syntax_highlight::HighlighedSpans,
@@ -511,7 +518,7 @@ impl Layout {
         }
     }
 
-    pub fn replace_and_focus_current_suggestive_editor(
+    pub(crate) fn replace_and_focus_current_suggestive_editor(
         &mut self,
         editor: Rc<RefCell<SuggestiveEditor>>,
     ) {

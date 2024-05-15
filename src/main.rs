@@ -53,7 +53,7 @@ fn main() {
     cli::cli().unwrap();
 }
 
-pub fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
     let _args = std::env::args().collect::<Vec<_>>();
     // run_integrated_terminal(24, 80).unwrap();

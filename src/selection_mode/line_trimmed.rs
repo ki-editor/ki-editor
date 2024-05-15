@@ -51,7 +51,7 @@ impl SelectionMode for LineTrimmed {
     }
 }
 
-pub fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
+pub(crate) fn trim_leading_spaces(byte_start: usize, line: &str) -> usize {
     if line == "\n" {
         byte_start
     } else {

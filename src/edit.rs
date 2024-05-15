@@ -4,7 +4,6 @@ use itertools::Itertools;
 use ropey::Rope;
 
 use crate::{
-    buffer::Buffer,
     char_index_range::CharIndexRange,
     selection::{CharIndex, Selection, SelectionSet},
 };
@@ -22,20 +21,15 @@ impl Edit {
         }
     }
 
-    pub fn end(&self) -> CharIndex {
+    pub(crate) fn end(&self) -> CharIndex {
         self.range.end
     }
 
-    pub fn range(&self) -> CharIndexRange {
+    pub(crate) fn range(&self) -> CharIndexRange {
         self.range
     }
 
-    pub fn bytes_offset(&self, buffer: &Buffer) -> Option<isize> {
-        let byte_range = buffer.char_index_range_to_byte_range(self.range)?;
-        Some(self.new.len_bytes() as isize - byte_range.len() as isize)
-    }
-
-    pub fn chars_offset(&self) -> isize {
+    pub(crate) fn chars_offset(&self) -> isize {
         self.new.len_chars() as isize - self.range.len() as isize
     }
 }
@@ -116,7 +110,7 @@ impl EditTransaction {
         (selections, rope)
     }
 
-    pub fn edits(&self) -> Vec<&Edit> {
+    pub(crate) fn edits(&self) -> Vec<&Edit> {
         self.action_group
             .actions
             .iter()
@@ -127,14 +121,14 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
+    pub(crate) fn from_action_groups(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             action_group: Self::normalize_action_groups(action_groups),
         }
     }
 
     #[cfg(test)]
-    pub fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
+    pub(crate) fn from_tuples(action_groups: Vec<ActionGroup>) -> Self {
         Self {
             action_group: Self::normalize_action_groups(action_groups),
         }
@@ -162,7 +156,7 @@ impl EditTransaction {
         ActionGroup { actions: result }
     }
 
-    pub fn min_char_index(&self) -> CharIndex {
+    pub(crate) fn min_char_index(&self) -> CharIndex {
         self.action_group
             .actions
             .iter()
@@ -171,7 +165,7 @@ impl EditTransaction {
             .unwrap_or(CharIndex(0))
     }
 
-    pub fn max_char_index(&self) -> CharIndex {
+    pub(crate) fn max_char_index(&self) -> CharIndex {
         self.action_group
             .actions
             .iter()
@@ -180,7 +174,7 @@ impl EditTransaction {
             .unwrap_or(CharIndex(0))
     }
 
-    pub fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
+    pub(crate) fn merge(edit_transactions: Vec<EditTransaction>) -> EditTransaction {
         EditTransaction::from_action_groups(
             edit_transactions
                 .into_iter()
@@ -189,7 +183,7 @@ impl EditTransaction {
         )
     }
 
-    pub fn selections(&self) -> Vec<&Selection> {
+    pub(crate) fn selections(&self) -> Vec<&Selection> {
         self.action_group
             .actions
             .iter()
@@ -200,11 +194,11 @@ impl EditTransaction {
             .collect_vec()
     }
 
-    pub fn range(&self) -> CharIndexRange {
+    pub(crate) fn range(&self) -> CharIndexRange {
         (self.min_char_index()..self.max_char_index()).into()
     }
 
-    pub fn selection_set(
+    pub(crate) fn selection_set(
         &self,
         mode: crate::selection::SelectionMode,
         filters: crate::selection::Filters,
@@ -229,7 +223,7 @@ pub struct ActionGroup {
 }
 
 impl ActionGroup {
-    pub fn new(actions: Vec<Action>) -> Self {
+    pub(crate) fn new(actions: Vec<Action>) -> Self {
         Self { actions }
     }
     fn get_net_offset(&self) -> isize {
@@ -404,7 +398,7 @@ mod test_is_subset {
     }
 }
 
-pub fn is_overlapping<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
+pub(crate) fn is_overlapping<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
     use std::cmp::{max, min};
     max(&a.start, &b.start) < min(&a.end, &b.end)
 }

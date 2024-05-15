@@ -22,7 +22,7 @@ impl Drop for LspManager {
 }
 
 impl LspManager {
-    pub fn new(
+    pub(crate) fn new(
         sender: Sender<AppMessage>,
         current_working_directory: CanonicalizedPath,
     ) -> LspManager {
@@ -45,25 +45,25 @@ impl LspManager {
             .unwrap_or_else(|| Ok(()))
     }
 
-    pub fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to request completion", |channel| {
             channel.request_completion(params.clone())
         })
     }
 
-    pub fn request_hover(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_hover(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to request hover", |channel| {
             channel.request_hover(params.clone())
         })
     }
 
-    pub fn request_definition(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_definition(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to go to definition", |channel| {
             channel.request_definition(params.clone())
         })
     }
 
-    pub fn request_references(
+    pub(crate) fn request_references(
         &self,
         params: RequestParams,
         include_declaration: bool,
@@ -73,37 +73,41 @@ impl LspManager {
         })
     }
 
-    pub fn request_declaration(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_declaration(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to go to declaration", |channel| {
             channel.request_declaration(params.clone())
         })
     }
 
-    pub fn request_implementation(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_implementation(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to go to implementation", |channel| {
             channel.request_implementation(params.clone())
         })
     }
 
-    pub fn request_type_definition(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_type_definition(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to go to type definition", |channel| {
             channel.request_type_definition(params.clone())
         })
     }
 
-    pub fn prepare_rename_symbol(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn prepare_rename_symbol(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to prepare rename symbol", |channel| {
             channel.prepare_rename_symbol(params.clone())
         })
     }
 
-    pub fn rename_symbol(&self, params: RequestParams, new_name: String) -> anyhow::Result<()> {
+    pub(crate) fn rename_symbol(
+        &self,
+        params: RequestParams,
+        new_name: String,
+    ) -> anyhow::Result<()> {
         self.invoke_channels(&params.path, "Failed to rename symbol", |channel| {
             channel.rename_symbol(params.clone(), new_name.clone())
         })
     }
 
-    pub fn request_code_action(
+    pub(crate) fn request_code_action(
         &self,
         action: RequestParams,
         diagnostics: Vec<lsp_types::Diagnostic>,
@@ -113,7 +117,7 @@ impl LspManager {
         })
     }
 
-    pub fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(
             &params.path,
             "Failed to request signature help",
@@ -121,7 +125,7 @@ impl LspManager {
         )
     }
 
-    pub fn request_document_symbols(&self, params: RequestParams) -> anyhow::Result<()> {
+    pub(crate) fn request_document_symbols(&self, params: RequestParams) -> anyhow::Result<()> {
         self.invoke_channels(
             &params.path,
             "Failed to request document symbols",
@@ -129,7 +133,7 @@ impl LspManager {
         )
     }
 
-    pub fn document_did_change(
+    pub(crate) fn document_did_change(
         &self,
         path: CanonicalizedPath,
         content: String,
@@ -139,13 +143,13 @@ impl LspManager {
         })
     }
 
-    pub fn document_did_save(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
+    pub(crate) fn document_did_save(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.invoke_channels(&path, "Failed to notify document did save", |channel| {
             channel.document_did_save(&path)
         })
     }
 
-    pub fn document_did_rename(
+    pub(crate) fn document_did_rename(
         &mut self,
         old: CanonicalizedPath,
         new: CanonicalizedPath,
@@ -159,7 +163,7 @@ impl LspManager {
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
 
-    pub fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
+    pub(crate) fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let Some(language) = language::from_path(&path) else {
             return Ok(());
         };
@@ -190,7 +194,11 @@ impl LspManager {
         }
     }
 
-    pub fn initialized(&mut self, language: Language, opened_documents: Vec<CanonicalizedPath>) {
+    pub(crate) fn initialized(
+        &mut self,
+        language: Language,
+        opened_documents: Vec<CanonicalizedPath>,
+    ) {
         let Some(language_id) = language.id() else {
             return;
         };
@@ -202,7 +210,7 @@ impl LspManager {
             });
     }
 
-    pub fn shutdown(&mut self) {
+    pub(crate) fn shutdown(&mut self) {
         for (_, channel) in self.lsp_server_process_channels.drain() {
             channel
                 .shutdown()

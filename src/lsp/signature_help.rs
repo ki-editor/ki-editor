@@ -33,7 +33,7 @@ impl From<lsp_types::SignatureHelp> for SignatureHelp {
 }
 
 impl SignatureHelp {
-    pub fn into_info(self) -> Option<Info> {
+    pub(crate) fn into_info(self) -> Option<Info> {
         self.signatures
             .into_iter()
             .map(|signature| {

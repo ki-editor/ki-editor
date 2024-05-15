@@ -56,7 +56,7 @@ impl Border {
         }
     }
 
-    pub fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+    pub(crate) fn to_positioned_cells(&self) -> Vec<PositionedCell> {
         self.positions()
             .into_iter()
             .map(|position| PositionedCell {
@@ -110,7 +110,7 @@ enum Element {
     Border(Border),
 }
 
-pub fn spread(length: usize, count: usize) -> Vec<usize> {
+pub(crate) fn spread(length: usize, count: usize) -> Vec<usize> {
     if count == 0 {
         return vec![];
     }
@@ -161,6 +161,7 @@ fn split(length: usize, count: usize) -> Vec<Split> {
 
 impl Rectangle {
     // A method to split a rectangle into two smaller ones based on a fixed ratio of 0.5 and return a border between them
+    #[cfg(test)]
     fn split(&self, vertical: bool) -> (Rectangle, Rectangle, Border) {
         if vertical {
             // Split vertically
@@ -335,7 +336,8 @@ impl Rectangle {
     }
 
     // A method to generate a vector of rectangles and a vector of borders based on bspwm tiling algorithm
-    pub fn generate_binary_partition(
+    #[cfg(test)]
+    pub(crate) fn generate_binary_partition(
         count: usize,
         dimension: Dimension,
     ) -> (Vec<Rectangle>, Vec<Border>) {
@@ -379,7 +381,7 @@ impl Rectangle {
         (rectangles, borders)
     }
 
-    pub fn dimension(&self) -> Dimension {
+    pub(crate) fn dimension(&self) -> Dimension {
         Dimension {
             width: self.width,
             height: self.height,
@@ -387,7 +389,7 @@ impl Rectangle {
     }
 
     /// Split the rectangle horizontally at the given line.
-    pub fn split_horizontally_at(&self, line: usize) -> (Rectangle, Rectangle) {
+    pub(crate) fn split_horizontally_at(&self, line: usize) -> (Rectangle, Rectangle) {
         let up = Rectangle {
             origin: self.origin,
             width: self.width,
@@ -401,7 +403,7 @@ impl Rectangle {
         (up, bottom)
     }
 
-    pub fn split_vertically_at(&self, column: usize) -> (Rectangle, Rectangle) {
+    pub(crate) fn split_vertically_at(&self, column: usize) -> (Rectangle, Rectangle) {
         let left = Rectangle {
             origin: self.origin,
             width: column as u16,
@@ -413,20 +415,6 @@ impl Rectangle {
             height: self.height,
         };
         (left, right)
-    }
-
-    pub fn move_up(&self, offset: usize) -> Rectangle {
-        Rectangle {
-            origin: self.origin.move_up(offset),
-            ..*self
-        }
-    }
-
-    pub fn set_height(&self, height: usize) -> Rectangle {
-        Rectangle {
-            height: height as u16,
-            ..*self
-        }
     }
 
     #[cfg(test)]
@@ -452,17 +440,6 @@ impl Rectangle {
             .collect()
     }
 
-    pub fn clamp_top(&self, by: usize) -> Rectangle {
-        Rectangle {
-            origin: Position {
-                line: self.origin.line.saturating_add(by),
-                ..self.origin
-            },
-            height: self.height.saturating_sub(by as u16),
-            width: self.width,
-        }
-    }
-
     fn clamp_left(&self, width: usize) -> Rectangle {
         Rectangle {
             origin: Position {
@@ -474,7 +451,7 @@ impl Rectangle {
         }
     }
 
-    pub fn generate(
+    pub(crate) fn generate(
         kind: LayoutKind,
         count: usize,
         ratio: f32,

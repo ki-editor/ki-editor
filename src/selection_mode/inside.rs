@@ -11,7 +11,7 @@ use super::{SelectionMode, SelectionModeParams};
 pub struct Inside(pub InsideKind);
 
 impl Inside {
-    pub fn new(kind: InsideKind) -> Self {
+    pub(crate) fn new(kind: InsideKind) -> Self {
         Self(kind)
     }
 }

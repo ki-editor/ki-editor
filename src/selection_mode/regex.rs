@@ -6,7 +6,7 @@ pub struct Regex {
     regex: regex::Regex,
     content: String,
 }
-pub fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<regex::Regex> {
+pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
@@ -26,7 +26,7 @@ pub fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<regex::Re
 }
 
 impl Regex {
-    pub fn from_config(
+    pub(crate) fn from_config(
         buffer: &Buffer,
         pattern: &str,
         config: RegexConfig,
@@ -38,7 +38,7 @@ impl Regex {
         })
     }
 
-    pub fn new(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
+    pub(crate) fn new(buffer: &Buffer, pattern: &str) -> anyhow::Result<Self> {
         let regex = get_regex(
             pattern,
             RegexConfig {
