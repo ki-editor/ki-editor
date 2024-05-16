@@ -1,12 +1,16 @@
-use crate::undo_tree::OldNew;
-
 pub(crate) struct History<T> {
-    backward_history: Vec<OldNew<T>>,
-    forward_history: Vec<OldNew<T>>,
+    backward_history: Vec<T>,
+    forward_history: Vec<T>,
 }
 
 impl<T: Eq + Clone + std::fmt::Debug> History<T> {
-    pub(crate) fn push(&mut self, item: OldNew<T>) {
+    pub(crate) fn new() -> Self {
+        Self {
+            backward_history: Default::default(),
+            forward_history: Default::default(),
+        }
+    }
+    pub(crate) fn push(&mut self, item: T) {
         if self.backward_history.last() == Some(&item) {
             return;
         }
@@ -20,7 +24,7 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         if let Some(item) = &item {
             self.forward_history.push(item.clone());
         }
-        item.map(|item| item.new_to_old)
+        self.backward_history.last().cloned()
     }
 
     pub(crate) fn redo(&mut self) -> Option<T> {
@@ -28,7 +32,7 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         if let Some(item) = &item {
             self.backward_history.push(item.clone());
         }
-        item.map(|item| item.old_to_new)
+        item
     }
 }
 
@@ -46,15 +50,10 @@ mod test_history {
     use super::*;
     #[test]
     fn basic_undo_redo() {
-        let mut history = History::default();
-        history.push(OldNew {
-            new_to_old: 0,
-            old_to_new: 1,
-        });
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 2,
-        });
+        let mut history = History::new();
+        history.push(0);
+        history.push(1);
+        history.push(2);
 
         assert_eq!(history.undo(), Some(1));
         assert_eq!(history.undo(), Some(0));
@@ -66,35 +65,22 @@ mod test_history {
 
     #[test]
     fn push_should_clear_redo_stack() {
-        let mut history = History::default();
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 2,
-        });
+        let mut history = History::new();
+        history.push(1);
+        history.push(2);
         assert_eq!(history.undo(), Some(1));
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 3,
-        });
+        history.push(3);
         assert_eq!(history.redo(), None);
         assert_eq!(history.undo(), Some(1));
     }
 
     #[test]
     fn push_should_not_allow_consecutive_duplicates() {
-        let mut history = History::default();
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 2,
-        });
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 2,
-        });
-        history.push(OldNew {
-            new_to_old: 2,
-            old_to_new: 3,
-        });
+        let mut history = History::new();
+        history.push(1);
+        history.push(2);
+        history.push(2);
+        history.push(3);
         assert_eq!(history.undo(), Some(2));
         assert_eq!(history.undo(), Some(1));
         assert_eq!(history.undo(), None);
@@ -102,19 +88,11 @@ mod test_history {
 
     #[test]
     fn push_should_allow_non_consecutive_duplicates() {
-        let mut history = History::default();
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 2,
-        });
-        history.push(OldNew {
-            new_to_old: 2,
-            old_to_new: 1,
-        });
-        history.push(OldNew {
-            new_to_old: 1,
-            old_to_new: 2,
-        });
+        let mut history = History::new();
+        history.push(1);
+        history.push(2);
+        history.push(1);
+        history.push(2);
         assert_eq!(history.undo(), Some(1));
         assert_eq!(history.undo(), Some(2));
         assert_eq!(history.undo(), Some(1));
