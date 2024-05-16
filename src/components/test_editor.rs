@@ -720,7 +720,7 @@ fn multi_insert() -> anyhow::Result<()> {
 
 #[serial]
 #[test]
-fn paste_in_insert_mode() -> anyhow::Result<()> {
+fn paste_in_insert_mode_1() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -732,6 +732,25 @@ fn paste_in_insert_mode() -> anyhow::Result<()> {
             Expect(CurrentComponentContent("foo barhaha spam")),
             Editor(Insert("Hello".to_string())),
             Expect(CurrentComponentContent("foo barhahaHello spam")),
+        ])
+    })
+}
+
+#[serial]
+#[test]
+fn paste_in_insert_mode_2() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn main(a:A,b:B){}".to_string())),
+            Editor(MatchLiteral("a:A".to_string())),
+            Editor(SetSelectionMode(SyntaxTree)),
+            Editor(Copy),
+            Editor(EnterInsertMode(Direction::End)),
+            Editor(Paste(Direction::End)),
+            Expect(CurrentComponentContent("fn main(a:Aa:A,b:B){}")),
+            Editor(Insert("Hello".to_string())),
+            Expect(CurrentComponentContent("fn main(a:Aa:AHello,b:B){}")),
         ])
     })
 }

@@ -840,32 +840,34 @@ impl Editor {
                     let copied_text = selection.copied_text(context).unwrap_or_default();
                     let copied_text_len = copied_text.len_chars();
 
-                    let selection_range = if self.mode == Mode::Normal {
+                    let (selection_range, paste_text) = if self.mode == Mode::Normal {
                         let range: CharIndexRange =
                             (insertion_range_start..insertion_range_start + copied_text_len).into();
-                        match direction {
+                        let selection_range = match direction {
                             Direction::Start => range,
                             Direction::End => range.shift_right(gap.len_chars()),
-                        }
+                        };
+                        let paste_text = {
+                            match direction {
+                                Direction::Start => {
+                                    let mut paste_text = copied_text;
+                                    paste_text.append(gap);
+                                    paste_text
+                                }
+                                Direction::End => {
+                                    let mut gap = gap;
+                                    gap.append(copied_text);
+                                    gap
+                                }
+                            }
+                        };
+                        (selection_range, paste_text)
                     } else {
                         let start = insertion_range_start + copied_text_len;
-                        (start..start).into()
+                        let selection_range = (start..start).into();
+                        let paste_text = copied_text;
+                        (selection_range, paste_text)
                     };
-                    let paste_text = {
-                        match direction {
-                            Direction::Start => {
-                                let mut paste_text = copied_text;
-                                paste_text.append(gap);
-                                paste_text
-                            }
-                            Direction::End => {
-                                let mut gap = gap;
-                                gap.append(copied_text);
-                                gap
-                            }
-                        }
-                    };
-
                     ActionGroup::new(
                         [
                             Action::Edit(Edit {
