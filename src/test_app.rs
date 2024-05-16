@@ -1633,6 +1633,7 @@ fn file_path_history() -> anyhow::Result<()> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 App(OpenFile(s.foo_rs())),
+                App(OpenFile(s.foo_rs())),
                 Expect(CurrentComponentPath(Some(s.foo_rs()))),
                 App(GoToPreviousFile),
                 Expect(CurrentComponentPath(Some(s.main_rs()))),
