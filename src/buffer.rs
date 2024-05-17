@@ -510,7 +510,7 @@ impl Buffer {
                 })
             })
             .collect_vec();
-        if let Some(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
+        if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
                 &byte_range,
                 edit.new.len_bytes() as isize - byte_range.len() as isize,
@@ -884,8 +884,8 @@ impl Buffer {
     pub(crate) fn char_index_range_to_byte_range(
         &self,
         range: CharIndexRange,
-    ) -> Option<Range<usize>> {
-        Some(self.char_to_byte(range.start).ok()?..self.char_to_byte(range.end).ok()?)
+    ) -> anyhow::Result<Range<usize>> {
+        Ok(self.char_to_byte(range.start)?..self.char_to_byte(range.end)?)
     }
 
     pub(crate) fn quickfix_list_items(&self) -> Vec<QuickfixListItem> {

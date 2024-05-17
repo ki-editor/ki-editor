@@ -2,11 +2,11 @@ use crate::{
     app::{Dispatches, RequestParams},
     buffer::Line,
     char_index_range::CharIndexRange,
-    context::{Context, GlobalMode, Search},
+    context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     history::History,
     lsp::process::ResponseContext,
     selection::{Filter, Filters},
-    selection_mode,
+    selection_mode::{self, CaseAgnostic},
     surround::EnclosureKind,
     transformation::Transformation,
 };
@@ -296,6 +296,7 @@ impl Component for Editor {
             SelectSurround { enclosure, kind } => return self.select_surround(enclosure, kind),
             DeleteSurround(enclosure) => return self.delete_surround(enclosure),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
+            ReplaceWithPattern => return self.replace_with_pattern(context),
         }
         Ok(Default::default())
     }
@@ -1357,7 +1358,6 @@ impl Editor {
         loop {
             let edit_transaction =
                 get_actual_edit_transaction(&current_selection, &next_selection)?;
-            edit_transaction.selections();
             let current_node = buffer.get_current_node(&current_selection, false)?;
 
             let new_buffer = {
@@ -2003,13 +2003,11 @@ impl Editor {
                 self.set_selection_mode(SelectionMode::Find {
                     search: Search {
                         search: c.to_string(),
-                        mode: crate::context::LocalSearchConfigMode::Regex(
-                            crate::list::grep::RegexConfig {
-                                escaped: true,
-                                case_sensitive: true,
-                                match_whole_word: false,
-                            },
-                        ),
+                        mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
+                            escaped: true,
+                            case_sensitive: true,
+                            match_whole_word: false,
+                        }),
                     },
                 })
             }
@@ -2033,13 +2031,11 @@ impl Editor {
     pub(crate) fn match_literal(&mut self, search: &str) -> anyhow::Result<Dispatches> {
         self.set_selection_mode(SelectionMode::Find {
             search: Search {
-                mode: crate::context::LocalSearchConfigMode::Regex(
-                    crate::list::grep::RegexConfig {
-                        escaped: true,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    },
-                ),
+                mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }),
                 search: search.to_string(),
             },
         })
@@ -2413,6 +2409,112 @@ impl Editor {
         let _ = self.set_selection_mode(SelectionMode::Custom);
         self.apply_edit_transaction(edit_transaction)
     }
+
+    fn replace_with_pattern(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
+        let config = context.local_search_config();
+        let edit_transaction = match config.mode {
+            LocalSearchConfigMode::AstGrep => {
+                let edits = if let Some(language) = self.buffer().treesitter_language() {
+                    selection_mode::AstGrep::replace(
+                        language,
+                        &self.content(),
+                        &config.search(),
+                        &config.replacement(),
+                    )?
+                } else {
+                    Default::default()
+                };
+                EditTransaction::from_action_groups(
+                    self.selection_set
+                        .map(|selection| -> anyhow::Result<_> {
+                            let byte_range = self
+                                .buffer()
+                                .char_index_range_to_byte_range(selection.extended_range())?;
+                            if let Some((range, new)) = edits.iter().find_map(|edit| {
+                                let new: Rope =
+                                    String::from_utf8(edit.inserted_text.clone()).ok()?.into();
+                                let range = edit.position..edit.position + edit.deleted_length;
+                                if byte_range == range {
+                                    Some((range, new))
+                                } else {
+                                    None
+                                }
+                            }) {
+                                let range = self.buffer().byte_range_to_char_index_range(&range)?;
+                                let new_len_chars = new.len_chars();
+                                Ok(ActionGroup::new(
+                                    [
+                                        Action::Edit(Edit { range, new }),
+                                        Action::Select(selection.clone().set_range(
+                                            (range.start..range.start + new_len_chars).into(),
+                                        )),
+                                    ]
+                                    .to_vec(),
+                                ))
+                            } else {
+                                Ok(ActionGroup::new(Default::default()))
+                            }
+                        })
+                        .into_iter()
+                        .flatten()
+                        .collect_vec(),
+                )
+            }
+            LocalSearchConfigMode::Regex(regex_config) => EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|selection| -> anyhow::Result<_> {
+                        let range = selection.extended_range();
+                        let text = self.buffer().slice(&range)?.to_string();
+                        let replacement = {
+                            let regex = regex_config.to_regex(&config.search())?;
+                            regex.replace(&text, &config.replacement()).to_string()
+                        };
+                        let replacement_len = replacement.chars().count();
+                        Ok(ActionGroup::new(
+                            [
+                                Action::Edit(Edit {
+                                    range,
+                                    new: replacement.into(),
+                                }),
+                                Action::Select(selection.clone().set_range(
+                                    (range.start..range.start + replacement_len).into(),
+                                )),
+                            ]
+                            .to_vec(),
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect_vec(),
+            ),
+            LocalSearchConfigMode::CaseAgnostic => EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|selection| -> anyhow::Result<_> {
+                        let range = selection.extended_range();
+                        let text = self.buffer().slice(&range)?.to_string();
+                        let replacement =
+                            CaseAgnostic::replace(&text, &config.search(), &config.replacement())?;
+                        let replacement_len = replacement.chars().count();
+                        Ok(ActionGroup::new(
+                            [
+                                Action::Edit(Edit {
+                                    range,
+                                    new: replacement.into(),
+                                }),
+                                Action::Select(selection.clone().set_range(
+                                    (range.start..range.start + replacement_len).into(),
+                                )),
+                            ]
+                            .to_vec(),
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect_vec(),
+            ),
+        };
+        self.apply_edit_transaction(edit_transaction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2461,6 +2563,7 @@ pub(crate) enum DispatchEditor {
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
     ReplaceWithCopiedText,
+    ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
     Delete {

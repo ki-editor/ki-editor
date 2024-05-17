@@ -34,8 +34,8 @@ impl SelectionMode for Diagnostic {
             self.diagnostics
                 .iter()
                 .filter(|diagnostic| self.severity_range.contains(diagnostic.severity))
-                .filter_map(|diagnostic| {
-                    Some(super::ByteRange::with_info(
+                .flat_map(|diagnostic| -> anyhow::Result<_> {
+                    Ok(super::ByteRange::with_info(
                         buffer.char_index_range_to_byte_range(diagnostic.range)?,
                         Info::new("Diagnostics".to_string(), diagnostic.message.clone()),
                     ))

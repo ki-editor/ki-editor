@@ -7,6 +7,17 @@ pub(crate) struct CaseAgnostic {
 }
 
 impl CaseAgnostic {
+    pub(crate) fn replace(input: &str, _: &str, replace_pattern: &str) -> anyhow::Result<String> {
+        let case = Self::cases()
+            .into_iter()
+            .find(|case| convert_case::Casing::is_case(&input, *case))
+            .ok_or(anyhow::anyhow!(
+                "Unable to determing the casing of {:?}",
+                input
+            ))?;
+
+        Ok(convert_case::Casing::to_case(&replace_pattern, case))
+    }
     pub(crate) fn new(pattern: String) -> Self {
         Self { pattern }
     }
@@ -41,15 +52,11 @@ impl CaseAgnostic {
             .collect()
     }
 
-    pub(crate) fn replace_all(&self, haystack: &str, replacement: String) -> String {
+    pub(crate) fn replace_all(&self, haystack: &str, replace_pattern: String) -> String {
         self.find_all(haystack)
             .into_iter()
             .filter_map(move |(_, str)| {
-                let case = Self::cases()
-                    .into_iter()
-                    .find(|case| convert_case::Casing::is_case(&str, *case))?;
-
-                let replacement = convert_case::Casing::to_case(&replacement, case);
+                let replacement = Self::replace(&str, &self.pattern, &replace_pattern).ok()?;
                 Some((str, replacement))
             })
             .fold(haystack.to_string(), |result, (str, replacement)| {
