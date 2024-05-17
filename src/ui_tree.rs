@@ -325,15 +325,15 @@ impl std::fmt::Debug for KindedComponent {
 /// Higher-rank variant will be rendered before lower-rank variant
 pub(crate) enum ComponentKind {
     SuggestiveEditor,
+    FileExplorer,
     GlobalInfo,
-    KeymapLegend,
     QuickfixList,
     QuickfixListInfo,
     Prompt,
     Dropdown,
     DropdownInfo,
     EditorInfo,
-    FileExplorer,
+    KeymapLegend,
     /// The root should not be rendered
     Root,
 }
