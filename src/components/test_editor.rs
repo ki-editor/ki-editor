@@ -1,7 +1,11 @@
+use crate::app::LocalSearchConfigUpdate;
+use crate::app::Scope;
 use crate::char_index_range::CharIndexRange;
 use crate::components::editor::DispatchEditor::*;
 use crate::components::editor::Movement::*;
 
+use crate::context::LocalSearchConfigMode;
+use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
 use crate::quickfix_list::Location;
 use crate::quickfix_list::QuickfixListItem;
@@ -1761,13 +1765,11 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
                 Editor(MatchLiteral(if next { "1" } else { "3" }.to_string())),
                 Editor(SetSelectionMode(SelectionMode::Find {
                     search: crate::context::Search {
-                        mode: crate::context::LocalSearchConfigMode::Regex(
-                            crate::list::grep::RegexConfig {
-                                escaped: false,
-                                case_sensitive: false,
-                                match_whole_word: false,
-                            },
-                        ),
+                        mode: LocalSearchConfigMode::Regex(RegexConfig {
+                            escaped: false,
+                            case_sensitive: false,
+                            match_whole_word: false,
+                        }),
                         search: r"\d+".to_string(),
                     },
                 })),
@@ -1842,13 +1844,11 @@ fn main() {
         SelectionMode::Find {
             search: crate::context::Search {
                 search: "let foo = 1;".to_string(),
-                mode: crate::context::LocalSearchConfigMode::Regex(
-                    crate::list::grep::RegexConfig {
-                        escaped: true,
-                        case_sensitive: false,
-                        match_whole_word: false,
-                    },
-                ),
+                mode: LocalSearchConfigMode::Regex(RegexConfig {
+                    escaped: true,
+                    case_sensitive: false,
+                    match_whole_word: false,
+                }),
             },
         },
         &["    let foo "],
@@ -1973,4 +1973,72 @@ fn change_surround() -> Result<(), anyhow::Error> {
             ])
         }
     })
+}
+
+#[test]
+fn replace_with_pattern() -> Result<(), anyhow::Error> {
+    fn run_test(
+        mode: LocalSearchConfigMode,
+        content: &str,
+        search_pattern: &str,
+        replace_pattern: &str,
+        expected_content: &'static str,
+        expected_selected_text: &'static [&'static str],
+    ) -> anyhow::Result<()> {
+        execute_test(|s| {
+            {
+                Box::new([
+                    App(OpenFile(s.main_rs())),
+                    Editor(SetContent(content.to_string())),
+                    App(UpdateLocalSearchConfig {
+                        update: LocalSearchConfigUpdate::Mode(mode),
+                        scope: Scope::Local,
+                        show_config_after_enter: false,
+                    }),
+                    App(UpdateLocalSearchConfig {
+                        update: LocalSearchConfigUpdate::Search(search_pattern.to_string()),
+                        scope: Scope::Local,
+                        show_config_after_enter: false,
+                    }),
+                    App(UpdateLocalSearchConfig {
+                        update: LocalSearchConfigUpdate::Replacement(replace_pattern.to_string()),
+                        scope: Scope::Local,
+                        show_config_after_enter: false,
+                    }),
+                    Editor(ReplaceWithPattern),
+                    Expect(CurrentComponentContent(expected_content)),
+                    Expect(CurrentSelectedTexts(expected_selected_text)),
+                ])
+            }
+        })
+    }
+    run_test(
+        LocalSearchConfigMode::CaseAgnostic,
+        "aBull aCow TheBull theBull",
+        "TheBull",
+        "the mummy",
+        "aBull aCow TheMummy theBull",
+        &["TheMummy"],
+    )?;
+    run_test(
+        LocalSearchConfigMode::Regex(RegexConfig {
+            escaped: false,
+            case_sensitive: false,
+            match_whole_word: false,
+        }),
+        "ali_123 abu_456 adam_99",
+        r"abu_(\d+)",
+        "boodan_$1",
+        "ali_123 boodan_456 adam_99",
+        &["boodan_456"],
+    )?;
+    run_test(
+        LocalSearchConfigMode::AstGrep,
+        "fn main() {let x = f(y); f(y)}",
+        r"f($A)",
+        "g($A,$A)",
+        "fn main() {let x = g(y,y); f(y)}",
+        &["g(y,y)"],
+    )?;
+    Ok(())
 }

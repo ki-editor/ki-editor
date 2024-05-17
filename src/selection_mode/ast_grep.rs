@@ -19,6 +19,7 @@ impl AstGrep {
         let grep = ast_grep_core::AstGrep::new(buffer.rope().to_string(), lang);
         Ok(Self { pattern, grep })
     }
+
     pub(crate) fn replace(
         language: tree_sitter::Language,
         source_code: &str,

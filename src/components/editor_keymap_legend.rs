@@ -242,6 +242,11 @@ impl Editor {
                     "Replace Cut".to_string(),
                     Dispatch::ToEditor(ReplaceCut),
                 ),
+                Keymap::new(
+                    "ctrl+r",
+                    "Replace with pattern".to_string(),
+                    Dispatch::ToEditor(ReplaceWithPattern),
+                ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
                 Keymap::new("^", "Raise".to_string(), Dispatch::ToEditor(Raise)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),

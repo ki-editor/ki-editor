@@ -434,10 +434,7 @@ pub trait SelectionMode {
     fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
-        let Some(byte_range) = buffer.char_index_range_to_byte_range(current_selection.range())
-        else {
-            return Ok(None);
-        };
+        let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
         Ok(self
             .iter_filtered(params)?
             .sorted()
@@ -451,10 +448,8 @@ pub trait SelectionMode {
     fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
-        let Some(byte_range) = buffer.char_index_range_to_byte_range(current_selection.range())
-        else {
-            return Ok(None);
-        };
+        let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
+
         Ok(self
             .iter_filtered(params)?
             .sorted()
