@@ -431,7 +431,8 @@ pub(crate) enum SelectionMode {
 
     // Syntax-tree
     BottomNode,
-    SyntaxTree,
+    SyntaxTreeCoarse,
+    SyntaxTreeFine,
 
     // LSP
     Diagnostic(DiagnosticSeverityRange),
@@ -449,20 +450,21 @@ pub(crate) enum SelectionMode {
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, SyntaxTree)
+        matches!(self, SyntaxTreeCoarse | SyntaxTreeFine)
     }
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::WordShort => "WORD(SHORT)".to_string(),
-            SelectionMode::WordLong => "WORD(LONG)".to_string(),
+            SelectionMode::WordShort => "WORD (SHORT)".to_string(),
+            SelectionMode::WordLong => "WORD (LONG)".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
-            SelectionMode::LineTrimmed => "LINE(TRIMMED)".to_string(),
-            SelectionMode::LineFull => "LINE(FULL)".to_string(),
+            SelectionMode::LineTrimmed => "LINE (TRIMMED)".to_string(),
+            SelectionMode::LineFull => "LINE (FULL)".to_string(),
             SelectionMode::Character => "CHAR".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
-            SelectionMode::SyntaxTree => "SYNTAX TREE".to_string(),
+            SelectionMode::SyntaxTreeCoarse => "SYNTAX TREE (COARSE)".to_string(),
+            SelectionMode::SyntaxTreeFine => "SYNTAX TREE (FINE)".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {} {:?}", search.mode.display(), search.search)
             }
@@ -515,7 +517,10 @@ impl SelectionMode {
                 }
             },
             SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
-            SelectionMode::SyntaxTree => Box::new(selection_mode::SyntaxTree),
+            SelectionMode::SyntaxTreeCoarse => {
+                Box::new(selection_mode::SyntaxTree { coarse: true })
+            }
+            SelectionMode::SyntaxTreeFine => Box::new(selection_mode::SyntaxTree { coarse: false }),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
             }
@@ -537,7 +542,8 @@ impl SelectionMode {
                 | SelectionMode::LineFull
                 | SelectionMode::Character
                 | SelectionMode::BottomNode
-                | SelectionMode::SyntaxTree
+                | SelectionMode::SyntaxTreeCoarse
+                | SelectionMode::SyntaxTreeFine
         )
     }
 }

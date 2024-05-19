@@ -558,7 +558,7 @@ impl Layout {
 }
 fn layout_kind(terminal_dimension: &Dimension) -> (LayoutKind, f32) {
     const MAIN_PANEL_MIN_WIDTH: u16 = 100;
-    const RIGHT_PANEL_MIN_WIDTH: u16 = 60;
+    const RIGHT_PANEL_MIN_WIDTH: u16 = 50;
     if terminal_dimension.width > MAIN_PANEL_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH {
         (LayoutKind::Tall, 0.70)
     } else {
