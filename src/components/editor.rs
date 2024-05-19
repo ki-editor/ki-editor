@@ -1035,9 +1035,9 @@ impl Editor {
                         Mode::Insert => self.handle_insert_mode(key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar => self.handle_find_one_char_mode(key_event),
-                        Mode::Exchange => self.handle_exchange_mode(context, key_event),
-                        Mode::UndoTree => self.handle_undo_tree_mode(context, key_event),
-                        Mode::Replace => self.handle_replace_mode(context, key_event),
+                        Mode::Exchange => self.handle_normal_mode(context, key_event),
+                        Mode::UndoTree => self.handle_normal_mode(context, key_event),
+                        Mode::Replace => self.handle_normal_mode(context, key_event),
                     }
                 }
             }
@@ -2041,14 +2041,6 @@ impl Editor {
         })
     }
 
-    fn handle_exchange_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        self.handle_normal_mode(context, key_event)
-    }
-
     pub(crate) fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
         Ok([
             Dispatch::ToEditor(SelectLine(Movement::Current)),
@@ -2117,14 +2109,6 @@ impl Editor {
                 ViewAlignment::Top
             }
         })
-    }
-
-    fn handle_undo_tree_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        self.handle_normal_mode(context, key_event)
     }
 
     fn navigate_undo_tree(&mut self, movement: Movement) -> Result<Dispatches, anyhow::Error> {
@@ -2256,14 +2240,6 @@ impl Editor {
 
     fn enter_replace_mode(&mut self) {
         self.mode = Mode::Replace
-    }
-
-    fn handle_replace_mode(
-        &mut self,
-        context: &Context,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        self.handle_normal_mode(context, key_event)
     }
 
     pub(crate) fn scroll_offset(&self) -> u16 {

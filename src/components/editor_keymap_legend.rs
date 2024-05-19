@@ -17,9 +17,9 @@ use crate::{
 };
 
 use super::{
+    component::Component,
     editor::{Direction, DispatchEditor, Editor, HandleEventResult, SurroundKind},
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
-    suggestive_editor::Info,
 };
 
 use DispatchEditor::*;
@@ -461,19 +461,14 @@ impl Editor {
             ]),
         }
     }
-    pub(crate) fn keymap_others(&self) -> KeymapLegendSection {
+    pub(crate) fn keymap_others(&self, context: &Context) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Others".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     "space",
                     "Search (List)".to_string(),
-                    Dispatch::ShowKeymapLegend(self.search_list_mode_keymap_legend_config()),
-                ),
-                Keymap::new(
-                    "\\",
-                    "Context menu".to_string(),
-                    Dispatch::ShowKeymapLegend(self.context_menu_legend_config()),
+                    Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
                 ),
                 Keymap::new("*", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
                 Keymap::new(
@@ -531,7 +526,7 @@ impl Editor {
                     self.keymap_actions(),
                     self.keymap_modes(),
                     self.keymap_movement_modes(),
-                    self.keymap_others(),
+                    self.keymap_others(context),
                     self.keymap_universal(),
                 ]
                 .to_vec(),
@@ -547,82 +542,6 @@ impl Editor {
                 .cloned()
                 .collect_vec(),
         )
-    }
-    pub(crate) fn context_menu_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Context menu".to_string(),
-            body: KeymapLegendBody::MultipleSections {
-                sections: [self.get_request_params().map(|params| KeymapLegendSection {
-                    title: "LSP".to_string(),
-                    keymaps: Keymaps::new(&[
-                        Keymap::new(
-                            "h",
-                            "Hover".to_string(),
-                            Dispatch::RequestHover(params.clone()),
-                        ),
-                        Keymap::new(
-                            "r",
-                            "Rename".to_string(),
-                            Dispatch::PrepareRename(params.clone()),
-                        ),
-                        Keymap::new("c", "Code Actions".to_string(), {
-                            let cursor_char_index = self.get_cursor_char_index();
-                            Dispatch::RequestCodeAction {
-                                params,
-                                diagnostics: self
-                                    .buffer()
-                                    .diagnostics()
-                                    .into_iter()
-                                    .filter_map(|diagnostic| {
-                                        if diagnostic.range.contains(&cursor_char_index) {
-                                            diagnostic.original_value.clone()
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect_vec(),
-                            }
-                        }),
-                    ]),
-                })]
-                .into_iter()
-                .flatten()
-                .chain(Some(KeymapLegendSection {
-                    title: "Multi-cursor".to_string(),
-                    keymaps: Keymaps::new(&[
-                        Keymap::new(
-                            "a",
-                            "Add cursor to all selections".to_string(),
-                            Dispatch::ToEditor(CursorAddToAllSelections),
-                        ),
-                        Keymap::new(
-                            "o",
-                            "Keep only primary cursor".to_string(),
-                            Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
-                        ),
-                    ]),
-                }))
-                .chain(
-                    self.buffer()
-                        .get_current_node(&self.selection_set.primary, false)
-                        .ok()
-                        .and_then(|node| {
-                            Some(KeymapLegendSection {
-                                title: "Tree-sitter node".to_string(),
-                                keymaps: Keymaps::new(&[Keymap::new(
-                                    "s",
-                                    "S-expression".to_string(),
-                                    Dispatch::ShowEditorInfo(Info::new(
-                                        "Tree-sitter node S-expression".to_string(),
-                                        node?.to_sexp(),
-                                    )),
-                                )]),
-                            })
-                        }),
-                )
-                .collect(),
-            },
-        }
     }
     pub(crate) fn handle_normal_mode(
         &mut self,
@@ -689,63 +608,83 @@ impl Editor {
         }
     }
 
-    pub(crate) fn search_list_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
+    fn space_keymap_legend_config(&self, context: &Context) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Space".to_string(),
 
             body: KeymapLegendBody::MultipleSections {
-                sections: [KeymapLegendSection {
-                    title: "Files".to_string(),
-                    keymaps: Keymaps::new(
-                        &[
-                            ("g", "Git status", FilePickerKind::GitStatus),
-                            (
-                                "f",
-                                "Files (Not git ignored)",
-                                FilePickerKind::NonGitIgnored,
+                sections: context
+                    .contextual_keymaps()
+                    .into_iter()
+                    .chain([KeymapLegendSection {
+                        title: "Find".to_string(),
+                        keymaps: Keymaps::new(
+                            &[
+                                ("g", "Git status", FilePickerKind::GitStatus),
+                                (
+                                    "f",
+                                    "Files (Not git ignored)",
+                                    FilePickerKind::NonGitIgnored,
+                                ),
+                                ("b", "Buffers", FilePickerKind::Opened),
+                            ]
+                            .into_iter()
+                            .map(|(key, description, kind)| {
+                                Keymap::new(
+                                    key,
+                                    description.to_string(),
+                                    Dispatch::OpenFilePicker(kind),
+                                )
+                            })
+                            .chain(self.editor().get_request_params().map(|params| {
+                                Keymap::new(
+                                    "s",
+                                    "Symbols".to_string(),
+                                    Dispatch::RequestDocumentSymbols(
+                                        params.set_description("Symbols"),
+                                    ),
+                                )
+                            }))
+                            .collect_vec(),
+                        ),
+                    }])
+                    .chain(Some(KeymapLegendSection {
+                        title: "Multi-cursor".to_string(),
+                        keymaps: Keymaps::new(&[
+                            Keymap::new(
+                                "a",
+                                "Add cursor to all selections".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections),
                             ),
-                            ("o", "Opened files", FilePickerKind::Opened),
-                        ]
-                        .into_iter()
-                        .map(|(key, description, kind)| {
                             Keymap::new(
-                                key,
-                                description.to_string(),
-                                Dispatch::OpenFilePicker(kind),
-                            )
-                        })
-                        .collect_vec(),
-                    ),
-                }]
-                .into_iter()
-                .chain(self.get_request_params().map(|params| KeymapLegendSection {
-                    title: "LSP".to_string(),
-                    keymaps: Keymaps::new(&[Keymap::new(
-                        "s",
-                        "Symbols".to_string(),
-                        Dispatch::RequestDocumentSymbols(params.set_description("Symbols")),
-                    )]),
-                }))
-                .chain(Some(KeymapLegendSection {
-                    title: "Misc".to_string(),
-                    keymaps: Keymaps::new(
-                        &[Keymap::new(
-                            "z",
-                            "Undo Tree".to_string(),
-                            Dispatch::ToEditor(EnterUndoTreeMode),
-                        )]
-                        .into_iter()
-                        .chain(self.path().map(|path| {
-                            Keymap::new(
-                                "e",
-                                "Explorer".to_string(),
-                                Dispatch::RevealInExplorer(path),
-                            )
-                        }))
-                        .collect_vec(),
-                    ),
-                }))
-                .collect(),
+                                "o",
+                                "Keep only primary cursor".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+                            ),
+                        ]),
+                    }))
+                    .chain(Some(KeymapLegendSection {
+                        title: "Misc".to_string(),
+                        keymaps: Keymaps::new(
+                            &self
+                                .path()
+                                .map(|path| {
+                                    Keymap::new(
+                                        "e",
+                                        "Explorer".to_string(),
+                                        Dispatch::RevealInExplorer(path),
+                                    )
+                                })
+                                .into_iter()
+                                .chain(Some(Keymap::new(
+                                    "z",
+                                    "Undo Tree".to_string(),
+                                    Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
+                                )))
+                                .collect_vec(),
+                        ),
+                    }))
+                    .collect(),
             },
         }
     }

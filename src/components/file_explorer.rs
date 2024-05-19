@@ -325,6 +325,38 @@ impl Component for FileExplorer {
         &mut self.editor
     }
 
+    fn contextual_keymaps(&self) -> Vec<super::keymap_legend::KeymapLegendSection> {
+        self.get_current_node()
+            .ok()
+            .flatten()
+            .map(|node| super::keymap_legend::KeymapLegendSection {
+                title: "File Explorer".to_string(),
+                keymaps: Keymaps::new(&[
+                    Keymap::new(
+                        "a",
+                        "Add file (or postfix with / for folder)".to_string(),
+                        Dispatch::OpenAddPathPrompt(node.path.clone()),
+                    ),
+                    Keymap::new(
+                        "d",
+                        "Delete path".to_string(),
+                        Dispatch::OpenYesNoPrompt(YesNoPrompt {
+                            title: format!("Delete \"{}\"?", node.path.display_absolute()),
+                            yes: Box::new(Dispatch::DeletePath(node.path.clone())),
+                        }),
+                    ),
+                    Keymap::new(
+                        "m",
+                        "Move file".to_string(),
+                        Dispatch::OpenMoveFilePrompt(node.path.clone()),
+                    ),
+                    Keymap::new("r", "Refresh".to_string(), Dispatch::RefreshFileExplorer),
+                ]),
+            })
+            .into_iter()
+            .collect()
+    }
+
     fn handle_key_event(
         &mut self,
         context: &crate::context::Context,
@@ -408,7 +440,7 @@ impl Component for FileExplorer {
 
 #[cfg(test)]
 mod test_file_explorer {
-    use my_proc_macros::key;
+    use my_proc_macros::{key, keys};
 
     use crate::test_app::*;
 
@@ -452,7 +484,7 @@ mod test_file_explorer {
                 App(OpenFile(s.main_rs())),
                 App(RevealInExplorer(s.main_rs())),
                 Expect(ComponentCount(1)),
-                App(OpenMoveFilePrompt(s.main_rs())),
+                App(HandleKeyEvents(keys!("space m").to_vec())),
                 Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move file")),
                 Editor(Insert(new_path.to_string_lossy().to_string())),
