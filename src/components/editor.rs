@@ -551,7 +551,7 @@ impl Editor {
             .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::SyntaxTree
+            SelectionMode::SyntaxTreeCoarse
         } else {
             SelectionMode::Custom
         };

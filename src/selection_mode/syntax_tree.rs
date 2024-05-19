@@ -1,8 +1,16 @@
+use itertools::Itertools;
+
 use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, SelectionMode, TopNode};
 
-pub(crate) struct SyntaxTree;
+pub(crate) struct SyntaxTree {
+    /// If this is true:
+    /// - anonymous siblings node will be skipped
+    /// - parent must be `TopNode`
+    /// - current takes `TopNode`
+    pub coarse: bool,
+}
 
 impl SelectionMode for SyntaxTree {
     fn name(&self) -> &'static str {
@@ -32,9 +40,18 @@ impl SelectionMode for SyntaxTree {
             ))?;
 
         if let Some(parent) = node.parent() {
-            Ok(Box::new(
+            let children = if self.coarse {
                 (0..parent.named_child_count())
                     .filter_map(move |i| parent.named_child(i))
+                    .collect_vec()
+            } else {
+                (0..parent.child_count())
+                    .filter_map(move |i| parent.child(i))
+                    .collect_vec()
+            };
+            Ok(Box::new(
+                children
+                    .into_iter()
                     .map(|node| ByteRange::new(node.byte_range())),
             ))
         } else {
@@ -45,7 +62,11 @@ impl SelectionMode for SyntaxTree {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        super::TopNode.current(params)
+        if self.coarse {
+            super::TopNode.current(params)
+        } else {
+            self.get_by_offset_to_current_selection(params, 0)
+        }
     }
     fn up(
         &self,
@@ -65,7 +86,23 @@ impl SelectionMode for SyntaxTree {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, true)
+        let result = self.select_vertical(params.clone(), true)?;
+        if self.coarse {
+            Ok(result.and_then(|result| {
+                super::TopNode
+                    .current(super::SelectionModeParams {
+                        current_selection: &result.selection,
+                        ..params
+                    })
+                    .ok()?
+                    .map(|selection| ApplyMovementResult {
+                        selection,
+                        mode: result.mode,
+                    })
+            }))
+        } else {
+            Ok(result)
+        }
     }
     fn first_child(
         &self,
@@ -125,10 +162,23 @@ mod test_syntax_tree {
             Some(tree_sitter_rust::language()),
             "fn main() { let x = X {z,b,c:d} }",
         );
-        SyntaxTree.assert_all_selections(
+        SyntaxTree { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
+        );
+        SyntaxTree { coarse: false }.assert_all_selections(
+            &buffer,
+            Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
+            &[
+                (22..23, "{"),
+                (23..24, "z"),
+                (24..25, ","),
+                (25..26, "b"),
+                (26..27, ","),
+                (27..30, "c:d"),
+                (30..31, "}"),
+            ],
         );
     }
 
@@ -138,7 +188,7 @@ mod test_syntax_tree {
             Some(tree_sitter_rust::language()),
             "fn main() { let x = S(a); }",
         );
-        SyntaxTree.assert_all_selections(
+        SyntaxTree { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
             &[(20..21, "S"), (21..24, "(a)")],
@@ -146,36 +196,73 @@ mod test_syntax_tree {
     }
 
     #[test]
-    fn parent() {
-        let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
-            "fn main() { let x = X {z,b,c:d} }",
-        );
+    fn parent_and_child() {
+        fn test(coarse: bool, expected_parent: &str) {
+            let buffer = Buffer::new(
+                Some(tree_sitter_rust::language()),
+                "fn main() { let x = z.b(); }",
+            );
 
-        let child_range = (CharIndex(23)..CharIndex(24)).into();
-        let selection = SyntaxTree.parent(SelectionModeParams {
-            buffer: &buffer,
-            current_selection: &Selection::new(child_range),
-            cursor_direction: &crate::components::editor::Direction::Start,
-            filters: &Filters::default(),
-        });
+            let child_range = (CharIndex(20)..CharIndex(21)).into();
 
-        let parent_range = selection.unwrap().unwrap().selection.range();
-        assert_eq!(parent_range, (CharIndex(22)..CharIndex(31)).into());
+            let child_text = buffer.slice(&child_range).unwrap();
+            assert_eq!(child_text, "z");
+            let selection = SyntaxTree { coarse }.parent(SelectionModeParams {
+                buffer: &buffer,
+                current_selection: &Selection::new(child_range),
+                cursor_direction: &crate::components::editor::Direction::Start,
+                filters: &Filters::default(),
+            });
 
-        let selection = SyntaxTree.first_child(SelectionModeParams {
-            buffer: &buffer,
-            current_selection: &Selection::new(parent_range),
-            cursor_direction: &crate::components::editor::Direction::Start,
-            filters: &Filters::default(),
-        });
+            let parent_range = selection.unwrap().unwrap().selection.range();
 
-        let child_range = selection.unwrap().unwrap().selection.range();
-        assert_eq!(child_range, child_range);
+            let parent_text = buffer.slice(&parent_range).unwrap();
+            assert_eq!(parent_text, expected_parent);
+
+            let selection = SyntaxTree { coarse: true }.first_child(SelectionModeParams {
+                buffer: &buffer,
+                current_selection: &Selection::new(parent_range),
+                cursor_direction: &crate::components::editor::Direction::Start,
+                filters: &Filters::default(),
+            });
+
+            let child_range = selection.unwrap().unwrap().selection.range();
+            assert_eq!(child_range, child_range);
+        }
+        test(true, "z.b()");
+        test(false, "z.b");
     }
 
     #[test]
     fn current() {
+        fn test(coarse: bool, expected_selection: &str) {
+            let buffer = Buffer::new(
+                Some(tree_sitter_rust::language()),
+                "
+fn main() {
+  let x = X;
+}"
+                .trim(),
+            );
+
+            let range = (CharIndex(14)..CharIndex(17)).into();
+            assert_eq!(buffer.slice(&range).unwrap(), "let");
+            let selection = SyntaxTree { coarse }.current(SelectionModeParams {
+                buffer: &buffer,
+                current_selection: &Selection::new(range),
+                cursor_direction: &crate::components::editor::Direction::Start,
+                filters: &Filters::default(),
+            });
+
+            let actual_range = buffer.slice(&selection.unwrap().unwrap().range()).unwrap();
+            assert_eq!(actual_range, expected_selection);
+        }
+        test(true, "let x = X;");
+        test(false, "let");
+    }
+
+    #[test]
+    fn coarse_should_select_current_line_largest_node() {
         let buffer = Buffer::new(
             Some(tree_sitter_rust::language()),
             "
@@ -187,7 +274,7 @@ fn main() {
 
         // Let the range be the space before `let`
         let range = (CharIndex(12)..CharIndex(13)).into();
-        let selection = SyntaxTree.current(SelectionModeParams {
+        let selection = SyntaxTree { coarse: true }.current(SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(range),
             cursor_direction: &crate::components::editor::Direction::Start,

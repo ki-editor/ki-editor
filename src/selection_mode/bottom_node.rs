@@ -34,7 +34,7 @@ impl SelectionMode for BottomNode {
             .current(params)?
             .map(|selection| crate::selection_mode::ApplyMovementResult {
                 selection,
-                mode: Some(crate::selection::SelectionMode::SyntaxTree),
+                mode: Some(crate::selection::SelectionMode::SyntaxTreeCoarse),
             }))
     }
 }

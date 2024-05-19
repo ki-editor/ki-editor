@@ -152,8 +152,13 @@ impl Editor {
                 ),
                 Keymap::new(
                     "s",
-                    "Syntax Tree".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(SyntaxTree)),
+                    "Syntax Tree (Coarse)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(SyntaxTreeCoarse)),
+                ),
+                Keymap::new(
+                    "S",
+                    "Syntax Tree (Fine)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(SyntaxTreeFine)),
                 ),
                 Keymap::new(
                     "t",
