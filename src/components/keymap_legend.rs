@@ -168,7 +168,22 @@ impl KeymapLegendConfig {
     }
 
     pub(crate) fn keymaps(&self) -> Vec<&Keymap> {
-        self.body.keymaps()
+        let keymaps = self.body.keymaps();
+        #[cfg(test)]
+        {
+            let conflicting_keymaps = keymaps
+                .iter()
+                .group_by(|keymap| keymap.key)
+                .into_iter()
+                .map(|(key, keymaps)| (key, keymaps.collect_vec()))
+                .filter(|(_, keymaps)| keymaps.len() > 1)
+                .collect_vec();
+
+            if !conflicting_keymaps.is_empty() {
+                panic!("Conflicting keymaps detected:\n\n{conflicting_keymaps:#?}");
+            }
+        }
+        keymaps
     }
 
     fn get_regex_highlight_rules(&self) -> Vec<RegexHighlightRule> {

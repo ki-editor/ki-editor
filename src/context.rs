@@ -7,6 +7,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::Clipboard,
+    components::keymap_legend::KeymapLegendSection,
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
     themes::Theme,
@@ -23,6 +24,7 @@ pub(crate) struct Context {
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
     quickfix_list_state: Option<QuickfixListState>,
+    contextual_keymaps: Vec<KeymapLegendSection>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -66,6 +68,7 @@ impl Default for Context {
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
+            contextual_keymaps: Default::default(),
         }
     }
 }
@@ -187,6 +190,14 @@ impl Context {
             source,
             current_item_index: 0,
         })
+    }
+
+    pub(crate) fn contextual_keymaps(&self) -> Vec<KeymapLegendSection> {
+        self.contextual_keymaps.clone()
+    }
+
+    pub(crate) fn set_contextual_keymaps(&mut self, contextual_keymaps: Vec<KeymapLegendSection>) {
+        self.contextual_keymaps = contextual_keymaps
     }
 }
 
