@@ -781,7 +781,13 @@ impl Editor {
                     Keymap::new(
                         "p",
                         "Search (using previous search)".to_string(),
-                        Dispatch::ToEditor(SetSelectionMode(Find { search })),
+                        Dispatch::UpdateLocalSearchConfig {
+                            scope,
+                            update: crate::app::LocalSearchConfigUpdate::Search(
+                                search.search.to_string(),
+                            ),
+                            show_config_after_enter: false,
+                        },
                     )
                 }))
                 .collect_vec(),
