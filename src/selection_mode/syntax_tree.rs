@@ -124,7 +124,7 @@ impl SyntaxTree {
         else {
             return Ok(None);
         };
-        while let Some(some_node) = get_node(node, go_up) {
+        while let Some(some_node) = get_node(node, go_up, self.coarse) {
             // This is necessary because sometimes the parent node can have the same range as
             // the current node
             if some_node.range() != node.range() {
@@ -139,10 +139,11 @@ impl SyntaxTree {
     }
 }
 
-fn get_node(node: tree_sitter::Node, go_up: bool) -> Option<tree_sitter::Node> {
-    match go_up {
-        true => node.parent(),
-        false => node.named_child(0),
+fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tree_sitter::Node> {
+    match (go_up, coarse) {
+        (true, _) => node.parent(),
+        (false, true) => node.named_child(0),
+        (false, false) => node.child(0),
     }
 }
 
@@ -196,7 +197,7 @@ mod test_syntax_tree {
     }
 
     #[test]
-    fn parent_and_child() {
+    fn parent() {
         fn test(coarse: bool, expected_parent: &str) {
             let buffer = Buffer::new(
                 Some(tree_sitter_rust::language()),
@@ -218,8 +219,24 @@ mod test_syntax_tree {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, expected_parent);
+        }
+        test(true, "z.b()");
+        test(false, "z.b");
+    }
 
-            let selection = SyntaxTree { coarse: true }.first_child(SelectionModeParams {
+    #[test]
+    fn first_child() {
+        fn test(coarse: bool, expected_child: &str) {
+            let buffer = Buffer::new(
+                Some(tree_sitter_rust::language()),
+                "fn main() { let x = {z}; }",
+            );
+
+            let parent_range = (CharIndex(20)..CharIndex(23)).into();
+
+            let parent_text = buffer.slice(&parent_range).unwrap();
+            assert_eq!(parent_text, "{z}");
+            let selection = SyntaxTree { coarse }.first_child(SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -227,10 +244,12 @@ mod test_syntax_tree {
             });
 
             let child_range = selection.unwrap().unwrap().selection.range();
-            assert_eq!(child_range, child_range);
+
+            let child_text = buffer.slice(&child_range).unwrap();
+            assert_eq!(child_text, expected_child);
         }
-        test(true, "z.b()");
-        test(false, "z.b");
+        test(true, "z");
+        test(false, "{");
     }
 
     #[test]
