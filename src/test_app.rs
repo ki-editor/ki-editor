@@ -469,7 +469,7 @@ fn replace_cut() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(SetSelectionMode(SelectionMode::Token)),
             Editor(Copy),
             Editor(MoveSelection(Movement::Next)),
             Editor(ReplaceCut),
@@ -488,7 +488,7 @@ fn copy_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(SetSelectionMode(SelectionMode::Token)),
             Editor(Copy),
             Editor(MoveSelection(Movement::Next)),
             Editor(ReplaceWithCopiedText),
@@ -508,7 +508,7 @@ fn cut_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             Editor(Change { cut: true }),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
@@ -529,7 +529,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
@@ -554,7 +554,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(SetSelectionMode(SelectionMode::Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
@@ -581,7 +581,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(SetSelectionMode(SelectionMode::Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
@@ -655,7 +655,7 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(SetSelectionMode(SelectionMode::Token)),
             Expect(CurrentMode(Mode::Normal)),
             //
             // Signature help should not be shown in normal mode

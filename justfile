@@ -1,5 +1,5 @@
 default:
-    @just tree-sitter-quickfix fmt-check build clippy test
+    @just tree-sitter-quickfix fmt-check build clippy test doc-build
     
 install:
     cargo install --locked --path .
@@ -40,3 +40,10 @@ watch-test testname:
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests
+
+doc-serve:
+	mdbook serve --open docs/
+	
+doc-build:
+    mdbook build docs/
+ 

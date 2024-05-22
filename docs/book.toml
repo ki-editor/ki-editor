@@ -1,0 +1,6 @@
+[book]
+authors = ["wongjiahau"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Ki Editor"

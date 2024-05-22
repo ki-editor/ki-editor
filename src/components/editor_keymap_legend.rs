@@ -61,7 +61,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "f",
-                    "Find (Jump)".to_string(),
+                    "Fly (Jump)".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps),
                 ),
                 Keymap::new(
@@ -167,12 +167,12 @@ impl Editor {
                 Keymap::new(
                     "t",
                     "Token".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(BottomNode)),
+                    Dispatch::ToEditor(SetSelectionMode(Token)),
                 ),
                 Keymap::new(
                     "u",
                     "Character (Unicode)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(Character)),
+                    Dispatch::ToEditor(SetSelectionMode(Column)),
                 ),
                 Keymap::new(
                     "w",

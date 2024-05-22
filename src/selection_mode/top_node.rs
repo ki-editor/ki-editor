@@ -1,4 +1,4 @@
-use super::{BottomNode, ByteRange, SelectionMode};
+use super::{ByteRange, SelectionMode, Token};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
@@ -42,7 +42,7 @@ impl SelectionMode for TopNode {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
-        Ok(BottomNode
+        Ok(Token
             .current(params)?
             .map(crate::selection_mode::ApplyMovementResult::from_selection))
     }

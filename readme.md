@@ -1,9 +1,10 @@
 # Tim Editor
 
 > **Warning**
-This editor is not stable yet, in particular, the keybindings are not fully settled yet.
+> This editor is not stable yet, in particular, the keybindings are not fully settled yet.
 
 ## Showcase
+
 [Click here](./showcase.md)
 
 ## Disclaimer

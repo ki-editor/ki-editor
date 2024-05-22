@@ -40,7 +40,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent(input.to_string())),
             Editor(MatchLiteral("x".to_string())),
-            Editor(SetSelectionMode(SelectionMode::BottomNode)),
+            Editor(SetSelectionMode(SelectionMode::Token)),
             Editor(Raise),
             Expect(CurrentComponentContent("fn main() { x }")),
         ])
@@ -55,7 +55,7 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
@@ -79,7 +79,7 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("main() {}")),
             Expect(CurrentSelectedTexts(&["main"])),
@@ -94,7 +94,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(Character)),
+            Editor(SetSelectionMode(Column)),
             Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("n main() {}")),
             Expect(CurrentSelectedTexts(&["n"])),
@@ -109,7 +109,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             Editor(MoveSelection(Last)),
             Editor(Delete { cut: false }),
             Expect(CurrentComponentContent("fn main() {")),
@@ -255,7 +255,7 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn snake_case(camelCase: String) {}".to_string(),
             )),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             // Go to the middle of the file
             Editor(MoveSelection(Index(3))),
             Expect(CurrentSelectedTexts(&["camelCase"])),
@@ -482,7 +482,7 @@ fn select_character() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(Character)),
+            Editor(SetSelectionMode(Column)),
             Expect(CurrentSelectedTexts(&["f"])),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["n"])),
@@ -687,7 +687,7 @@ fn exchange_character() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(Character)),
+            Editor(SetSelectionMode(Column)),
             Editor(EnterExchangeMode),
             App(HandleKeyEvent(key!("l"))),
             // Editor(MoveSelection(Next)),
@@ -882,7 +882,7 @@ fn highlight_kill() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(BottomNode)),
+            Editor(SetSelectionMode(Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn main"])),
@@ -1582,7 +1582,7 @@ fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Re
             Editor(Save),
             // Expect the content is formatted (second line dedented)
             Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
-            Editor(SetSelectionMode(Character)),
+            Editor(SetSelectionMode(Column)),
             Expect(CurrentSelectedTexts(&["b"])),
             // Expect the bookmark on "bar" is not destroyed
             Editor(SetSelectionMode(Bookmark)),
@@ -1687,7 +1687,7 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
             Editor(SwapCursorWithAnchor),
-            Editor(SetSelectionMode(Character)),
+            Editor(SetSelectionMode(Column)),
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed
             Expect(CurrentCursorDirection(Direction::Start)),
@@ -1878,7 +1878,7 @@ fn selection_set_history() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
-            Editor(SetSelectionMode(Character)),
+            Editor(SetSelectionMode(Column)),
             Expect(CurrentSelectedTexts(&["m"])),
             App(ToEditor(GoToPreviousSelection)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
