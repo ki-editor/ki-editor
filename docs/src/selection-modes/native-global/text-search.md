@@ -15,6 +15,10 @@ By default, the search prompt searches using Literal mode.
 
 Other modes can be toggled/chosen by opening the search configurator.
 
+# Configurator
+
+The following modes/options are configurable in the configurator.
+
 ## Modes
 
 There are 4 search modes, and only one of them can be chosen at any time.

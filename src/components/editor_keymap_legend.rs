@@ -192,6 +192,16 @@ impl Editor {
             title: "Action".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
+                    "i",
+                    "Insert (before selection)".to_string(),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                ),
+                Keymap::new(
+                    "a",
+                    "Insert (after selection)".to_string(),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                ),
+                Keymap::new(
                     "c",
                     "Change".to_string(),
                     Dispatch::ToEditor(Change { cut: false }),
@@ -428,23 +438,11 @@ impl Editor {
     pub(crate) fn keymap_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Mode".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    "a",
-                    "Insert (after selection)".to_string(),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                ),
-                Keymap::new(
-                    "i",
-                    "Insert (before selection)".to_string(),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                ),
-                Keymap::new(
-                    "v",
-                    "Visual (Extend selection)".to_string(),
-                    Dispatch::ToEditor(ToggleVisualMode),
-                ),
-            ]),
+            keymaps: Keymaps::new(&[Keymap::new(
+                "v",
+                "Visual (Extend selection)".to_string(),
+                Dispatch::ToEditor(ToggleVisualMode),
+            )]),
         }
     }
 

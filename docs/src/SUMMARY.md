@@ -3,6 +3,7 @@
 - [Introduction](./introduction.md)
 - [Core concepts](./core-concepts.md)
 - [Features](./features.md)
+- [Modes](./modes.md)
 - [Movements](./movements.md)
 - [Selection Modes](./selection-modes/index.md)
   - [Syntax Tree-based](./selection-modes/syntax-tree-based.md)

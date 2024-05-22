@@ -287,7 +287,7 @@ impl Component for Editor {
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
-            Open(direction) => return self.open(direction),
+            Open(direction) => return self.smart_insert(direction),
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
@@ -1758,7 +1758,7 @@ impl Editor {
             .collect_vec()
     }
 
-    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn smart_insert(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap()
                 .into_iter()
