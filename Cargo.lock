@@ -1154,6 +1154,72 @@ dependencies = [
 ]
 
 [[package]]
+name = "ki"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "ast-grep-core",
+ "clap",
+ "convert_case",
+ "crossbeam",
+ "crossterm",
+ "debounce",
+ "diff",
+ "diffy",
+ "dyn-clone",
+ "event",
+ "fs_extra",
+ "git2",
+ "globset",
+ "grammar",
+ "grep-regex",
+ "grep-searcher",
+ "ignore",
+ "indexmap",
+ "indoc",
+ "itertools",
+ "json-rpc-types",
+ "lazy-regex",
+ "log",
+ "lsp-types",
+ "my_proc_macros",
+ "name-variant",
+ "nary_tree",
+ "nucleo",
+ "nucleo-matcher",
+ "once_cell",
+ "portable-pty",
+ "pretty_assertions",
+ "quickcheck",
+ "quickcheck_macros",
+ "rand",
+ "rayon",
+ "regex",
+ "ropey",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "shared",
+ "similar",
+ "simple-logging",
+ "tempfile",
+ "textwrap",
+ "tree-sitter 0.21.0",
+ "tree-sitter-highlight",
+ "tree-sitter-javascript",
+ "tree-sitter-md",
+ "tree-sitter-quickfix",
+ "tree-sitter-rust",
+ "tree-sitter-traversal",
+ "tree-sitter-typescript",
+ "undo",
+ "unicode-width",
+ "uuid",
+ "vt100",
+]
+
+[[package]]
 name = "lazy-regex"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1417,6 +1483,17 @@ checksum = "77a8165726e8236064dbb45459242600304b42a5ea24ee2948e18e023bf7ba84"
 dependencies = [
  "overload",
  "winapi",
+]
+
+[[package]]
+name = "nucleo"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5262af4c94921c2646c5ac6ff7900c2af9cbb08dc26a797e18130a7019c039d4"
+dependencies = [
+ "nucleo-matcher",
+ "parking_lot",
+ "rayon",
 ]
 
 [[package]]
@@ -2300,71 +2377,6 @@ dependencies = [
  "flate2",
  "jpeg-decoder",
  "weezl",
-]
-
-[[package]]
-name = "tim"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "ast-grep-core",
- "clap",
- "convert_case",
- "crossbeam",
- "crossterm",
- "debounce",
- "diff",
- "diffy",
- "dyn-clone",
- "event",
- "fs_extra",
- "git2",
- "globset",
- "grammar",
- "grep-regex",
- "grep-searcher",
- "ignore",
- "indexmap",
- "indoc",
- "itertools",
- "json-rpc-types",
- "lazy-regex",
- "log",
- "lsp-types",
- "my_proc_macros",
- "name-variant",
- "nary_tree",
- "nucleo-matcher",
- "once_cell",
- "portable-pty",
- "pretty_assertions",
- "quickcheck",
- "quickcheck_macros",
- "rand",
- "rayon",
- "regex",
- "ropey",
- "serde",
- "serde_json",
- "serial_test",
- "shared",
- "similar",
- "simple-logging",
- "tempfile",
- "textwrap",
- "tree-sitter 0.21.0",
- "tree-sitter-highlight",
- "tree-sitter-javascript",
- "tree-sitter-md",
- "tree-sitter-quickfix",
- "tree-sitter-rust",
- "tree-sitter-traversal",
- "tree-sitter-typescript",
- "undo",
- "unicode-width",
- "uuid",
- "vt100",
 ]
 
 [[package]]

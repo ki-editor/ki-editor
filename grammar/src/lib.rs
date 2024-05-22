@@ -51,7 +51,7 @@ pub fn initialize_log_file(specified_file: Option<PathBuf>) {
 
 fn get_runtime_dir() -> PathBuf {
     use directories::ProjectDirs;
-    let project_dirs = ProjectDirs::from("tim", "tim", "tim").unwrap();
+    let project_dirs = ProjectDirs::from("ki", "ki", "ki").unwrap();
     std::fs::create_dir_all(project_dirs.config_dir()).unwrap();
     project_dirs.config_dir().into()
 }
@@ -83,7 +83,7 @@ pub fn config_dir() -> PathBuf {
     // TODO: allow env var override
     let strategy = choose_base_strategy().expect("Unable to find the config directory!");
     let mut path = strategy.config_dir();
-    path.push("helix");
+    path.push("ki");
     path
 }
 
@@ -91,7 +91,7 @@ pub fn cache_dir() -> PathBuf {
     // TODO: allow env var override
     let strategy = choose_base_strategy().expect("Unable to find the config directory!");
     let mut path = strategy.cache_dir();
-    path.push("helix");
+    path.push("ki");
     path
 }
 
@@ -104,7 +104,7 @@ pub fn log_file() -> PathBuf {
 }
 
 pub fn workspace_config_file() -> PathBuf {
-    find_workspace().0.join(".helix").join("config.toml")
+    find_workspace().0.join(".ki").join("config.toml")
 }
 
 pub fn lang_config_file() -> PathBuf {
@@ -112,20 +112,20 @@ pub fn lang_config_file() -> PathBuf {
 }
 
 pub fn default_log_file() -> PathBuf {
-    cache_dir().join("helix.log")
+    cache_dir().join("ki.log")
 }
 
 /// Finds the current workspace folder.
 /// Used as a ceiling dir for LSP root resolution, the filepicker and potentially as a future filewatching root
 ///
 /// This function starts searching the FS upward from the CWD
-/// and returns the first directory that contains either `.git` or `.helix`.
+/// and returns the first directory that contains either `.git` or `.ki`.
 /// If no workspace was found returns (CWD, true).
 /// Otherwise (workspace, false) is returned
 pub fn find_workspace() -> (PathBuf, bool) {
     let current_dir = current_working_dir();
     for ancestor in current_dir.ancestors() {
-        if ancestor.join(".git").exists() || ancestor.join(".helix").exists() {
+        if ancestor.join(".git").exists() || ancestor.join(".ki").exists() {
             return (ancestor.to_owned(), false);
         }
     }
