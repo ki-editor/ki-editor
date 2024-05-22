@@ -919,33 +919,6 @@ impl LspServerProcess {
         Ok(())
     }
 
-    pub(crate) fn text_document_completion(
-        &mut self,
-        RequestParams {
-            context,
-            path,
-            position,
-            ..
-        }: RequestParams,
-    ) -> anyhow::Result<()> {
-        self.send_request::<lsp_request!("textDocument/completion")>(
-            context,
-            CompletionParams {
-                text_document_position: TextDocumentPositionParams {
-                    position: position.into(),
-                    text_document: path_buf_to_text_document_identifier(path)?,
-                },
-                work_done_progress_params: WorkDoneProgressParams {
-                    work_done_token: None,
-                },
-                partial_result_params: PartialResultParams {
-                    partial_result_token: None,
-                },
-                context: None,
-            },
-        )
-    }
-
     fn trigger_characters(&self) -> Vec<String> {
         self.server_capabilities
             .as_ref()
@@ -1095,6 +1068,40 @@ impl LspServerProcess {
         })
     }
 
+    fn has_capability(&self, f: impl Fn(&ServerCapabilities) -> bool) -> bool {
+        self.server_capabilities.as_ref().map(f).unwrap_or(false)
+    }
+
+    fn text_document_completion(
+        &mut self,
+        RequestParams {
+            context,
+            path,
+            position,
+            ..
+        }: RequestParams,
+    ) -> anyhow::Result<()> {
+        if !self.has_capability(|c| c.completion_provider.is_some()) {
+            return Ok(());
+        }
+        self.send_request::<lsp_request!("textDocument/completion")>(
+            context,
+            CompletionParams {
+                text_document_position: TextDocumentPositionParams {
+                    position: position.into(),
+                    text_document: path_buf_to_text_document_identifier(path)?,
+                },
+                work_done_progress_params: WorkDoneProgressParams {
+                    work_done_token: None,
+                },
+                partial_result_params: PartialResultParams {
+                    partial_result_token: None,
+                },
+                context: None,
+            },
+        )
+    }
+
     fn text_document_hover(
         &mut self,
         RequestParams {
@@ -1104,6 +1111,9 @@ impl LspServerProcess {
             ..
         }: RequestParams,
     ) -> anyhow::Result<()> {
+        if !self.has_capability(|c| c.hover_provider.is_some()) {
+            return Ok(());
+        };
         self.send_request::<lsp_request!("textDocument/hover")>(
             context,
             HoverParams {
@@ -1126,6 +1136,9 @@ impl LspServerProcess {
             context,
         }: RequestParams,
     ) -> anyhow::Result<()> {
+        if !self.has_capability(|c| c.definition_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/definition")>(
             context,
             GotoDefinitionParams {
@@ -1148,6 +1161,9 @@ impl LspServerProcess {
         }: RequestParams,
         include_declaration: bool,
     ) -> anyhow::Result<()> {
+        if !self.has_capability(|c| c.references_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/references")>(
             context,
             ReferenceParams {
@@ -1165,6 +1181,9 @@ impl LspServerProcess {
     }
 
     fn text_document_declaration(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.declaration_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/declaration")>(
             params.context,
             GotoDeclarationParams {
@@ -1179,6 +1198,9 @@ impl LspServerProcess {
     }
 
     fn text_document_implementation(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.implementation_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/implementation")>(
             params.context,
             GotoImplementationParams {
@@ -1196,6 +1218,9 @@ impl LspServerProcess {
         &mut self,
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.type_definition_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/typeDefinition")>(
             params.context,
             GotoTypeDefinitionParams {
@@ -1210,6 +1235,9 @@ impl LspServerProcess {
     }
 
     fn text_document_prepare_rename(&mut self, params: RequestParams) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.rename_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/prepareRename")>(
             params.context,
             TextDocumentPositionParams {
@@ -1224,6 +1252,9 @@ impl LspServerProcess {
         params: RequestParams,
         new_name: String,
     ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.rename_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/rename")>(
             params.context,
             RenameParams {
@@ -1242,6 +1273,9 @@ impl LspServerProcess {
         params: RequestParams,
         diagnostics: Vec<Diagnostic>,
     ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.code_action_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/codeAction")>(
             params.context,
             CodeActionParams {
@@ -1265,6 +1299,9 @@ impl LspServerProcess {
         &mut self,
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.signature_help_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/signatureHelp")>(
             params.context,
             SignatureHelpParams {
@@ -1282,6 +1319,9 @@ impl LspServerProcess {
         &mut self,
         params: RequestParams,
     ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.document_symbol_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("textDocument/documentSymbol")>(
             params.context,
             DocumentSymbolParams {
@@ -1297,6 +1337,9 @@ impl LspServerProcess {
         params: RequestParams,
         command: super::code_action::Command,
     ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| c.execute_command_provider.is_some()) {
+            return Ok(());
+        }
         self.send_request::<lsp_request!("workspace/executeCommand")>(
             params.context,
             ExecuteCommandParams {

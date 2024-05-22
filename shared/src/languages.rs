@@ -143,9 +143,12 @@ const fn just() -> Language {
 
 const fn markdown() -> Language {
     Language {
-        lsp_language_id: None,
+        lsp_language_id: Some(LanguageId::new("markdown")),
         extensions: &["md"],
-        lsp_command: None,
+        lsp_command: Some(LspCommand {
+            command: Command("marksman", &["server"]),
+            ..LspCommand::default()
+        }),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "markdown",
             url: "https://github.com/MDeiml/tree-sitter-markdown",
