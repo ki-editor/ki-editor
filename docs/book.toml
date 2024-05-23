@@ -8,5 +8,4 @@ title = "Ki Editor"
 # Check for borken links
 # See https://github.com/Michael-F-Bryan/mdbook-linkcheck
 [output.linkcheck]
-traverse-parent-directories = true
 
