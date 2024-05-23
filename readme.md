@@ -1,3 +1,3 @@
 # Ki Editor
 
-See [ki-editor.github.io/ki-editor/](ki-editor.github.io/ki-editor/).
+See [https://ki-editor.github.io/ki-editor/](https://ki-editor.github.io/ki-editor/).
