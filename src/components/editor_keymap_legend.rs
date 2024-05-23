@@ -27,7 +27,7 @@ use Movement::*;
 impl Editor {
     pub(crate) fn keymap_core_movements(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement (Core, synergies with Movement Mode)".to_string(),
+            title: "Movements (Core)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     ",",
@@ -61,7 +61,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "f",
-                    "Find (Jump)".to_string(),
+                    "Fly (Jump)".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps),
                 ),
                 Keymap::new(
@@ -80,7 +80,7 @@ impl Editor {
 
     pub(crate) fn keymap_other_movements(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement (Other)".to_string(),
+            title: "Movements (Other)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     "%",
@@ -97,16 +97,8 @@ impl Editor {
                     "Scroll page up".to_string(),
                     Dispatch::ToEditor(ScrollPageUp),
                 ),
-                Keymap::new(
-                    "[",
-                    "Go to previous selection".to_string(),
-                    Dispatch::ToEditor(GoToPreviousSelection),
-                ),
-                Keymap::new(
-                    "]",
-                    "Go to next selection".to_string(),
-                    Dispatch::ToEditor(GoToNextSelection),
-                ),
+                Keymap::new("[", "Go back".to_string(), Dispatch::ToEditor(GoBack)),
+                Keymap::new("]", "Go forward".to_string(), Dispatch::ToEditor(GoForward)),
                 Keymap::new(
                     "{",
                     "Go to previous file".to_string(),
@@ -167,12 +159,12 @@ impl Editor {
                 Keymap::new(
                     "t",
                     "Token".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(BottomNode)),
+                    Dispatch::ToEditor(SetSelectionMode(Token)),
                 ),
                 Keymap::new(
                     "u",
                     "Character (Unicode)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(Character)),
+                    Dispatch::ToEditor(SetSelectionMode(Column)),
                 ),
                 Keymap::new(
                     "w",
@@ -191,6 +183,16 @@ impl Editor {
         KeymapLegendSection {
             title: "Action".to_string(),
             keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "i",
+                    "Insert (before selection)".to_string(),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                ),
+                Keymap::new(
+                    "a",
+                    "Insert (after selection)".to_string(),
+                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                ),
                 Keymap::new(
                     "c",
                     "Change".to_string(),
@@ -275,7 +277,7 @@ impl Editor {
                 Keymap::new(
                     "ctrl+o",
                     "Oscillate window".to_string(),
-                    Dispatch::OscillateWindow,
+                    Dispatch::OtherWindow,
                 ),
                 Keymap::new(
                     "ctrl+q",
@@ -428,29 +430,17 @@ impl Editor {
     pub(crate) fn keymap_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Mode".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    "a",
-                    "Insert (after selection)".to_string(),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                ),
-                Keymap::new(
-                    "i",
-                    "Insert (before selection)".to_string(),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                ),
-                Keymap::new(
-                    "v",
-                    "Visual (Extend selection)".to_string(),
-                    Dispatch::ToEditor(ToggleVisualMode),
-                ),
-            ]),
+            keymaps: Keymaps::new(&[Keymap::new(
+                "v",
+                "Visual (Extend selection)".to_string(),
+                Dispatch::ToEditor(ToggleVisualMode),
+            )]),
         }
     }
 
     pub(crate) fn keymap_movement_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement Mode".to_string(),
+            title: "Movement-action Submodes".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     ";",

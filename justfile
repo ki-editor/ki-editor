@@ -40,3 +40,7 @@ watch-test testname:
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests
+
+doc-serve:
+	mdbook serve --open docs/
+	

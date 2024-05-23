@@ -425,12 +425,12 @@ pub(crate) enum SelectionMode {
     WordShort,
     WordLong,
     LineTrimmed,
-    Character,
+    Column,
     Custom,
     Find { search: Search },
 
     // Syntax-tree
-    BottomNode,
+    Token,
     SyntaxTreeCoarse,
     SyntaxTreeFine,
 
@@ -460,9 +460,9 @@ impl SelectionMode {
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::LineTrimmed => "LINE (TRIMMED)".to_string(),
             SelectionMode::LineFull => "LINE (FULL)".to_string(),
-            SelectionMode::Character => "CHAR".to_string(),
+            SelectionMode::Column => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::BottomNode => "BOTTOM NODE".to_string(),
+            SelectionMode::Token => "BOTTOM NODE".to_string(),
             SelectionMode::SyntaxTreeCoarse => "SYNTAX TREE (COARSE)".to_string(),
             SelectionMode::SyntaxTreeFine => "SYNTAX TREE (FINE)".to_string(),
             SelectionMode::Find { search } => {
@@ -496,7 +496,7 @@ impl SelectionMode {
             SelectionMode::WordLong => Box::new(selection_mode::WordLong::as_regex(buffer)?),
             SelectionMode::LineTrimmed => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
-            SelectionMode::Character => {
+            SelectionMode::Column => {
                 let current_column = buffer
                     .char_to_position(current_selection.to_char_index(cursor_direction))?
                     .column;
@@ -516,7 +516,7 @@ impl SelectionMode {
                     Box::new(selection_mode::CaseAgnostic::new(search.search.clone()))
                 }
             },
-            SelectionMode::BottomNode => Box::new(selection_mode::BottomNode),
+            SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::SyntaxTreeCoarse => {
                 Box::new(selection_mode::SyntaxTree { coarse: true })
             }
@@ -540,8 +540,8 @@ impl SelectionMode {
                 | SelectionMode::WordLong
                 | SelectionMode::LineTrimmed
                 | SelectionMode::LineFull
-                | SelectionMode::Character
-                | SelectionMode::BottomNode
+                | SelectionMode::Column
+                | SelectionMode::Token
                 | SelectionMode::SyntaxTreeCoarse
                 | SelectionMode::SyntaxTreeFine
         )

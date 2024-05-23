@@ -287,12 +287,12 @@ impl Component for Editor {
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
             MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
-            Open(direction) => return self.open(direction),
+            Open(direction) => return self.smart_insert(direction),
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
-            GoToPreviousSelection => self.go_to_previous_selection(),
-            GoToNextSelection => self.go_to_next_selection(),
+            GoBack => self.go_back(),
+            GoForward => self.go_forward(),
             SelectSurround { enclosure, kind } => return self.select_surround(enclosure, kind),
             DeleteSurround(enclosure) => return self.delete_surround(enclosure),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
@@ -1758,7 +1758,7 @@ impl Editor {
             .collect_vec()
     }
 
-    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn smart_insert(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap()
                 .into_iter()
@@ -1950,7 +1950,7 @@ impl Editor {
         let cursor_count = self.selection_set.len();
         let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
-            format!("{} (JUMPING)", mode)
+            format!("{} (FLYING)", mode)
         } else {
             mode
         }
@@ -2253,13 +2253,13 @@ impl Editor {
         self.regex_highlight_rules = regex_highlight_rules
     }
 
-    fn go_to_previous_selection(&mut self) {
+    fn go_back(&mut self) {
         if let Some(selection_set) = self.selection_set_history.undo() {
             self.set_selection_set(selection_set)
         }
     }
 
-    fn go_to_next_selection(&mut self) {
+    fn go_forward(&mut self) {
         if let Some(selection_set) = self.selection_set_history.redo() {
             self.set_selection_set(selection_set)
         }
@@ -2524,8 +2524,8 @@ pub(crate) enum DispatchEditor {
     MoveSelection(Movement),
     SwitchViewAlignment,
     Copy,
-    GoToPreviousSelection,
-    GoToNextSelection,
+    GoBack,
+    GoForward,
     ReplaceCut,
     SelectAll,
     SetContent(String),

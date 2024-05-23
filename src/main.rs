@@ -56,10 +56,7 @@ fn main() {
 
 pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
-    let _args = std::env::args().collect::<Vec<_>>();
-    // run_integrated_terminal(24, 80).unwrap();
-    // return;
-
+    let _args = std::env::args();
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
@@ -86,8 +83,6 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
 
     crossterm_join_handle.join().unwrap();
-
-    println!("Goodbye!");
 
     Ok(())
 }

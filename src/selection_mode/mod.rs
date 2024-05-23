@@ -1,11 +1,11 @@
 pub(crate) mod ast_grep;
 pub(crate) mod bookmark;
-pub(crate) mod bottom_node;
 pub(crate) mod case_agnostic;
 pub(crate) mod column;
 pub(crate) mod custom;
 pub(crate) mod diagnostic;
 pub(crate) mod git_hunk;
+pub(crate) mod token;
 
 pub(crate) mod line_full;
 pub(crate) mod line_trimmed;
@@ -18,7 +18,6 @@ pub(crate) mod word_short;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
 pub(crate) use bookmark::Bookmark;
-pub(crate) use bottom_node::BottomNode;
 pub(crate) use case_agnostic::CaseAgnostic;
 pub(crate) use column::Column;
 pub(crate) use custom::Custom;
@@ -30,6 +29,7 @@ pub(crate) use line_trimmed::LineTrimmed;
 pub(crate) use local_quickfix::LocalQuickfix;
 use std::ops::Range;
 pub(crate) use syntax_tree::SyntaxTree;
+pub(crate) use token::Token;
 pub(crate) use top_node::TopNode;
 pub(crate) use word_long::WordLong;
 pub(crate) use word_short::WordShort;
