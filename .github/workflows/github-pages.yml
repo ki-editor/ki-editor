@@ -15,20 +15,28 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
     steps:
-      - run: echo ${{ github.ref }}
-
       - uses: actions/checkout@v2
           
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: '0.4.10'
-      - run: cargo install mdbook-linkcheck
+      
+      - name: Setup mdbook-linkcheck
+        run: |
+          mkdir -p mdbook-linkcheck && cd "$_" && \
+          curl -L https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases/latest/download/mdbook-linkcheck.x86_64-unknown-linux-gnu.zip -o mdbook-linkcheck.zip && \
+          unzip "$_" && \
+          chmod +x mdbook-linkcheck && \
+          mv mdbook-linkcheck /usr/bin
+      
       - run: mdbook build ./docs/
+      
+      - run: ls ./docs/book/html/
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/master'
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs/book/
+          publish_dir: ./docs/book/html/
