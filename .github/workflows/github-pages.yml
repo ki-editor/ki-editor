@@ -28,7 +28,7 @@ jobs:
           curl -L https://github.com/Michael-F-Bryan/mdbook-linkcheck/releases/latest/download/mdbook-linkcheck.x86_64-unknown-linux-gnu.zip -o mdbook-linkcheck.zip && \
           unzip "$_" && \
           chmod +x mdbook-linkcheck && \
-          mv mdbook-linkcheck /usr/bin
+          sudo mv mdbook-linkcheck /usr/bin
       
       - run: mdbook build ./docs/
       
