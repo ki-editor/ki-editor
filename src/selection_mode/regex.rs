@@ -23,6 +23,7 @@ pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<re
     } else {
         format!("(?i){}", pattern)
     };
+    let pattern = format!("(?m){}", pattern);
     Ok(regex::Regex::new(&pattern)?)
 }
 
@@ -146,5 +147,33 @@ mod test_regex {
         )
         .unwrap()
         .assert_all_selections(&buffer, Selection::default(), &[(3..7, "Main")]);
+    }
+
+    #[test]
+    fn multiline_mode_enabled_by_default() {
+        let buffer = Buffer::new(
+            None,
+            "
+- [ ] a
+- [ ] b
+  - [ ]  c
+- [ ] d
+",
+        );
+        crate::selection_mode::Regex::from_config(
+            &buffer,
+            r"^- \[ \](.*)$",
+            RegexConfig {
+                escaped: false,
+                case_sensitive: false,
+                match_whole_word: false,
+            },
+        )
+        .unwrap()
+        .assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[(1..8, "- [ ] a"), (9..16, "- [ ] b"), (28..35, "- [ ] d")],
+        );
     }
 }

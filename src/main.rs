@@ -56,9 +56,11 @@ fn main() {
 
 pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
-    let _args = std::env::args().collect::<Vec<_>>();
-    // run_integrated_terminal(24, 80).unwrap();
-    // return;
+    let _args = std::env::args();
+    println!("_args = {:?}", {
+        let result = _args.collect::<Vec<_>>();
+        result
+    });
 
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
@@ -68,6 +70,10 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
         sender,
         receiver,
     )?;
+    println!(
+        "syntax_highlighter_sender = {:?}",
+        syntax_highlighter_sender
+    );
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
     let sender = app.sender();
@@ -78,6 +84,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
             .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
             .is_err()
         {
+            println!("Something went wrong");
             break;
         }
     });
@@ -85,9 +92,9 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
     app.run(path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
 
-    crossterm_join_handle.join().unwrap();
+    println!("Good bye!");
 
-    println!("Goodbye!");
+    crossterm_join_handle.join().unwrap();
 
     Ok(())
 }
