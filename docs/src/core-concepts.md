@@ -29,3 +29,37 @@ Unlike Emacs and Vim, Ki took this approach to the extreme, literally everything
 [^1]: Vim, Neovim, Kakoune and Helix.
 [^2]: For example, in Vim, `p` means paste, but to paste in prompt use `ctrl+r` instead.
 [^3]: For example, in the [Helix's File Explorer PR](https://github.com/helix-editor/helix/pull/5768), every movements, including scrolling are reimplemented, although they were implemented in the Editor component.
+
+## 3. Minimal configurations
+
+Part of the reason why Ki was created is due to the configuration nightmare that I been through when using Neovim for the past 4 years.
+
+Thus, I'm in favor of minimal configurations, users should not spend days configuring something simple (which makes Helix attractive).
+
+However, unlike Helix editor, I will take this step even further: _keybindings should not be configurable_.
+
+A ridiculous amount of time is spent thinking about keybindings: their coherence, their rationality, their ease of typing etc.
+
+Thus, if you feel like certain keybindings should be remapped, discuss with me, we will sort it out, I want every Ki users to experience the best keybindings that they ever had.
+
+That being said, the following components should be configurable:
+
+1. Theme
+2. Language-specific configurations:
+   - Formatter
+   - Tree-sitter grammar
+   - LSP
+
+## 4. Vim keybindings-compatible
+
+This is because I do not want to alienate existings modal editor users, where most of their keybindings are also based on Vim.
+
+A significant portions of Ki's keybindings are based on Vim's keybindings, but **repurposed**.
+
+For example, `hjkl` is also part of Ki, however their meaning have been generalized to not only work for lines and columns, as mentioned [above](#1).
+
+## 5. Keybindings synergy
+
+Most keybindings in Ki synergize with one another, though a minority of them are lone rangers.
+
+But lone rangers are not encouraged, they are only added if they are truly crucial.

@@ -88,7 +88,7 @@ impl Component for Prompt {
             key!("esc") if self.editor().mode == Mode::Normal => {
                 Ok(vec![Dispatch::CloseCurrentWindow].into())
             }
-            key!("tab") => {
+            key!("ctrl+space") => {
                 if self.editor.completion_dropdown_opened() {
                     if let Some(item) = self.editor.completion_dropdown_current_item() {
                         self.editor.set_content(&item.display())?;
@@ -168,7 +168,8 @@ mod test_prompt {
     }
 
     #[test]
-    fn tab_replace_current_content_with_first_highlighted_suggestion() -> anyhow::Result<()> {
+    fn ctrl_space_replace_current_content_with_first_highlighted_suggestion() -> anyhow::Result<()>
+    {
         execute_test(|_| {
             Box::new([
                 App(Dispatch::OpenPrompt(super::PromptConfig {
@@ -182,7 +183,7 @@ mod test_prompt {
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
                 })),
-                App(HandleKeyEvents(keys!("f o o _ b tab").to_vec())),
+                App(HandleKeyEvents(keys!("f o o _ b ctrl+space").to_vec())),
                 Expect(CurrentComponentContent("foo_bar")),
                 Expect(EditorCursorPosition(Position { line: 0, column: 7 })),
             ])

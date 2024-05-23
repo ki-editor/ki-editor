@@ -44,19 +44,19 @@ pub(crate) fn find(name: &str) -> Option<&'static Command> {
 pub const COMMANDS: &[Command] = &[
     Command {
         name: "quit-all",
-        aliases: &["qa"],
+        aliases: &[],
         description: "Quit the editor",
         dispatch: Dispatch::QuitAll,
     },
     Command {
         name: "write-quit-all",
-        aliases: &["wqa"],
+        aliases: &[],
         description: "Save all buffers and quite the editor",
         dispatch: Dispatch::SaveQuitAll,
     },
     Command {
         name: "write-all",
-        aliases: &["wa"],
+        aliases: &[],
         description: "Save all buffers",
         dispatch: Dispatch::SaveAll,
     },

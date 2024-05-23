@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](./introduction.md)
+- [Installation](./installation.md)
 - [Core Concepts](./core-concepts.md)
 - [Modes](./modes.md)
 - [Insert Mode](./insert-mode/index.md)
@@ -14,6 +15,11 @@
       - [LSP](./normal-mode/selection-modes/native-global/lsp-based.md)
       - [Misc](./normal-mode/selection-modes/native-global/misc.md)
   - [Actions](./normal-mode/actions/index.md)
+  - [Movement-Actions](./normal-mode/movement-actions.md)
   - [Other Movements](./normal-mode/other-movements.md)
+  - [Space Menu](./normal-mode/space-menu.md)
 - [Universal Keybindings](./universal-keybindings.md)
-- [Other Features](./other-features.md)
+- [Components](./components/index.md)
+  - [File Explorer](./components/file-explorer.md)
+- [Themes](./themes.md)
+- [Configurations](./configurations.md)

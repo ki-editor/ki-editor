@@ -225,3 +225,24 @@ Reason: The `esc enter` combo is sweet.
 Upon saving, formatting will be applied if possible.
 
 After formatting, the [Current](/docs/src/normal-mode/core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
+
+## Visual
+
+Keybinding: `v`
+
+This should also be known as "enable selection extension", it got its name from Vim's Visual mode.
+
+This is used for grouping multiple selections into a single selection.
+
+For example, selecting multiple words or multiple lines.
+
+It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune **both** ends, unlike using mouse where an incorrect selection means you have to start over again.
+
+When selection extension is enabled:
+
+1. Each selection is composed by 2 ranges (formerly 1 range).
+1. There's only one moveable range at a time.
+1. Press `v` again change the moveable range to the other range.
+1. Every character between the two ranges, including the two ranges, are selected
+1. Selection-wise actions works on the extended range
+1. Press `esc` to disable selection extension

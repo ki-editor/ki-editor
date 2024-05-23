@@ -1,15 +1,6 @@
 # Universal Keybindings
 
-The keybindings presented here works in any [Modes](./modes.md):
-
-| Keybinding | Meaning               |
-| ---------- | --------------------- |
-| `ctrl+l`   | Switch view alignment |
-| `ctrl+o`   | Oscillate window      |
-| `ctrl+q`   | Close current window  |
-| `ctrl+v`   | Paste                 |
-| `ctrl+y`   | Redo                  |
-| `ctrl+z`   | Undo                  |
+The keybindings presented here works in any [Modes](./modes.md).
 
 ## Switch view alignment
 

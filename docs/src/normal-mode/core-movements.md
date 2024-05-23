@@ -86,6 +86,8 @@ Parent lines are highlighted lines which represents the parent nodes of the curr
 
 This is useful for example when you are within the body of a function and you want to jump to the function name.
 
+This is also practical in the [File Explorer](../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to parent folder!
+
 ## To Index
 
 Keybinding: `0`  
