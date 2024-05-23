@@ -34,7 +34,7 @@ Keybinding: `W`
 
 Like [Word (Short)](#word-short), but it treats each word as a sequence of alphanumeric characters (including `-` and `_`).
 
-[^1]: This is possible because even Prompt is an editor, so the Word (Short) mode also works there. See [Core Concepts](/core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word (Short) mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## Column
 

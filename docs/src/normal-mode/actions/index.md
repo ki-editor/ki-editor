@@ -118,7 +118,7 @@ Keybindings:
 - `C`: Change (Cut), copies the deleted content into clipboard
 
 This is similar to [Delete](#delete), however, after deleting the current
-selected text, the editor will enter [Insert mode](../modes.md#insert).
+selected text, the editor will enter [Insert mode](../../modes.md#insert).
 
 ## Replace
 
@@ -168,7 +168,7 @@ fn main() {
 ```
 
 Assuming the current selection is `println!("hello")` and the current selection
-mode is [Syntax Tree (Coarse)](/docs/src/selection-modes/syntax-tree-based.md#syntax-tree-coarse), pressing `^` results in the following:
+mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), pressing `^` results in the following:
 
 ```rs
 fn main() {
@@ -224,7 +224,7 @@ Reason: The `esc enter` combo is sweet.
 
 Upon saving, formatting will be applied if possible.
 
-After formatting, the [Current](/docs/src/normal-mode/core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
+After formatting, the [Current](../core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
 
 ## Visual
 

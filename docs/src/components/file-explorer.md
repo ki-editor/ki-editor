@@ -49,7 +49,7 @@ Because the File Explorer is just a YAML file, the following actions are free[^1
 
 [^1]: Free as in no extra implementations required
 
-[1]: ../../normal-mode/core-movements.md#parent-line
-[2]: ../../normal-mode/core-movements.md#firstlast
-[3]: ../../normal-mode/selection-modes/syntax-tree-based.md#syntax-tree
-[4]: ../../normal-mode/core-movements.md#previousnext
+[1]: ../normal-mode/core-movements.md#parent-line
+[2]: ../normal-mode/core-movements.md#firstlast
+[3]: ../normal-mode/selection-modes/syntax-tree-based.md#syntax-tree
+[4]: ../normal-mode/core-movements.md#previousnext
