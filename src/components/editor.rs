@@ -291,8 +291,8 @@ impl Component for Editor {
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
-            GoToPreviousSelection => self.go_to_previous_selection(),
-            GoToNextSelection => self.go_to_next_selection(),
+            GoBack => self.go_back(),
+            GoForward => self.go_forward(),
             SelectSurround { enclosure, kind } => return self.select_surround(enclosure, kind),
             DeleteSurround(enclosure) => return self.delete_surround(enclosure),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
@@ -2253,13 +2253,13 @@ impl Editor {
         self.regex_highlight_rules = regex_highlight_rules
     }
 
-    fn go_to_previous_selection(&mut self) {
+    fn go_back(&mut self) {
         if let Some(selection_set) = self.selection_set_history.undo() {
             self.set_selection_set(selection_set)
         }
     }
 
-    fn go_to_next_selection(&mut self) {
+    fn go_forward(&mut self) {
         if let Some(selection_set) = self.selection_set_history.redo() {
             self.set_selection_set(selection_set)
         }
@@ -2524,8 +2524,8 @@ pub(crate) enum DispatchEditor {
     MoveSelection(Movement),
     SwitchViewAlignment,
     Copy,
-    GoToPreviousSelection,
-    GoToNextSelection,
+    GoBack,
+    GoForward,
     ReplaceCut,
     SelectAll,
     SetContent(String),

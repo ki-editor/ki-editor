@@ -1880,9 +1880,9 @@ fn selection_set_history() -> Result<(), anyhow::Error> {
             Expect(CurrentSelectedTexts(&["mod foo;"])),
             Editor(SetSelectionMode(Column)),
             Expect(CurrentSelectedTexts(&["m"])),
-            App(ToEditor(GoToPreviousSelection)),
+            App(ToEditor(GoBack)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
-            App(ToEditor(GoToNextSelection)),
+            App(ToEditor(GoForward)),
             Expect(CurrentSelectedTexts(&["m"])),
         ])
     })

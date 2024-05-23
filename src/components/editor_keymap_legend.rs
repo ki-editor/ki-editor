@@ -97,16 +97,8 @@ impl Editor {
                     "Scroll page up".to_string(),
                     Dispatch::ToEditor(ScrollPageUp),
                 ),
-                Keymap::new(
-                    "[",
-                    "Go to previous selection".to_string(),
-                    Dispatch::ToEditor(GoToPreviousSelection),
-                ),
-                Keymap::new(
-                    "]",
-                    "Go to next selection".to_string(),
-                    Dispatch::ToEditor(GoToNextSelection),
-                ),
+                Keymap::new("[", "Go back".to_string(), Dispatch::ToEditor(GoBack)),
+                Keymap::new("]", "Go forward".to_string(), Dispatch::ToEditor(GoForward)),
                 Keymap::new(
                     "{",
                     "Go to previous file".to_string(),
@@ -285,7 +277,7 @@ impl Editor {
                 Keymap::new(
                     "ctrl+o",
                     "Oscillate window".to_string(),
-                    Dispatch::OscillateWindow,
+                    Dispatch::OtherWindow,
                 ),
                 Keymap::new(
                     "ctrl+q",

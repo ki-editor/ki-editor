@@ -550,7 +550,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
             }
-            Dispatch::OscillateWindow => self.layout.cycle_window(),
+            Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
             Dispatch::GoToNextFile => self.go_to_next_file()?,
         }
@@ -1927,7 +1927,7 @@ pub(crate) enum Dispatch {
     OpenPrompt(PromptConfig),
     ShowEditorInfo(Info),
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
-    OscillateWindow,
+    OtherWindow,
     CloseCurrentWindowAndFocusParent,
     CloseEditorInfo,
     GoToPreviousFile,

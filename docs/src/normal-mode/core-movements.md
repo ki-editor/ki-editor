@@ -1,6 +1,6 @@
-# Movements
+# Core Movements
 
-Movement is one of the main concept in Ki Editor, because it is standardized for
+Core Movements is one of the main concept in Ki Editor, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:

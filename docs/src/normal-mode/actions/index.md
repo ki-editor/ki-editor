@@ -5,6 +5,13 @@
 1. When "selection" is mentioned, you should read it as "selection(s)", because
    these actions work with multi-cursors.
 
+## Enter [insert mode](../../insert-mode/index.md)
+
+Keybindings:
+
+- `i`: Enter insert mode before selection
+- `a`: Enter insert mode after selection
+
 ## Copy
 
 Keybinding: `y`  
@@ -47,7 +54,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `y`, and the
+Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `y`, and the
 copied text is `z`, performing a `p` results in the following:
 
 ```js
@@ -71,8 +78,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `y`, and the
-copied text is `z`, pressing `o` results in the following (Note that `│` represents the cursor):
+Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `y`, pressing `o` results in the following (Note that `│` represents the cursor):
 
 ```js
 hello(x, y, │);
@@ -91,6 +97,18 @@ next selection, and selects the next selection.
 
 But, if the current selection is the last selection, it will delete until the
 previous selection instead, and selects the previous selection.
+
+For example, consider the following Javascript code:
+
+```js
+hello(x, y);
+```
+
+Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `x`, pressing `d` results in the following:
+
+```js
+hello(y);
+```
 
 ## Change
 
@@ -131,8 +149,7 @@ For example:
 
 Keybinding: `^`
 
-This is one of my favourite action, it only works for [syntax tree](../selection
--modes/syntax-tree-based.md#syntax-tree) selection modes.
+This is one of my favourite action, it only works for [syntax tree](../selection-modes/syntax-tree-based.md#syntax-tree) selection modes.
 
 This replace the parent node of the current node, with the current node.
 
@@ -151,8 +168,7 @@ fn main() {
 ```
 
 Assuming the current selection is `println!("hello")` and the current selection
-mode is [Syntax Tree (Coarse)](/docs/src/selection-modes/syntax-tree-based.md#
-syntax-tree-coarse), pressing `^` results in the following:
+mode is [Syntax Tree (Coarse)](/docs/src/selection-modes/syntax-tree-based.md#syntax-tree-coarse), pressing `^` results in the following:
 
 ```rs
 fn main() {
@@ -166,13 +182,46 @@ Notes:
 - Raise should never cause syntax error (if it does that's a bug)
 - Raise preserve the node type of the current node
 
+## Between
+
+Keybinding: `b`
+
+This is a group of actions that is related to "surround" or "enclosures".
+
+| Keybinding | Action                                |
+| ---------- | ------------------------------------- |
+| `a<x>`     | Select around `<x>`                   |
+| `i<x>`     | Select inside `<x>`                   |
+| `d<x>`     | Delete surrounding `<x>`              |
+| `c<x><y>`  | Change surrounding `<x>` to `<y>`     |
+| `<x>`      | Surround current selection with `<x>` |
+
+`<x>` can be one of the following:
+
+- `(` Parenthesis
+- `{` Curly Brace
+- `[` Square Bracket
+- `<` Angular Bracket
+- `'` Single Quote
+- `"` Double Quote
+- <code>`</code> Backtick
+
 ## Transform
 
 Keybinding: `!`
 
 Transformative actions are nested under here, such as (non-exhaustive):
 
-- `j`: Join
-- `w`: Wrap
+- `j`: Join (Joins current selection into a single line)
+- `w`: Wrap (Wrap current selection into multiple lines)
 - `l`: Convert to `lower case`
 - `s`: Convert to `snake_case`
+
+## Save
+
+Keybinding: `enter`  
+Reason: The `esc enter` combo is sweet.
+
+Upon saving, formatting will be applied if possible.
+
+After formatting, the [Current](/docs/src/normal-mode/core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
