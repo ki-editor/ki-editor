@@ -51,7 +51,7 @@ pub const COMMANDS: &[Command] = &[
     Command {
         name: "write-quit-all",
         aliases: &[],
-        description: "Save all buffers and quite the editor",
+        description: "Save all buffers and quit the editor",
         dispatch: Dispatch::SaveQuitAll,
     },
     Command {

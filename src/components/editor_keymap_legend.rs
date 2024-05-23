@@ -27,7 +27,7 @@ use Movement::*;
 impl Editor {
     pub(crate) fn keymap_core_movements(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement (Core, synergies with Movement Mode)".to_string(),
+            title: "Movements (Core)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     ",",
@@ -80,7 +80,7 @@ impl Editor {
 
     pub(crate) fn keymap_other_movements(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement (Other)".to_string(),
+            title: "Movements (Other)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     "%",
@@ -440,7 +440,7 @@ impl Editor {
 
     pub(crate) fn keymap_movement_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement Mode".to_string(),
+            title: "Movement-action Submodes".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     ";",

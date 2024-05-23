@@ -14,9 +14,12 @@ Ki [^1] Editor is a modal [^2] editor that supports multi-cursor structural edit
 - [x] : Document installation instructions
 - [x] : Syntax highlighting and themes
 - [x] : Document configuration
-- [ ] : Document components
-  - [ ] : Document file explorer
+- [x] : Commands (remove alias, since it is handled by fuzzy, or is it?)
+- [x] : Document components
+  - [x] : Document file explorer
   - [ ] : Prompt
   - [ ] : Keymap legend
 - [ ] : Document keybindings comparison against Vim/Helix
-- [ ] : Commands (remove alias, since it is handled by fuzzy, or is it?)
+- [ ] : Showcases
+
+<script src="https://asciinema.org/a/bJMOlPe5F4mFLY0Rl6fiJSOp3.js" id="asciicast-bJMOlPe5F4mFLY0Rl6fiJSOp3" async></script>
