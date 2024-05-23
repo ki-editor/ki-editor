@@ -15,13 +15,14 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
     steps:
-      - uses: actions/checkout@v2
+      - run: echo ${{ github.ref }}
 
+      - uses: actions/checkout@v2
+          
       - name: Setup mdBook
         uses: peaceiris/actions-mdbook@v2
         with:
           mdbook-version: '0.4.10'
-          
       - run: cargo install mdbook-linkcheck
       - run: mdbook build ./docs/
 
