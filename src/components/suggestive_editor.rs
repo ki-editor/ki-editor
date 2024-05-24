@@ -709,7 +709,7 @@ mod test_suggestive_editor {
                     trigger_characters: Vec::new(),
                 })),
                 App(HandleKeyEvent(key!("s"))),
-                Expect(CompletionDropdownContent("ƒ Spongebob")),
+                Expect(CompletionDropdownContent("💥 Spongebob")),
                 App(HandleKeyEvent(key!("ctrl+space"))),
                 // Expect the content of the buffer to be applied with the new edit,
                 // resulting in 'Spongebob', and does not contain emoji
