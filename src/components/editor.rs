@@ -2287,22 +2287,19 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let buffer = self.buffer();
-                    let cursor = selection.get_anchor(&self.cursor_direction);
-                    let cursor_byte_index = buffer.char_to_byte(cursor)?;
+                    let cursor_char_index = selection.get_anchor(&self.cursor_direction);
                     if let Some((open_index, close_index)) =
                         crate::surround::get_surrounding_indices(
                             &buffer.content(),
                             enclosure,
-                            cursor_byte_index,
+                            cursor_char_index,
                         )
                     {
                         let offset = match kind {
                             SurroundKind::Inside => 1,
                             SurroundKind::Around => 0,
                         };
-                        let range = buffer.byte_range_to_char_index_range(
-                            &((open_index + offset)..(close_index + 1 - offset)),
-                        )?;
+                        let range = ((open_index + offset)..(close_index + 1 - offset)).into();
                         Ok(ActionGroup::new(
                             [Action::Select(selection.clone().set_range(range))].to_vec(),
                         ))
@@ -2331,27 +2328,23 @@ impl Editor {
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     let buffer = self.buffer();
-                    let cursor = selection.get_anchor(&self.cursor_direction);
-                    let cursor_byte_index = buffer.char_to_byte(cursor)?;
+                    let cursor_char_index = selection.get_anchor(&self.cursor_direction);
                     if let Some((open_index, close_index)) =
                         crate::surround::get_surrounding_indices(
                             &buffer.content(),
                             from,
-                            cursor_byte_index,
+                            cursor_char_index,
                         )
                     {
-                        let open_range =
-                            buffer.byte_range_to_char_index_range(&(open_index..open_index + 1))?;
-                        let close_range = buffer
-                            .byte_range_to_char_index_range(&(close_index..close_index + 1))?;
+                        let open_range = (open_index..open_index + 1).into();
+                        let close_range = (close_index..close_index + 1).into();
                         let (new_open, new_close) = to
                             .as_ref()
                             .map(|to| to.open_close_symbols_str())
                             .unwrap_or(("", ""));
-                        let select_range = buffer.byte_range_to_char_index_range(
-                            &(open_index + 1 - new_open.chars().count()
-                                ..(close_index + new_close.chars().count())),
-                        )?;
+                        let select_range = (open_index + 1 - new_open.chars().count()
+                            ..(close_index + new_close.chars().count()))
+                            .into();
                         Ok([
                             ActionGroup::new(
                                 [Action::Edit(Edit {

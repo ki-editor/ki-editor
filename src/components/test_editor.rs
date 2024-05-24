@@ -1889,6 +1889,23 @@ fn selection_set_history() -> Result<(), anyhow::Error> {
 }
 
 #[test]
+fn select_surround_inside_with_multiwidth_character() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("(hello (w🦀orld))".to_string())),
+            Editor(MatchLiteral("rl".to_string())),
+            Editor(SelectSurround {
+                enclosure: crate::surround::EnclosureKind::Parentheses,
+                kind: SurroundKind::Inside,
+            }),
+            Expect(CurrentSelectedTexts(&["w🦀orld"])),
+            Expect(CurrentSelectionMode(SelectionMode::Custom)),
+        ])
+    })
+}
+
+#[test]
 fn select_surround_inside() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([

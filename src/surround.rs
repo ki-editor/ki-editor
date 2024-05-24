@@ -1,3 +1,7 @@
+use itertools::Itertools;
+
+use crate::selection::CharIndex;
+
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub(crate) enum EnclosureKind {
     Parentheses,
@@ -13,13 +17,17 @@ pub(crate) enum EnclosureKind {
 pub(crate) fn get_surrounding_indices(
     content: &str,
     kind: EnclosureKind,
-    cursor_byte_index: usize,
-) -> Option<(usize, usize)> {
-    debug_assert!((0..content.chars().count()).contains(&cursor_byte_index));
-    if !(0..content.chars().count()).contains(&cursor_byte_index) {
+    cursor_char_index: CharIndex,
+) -> Option<(CharIndex, CharIndex)> {
+    debug_assert!((0..content.chars().count()).contains(&cursor_char_index.0));
+    if !(0..content.chars().count()).contains(&cursor_char_index.0) {
         return None;
     }
-    let (left, right) = content.split_at(cursor_byte_index);
+    let chars = content.chars().collect_vec();
+    let (left, right) = {
+        let (left, right) = chars.split_at(cursor_char_index.0);
+        (left.to_vec(), right.to_vec())
+    };
     let (open, close) = kind.open_close_symbols();
     fn get_index<I>(iter: I, encounter: Option<char>, target: char) -> Option<usize>
     where
@@ -40,28 +48,23 @@ pub(crate) fn get_surrounding_indices(
         None
     }
 
-    let open_index = if content.chars().nth(cursor_byte_index) == Some(open) {
-        cursor_byte_index
+    let open_index = if content.chars().nth(cursor_char_index.0) == Some(open) {
+        cursor_char_index
     } else {
         let encounter = if open == close { None } else { Some(close) };
-        cursor_byte_index
-            .saturating_sub(get_index(left.chars().rev().enumerate(), encounter, open)? + 1)
+        cursor_char_index - (get_index(left.into_iter().rev().enumerate(), encounter, open)? + 1)
     };
 
-    let close_index = if content.chars().nth(cursor_byte_index) == Some(close) {
-        cursor_byte_index
+    let close_index = if content.chars().nth(cursor_char_index.0) == Some(close) {
+        cursor_char_index
     } else {
         let encounter = if open == close { None } else { Some(open) };
-        cursor_byte_index.saturating_add(get_index(
-            right.chars().enumerate().skip(1),
-            encounter,
-            close,
-        )?)
+        cursor_char_index + (get_index(right.into_iter().enumerate().skip(1), encounter, close)?)
     };
 
-    debug_assert_eq!(content.chars().nth(open_index), Some(open));
+    debug_assert_eq!(content.chars().nth(open_index.0), Some(open));
 
-    debug_assert_eq!(content.chars().nth(close_index), Some(close));
+    debug_assert_eq!(content.chars().nth(close_index.0), Some(close));
 
     Some((open_index, close_index))
 }
@@ -110,11 +113,14 @@ mod test_surround {
     fn run_test(
         content: &str,
         enclosure: EnclosureKind,
-        cursor_byte_index: usize,
+        cursor_char_index: usize,
         expected: Option<(usize, usize)>,
     ) {
-        let actual = get_surrounding_indices(content, enclosure, cursor_byte_index);
-        assert_eq!(actual, expected)
+        let actual = get_surrounding_indices(content, enclosure, CharIndex(cursor_char_index));
+        assert_eq!(
+            actual,
+            expected.map(|(open, close)| (CharIndex(open), CharIndex(close)))
+        )
     }
 
     use EnclosureKind::*;
