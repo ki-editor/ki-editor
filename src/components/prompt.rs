@@ -5,6 +5,7 @@ use my_proc_macros::key;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches},
     buffer::Buffer,
+    components::editor::{self, DispatchEditor},
     context::Context,
     lsp::completion::Completion,
 };
@@ -30,30 +31,40 @@ pub(crate) struct PromptConfig {
     pub(crate) items: Vec<DropdownItem>,
     pub(crate) title: String,
     pub(crate) enter_selects_first_matching_item: bool,
+    pub(crate) leaves_current_line_empty: bool,
 }
 
 impl Prompt {
     pub(crate) fn new(config: PromptConfig) -> (Self, Dispatches) {
-        let text = &if config.history.is_empty() {
-            "".to_string()
-        } else {
+        let text = {
             let mut history = config.history.clone();
             history.reverse();
-            format!("\n{}", history.join("\n"))
+            format!(
+                "{}{}",
+                if config.leaves_current_line_empty {
+                    "\n"
+                } else {
+                    ""
+                },
+                history.join("\n")
+            )
         };
-        log::info!("Prompt.text = {text}");
         let mut editor = SuggestiveEditor::from_buffer(
-            Rc::new(RefCell::new(Buffer::new(None, text))),
+            Rc::new(RefCell::new(Buffer::new(None, &text))),
             SuggestiveEditorFilter::CurrentLine,
         );
-        let dispatches = editor.enter_insert_mode().unwrap_or_default();
+        let dispatches = Dispatches::one(Dispatch::ToEditor(if config.leaves_current_line_empty {
+            DispatchEditor::EnterInsertMode(editor::Direction::Start)
+        } else {
+            DispatchEditor::MoveToLineEnd
+        }));
         // TODO: set cursor to last line
         editor.set_title(config.title);
         editor.set_completion(Completion {
             items: config.items,
             trigger_characters: vec![" ".to_string()],
         });
-        let dispatches = dispatches.append(editor.render_completion_dropdown());
+        let dispatches = dispatches.append(editor.render_completion_dropdown(true));
         (
             Prompt {
                 editor,
@@ -129,6 +140,34 @@ mod test_prompt {
     use super::*;
 
     #[test]
+    fn leaves_current_line_empty() {
+        fn test(
+            leaves_current_line_empty: bool,
+            expected_text: &'static str,
+            expected_cursor_position: Position,
+        ) {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile(s.main_rs())),
+                    App(OpenPrompt(PromptConfig {
+                        history: ["hello".to_string()].to_vec(),
+                        on_enter: DispatchPrompt::Null,
+                        items: Default::default(),
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty,
+                    })),
+                    Expect(CurrentComponentContent(expected_text)),
+                    Expect(EditorCursorPosition(expected_cursor_position)),
+                ])
+            })
+            .unwrap();
+        }
+        test(true, "\nhello", Position::default());
+        test(false, "hello", Position::new(0, 5));
+    }
+
+    #[test]
     fn enter_selects_first_matching_item() {
         fn run_test(
             enter_selects_first_matching_item: bool,
@@ -151,6 +190,7 @@ mod test_prompt {
 
                         title: "".to_string(),
                         enter_selects_first_matching_item,
+                        leaves_current_line_empty: true,
                     })),
                     Expect(CompletionDropdownIsOpen(true)),
                     App(HandleKeyEvents(
@@ -182,6 +222,7 @@ mod test_prompt {
 
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
+                    leaves_current_line_empty: true,
                 })),
                 App(HandleKeyEvents(keys!("f o o _ b ctrl+space").to_vec())),
                 Expect(CurrentComponentContent("foo_bar")),
@@ -206,6 +247,7 @@ mod test_prompt {
 
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
+                    leaves_current_line_empty: true,
                 })),
                 App(TerminalDimensionChanged(crate::app::Dimension {
                     height: 10,
@@ -235,6 +277,7 @@ mod test_prompt {
 
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
+                    leaves_current_line_empty: true,
                 })),
                 // Expect the completion dropdown to be open,
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),

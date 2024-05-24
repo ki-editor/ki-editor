@@ -595,6 +595,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::MoveSelectionByIndex,
             items: vec![],
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: true,
         })
     }
 
@@ -609,6 +610,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::RenameSymbol { params },
             items: vec![],
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: false,
         })
     }
 
@@ -624,6 +626,7 @@ impl<T: Frontend> App<T> {
                 show_config_after_enter: false,
             },
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: true,
         })
     }
 
@@ -634,6 +637,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::AddPath,
             items: Vec::new(),
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: false,
         })
     }
 
@@ -644,6 +648,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::MovePath { from: path },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: false,
         })
     }
 
@@ -663,6 +668,7 @@ impl<T: Frontend> App<T> {
                 .collect_vec(),
             on_enter: DispatchPrompt::SelectSymbol { symbols },
             enter_selects_first_matching_item: true,
+            leaves_current_line_empty: true,
         })
     }
 
@@ -676,6 +682,7 @@ impl<T: Frontend> App<T> {
                 .flat_map(|command| command.to_dropdown_items())
                 .collect(),
             enter_selects_first_matching_item: true,
+            leaves_current_line_empty: true,
         })
     }
 
@@ -700,6 +707,7 @@ impl<T: Frontend> App<T> {
                 .collect_vec()
             },
             enter_selects_first_matching_item: true,
+            leaves_current_line_empty: true,
         })
     }
 
@@ -1118,7 +1126,6 @@ impl<T: Frontend> App<T> {
         self.reveal_path_in_explorer(&to)?;
         self.lsp_manager
             .document_did_rename(from.clone(), to.clone())?;
-        self.open_file(&to, OpenFileOption::Focus)?;
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
@@ -1274,6 +1281,7 @@ impl<T: Frontend> App<T> {
             },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: true,
         })
     }
 
@@ -1328,6 +1336,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: false,
         })
     }
 
@@ -1511,6 +1520,7 @@ impl<T: Frontend> App<T> {
             on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { scope },
             items: Vec::new(),
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: false,
         })
     }
 
@@ -1524,6 +1534,7 @@ impl<T: Frontend> App<T> {
             },
             items: self.words(),
             enter_selects_first_matching_item: false,
+            leaves_current_line_empty: false,
         })
     }
 
@@ -1681,6 +1692,7 @@ impl<T: Frontend> App<T> {
                 .collect(),
             title: "Code Actions".to_string(),
             enter_selects_first_matching_item: true,
+            leaves_current_line_empty: true,
         })?;
         Ok(())
     }

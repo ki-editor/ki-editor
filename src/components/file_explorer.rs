@@ -7,7 +7,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use super::{
     component::Component,
     editor::Editor,
-    keymap_legend::{Keymap, KeymapLegendBody, Keymaps},
+    keymap_legend::{Keymap, Keymaps},
 };
 
 pub(crate) struct FileExplorer {
@@ -383,56 +383,6 @@ impl Component for FileExplorer {
                     Ok(Vec::new().into())
                 }
             }
-            key!("backslash") => {
-                let current_node = self.get_current_node()?;
-                Ok([Dispatch::ShowKeymapLegend(
-                    super::keymap_legend::KeymapLegendConfig {
-                        title: "File Explorer Actions".to_string(),
-                        body: KeymapLegendBody::SingleSection {
-                            keymaps: Keymaps::new(
-                                &current_node
-                                    .map(|node| {
-                                        [
-                                            Keymap::new(
-                                                "a",
-                                                "Add file (or postfix with / for folder)"
-                                                    .to_string(),
-                                                Dispatch::OpenAddPathPrompt(node.path.clone()),
-                                            ),
-                                            Keymap::new(
-                                                "d",
-                                                "Delete path".to_string(),
-                                                Dispatch::OpenYesNoPrompt(YesNoPrompt {
-                                                    title: format!(
-                                                        "Delete \"{}\"?",
-                                                        node.path.display_absolute()
-                                                    ),
-                                                    yes: Box::new(Dispatch::DeletePath(
-                                                        node.path.clone(),
-                                                    )),
-                                                }),
-                                            ),
-                                            Keymap::new(
-                                                "m",
-                                                "Move file".to_string(),
-                                                Dispatch::OpenMoveFilePrompt(node.path.clone()),
-                                            ),
-                                            Keymap::new(
-                                                "r",
-                                                "Refresh".to_string(),
-                                                Dispatch::RefreshFileExplorer,
-                                            ),
-                                        ]
-                                        .to_vec()
-                                    })
-                                    .unwrap_or_default(),
-                            ),
-                        },
-                    },
-                )]
-                .to_vec()
-                .into())
-            }
             _ => self.editor.handle_key_event(context, event),
         }
     }
@@ -472,14 +422,6 @@ mod test_file_explorer {
     #[test]
     fn move_file() -> anyhow::Result<()> {
         execute_test(|s| {
-            let new_path = s
-                .main_rs()
-                .parent()
-                .unwrap()
-                .unwrap()
-                .to_path_buf()
-                .join("hello")
-                .join("world.rs");
             Box::new([
                 App(OpenFile(s.main_rs())),
                 App(RevealInExplorer(s.main_rs())),
@@ -487,13 +429,11 @@ mod test_file_explorer {
                 App(HandleKeyEvents(keys!("space m").to_vec())),
                 Expect(ComponentCount(2)),
                 Expect(CurrentComponentTitle("Move file")),
-                Editor(Insert(new_path.to_string_lossy().to_string())),
+                Editor(Insert("/hello/world.rs".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(2)),
-                ExpectLater(Box::new(move || {
-                    CurrentComponentPath(Some(new_path.clone().try_into().unwrap()))
-                })),
                 Expect(OpenedFilesCount(1)),
+                Expect(CurrentComponentTitle("File Explorer")),
             ])
         })
     }
