@@ -201,7 +201,7 @@ powered by <a href="https://github.com/tree-sitter">Tree-sitter</a>.</p>
 <p>Using the following Javascript expression as example:</p>
 <pre><code class="language-js">fox.bar();
 </code></pre>
-<p>There are several syntax nodes that starts with <code>f</code><sup class="footnote-reference"><a href="#1">1</a></sup>:</p>
+<p>There are several syntax nodes that start with <code>f</code><sup class="footnote-reference"><a href="#1">1</a></sup>:</p>
 <ul>
 <li><code>fox</code> (identifier)</li>
 <li><code>fox.bar</code> (member expression)</li>
@@ -226,15 +226,15 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 <tr><td>Up</td><td>Parent largest node</td></tr>
 <tr><td>Down</td><td>First child</td></tr>
 <tr><td>Current</td><td>Smallest node that matches the current selection</td></tr>
-<tr><td>Fly</td><td>Fly to smalles node</td></tr>
+<tr><td>Fly</td><td>Fly to smallest node</td></tr>
 </tbody></table>
 </div>
 <p>Syntax Tree (Fine) is useful when you start to expand the selection starting from the current token.</p>
 <p>Suppose we have the following Javascript expression, and the current selection is <code>hello</code>, and we want to select <code>hello.world()</code>.</p>
 <pre><code class="language-js">hello.world().foo().bar().spam().wise();
 </code></pre>
-<p>If we press <code>s</code>, the whole expression would be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
-<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and press <code>k</code> two times will get us to <code>hello.world()</code>.</p>
+<p>If we press <code>s</code>, the whole expression will be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
+<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and pressing <code>k</code> two times will get us to <code>hello.world()</code>.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>See <a href="#largest-node">Largest Node</a></p>
 </div>

@@ -181,14 +181,14 @@
 <p>The current UNIX® text processing tools are weakened by the built-in concept of a line.</p>
 </blockquote>
 <p>In Ki, all movements must be paired by a pre-selected selection mode.</p>
-<p>Consequently, all movements are bounded to the same keymaps.</p>
+<p>Consequently, all movements are bound to the same keymaps.</p>
 <p>By combining movements and selection modes, it's easy to perform any kind of movements imaginable.</p>
 <h2 id="2-every-component-is-a-buffereditor"><a class="header" href="#2-every-component-is-a-buffereditor">2. Every component is a buffer/editor</a></h2>
-<p>This is also a core philosophy of Emacs and Vim, however in the recent modal editors such as Kakoune, Neovim and Helix, they took another approach (the standard GUI approach) where every components are different.</p>
+<p>This is also a core philosophy of Emacs and Vim, however in the recent modal editors such as Kakoune, Neovim, and Helix, they took another approach (the standard GUI approach) where every component is different.</p>
 <p>Although having different components greatly improves the aesthetic, it's not without disadvantages:</p>
 <ol>
 <li>Users are forced to learn new keymaps for new components. <sup class="footnote-reference"><a href="#2">2</a></sup></li>
-<li>Some components are weaker than the others. <sup class="footnote-reference"><a href="#2">2</a></sup></li>
+<li>Some components are weaker than others.</li>
 <li>Reinventing the wheel everywhere. <sup class="footnote-reference"><a href="#3">3</a></sup></li>
 </ol>
 <p>Unlike Emacs and Vim, Ki took this approach to the extreme, literally everything is an editor, including prompt and completion dropdown.</p>
@@ -199,14 +199,14 @@
 <p>For example, in Vim, <code>p</code> means paste, but to paste in prompt use <code>ctrl+r</code> instead.</p>
 </div>
 <div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
-<p>For example, in the <a href="https://github.com/helix-editor/helix/pull/5768">Helix's File Explorer PR</a>, every movements, including scrolling are reimplemented, although they were implemented in the Editor component.</p>
+<p>For example, in the <a href="https://github.com/helix-editor/helix/pull/5768">Helix's File Explorer PR</a>, every movement, including scrolling was reimplemented, although they were implemented in the Editor component.</p>
 </div>
 <h2 id="3-minimal-configurations"><a class="header" href="#3-minimal-configurations">3. Minimal configurations</a></h2>
-<p>Part of the reason why Ki was created is due to the configuration nightmare that I been through when using Neovim for the past 4 years.</p>
+<p>Part of the reason why Ki was created is due to the configuration nightmare that I have been through when using Neovim for the past 4 years.</p>
 <p>Thus, I'm in favor of minimal configurations, users should not spend days configuring something simple (which makes Helix attractive).</p>
 <p>However, unlike Helix editor, I will take this step even further: <em>keybindings should not be configurable</em>.</p>
 <p>A ridiculous amount of time is spent thinking about keybindings: their coherence, their rationality, their ease of typing etc.</p>
-<p>Thus, if you feel like certain keybindings should be remapped, discuss with me, we will sort it out, I want every Ki users to experience the best keybindings that they ever had.</p>
+<p>Thus, if you feel like certain keybindings should be remapped, discuss them with me, and we will sort it out, I want every Ki user to experience the best keybindings that they ever had.</p>
 <p>That being said, the following components should be configurable:</p>
 <ol>
 <li>Theme</li>
@@ -219,9 +219,9 @@
 </li>
 </ol>
 <h2 id="4-vim-keybindings-compatible"><a class="header" href="#4-vim-keybindings-compatible">4. Vim keybindings-compatible</a></h2>
-<p>This is because I do not want to alienate existings modal editor users, where most of their keybindings are also based on Vim.</p>
+<p>This is because I do not want to alienate existing modal editor users, where most of their keybindings are also based on Vim.</p>
 <p>A significant portions of Ki's keybindings are based on Vim's keybindings, but <strong>repurposed</strong>.</p>
-<p>For example, <code>hjkl</code> is also part of Ki, however their meaning have been generalized to not only work for lines and columns, as mentioned <a href="#1">above</a>.</p>
+<p>For example, <code>hjkl</code> is also part of Ki, however, their meaning has been generalized to not only work for lines and columns, as mentioned <a href="#1">above</a>.</p>
 <h2 id="5-keybindings-synergy"><a class="header" href="#5-keybindings-synergy">5. Keybindings synergy</a></h2>
 <p>Most keybindings in Ki synergize with one another, though a minority of them are lone rangers.</p>
 <p>But lone rangers are not encouraged, they are only added if they are truly crucial.</p>

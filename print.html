@@ -228,14 +228,14 @@ cargo install --locked --path .
 <p>The current UNIX® text processing tools are weakened by the built-in concept of a line.</p>
 </blockquote>
 <p>In Ki, all movements must be paired by a pre-selected selection mode.</p>
-<p>Consequently, all movements are bounded to the same keymaps.</p>
+<p>Consequently, all movements are bound to the same keymaps.</p>
 <p>By combining movements and selection modes, it's easy to perform any kind of movements imaginable.</p>
 <h2 id="2-every-component-is-a-buffereditor"><a class="header" href="#2-every-component-is-a-buffereditor">2. Every component is a buffer/editor</a></h2>
-<p>This is also a core philosophy of Emacs and Vim, however in the recent modal editors such as Kakoune, Neovim and Helix, they took another approach (the standard GUI approach) where every components are different.</p>
+<p>This is also a core philosophy of Emacs and Vim, however in the recent modal editors such as Kakoune, Neovim, and Helix, they took another approach (the standard GUI approach) where every component is different.</p>
 <p>Although having different components greatly improves the aesthetic, it's not without disadvantages:</p>
 <ol>
 <li>Users are forced to learn new keymaps for new components. <sup class="footnote-reference"><a href="#2">2</a></sup></li>
-<li>Some components are weaker than the others. <sup class="footnote-reference"><a href="#2">2</a></sup></li>
+<li>Some components are weaker than others.</li>
 <li>Reinventing the wheel everywhere. <sup class="footnote-reference"><a href="#3">3</a></sup></li>
 </ol>
 <p>Unlike Emacs and Vim, Ki took this approach to the extreme, literally everything is an editor, including prompt and completion dropdown.</p>
@@ -246,14 +246,14 @@ cargo install --locked --path .
 <p>For example, in Vim, <code>p</code> means paste, but to paste in prompt use <code>ctrl+r</code> instead.</p>
 </div>
 <div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
-<p>For example, in the <a href="https://github.com/helix-editor/helix/pull/5768">Helix's File Explorer PR</a>, every movements, including scrolling are reimplemented, although they were implemented in the Editor component.</p>
+<p>For example, in the <a href="https://github.com/helix-editor/helix/pull/5768">Helix's File Explorer PR</a>, every movement, including scrolling was reimplemented, although they were implemented in the Editor component.</p>
 </div>
 <h2 id="3-minimal-configurations"><a class="header" href="#3-minimal-configurations">3. Minimal configurations</a></h2>
-<p>Part of the reason why Ki was created is due to the configuration nightmare that I been through when using Neovim for the past 4 years.</p>
+<p>Part of the reason why Ki was created is due to the configuration nightmare that I have been through when using Neovim for the past 4 years.</p>
 <p>Thus, I'm in favor of minimal configurations, users should not spend days configuring something simple (which makes Helix attractive).</p>
 <p>However, unlike Helix editor, I will take this step even further: <em>keybindings should not be configurable</em>.</p>
 <p>A ridiculous amount of time is spent thinking about keybindings: their coherence, their rationality, their ease of typing etc.</p>
-<p>Thus, if you feel like certain keybindings should be remapped, discuss with me, we will sort it out, I want every Ki users to experience the best keybindings that they ever had.</p>
+<p>Thus, if you feel like certain keybindings should be remapped, discuss them with me, and we will sort it out, I want every Ki user to experience the best keybindings that they ever had.</p>
 <p>That being said, the following components should be configurable:</p>
 <ol>
 <li>Theme</li>
@@ -266,9 +266,9 @@ cargo install --locked --path .
 </li>
 </ol>
 <h2 id="4-vim-keybindings-compatible"><a class="header" href="#4-vim-keybindings-compatible">4. Vim keybindings-compatible</a></h2>
-<p>This is because I do not want to alienate existings modal editor users, where most of their keybindings are also based on Vim.</p>
+<p>This is because I do not want to alienate existing modal editor users, where most of their keybindings are also based on Vim.</p>
 <p>A significant portions of Ki's keybindings are based on Vim's keybindings, but <strong>repurposed</strong>.</p>
-<p>For example, <code>hjkl</code> is also part of Ki, however their meaning have been generalized to not only work for lines and columns, as mentioned <a href="core-concepts.html#1">above</a>.</p>
+<p>For example, <code>hjkl</code> is also part of Ki, however, their meaning has been generalized to not only work for lines and columns, as mentioned <a href="core-concepts.html#1">above</a>.</p>
 <h2 id="5-keybindings-synergy"><a class="header" href="#5-keybindings-synergy">5. Keybindings synergy</a></h2>
 <p>Most keybindings in Ki synergize with one another, though a minority of them are lone rangers.</p>
 <p>But lone rangers are not encouraged, they are only added if they are truly crucial.</p>
@@ -293,9 +293,9 @@ alphabets on the keyboards inserts those alphabets into the file.</p>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="insert-mode-1"><a class="header" href="#insert-mode-1">Insert Mode</a></h1>
 <p>In this mode, Ki functions like the usual editor, where pressing keys on
-the keyboard actually types them into the current opened file.</p>
+the keyboard types them into the current opened file.</p>
 <h2 id="completion-dropdown-keybindings"><a class="header" href="#completion-dropdown-keybindings">Completion dropdown keybindings</a></h2>
-<p>The following keybindings only works when the completion dropdown is opened.</p>
+<p>The following keybindings only work when the completion dropdown is opened.</p>
 <div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>ctrl+n</code></td><td>Next item</td></tr>
 <tr><td><code>ctrl+p</code></td><td>Previous item</td></tr>
@@ -332,13 +332,13 @@ in almost every terminal UI (TUI) application, for example:</p>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>Not every unimplemented keybindings are incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!</p>
+<p>Not every unimplemented keybinding is incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!</p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="normal-mode-1"><a class="header" href="#normal-mode-1">Normal Mode</a></h1>
-<p>In Normal Mode, the keys on the keyboard no longers type, most of them are assigned special meanings.</p>
+<p>In Normal Mode, the keys on the keyboard no longer type, most of them are assigned special meanings.</p>
 <p>Most of the magic happens in this mode.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="core-movements"><a class="header" href="#core-movements">Core Movements</a></h1>
-<p>Core Movements is one of the main concept in Ki Editor, because it is standardized for
+<p>Core Movements is one of the main concepts in Ki, because it is standardized for
 every <a href="normal-mode/./selection-modes/index.html">selection modes</a>.</p>
 <p>There are 9 movements in total:</p>
 <ol>
@@ -367,7 +367,7 @@ Memory aid:</p>
 </ul>
 <p>In most selection modes, up/down moves the selections upwards/downwards, except for the following selection modes:</p>
 <div class="table-wrapper"><table><thead><tr><th>Selection Mode</th><th>Up</th><th>Down</th></tr></thead><tbody>
-<tr><td>Syntax Tree</td><td>Expand selection to parent</td><td>Shirnk selection to first child</td></tr>
+<tr><td>Syntax Tree</td><td>Expand selection to parent</td><td>Shrink selection to first child</td></tr>
 <tr><td>Quickfix</td><td>Go to first item of previous file</td><td>Go to first item of next file</td></tr>
 </tbody></table>
 </div>
@@ -385,7 +385,7 @@ Memory aid:</p>
 </ol>
 <h2 id="fly"><a class="header" href="#fly">Fly</a></h2>
 <p>Keybinding: <code>f</code></p>
-<p>This is my favourite movement, which is inspired by <a href="https://github.com/easymotion/vim-easymotion">Vim Easymotion</a> and friends <sup class="footnote-reference"><a href="#1">1</a></sup>.</p>
+<p>This is my favorite movement, which is inspired by <a href="https://github.com/easymotion/vim-easymotion">Vim Easymotion</a> and friends <sup class="footnote-reference"><a href="#1">1</a></sup>.</p>
 <p>It allows you to fly to your desired position (as long as it is within the screen), with just 4 keypresses most of the time.</p>
 <p>It works like this:</p>
 <ol>
@@ -408,16 +408,16 @@ Memory aid:</p>
 <h2 id="parent-line"><a class="header" href="#parent-line">Parent line</a></h2>
 <p>Keybinding: <code>-</code></p>
 <p>It moves the current selection to its nearest parent line.</p>
-<p>Parent lines are highlighted lines which represents the parent nodes of the current selection.</p>
+<p>Parent lines are highlighted lines that represent the parent nodes of the current selection.</p>
 <p>This is useful for example when you are within the body of a function and you want to jump to the function name.</p>
-<p>This is also practical in the <a href="normal-mode/../components/file-explorer.html">File Explorer</a> because the file explorer is rendered using YAML, so going to Parent Line means going to parent folder!</p>
+<p>This is also practical in the <a href="normal-mode/../components/file-explorer.html">File Explorer</a> because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!</p>
 <h2 id="to-index"><a class="header" href="#to-index">To Index</a></h2>
 <p>Keybinding: <code>0</code><br />
 Memory aid:</p>
 <ul>
-<li><code>0</code> is related to index.</li>
+<li><code>0</code> is related to the index.</li>
 </ul>
-<p>When <code>0</code> is pressed, you will be prompted to key in a numerical index (where 1 represent first), and it will jump the current selection to the nth selection of the current selection mode.</p>
+<p>When <code>0</code> is pressed, you will be prompted to key in a numerical index (where 1 represents first), and it will jump the current selection to the nth selection of the current selection mode.</p>
 <p>Recommended selection modes:</p>
 <ol>
 <li>Line (For going to a specific line number)</li>
@@ -429,14 +429,14 @@ Memory aid:</p>
 selection mode is chosen.</p>
 <p>For example, choosing the Line selection mode causes the current line to be
 selected, choosing the Word selection mode causes the current word to be selected.</p>
-<p>In case where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):</p>
+<p>In cases where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):</p>
 <ol>
 <li>Same line as cursor (if possible)</li>
 <li>Nearest to cursor (in terms of horizontal movements)</li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="selection-modes"><a class="header" href="#selection-modes">Selection Modes</a></h1>
 <p>Selection modes <sup class="footnote-reference"><a href="#1">1</a></sup> dictates how <a href="normal-mode/selection-modes/../core-movements.html">core movements</a> works.</p>
-<p>There are roughly 3 categories of selection modes (not clear cut):</p>
+<p>There are roughly 3 categories of selection modes (not clear-cut):</p>
 <ol>
 <li><a href="normal-mode/selection-modes/./syntax-tree-based.html">Syntax tree-based</a></li>
 <li><a href="normal-mode/selection-modes/./regex-based.html">Regex-based</a></li>
@@ -447,8 +447,8 @@ selected, choosing the Word selection mode causes the current word to be selecte
 </div>
 <h2 id="contiguity"><a class="header" href="#contiguity">Contiguity</a></h2>
 <p>Besides the categorization above, selection modes are also separated based on their contiguity.</p>
-<p>A selection mode is consider contiguous, if there's no meaningful gap between each of the selections.</p>
-<p>A gap is meaningful is it's neither whitespaces only, nor separators like <code>,</code> or <code>;</code>.</p>
+<p>A selection mode is considered contiguous, if there's no meaningful gap between each of the selections.</p>
+<p>A gap is meaningful if it's neither whitespaces only nor separators like <code>,</code> or <code>;</code>.</p>
 <p>The following selection modes are contiguous (exhaustive):</p>
 <ol>
 <li>Line</li>
@@ -485,7 +485,7 @@ powered by <a href="https://github.com/tree-sitter">Tree-sitter</a>.</p>
 <p>Using the following Javascript expression as example:</p>
 <pre><code class="language-js">fox.bar();
 </code></pre>
-<p>There are several syntax nodes that starts with <code>f</code><sup class="footnote-reference"><a href="#1">1</a></sup>:</p>
+<p>There are several syntax nodes that start with <code>f</code><sup class="footnote-reference"><a href="#1">1</a></sup>:</p>
 <ul>
 <li><code>fox</code> (identifier)</li>
 <li><code>fox.bar</code> (member expression)</li>
@@ -510,15 +510,15 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 <tr><td>Up</td><td>Parent largest node</td></tr>
 <tr><td>Down</td><td>First child</td></tr>
 <tr><td>Current</td><td>Smallest node that matches the current selection</td></tr>
-<tr><td>Fly</td><td>Fly to smalles node</td></tr>
+<tr><td>Fly</td><td>Fly to smallest node</td></tr>
 </tbody></table>
 </div>
 <p>Syntax Tree (Fine) is useful when you start to expand the selection starting from the current token.</p>
 <p>Suppose we have the following Javascript expression, and the current selection is <code>hello</code>, and we want to select <code>hello.world()</code>.</p>
 <pre><code class="language-js">hello.world().foo().bar().spam().wise();
 </code></pre>
-<p>If we press <code>s</code>, the whole expression would be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
-<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and press <code>k</code> two times will get us to <code>hello.world()</code>.</p>
+<p>If we press <code>s</code>, the whole expression will be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
+<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and pressing <code>k</code> two times will get us to <code>hello.world()</code>.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>See <a href="normal-mode/selection-modes/syntax-tree-based.html#largest-node">Largest Node</a></p>
 </div>
@@ -527,17 +527,17 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 <p>Keybinding: <code>e</code><br />
 Memory aid: lin<strong>e</strong></p>
 <p>In this selection mode <code>h</code>/<code>l</code> behaves exactly like <code>j</code>/<code>k</code>, and trimmed means
-that the leading and trailing spaces of each line is not selected.</p>
-<p>This is usally used in conjuction with <code>i</code>/<code>a</code> to immediately enter insert mode at the first/last non-whitespace symbol of the current line.</p>
+that the leading and trailing spaces of each line are not selected.</p>
+<p>This is usually used in conjunction with <code>i</code>/<code>a</code> to immediately enter insert mode at the first/last non-whitespace symbol of the current line.</p>
 <h2 id="line-full"><a class="header" href="#line-full">Line (Full)</a></h2>
 <p>Keybinding: <code>E</code></p>
-<p>Same as <a href="normal-mode/selection-modes/regex-based.html#line-trimmed">Line (Trimmed)</a>, however, leading whitespaces are selected, and trailing whitespaces, including newline character are also selected.</p>
+<p>Same as <a href="normal-mode/selection-modes/regex-based.html#line-trimmed">Line (Trimmed)</a>, however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.</p>
 <h2 id="word-short"><a class="header" href="#word-short">Word (Short)</a></h2>
 <p>Keybinding: <code>w</code></p>
-<p>This select short words, even if these words are not separated by spaces.</p>
+<p>This selects short words, even if these words are not separated by spaces.</p>
 <p>For example, <code>myOatPepperBanana</code> consists of 4 short words, namely: <code>my</code>, <code>Oat</code>, <code>Pepper</code> and <code>Banana</code>.</p>
 <p>This is useful for renaming identifiers, especially if we only want to change a single word of the name. <sup class="footnote-reference"><a href="#1">1</a></sup></p>
-<p>It is also useful when we want to modify the content of literal string, because the <a href="normal-mode/selection-modes/./syntax-tree-based.html#token">Token</a> selection mode skips every words in a literal string.</p>
+<p>It is also useful when we want to modify the content of a literal string because the <a href="normal-mode/selection-modes/./syntax-tree-based.html#token">Token</a> selection mode skips every word in a literal string.</p>
 <h2 id="word-long"><a class="header" href="#word-long">Word (Long)</a></h2>
 <p>Keybinding: <code>W</code></p>
 <p>Like <a href="normal-mode/selection-modes/regex-based.html#word-short">Word (Short)</a>, but it treats each word as a sequence of alphanumeric characters (including <code>-</code> and <code>_</code>).</p>
@@ -547,10 +547,10 @@ that the leading and trailing spaces of each line is not selected.</p>
 <h2 id="column"><a class="header" href="#column">Column</a></h2>
 <p>Keybinding: <code>u</code><br />
 Memory aid: col<strong>u</strong>mn</p>
-<p>In this selection mode, the movements behaves like the usual editor, where <a href="normal-mode/selection-modes/./../core-movements.html#previousnext">Previous/Next</a> means left/right, and so on and so forth.</p>
+<p>In this selection mode, the movements behave like the usual editor, where <a href="normal-mode/selection-modes/./../core-movements.html#previousnext">Previous/Next</a> means left/right, and so on.</p>
 <p><a href="normal-mode/selection-modes/./../core-movements.html#firstlast">First/Last</a> means the first/last column of the current line.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="nativeglobal"><a class="header" href="#nativeglobal">Native/Global</a></h1>
-<p>Selection modes that are categorized here are those that are applicable either natively (current file) or globally (across the workspace).</p>
+<p>Selection modes that are categorized here are those that are applicable both natively (current file) and globally (across the workspace).</p>
 <p>There are 3 categories of Native/Global selection modes:</p>
 <ol>
 <li><a href="normal-mode/selection-modes/native-global/./text-search.html">Text Search</a></li>
@@ -559,7 +559,7 @@ Memory aid: col<strong>u</strong>mn</p>
 </ol>
 <p>These selection modes are nested under <code>n</code> (Native) or <code>g</code> (Global).</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="text-search"><a class="header" href="#text-search">Text Search</a></h1>
-<p>This is one of the most useful selection mode.</p>
+<p>This is one of the most useful selection modes.</p>
 <p>Keymaps:</p>
 <div class="table-wrapper"><table><thead><tr><th>Keymap</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>s</code></td><td>Open search prompt</td></tr>
@@ -584,11 +584,11 @@ of a capture group.</p>
 <p>This is based on Rust-flavored regex.</p>
 <h3 id="3-ast-grep"><a class="header" href="#3-ast-grep">3. AST-Grep</a></h3>
 <p>Keybinding: <code>a</code></p>
-<p>This is based on <a href="https://github.com/ast-grep/ast-grep">AST Grep</a>, useful for structural search and replace.</p>
+<p>This is based on <a href="https://github.com/ast-grep/ast-grep">AST Grep</a>, useful for structural search and replacement.</p>
 <h3 id="4-case-agnostic"><a class="header" href="#4-case-agnostic">4. Case Agnostic</a></h3>
 <p>Keybinding: <code>c</code></p>
 <p>Case as in <code>camelCase</code> or <code>snake_case</code>, not upper-case or lower-case.</p>
-<p>This is one of my favourite search mode, especially when dealing with business code.</p>
+<p>This is one of my favorite search modes, especially when dealing with business code.</p>
 <p>In this mode, the search will be expanded to all different cases such as (non-exhaustive):</p>
 <ol>
 <li><code>kebab-case</code></li>
@@ -638,32 +638,32 @@ of a capture group.</p>
 <tr><td><code>t</code></td><td>Type definitions</td></tr>
 </tbody></table>
 </div>
-<p>In most cases, the Goto selection modes do not makes sense in the Native (
+<p>In most cases, the Goto selection modes do not make sense in the Native (
 current file) context, however <code>r</code> and <code>R</code> are exceptional, because finding
-native references is very useful, especially when used in conjunction with Multi-cursor.</p>
+native references are very useful, especially when used in conjunction with Multi-cursor.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="misc"><a class="header" href="#misc">Misc</a></h1>
 <p>These are selections mode that are neither based on <a href="normal-mode/selection-modes/native-global/./text-search.html">Text Search</a> nor <a href="normal-mode/selection-modes/native-global/./lsp-based.html">LSP</a>.</p>
 <h2 id="git-hunk"><a class="header" href="#git-hunk">Git Hunk</a></h2>
 <p>Keybinding: <code>g</code></p>
-<p>Git hunks are basically the diffs of the current Git repository.</p>
-<p>It is computed by comparing the current file contents with their content on the latest commit of the current branch.</p>
+<p>Git hunks are the diffs of the current Git repository.</p>
+<p>It is computed by comparing the current file contents with the content on the latest commit of the current branch.</p>
 <p>This is useful when you want to navigate to your recent changes, but forgot where they are.</p>
 <h2 id="marks"><a class="header" href="#marks">Marks</a></h2>
 <p>Keybinding: <code>m</code></p>
-<p>Marks or bookmarks is a powerful feature that allows you to jump to files which contain marks (which can be toggled).</p>
+<p>Marks or bookmarks is a powerful feature that allows you to jump to files that contain marks (which can be toggled).</p>
 <p>It also allows you to exchange two sections of the file.</p>
 <h2 id="quickfix"><a class="header" href="#quickfix">Quickfix</a></h2>
 <p>Keybinding: <code>q</code></p>
 <p>When getting selections using the Global mode, the matches will be stored into
 the Quickfix List.</p>
-<p>The quickfix selection mode behaves slightly different in the Global/Native context:</p>
+<p>The quickfix selection mode behaves slightly differently in the Global/Native context:</p>
 <div class="table-wrapper"><table><thead><tr><th>Context</th><th>Meaning</th></tr></thead><tbody>
 <tr><td>Global</td><td>Navigate using the current quickfix list</td></tr>
 <tr><td>Native</td><td>Use matches of the current quickfix list that is of the current file</td></tr>
 </tbody></table>
 </div>
 <h3 id="when-is-global-quickfix-useful"><a class="header" href="#when-is-global-quickfix-useful">When is global quickfix useful?</a></h3>
-<p>When you entered another selection mode but wishes to use back the quickfix list.</p>
+<p>When you entered another selection mode but wish to use back the quickfix list.</p>
 <h3 id="when-is-native-quickfix-useful"><a class="header" href="#when-is-native-quickfix-useful">When is native quickfix useful?</a></h3>
 <p>When you wanted to use Multi-cursor with the quickfix matches of the current file.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="actions"><a class="header" href="#actions">Actions</a></h1>
@@ -682,9 +682,9 @@ these actions work with multi-cursors.</li>
 <p>Keybinding: <code>y</code><br />
 Memory aid: y stands for yank, yank to the clipboard.</p>
 <p>This action copies the current selected text.</p>
-<p>Copy behaves different depending on the number of cursor.</p>
+<p>Copy behaves differently depending on the number of cursors.</p>
 <p>When there is only one cursor, the content is copied to the system clipboard.</p>
-<p>When there is more than one cursors, the selected texts of each cursor will be
+<p>When there is more than one cursor, the selected texts of each cursor will be
 copied to a cursor-specific clipboard instead.</p>
 <h2 id="paste"><a class="header" href="#paste">Paste</a></h2>
 <p>Keybindings:</p>
@@ -692,7 +692,7 @@ copied to a cursor-specific clipboard instead.</p>
 <li><code>p</code>: Paste after selection</li>
 <li><code>P</code>: Paste before selection</li>
 </ul>
-<p>This action paste the content from the clipboard (either system clipboard or
+<p>This action pastes the content from the clipboard (either the system clipboard or
 cursor-specific clipboard) after/before the current selection.</p>
 <p>Notes:</p>
 <ul>
@@ -728,7 +728,7 @@ copied text is <code>z</code>, performing a <code>p</code> results in the follow
 <p>Keybindings:</p>
 <ul>
 <li><code>d</code>: Delete</li>
-<li><code>D</code>: Delete (Cut), copies the deleted content into clipboard</li>
+<li><code>D</code>: Delete (Cut), copies the deleted content into the clipboard</li>
 </ul>
 <p>This deletes the current selection(s), however, if the current selection mode is
 <a href="normal-mode/actions/../selection-modes/index.html#contiguity">contiguous</a>, it will delete until the
@@ -745,7 +745,7 @@ previous selection instead, and selects the previous selection.</p>
 <p>Keybindings:</p>
 <ul>
 <li><code>c</code>: Change</li>
-<li><code>C</code>: Change (Cut), copies the deleted content into clipboard</li>
+<li><code>C</code>: Change (Cut), copies the deleted content into the clipboard</li>
 </ul>
 <p>This is similar to <a href="normal-mode/actions/index.html#delete">Delete</a>, however, after deleting the current
 selected text, the editor will enter <a href="normal-mode/actions/../../modes.html#insert">Insert mode</a>.</p>
@@ -753,7 +753,7 @@ selected text, the editor will enter <a href="normal-mode/actions/../../modes.ht
 <p>Keybindings:</p>
 <ul>
 <li><code>r</code>: Replace</li>
-<li><code>R</code>: Replace (Cut), copies the replaced content into clipboard</li>
+<li><code>R</code>: Replace (Cut), copies the replaced content into the clipboard</li>
 </ul>
 <p>This replaces the current selected text with the copied text.</p>
 <h2 id="replace-with-pattern"><a class="header" href="#replace-with-pattern">Replace with pattern</a></h2>
@@ -770,8 +770,8 @@ pattern specified in the <a href="normal-mode/actions/../selection-modes/native-
 </div>
 <h2 id="raise"><a class="header" href="#raise">Raise</a></h2>
 <p>Keybinding: <code>^</code></p>
-<p>This is one of my favourite action, it only works for <a href="normal-mode/actions/../selection-modes/syntax-tree-based.html#syntax-tree">syntax tree</a> selection modes.</p>
-<p>This replace the parent node of the current node, with the current node.</p>
+<p>This is one of my favorite actions, it only works for <a href="normal-mode/actions/../selection-modes/syntax-tree-based.html#syntax-tree">syntax tree</a> selection modes.</p>
+<p>This replaces the parent node of the current node, with the current node.</p>
 <p>For example, with the following Rust code:</p>
 <pre><code class="language-rs">fn main() {
   if x &gt; 0 {
@@ -835,15 +835,15 @@ Reason: The <code>esc enter</code> combo is sweet.</p>
 <p>This should also be known as "enable selection extension", it got its name from Vim's Visual mode.</p>
 <p>This is used for grouping multiple selections into a single selection.</p>
 <p>For example, selecting multiple words or multiple lines.</p>
-<p>It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune <strong>both</strong> ends, unlike using mouse where an incorrect selection means you have to start over again.</p>
+<p>It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune <strong>both</strong> ends, unlike using a mouse where an incorrect selection means you have to start over again.</p>
 <p>When selection extension is enabled:</p>
 <ol>
-<li>Each selection is composed by 2 ranges (formerly 1 range).</li>
+<li>Each selection is composed of 2 ranges (formerly 1 range).</li>
 <li>There's only one moveable range at a time.</li>
-<li>Press <code>v</code> again change the moveable range to the other range.</li>
-<li>Every character between the two ranges, including the two ranges, are selected</li>
-<li>Selection-wise actions works on the extended range</li>
-<li>Press <code>esc</code> to disable selection extension</li>
+<li>Press <code>v</code> again to change the moveable range to the other range.</li>
+<li>Every character between the two ranges, including the two ranges, is selected</li>
+<li>Selection-wise actions work on the extended range</li>
+<li>Press <code>ESC</code> to disable selection extension</li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="movement-actions"><a class="header" href="#movement-actions">Movement-Actions</a></h1>
 <p>Movement-actions are actions that have to be used with <a href="normal-mode/./core-movements.html">Core Movements</a> and <a href="normal-mode/./selection-modes/index.html">Selection Modes</a>.</p>
@@ -852,7 +852,7 @@ Reason: The <code>esc enter</code> combo is sweet.</p>
 <h2 id="1-exchange"><a class="header" href="#1-exchange">1. Exchange</a></h2>
 <p>Keybinding: <code>x</code><br />
 Memory aid: e<strong>x</strong>change</p>
-<p>In the Exchange submode, every core movements means:</p>
+<p>In the Exchange submode, every core movement means:</p>
 <blockquote>
 <p>exchange with &lt;movement&gt;.</p>
 </blockquote>
@@ -869,7 +869,7 @@ Memory aid: e<strong>x</strong>change</p>
 <pre><code class="language-js">f(1 + 1, x);
 </code></pre>
 <h3 id="tips-1"><a class="header" href="#tips-1">Tips</a></h3>
-<p>Since exchange works with every core movements, it can be used with <a href="normal-mode/./core-movements.html#fly">Fly</a> and <a href="normal-mode/./selection-modes/syntax-tree-based.html#syntax-tree-coarse">Syntax Tree (Coarse)</a> to swap two distant expressions.</p>
+<p>Since exchange works with every core movement, it can be used with <a href="normal-mode/./core-movements.html#fly">Fly</a> and <a href="normal-mode/./selection-modes/syntax-tree-based.html#syntax-tree-coarse">Syntax Tree (Coarse)</a> to swap two distant expressions.</p>
 <p>For example, using the following Rust code:</p>
 <pre><code class="language-rs">if x &gt; 0 {
   println!("Yes")
@@ -890,11 +890,11 @@ else {
 <h2 id="2-multi-cursor"><a class="header" href="#2-multi-cursor">2. Multi-cursor</a></h2>
 <p>Keybinding: <code>q</code><br />
 Reason: <code>q</code> is used to start recording a macro in Vim, but I realized 80% of the time what I need is multi-cursors, not a macro.</p>
-<p>In the Multi-cursor submode, every core movements means:</p>
+<p>In the Multi-cursor submode, every core movement means:</p>
 <blockquote>
 <p>Add cursor with &lt;movement&gt;</p>
 </blockquote>
-<p>Using the following text as example:</p>
+<p>Use the following text as an example:</p>
 <pre><code class="language-txt">hello ki, hello vim, hello helix
 </code></pre>
 <p>Suppose:</p>
@@ -906,7 +906,7 @@ Reason: <code>q</code> is used to start recording a macro in Vim, but I realized
 <p>... then executing <a href="normal-mode/./core-movements.html#previousnext">Next</a> adds a new cursor to the second <code>hello</code>.</p>
 <h2 id="3-replace"><a class="header" href="#3-replace">3. Replace</a></h2>
 <p>Keybinding: <code>;</code><sup class="footnote-reference"><a href="#1">1</a></sup></p>
-<p>In the Replace submode, every core movements means:</p>
+<p>In the Replace submode, every core movement means:</p>
 <blockquote>
 <p>Replace current selection until &lt;movement&gt;</p>
 </blockquote>
@@ -918,7 +918,7 @@ Reason: <code>q</code> is used to start recording a macro in Vim, but I realized
 <pre><code class="language-js">"hello";
 </code></pre>
 <p>In this case, you can select <code>world</code>, <a href="normal-mode/./actions/index.html#change">Change</a> it, and press <code>backspace</code> 5 times.</p>
-<p>However, that's inefficient, that can be shorten by:</p>
+<p>However, that's inefficient, and that can be shortened by:</p>
 <ol>
 <li>Select <code>hello</code></li>
 <li>Set selection mode to <a href="normal-mode/./selection-modes/regex-based.html#word-short">Word (Short)</a></li>
@@ -938,7 +938,7 @@ Reason: <code>q</code> is used to start recording a macro in Vim, but I realized
 <p>Might be changed in the future, <code>;</code> is just a temporary assignment</p>
 </div>
 <div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
-<p>The rigorous readers might have notice similarity of the Replace submode
+<p>The rigorous readers might have noticed the similarity of the Replace submode
 with the <a href="normal-mode/./actions/index.html#raise">Raise</a> action, that is in fact the case,
 under the hood, Raise is but a specialized version of the Replace mode which
 only executes the <a href="normal-mode/./core-movements.html#updown">Up</a> movement.</p>
@@ -953,11 +953,11 @@ only executes the <a href="normal-mode/./core-movements.html#updown">Up</a> move
 </ul>
 <h2 id="swap-cursor-with-anchor"><a class="header" href="#swap-cursor-with-anchor">Swap cursor with anchor</a></h2>
 <p>Keybinding: <code>%</code><br />
-Memory aid: <code>%</code> looks contains two circles which looks like two ends.</p>
-<p>In Ki, each selection contains a cursor and the anchor.</p>
+Memory aid: <code>%</code> looks contains two circles which look like two ends.</p>
+<p>In Ki, each selection contains a cursor and an anchor.</p>
 <p>By default, the cursor sits on the first character of the selection, and the anchor sits on the last character of the selection.</p>
 <p>For example, if the current selection is <code>hello world</code>, then the cursor sits on <code>h</code>, while the anchor sits on <code>d</code>.</p>
-<p>The anchor serves as a visual aid, making it easier for you to recognize when the selection range has been modified.</p>
+<p>The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.</p>
 <p>This is especially necessary when using selection modes such as <a href="normal-mode/./selection-modes/syntax-tree-based.html#syntax-tree-fine">Syntax Tree (Fine)</a>, where occasionally, the start of a selection remains the same while the end of it changes.</p>
 <p>Usefulness of <code>%</code>:</p>
 <ul>
@@ -968,12 +968,12 @@ Memory aid: <code>%</code> looks contains two circles which looks like two ends.
 </li>
 <li>When you wish to start a new selection at the end of the current selection
 <ul>
-<li>For example, when you selected a line and wish to change its last word, you can do: <code>e % w c</code> <sup class="footnote-reference"><a href="#1">1</a></sup></li>
+<li>For example, when you select a line and wish to change its last word, you can do: <code>e % w c</code> <sup class="footnote-reference"><a href="#1">1</a></sup></li>
 </ul>
 </li>
 </ul>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>Explanation: <code>e</code> selects the current line, <code>%</code> sets the anchor of the last character of the current line, <code>w</code> select the current word under the cursor, <code>c</code> deletes the word and enter insert mode.</p>
+<p>Explanation: <code>e</code> selects the current line, <code>%</code> sets the anchor of the last character of the current line, <code>w</code> selects the current word under the cursor, <code>c</code> deletes the word and enters insert mode.</p>
 </div>
 <h2 id="go-backforward"><a class="header" href="#go-backforward">Go back/forward</a></h2>
 <p>Keybindings:</p>
@@ -986,11 +986,11 @@ using <a href="normal-mode/./selection-modes/syntax-tree-based.html#syntax-tree"
 expanding the current selection to parent node.</p>
 <p>Simply press <code>[</code> to restore the selection to the previous state.<br />
 Press <code>]</code> to restore the selection to the current state.</p>
-<h2 id="go-to-previousnext-opened-file"><a class="header" href="#go-to-previousnext-opened-file">Go to previous/next opened file</a></h2>
+<h2 id="go-to-the-previousnext-opened-file"><a class="header" href="#go-to-the-previousnext-opened-file">Go to the previous/next opened file</a></h2>
 <p>Keybindings:</p>
 <ul>
-<li><code>{</code>: Go to previous opened file</li>
-<li><code>}</code>: Go to next opened file</li>
+<li><code>{</code>: Go to previously opened file</li>
+<li><code>}</code>: Go to the next opened file</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="space-menu"><a class="header" href="#space-menu">Space Menu</a></h1>
 <p>The space menu is a handy shortcut for (not restricted to):</p>
@@ -1003,7 +1003,7 @@ Press <code>]</code> to restore the selection to the current state.</p>
 <p>The space menu can be brought up by pressing <code>space</code>.</p>
 <h2 id="contextual-actions"><a class="header" href="#contextual-actions">Contextual actions</a></h2>
 <p>Contextual actions are actions that are only applicable within a specific context.</p>
-<h3 id="lsp-actions-only-applicable-in-main-editor"><a class="header" href="#lsp-actions-only-applicable-in-main-editor">LSP Actions (only applicable in main editor):</a></h3>
+<h3 id="lsp-actions-only-applicable-in-the-main-editor"><a class="header" href="#lsp-actions-only-applicable-in-the-main-editor">LSP Actions (only applicable in the main editor):</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
 <tr><td><code>c</code></td><td>Request code actions</td></tr>
 <tr><td><code>h</code></td><td>Request hover info</td></tr>
@@ -1019,13 +1019,13 @@ Press <code>]</code> to restore the selection to the current state.</p>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>To add folder, append <code>/</code> to the file name. Can be nested, new directories will be created as required.</p>
+<p>To add a folder, append <code>/</code> to the file name. Can be nested, and new directories will be created as required.</p>
 </div>
 <div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
 <p>Works like <code>mkdir -p</code>, it will create new directories when required.</p>
 </div>
 <div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
-<p>This is necessary sometimes because the file system is modified by external factors, and Ki do not watch for file changes.</p>
+<p>This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.</p>
 </div>
 <h2 id="searching-filessymbols"><a class="header" href="#searching-filessymbols">Searching files/symbols</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
@@ -1075,7 +1075,7 @@ Press <code>]</code> to restore the selection to the current state.</p>
 <tr><td><code>write-quit-all</code></td><td>Save all buffers and quit the editor.</td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><h1 id="universal-keybindings"><a class="header" href="#universal-keybindings">Universal Keybindings</a></h1>
-<p>The keybindings presented here works in any <a href="./modes.html">Modes</a>.</p>
+<p>The keybindings presented here work in any <a href="./modes.html">Modes</a>.</p>
 <h2 id="switch-view-alignment"><a class="header" href="#switch-view-alignment">Switch view alignment</a></h2>
 <p>Keybinding: <code>ctrl+l</code><br />
 Memory aid: In bash/fish shell, press <code>ctrl+l</code> clears the screen and brings the cursor to the top.</p>
@@ -1088,9 +1088,9 @@ Memory aid: In bash/fish shell, press <code>ctrl+l</code> clears the screen and 
 <p>Pressing <code>ctrl+l</code> continuously cycles through the list above in order, starting from Top.</p>
 <h2 id="other-window"><a class="header" href="#other-window">Other Window</a></h2>
 <p>Keybinding: <code>ctrl+o</code></p>
-<p>This cycles the cursor to the next window in the screen.</p>
-<p>This is useful when you wanted to scroll the content of another window, or copy the content out of another window.</p>
-<p>Examples of such window are:</p>
+<p>This cycles the cursor to the next window on the screen.</p>
+<p>This is useful when you want to scroll the content of another window or copy the content out of another window.</p>
+<p>Examples of such windows are:</p>
 <ol>
 <li>Hover Info</li>
 <li>Completion Info</li>
@@ -1104,9 +1104,9 @@ Memory aid: q stands for quit</p>
 Memory aid: same as Windows or macOS</p>
 <p>Although there's already a <a href="./normal-mode/actions/index.html#paste">Paste</a> action
 in Normal mode, <code>ctrl+v</code> is more efficient sometimes than hopping between
-Insert mode and Normal mode for miniscule changes.</p>
+Insert mode and Normal mode for minuscule changes.</p>
 <p>For example, assuming the clipboard contains <code>hello</code>, and you wanted the result to be <code>&lt;div&gt;hello&lt;/div&gt;</code>, and the current mode is Insert mode:</p>
-<div class="table-wrapper"><table><thead><tr><th>Mode</th><th>Keys sequence</th><th>Key press count</th></tr></thead><tbody>
+<div class="table-wrapper"><table><thead><tr><th>Mode</th><th>Keys sequence</th><th>Keypress count</th></tr></thead><tbody>
 <tr><td>Insert</td><td><code>&lt; d i v &gt; ctrl+v &lt; / d i v &gt;</code></td><td>12</td></tr>
 <tr><td>Normal</td><td><code>&lt; d i v &gt; esc p a &lt; / d i v &gt;</code></td><td>14</td></tr>
 </tbody></table>
@@ -1121,7 +1121,7 @@ Insert mode and Normal mode for miniscule changes.</p>
 <p>Notes:</p>
 <ol>
 <li>Undo/redo works even for multi-cursors</li>
-<li>The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be midly frustrating</li>
+<li>The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating</li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="components"><a class="header" href="#components">Components</a></h1>
 <p>Every components is built on top of the Editor component.</p>
@@ -1152,7 +1152,7 @@ Insert mode and Normal mode for miniscule changes.</p>
 - 📄  justfile
 </code></pre>
 <h2 id="keybindings"><a class="header" href="#keybindings">Keybindings</a></h2>
-<p>Only <code>enter</code> is overriden to mean:</p>
+<p>Only <code>enter</code> is overridden to mean:</p>
 <ul>
 <li>Expand/collapse folder OR</li>
 <li>Open file</li>
@@ -1163,7 +1163,7 @@ Insert mode and Normal mode for miniscule changes.</p>
 <div class="table-wrapper"><table><thead><tr><th>Action</th><th>How?</th></tr></thead><tbody>
 <tr><td>Go to parent folder</td><td>Use <a href="components/../normal-mode/core-movements.html#parent-line">Parent Line</a></td></tr>
 <tr><td>Go to first/last file in current folder</td><td>Use <a href="components/../normal-mode/core-movements.html#firstlast">First/Last</a> with <a href="components/../normal-mode/selection-modes/syntax-tree-based.html#syntax-tree">Syntax Tree</a></td></tr>
-<tr><td>Go to next/previous file/folder at current level, skipping expanded childrens</td><td>Use <a href="components/../normal-mode/core-movements.html#previousnext">Previous/Next</a> with <a href="components/../normal-mode/selection-modes/syntax-tree-based.html#syntax-tree">Syntax Tree</a></td></tr>
+<tr><td>Go to next/previous file/folder at current level, skipping expanded children</td><td>Use <a href="components/../normal-mode/core-movements.html#previousnext">Previous/Next</a> with <a href="components/../normal-mode/selection-modes/syntax-tree-based.html#syntax-tree">Syntax Tree</a></td></tr>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
@@ -1182,23 +1182,23 @@ Insert mode and Normal mode for miniscule changes.</p>
   123
 }
 </code></pre>
-<p>... you cannot just <a href="./normal-mode/actions/index.html#raise">Raise</a> <code>123</code>, as that would do nothing, since replacing the block with <code>123</code> introduces syntax error.</p>
-<p>To make that work, surround <code>123</code> with curly bracket (by pressing <code>b {</code> <sup class="footnote-reference"><a href="#1">1</a></sup>) before raising.</p>
+<p>... you cannot just <a href="./normal-mode/actions/index.html#raise">Raise</a> <code>123</code>, as that would do nothing since replacing the block with <code>123</code> introduces syntax error.</p>
+<p>To make that work, surround <code>123</code> with curly brackets (by pressing <code>b {</code> <sup class="footnote-reference"><a href="#1">1</a></sup>) before raising.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>See <a href="./normal-mode/actions/index.html#between">Between</a></p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="themes"><a class="header" href="#themes">Themes</a></h1>
-<p>The default theme is VS Code Light, and it is the one and only theme for now.</p>
+<p>The default theme is VS Code Light, and it is the only theme for now.</p>
 <h2 id="syntax-highlighting"><a class="header" href="#syntax-highlighting">Syntax highlighting</a></h2>
-<p>Syntax highlighting is powerd by Tree-sitter, and for that to work it needs:</p>
+<p>Syntax highlighting is powered by Tree-sitter, and for that to work it needs:</p>
 <ol>
 <li>Tree-sitter grammar (for generating the parser)</li>
 <li>Highlight queries (for determining code sections to highlight)</li>
 </ol>
-<p>Tree-sitter grammars is not the problem usually, because there's a lot of open source tree-sitter grammars out there.</p>
-<p>However, the highlight queries are the problem, the grammar author usually provides only barebone hightlight queries for their language, and the maintenance of highlight queries are delegated to editor-specific community.</p>
-<p>I think this is a tragedy, because these highlight queries should not be editor-specific, why should every editor maintain their own highlight queries? These wheels should not be reinvented over and over.</p>
-<p>Currently the largest of such communities are of Neovim and Helix.</p>
+<p>Tree-sitter grammars is not usually the problem, because there are many open-source tree-sitter grammars out there.</p>
+<p>However, the highlight queries are the problem, the grammar author usually provides only barebone highlight queries for their language, and the maintenance of highlight queries is delegated to editor-specific community.</p>
+<p>I think this is a tragedy because these highlight queries should not be editor-specific, why should every editor maintain their highlight queries? These wheels should not be reinvented over and over.</p>
+<p>Currently, the largest of such communities are Neovim and Helix.</p>
 <p>To avoid further fragmentation, Ki currently downloads highlight queries from <a href="https://github.com/nvim-treesitter/nvim-treesitter">nvim-treesitter</a><sup class="footnote-reference"><a href="#1">1</a></sup>, until there's a standardized editor-agnostic highlight queries repository.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>Why not from Helix? Because Helix <a href="https://github.com/helix-editor/helix/issues/9436">precedence ordering</a> is not compatible with the <a href="https://github.com/tree-sitter/tree-sitter/tree/master/highlight">tree-sitter-highlight</a> library yet.</p>
@@ -1207,10 +1207,10 @@ Insert mode and Normal mode for miniscule changes.</p>
 <p>At the moment, configuration files are not supported, because I'm in favor of compile-time configuration <sup class="footnote-reference"><a href="#1">1</a></sup>, for the following reasons:</p>
 <ol>
 <li>Easier to update</li>
-<li>Running with incompatible configurations are impossible <sup class="footnote-reference"><a href="#2">2</a></sup></li>
+<li>Running with incompatible configurations is impossible <sup class="footnote-reference"><a href="#2">2</a></sup></li>
 <li>Configuration as code
 <ul>
-<li>Free typechecking</li>
+<li>Free type-checking</li>
 <li>Free formatting<sup class="footnote-reference"><a href="#3">3</a></sup></li>
 <li>Ability to reduce duplications using functions</li>
 <li>Easy backup (fork Ki-editor and push your modified config)</li>

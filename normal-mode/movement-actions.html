@@ -180,7 +180,7 @@
 <h2 id="1-exchange"><a class="header" href="#1-exchange">1. Exchange</a></h2>
 <p>Keybinding: <code>x</code><br />
 Memory aid: e<strong>x</strong>change</p>
-<p>In the Exchange submode, every core movements means:</p>
+<p>In the Exchange submode, every core movement means:</p>
 <blockquote>
 <p>exchange with &lt;movement&gt;.</p>
 </blockquote>
@@ -197,7 +197,7 @@ Memory aid: e<strong>x</strong>change</p>
 <pre><code class="language-js">f(1 + 1, x);
 </code></pre>
 <h3 id="tips"><a class="header" href="#tips">Tips</a></h3>
-<p>Since exchange works with every core movements, it can be used with <a href="./core-movements.html#fly">Fly</a> and <a href="./selection-modes/syntax-tree-based.html#syntax-tree-coarse">Syntax Tree (Coarse)</a> to swap two distant expressions.</p>
+<p>Since exchange works with every core movement, it can be used with <a href="./core-movements.html#fly">Fly</a> and <a href="./selection-modes/syntax-tree-based.html#syntax-tree-coarse">Syntax Tree (Coarse)</a> to swap two distant expressions.</p>
 <p>For example, using the following Rust code:</p>
 <pre><code class="language-rs">if x &gt; 0 {
   println!("Yes")
@@ -218,11 +218,11 @@ else {
 <h2 id="2-multi-cursor"><a class="header" href="#2-multi-cursor">2. Multi-cursor</a></h2>
 <p>Keybinding: <code>q</code><br />
 Reason: <code>q</code> is used to start recording a macro in Vim, but I realized 80% of the time what I need is multi-cursors, not a macro.</p>
-<p>In the Multi-cursor submode, every core movements means:</p>
+<p>In the Multi-cursor submode, every core movement means:</p>
 <blockquote>
 <p>Add cursor with &lt;movement&gt;</p>
 </blockquote>
-<p>Using the following text as example:</p>
+<p>Use the following text as an example:</p>
 <pre><code class="language-txt">hello ki, hello vim, hello helix
 </code></pre>
 <p>Suppose:</p>
@@ -234,7 +234,7 @@ Reason: <code>q</code> is used to start recording a macro in Vim, but I realized
 <p>... then executing <a href="./core-movements.html#previousnext">Next</a> adds a new cursor to the second <code>hello</code>.</p>
 <h2 id="3-replace"><a class="header" href="#3-replace">3. Replace</a></h2>
 <p>Keybinding: <code>;</code><sup class="footnote-reference"><a href="#1">1</a></sup></p>
-<p>In the Replace submode, every core movements means:</p>
+<p>In the Replace submode, every core movement means:</p>
 <blockquote>
 <p>Replace current selection until &lt;movement&gt;</p>
 </blockquote>
@@ -246,7 +246,7 @@ Reason: <code>q</code> is used to start recording a macro in Vim, but I realized
 <pre><code class="language-js">"hello";
 </code></pre>
 <p>In this case, you can select <code>world</code>, <a href="./actions/index.html#change">Change</a> it, and press <code>backspace</code> 5 times.</p>
-<p>However, that's inefficient, that can be shorten by:</p>
+<p>However, that's inefficient, and that can be shortened by:</p>
 <ol>
 <li>Select <code>hello</code></li>
 <li>Set selection mode to <a href="./selection-modes/regex-based.html#word-short">Word (Short)</a></li>
@@ -266,7 +266,7 @@ Reason: <code>q</code> is used to start recording a macro in Vim, but I realized
 <p>Might be changed in the future, <code>;</code> is just a temporary assignment</p>
 </div>
 <div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
-<p>The rigorous readers might have notice similarity of the Replace submode
+<p>The rigorous readers might have noticed the similarity of the Replace submode
 with the <a href="./actions/index.html#raise">Raise</a> action, that is in fact the case,
 under the hood, Raise is but a specialized version of the Replace mode which
 only executes the <a href="./core-movements.html#updown">Up</a> movement.</p>

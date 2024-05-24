@@ -174,17 +174,17 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="themes"><a class="header" href="#themes">Themes</a></h1>
-<p>The default theme is VS Code Light, and it is the one and only theme for now.</p>
+<p>The default theme is VS Code Light, and it is the only theme for now.</p>
 <h2 id="syntax-highlighting"><a class="header" href="#syntax-highlighting">Syntax highlighting</a></h2>
-<p>Syntax highlighting is powerd by Tree-sitter, and for that to work it needs:</p>
+<p>Syntax highlighting is powered by Tree-sitter, and for that to work it needs:</p>
 <ol>
 <li>Tree-sitter grammar (for generating the parser)</li>
 <li>Highlight queries (for determining code sections to highlight)</li>
 </ol>
-<p>Tree-sitter grammars is not the problem usually, because there's a lot of open source tree-sitter grammars out there.</p>
-<p>However, the highlight queries are the problem, the grammar author usually provides only barebone hightlight queries for their language, and the maintenance of highlight queries are delegated to editor-specific community.</p>
-<p>I think this is a tragedy, because these highlight queries should not be editor-specific, why should every editor maintain their own highlight queries? These wheels should not be reinvented over and over.</p>
-<p>Currently the largest of such communities are of Neovim and Helix.</p>
+<p>Tree-sitter grammars is not usually the problem, because there are many open-source tree-sitter grammars out there.</p>
+<p>However, the highlight queries are the problem, the grammar author usually provides only barebone highlight queries for their language, and the maintenance of highlight queries is delegated to editor-specific community.</p>
+<p>I think this is a tragedy because these highlight queries should not be editor-specific, why should every editor maintain their highlight queries? These wheels should not be reinvented over and over.</p>
+<p>Currently, the largest of such communities are Neovim and Helix.</p>
 <p>To avoid further fragmentation, Ki currently downloads highlight queries from <a href="https://github.com/nvim-treesitter/nvim-treesitter">nvim-treesitter</a><sup class="footnote-reference"><a href="#1">1</a></sup>, until there's a standardized editor-agnostic highlight queries repository.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>Why not from Helix? Because Helix <a href="https://github.com/helix-editor/helix/issues/9436">precedence ordering</a> is not compatible with the <a href="https://github.com/tree-sitter/tree-sitter/tree/master/highlight">tree-sitter-highlight</a> library yet.</p>

@@ -183,11 +183,11 @@
 </ul>
 <h2 id="swap-cursor-with-anchor"><a class="header" href="#swap-cursor-with-anchor">Swap cursor with anchor</a></h2>
 <p>Keybinding: <code>%</code><br />
-Memory aid: <code>%</code> looks contains two circles which looks like two ends.</p>
-<p>In Ki, each selection contains a cursor and the anchor.</p>
+Memory aid: <code>%</code> looks contains two circles which look like two ends.</p>
+<p>In Ki, each selection contains a cursor and an anchor.</p>
 <p>By default, the cursor sits on the first character of the selection, and the anchor sits on the last character of the selection.</p>
 <p>For example, if the current selection is <code>hello world</code>, then the cursor sits on <code>h</code>, while the anchor sits on <code>d</code>.</p>
-<p>The anchor serves as a visual aid, making it easier for you to recognize when the selection range has been modified.</p>
+<p>The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.</p>
 <p>This is especially necessary when using selection modes such as <a href="./selection-modes/syntax-tree-based.html#syntax-tree-fine">Syntax Tree (Fine)</a>, where occasionally, the start of a selection remains the same while the end of it changes.</p>
 <p>Usefulness of <code>%</code>:</p>
 <ul>
@@ -198,12 +198,12 @@ Memory aid: <code>%</code> looks contains two circles which looks like two ends.
 </li>
 <li>When you wish to start a new selection at the end of the current selection
 <ul>
-<li>For example, when you selected a line and wish to change its last word, you can do: <code>e % w c</code> <sup class="footnote-reference"><a href="#1">1</a></sup></li>
+<li>For example, when you select a line and wish to change its last word, you can do: <code>e % w c</code> <sup class="footnote-reference"><a href="#1">1</a></sup></li>
 </ul>
 </li>
 </ul>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>Explanation: <code>e</code> selects the current line, <code>%</code> sets the anchor of the last character of the current line, <code>w</code> select the current word under the cursor, <code>c</code> deletes the word and enter insert mode.</p>
+<p>Explanation: <code>e</code> selects the current line, <code>%</code> sets the anchor of the last character of the current line, <code>w</code> selects the current word under the cursor, <code>c</code> deletes the word and enters insert mode.</p>
 </div>
 <h2 id="go-backforward"><a class="header" href="#go-backforward">Go back/forward</a></h2>
 <p>Keybindings:</p>
@@ -216,11 +216,11 @@ using <a href="./selection-modes/syntax-tree-based.html#syntax-tree">Syntax Tree
 expanding the current selection to parent node.</p>
 <p>Simply press <code>[</code> to restore the selection to the previous state.<br />
 Press <code>]</code> to restore the selection to the current state.</p>
-<h2 id="go-to-previousnext-opened-file"><a class="header" href="#go-to-previousnext-opened-file">Go to previous/next opened file</a></h2>
+<h2 id="go-to-the-previousnext-opened-file"><a class="header" href="#go-to-the-previousnext-opened-file">Go to the previous/next opened file</a></h2>
 <p>Keybindings:</p>
 <ul>
-<li><code>{</code>: Go to previous opened file</li>
-<li><code>}</code>: Go to next opened file</li>
+<li><code>{</code>: Go to previously opened file</li>
+<li><code>}</code>: Go to the next opened file</li>
 </ul>
 
                     </main>

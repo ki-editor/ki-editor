@@ -174,7 +174,7 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="core-movements"><a class="header" href="#core-movements">Core Movements</a></h1>
-<p>Core Movements is one of the main concept in Ki Editor, because it is standardized for
+<p>Core Movements is one of the main concepts in Ki, because it is standardized for
 every <a href="./selection-modes/index.html">selection modes</a>.</p>
 <p>There are 9 movements in total:</p>
 <ol>
@@ -203,7 +203,7 @@ Memory aid:</p>
 </ul>
 <p>In most selection modes, up/down moves the selections upwards/downwards, except for the following selection modes:</p>
 <div class="table-wrapper"><table><thead><tr><th>Selection Mode</th><th>Up</th><th>Down</th></tr></thead><tbody>
-<tr><td>Syntax Tree</td><td>Expand selection to parent</td><td>Shirnk selection to first child</td></tr>
+<tr><td>Syntax Tree</td><td>Expand selection to parent</td><td>Shrink selection to first child</td></tr>
 <tr><td>Quickfix</td><td>Go to first item of previous file</td><td>Go to first item of next file</td></tr>
 </tbody></table>
 </div>
@@ -221,7 +221,7 @@ Memory aid:</p>
 </ol>
 <h2 id="fly"><a class="header" href="#fly">Fly</a></h2>
 <p>Keybinding: <code>f</code></p>
-<p>This is my favourite movement, which is inspired by <a href="https://github.com/easymotion/vim-easymotion">Vim Easymotion</a> and friends <sup class="footnote-reference"><a href="#1">1</a></sup>.</p>
+<p>This is my favorite movement, which is inspired by <a href="https://github.com/easymotion/vim-easymotion">Vim Easymotion</a> and friends <sup class="footnote-reference"><a href="#1">1</a></sup>.</p>
 <p>It allows you to fly to your desired position (as long as it is within the screen), with just 4 keypresses most of the time.</p>
 <p>It works like this:</p>
 <ol>
@@ -244,16 +244,16 @@ Memory aid:</p>
 <h2 id="parent-line"><a class="header" href="#parent-line">Parent line</a></h2>
 <p>Keybinding: <code>-</code></p>
 <p>It moves the current selection to its nearest parent line.</p>
-<p>Parent lines are highlighted lines which represents the parent nodes of the current selection.</p>
+<p>Parent lines are highlighted lines that represent the parent nodes of the current selection.</p>
 <p>This is useful for example when you are within the body of a function and you want to jump to the function name.</p>
-<p>This is also practical in the <a href="../components/file-explorer.html">File Explorer</a> because the file explorer is rendered using YAML, so going to Parent Line means going to parent folder!</p>
+<p>This is also practical in the <a href="../components/file-explorer.html">File Explorer</a> because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!</p>
 <h2 id="to-index"><a class="header" href="#to-index">To Index</a></h2>
 <p>Keybinding: <code>0</code><br />
 Memory aid:</p>
 <ul>
-<li><code>0</code> is related to index.</li>
+<li><code>0</code> is related to the index.</li>
 </ul>
-<p>When <code>0</code> is pressed, you will be prompted to key in a numerical index (where 1 represent first), and it will jump the current selection to the nth selection of the current selection mode.</p>
+<p>When <code>0</code> is pressed, you will be prompted to key in a numerical index (where 1 represents first), and it will jump the current selection to the nth selection of the current selection mode.</p>
 <p>Recommended selection modes:</p>
 <ol>
 <li>Line (For going to a specific line number)</li>
@@ -265,7 +265,7 @@ Memory aid:</p>
 selection mode is chosen.</p>
 <p>For example, choosing the Line selection mode causes the current line to be
 selected, choosing the Word selection mode causes the current word to be selected.</p>
-<p>In case where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):</p>
+<p>In cases where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):</p>
 <ol>
 <li>Same line as cursor (if possible)</li>
 <li>Nearest to cursor (in terms of horizontal movements)</li>

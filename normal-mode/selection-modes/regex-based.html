@@ -178,17 +178,17 @@
 <p>Keybinding: <code>e</code><br />
 Memory aid: lin<strong>e</strong></p>
 <p>In this selection mode <code>h</code>/<code>l</code> behaves exactly like <code>j</code>/<code>k</code>, and trimmed means
-that the leading and trailing spaces of each line is not selected.</p>
-<p>This is usally used in conjuction with <code>i</code>/<code>a</code> to immediately enter insert mode at the first/last non-whitespace symbol of the current line.</p>
+that the leading and trailing spaces of each line are not selected.</p>
+<p>This is usually used in conjunction with <code>i</code>/<code>a</code> to immediately enter insert mode at the first/last non-whitespace symbol of the current line.</p>
 <h2 id="line-full"><a class="header" href="#line-full">Line (Full)</a></h2>
 <p>Keybinding: <code>E</code></p>
-<p>Same as <a href="#line-trimmed">Line (Trimmed)</a>, however, leading whitespaces are selected, and trailing whitespaces, including newline character are also selected.</p>
+<p>Same as <a href="#line-trimmed">Line (Trimmed)</a>, however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.</p>
 <h2 id="word-short"><a class="header" href="#word-short">Word (Short)</a></h2>
 <p>Keybinding: <code>w</code></p>
-<p>This select short words, even if these words are not separated by spaces.</p>
+<p>This selects short words, even if these words are not separated by spaces.</p>
 <p>For example, <code>myOatPepperBanana</code> consists of 4 short words, namely: <code>my</code>, <code>Oat</code>, <code>Pepper</code> and <code>Banana</code>.</p>
 <p>This is useful for renaming identifiers, especially if we only want to change a single word of the name. <sup class="footnote-reference"><a href="#1">1</a></sup></p>
-<p>It is also useful when we want to modify the content of literal string, because the <a href="./syntax-tree-based.html#token">Token</a> selection mode skips every words in a literal string.</p>
+<p>It is also useful when we want to modify the content of a literal string because the <a href="./syntax-tree-based.html#token">Token</a> selection mode skips every word in a literal string.</p>
 <h2 id="word-long"><a class="header" href="#word-long">Word (Long)</a></h2>
 <p>Keybinding: <code>W</code></p>
 <p>Like <a href="#word-short">Word (Short)</a>, but it treats each word as a sequence of alphanumeric characters (including <code>-</code> and <code>_</code>).</p>
@@ -198,7 +198,7 @@ that the leading and trailing spaces of each line is not selected.</p>
 <h2 id="column"><a class="header" href="#column">Column</a></h2>
 <p>Keybinding: <code>u</code><br />
 Memory aid: col<strong>u</strong>mn</p>
-<p>In this selection mode, the movements behaves like the usual editor, where <a href="./../core-movements.html#previousnext">Previous/Next</a> means left/right, and so on and so forth.</p>
+<p>In this selection mode, the movements behave like the usual editor, where <a href="./../core-movements.html#previousnext">Previous/Next</a> means left/right, and so on.</p>
 <p><a href="./../core-movements.html#firstlast">First/Last</a> means the first/last column of the current line.</p>
 
                     </main>
