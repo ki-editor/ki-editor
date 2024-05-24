@@ -22,6 +22,7 @@
 - [Universal Keybindings](./universal-keybindings.md)
 - [Components](./components/index.md)
   - [File Explorer](./components/file-explorer.md)
+  - [Prompt](./components/prompt.md)
 - [Recipes](./recipes.md)
 - [Themes](./themes.md)
 - [Configurations](./configurations.md)

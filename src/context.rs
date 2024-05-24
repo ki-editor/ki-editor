@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use globset::Glob;
 
 use indexmap::IndexSet;
@@ -7,7 +9,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
     clipboard::Clipboard,
-    components::keymap_legend::KeymapLegendSection,
+    components::{keymap_legend::KeymapLegendSection, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
     themes::Theme,
@@ -25,6 +27,7 @@ pub(crate) struct Context {
     global_search_config: GlobalSearchConfig,
     quickfix_list_state: Option<QuickfixListState>,
     contextual_keymaps: Vec<KeymapLegendSection>,
+    prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -69,6 +72,7 @@ impl Default for Context {
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
             contextual_keymaps: Default::default(),
+            prompt_histories: Default::default(),
         }
     }
 }
@@ -199,12 +203,42 @@ impl Context {
     pub(crate) fn set_contextual_keymaps(&mut self, contextual_keymaps: Vec<KeymapLegendSection>) {
         self.contextual_keymaps = contextual_keymaps
     }
+
+    pub(crate) fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
+        if let Some(map) = self.prompt_histories.get_mut(&key) {
+            map.shift_remove(&line);
+            let inserted = map.insert(line);
+            debug_assert!(inserted);
+        } else {
+            self.prompt_histories.insert(key, {
+                let mut set = IndexSet::new();
+                set.insert(line);
+                set
+            });
+        }
+    }
+
+    pub(crate) fn get_prompt_history(
+        &mut self,
+        key: PromptHistoryKey,
+        current_entry: Option<String>,
+    ) -> Vec<String> {
+        if let Some(line) = current_entry {
+            self.push_history_prompt(key, line)
+        }
+        self.prompt_histories
+            .get(&key)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect_vec()
+    }
 }
 
 #[derive(Default)]
 pub(crate) struct GlobalSearchConfig {
-    include_globs: IndexSet<Glob>,
-    exclude_globs: IndexSet<Glob>,
+    include_glob: Option<Glob>,
+    exclude_glob: Option<Glob>,
     local_config: LocalSearchConfig,
 }
 impl GlobalSearchConfig {
@@ -212,36 +246,20 @@ impl GlobalSearchConfig {
         &self.local_config
     }
 
-    pub(crate) fn include_globs(&self) -> Vec<String> {
-        self.include_globs
-            .iter()
-            .map(|glob| glob.to_string())
-            .collect()
-    }
-
-    pub(crate) fn exclude_globs(&self) -> Vec<String> {
-        self.exclude_globs
-            .iter()
-            .map(|glob| glob.to_string())
-            .collect()
-    }
-
     fn set_exclude_glob(&mut self, glob: Glob) {
-        self.exclude_globs.shift_remove(&glob);
-        self.exclude_globs.insert(glob);
+        let _ = self.exclude_glob.insert(glob);
     }
 
     fn set_include_glob(&mut self, glob: Glob) {
-        self.include_globs.shift_remove(&glob);
-        self.include_globs.insert(glob);
+        let _ = self.include_glob.insert(glob);
     }
 
     pub(crate) fn include_glob(&self) -> Option<Glob> {
-        self.include_globs.last().cloned()
+        self.include_glob.clone()
     }
 
     pub(crate) fn exclude_glob(&self) -> Option<Glob> {
-        self.exclude_globs.last().cloned()
+        self.exclude_glob.clone()
     }
 }
 
@@ -298,8 +316,8 @@ fn parenthesize(values: Vec<String>) -> String {
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LocalSearchConfig {
     pub(crate) mode: LocalSearchConfigMode,
-    searches: IndexSet<String>,
-    replacements: IndexSet<String>,
+    search: Option<String>,
+    replacement: Option<String>,
 }
 
 impl LocalSearchConfig {
@@ -307,8 +325,8 @@ impl LocalSearchConfig {
     pub(crate) fn new(mode: LocalSearchConfigMode) -> Self {
         Self {
             mode,
-            searches: Default::default(),
-            replacements: Default::default(),
+            search: Default::default(),
+            replacement: Default::default(),
         }
     }
 
@@ -325,38 +343,28 @@ impl LocalSearchConfig {
     }
 
     pub(crate) fn set_search(&mut self, search: String) -> &mut Self {
-        self.searches.shift_remove(&search);
-        self.searches.insert(search);
+        let _ = self.search.insert(search);
         self
     }
 
     pub(crate) fn search(&self) -> String {
-        self.searches.last().cloned().unwrap_or_default()
+        self.search.clone().unwrap_or_default()
     }
 
     pub(crate) fn set_replacment(&mut self, replacement: String) -> &mut Self {
-        self.replacements.shift_remove(&replacement);
-        self.replacements.insert(replacement);
+        let _ = self.replacement.insert(replacement);
         self
     }
 
     pub(crate) fn last_search(&self) -> Option<Search> {
-        self.searches.last().cloned().map(|search| Search {
+        self.search.clone().map(|search| Search {
             search,
             mode: self.mode,
         })
     }
 
-    pub(crate) fn searches(&self) -> Vec<String> {
-        self.searches.clone().into_iter().collect()
-    }
-
     pub(crate) fn replacement(&self) -> String {
-        self.replacements.last().cloned().unwrap_or_default()
-    }
-
-    pub(crate) fn replacements(&self) -> Vec<String> {
-        self.replacements.clone().into_iter().collect()
+        self.replacement.clone().unwrap_or_default()
     }
 
     pub(crate) fn require_tree_sitter(&self) -> bool {

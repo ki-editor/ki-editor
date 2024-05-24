@@ -347,7 +347,7 @@ impl Component for FileExplorer {
                     ),
                     Keymap::new(
                         "m",
-                        "Move file".to_string(),
+                        "Move path".to_string(),
                         Dispatch::OpenMoveFilePrompt(node.path.clone()),
                     ),
                     Keymap::new("r", "Refresh".to_string(), Dispatch::RefreshFileExplorer),
@@ -420,7 +420,7 @@ mod test_file_explorer {
     }
 
     #[test]
-    fn move_file() -> anyhow::Result<()> {
+    fn move_path() -> anyhow::Result<()> {
         execute_test(|s| {
             Box::new([
                 App(OpenFile(s.main_rs())),
@@ -428,7 +428,7 @@ mod test_file_explorer {
                 Expect(ComponentCount(1)),
                 App(HandleKeyEvents(keys!("space m").to_vec())),
                 Expect(ComponentCount(2)),
-                Expect(CurrentComponentTitle("Move file")),
+                Expect(CurrentComponentTitle("Move path")),
                 Editor(Insert("/hello/world.rs".to_string())),
                 App(HandleKeyEvent(key!("enter"))),
                 Expect(ComponentCount(2)),

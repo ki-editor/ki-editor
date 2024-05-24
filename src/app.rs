@@ -7,7 +7,7 @@ use crate::{
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
-        prompt::{Prompt, PromptConfig},
+        prompt::{Prompt, PromptConfig, PromptHistoryKey},
         suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
         },
@@ -545,7 +545,11 @@ impl<T: Frontend> App<T> {
                 }
             }
             #[cfg(test)]
-            Dispatch::OpenPrompt(prompt_config) => self.open_prompt(prompt_config)?,
+            Dispatch::OpenPrompt {
+                config,
+                key,
+                current_line,
+            } => self.open_prompt(config, key, current_line)?,
             Dispatch::ShowEditorInfo(info) => self.show_editor_info(info)?,
             Dispatch::ReceiveCodeActions(code_actions) => {
                 self.open_code_actions_prompt(code_actions)?;
@@ -553,6 +557,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
             Dispatch::GoToNextFile => self.go_to_next_file()?,
+            Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
         }
         Ok(())
     }
@@ -589,14 +594,17 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_move_to_index_prompt(&mut self) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Move to index".to_string(),
-            history: vec![],
-            on_enter: DispatchPrompt::MoveSelectionByIndex,
-            items: vec![],
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: true,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: "Move to index".to_string(),
+                on_enter: DispatchPrompt::MoveSelectionByIndex,
+                items: vec![],
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: true,
+            },
+            PromptHistoryKey::MoveToIndex,
+            None,
+        )
     }
 
     fn open_rename_prompt(
@@ -604,52 +612,64 @@ impl<T: Frontend> App<T> {
         params: RequestParams,
         current_name: Option<String>,
     ) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Rename".to_string(),
-            history: current_name.into_iter().collect_vec(),
-            on_enter: DispatchPrompt::RenameSymbol { params },
-            items: vec![],
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: false,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: "Rename".to_string(),
+                on_enter: DispatchPrompt::RenameSymbol { params },
+                items: vec![],
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+            },
+            PromptHistoryKey::Rename,
+            current_name,
+        )
     }
 
     fn open_search_prompt(&mut self, scope: Scope) -> anyhow::Result<()> {
         let config = self.context.get_local_search_config(scope);
         let mode = config.mode;
-        self.open_prompt(PromptConfig {
-            title: format!("{:?} search ({})", scope, mode.display()),
-            history: config.searches(),
-            items: self.words(),
-            on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
-                scope,
-                show_config_after_enter: false,
+        self.open_prompt(
+            PromptConfig {
+                title: format!("{:?} search ({})", scope, mode.display()),
+                items: self.words(),
+                on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
+                    scope,
+                    show_config_after_enter: false,
+                },
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: true,
             },
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: true,
-        })
+            PromptHistoryKey::Search(scope),
+            None,
+        )
     }
 
     fn open_add_path_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Add path".to_string(),
-            history: [path.display_absolute()].to_vec(),
-            on_enter: DispatchPrompt::AddPath,
-            items: Vec::new(),
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: false,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: "Add path".to_string(),
+                on_enter: DispatchPrompt::AddPath,
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+            },
+            PromptHistoryKey::AddPath,
+            Some(path.display_absolute()),
+        )
     }
 
     fn open_move_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Move file".to_string(),
-            history: [path.display_absolute()].to_vec(),
-            on_enter: DispatchPrompt::MovePath { from: path },
-            items: Vec::new(),
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: false,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: "Move path".to_string(),
+                on_enter: DispatchPrompt::MovePath { from: path.clone() },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+            },
+            PromptHistoryKey::MovePath,
+            Some(path.display_absolute()),
+        )
     }
 
     fn open_symbol_picker(
@@ -657,58 +677,68 @@ impl<T: Frontend> App<T> {
         _component_id: ComponentId,
         symbols: Symbols,
     ) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Symbols".to_string(),
-            history: vec![],
-            items: symbols
-                .symbols
-                .clone()
-                .into_iter()
-                .map(|symbol| symbol.into())
-                .collect_vec(),
-            on_enter: DispatchPrompt::SelectSymbol { symbols },
-            enter_selects_first_matching_item: true,
-            leaves_current_line_empty: true,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: "Symbols".to_string(),
+                items: symbols
+                    .symbols
+                    .clone()
+                    .into_iter()
+                    .map(|symbol| symbol.into())
+                    .collect_vec(),
+                on_enter: DispatchPrompt::SelectSymbol { symbols },
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+            },
+            PromptHistoryKey::Symbol,
+            None,
+        )
     }
 
     fn open_command_prompt(&mut self) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: "Command".to_string(),
-            history: vec![],
-            on_enter: DispatchPrompt::RunCommand,
-            items: crate::command::COMMANDS
-                .iter()
-                .flat_map(|command| command.to_dropdown_items())
-                .collect(),
-            enter_selects_first_matching_item: true,
-            leaves_current_line_empty: true,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: "Command".to_string(),
+                on_enter: DispatchPrompt::RunCommand,
+                items: crate::command::COMMANDS
+                    .iter()
+                    .flat_map(|command| command.to_dropdown_items())
+                    .collect(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+            },
+            PromptHistoryKey::Command,
+            None,
+        )
     }
 
     fn open_file_picker(&mut self, kind: FilePickerKind) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
-        self.open_prompt(PromptConfig {
-            title: format!("Open file: {}", kind.display()),
-            history: vec![],
-            on_enter: DispatchPrompt::OpenFile { working_directory },
-            items: {
-                match kind {
-                    FilePickerKind::NonGitIgnored => {
-                        git::GitRepo::try_from(&self.working_directory)?.non_git_ignored_files()?
+        self.open_prompt(
+            PromptConfig {
+                title: format!("Open file: {}", kind.display()),
+                on_enter: DispatchPrompt::OpenFile { working_directory },
+                items: {
+                    match kind {
+                        FilePickerKind::NonGitIgnored => {
+                            git::GitRepo::try_from(&self.working_directory)?
+                                .non_git_ignored_files()?
+                        }
+                        FilePickerKind::GitStatus => {
+                            git::GitRepo::try_from(&self.working_directory)?.git_status_files()?
+                        }
+                        FilePickerKind::Opened => self.layout.get_opened_files(),
                     }
-                    FilePickerKind::GitStatus => {
-                        git::GitRepo::try_from(&self.working_directory)?.git_status_files()?
-                    }
-                    FilePickerKind::Opened => self.layout.get_opened_files(),
-                }
-                .into_iter()
-                .map(|path| path.into())
-                .collect_vec()
+                    .into_iter()
+                    .map(|path| path.into())
+                    .collect_vec()
+                },
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
             },
-            enter_selects_first_matching_item: true,
-            leaves_current_line_empty: true,
-        })
+            PromptHistoryKey::OpenFile,
+            None,
+        )
     }
 
     /// This only opens the file in the background but does not focus it.
@@ -1268,21 +1298,24 @@ impl<T: Frontend> App<T> {
         target: FilterTarget,
         make_mechanism: MakeFilterMechanism,
     ) -> anyhow::Result<()> {
-        self.open_prompt(PromptConfig {
-            title: format!(
-                "Omit: {:?} selection by {:?} matching {:?}",
-                kind, target, make_mechanism
-            ),
-            history: Vec::new(),
-            on_enter: DispatchPrompt::PushFilter {
-                kind,
-                target,
-                make_mechanism,
+        self.open_prompt(
+            PromptConfig {
+                title: format!(
+                    "Omit: {:?} selection by {:?} matching {:?}",
+                    kind, target, make_mechanism
+                ),
+                on_enter: DispatchPrompt::PushFilter {
+                    kind,
+                    target,
+                    make_mechanism,
+                },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: true,
             },
-            items: Vec::new(),
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: true,
-        })
+            PromptHistoryKey::Omit,
+            None,
+        )
     }
 
     #[cfg(test)]
@@ -1324,20 +1357,17 @@ impl<T: Frontend> App<T> {
         &mut self,
         filter_glob: GlobalSearchFilterGlob,
     ) -> anyhow::Result<()> {
-        let _current_component = self.current_component().clone();
-        let config = self.context.global_search_config();
-        let history = match filter_glob {
-            GlobalSearchFilterGlob::Include => config.include_globs(),
-            GlobalSearchFilterGlob::Exclude => config.exclude_globs(),
-        };
-        self.open_prompt(PromptConfig {
-            title: format!("Set global search {:?} files glob", filter_glob),
-            history,
-            on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
-            items: Vec::new(),
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: false,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: format!("Set global search {:?} files glob", filter_glob),
+                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+            },
+            PromptHistoryKey::FilterGlob(filter_glob),
+            None,
+        )
     }
 
     fn show_search_config(&mut self, scope: Scope) {
@@ -1514,28 +1544,34 @@ impl<T: Frontend> App<T> {
     }
 
     fn open_update_replacement_prompt(&mut self, scope: Scope) -> Result<(), anyhow::Error> {
-        self.open_prompt(PromptConfig {
-            title: format!("Set Replace ({:?})", scope),
-            history: self.context.get_local_search_config(scope).replacements(),
-            on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { scope },
-            items: Vec::new(),
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: false,
-        })
+        self.open_prompt(
+            PromptConfig {
+                title: format!("Set Replace ({:?})", scope),
+                on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { scope },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+            },
+            PromptHistoryKey::Replacement(scope),
+            None,
+        )
     }
 
     fn open_update_search_prompt(&mut self, scope: Scope) -> Result<(), anyhow::Error> {
-        self.open_prompt(PromptConfig {
-            title: format!("Set Search ({:?})", scope),
-            history: self.context.get_local_search_config(scope).searches(),
-            on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
-                scope,
-                show_config_after_enter: true,
+        self.open_prompt(
+            PromptConfig {
+                title: format!("Set Search ({:?})", scope),
+                on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
+                    scope,
+                    show_config_after_enter: true,
+                },
+                items: self.words(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
             },
-            items: self.words(),
-            enter_selects_first_matching_item: false,
-            leaves_current_line_empty: false,
-        })
+            PromptHistoryKey::Search(scope),
+            None,
+        )
     }
 
     fn words(&self) -> Vec<DropdownItem> {
@@ -1613,8 +1649,14 @@ impl<T: Frontend> App<T> {
         self.layout.current_completion_dropdown()
     }
 
-    fn open_prompt(&mut self, prompt_config: PromptConfig) -> anyhow::Result<()> {
-        let (prompt, dispatches) = Prompt::new(prompt_config);
+    fn open_prompt(
+        &mut self,
+        prompt_config: PromptConfig,
+        key: PromptHistoryKey,
+        current_line: Option<String>,
+    ) -> anyhow::Result<()> {
+        let history = self.context.get_prompt_history(key, current_line);
+        let (prompt, dispatches) = Prompt::new(prompt_config, key, history);
 
         self.layout
             .add_and_focus_prompt(ComponentKind::Prompt, Rc::new(RefCell::new(prompt)));
@@ -1683,17 +1725,20 @@ impl<T: Frontend> App<T> {
     ) -> anyhow::Result<()> {
         let component = self.layout.get_current_component();
         let params = component.borrow().editor().get_request_params();
-        self.open_prompt(PromptConfig {
-            history: Vec::new(),
-            on_enter: DispatchPrompt::Null,
-            items: code_actions
-                .into_iter()
-                .map(move |code_action| code_action.into_dropdown_item(params.clone()))
-                .collect(),
-            title: "Code Actions".to_string(),
-            enter_selects_first_matching_item: true,
-            leaves_current_line_empty: true,
-        })?;
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: code_actions
+                    .into_iter()
+                    .map(move |code_action| code_action.into_dropdown_item(params.clone()))
+                    .collect(),
+                title: "Code Actions".to_string(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+            },
+            PromptHistoryKey::CodeAction,
+            None,
+        )?;
         Ok(())
     }
 
@@ -1746,6 +1791,10 @@ impl<T: Frontend> App<T> {
             self.hide_editor_info()
         }
         Ok(())
+    }
+
+    fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
+        self.context.push_history_prompt(key, line)
     }
 }
 
@@ -1936,7 +1985,11 @@ pub(crate) enum Dispatch {
         render: DropdownRender,
     },
     #[cfg(test)]
-    OpenPrompt(PromptConfig),
+    OpenPrompt {
+        config: PromptConfig,
+        key: PromptHistoryKey,
+        current_line: Option<String>,
+    },
     ShowEditorInfo(Info),
     ReceiveCodeActions(Vec<crate::lsp::code_action::CodeAction>),
     OtherWindow,
@@ -1944,6 +1997,10 @@ pub(crate) enum Dispatch {
     CloseEditorInfo,
     GoToPreviousFile,
     GoToNextFile,
+    PushPromptHistory {
+        key: PromptHistoryKey,
+        line: String,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1951,7 +2008,7 @@ pub(crate) enum GlobalSearchConfigUpdate {
     SetGlob(GlobalSearchFilterGlob, String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+#[derive(Clone, Hash, Debug, PartialEq, Eq, Copy)]
 pub(crate) enum GlobalSearchFilterGlob {
     Include,
     Exclude,
@@ -2014,7 +2071,7 @@ impl RequestParams {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Copy)]
 pub(crate) enum Scope {
     Local,
     Global,

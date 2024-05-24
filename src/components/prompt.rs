@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use my_proc_macros::key;
 
 use crate::{
-    app::{Dispatch, DispatchPrompt, Dispatches},
+    app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
     buffer::Buffer,
     components::editor::{self, DispatchEditor},
     context::Context,
@@ -22,11 +22,11 @@ pub(crate) struct Prompt {
     /// This will only be run on user input if the user input matches no dropdown item.
     on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
+    prompt_history_key: PromptHistoryKey,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PromptConfig {
-    pub(crate) history: Vec<String>,
     pub(crate) on_enter: DispatchPrompt,
     pub(crate) items: Vec<DropdownItem>,
     pub(crate) title: String,
@@ -34,10 +34,31 @@ pub(crate) struct PromptConfig {
     pub(crate) leaves_current_line_empty: bool,
 }
 
+#[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
+pub(crate) enum PromptHistoryKey {
+    MoveToIndex,
+    Search(Scope),
+    Rename,
+    AddPath,
+    MovePath,
+    Symbol,
+    Command,
+    OpenFile,
+    Omit,
+    FilterGlob(GlobalSearchFilterGlob),
+    Replacement(Scope),
+    CodeAction,
+    #[cfg(test)]
+    Null,
+}
+
 impl Prompt {
-    pub(crate) fn new(config: PromptConfig) -> (Self, Dispatches) {
+    pub(crate) fn new(
+        config: PromptConfig,
+        prompt_history_key: PromptHistoryKey,
+        mut history: Vec<String>,
+    ) -> (Self, Dispatches) {
         let text = {
-            let mut history = config.history.clone();
             history.reverse();
             format!(
                 "{}{}",
@@ -70,6 +91,7 @@ impl Prompt {
                 editor,
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
+                prompt_history_key,
             },
             dispatches,
         )
@@ -111,19 +133,25 @@ impl Component for Prompt {
                 }
             }
             key!("enter") => {
-                let dispatches = if self.enter_selects_first_matching_item
+                let (line, dispatches) = if self.enter_selects_first_matching_item
                     && self.editor.completion_dropdown_current_item().is_some()
                 {
                     self.editor
                         .completion_dropdown_current_item()
-                        .map(|item| item.dispatches)
+                        .map(|item| (item.display(), item.dispatches))
                         .unwrap_or_default()
                 } else {
-                    self.on_enter
-                        .to_dispatches(&self.editor().current_line()?)?
+                    let current_line = self.editor().current_line()?;
+                    let dispatches = self.on_enter.to_dispatches(&current_line)?;
+                    (current_line, dispatches)
                 };
 
-                Ok(Dispatches::one(Dispatch::CloseCurrentWindow).chain(dispatches))
+                Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
+                    .chain(dispatches)
+                    .append(Dispatch::PushPromptHistory {
+                        key: self.prompt_history_key,
+                        line,
+                    }))
             }
             _ => self.editor.handle_key_event(context, event),
         }
@@ -149,14 +177,17 @@ mod test_prompt {
             execute_test(|s| {
                 Box::new([
                     App(OpenFile(s.main_rs())),
-                    App(OpenPrompt(PromptConfig {
-                        history: ["hello".to_string()].to_vec(),
-                        on_enter: DispatchPrompt::Null,
-                        items: Default::default(),
-                        title: "".to_string(),
-                        enter_selects_first_matching_item: true,
-                        leaves_current_line_empty,
-                    })),
+                    App(OpenPrompt {
+                        current_line: Some("hello".to_string()),
+                        key: PromptHistoryKey::Null,
+                        config: PromptConfig {
+                            on_enter: DispatchPrompt::Null,
+                            items: Default::default(),
+                            title: "".to_string(),
+                            enter_selects_first_matching_item: true,
+                            leaves_current_line_empty,
+                        },
+                    }),
                     Expect(CurrentComponentContent(expected_text)),
                     Expect(EditorCursorPosition(expected_cursor_position)),
                 ])
@@ -165,6 +196,70 @@ mod test_prompt {
         }
         test(true, "\nhello", Position::default());
         test(false, "hello", Position::new(0, 5));
+    }
+
+    #[test]
+    fn prompt_history() {
+        execute_test(|s| {
+            let open_prompt = OpenPrompt {
+                key: PromptHistoryKey::Null,
+                current_line: None,
+                config: PromptConfig {
+                    on_enter: DispatchPrompt::Null,
+                    items: Default::default(),
+                    title: "".to_string(),
+                    enter_selects_first_matching_item: true,
+                    leaves_current_line_empty: true,
+                },
+            };
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App(open_prompt.clone()),
+                Expect(CurrentComponentContent("\n")),
+                App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
+                App(open_prompt.clone()),
+                Expect(CurrentComponentContent("\nhello")),
+                App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
+                App(open_prompt.clone()),
+                // Duplicates should not be repeated
+                Expect(CurrentComponentContent("\nhello")),
+                App(open_prompt.clone()),
+                App(HandleKeyEvents(keys!("y o enter").to_vec())),
+                App(open_prompt.clone()),
+                // Latest entry should appear on first
+                Expect(CurrentComponentContent("\nyo\nhello")),
+                // Enter 'hello' again
+                App(open_prompt.clone()),
+                App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
+                // 'hello' should appear on top
+                App(open_prompt.clone()),
+                Expect(CurrentComponentContent("\nhello\nyo")),
+            ])
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn current_line() {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                App((OpenPrompt {
+                    key: PromptHistoryKey::Null,
+                    current_line: Some("spongebob squarepants".to_string()),
+                    config: PromptConfig {
+                        on_enter: DispatchPrompt::Null,
+                        items: Default::default(),
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty: true,
+                    },
+                })
+                .clone()),
+                Expect(CurrentComponentContent("\nspongebob squarepants")),
+            ])
+        })
+        .unwrap();
     }
 
     #[test]
@@ -177,21 +272,24 @@ mod test_prompt {
             execute_test(|s| {
                 Box::new([
                     App(OpenFile(s.main_rs())),
-                    App(OpenPrompt(super::PromptConfig {
-                        history: vec![],
-                        on_enter: DispatchPrompt::SetContent,
-                        items: ["foo".to_string(), "bar".to_string()]
-                            .into_iter()
-                            .map(|str| {
-                                let item: DropdownItem = str.clone().into();
-                                item.set_dispatches(Dispatches::one(ToEditor(SetContent(str))))
-                            })
-                            .collect(),
+                    App(OpenPrompt {
+                        key: PromptHistoryKey::Null,
+                        current_line: None,
+                        config: super::PromptConfig {
+                            on_enter: DispatchPrompt::SetContent,
+                            items: ["foo".to_string(), "bar".to_string()]
+                                .into_iter()
+                                .map(|str| {
+                                    let item: DropdownItem = str.clone().into();
+                                    item.set_dispatches(Dispatches::one(ToEditor(SetContent(str))))
+                                })
+                                .collect(),
 
-                        title: "".to_string(),
-                        enter_selects_first_matching_item,
-                        leaves_current_line_empty: true,
-                    })),
+                            title: "".to_string(),
+                            enter_selects_first_matching_item,
+                            leaves_current_line_empty: true,
+                        },
+                    }),
                     Expect(CompletionDropdownIsOpen(true)),
                     App(HandleKeyEvents(
                         event::parse_key_events(input_text).unwrap(),
@@ -212,18 +310,21 @@ mod test_prompt {
     {
         execute_test(|_| {
             Box::new([
-                App(Dispatch::OpenPrompt(super::PromptConfig {
-                    history: vec![],
-                    on_enter: DispatchPrompt::SetContent,
-                    items: ["foo_bar".to_string()]
-                        .into_iter()
-                        .map(|item| item.into())
-                        .collect(),
+                App(Dispatch::OpenPrompt {
+                    key: PromptHistoryKey::Null,
+                    current_line: None,
+                    config: super::PromptConfig {
+                        on_enter: DispatchPrompt::SetContent,
+                        items: ["foo_bar".to_string()]
+                            .into_iter()
+                            .map(|item| item.into())
+                            .collect(),
 
-                    title: "".to_string(),
-                    enter_selects_first_matching_item: true,
-                    leaves_current_line_empty: true,
-                })),
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty: true,
+                    },
+                }),
                 App(HandleKeyEvents(keys!("f o o _ b ctrl+space").to_vec())),
                 Expect(CurrentComponentContent("foo_bar")),
                 Expect(EditorCursorPosition(Position { line: 0, column: 7 })),
@@ -235,20 +336,23 @@ mod test_prompt {
     fn filter_without_matching_items_should_clear_suggestions() -> anyhow::Result<()> {
         execute_test(|_| {
             Box::new([
-                App(Dispatch::OpenPrompt(super::PromptConfig {
-                    history: vec![],
-                    on_enter: DispatchPrompt::SetContent,
-                    items: [CompletionItem::from_label(
-                        "spongebob squarepants".to_string(),
-                    )]
-                    .into_iter()
-                    .map(|item| item.into())
-                    .collect(),
+                App(Dispatch::OpenPrompt {
+                    key: PromptHistoryKey::Null,
+                    current_line: None,
+                    config: super::PromptConfig {
+                        on_enter: DispatchPrompt::SetContent,
+                        items: [CompletionItem::from_label(
+                            "spongebob squarepants".to_string(),
+                        )]
+                        .into_iter()
+                        .map(|item| item.into())
+                        .collect(),
 
-                    title: "".to_string(),
-                    enter_selects_first_matching_item: true,
-                    leaves_current_line_empty: true,
-                })),
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty: true,
+                    },
+                }),
                 App(TerminalDimensionChanged(crate::app::Dimension {
                     height: 10,
                     width: 50,
@@ -267,18 +371,21 @@ mod test_prompt {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
                 Editor(EnterInsertMode(Direction::Start)),
-                App(Dispatch::OpenPrompt(super::PromptConfig {
-                    history: vec![],
-                    on_enter: DispatchPrompt::SetContent,
-                    items: ["Patrick", "Spongebob", "Squidward"]
-                        .into_iter()
-                        .map(|item| item.to_string().into())
-                        .collect(),
+                App(Dispatch::OpenPrompt {
+                    key: PromptHistoryKey::Null,
+                    current_line: None,
+                    config: super::PromptConfig {
+                        on_enter: DispatchPrompt::SetContent,
+                        items: ["Patrick", "Spongebob", "Squidward"]
+                            .into_iter()
+                            .map(|item| item.to_string().into())
+                            .collect(),
 
-                    title: "".to_string(),
-                    enter_selects_first_matching_item: true,
-                    leaves_current_line_empty: true,
-                })),
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty: true,
+                    },
+                }),
                 // Expect the completion dropdown to be open,
                 Expect(CompletionDropdownContent("Patrick\nSpongebob\nSquidward")),
                 // Type in 'pa'
