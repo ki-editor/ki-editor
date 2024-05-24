@@ -23,10 +23,7 @@ pub(crate) use SelectionMode::*;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{
-        App, Dimension, Dispatch, GlobalSearchConfigUpdate, GlobalSearchFilterGlob,
-        LocalSearchConfigUpdate, Scope,
-    },
+    app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, Scope},
     char_index_range::CharIndexRange,
     components::{
         component::Component,
@@ -93,12 +90,6 @@ pub(crate) enum ExpectKind {
     AppGridContains(&'static str),
     EditorGrid(&'static str),
     CurrentPath(CanonicalizedPath),
-    LocalSearchConfigSearches(&'static [&'static str]),
-    LocalSearchConfigReplacements(&'static [&'static str]),
-    GlobalSearchConfigSearches(&'static [&'static str]),
-    GlobalSearchConfigReplacements(&'static [&'static str]),
-    GlobalSearchConfigIncludeGlobs(&'static [&'static str]),
-    GlobalSearchConfigExcludeGlobs(&'static [&'static str]),
     GridCellBackground(
         /*Row*/ usize,
         /*Column*/ usize,
@@ -178,32 +169,6 @@ impl ExpectKind {
                 contextualize(actual, grid.to_string().trim_matches('\n').to_string())
             }
             CurrentPath(path) => contextualize(app.get_current_file_path().unwrap(), path.clone()),
-            LocalSearchConfigSearches(searches) => {
-                contextualize(context.local_search_config().searches(), to_vec(searches))
-            }
-            LocalSearchConfigReplacements(replacements) => contextualize(
-                context.local_search_config().replacements(),
-                to_vec(replacements),
-            ),
-            GlobalSearchConfigSearches(searches) => contextualize(
-                context.get_local_search_config(Scope::Global).searches(),
-                to_vec(searches),
-            ),
-
-            GlobalSearchConfigReplacements(replacements) => contextualize(
-                context
-                    .get_local_search_config(Scope::Global)
-                    .replacements(),
-                to_vec(replacements),
-            ),
-            GlobalSearchConfigIncludeGlobs(include_globs) => contextualize(
-                context.global_search_config().include_globs(),
-                to_vec(include_globs),
-            ),
-            GlobalSearchConfigExcludeGlobs(exclude_globs) => contextualize(
-                context.global_search_config().exclude_globs(),
-                to_vec(exclude_globs),
-            ),
             Not(expect_kind) => {
                 let (result, context) = expect_kind.get_result(app)?;
                 (!result, format!("NOT ({context})"))
@@ -985,66 +950,6 @@ fn global_diagnostics() -> Result<(), anyhow::Error> {
                     )),
                 ),
             ]))),
-        ])
-    })
-}
-
-#[test]
-fn search_config_history() -> Result<(), anyhow::Error> {
-    let update = |scope: Scope, update: LocalSearchConfigUpdate| -> Step {
-        App(UpdateLocalSearchConfig {
-            update,
-            scope,
-            show_config_after_enter: true,
-        })
-    };
-    let update_global =
-        |update: GlobalSearchConfigUpdate| -> Step { App(UpdateGlobalSearchConfig { update }) };
-    use GlobalSearchConfigUpdate::*;
-    use GlobalSearchFilterGlob::*;
-    use LocalSearchConfigUpdate::*;
-    use Scope::*;
-    execute_test(|_| {
-        Box::new([
-            update(Local, Search("L-Search1".to_string())),
-            update(Local, Search("L-Search2".to_string())),
-            update(Local, Search("L-Search1".to_string())),
-            update(Local, Replacement("L-Replacement1".to_string())),
-            update(Local, Replacement("L-Replacement2".to_string())),
-            update(Local, Replacement("L-Replacement1".to_string())),
-            update(Global, Search("G-Search1".to_string())),
-            update(Global, Search("G-Search2".to_string())),
-            update(Global, Search("G-Search1".to_string())),
-            update(Global, Replacement("G-Replacement1".to_string())),
-            update(Global, Replacement("G-Replacement2".to_string())),
-            update(Global, Replacement("G-Replacement1".to_string())),
-            update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
-            update_global(SetGlob(Exclude, "ExcludeGlob2".to_string())),
-            update_global(SetGlob(Exclude, "ExcludeGlob1".to_string())),
-            update_global(SetGlob(Include, "IncludeGlob1".to_string())),
-            update_global(SetGlob(Include, "IncludeGlob2".to_string())),
-            update_global(SetGlob(Include, "IncludeGlob1".to_string())),
-            // Expect the histories are stored, where:
-            // 1. There's no duplication
-            // 2. The insertion order is up-to-date
-            Expect(LocalSearchConfigSearches(&["L-Search2", "L-Search1"])),
-            Expect(LocalSearchConfigReplacements(&[
-                "L-Replacement2",
-                "L-Replacement1",
-            ])),
-            Expect(GlobalSearchConfigSearches(&["G-Search2", "G-Search1"])),
-            Expect(GlobalSearchConfigReplacements(&[
-                "G-Replacement2",
-                "G-Replacement1",
-            ])),
-            Expect(GlobalSearchConfigIncludeGlobs(&[
-                "IncludeGlob2",
-                "IncludeGlob1",
-            ])),
-            Expect(GlobalSearchConfigExcludeGlobs(&[
-                "ExcludeGlob2",
-                "ExcludeGlob1",
-            ])),
         ])
     })
 }
