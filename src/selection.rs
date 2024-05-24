@@ -203,10 +203,11 @@ impl SelectionSet {
         });
     }
 
-    pub(crate) fn move_right(&mut self, cursor_direction: &Direction) {
+    pub(crate) fn move_right(&mut self, cursor_direction: &Direction, len_chars: usize) {
         self.apply_mut(|selection| {
             let cursor_char_index = selection.to_char_index(cursor_direction);
-            selection.range = (cursor_char_index + 1..cursor_char_index + 1).into()
+            let next = (cursor_char_index + 1).min(CharIndex(len_chars));
+            selection.range = (next..next).into()
         });
     }
 

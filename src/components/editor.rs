@@ -286,7 +286,11 @@ impl Component for Editor {
             SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
-            MoveCharacterForward => self.selection_set.move_right(&self.cursor_direction),
+            MoveCharacterForward => {
+                let len_chars = self.buffer().len_chars();
+                self.selection_set
+                    .move_right(&self.cursor_direction, len_chars)
+            }
             Open(direction) => return self.smart_insert(direction),
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
