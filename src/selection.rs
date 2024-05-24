@@ -463,7 +463,7 @@ impl SelectionMode {
             SelectionMode::LineFull => "LINE (FULL)".to_string(),
             SelectionMode::Column => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            SelectionMode::Token => "BOTTOM NODE".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::SyntaxTreeCoarse => "SYNTAX TREE (COARSE)".to_string(),
             SelectionMode::SyntaxTreeFine => "SYNTAX TREE (FINE)".to_string(),
             SelectionMode::Find { search } => {

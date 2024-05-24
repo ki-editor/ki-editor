@@ -84,11 +84,11 @@ impl Component for SuggestiveEditor {
             match event {
                 key!("ctrl+n") | key!("down") => {
                     self.completion_dropdown.next_item();
-                    return Ok(Dispatches::one(self.render_completion_dropdown()));
+                    return Ok(Dispatches::one(self.render_completion_dropdown(false)));
                 }
                 key!("ctrl+p") | key!("up") => {
                     self.completion_dropdown.previous_item();
-                    return Ok(Dispatches::one(self.render_completion_dropdown()));
+                    return Ok(Dispatches::one(self.render_completion_dropdown(false)));
                 }
                 key!("ctrl+space") => {
                     let current_item = self.completion_dropdown.current_item();
@@ -201,17 +201,12 @@ impl SuggestiveEditor {
             DispatchSuggestiveEditor::Completion(completion) => {
                 if self.editor.mode == Mode::Insert {
                     self.set_completion(completion);
-                    Ok(Dispatches::one(self.render_completion_dropdown()))
+                    Ok(Dispatches::one(self.render_completion_dropdown(false)))
                 } else {
                     Ok(Vec::new().into())
                 }
             }
         }
-    }
-
-    pub(crate) fn enter_insert_mode(&mut self) -> Result<Dispatches, anyhow::Error> {
-        self.editor
-            .enter_insert_mode(super::editor::Direction::Start)
     }
 
     pub(crate) fn completion_dropdown_current_item(&mut self) -> Option<DropdownItem> {
@@ -222,18 +217,15 @@ impl SuggestiveEditor {
         !self.completion_dropdown.items().is_empty()
     }
 
-    #[cfg(test)]
-    pub(crate) fn filtered_dropdown_items(&self) -> Vec<String> {
-        todo!("remove this method")
-    }
-
     pub(crate) fn set_completion(&mut self, completion: Completion) {
         self.completion_dropdown.set_items(completion.items);
         self.trigger_characters = completion.trigger_characters;
     }
 
-    pub(crate) fn render_completion_dropdown(&self) -> Dispatch {
-        if self.editor.mode != Mode::Insert || self.completion_dropdown.no_matching_candidates() {
+    pub(crate) fn render_completion_dropdown(&self, ignore_insert_mode: bool) -> Dispatch {
+        if (!ignore_insert_mode && self.editor.mode != Mode::Insert)
+            || self.completion_dropdown.no_matching_candidates()
+        {
             Dispatch::CloseDropdown
         } else {
             Dispatch::RenderDropdown {
@@ -267,7 +259,7 @@ impl SuggestiveEditor {
 
         self.completion_dropdown.set_filter(&filter);
 
-        let render_completion_dropdown = self.render_completion_dropdown();
+        let render_completion_dropdown = self.render_completion_dropdown(false);
         Ok(render_completion_dropdown)
     }
 }
@@ -302,7 +294,6 @@ mod test_suggestive_editor {
     use Dispatch::*;
 
     use super::{Info, SuggestiveEditor, SuggestiveEditorFilter};
-    use pretty_assertions::assert_eq;
 
     fn dummy_completion() -> Completion {
         Completion {
@@ -320,91 +311,6 @@ mod test_suggestive_editor {
 
     fn editor(filter: SuggestiveEditorFilter) -> SuggestiveEditor {
         SuggestiveEditor::from_buffer(Rc::new(RefCell::new(Buffer::new(None, ""))), filter)
-    }
-
-    #[test]
-    #[ignore]
-    fn filter_with_current_line() -> anyhow::Result<()> {
-        let mut editor = editor(SuggestiveEditorFilter::CurrentLine);
-
-        // Enter insert mode
-        let _ = editor
-            .editor_mut()
-            .enter_insert_mode(Direction::Start)
-            .unwrap();
-
-        // Pretend that the LSP server returned a completion
-        editor.set_completion(dummy_completion());
-
-        // Type in 'pa'
-        let _ = editor.handle_events(keys!("p a"))?;
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be filtered
-        assert!(editor.completion_dropdown_opened());
-        assert_eq!(editor.filtered_dropdown_items(), vec!["Patrick"]);
-
-        // Type in space, then 's'
-        let _ = editor.handle_events(keys!("space s"))?;
-
-        // Expect the completion dropdown to be hidden,
-        // and the dropdown items to be filtered by the current line, 'pa s'
-        assert!(!editor.completion_dropdown_opened());
-        assert_eq!(editor.filtered_dropdown_items(), Vec::new() as Vec<String>);
-
-        // Type in enter
-        let _ = editor.handle_events(keys!("ctrl+space"))?;
-
-        // Expect a new line is added
-        assert_eq!(editor.editor().text(), "pa s\n");
-
-        // Expect the current line is empty
-        assert_eq!(editor.editor().current_line()?, "");
-
-        // Expect the completion dropdown to be open,
-        // and all dropdown items to be shown,
-        // because the current line is empty
-        assert!(editor.completion_dropdown_opened());
-        assert_eq!(
-            editor.filtered_dropdown_items(),
-            vec!["Patrick", "Spongebob", "Squidward"]
-        );
-
-        // Close the dropdown menu
-        let _ = editor.handle_events(keys!("ctrl+e"))?;
-
-        // Enter a next line
-        let _ = editor.handle_events(keys!("enter h e l l o"))?;
-
-        // Expect the content to be updated
-        assert_eq!(editor.editor().text(), "pa s\n\nhello");
-
-        // Expect the current line is 'hello'
-        assert_eq!(editor.editor().current_line()?, "hello");
-
-        // Go to the previous line
-        let _ = editor.handle_events(keys!("esc l p p p"))?;
-
-        // Expect the current line is empty
-        assert_eq!(editor.editor().current_line()?, "");
-
-        // Type in 's'
-        let _ = editor.editor_mut().enter_insert_mode(Direction::Start)?;
-        let _ = editor.handle_events(keys!("s"))?;
-
-        // Expect the current line is 's'
-        assert_eq!(editor.editor().current_line()?, "s");
-
-        assert_eq!(editor.editor().text(), "pa s\ns\nhello",);
-
-        // Expect the completion dropdown to be open,
-        // and the dropdown items to be filtered by the current line, 's'
-        assert!(editor.completion_dropdown_opened());
-        assert_eq!(
-            editor.filtered_dropdown_items(),
-            vec!["Spongebob", "Squidward"]
-        );
-        Ok(())
     }
 
     #[test]
