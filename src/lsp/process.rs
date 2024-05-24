@@ -1,4 +1,5 @@
 use crate::app::{RequestParams, Scope};
+use anyhow::Context;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
@@ -33,6 +34,7 @@ struct LspServerProcess {
 
     /// This is hacky, but we need to keep the stdout around so that it doesn't get dropped
     stdout: Option<process::ChildStdout>,
+    stderr: Option<process::ChildStderr>,
 
     server_capabilities: Option<ServerCapabilities>,
     current_working_directory: CanonicalizedPath,
@@ -367,7 +369,7 @@ impl LspServerProcess {
             .take()
             .ok_or_else(|| anyhow::anyhow!("Unable to obtain stdin"))?;
 
-        let _stderr = process
+        let stderr = process
             .stderr
             .take()
             .ok_or_else(|| anyhow::anyhow!("Unable to obtain stderr"))?;
@@ -381,6 +383,7 @@ impl LspServerProcess {
             language: language.clone(),
             stdin,
             stdout: Some(stdout),
+            stderr: Some(stderr),
             current_working_directory,
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
@@ -514,41 +517,74 @@ impl LspServerProcess {
     }
 
     pub(crate) fn listen(mut self) -> JoinHandle<()> {
-        let mut reader = BufReader::new(self.stdout.take().unwrap());
+        let mut stdout_reader = BufReader::new(self.stdout.take().unwrap());
+        let mut stderr_reader = BufReader::new(self.stderr.take().unwrap());
         let sender = self.sender.clone();
         let handle = thread::spawn(move || {
-            loop {
+            fn read_response(
+                reader: &mut BufReader<process::ChildStdout>,
+                sender: &Sender<LspServerProcessMessage>,
+            ) -> anyhow::Result<()> {
                 let mut line = String::new();
-                reader.read_line(&mut line).unwrap();
+                reader
+                    .read_line(&mut line)
+                    .with_context(|| "Failed to read Content-Length")?;
+
+                log::info!("LspServerProcess::listen line = {line:?}");
 
                 let content_length = line
                     .split(':')
                     .nth(1)
-                    .unwrap()
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Parsing Content-Length: Unable to split line.")
+                    })?
                     .trim()
                     .parse::<usize>()
-                    .unwrap();
+                    .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
 
                 // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
                 //
                 // ... this means that TWO '\r\n' sequences always immediately precede the content part of a message.
                 //
                 // That's why we have to read an empty line here again.
-                reader.read_line(&mut line).unwrap();
+                reader
+                    .read_line(&mut line)
+                    .with_context(|| "Failed to read content.")?;
 
                 let mut buffer = vec![0; content_length];
-                reader.read_exact(&mut buffer).unwrap();
+                reader
+                    .read_exact(&mut buffer)
+                    .with_context(|| "Failed to read buffer into vector.")?;
 
-                let reply = String::from_utf8(buffer).unwrap();
+                let reply = String::from_utf8(buffer)
+                    .with_context(|| "Failed to convert content buffer into String.")?;
 
                 // Parse as generic JSON value
-                let reply: serde_json::Value = serde_json::from_str(&reply).unwrap();
+                let reply: serde_json::Value = serde_json::from_str(&reply)
+                    .with_context(|| "Failed to convert content string into JSON value")?;
 
                 sender
                     .send(LspServerProcessMessage::FromLspServer(reply))
                     .unwrap_or_else(|error| {
                         log::error!("[LspServerProcess] Error sending reply: {:?}", error);
                     });
+
+                Ok(())
+            }
+            loop {
+                if let Err(error) = read_response(&mut stdout_reader, &sender) {
+                    let mut stderr = String::new();
+                    // Reading the error from stderr is necessary
+                    // If not, subsequent read from stdout might result in infinite loop, due to
+                    // stdout keeps emitting empty lines only
+                    //
+                    // Note: this logic is only tested on Rust Analyzer
+                    let _ = stderr_reader.read_to_string(&mut stderr).map_err(|err| {
+                        log::error!("LspServerResponse::listen failed to read stderr = {err}")
+                    });
+                    log::info!("LspServerProcess::listen::read_response: {}", error);
+                    log::info!("LspServerProcess::listen: stderr = {}", stderr)
+                }
             }
         });
 
