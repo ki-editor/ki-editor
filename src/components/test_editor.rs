@@ -2059,3 +2059,27 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
     )?;
     Ok(())
 }
+
+#[test]
+fn move_left_right() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("ho".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(MoveCharacterForward),
+                Editor(MoveCharacterForward),
+                Editor(MoveCharacterForward),
+                Editor(Insert("x".to_string())),
+                Expect(CurrentComponentContent("hox")),
+                Editor(MoveCharacterBack),
+                Editor(MoveCharacterBack),
+                Editor(MoveCharacterBack),
+                Editor(MoveCharacterBack),
+                Editor(Insert("y".to_string())),
+                Expect(CurrentComponentContent("yhox")),
+            ])
+        }
+    })
+}
