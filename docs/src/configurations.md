@@ -3,9 +3,9 @@
 At the moment, configuration files are not supported, because I'm in favor of compile-time configuration [^1], for the following reasons:
 
 1. Easier to update
-1. Running with incompatible configurations are impossible [^2]
+1. Running with incompatible configurations is impossible [^2]
 1. Configuration as code
-   - Free typechecking
+   - Free type-checking
    - Free formatting[^3]
    - Ability to reduce duplications using functions
    - Easy backup (fork Ki-editor and push your modified config)

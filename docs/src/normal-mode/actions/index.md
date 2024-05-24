@@ -19,11 +19,11 @@ Memory aid: y stands for yank, yank to the clipboard.
 
 This action copies the current selected text.
 
-Copy behaves different depending on the number of cursor.
+Copy behaves differently depending on the number of cursors.
 
 When there is only one cursor, the content is copied to the system clipboard.
 
-When there is more than one cursors, the selected texts of each cursor will be
+When there is more than one cursor, the selected texts of each cursor will be
 copied to a cursor-specific clipboard instead.
 
 ## Paste
@@ -33,7 +33,7 @@ Keybindings:
 - `p`: Paste after selection
 - `P`: Paste before selection
 
-This action paste the content from the clipboard (either system clipboard or
+This action pastes the content from the clipboard (either the system clipboard or
 cursor-specific clipboard) after/before the current selection.
 
 Notes:
@@ -89,7 +89,7 @@ hello(x, y, │);
 Keybindings:
 
 - `d`: Delete
-- `D`: Delete (Cut), copies the deleted content into clipboard
+- `D`: Delete (Cut), copies the deleted content into the clipboard
 
 This deletes the current selection(s), however, if the current selection mode is
 [contiguous](../selection-modes/index.md#contiguity), it will delete until the
@@ -115,7 +115,7 @@ hello(y);
 Keybindings:
 
 - `c`: Change
-- `C`: Change (Cut), copies the deleted content into clipboard
+- `C`: Change (Cut), copies the deleted content into the clipboard
 
 This is similar to [Delete](#delete), however, after deleting the current
 selected text, the editor will enter [Insert mode](../../modes.md#insert).
@@ -125,7 +125,7 @@ selected text, the editor will enter [Insert mode](../../modes.md#insert).
 Keybindings:
 
 - `r`: Replace
-- `R`: Replace (Cut), copies the replaced content into clipboard
+- `R`: Replace (Cut), copies the replaced content into the clipboard
 
 This replaces the current selected text with the copied text.
 
@@ -149,9 +149,9 @@ For example:
 
 Keybinding: `^`
 
-This is one of my favourite action, it only works for [syntax tree](../selection-modes/syntax-tree-based.md#syntax-tree) selection modes.
+This is one of my favorite actions, it only works for [syntax tree](../selection-modes/syntax-tree-based.md#syntax-tree) selection modes.
 
-This replace the parent node of the current node, with the current node.
+This replaces the parent node of the current node, with the current node.
 
 For example, with the following Rust code:
 
@@ -236,13 +236,13 @@ This is used for grouping multiple selections into a single selection.
 
 For example, selecting multiple words or multiple lines.
 
-It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune **both** ends, unlike using mouse where an incorrect selection means you have to start over again.
+It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune **both** ends, unlike using a mouse where an incorrect selection means you have to start over again.
 
 When selection extension is enabled:
 
-1. Each selection is composed by 2 ranges (formerly 1 range).
+1. Each selection is composed of 2 ranges (formerly 1 range).
 1. There's only one moveable range at a time.
-1. Press `v` again change the moveable range to the other range.
-1. Every character between the two ranges, including the two ranges, are selected
-1. Selection-wise actions works on the extended range
-1. Press `esc` to disable selection extension
+1. Press `v` again to change the moveable range to the other range.
+1. Every character between the two ranges, including the two ranges, is selected
+1. Selection-wise actions work on the extended range
+1. Press `ESC` to disable selection extension

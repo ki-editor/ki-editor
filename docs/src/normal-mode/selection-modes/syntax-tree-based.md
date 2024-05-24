@@ -40,7 +40,7 @@ Using the following Javascript expression as example:
 fox.bar();
 ```
 
-There are several syntax nodes that starts with `f`[^1]:
+There are several syntax nodes that start with `f`[^1]:
 
 - `fox` (identifier)
 - `fox.bar` (member expression)
@@ -72,7 +72,7 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 | Up                                                 | Parent largest node                              |
 | Down                                               | First child                                      |
 | Current                                            | Smallest node that matches the current selection |
-| Fly                                                | Fly to smalles node                              |
+| Fly                                                | Fly to smallest node                              |
 
 Syntax Tree (Fine) is useful when you start to expand the selection starting from the current token.
 
@@ -82,8 +82,8 @@ Suppose we have the following Javascript expression, and the current selection i
 hello.world().foo().bar().spam().wise();
 ```
 
-If we press `s`, the whole expression would be selected[^1], and we will need to press `j` several times to shrink the selection down to `hello.world()`.
+If we press `s`, the whole expression will be selected[^1], and we will need to press `j` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `S` instead, the selection will remain as `hello`, and press `k` two times will get us to `hello.world()`.
+However, if we use `S` instead, the selection will remain as `hello`, and pressing `k` two times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)

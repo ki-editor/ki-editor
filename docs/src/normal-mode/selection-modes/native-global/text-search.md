@@ -1,6 +1,6 @@
 # Text Search
 
-This is one of the most useful selection mode.
+This is one of the most useful selection modes.
 
 Keymaps:
 
@@ -41,7 +41,7 @@ This is based on Rust-flavored regex.
 
 Keybinding: `a`
 
-This is based on [AST Grep](https://github.com/ast-grep/ast-grep), useful for structural search and replace.
+This is based on [AST Grep](https://github.com/ast-grep/ast-grep), useful for structural search and replacement.
 
 ### 4. Case Agnostic
 
@@ -49,7 +49,7 @@ Keybinding: `c`
 
 Case as in `camelCase` or `snake_case`, not upper-case or lower-case.
 
-This is one of my favourite search mode, especially when dealing with business code.
+This is one of my favorite search modes, especially when dealing with business code.
 
 In this mode, the search will be expanded to all different cases such as (non-exhaustive):
 

@@ -30,7 +30,7 @@ Ki's file explorer is rendered using YAML, for example:
 
 ## Keybindings
 
-Only `enter` is overriden to mean:
+Only `enter` is overridden to mean:
 
 - Expand/collapse folder OR
 - Open file
@@ -45,7 +45,7 @@ Because the File Explorer is just a YAML file, the following actions are free[^1
 | ----------------------------------------------------------------------------- | -------------------------------------------- |
 | Go to parent folder                                                           | Use [Parent Line][1]                         |
 | Go to first/last file in current folder                                       | Use [First/Last][2] with [Syntax Tree][3]    |
-| Go to next/previous file/folder at current level, skipping expanded childrens | Use [Previous/Next][4] with [Syntax Tree][3] |
+| Go to next/previous file/folder at current level, skipping expanded children | Use [Previous/Next][4] with [Syntax Tree][3] |
 
 [^1]: Free as in no extra implementations required
 

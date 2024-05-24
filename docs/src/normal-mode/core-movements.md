@@ -1,6 +1,6 @@
 # Core Movements
 
-Core Movements is one of the main concept in Ki Editor, because it is standardized for
+Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
@@ -34,7 +34,7 @@ In most selection modes, up/down moves the selections upwards/downwards, except 
 
 | Selection Mode | Up                                | Down                            |
 | -------------- | --------------------------------- | ------------------------------- |
-| Syntax Tree    | Expand selection to parent        | Shirnk selection to first child |
+| Syntax Tree    | Expand selection to parent        | Shrink selection to first child |
 | Quickfix       | Go to first item of previous file | Go to first item of next file   |
 
 ## First/Last
@@ -54,7 +54,7 @@ Recommended selection modes:
 
 Keybinding: `f`
 
-This is my favourite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
+This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
 It allows you to fly to your desired position (as long as it is within the screen), with just 4 keypresses most of the time.
 
@@ -82,20 +82,20 @@ Keybinding: `-`
 
 It moves the current selection to its nearest parent line.
 
-Parent lines are highlighted lines which represents the parent nodes of the current selection.
+Parent lines are highlighted lines that represent the parent nodes of the current selection.
 
 This is useful for example when you are within the body of a function and you want to jump to the function name.
 
-This is also practical in the [File Explorer](../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to parent folder!
+This is also practical in the [File Explorer](../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!
 
 ## To Index
 
 Keybinding: `0`  
 Memory aid:
 
-- `0` is related to index.
+- `0` is related to the index.
 
-When `0` is pressed, you will be prompted to key in a numerical index (where 1 represent first), and it will jump the current selection to the nth selection of the current selection mode.
+When `0` is pressed, you will be prompted to key in a numerical index (where 1 represents first), and it will jump the current selection to the nth selection of the current selection mode.
 
 Recommended selection modes:
 
@@ -112,7 +112,7 @@ selection mode is chosen.
 For example, choosing the Line selection mode causes the current line to be
 selected, choosing the Word selection mode causes the current word to be selected.
 
-In case where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):
+In cases where there's no matching selection under the cursor, the Current movement chooses the nearest selection based on the following criteria (in order):
 
 1. Same line as cursor (if possible)
 2. Nearest to cursor (in terms of horizontal movements)

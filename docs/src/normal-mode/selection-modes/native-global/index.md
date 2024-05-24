@@ -1,6 +1,6 @@
 # Native/Global
 
-Selection modes that are categorized here are those that are applicable either natively (current file) or globally (across the workspace).
+Selection modes that are categorized here are those that are applicable both natively (current file) and globally (across the workspace).
 
 There are 3 categories of Native/Global selection modes:
 

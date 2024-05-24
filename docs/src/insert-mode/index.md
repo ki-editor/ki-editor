@@ -1,11 +1,11 @@
 # Insert Mode
 
 In this mode, Ki functions like the usual editor, where pressing keys on
-the keyboard actually types them into the current opened file.
+the keyboard types them into the current opened file.
 
 ## Completion dropdown keybindings
 
-The following keybindings only works when the completion dropdown is opened.
+The following keybindings only work when the completion dropdown is opened.
 
 | Keybinding       | Meaning          |
 | ---------------- | ---------------- |
@@ -44,4 +44,4 @@ Implemented keybindings [^1]:
 | `ctrl+w`        | Delete word (long) backward  |
 | `alt+backspace` | Delete word (short) backward |
 
-[^1]: Not every unimplemented keybindings are incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!
+[^1]: Not every unimplemented keybinding is incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!

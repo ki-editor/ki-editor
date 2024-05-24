@@ -13,7 +13,7 @@ The space menu can be brought up by pressing `space`.
 
 Contextual actions are actions that are only applicable within a specific context.
 
-### LSP Actions (only applicable in main editor):
+### LSP Actions (only applicable in the main editor):
 
 | Keybinding | Action                |
 | ---------- | --------------------- |
@@ -30,9 +30,9 @@ Contextual actions are actions that are only applicable within a specific contex
 | `m`        | Move (or rename) the current file/folder[^2]                    |
 | `r`        | Refresh the [file explorer](../components/file-explorer.md)[^3] |
 
-[^1]: To add folder, append `/` to the file name. Can be nested, new directories will be created as required.
+[^1]: To add a folder, append `/` to the file name. Can be nested, and new directories will be created as required.
 [^2]: Works like `mkdir -p`, it will create new directories when required.
-[^3]: This is necessary sometimes because the file system is modified by external factors, and Ki do not watch for file changes.
+[^3]: This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.
 
 ## Searching files/symbols
 

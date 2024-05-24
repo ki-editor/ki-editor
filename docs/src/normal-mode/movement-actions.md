@@ -11,7 +11,7 @@ To return back to normal mode from one of these movement-action modes, press `es
 Keybinding: `x`  
 Memory aid: e**x**change
 
-In the Exchange submode, every core movements means:
+In the Exchange submode, every core movement means:
 
 > exchange with \<movement\>.
 
@@ -35,7 +35,7 @@ f(1 + 1, x);
 
 ### Tips
 
-Since exchange works with every core movements, it can be used with [Fly](./core-movements.md#fly) and [Syntax Tree (Coarse)][1] to swap two distant expressions.
+Since exchange works with every core movement, it can be used with [Fly](./core-movements.md#fly) and [Syntax Tree (Coarse)][1] to swap two distant expressions.
 
 For example, using the following Rust code:
 
@@ -62,11 +62,11 @@ else {
 Keybinding: `q`  
 Reason: `q` is used to start recording a macro in Vim, but I realized 80% of the time what I need is multi-cursors, not a macro.
 
-In the Multi-cursor submode, every core movements means:
+In the Multi-cursor submode, every core movement means:
 
 > Add cursor with \<movement\>
 
-Using the following text as example:
+Use the following text as an example:
 
 ```txt
 hello ki, hello vim, hello helix
@@ -84,7 +84,7 @@ Suppose:
 
 Keybinding: `;`[^1]
 
-In the Replace submode, every core movements means:
+In the Replace submode, every core movement means:
 
 > Replace current selection until \<movement\>
 
@@ -104,7 +104,7 @@ and wish to turn it to:
 
 In this case, you can select `world`, [Change](./actions/index.md#change) it, and press `backspace` 5 times.
 
-However, that's inefficient, that can be shorten by:
+However, that's inefficient, and that can be shortened by:
 
 1. Select `hello`
 1. Set selection mode to [Word (Short)](./selection-modes/regex-based.md#word-short)
@@ -123,7 +123,7 @@ Here's how it works using the Replace mode (starting from step 3):
 
 [^1]: Might be changed in the future, `;` is just a temporary assignment
 [^2]:
-    The rigorous readers might have notice similarity of the Replace submode
+    The rigorous readers might have noticed the similarity of the Replace submode
     with the [Raise](./actions/index.md#raise) action, that is in fact the case,
     under the hood, Raise is but a specialized version of the Replace mode which
     only executes the [Up](./core-movements.md#updown) movement.

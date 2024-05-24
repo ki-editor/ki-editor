@@ -6,9 +6,9 @@ These are selections mode that are neither based on [Text Search](./text-search.
 
 Keybinding: `g`
 
-Git hunks are basically the diffs of the current Git repository.
+Git hunks are the diffs of the current Git repository.
 
-It is computed by comparing the current file contents with their content on the latest commit of the current branch.
+It is computed by comparing the current file contents with the content on the latest commit of the current branch.
 
 This is useful when you want to navigate to your recent changes, but forgot where they are.
 
@@ -16,7 +16,7 @@ This is useful when you want to navigate to your recent changes, but forgot wher
 
 Keybinding: `m`
 
-Marks or bookmarks is a powerful feature that allows you to jump to files which contain marks (which can be toggled).
+Marks or bookmarks is a powerful feature that allows you to jump to files that contain marks (which can be toggled).
 
 It also allows you to exchange two sections of the file.
 
@@ -27,7 +27,7 @@ Keybinding: `q`
 When getting selections using the Global mode, the matches will be stored into
 the Quickfix List.
 
-The quickfix selection mode behaves slightly different in the Global/Native context:
+The quickfix selection mode behaves slightly differently in the Global/Native context:
 
 | Context | Meaning                                                              |
 | ------- | -------------------------------------------------------------------- |
@@ -36,7 +36,7 @@ The quickfix selection mode behaves slightly different in the Global/Native cont
 
 ### When is global quickfix useful?
 
-When you entered another selection mode but wishes to use back the quickfix list.
+When you entered another selection mode but wish to use back the quickfix list.
 
 ### When is native quickfix useful?
 

@@ -12,15 +12,15 @@ Keybindings:
 ## Swap cursor with anchor
 
 Keybinding: `%`  
-Memory aid: `%` looks contains two circles which looks like two ends.
+Memory aid: `%` looks contains two circles which look like two ends.
 
-In Ki, each selection contains a cursor and the anchor.
+In Ki, each selection contains a cursor and an anchor.
 
 By default, the cursor sits on the first character of the selection, and the anchor sits on the last character of the selection.
 
 For example, if the current selection is `hello world`, then the cursor sits on `h`, while the anchor sits on `d`.
 
-The anchor serves as a visual aid, making it easier for you to recognize when the selection range has been modified.
+The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.
 
 This is especially necessary when using selection modes such as [Syntax Tree (Fine)](./selection-modes/syntax-tree-based.md#syntax-tree-fine), where occasionally, the start of a selection remains the same while the end of it changes.
 
@@ -29,9 +29,9 @@ Usefulness of `%`:
 - When your current selection spans more than a visible screen, and you wish to see what's at the end of the current selection.
   - For example, when you selected a very long function
 - When you wish to start a new selection at the end of the current selection
-  - For example, when you selected a line and wish to change its last word, you can do: `e % w c` [^1]
+  - For example, when you select a line and wish to change its last word, you can do: `e % w c` [^1]
 
-[^1]: Explanation: `e` selects the current line, `%` sets the anchor of the last character of the current line, `w` select the current word under the cursor, `c` deletes the word and enter insert mode.
+[^1]: Explanation: `e` selects the current line, `%` sets the anchor of the last character of the current line, `w` selects the current word under the cursor, `c` deletes the word and enters insert mode.
 
 ## Go back/forward
 
@@ -47,9 +47,9 @@ expanding the current selection to parent node.
 Simply press `[` to restore the selection to the previous state.  
 Press `]` to restore the selection to the current state.
 
-## Go to previous/next opened file
+## Go to the previous/next opened file
 
 Keybindings:
 
-- `{`: Go to previous opened file
-- `}`: Go to next opened file
+- `{`: Go to previously opened file
+- `}`: Go to the next opened file

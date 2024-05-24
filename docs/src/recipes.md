@@ -19,8 +19,8 @@ fn main() -> usize {
 }
 ```
 
-... you cannot just [Raise](./normal-mode/actions/index.md#raise) `123`, as that would do nothing, since replacing the block with `123` introduces syntax error.
+... you cannot just [Raise](./normal-mode/actions/index.md#raise) `123`, as that would do nothing since replacing the block with `123` introduces syntax error.
 
-To make that work, surround `123` with curly bracket (by pressing `b {` [^1]) before raising.
+To make that work, surround `123` with curly brackets (by pressing `b {` [^1]) before raising.
 
 [^1]: See [Between](./normal-mode/actions/index.md#between)
