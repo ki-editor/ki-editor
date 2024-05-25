@@ -1,7 +1,8 @@
 # Summary
 
 - [Introduction](./introduction.md)
-- [Installation](./installation.md)
+- [Comparisons](./comparisons/index.md)
+  - [Modal editors](./comparisons/modal-editors.md)
 - [Core Concepts](./core-concepts.md)
 - [Modes](./modes.md)
 - [Insert Mode](./insert-mode/index.md)
@@ -25,7 +26,5 @@
   - [Prompt](./components/prompt.md)
 - [Recipes](./recipes.md)
 - [Themes](./themes.md)
+- [Installation](./installation.md)
 - [Configurations](./configurations.md)
-- [Comparisons](./comparisons/index.md)
-  - [Vim/Neovim](./comparisons/vim.md)
-  - [Helix](./comparisons/helix.md)
