@@ -10,4 +10,6 @@ title = "Ki Editor"
 [output.linkcheck]
 
 [output.html]
-
+git-repository-url = "https://github.com/ki-editor/ki-editor"
+git-repository-icon = "fa-github"
+edit-url-template = "https://github.com/ki-editor/ki-editor/edit/master/docs/{path}"
