@@ -1244,6 +1244,7 @@ dependencies = [
  "rand",
  "rayon",
  "regex",
+ "rgb",
  "ropey",
  "serde",
  "serde_json",
@@ -2023,6 +2024,15 @@ name = "regex-syntax"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
+
+[[package]]
+name = "rgb"
+version = "0.8.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05aaa8004b64fd573fc9d002f4e632d51ad4f026c2b5ba95fcb6c2f32c2c47d8"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "ropey"

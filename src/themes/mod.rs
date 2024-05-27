@@ -14,7 +14,7 @@ use crate::{grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Theme {
-    pub(crate) name: &'static str,
+    pub(crate) name: String,
     pub(crate) syntax: SyntaxStyles,
     pub(crate) ui: UiStyles,
     pub(crate) diagnostic: DiagnosticStyles,
@@ -440,7 +440,7 @@ impl Color {
     }
 
     pub(crate) fn from_hex(hex: &str) -> anyhow::Result<Color> {
-        let regex = lazy_regex::regex!(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$");
+        let regex = lazy_regex::regex!(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$");
         if !regex.is_match(&hex) {
             return Err(anyhow::anyhow!("Invalid hex color: {}", hex));
         }
@@ -449,6 +449,13 @@ impl Color {
         let r = u8::from_str_radix(&hex[0..2], 16)?;
         let g = u8::from_str_radix(&hex[2..4], 16)?;
         let b = u8::from_str_radix(&hex[4..6], 16)?;
+
+        let alpha = if hex.len() == 8 {
+            let alpha = u8::from_str_radix(&hex[6..8], 16)?;
+            Some(alpha)
+        } else {
+            None
+        };
 
         Ok(Color { r, g, b })
     }
@@ -483,9 +490,16 @@ impl From<Color> for crossterm::style::Color {
 }
 
 pub(crate) fn themes() -> Vec<Theme> {
-    vec![
-        VSCODE_DARK().clone(),
-        VSCODE_LIGHT().clone(),
-        from_vscode_theme_json::FROM_VSCODE_THEME().unwrap(),
-    ]
+    vec![VSCODE_DARK().clone(), VSCODE_LIGHT().clone()]
+        .into_iter()
+        .chain(
+            from_vscode_theme_json::from_zed_theme(
+                "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
+            )
+            .unwrap(),
+        ).chain(from_vscode_theme_json::from_zed_theme(
+                "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
+            )
+            .unwrap())
+        .collect_vec()
 }

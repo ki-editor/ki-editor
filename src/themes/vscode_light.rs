@@ -7,7 +7,7 @@ use my_proc_macros::hex;
 
 pub fn VSCODE_LIGHT() -> Theme {
     Theme {
-        name: "vscode-light",
+        name: "vscode-light".to_string(),
         syntax: SyntaxStyles::new({
             use HighlightName::*;
             &[

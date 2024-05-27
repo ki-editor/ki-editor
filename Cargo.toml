@@ -95,6 +95,7 @@ strum = "0.26.2"
 strum_macros = "0.26.2"
 serde_json5 = "0.1.0"
 vscode_theme = "0.2.0"
+rgb = "0.8.37"
 
 [dev-dependencies]
 serial_test = "2.0.0"
