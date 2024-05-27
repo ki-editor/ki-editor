@@ -205,7 +205,7 @@ impl Component for Editor {
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete { cut } => return self.delete(cut, context),
+            Delete { backward } => return self.delete(backward, context),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -242,7 +242,9 @@ impl Component for Editor {
             SetRectangle(rectangle) => self.set_rectangle(rectangle),
             ScrollPageDown => return self.scroll_page_down(),
             ScrollPageUp => return self.scroll_page_up(),
-            ShowJumps => self.show_jumps()?,
+            ShowJumps {
+                use_current_selection_mode,
+            } => self.show_jumps(use_current_selection_mode)?,
             SwitchViewAlignment => self.switch_view_alignment(),
             #[cfg(test)]
             SetScrollOffset(n) => self.set_scroll_offset(n),
@@ -301,6 +303,9 @@ impl Component for Editor {
             DeleteSurround(enclosure) => return self.delete_surround(enclosure),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
             ReplaceWithPattern => return self.replace_with_pattern(context),
+            AddCursor(movement) => self.add_cursor(&movement)?,
+            Exchange(movement) => return self.exchange(movement),
+            Replace(movement) => return self.replace_with_movement(&movement),
         }
         Ok(Default::default())
     }
@@ -400,7 +405,6 @@ pub(crate) enum Movement {
     Jump(CharIndexRange),
     ToParentLine,
     Parent,
-    #[cfg(test)]
     FirstChild,
 }
 
@@ -631,8 +635,14 @@ impl Editor {
     pub(crate) fn get_selection_mode_trait_object(
         &self,
         selection: &Selection,
+        use_current_selection_mode: bool,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
-        self.selection_set.mode.to_selection_mode_trait_object(
+        if use_current_selection_mode {
+            self.selection_set.mode.clone()
+        } else {
+            SelectionMode::WordShort
+        }
+        .to_selection_mode_trait_object(
             &self.buffer(),
             selection,
             &self.cursor_direction,
@@ -640,10 +650,14 @@ impl Editor {
         )
     }
 
-    fn jump_from_selection(&mut self, selection: &Selection) -> anyhow::Result<()> {
+    fn jump_from_selection(
+        &mut self,
+        selection: &Selection,
+        use_current_selection_mode: bool,
+    ) -> anyhow::Result<()> {
         let chars = Self::jump_characters();
 
-        let object = self.get_selection_mode_trait_object(selection)?;
+        let object = self.get_selection_mode_trait_object(selection, use_current_selection_mode)?;
 
         let line_range = self.visible_line_range();
         let jumps = object.jumps(
@@ -661,16 +675,18 @@ impl Editor {
         Ok(())
     }
 
-    pub(crate) fn show_jumps(&mut self) -> anyhow::Result<()> {
-        self.jump_from_selection(&self.selection_set.primary.clone())
+    pub(crate) fn show_jumps(&mut self, use_current_selection_mode: bool) -> anyhow::Result<()> {
+        self.jump_from_selection(
+            &self.selection_set.primary.clone(),
+            use_current_selection_mode,
+        )
     }
 
-    pub(crate) fn delete(&mut self, cut: bool, context: &Context) -> anyhow::Result<Dispatches> {
-        let cut_dispatches = if cut {
-            self.copy(context)?
-        } else {
-            Default::default()
-        };
+    pub(crate) fn delete(
+        &mut self,
+        backward: bool,
+        context: &Context,
+    ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -699,10 +715,20 @@ impl Editor {
                         // If the selection mode is contiguous and the selection is not extended,
                         // perform a "kill next/previous" instead
                         else {
-                            let other_selection = get_selection(Movement::Next)
-                                .or_else(|| get_selection(Movement::Previous))
-                                .unwrap_or(selection.clone().into())
-                                .selection;
+                            let other_selection = get_selection(if backward {
+                                Movement::Previous
+                            } else {
+                                Movement::Next
+                            })
+                            .or_else(|| {
+                                get_selection(if backward {
+                                    Movement::Next
+                                } else {
+                                    Movement::Previous
+                                })
+                            })
+                            .unwrap_or(selection.clone().into())
+                            .selection;
 
                             let other_range = other_selection.range();
                             if other_range == current_range {
@@ -745,7 +771,7 @@ impl Editor {
                 .collect()
         });
         let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        Ok(cut_dispatches.chain(dispatches))
+        Ok(dispatches)
     }
 
     pub(crate) fn copy(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
@@ -1492,10 +1518,10 @@ impl Editor {
         self.replace_faultlessly(&mode, movement)
     }
 
-    pub(crate) fn add_cursor(&mut self, direction: &Movement) -> anyhow::Result<()> {
+    pub(crate) fn add_cursor(&mut self, movement: &Movement) -> anyhow::Result<()> {
         self.selection_set.add_selection(
             &self.buffer.borrow(),
-            direction,
+            movement,
             &self.cursor_direction,
         )?;
         self.recalculate_scroll_offset();
@@ -2507,7 +2533,9 @@ pub(crate) enum DispatchEditor {
     Surround(String, String),
     #[cfg(test)]
     SetScrollOffset(u16),
-    ShowJumps,
+    ShowJumps {
+        use_current_selection_mode: bool,
+    },
     ScrollPageDown,
     ScrollPageUp,
     #[cfg(test)]
@@ -2540,7 +2568,7 @@ pub(crate) enum DispatchEditor {
     SelectLine(Movement),
     Backspace,
     Delete {
-        cut: bool,
+        backward: bool,
     },
     Insert(String),
     MoveToLineStart,
@@ -2593,6 +2621,9 @@ pub(crate) enum DispatchEditor {
         from: EnclosureKind,
         to: EnclosureKind,
     },
+    AddCursor(Movement),
+    Exchange(Movement),
+    Replace(Movement),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

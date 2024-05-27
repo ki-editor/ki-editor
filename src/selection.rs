@@ -447,6 +447,7 @@ pub(crate) enum SelectionMode {
     // Bookmark
     Bookmark,
     LineFull,
+    Vertical,
 }
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
@@ -476,6 +477,7 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Vertical => "VERTICAL".to_string(),
         }
     }
 
@@ -518,6 +520,12 @@ impl SelectionMode {
                 }
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
+            SelectionMode::Vertical => {
+                let current_column = buffer
+                    .char_to_position(current_selection.to_char_index(cursor_direction))?
+                    .column;
+                Box::new(selection_mode::Vertical::new(current_column))
+            }
             SelectionMode::SyntaxTreeCoarse => {
                 Box::new(selection_mode::SyntaxTree { coarse: true })
             }

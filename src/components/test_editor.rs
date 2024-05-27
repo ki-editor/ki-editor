@@ -80,7 +80,7 @@ fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(Token)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("main() {}")),
             Expect(CurrentSelectedTexts(&["main"])),
         ])
@@ -95,7 +95,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(Column)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("n main() {}")),
             Expect(CurrentSelectedTexts(&["n"])),
         ])
@@ -111,7 +111,7 @@ fn delete_should_kill_if_possible_3() -> anyhow::Result<()> {
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(Token)),
             Editor(MoveSelection(Last)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("fn main() {")),
         ])
     })
@@ -126,7 +126,7 @@ fn delete_should_kill_if_possible_4() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("fn main(b:B) {}")),
             Expect(CurrentSelectedTexts(&["b:B"])),
         ])
@@ -142,7 +142,7 @@ fn delete_should_kill_if_possible_5() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A,b:B) {}".to_string())),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("fn main(a:A) {}")),
             Expect(CurrentSelectedTexts(&["a:A"])),
         ])
@@ -156,7 +156,7 @@ fn delete_should_not_kill_if_not_possible_1() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn maima() {}".to_string())),
             Editor(MatchLiteral("ma".to_string())),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("fn ima() {}")),
             // Expect the current selection is the character after "ma"
             Expect(CurrentSelectedTexts(&["i"])),
@@ -173,7 +173,7 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A) {}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("fn main() {}")),
             Expect(CurrentSelectedTexts(&[")"])),
         ])
@@ -404,7 +404,7 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("bar spim")),
             Editor(SetSelectionMode(Bookmark)),
             // Expect bookmark position is updated, and still selects "spim"
@@ -689,8 +689,7 @@ fn exchange_character() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(Column)),
             Editor(EnterExchangeMode),
-            App(HandleKeyEvent(key!("l"))),
-            // Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Next)),
             Expect(CurrentComponentContent("nf main() { let x = 1; }")),
             Editor(MoveSelection(Next)),
             Expect(CurrentComponentContent("n fmain() { let x = 1; }")),
@@ -886,7 +885,7 @@ fn highlight_kill() -> anyhow::Result<()> {
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn main"])),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentSelectedTexts(&["("])),
         ])
     })
@@ -1014,7 +1013,9 @@ fn jump() -> anyhow::Result<()> {
             // On subsequent stages, the labels are random alphabets
             Expect(JumpChars(&[])),
             Editor(SetSelectionMode(WordShort)),
-            Editor(ShowJumps),
+            Editor(ShowJumps {
+                use_current_selection_mode: false,
+            }),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
             // since the viewbox has only height of 1
@@ -1044,7 +1045,9 @@ fn highlight_and_jump() -> anyhow::Result<()> {
             Editor(SetSelectionMode(WordShort)),
             Editor(MoveSelection(Next)),
             Editor(ToggleVisualMode),
-            Editor(ShowJumps),
+            Editor(ShowJumps {
+                use_current_selection_mode: false,
+            }),
             // Expect the jump to be the first character of each word
             // Note 'y' and 'd' are excluded because they are out of view,
             // since the viewbox has only height of 1
@@ -1068,7 +1071,9 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
                 height: 1,
             })),
             Editor(SetSelectionMode(WordShort)),
-            Editor(ShowJumps),
+            Editor(ShowJumps {
+                use_current_selection_mode: false,
+            }),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
             Expect(JumpChars(&['a', 'b', 'c', 'd'])),
@@ -1549,7 +1554,7 @@ fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Expect(CurrentComponentContent("bar spim")),
             // Expect bookmark position is updated (still selects "spim")
             Editor(SetSelectionMode(Bookmark)),
@@ -1718,17 +1723,17 @@ fn consider_unicode_width() -> anyhow::Result<()> {
 }
 
 #[test]
-fn delete_cut() -> anyhow::Result<()> {
+fn delete_backward() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetContent("hello world".to_string())),
+            Editor(SetContent("hello world yo".to_string())),
+            Editor(MatchLiteral("world".to_string())),
             Editor(SetSelectionMode(WordShort)),
-            Expect(CurrentSelectedTexts(&["hello"])),
-            Editor(Delete { cut: true }),
             Expect(CurrentSelectedTexts(&["world"])),
-            Editor(Paste(Direction::End)),
-            Expect(CurrentComponentContent("worldhello")),
+            Editor(Delete { backward: true }),
+            Expect(CurrentSelectedTexts(&["hello"])),
+            Expect(CurrentComponentContent("hello yo")),
         ])
     })
 }
@@ -1773,7 +1778,7 @@ fn next_prev_after_current_selection_is_deleted() -> anyhow::Result<()> {
                         search: r"\d+".to_string(),
                     },
                 })),
-                Editor(Delete { cut: false }),
+                Editor(Delete { backward: false }),
                 Editor(MoveSelection(if next { Next } else { Previous })),
                 Expect(CurrentSelectedTexts(&["2"])),
             ])
