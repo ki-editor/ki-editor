@@ -76,6 +76,16 @@ impl Editor {
                     "To Index (1-based)".to_string(),
                     Dispatch::OpenMoveToIndexPrompt,
                 ),
+                Keymap::new(
+                    "up",
+                    "Up".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Up)),
+                ),
+                Keymap::new(
+                    "down",
+                    "Down".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Down)),
+                ),
             ]),
         }
     }
@@ -230,7 +240,11 @@ impl Editor {
                     "Extend Selection (Previous)".to_string(),
                     Dispatch::ToEditor(ExtendSelection { forward: false }),
                 ),
-                Keymap::new("h", "Hoist".to_string(), Dispatch::ToEditor(Hoist)),
+                Keymap::new(
+                    "h",
+                    "Hoist".to_string(),
+                    Dispatch::ToEditor(Replace(Parent)),
+                ),
                 Keymap::new(
                     "m",
                     "Mark (Toggle)".to_string(),

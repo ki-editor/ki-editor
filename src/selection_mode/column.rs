@@ -15,9 +15,6 @@ impl Column {
 }
 
 impl SelectionMode for Column {
-    fn name(&self) -> &'static str {
-        "COLUMN"
-    }
     fn iter<'a>(
         &'a self,
         SelectionModeParams {

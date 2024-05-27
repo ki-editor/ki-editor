@@ -77,6 +77,12 @@ impl Language {
     }
 }
 
+impl Default for Language {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrammarConfig {
     pub(crate) id: &'static str,

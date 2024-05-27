@@ -109,10 +109,6 @@ impl Component for Editor {
             .char_to_position(self.get_cursor_char_index())
     }
 
-    fn scroll_offset(&self) -> u16 {
-        self.scroll_offset
-    }
-
     fn set_rectangle(&mut self, rectangle: Rectangle) {
         self.rectangle = rectangle;
         self.recalculate_scroll_offset();
@@ -206,7 +202,7 @@ impl Component for Editor {
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete { backward } => return self.delete(backward, context),
+            Delete { backward } => return self.delete(backward),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -216,7 +212,6 @@ impl Component for Editor {
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
             FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
-            Hoist => return self.replace_with_movement(&Movement::Parent),
             EnterExchangeMode => self.enter_exchange_mode(),
             ReplacePattern { config } => {
                 let selection_set = self.selection_set.clone();
@@ -683,11 +678,7 @@ impl Editor {
         )
     }
 
-    pub(crate) fn delete(
-        &mut self,
-        backward: bool,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
+    pub(crate) fn delete(&mut self, backward: bool) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -2616,7 +2607,6 @@ pub(crate) enum DispatchEditor {
     FilterClear,
     CursorAddToAllSelections,
     CursorKeepPrimaryOnly,
-    Hoist,
     ReplacePattern {
         config: crate::context::LocalSearchConfig,
     },

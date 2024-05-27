@@ -41,7 +41,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
             Editor(SetContent(input.to_string())),
             Editor(MatchLiteral("x".to_string())),
             Editor(SetSelectionMode(SelectionMode::Token)),
-            Editor(Hoist),
+            Editor(Replace(Parent)),
             Expect(CurrentComponentContent("fn main() { x }")),
         ])
     })
@@ -528,9 +528,9 @@ fn raise() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
             Editor(MatchLiteral("c()".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Hoist),
+            Editor(Replace(Parent)),
             Expect(CurrentComponentContent("fn main() { let x = c(); }")),
-            Editor(Hoist),
+            Editor(Replace(Parent)),
             Expect(CurrentComponentContent("fn main() { c() }")),
         ])
     })
@@ -548,7 +548,7 @@ fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
             Editor(MatchLiteral("(a).b()".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Hoist),
+            Editor(Replace(Parent)),
             Expect(CurrentComponentContent("fn main() { (a).b() }")),
         ])
     })
@@ -572,7 +572,7 @@ fn multi_raise() -> anyhow::Result<()> {
             Editor(MoveSelection(FirstChild)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-            Editor(Hoist),
+            Editor(Replace(Parent)),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
             Editor(Undo),
             Expect(CurrentComponentContent(

@@ -3,9 +3,6 @@ use super::SelectionMode;
 pub(crate) struct Bookmark;
 
 impl SelectionMode for Bookmark {
-    fn name(&self) -> &'static str {
-        "BOOKMARK"
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,

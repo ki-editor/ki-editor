@@ -4,9 +4,6 @@ use itertools::Itertools;
 pub(crate) struct TopNode;
 
 impl SelectionMode for TopNode {
-    fn name(&self) -> &'static str {
-        "TOP NODE"
-    }
     fn iter<'a>(
         &self,
         params: super::SelectionModeParams<'a>,

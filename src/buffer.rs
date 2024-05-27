@@ -96,7 +96,7 @@ impl Buffer {
         &self.decorations
     }
     pub(crate) fn set_decorations(&mut self, decorations: &[Decoration]) {
-        self.decorations = decorations.to_owned();
+        decorations.clone_into(&mut self.decorations)
     }
 
     pub(crate) fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {

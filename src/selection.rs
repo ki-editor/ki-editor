@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::ops::{Add, Range, Sub};
+use std::ops::{Add, Sub};
 
 use ropey::Rope;
 
@@ -244,7 +244,7 @@ impl SelectionSet {
         } else {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
-            self.apply_mut(|selection| -> anyhow::Result<()> {
+            let _ = self.apply_mut(|selection| -> anyhow::Result<()> {
                 selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
                     .or_else(|| context.get_clipboard_content().map(Rope::from));
                 Ok(())
@@ -369,7 +369,7 @@ impl SelectionSet {
             .collect_vec()
             .split_first()
         {
-            self.primary = head.to_owned();
+            head.clone_into(&mut self.primary);
             self.secondary = tail.to_vec();
         };
         Ok(())
@@ -742,7 +742,7 @@ impl Selection {
 
     /// Returns whether self.initial_range and self.range is swapped
     fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
-        let range_x = self.initial_range.unwrap_or_else(|| self.range.clone());
+        let range_x = self.initial_range.unwrap_or(self.range);
         let range_y = self.range;
         let (head, tail) = if range_x < range_y {
             (range_x, range_y)
@@ -828,15 +828,5 @@ impl CharIndex {
         } else {
             *self - change.unsigned_abs()
         }
-    }
-}
-
-pub trait RangeCharIndex {
-    fn to_usize_range(&self) -> Range<usize>;
-}
-
-impl RangeCharIndex for CharIndexRange {
-    fn to_usize_range(&self) -> Range<usize> {
-        self.start.0..self.end.0
     }
 }

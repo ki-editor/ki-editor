@@ -4,9 +4,6 @@ use crate::selection_mode::ApplyMovementResult;
 pub(crate) struct LineFull;
 
 impl SelectionMode for LineFull {
-    fn name(&self) -> &'static str {
-        "LINE(FULL)"
-    }
     fn first_child(
         &self,
         params: super::SelectionModeParams,

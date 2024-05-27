@@ -129,7 +129,6 @@ impl ApplyMovementResult {
 }
 
 pub trait SelectionMode {
-    fn name(&self) -> &'static str;
     /// NOTE: this method should not be used directly,
     /// Use `iter_filtered` instead.
     /// I wish to have private trait methods :(
@@ -510,41 +509,6 @@ pub trait SelectionMode {
 
         assert_eq!(expected, actual);
     }
-
-    #[cfg(test)]
-    fn generate_selections(
-        &self,
-        buffer: &Buffer,
-        movement: Movement,
-        up_to: usize,
-        initial_range: CharIndexRange,
-    ) -> anyhow::Result<Vec<String>> {
-        let params = SelectionModeParams {
-            buffer,
-            current_selection: &Selection::default(),
-            cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
-        };
-        Ok((0..up_to)
-            .try_fold(
-                (initial_range, Vec::new()),
-                |result, _| -> anyhow::Result<_> {
-                    let (range, mut results) = result;
-                    let selection = self.apply_movement(
-                        SelectionModeParams {
-                            current_selection: &Selection::new(range),
-                            ..params
-                        },
-                        movement,
-                    );
-
-                    let parent_range = selection.unwrap().unwrap().selection.range();
-                    results.push(buffer.slice(&parent_range)?.to_string());
-                    Ok((parent_range, results))
-                },
-            )?
-            .1)
-    }
 }
 
 #[cfg(test)]
@@ -567,9 +531,6 @@ mod test_selection_mode {
 
     struct Dummy;
     impl SelectionMode for Dummy {
-        fn name(&self) -> &'static str {
-            "dummy"
-        }
         fn iter<'a>(
             &'a self,
             _: super::SelectionModeParams<'a>,
@@ -666,9 +627,6 @@ mod test_selection_mode {
         };
         struct Dummy;
         impl SelectionMode for Dummy {
-            fn name(&self) -> &'static str {
-                "dummy"
-            }
             fn iter<'a>(
                 &'a self,
                 _: super::SelectionModeParams<'a>,

@@ -15,9 +15,6 @@ impl Vertical {
 }
 
 impl SelectionMode for Vertical {
-    fn name(&self) -> &'static str {
-        "VERTICAL"
-    }
     fn iter<'a>(
         &'a self,
         SelectionModeParams { buffer, .. }: super::SelectionModeParams<'a>,

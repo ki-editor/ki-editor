@@ -27,9 +27,6 @@ impl LocalQuickfix {
 }
 
 impl SelectionMode for LocalQuickfix {
-    fn name(&self) -> &'static str {
-        "LOCAL QUICKFIX"
-    }
     fn iter<'a>(
         &'a self,
         _: super::SelectionModeParams<'a>,
