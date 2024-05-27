@@ -530,10 +530,9 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleLspNotification(notification) => {
                 self.handle_lsp_notification(notification)?
             }
-            #[cfg(test)]
             Dispatch::SetTheme(theme) => {
                 let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme);
+                self.context = context.set_theme(theme.clone());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
@@ -558,6 +557,7 @@ impl<T: Frontend> App<T> {
             Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
             Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
+            Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
         }
         Ok(())
     }
@@ -1796,6 +1796,26 @@ impl<T: Frontend> App<T> {
     fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
         self.context.push_history_prompt(key, line)
     }
+
+    fn open_theme_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: crate::themes::themes()
+                    .into_iter()
+                    .map(|theme| {
+                        DropdownItem::new(theme.name.to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::SetTheme(theme.clone())))
+                    })
+                    .collect_vec(),
+                title: "Theme".to_string(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+            },
+            PromptHistoryKey::Theme,
+            None,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1867,7 +1887,6 @@ impl Dispatches {
 #[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub(crate) enum Dispatch {
-    #[cfg(test)]
     SetTheme(crate::themes::Theme),
     CloseCurrentWindow,
     OpenFilePicker(FilePickerKind),
@@ -2001,6 +2020,7 @@ pub(crate) enum Dispatch {
         key: PromptHistoryKey,
         line: String,
     },
+    OpenThemePrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

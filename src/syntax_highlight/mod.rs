@@ -4,7 +4,7 @@ use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter}
 
 use crate::{
     app::AppMessage, char_index_range::apply_edit, components::component::ComponentId,
-    grid::StyleKey, themes::HIGHLIGHT_NAMES,
+    grid::StyleKey, themes::highlight_names,
 };
 use shared::language::Language;
 
@@ -43,7 +43,7 @@ impl GetHighlightConfig for Language {
             self.locals_query().unwrap_or_default(),
         )?;
 
-        config.configure(crate::themes::HIGHLIGHT_NAMES);
+        config.configure(crate::themes::highlight_names().as_slice());
 
         Ok(Some(config))
     }
@@ -73,7 +73,7 @@ impl Highlight for HighlightConfiguration {
                 }
                 HighlightEvent::Source { start, end } => {
                     if let Some(highlight) = highlight {
-                        if let Some(style_key) = HIGHLIGHT_NAMES.get(highlight.0) {
+                        if let Some(style_key) = highlight_names().get(highlight.0) {
                             let style_key = StyleKey::Syntax(style_key.to_string());
                             highlighted_spans.push(HighlighedSpan {
                                 byte_range: start..end,

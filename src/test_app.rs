@@ -1247,7 +1247,7 @@ fn diagnostic_severity_decoration_precedence() -> Result<(), anyhow::Error> {
         };
         Box::new([
             App(OpenFile(s.foo_rs())),
-            App(SetTheme(theme)),
+            App(SetTheme(theme.clone())),
             Editor(SetContent(
                 "who lives in a pineapple? spongebob squarepants".to_string(),
             )),

@@ -50,6 +50,7 @@ pub(crate) enum PromptHistoryKey {
     CodeAction,
     #[cfg(test)]
     Null,
+    Theme,
 }
 
 impl Prompt {

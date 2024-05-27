@@ -18,7 +18,7 @@ use crate::{
 pub(crate) struct Context {
     clipboard: Clipboard,
     mode: Option<GlobalMode>,
-    theme: Box<Theme>,
+    theme: Theme,
 
     #[cfg(test)]
     highlight_configs: crate::syntax_highlight::HighlightConfigs,
@@ -63,7 +63,7 @@ impl Default for Context {
     fn default() -> Self {
         Self {
             clipboard: Clipboard::new(),
-            theme: Box::<Theme>::default(),
+            theme: Theme::default(),
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
@@ -103,12 +103,8 @@ impl Context {
         &self.theme
     }
 
-    #[cfg(test)]
     pub(crate) fn set_theme(self, theme: Theme) -> Self {
-        Self {
-            theme: Box::new(theme),
-            ..self
-        }
+        Self { theme, ..self }
     }
 
     #[cfg(test)]

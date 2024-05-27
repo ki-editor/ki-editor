@@ -91,6 +91,10 @@ nary_tree = "0.4.3"
 name-variant = "0.1.0"
 textwrap = "0.16.1"
 nucleo = "0.5.0"
+strum = "0.26.2"
+strum_macros = "0.26.2"
+serde_json5 = "0.1.0"
+vscode_theme = "0.2.0"
 
 [dev-dependencies]
 serial_test = "2.0.0"

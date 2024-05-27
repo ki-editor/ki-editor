@@ -1,4 +1,5 @@
 pub mod canonicalized_path;
+pub mod download;
 pub(crate) mod formatter;
 pub mod grammar;
 pub mod icons;

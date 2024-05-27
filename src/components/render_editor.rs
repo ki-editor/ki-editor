@@ -216,11 +216,11 @@ impl Editor {
                 source: Source::StyleKey(highlighted_span.style_key),
             })
             .collect_vec();
-        let custom_regex_highlights = lazy_regex::regex!("#[0-9a-f]{6}")
+        let custom_regex_highlights = lazy_regex::regex!("(?i)#[0-9a-f]{6}")
             .find_iter(&rope.to_string())
             .map(|m| (m.as_str().to_string(), m.range()))
             .filter_map(|(hex, range)| {
-                let color = crate::themes::Color::from_hex(hex.clone()).ok()?;
+                let color = crate::themes::Color::from_hex(&hex).ok()?;
                 Some(HighlightSpan {
                     set_symbol: None,
                     is_cursor: false,

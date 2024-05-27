@@ -624,13 +624,13 @@ impl Editor {
                         title: "Find".to_string(),
                         keymaps: Keymaps::new(
                             &[
-                                ("g", "Git status", FilePickerKind::GitStatus),
+                                ("b", "Buffers", FilePickerKind::Opened),
                                 (
                                     "f",
                                     "Files (Not git ignored)",
                                     FilePickerKind::NonGitIgnored,
                                 ),
-                                ("b", "Buffers", FilePickerKind::Opened),
+                                ("g", "Git status", FilePickerKind::GitStatus),
                             ]
                             .into_iter()
                             .map(|(key, description, kind)| {
@@ -649,6 +649,11 @@ impl Editor {
                                     ),
                                 )
                             }))
+                            .chain(Some(Keymap::new(
+                                "t",
+                                "Theme".to_string(),
+                                Dispatch::OpenThemePrompt,
+                            )))
                             .collect_vec(),
                         ),
                     }])
