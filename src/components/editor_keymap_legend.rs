@@ -230,6 +230,7 @@ impl Editor {
                     "Extend Selection (Previous)".to_string(),
                     Dispatch::ToEditor(ExtendSelection { forward: false }),
                 ),
+                Keymap::new("h", "Hoist".to_string(), Dispatch::ToEditor(Hoist)),
                 Keymap::new(
                     "m",
                     "Mark (Toggle)".to_string(),
@@ -256,9 +257,14 @@ impl Editor {
                     Dispatch::ToEditor(Paste(Direction::Start)),
                 ),
                 Keymap::new(
-                    "!",
-                    "Transform".to_string(),
-                    Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
+                    "q",
+                    "Add Cursor (Next)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::AddCursor(Movement::Next)),
+                ),
+                Keymap::new(
+                    "Q",
+                    "Add Cursor (Previous)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::AddCursor(Movement::Previous)),
                 ),
                 Keymap::new(
                     "r",
@@ -275,9 +281,23 @@ impl Editor {
                     "Replace with pattern".to_string(),
                     Dispatch::ToEditor(ReplaceWithPattern),
                 ),
+                Keymap::new(
+                    "x",
+                    "Exchange (Next)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::Exchange(Movement::Next)),
+                ),
+                Keymap::new(
+                    "X",
+                    "Exchange (Previous)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::Exchange(Movement::Previous)),
+                ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
-                Keymap::new("h", "Hoist".to_string(), Dispatch::ToEditor(Hoist)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
+                Keymap::new(
+                    "!",
+                    "Transform".to_string(),
+                    Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
+                ),
             ]),
         }
     }
@@ -444,38 +464,6 @@ impl Editor {
         }
     }
 
-    pub(crate) fn keymap_movement_modes(&self) -> KeymapLegendSection {
-        KeymapLegendSection {
-            title: "Movement-action".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    ";",
-                    "Replace".to_string(),
-                    Dispatch::ToEditor(EnterReplaceMode),
-                ),
-                Keymap::new(
-                    "q",
-                    "Add Cursor (Next)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::AddCursor(Movement::Next)),
-                ),
-                Keymap::new(
-                    "Q",
-                    "Add Cursor (Previous)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::AddCursor(Movement::Previous)),
-                ),
-                Keymap::new(
-                    "x",
-                    "Exchange (Next)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::Exchange(Movement::Next)),
-                ),
-                Keymap::new(
-                    "X",
-                    "Exchange (Previous)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::Exchange(Movement::Previous)),
-                ),
-            ]),
-        }
-    }
     pub(crate) fn keymap_others(&self, context: &Context) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Others".to_string(),
@@ -484,6 +472,11 @@ impl Editor {
                     "space",
                     "Search (List)".to_string(),
                     Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
+                ),
+                Keymap::new(
+                    "\\",
+                    "Movement-action submode".to_string(),
+                    Dispatch::ShowKeymapLegend(self.movement_action_submode_keymap_legend_config()),
                 ),
                 Keymap::new(
                     "'",
@@ -512,6 +505,33 @@ impl Editor {
                     Dispatch::RemainOnlyCurrentComponent,
                 ),
             ]),
+        }
+    }
+
+    pub(crate) fn movement_action_submode_keymap_legend_config(
+        &self,
+    ) -> super::keymap_legend::KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Movement-action submodes".to_string(),
+            body: KeymapLegendBody::SingleSection {
+                keymaps: Keymaps::new(&[
+                    Keymap::new(
+                        "r",
+                        "Replace".to_string(),
+                        Dispatch::ToEditor(EnterReplaceMode),
+                    ),
+                    Keymap::new(
+                        "q",
+                        "Multi-cursor".to_string(),
+                        Dispatch::ToEditor(EnterMultiCursorMode),
+                    ),
+                    Keymap::new(
+                        "x",
+                        "Exchange".to_string(),
+                        Dispatch::ToEditor(EnterExchangeMode),
+                    ),
+                ]),
+            },
         }
     }
 
@@ -544,7 +564,6 @@ impl Editor {
                     self.keymap_other_movements(),
                     self.keymap_selection_modes(context),
                     self.keymap_actions(),
-                    self.keymap_movement_modes(),
                     self.keymap_others(context),
                     self.keymap_universal(),
                 ]
