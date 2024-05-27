@@ -57,9 +57,6 @@ impl Regex {
 }
 
 impl SelectionMode for Regex {
-    fn name(&self) -> &'static str {
-        "REGEX"
-    }
     fn iter<'a>(
         &'a self,
         _params: super::SelectionModeParams<'a>,

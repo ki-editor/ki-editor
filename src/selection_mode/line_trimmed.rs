@@ -4,9 +4,6 @@ use crate::selection_mode::ApplyMovementResult;
 pub(crate) struct LineTrimmed;
 
 impl SelectionMode for LineTrimmed {
-    fn name(&self) -> &'static str {
-        "LINE(TRIMMED)"
-    }
     fn parent(
         &self,
         params: super::SelectionModeParams,

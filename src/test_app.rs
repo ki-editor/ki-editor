@@ -680,7 +680,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
             // Delete the first line of main.rs
             App(OpenFile(s.main_rs().clone())),
             Editor(SetSelectionMode(LineTrimmed)),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
             Editor(Insert("// Hello".to_string())),
@@ -774,7 +774,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
             })),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
-            Editor(Delete { cut: false }),
+            Editor(Delete { backward: false }),
             Editor(Insert(
                 "
 fn first () {

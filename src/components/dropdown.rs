@@ -81,15 +81,6 @@ impl From<String> for DropdownItem {
     }
 }
 
-pub trait FromVec<T: Clone + Into<DropdownItem>> {
-    fn from(value: Vec<T>) -> Vec<DropdownItem>
-    where
-        Self: Sized,
-    {
-        value.into_iter().map(|v| v.into()).collect()
-    }
-}
-
 pub(crate) struct Dropdown {
     title: String,
     filter: String,

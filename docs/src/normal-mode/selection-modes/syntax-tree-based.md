@@ -26,11 +26,11 @@ Keybinding: `s`
 
 | Movement                                           | Meaning                          |
 | -------------------------------------------------- | -------------------------------- |
-| [Previous/Next](../core-movements.md#previousnext) | Previous/Next named sibling node |
+| [Previous/Next](../core-movements.md#nextprevious) | Previous/Next named sibling node |
 | Up                                                 | Parent largest node              |
 | Down                                               | First named child node           |
 | Current                                            | Largest node                     |
-| Fly                                                | Fly to largest node              |
+| Jump                                                | Jump to largest node              |
 
 ### Largest Node
 
@@ -68,11 +68,11 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 
 | Movement                                           | Meaning                                          |
 | -------------------------------------------------- | ------------------------------------------------ |
-| [Previous/Next](../core-movements.md#previousnext) | Previous/Next sibling node                       |
+| [Previous/Next](../core-movements.md#nextprevious) | Previous/Next sibling node                       |
 | Up                                                 | Parent largest node                              |
 | Down                                               | First child                                      |
 | Current                                            | Smallest node that matches the current selection |
-| Fly                                                | Fly to smallest node                              |
+| Jump                                                | Jump to smallest node                              |
 
 Syntax Tree (Fine) is useful when you start to expand the selection starting from the current token.
 

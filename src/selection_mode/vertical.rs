@@ -4,38 +4,49 @@ use crate::selection::Selection;
 
 use super::{ByteRange, SelectionMode, SelectionModeParams};
 
-pub(crate) struct Column {
+pub(crate) struct Vertical {
     current_column: usize,
 }
 
-impl Column {
+impl Vertical {
     pub(crate) fn new(current_column: usize) -> Self {
         Self { current_column }
     }
 }
 
-impl SelectionMode for Column {
+impl SelectionMode for Vertical {
     fn iter<'a>(
         &'a self,
-        SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-            ..
-        }: super::SelectionModeParams<'a>,
+        SelectionModeParams { buffer, .. }: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let char_index = current_selection.to_char_index(cursor_direction);
-        let line = buffer.char_to_line(char_index)?;
-        let line_start_char_index = buffer.line_to_char(line)?;
-        let current_line = buffer.get_line_by_char_index(char_index)?;
-        let line_len = line_len_without_new_line(&current_line);
-
-        Ok(Box::new((0..line_len).flat_map(
-            move |column| -> anyhow::Result<ByteRange> {
-                let byte = buffer.char_to_byte(line_start_char_index + column)?;
-                Ok(ByteRange::new(byte..byte + 1))
-            },
-        )))
+        let lines = buffer.rope().lines();
+        Ok(Box::new(
+            lines
+                .enumerate()
+                .filter_map(|(line_index, line)| {
+                    let column = {
+                        let (char, column) = line
+                            .get_char(self.current_column)
+                            .map(|char| (char, self.current_column))
+                            .or_else(|| {
+                                let last_column = line.len_chars().saturating_sub(1);
+                                line.get_char(last_column).map(|char| (char, last_column))
+                            })?;
+                        if char == '\n' {
+                            let second_last_column = line.len_chars().saturating_sub(2);
+                            line.get_char(second_last_column)
+                                .map(|_| second_last_column)?
+                        } else {
+                            column
+                        }
+                    };
+                    Some(crate::position::Position::new(line_index, column))
+                })
+                .flat_map(|position| -> anyhow::Result<ByteRange> {
+                    let byte_start = buffer.position_to_byte(position)?;
+                    Ok(ByteRange::new(byte_start..byte_start + 1))
+                }),
+        ))
     }
     fn up(
         &self,
@@ -67,7 +78,7 @@ fn line_len_without_new_line(current_line: &ropey::Rope) -> usize {
     }
 }
 
-impl Column {
+impl Vertical {
     fn move_vertically(
         &self,
         go_up: bool,
@@ -97,7 +108,7 @@ impl Column {
 }
 
 #[cfg(test)]
-mod test_column {
+mod test_vertical {
     use crate::{
         buffer::Buffer,
         selection::{Filters, Selection},
@@ -107,24 +118,20 @@ mod test_column {
 
     #[test]
     fn case_1() -> anyhow::Result<()> {
-        let buffer = Buffer::new(None, "foo\nspam");
+        let buffer = Buffer::new(None, "spam\nfoo\nbarz\nwliaputs\nyu");
 
-        // First line
-        let selection = Selection::default();
-        Column::new(0).assert_all_selections(
+        Vertical::new(3).assert_all_selections(
             &buffer,
-            selection,
-            &[(0..1, "f"), (1..2, "o"), (2..3, "o")],
+            Selection::default(),
+            &[
+                (3..4, "m"),
+                (7..8, "o"),
+                (12..13, "z"),
+                (17..18, "a"),
+                (24..25, "u"),
+            ],
         );
 
-        // Second line
-        let char_index = buffer.line_to_char(1)?;
-        let selection = Selection::default().set_range((char_index..char_index).into());
-        Column::new(0).assert_all_selections(
-            &buffer,
-            selection,
-            &[(4..5, "s"), (5..6, "p"), (6..7, "a"), (7..8, "m")],
-        );
         Ok(())
     }
 
@@ -144,8 +151,12 @@ gam
 
         let test = |selected_line: usize, move_up: bool, expected: &str| {
             let start = buffer.line_to_char(selected_line).unwrap();
-            let selection_mode = Column::new(4);
-            let method = if move_up { Column::up } else { Column::down };
+            let selection_mode = Vertical::new(4);
+            let method = if move_up {
+                Vertical::up
+            } else {
+                Vertical::down
+            };
             let result = method(
                 &selection_mode,
                 crate::selection_mode::SelectionModeParams {

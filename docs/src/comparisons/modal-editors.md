@@ -51,7 +51,14 @@ The following table demonstrates the incoherence of Helix keybindings [^5]:
 
 As you can see, there's no single logical categorization for these keymaps, they are either lowercase-uppercase, normal-alt, left-right bracket, or outright unexplainable.
 
-> In Ki, all of these boil down to `h` and `l` only!
+> In Ki, all of these boil down to `n` and `N` only!
+
+Ok, how is this possible? It's possible because you have to choose your selection mode first before you move.
+
+For example:
+
+1. If you want to move to the next word, you enter the Word selection mode (by pressing `w`) first before pressing `n` (move to next selection).
+2. If you want to move to the next line, you enter the Line selection mode (by pressing `l`) first before pressing `n`
 
 You only have to memorize the movement keybindings once, and then the selection mode keybindings, and you will be able to explore new ways of navigation on your own.
 
