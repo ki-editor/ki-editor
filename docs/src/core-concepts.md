@@ -50,15 +50,7 @@ That being said, the following components should be configurable:
    - Tree-sitter grammar
    - LSP
 
-## 4. Vim keybindings-compatible
-
-This is because I do not want to alienate existing modal editor users, where most of their keybindings are also based on Vim.
-
-A significant portions of Ki's keybindings are based on Vim's keybindings, but **repurposed**.
-
-For example, `hjkl` is also part of Ki, however, their meaning has been generalized to not only work for lines and columns, as mentioned [above](#1).
-
-## 5. Keybindings synergy
+## 4. Keybindings synergy
 
 Most keybindings in Ki synergize with one another, though a minority of them are lone rangers.
 
