@@ -66,9 +66,6 @@ impl CaseAgnostic {
 }
 
 impl SelectionMode for CaseAgnostic {
-    fn name(&self) -> &'static str {
-        "CASE AGNOSTIC"
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,

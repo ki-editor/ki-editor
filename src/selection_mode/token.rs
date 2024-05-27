@@ -5,9 +5,6 @@ use crate::selection_mode::SelectionMode;
 use super::{ByteRange, TopNode};
 
 impl SelectionMode for Token {
-    fn name(&self) -> &'static str {
-        "TOKEN"
-    }
     fn iter<'a>(
         &self,
         params: super::SelectionModeParams<'a>,

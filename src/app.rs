@@ -73,13 +73,6 @@ pub(crate) struct App<T: Frontend> {
     file_path_history: History<CanonicalizedPath>,
 }
 
-struct Null;
-impl std::fmt::Display for Null {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("NULL")
-    }
-}
-
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
 impl<T: Frontend> App<T> {
     #[cfg(test)]

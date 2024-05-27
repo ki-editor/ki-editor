@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::ops::{Add, Range, Sub};
+use std::ops::{Add, Sub};
 
 use ropey::Rope;
 
@@ -211,15 +211,16 @@ impl SelectionSet {
         });
     }
 
-    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> Vec<A>
+    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> (A, Vec<A>)
     where
         F: Fn(&mut Selection) -> A,
     {
-        let mut result = vec![f(&mut self.primary)];
+        let head = f(&mut self.primary);
+        let mut tail = vec![];
         for selection in &mut self.secondary {
-            result.push(f(selection));
+            tail.push(f(selection));
         }
-        result
+        (head, tail)
     }
 
     pub(crate) fn copy(
@@ -243,7 +244,7 @@ impl SelectionSet {
         } else {
             // Otherwise, don't copy to clipboard, since there's multiple selection,
             // we don't know which one to copy.
-            self.apply_mut(|selection| -> anyhow::Result<()> {
+            let _ = self.apply_mut(|selection| -> anyhow::Result<()> {
                 selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
                     .or_else(|| context.get_clipboard_content().map(Rope::from));
                 Ok(())
@@ -368,7 +369,7 @@ impl SelectionSet {
             .collect_vec()
             .split_first()
         {
-            self.primary = head.to_owned();
+            head.clone_into(&mut self.primary);
             self.secondary = tail.to_vec();
         };
         Ok(())
@@ -417,6 +418,19 @@ impl SelectionSet {
     pub(crate) fn unset_initial_range(&mut self) {
         self.apply_mut(|selection| selection.initial_range = None);
     }
+
+    pub(crate) fn enable_extension(&mut self) {
+        self.apply_mut(|selection| selection.enable_extension());
+    }
+
+    pub(crate) fn is_extended(&self) -> bool {
+        self.primary.initial_range.is_some()
+    }
+
+    pub(crate) fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
+        self.apply_mut(|selection| selection.set_initial_range_position(at_tail))
+            .0
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -447,6 +461,7 @@ pub(crate) enum SelectionMode {
     // Bookmark
     Bookmark,
     LineFull,
+    Vertical,
 }
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
@@ -476,6 +491,7 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
+            SelectionMode::Vertical => "VERTICAL".to_string(),
         }
     }
 
@@ -518,6 +534,12 @@ impl SelectionMode {
                 }
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
+            SelectionMode::Vertical => {
+                let current_column = buffer
+                    .char_to_position(current_selection.to_char_index(cursor_direction))?
+                    .column;
+                Box::new(selection_mode::Vertical::new(current_column))
+            }
             SelectionMode::SyntaxTreeCoarse => {
                 Box::new(selection_mode::SyntaxTree { coarse: true })
             }
@@ -656,7 +678,7 @@ impl Selection {
     pub(crate) fn toggle_visual_mode(&mut self) {
         match self.initial_range.take() {
             None => {
-                self.initial_range = Some(self.range);
+                self.enable_extension();
             }
             // If highlight mode is enabled, inverse the selection
             Some(initial_range) => {
@@ -712,6 +734,26 @@ impl Selection {
 
     pub(crate) fn is_extended(&self) -> bool {
         self.initial_range.is_some()
+    }
+
+    fn enable_extension(&mut self) {
+        self.initial_range = Some(self.range);
+    }
+
+    /// Returns whether self.initial_range and self.range is swapped
+    fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
+        let range_x = self.initial_range.unwrap_or(self.range);
+        let range_y = self.range;
+        let (head, tail) = if range_x < range_y {
+            (range_x, range_y)
+        } else {
+            (range_y, range_x)
+        };
+        let new_range = if at_tail { tail } else { head };
+        self.initial_range = Some(if at_tail { head } else { tail });
+        let swapped = new_range != self.range;
+        self.range = new_range;
+        swapped
     }
 }
 
@@ -786,15 +828,5 @@ impl CharIndex {
         } else {
             *self - change.unsigned_abs()
         }
-    }
-}
-
-pub trait RangeCharIndex {
-    fn to_usize_range(&self) -> Range<usize>;
-}
-
-impl RangeCharIndex for CharIndexRange {
-    fn to_usize_range(&self) -> Range<usize> {
-        self.start.0..self.end.0
     }
 }

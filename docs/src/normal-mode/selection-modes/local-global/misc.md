@@ -27,17 +27,17 @@ Keybinding: `q`
 When getting selections using the Global mode, the matches will be stored into
 the Quickfix List.
 
-The quickfix selection mode behaves slightly differently in the Global/Native context:
+The quickfix selection mode behaves slightly differently in the Global/Local context:
 
 | Context | Meaning                                                              |
 | ------- | -------------------------------------------------------------------- |
 | Global  | Navigate using the current quickfix list                             |
-| Native  | Use matches of the current quickfix list that is of the current file |
+| Local  | Use matches of the current quickfix list that is of the current file |
 
 ### When is global quickfix useful?
 
 When you entered another selection mode but wish to use back the quickfix list.
 
-### When is native quickfix useful?
+### When is local quickfix useful?
 
 When you wanted to use Multi-cursor with the quickfix matches of the current file.

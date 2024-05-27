@@ -13,9 +13,6 @@ impl Custom {
 }
 
 impl SelectionMode for Custom {
-    fn name(&self) -> &'static str {
-        "CUSTOM"
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,

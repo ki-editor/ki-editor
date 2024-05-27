@@ -39,9 +39,6 @@ impl AstGrep {
 }
 
 impl SelectionMode for AstGrep {
-    fn name(&self) -> &'static str {
-        "AST GREP"
-    }
     fn iter<'a>(
         &'a self,
         _params: super::SelectionModeParams<'a>,

@@ -21,9 +21,6 @@ impl Diagnostic {
 }
 
 impl SelectionMode for Diagnostic {
-    fn name(&self) -> &'static str {
-        "DIAGNOSTIC"
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,

@@ -1,10 +1,12 @@
-# Movement-Actions
+# Movement-action Submodes
 
 Movement-actions are actions that have to be used with [Core Movements](./core-movements.md) and [Selection Modes](./selection-modes/index.md).
 
 Movement-actions should be considered as the submodes of the Normal mode.
 
 To return back to normal mode from one of these movement-action modes, press `esc`.
+
+To access these submodes, press `\`.
 
 ## 1. Exchange
 
@@ -35,7 +37,7 @@ f(1 + 1, x);
 
 ### Tips
 
-Since exchange works with every core movement, it can be used with [Fly](./core-movements.md#fly) and [Syntax Tree (Coarse)][1] to swap two distant expressions.
+Since exchange works with every core movement, it can be used with [Jump](./core-movements.md#jump) and [Syntax Tree (Coarse)][1] to swap two distant expressions.
 
 For example, using the following Rust code:
 
@@ -52,7 +54,7 @@ else {
 ...we can swap the body of the if-else expression by:
 
 1. Set selection mode to [Synax Tree (Coarse)][1] by pressing `s`
-2. Fly to the body of `if` by pressing `f {`, then press the letter that appears on top of the first `{`.
+2. Jump to the body of `if` by pressing `f {`, then press the letter that appears on top of the first `{`.
 3. Enter Exchange submode by pressing `x`
 4. Press `f {`, then press the letter that appears on top of the second `{`
 5. Done
@@ -74,7 +76,7 @@ hello ki, hello vim, hello helix
 
 Suppose:
 
-- The current selection mode is [Find Literal "hello"](./selection-modes/native-global/text-search.md#1-literal)
+- The current selection mode is [Find Literal "hello"](./selection-modes/local-global/text-search.md#1-literal)
 - The current selection is the first `hello`
 - The current submode is Multi-cursor
 
@@ -82,7 +84,7 @@ Suppose:
 
 ## 3. Replace
 
-Keybinding: `;`[^1]
+Keybinding: `r`
 
 In the Replace submode, every core movement means:
 
@@ -109,7 +111,7 @@ However, that's inefficient, and that can be shortened by:
 1. Select `hello`
 1. Set selection mode to [Word (Short)](./selection-modes/regex-based.md#word-short)
 1. [Copy](./actions/index.md#copy)
-1. [Enable selection extension](./actions/index.md#visual)
+1. [Enable selection extension](./actions/index.md#extend)
 1. Move to `world` (by pressing `l`)
 1. [Replace](./actions/index.md#replace)
 
@@ -121,12 +123,11 @@ Here's how it works using the Replace mode (starting from step 3):
 4. Press `l`
 5. Press `esc` to return to Normal mode
 
-[^1]: Might be changed in the future, `;` is just a temporary assignment
-[^2]:
+[^1]:
     The rigorous readers might have noticed the similarity of the Replace submode
-    with the [Raise](./actions/index.md#raise) action, that is in fact the case,
-    under the hood, Raise is but a specialized version of the Replace mode which
+    with the [Hoist](./actions/index.md#hoist) action, that is in fact the case,
+    under the hood, Hoist is but a specialized version of the Replace mode which
     only executes the [Up](./core-movements.md#updown) movement.
 
 [1]: ./selection-modes/syntax-tree-based.md#syntax-tree-coarse
-[2]: ./core-movements.md#previousnext
+[2]: ./core-movements.md#nextprevious

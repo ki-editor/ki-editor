@@ -13,9 +13,6 @@ pub(crate) struct SyntaxTree {
 }
 
 impl SelectionMode for SyntaxTree {
-    fn name(&self) -> &'static str {
-        "SYNTAX TREE"
-    }
     fn jumps(
         &self,
         params: super::SelectionModeParams,

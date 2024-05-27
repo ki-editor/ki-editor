@@ -13,6 +13,7 @@ pub(crate) mod local_quickfix;
 pub(crate) mod regex;
 pub(crate) mod syntax_tree;
 pub(crate) mod top_node;
+pub mod vertical;
 pub(crate) mod word_long;
 pub(crate) mod word_short;
 pub(crate) use self::regex::Regex;
@@ -31,6 +32,7 @@ use std::ops::Range;
 pub(crate) use syntax_tree::SyntaxTree;
 pub(crate) use token::Token;
 pub(crate) use top_node::TopNode;
+pub(crate) use vertical::Vertical;
 pub(crate) use word_long::WordLong;
 pub(crate) use word_short::WordShort;
 
@@ -127,7 +129,6 @@ impl ApplyMovementResult {
 }
 
 pub trait SelectionMode {
-    fn name(&self) -> &'static str;
     /// NOTE: this method should not be used directly,
     /// Use `iter_filtered` instead.
     /// I wish to have private trait methods :(
@@ -198,7 +199,6 @@ pub trait SelectionMode {
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
-            #[cfg(test)]
             Movement::FirstChild => self.first_child(params),
         }
     }
@@ -509,41 +509,6 @@ pub trait SelectionMode {
 
         assert_eq!(expected, actual);
     }
-
-    #[cfg(test)]
-    fn generate_selections(
-        &self,
-        buffer: &Buffer,
-        movement: Movement,
-        up_to: usize,
-        initial_range: CharIndexRange,
-    ) -> anyhow::Result<Vec<String>> {
-        let params = SelectionModeParams {
-            buffer,
-            current_selection: &Selection::default(),
-            cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
-        };
-        Ok((0..up_to)
-            .try_fold(
-                (initial_range, Vec::new()),
-                |result, _| -> anyhow::Result<_> {
-                    let (range, mut results) = result;
-                    let selection = self.apply_movement(
-                        SelectionModeParams {
-                            current_selection: &Selection::new(range),
-                            ..params
-                        },
-                        movement,
-                    );
-
-                    let parent_range = selection.unwrap().unwrap().selection.range();
-                    results.push(buffer.slice(&parent_range)?.to_string());
-                    Ok((parent_range, results))
-                },
-            )?
-            .1)
-    }
 }
 
 #[cfg(test)]
@@ -566,9 +531,6 @@ mod test_selection_mode {
 
     struct Dummy;
     impl SelectionMode for Dummy {
-        fn name(&self) -> &'static str {
-            "dummy"
-        }
         fn iter<'a>(
             &'a self,
             _: super::SelectionModeParams<'a>,
@@ -665,9 +627,6 @@ mod test_selection_mode {
         };
         struct Dummy;
         impl SelectionMode for Dummy {
-            fn name(&self) -> &'static str {
-                "dummy"
-            }
             fn iter<'a>(
                 &'a self,
                 _: super::SelectionModeParams<'a>,

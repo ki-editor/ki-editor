@@ -141,9 +141,9 @@ fn leading_whitespace_count(s: &str) -> usize {
 
 #[derive(Debug, Clone)]
 pub(crate) enum LineDiff {
-    Context(String),
-    Delete(String),
-    Insert(String),
+    Context,
+    Delete,
+    Insert,
 }
 
 fn trim_start(content: String, count: usize) -> String {
@@ -157,9 +157,9 @@ fn trim_start(content: String, count: usize) -> String {
 impl From<&diffy::Line<'_, str>> for LineDiff {
     fn from(value: &diffy::Line<'_, str>) -> Self {
         match value {
-            diffy::Line::Context(string) => LineDiff::Context(string.to_string()),
-            diffy::Line::Delete(string) => LineDiff::Delete(string.to_string()),
-            diffy::Line::Insert(string) => LineDiff::Insert(string.to_string()),
+            diffy::Line::Context(_) => LineDiff::Context,
+            diffy::Line::Delete(_) => LineDiff::Delete,
+            diffy::Line::Insert(_) => LineDiff::Insert,
         }
     }
 }
