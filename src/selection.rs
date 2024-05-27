@@ -211,15 +211,16 @@ impl SelectionSet {
         });
     }
 
-    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> Vec<A>
+    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> (A, Vec<A>)
     where
         F: Fn(&mut Selection) -> A,
     {
-        let mut result = vec![f(&mut self.primary)];
+        let head = f(&mut self.primary);
+        let mut tail = vec![];
         for selection in &mut self.secondary {
-            result.push(f(selection));
+            tail.push(f(selection));
         }
-        result
+        (head, tail)
     }
 
     pub(crate) fn copy(
@@ -416,6 +417,19 @@ impl SelectionSet {
 
     pub(crate) fn unset_initial_range(&mut self) {
         self.apply_mut(|selection| selection.initial_range = None);
+    }
+
+    pub(crate) fn enable_extension(&mut self) {
+        self.apply_mut(|selection| selection.enable_extension());
+    }
+
+    pub(crate) fn is_extended(&self) -> bool {
+        self.primary.initial_range.is_some()
+    }
+
+    pub(crate) fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
+        self.apply_mut(|selection| selection.set_initial_range_position(at_tail))
+            .0
     }
 }
 
@@ -664,7 +678,7 @@ impl Selection {
     pub(crate) fn toggle_visual_mode(&mut self) {
         match self.initial_range.take() {
             None => {
-                self.initial_range = Some(self.range);
+                self.enable_extension();
             }
             // If highlight mode is enabled, inverse the selection
             Some(initial_range) => {
@@ -720,6 +734,26 @@ impl Selection {
 
     pub(crate) fn is_extended(&self) -> bool {
         self.initial_range.is_some()
+    }
+
+    fn enable_extension(&mut self) {
+        self.initial_range = Some(self.range);
+    }
+
+    /// Returns whether self.initial_range and self.range is swapped
+    fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
+        let range_x = self.initial_range.unwrap_or_else(|| self.range.clone());
+        let range_y = self.range;
+        let (head, tail) = if range_x < range_y {
+            (range_x, range_y)
+        } else {
+            (range_y, range_x)
+        };
+        let new_range = if at_tail { tail } else { head };
+        self.initial_range = Some(if at_tail { head } else { tail });
+        let swapped = new_range != self.range;
+        self.range = new_range;
+        swapped
     }
 }
 

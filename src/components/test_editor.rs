@@ -41,7 +41,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
             Editor(SetContent(input.to_string())),
             Editor(MatchLiteral("x".to_string())),
             Editor(SetSelectionMode(SelectionMode::Token)),
-            Editor(Raise),
+            Editor(Hoist),
             Expect(CurrentComponentContent("fn main() { x }")),
         ])
     })
@@ -68,6 +68,34 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["f"])),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["("])),
+        ])
+    })
+}
+
+#[test]
+fn extend_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar baz thing hom oz".to_string())),
+            Editor(MatchLiteral("baz".to_string())),
+            Editor(SetSelectionMode(WordShort)),
+            Editor(ExtendSelection { forward: true }),
+            Expect(CurrentSelectedTexts(&["baz thing"])),
+            Editor(ExtendSelection { forward: true }),
+            Expect(CurrentSelectedTexts(&["baz thing hom"])),
+            Editor(MoveSelection(Previous)),
+            Expect(CurrentSelectedTexts(&["baz thing"])),
+            Editor(ExtendSelection { forward: false }),
+            Editor(ExtendSelection { forward: false }),
+            Expect(CurrentSelectedTexts(&["bar baz thing"])),
+            Editor(ExtendSelection { forward: false }),
+            Expect(CurrentSelectedTexts(&["foo bar baz thing"])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["bar baz thing"])),
+            Editor(ExtendSelection { forward: true }),
+            Editor(ExtendSelection { forward: true }),
+            Expect(CurrentSelectedTexts(&["bar baz thing hom"])),
         ])
     })
 }
@@ -500,9 +528,9 @@ fn raise() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
             Editor(MatchLiteral("c()".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Raise),
+            Editor(Hoist),
             Expect(CurrentComponentContent("fn main() { let x = c(); }")),
-            Editor(Raise),
+            Editor(Hoist),
             Expect(CurrentComponentContent("fn main() { c() }")),
         ])
     })
@@ -520,7 +548,7 @@ fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
             Editor(MatchLiteral("(a).b()".to_string())),
             Editor(SetSelectionMode(SyntaxTreeCoarse)),
-            Editor(Raise),
+            Editor(Hoist),
             Expect(CurrentComponentContent("fn main() { (a).b() }")),
         ])
     })
@@ -544,7 +572,7 @@ fn multi_raise() -> anyhow::Result<()> {
             Editor(MoveSelection(FirstChild)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-            Editor(Raise),
+            Editor(Hoist),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
             Editor(Undo),
             Expect(CurrentComponentContent(

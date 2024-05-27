@@ -61,14 +61,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "j",
-                    "Jump (Word)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ShowJumps {
-                        use_current_selection_mode: false,
-                    }),
-                ),
-                Keymap::new(
-                    "J",
-                    "Jump (Current selection mode)".to_string(),
+                    "Jump".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps {
                         use_current_selection_mode: true,
                     }),
@@ -138,7 +131,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "L",
-                    "Line (Extended)".to_string(),
+                    "Line (Full)".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(LineFull)),
                 ),
                 Keymap::new(
@@ -228,6 +221,16 @@ impl Editor {
                     Dispatch::ToEditor(Delete { backward: true }),
                 ),
                 Keymap::new(
+                    "e",
+                    "Extend Selection (Next)".to_string(),
+                    Dispatch::ToEditor(ExtendSelection { forward: true }),
+                ),
+                Keymap::new(
+                    "E",
+                    "Extend Selection (Previous)".to_string(),
+                    Dispatch::ToEditor(ExtendSelection { forward: false }),
+                ),
+                Keymap::new(
                     "m",
                     "Mark (Toggle)".to_string(),
                     Dispatch::ToEditor(ToggleBookmark),
@@ -273,7 +276,7 @@ impl Editor {
                     Dispatch::ToEditor(ReplaceWithPattern),
                 ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
-                Keymap::new("^", "Raise".to_string(), Dispatch::ToEditor(Raise)),
+                Keymap::new("h", "Hoist".to_string(), Dispatch::ToEditor(Hoist)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
             ]),
         }
@@ -441,35 +444,14 @@ impl Editor {
         }
     }
 
-    pub(crate) fn keymap_modes(&self) -> KeymapLegendSection {
-        KeymapLegendSection {
-            title: "Mode".to_string(),
-            keymaps: Keymaps::new(&[Keymap::new(
-                "e",
-                "Extend selection".to_string(),
-                Dispatch::ToEditor(ToggleVisualMode),
-            )]),
-        }
-    }
-
     pub(crate) fn keymap_movement_modes(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            title: "Movement-action Submodes".to_string(),
+            title: "Movement-action".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     ";",
                     "Replace".to_string(),
                     Dispatch::ToEditor(EnterReplaceMode),
-                ),
-                Keymap::new(
-                    "h",
-                    "Eat (Next)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::Replace(Movement::Next)),
-                ),
-                Keymap::new(
-                    "H",
-                    "Eat (Previous)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::Replace(Movement::Previous)),
                 ),
                 Keymap::new(
                     "q",
@@ -562,7 +544,6 @@ impl Editor {
                     self.keymap_other_movements(),
                     self.keymap_selection_modes(context),
                     self.keymap_actions(),
-                    self.keymap_modes(),
                     self.keymap_movement_modes(),
                     self.keymap_others(context),
                     self.keymap_universal(),
