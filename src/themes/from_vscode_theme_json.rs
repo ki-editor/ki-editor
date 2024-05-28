@@ -16,6 +16,14 @@ struct ZedThemeManiftest {
 struct ZedTheme {
     name: String,
     style: ZedThemeStyles,
+    appearance: Appearance,
+}
+
+#[derive(serde::Deserialize, PartialEq)]
+#[serde(rename_all(deserialize = "lowercase"))]
+enum Appearance {
+    Light,
+    Dark,
 }
 
 #[derive(serde::Deserialize)]
@@ -37,12 +45,22 @@ struct ZedThemeStyles {
     border: String,
     #[serde(rename(deserialize = "text.accent"))]
     text_accent: Option<String>,
+    #[serde(rename(deserialize = "text.muted"))]
+    text_muted: Option<String>,
     players: Vec<ZedThemeStylesPlayer>,
+    default: Option<String>,
+    error: Option<String>,
+    warning: Option<String>,
+    information: Option<String>,
+    hint: Option<String>,
+    #[serde(rename(deserialize = "conflict.background"))]
+    conflict_background: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
 struct ZedThemeStylesPlayer {
     selection: String,
+    cursor: String,
 }
 
 #[derive(serde::Deserialize)]
@@ -105,6 +123,9 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
             let from_hex = |hex: &str| -> anyhow::Result<_> {
                 Ok(Color::from_hex(&hex)?.apply_alpha(background))
             };
+            let from_some_hex = |hex: Option<String>| {
+                hex.and_then(|hex| Some(Color::from_hex(&hex).ok()?.apply_alpha(background)))
+            };
             let text_color = from_hex(&theme.style.text)?;
             let to_style = |highlight_name: HighlightName, style: Option<ZedThemeStyle>| {
                 style.and_then(|style| Some((highlight_name, fg(from_hex(&style.color).ok()?))))
@@ -115,8 +136,20 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                 .first()
                 .and_then(|player| from_hex(&player.selection).ok())
                 .unwrap_or_default();
+            let cursor = {
+                let background = theme
+                    .style
+                    .players
+                    .first()
+                    .and_then(|player| from_hex(&player.cursor).ok())
+                    .unwrap_or_default();
+                let foreground = background.get_contrasting_color();
+                Style::new()
+                    .background_color(background)
+                    .foreground_color(foreground)
+            };
             let parent_lines_background =
-                primary_selection_background.apply_custom_alpha(background, 0.5);
+                primary_selection_background.apply_custom_alpha(background, 0.25);
             let text_accent = theme
                 .style
                 .text_accent
@@ -164,22 +197,12 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                 ui: UiStyles {
                     global_title: Style::new()
                         .foreground_color(text_color)
-                        .set_some_background_color(
-                            theme
-                                .style
-                                .status_bar_background
-                                .as_ref()
-                                .and_then(|color| from_hex(&color).ok()),
-                        ),
+                        .set_some_background_color(from_some_hex(
+                            theme.style.status_bar_background,
+                        )),
                     window_title: Style::new()
                         .foreground_color(text_color)
-                        .set_some_background_color(
-                            theme
-                                .style
-                                .tab_bar_background
-                                .as_ref()
-                                .and_then(|color| from_hex(&color).ok()),
-                        ),
+                        .set_some_background_color(from_some_hex(theme.style.tab_bar_background)),
                     parent_lines_background,
                     jump_mark_odd: Style::new()
                         .background_color(hex!("#b5485d"))
@@ -190,45 +213,52 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                     background_color: background,
                     text_foreground: from_hex(&theme.style.text)?,
                     primary_selection_background,
-                    primary_selection_anchor_background: theme
-                        .style
-                        .players
-                        .first()
-                        .and_then(|player| from_hex(&player.selection).ok())
-                        .unwrap_or_default(),
-                    primary_selection_secondary_cursor: Style::new()
-                        .background_color(hex!("#808080"))
-                        .foreground_color(hex!("#ffffff")),
-                    secondary_selection_background: hex!("#ebebeb"),
-                    secondary_selection_anchor_background: hex!("#d7d7d7"),
-                    secondary_selection_primary_cursor: Style::new()
-                        .background_color(hex!("#000000"))
-                        .foreground_color(hex!("#ffffff")),
-                    secondary_selection_secondary_cursor: Style::new()
-                        .background_color(hex!("#808080"))
-                        .foreground_color(hex!("#ffffff")),
+                    primary_selection_anchor_background: primary_selection_background,
+                    primary_selection_secondary_cursor: cursor,
+                    secondary_selection_background: primary_selection_background,
+                    secondary_selection_anchor_background: primary_selection_background,
+                    secondary_selection_primary_cursor: cursor,
+                    secondary_selection_secondary_cursor: cursor,
                     line_number: Style::new()
                         .set_some_foreground_color(from_hex(&theme.style.editor_line_number).ok()),
-                    line_number_separator: Style::new()
-                        .set_some_foreground_color(from_hex(&theme.style.border).ok()),
-                    bookmark: Style::new().background_color(hex!("#ffcc00")),
-                    possible_selection_background: theme
-                        .style
-                        .search_match_background
-                        .and_then(|color| from_hex(&color).ok())
-                        .unwrap_or_default(),
-                    keymap_hint: Style::new().underline(hex!("#af00db")),
+                    border: Style::new()
+                        .foreground_color(from_hex(&theme.style.border).ok().unwrap_or(text_color))
+                        .background_color(background),
+                    bookmark: Style::new()
+                        .set_some_background_color(from_some_hex(theme.style.conflict_background)),
+                    possible_selection_background: from_some_hex(
+                        theme.style.search_match_background,
+                    )
+                    .unwrap_or_default(),
+                    keymap_hint: Style::new().underline(text_accent),
                     keymap_key: Style::new().bold().foreground_color(text_accent),
-                    keymap_arrow: Style::new().foreground_color(hex!("#808080")),
+                    keymap_arrow: Style::new().set_some_foreground_color(
+                        theme.style.text_muted.and_then(|hex| from_hex(&hex).ok()),
+                    ),
                     fuzzy_matched_char: Style::new()
                         .foreground_color(text_accent)
-                        .underline(text_color),
+                        .underline(text_accent),
                 },
-                diagnostic: DiagnosticStyles::default(),
-                hunk_new_background: hex!("#EBFEED"),
-                hunk_old_background: hex!("#FCECEA"),
-                hunk_old_emphasized_background: hex!("#F9D8D6"),
-                hunk_new_emphasized_background: hex!("#BAF0C0"),
+                diagnostic: {
+                    let default = DiagnosticStyles::default();
+                    let undercurl = |hex: Option<String>, default: Style| {
+                        from_some_hex(hex)
+                            .map(|color| Style::new().undercurl(color))
+                            .unwrap_or(default)
+                    };
+                    DiagnosticStyles {
+                        error: undercurl(theme.style.error, default.error),
+                        warning: undercurl(theme.style.warning, default.error),
+                        information: undercurl(theme.style.information, default.error),
+                        hint: undercurl(theme.style.hint, default.error),
+                        default: undercurl(theme.style.default, default.error),
+                    }
+                },
+                hunk: if theme.appearance == Appearance::Light {
+                    super::HunkStyles::light()
+                } else {
+                    super::HunkStyles::dark()
+                },
             })
         })
         .collect_vec())

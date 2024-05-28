@@ -18,10 +18,32 @@ pub(crate) struct Theme {
     pub(crate) syntax: SyntaxStyles,
     pub(crate) ui: UiStyles,
     pub(crate) diagnostic: DiagnosticStyles,
-    pub(crate) hunk_old_background: Color,
-    pub(crate) hunk_new_background: Color,
-    pub(crate) hunk_old_emphasized_background: Color,
-    pub(crate) hunk_new_emphasized_background: Color,
+    pub(crate) hunk: HunkStyles,
+}
+#[derive(Debug, PartialEq, Eq, Clone)]
+struct HunkStyles {
+    pub(crate) old_background: Color,
+    pub(crate) new_background: Color,
+    pub(crate) old_emphasized_background: Color,
+    pub(crate) new_emphasized_background: Color,
+}
+impl HunkStyles {
+    fn dark() -> Self {
+        Self {
+            new_background: hex!("#383D2C"),
+            old_background: hex!("#47221F"),
+            old_emphasized_background: hex!("#682520"),
+            new_emphasized_background: hex!("#4E5A32"),
+        }
+    }
+    fn light() -> Self {
+        Self {
+            new_background: hex!("#EBFEED"),
+            old_background: hex!("#FCECEA"),
+            old_emphasized_background: hex!("#F9D8D6"),
+            new_emphasized_background: hex!("#BAF0C0"),
+        }
+    }
 }
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
@@ -48,13 +70,13 @@ impl Theme {
             StyleKey::DiagnosticsInformation => self.diagnostic.information,
             StyleKey::DiagnosticsDefault => self.diagnostic.default,
 
-            StyleKey::HunkOld => Style::new().background_color(self.hunk_old_background),
-            StyleKey::HunkNew => Style::new().background_color(self.hunk_new_background),
+            StyleKey::HunkOld => Style::new().background_color(self.hunk.old_background),
+            StyleKey::HunkNew => Style::new().background_color(self.hunk.new_background),
             StyleKey::HunkOldEmphasized => {
-                Style::new().background_color(self.hunk_old_emphasized_background)
+                Style::new().background_color(self.hunk.old_emphasized_background)
             }
             StyleKey::HunkNewEmphasized => {
-                Style::new().background_color(self.hunk_new_emphasized_background)
+                Style::new().background_color(self.hunk.new_emphasized_background)
             }
 
             StyleKey::Syntax(highlight_group) => {
@@ -114,7 +136,7 @@ pub(crate) struct UiStyles {
     pub(crate) secondary_selection_primary_cursor: Style,
     pub(crate) secondary_selection_secondary_cursor: Style,
     pub(crate) line_number: Style,
-    pub(crate) line_number_separator: Style,
+    pub(crate) border: Style,
     pub(crate) bookmark: Style,
     pub(crate) keymap_key: Style,
     pub(crate) keymap_arrow: Style,

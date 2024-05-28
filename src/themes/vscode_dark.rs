@@ -53,7 +53,7 @@ pub fn VSCODE_DARK() -> Theme {
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
             line_number: Style::new().foreground_color(hex!("#858585")),
-            line_number_separator: Style::new().foreground_color(hex!("#1E1E1E")),
+            border: Style::new().foreground_color(hex!("#1E1E1E")),
             bookmark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#5C3521"),
             keymap_hint: Style::new().underline(hex!("#af00db")),
@@ -62,9 +62,6 @@ pub fn VSCODE_DARK() -> Theme {
             fuzzy_matched_char: Style::new().foreground_color(hex!("#55A8F8")),
         },
         diagnostic: DiagnosticStyles::default(),
-        hunk_new_background: hex!("#383D2C"),
-        hunk_old_background: hex!("#47221F"),
-        hunk_old_emphasized_background: hex!("#682520"),
-        hunk_new_emphasized_background: hex!("#4E5A32"),
+        hunk: super::HunkStyles::dark(),
     }
 }

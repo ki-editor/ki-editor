@@ -53,7 +53,7 @@ pub fn VSCODE_LIGHT() -> Theme {
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
             line_number: Style::new().foreground_color(hex!("#6a9955")),
-            line_number_separator: Style::new().foreground_color(hex!("#d7d7d7")),
+            border: Style::new().foreground_color(hex!("#d7d7d7")),
             bookmark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#f6f7b2"),
             keymap_hint: Style::new().underline(hex!("#af00db")),
@@ -62,9 +62,6 @@ pub fn VSCODE_LIGHT() -> Theme {
             fuzzy_matched_char: Style::new().foreground_color(hex!("#ff0000")),
         },
         diagnostic: DiagnosticStyles::default(),
-        hunk_new_background: hex!("#EBFEED"),
-        hunk_old_background: hex!("#FCECEA"),
-        hunk_old_emphasized_background: hex!("#F9D8D6"),
-        hunk_new_emphasized_background: hex!("#BAF0C0"),
+        hunk: super::HunkStyles::light(),
     }
 }

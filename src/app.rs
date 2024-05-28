@@ -264,7 +264,7 @@ impl<T: Frontend> App<T> {
             .unzip();
         let borders = self.layout.borders();
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
-        let screen = Screen::new(windows, borders, cursor);
+        let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
 
         // Set the global title
         let global_title_window = {

@@ -4,6 +4,7 @@ use crate::{
     app::Dimension,
     grid::{Grid, PositionedCell},
     rectangle::{Border, Rectangle},
+    style::Style,
 };
 
 #[derive(Default, Clone)]
@@ -12,6 +13,7 @@ pub(crate) struct Screen {
     borders: Vec<Border>,
     cursor: Option<crate::components::component::Cursor>,
     memoized_positioned_cells: Option<Vec<PositionedCell>>,
+    border_style: Style,
 }
 
 impl Screen {
@@ -19,12 +21,14 @@ impl Screen {
         windows: Vec<Window>,
         borders: Vec<Border>,
         cursor: Option<crate::components::component::Cursor>,
+        border_style: Style,
     ) -> Screen {
         Screen {
             windows,
             borders,
             cursor,
             memoized_positioned_cells: None,
+            border_style,
         }
     }
     /// This takes a `&mut self` instead of a `&self` because memoization.
@@ -41,7 +45,7 @@ impl Screen {
                     .chain(
                         self.borders
                             .iter()
-                            .flat_map(|border| border.to_positioned_cells()),
+                            .flat_map(|border| border.to_positioned_cells(self.border_style)),
                     )
                     .collect(),
             );
@@ -167,11 +171,13 @@ mod test_screen {
             .to_vec(),
             Vec::new(),
             None,
+            Default::default(),
         );
         let mut new = Screen::new(
             [Window::new(Grid::from_text(dimension, "bc"), rectangle)].to_vec(),
             Vec::new(),
             None,
+            Default::default(),
         );
         let actual = new.diff(&mut old);
         let expected = vec![
