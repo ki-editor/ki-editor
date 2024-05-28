@@ -62,7 +62,6 @@ impl Theme {
             }
             StyleKey::KeymapHint => self.ui.keymap_hint,
             StyleKey::KeymapArrow => self.ui.keymap_arrow,
-            StyleKey::KeymapDescription => self.ui.keymap_description,
             StyleKey::KeymapKey => self.ui.keymap_key,
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
         }
@@ -120,7 +119,6 @@ pub(crate) struct UiStyles {
     pub(crate) keymap_key: Style,
     pub(crate) keymap_arrow: Style,
     pub(crate) keymap_hint: Style,
-    pub(crate) keymap_description: Style,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
@@ -432,11 +430,36 @@ pub(crate) struct Color {
     r: u8,
     g: u8,
     b: u8,
+    /// Alpha channel, represents opacity, max value (#ff or 255) means totally opaque
+    a: u8,
 }
 
 impl Color {
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
-        Self { r, g, b }
+        Self {
+            r,
+            g,
+            b,
+            a: u8::MAX,
+        }
+    }
+
+    // This is a function that convert RGBA to RGB, based on the given background
+    fn apply_alpha(&self, background: Color) -> Color {
+        let alpha = self.a as f32 / 255.0;
+        self.apply_custom_alpha(background, alpha)
+    }
+
+    /// `alpha` should be between 0 to 1.0
+    /// 0.5 means 50% opacity
+    fn apply_custom_alpha(&self, background: Color, alpha: f32) -> Color {
+        let inverted_alpha = 1.0 - alpha;
+        Color {
+            r: (alpha * self.r as f32 + inverted_alpha * background.r as f32) as u8,
+            g: (alpha * self.g as f32 + inverted_alpha * background.g as f32) as u8,
+            b: (alpha * self.b as f32 + inverted_alpha * background.b as f32) as u8,
+            a: u8::MAX,
+        }
     }
 
     pub(crate) fn from_hex(hex: &str) -> anyhow::Result<Color> {
@@ -450,30 +473,35 @@ impl Color {
         let g = u8::from_str_radix(&hex[2..4], 16)?;
         let b = u8::from_str_radix(&hex[4..6], 16)?;
 
-        let alpha = if hex.len() == 8 {
-            let alpha = u8::from_str_radix(&hex[6..8], 16)?;
-            Some(alpha)
+        let a = if hex.len() == 8 {
+            u8::from_str_radix(&hex[6..8], 16)?
         } else {
-            None
+            u8::MAX
         };
 
-        Ok(Color { r, g, b })
+        Ok(Color { r, g, b, a })
     }
 
     /// Refer https://docs.rs/colorsys/latest/src/colorsys/rgb/transform.rs.html#61
     /// Refer https://sl.bing.net/b69EKNHqrLw
     pub(crate) fn get_contrasting_color(&self) -> Color {
-        let Color { r, g, b } = self;
+        let Color { r, g, b, a } = self;
         // Calculate the luminance of the color
         let luminance = (0.299 * (*r as f64) + 0.587 * (*g as f64) + 0.114 * (*b as f64)) / 255.0;
         // Return black for bright colors, white for dark colors
         if luminance > 0.5 {
-            Color { r: 0, g: 0, b: 0 }
+            Color {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: *a,
+            }
         } else {
             Color {
                 r: 255,
                 g: 255,
                 b: 255,
+                a: *a,
             }
         }
     }

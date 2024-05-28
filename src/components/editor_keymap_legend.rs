@@ -20,6 +20,7 @@ use super::{
     component::Component,
     editor::{Direction, DispatchEditor, Editor, HandleEventResult, SurroundKind},
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
+    suggestive_editor::Info,
 };
 
 use DispatchEditor::*;
@@ -738,6 +739,22 @@ impl Editor {
                                     "Undo Tree".to_string(),
                                     Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
                                 )))
+                                .chain(
+                                    self.buffer()
+                                        .get_current_node(&self.selection_set.primary, false)
+                                        .ok()
+                                        .flatten()
+                                        .map(|node| {
+                                            Keymap::new(
+                                                "x",
+                                                "Tree-sitter node S-expression".to_string(),
+                                                Dispatch::ShowEditorInfo(Info::new(
+                                                    "Tree-sitter node S-expression".to_string(),
+                                                    node.to_sexp(),
+                                                )),
+                                            )
+                                        }),
+                                )
                                 .collect_vec(),
                         ),
                     }))

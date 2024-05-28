@@ -588,7 +588,6 @@ pub(crate) enum StyleKey {
     HunkNewEmphasized,
     KeymapHint,
     KeymapArrow,
-    KeymapDescription,
     KeymapKey,
     UiFuzzyMatchedChar,
 }

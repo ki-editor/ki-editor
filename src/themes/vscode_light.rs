@@ -59,7 +59,6 @@ pub fn VSCODE_LIGHT() -> Theme {
             keymap_hint: Style::new().underline(hex!("#af00db")),
             keymap_key: Style::new().bold().foreground_color(hex!("#af00db")),
             keymap_arrow: Style::new().foreground_color(hex!("#808080")),
-            keymap_description: Style::new().foreground_color(hex!("#000000")),
             fuzzy_matched_char: Style::new().foreground_color(hex!("#ff0000")),
         },
         diagnostic: DiagnosticStyles::default(),

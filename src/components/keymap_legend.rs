@@ -192,7 +192,7 @@ impl KeymapLegendConfig {
             .flat_map(|keymap| {
                 let keymap_key = RegexHighlightRule {
                     regex: Regex::new(&format!(
-                        "(?<key>{})(?<arrow>{})(?<description>{})",
+                        "(?<key>{})(?<arrow>{})({})",
                         regex::escape(keymap.key),
                         BETWEEN_KEY_AND_DESCRIPTION,
                         regex::escape(&keymap.description),
@@ -206,10 +206,6 @@ impl KeymapLegendConfig {
                         RegexHighlightRuleCaptureStyle::new(
                             "arrow",
                             Source::StyleKey(StyleKey::KeymapArrow),
-                        ),
-                        RegexHighlightRuleCaptureStyle::new(
-                            "description",
-                            Source::StyleKey(StyleKey::KeymapDescription),
                         ),
                     ],
                 };
