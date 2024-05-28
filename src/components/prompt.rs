@@ -23,6 +23,7 @@ pub(crate) struct Prompt {
     on_enter: DispatchPrompt,
     enter_selects_first_matching_item: bool,
     prompt_history_key: PromptHistoryKey,
+    fire_dispatches_on_change: Option<Dispatches>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -32,6 +33,9 @@ pub(crate) struct PromptConfig {
     pub(crate) title: String,
     pub(crate) enter_selects_first_matching_item: bool,
     pub(crate) leaves_current_line_empty: bool,
+
+    /// If defined, the `Dispatches` here is used for undoing the dispatches fired on change.
+    pub(crate) fire_dispatches_on_change: Option<Dispatches>,
 }
 
 #[derive(Hash, PartialEq, Eq, Debug, Clone, Copy)]
@@ -93,6 +97,7 @@ impl Prompt {
                 on_enter: config.on_enter,
                 enter_selects_first_matching_item: config.enter_selects_first_matching_item,
                 prompt_history_key,
+                fire_dispatches_on_change: config.fire_dispatches_on_change,
             },
             dispatches,
         )
@@ -120,7 +125,8 @@ impl Component for Prompt {
     ) -> anyhow::Result<Dispatches> {
         match event {
             key!("esc") if self.editor().mode == Mode::Normal => {
-                Ok(vec![Dispatch::CloseCurrentWindow].into())
+                Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
+                    .chain(self.fire_dispatches_on_change.clone().unwrap_or_default()))
             }
             key!("ctrl+space") => {
                 if self.editor.completion_dropdown_opened() {
@@ -154,14 +160,30 @@ impl Component for Prompt {
                         line,
                     }))
             }
-            _ => self.editor.handle_key_event(context, event),
+            _ => {
+                let dispatches = self.editor.handle_key_event(context, event)?;
+                Ok(if self.fire_dispatches_on_change.is_some() {
+                    dispatches.chain(
+                        self.editor
+                            .completion_dropdown_current_item()
+                            .map(|item| item.dispatches)
+                            .unwrap_or_default(),
+                    )
+                } else {
+                    dispatches
+                })
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod test_prompt {
-    use crate::{components::editor::Direction, lsp::completion::CompletionItem, test_app::*};
+    use crate::{
+        components::{editor::Direction, suggestive_editor::Info},
+        lsp::completion::CompletionItem,
+        test_app::*,
+    };
     use my_proc_macros::keys;
 
     use crate::{app::Dispatch, position::Position};
@@ -187,6 +209,7 @@ mod test_prompt {
                             title: "".to_string(),
                             enter_selects_first_matching_item: true,
                             leaves_current_line_empty,
+                            fire_dispatches_on_change: None,
                         },
                     }),
                     Expect(CurrentComponentContent(expected_text)),
@@ -211,6 +234,7 @@ mod test_prompt {
                     title: "".to_string(),
                     enter_selects_first_matching_item: true,
                     leaves_current_line_empty: true,
+                    fire_dispatches_on_change: None,
                 },
             };
             Box::new([
@@ -254,6 +278,7 @@ mod test_prompt {
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
+                        fire_dispatches_on_change: None,
                     },
                 })
                 .clone()),
@@ -289,6 +314,7 @@ mod test_prompt {
                             title: "".to_string(),
                             enter_selects_first_matching_item,
                             leaves_current_line_empty: true,
+                            fire_dispatches_on_change: None,
                         },
                     }),
                     Expect(CompletionDropdownIsOpen(true)),
@@ -324,11 +350,56 @@ mod test_prompt {
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
+                        fire_dispatches_on_change: None,
                     },
                 }),
                 App(HandleKeyEvents(keys!("f o o _ b ctrl+space").to_vec())),
                 Expect(CurrentComponentContent("foo_bar")),
                 Expect(EditorCursorPosition(Position { line: 0, column: 7 })),
+            ])
+        })
+    }
+
+    #[test]
+    fn fire_dispatches_on_change() -> anyhow::Result<()> {
+        execute_test(|_| {
+            Box::new([
+                App(Dispatch::OpenPrompt {
+                    key: PromptHistoryKey::Null,
+                    current_line: None,
+                    config: super::PromptConfig {
+                        on_enter: DispatchPrompt::Null,
+                        items: [
+                            "foo_bar".to_string(),
+                            "zazam".to_string(),
+                            "boque".to_string(),
+                        ]
+                        .into_iter()
+                        .map(|item| item.into())
+                        .map(|item: DropdownItem| {
+                            let content = item.display();
+                            item.set_dispatches(Dispatches::one(Dispatch::ShowEditorInfo(
+                                Info::new("".to_string(), content),
+                            )))
+                        })
+                        .collect(),
+
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty: true,
+                        fire_dispatches_on_change: Some(Dispatches::one(Dispatch::ShowEditorInfo(
+                            Info::new("".to_string(), "back to square one".to_string()),
+                        ))),
+                    },
+                }),
+                App(HandleKeyEvents(keys!("f o o _").to_vec())),
+                Expect(EditorInfoContent("foo_bar")),
+                App(HandleKeyEvents(keys!("ctrl+u z a m").to_vec())),
+                Expect(EditorInfoContent("zazam")),
+                App(HandleKeyEvents(keys!("ctrl+u q").to_vec())),
+                Expect(EditorInfoContent("boque")),
+                App(HandleKeyEvents(keys!("esc esc").to_vec())),
+                Expect(EditorInfoContent("back to square one")),
             ])
         })
     }
@@ -352,6 +423,7 @@ mod test_prompt {
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
+                        fire_dispatches_on_change: None,
                     },
                 }),
                 App(TerminalDimensionChanged(crate::app::Dimension {
@@ -385,6 +457,7 @@ mod test_prompt {
                         title: "".to_string(),
                         enter_selects_first_matching_item: true,
                         leaves_current_line_empty: true,
+                        fire_dispatches_on_change: None,
                     },
                 }),
                 // Expect the completion dropdown to be open,
