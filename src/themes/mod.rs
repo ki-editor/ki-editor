@@ -1,4 +1,4 @@
-pub mod from_vscode_theme_json;
+pub mod from_zed_theme;
 pub mod vscode_dark;
 pub(crate) mod vscode_light;
 use std::collections::HashMap;
@@ -7,8 +7,8 @@ use itertools::Itertools;
 use my_proc_macros::hex;
 use once_cell::sync::OnceCell;
 use strum::IntoEnumIterator as _;
-pub(crate) use vscode_dark::VSCODE_DARK;
-pub(crate) use vscode_light::VSCODE_LIGHT;
+pub(crate) use vscode_dark::vscode_dark;
+pub(crate) use vscode_light::vscode_light;
 
 use crate::{grid::StyleKey, style::Style};
 
@@ -21,7 +21,7 @@ pub(crate) struct Theme {
     pub(crate) hunk: HunkStyles,
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
-struct HunkStyles {
+pub(crate) struct HunkStyles {
     pub(crate) old_background: Color,
     pub(crate) new_background: Color,
     pub(crate) old_emphasized_background: Color,
@@ -92,7 +92,7 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        VSCODE_LIGHT().clone()
+        vscode_light().clone()
     }
 }
 
@@ -181,7 +181,7 @@ mod test_syntax_styles {
     use super::HighlightName::*;
     use super::*;
 
-    fn SYNTAX_STYLE() -> SyntaxStyles {
+    fn syntax_style() -> SyntaxStyles {
         SyntaxStyles::new(&[
             (String, fg(hex!("#267f99"))),
             (StringSpecial, fg(hex!("#e50000"))),
@@ -191,24 +191,24 @@ mod test_syntax_styles {
     #[test]
     fn test_get_style() {
         assert_eq!(
-            SYNTAX_STYLE().get_style("string").unwrap(),
+            syntax_style().get_style("string").unwrap(),
             fg(hex!("#267f99"))
         );
         assert_eq!(
-            SYNTAX_STYLE().get_style("string.special").unwrap(),
+            syntax_style().get_style("string.special").unwrap(),
             fg(hex!("#e50000"))
         );
         assert_eq!(
-            SYNTAX_STYLE().get_style("string.special.symbol").unwrap(),
+            syntax_style().get_style("string.special.symbol").unwrap(),
             fg(hex!("#e50000"))
         );
         assert_eq!(
-            SYNTAX_STYLE()
+            syntax_style()
                 .get_style("variable.parameter.builtin")
                 .unwrap(),
             fg(hex!("#abcdef"))
         );
-        assert_eq!(SYNTAX_STYLE().get_style("character"), None);
+        assert_eq!(syntax_style().get_style("character"), None);
     }
 }
 
@@ -539,17 +539,40 @@ impl From<Color> for crossterm::style::Color {
     }
 }
 
-pub(crate) fn themes() -> Vec<Theme> {
-    vec![VSCODE_DARK().clone(), VSCODE_LIGHT().clone()]
+const ZED_THEME_LINKS: &[&'static str] = &[
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/atelier/atelier.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/ayu/ayu.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/rose_pine/rose_pine.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/sandcastle/sandcastle.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/solarized/solarized.json",
+    "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/summercamp/summercamp.json",
+    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai.json",
+    "https://raw.githubusercontent.com/epmoyer/Zed-Monokai-Theme/main/monokai_st3.json",
+    "https://raw.githubusercontent.com/catppuccin/zed/main/themes/catppuccin-mauve.json",
+];
+
+pub(crate) fn themes() -> anyhow::Result<Vec<Theme>> {
+    use rayon::prelude::*;
+
+    let zed_themes: Vec<_> = ZED_THEME_LINKS
+        .par_iter()
+        .map(|link| from_zed_theme::from_zed_theme(link))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(vec![vscode_dark().clone(), vscode_light().clone()]
         .into_iter()
-        .chain(
-            from_vscode_theme_json::from_zed_theme(
-                "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
-            )
-            .unwrap(),
-        ).chain(from_vscode_theme_json::from_zed_theme(
-                "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
-            )
-            .unwrap())
-        .collect_vec()
+        .chain(zed_themes.into_iter().flatten())
+        .collect_vec())
+}
+
+#[cfg(test)]
+mod test_theme {
+    #[test]
+    fn get_themes() -> anyhow::Result<()> {
+        // Expects no error
+        super::themes()?;
+        Ok(())
+    }
 }

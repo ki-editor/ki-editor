@@ -29,8 +29,6 @@ enum Appearance {
 #[derive(serde::Deserialize)]
 struct ZedThemeStyles {
     syntax: ZedThemeStyleSyntax,
-    #[serde(rename(deserialize = "editor.foreground"))]
-    editor_foreground: String,
     #[serde(rename(deserialize = "editor.background"))]
     editor_background: String,
     #[serde(rename(deserialize = "editor.line_number"))]
@@ -42,7 +40,7 @@ struct ZedThemeStyles {
     #[serde(rename(deserialize = "search.match_background"))]
     search_match_background: Option<String>,
     text: String,
-    border: String,
+    border: Option<String>,
     #[serde(rename(deserialize = "text.accent"))]
     text_accent: Option<String>,
     #[serde(rename(deserialize = "text.muted"))]
@@ -222,7 +220,7 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                     line_number: Style::new()
                         .set_some_foreground_color(from_hex(&theme.style.editor_line_number).ok()),
                     border: Style::new()
-                        .foreground_color(from_hex(&theme.style.border).ok().unwrap_or(text_color))
+                        .foreground_color(from_some_hex(theme.style.border).unwrap_or(text_color))
                         .background_color(background),
                     bookmark: Style::new()
                         .set_some_background_color(from_some_hex(theme.style.conflict_background)),
@@ -265,9 +263,10 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
 }
 
 #[cfg(test)]
-mod test_from_vscode_theme_json {
+mod test_from_zed_theme {
     #[test]
     fn test() -> anyhow::Result<()> {
+        // Expect no failure
         super::from_zed_theme(
             "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
         )?;

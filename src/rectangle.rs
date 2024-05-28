@@ -1,5 +1,4 @@
 use itertools::{Either, Itertools};
-use my_proc_macros::hex;
 use std::collections::HashSet;
 
 use crate::{
