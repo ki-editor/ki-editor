@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand};
+use shared::canonicalized_path::CanonicalizedPath;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -20,6 +21,8 @@ enum Commands {
     /// Edit the file of the given path, creates a new file at the path
     /// if not exist
     Edit(EditArgs),
+    /// Prints the log file path
+    Log,
 }
 #[derive(Args)]
 struct EditArgs {
@@ -66,6 +69,13 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                     std::fs::write(path, "")?;
                 }
                 crate::run(Some(args.path.try_into()?))
+            }
+            Commands::Log => {
+                println!(
+                    "{}",
+                    CanonicalizedPath::try_from(grammar::default_log_file())?.display_absolute(),
+                );
+                Ok(())
             }
         }
     } else {
