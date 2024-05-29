@@ -6,8 +6,6 @@ Movement-actions should be considered as the submodes of the Normal mode.
 
 To return back to normal mode from one of these movement-action modes, press `esc`.
 
-To access these submodes, press `\`.
-
 ## 1. Exchange
 
 Keybinding: `x`  
@@ -76,7 +74,7 @@ hello ki, hello vim, hello helix
 
 Suppose:
 
-- The current selection mode is [Find Literal "hello"](./selection-modes/local-global/text-search.md#1-literal)
+- The current selection mode is [Find Literal "hello"](./selection-modes/native-global/text-search.md#1-literal)
 - The current selection is the first `hello`
 - The current submode is Multi-cursor
 
@@ -84,7 +82,7 @@ Suppose:
 
 ## 3. Replace
 
-Keybinding: `r`
+Keybinding: `;` [^2]
 
 In the Replace submode, every core movement means:
 
@@ -123,11 +121,12 @@ Here's how it works using the Replace mode (starting from step 3):
 4. Press `l`
 5. Press `esc` to return to Normal mode
 
-[^1]:
-    The rigorous readers might have noticed the similarity of the Replace submode
-    with the [Hoist](./actions/index.md#hoist) action, that is in fact the case,
-    under the hood, Hoist is but a specialized version of the Replace mode which
-    only executes the [Up](./core-movements.md#updown) movement.
+The rigorous readers might have noticed the similarity of the Replace submode
+with the [Raise](./actions/index.md#raise) action, that is in fact the case,
+under the hood, Raise is but a specialized version of the Replace mode which
+only executes the [Up](./core-movements.md#updown) movement.
+
+[^1]: This is a temporary assignment, will be changed in the future.
 
 [1]: ./selection-modes/syntax-tree-based.md#syntax-tree-coarse
 [2]: ./core-movements.md#nextprevious

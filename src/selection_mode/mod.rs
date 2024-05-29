@@ -13,7 +13,6 @@ pub(crate) mod local_quickfix;
 pub(crate) mod regex;
 pub(crate) mod syntax_tree;
 pub(crate) mod top_node;
-pub mod vertical;
 pub(crate) mod word_long;
 pub(crate) mod word_short;
 pub(crate) use self::regex::Regex;
@@ -32,7 +31,6 @@ use std::ops::Range;
 pub(crate) use syntax_tree::SyntaxTree;
 pub(crate) use token::Token;
 pub(crate) use top_node::TopNode;
-pub(crate) use vertical::Vertical;
 pub(crate) use word_long::WordLong;
 pub(crate) use word_short::WordShort;
 
@@ -199,6 +197,7 @@ pub trait SelectionMode {
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
+            #[cfg(test)]
             Movement::FirstChild => self.first_child(params),
         }
     }

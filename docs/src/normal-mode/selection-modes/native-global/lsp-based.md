@@ -23,6 +23,6 @@ These are selection modes powered by LSP, so it's not always available.
 | `R`        | References (include declaration) |
 | `t`        | Type definitions                 |
 
-In most cases, the Goto selection modes do not make sense in the Local (
+In most cases, the Goto selection modes do not make sense in the Native (
 current file) context, however `r` and `R` are exceptional, because finding
-local references are very useful, especially when used in conjunction with Multi-cursor.
+native references are very useful, especially when used in conjunction with Multi-cursor.

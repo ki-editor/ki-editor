@@ -91,6 +91,7 @@ impl<T: Applicable> UndoTree<T> {
             Movement::Parent => Err(anyhow::anyhow!(
                 "UndoTree: moving to Parent is not supported yet",
             )),
+            #[cfg(test)]
             Movement::FirstChild => Err(anyhow::anyhow!(
                 "UndoTree: moving to FirstChild is not supported yet",
             )),

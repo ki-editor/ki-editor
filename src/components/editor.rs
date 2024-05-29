@@ -198,7 +198,6 @@ impl Component for Editor {
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.set_content(&content)?,
             ReplaceCut => return self.replace_with_copied_text(context, true),
-            ExtendSelection { forward } => return self.extend_selection(context, forward),
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
@@ -401,6 +400,7 @@ pub(crate) enum Movement {
     Jump(CharIndexRange),
     ToParentLine,
     Parent,
+    #[cfg(test)]
     FirstChild,
 }
 
@@ -1039,30 +1039,6 @@ impl Editor {
 
     pub(crate) fn toggle_visual_mode(&mut self) {
         self.selection_set.toggle_visual_mode();
-    }
-
-    pub(crate) fn extend_selection(
-        &mut self,
-        context: &Context,
-        forward: bool,
-    ) -> anyhow::Result<Dispatches> {
-        if !self.selection_set.is_extended() {
-            self.selection_set.enable_extension();
-        }
-        let swapped = self.selection_set.set_initial_range_position(forward);
-
-        if !swapped {
-            self.handle_movement(
-                context,
-                if forward {
-                    Movement::Next
-                } else {
-                    Movement::Previous
-                },
-            )
-        } else {
-            Ok(Default::default())
-        }
     }
 
     pub(crate) fn handle_key_event(
@@ -2572,9 +2548,6 @@ pub(crate) enum DispatchEditor {
     SetDecorations(Vec<Decoration>),
     #[cfg(test)]
     SetRectangle(Rectangle),
-    ExtendSelection {
-        forward: bool,
-    },
     ToggleVisualMode,
     Change {
         cut: bool,

@@ -110,45 +110,6 @@ Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes
 hello(y);
 ```
 
-## Exchange
-
-Keybindings:
-
-- `x`: Exchange current selection with next selection
-- `X`: Exchange current selection with previous selection
-
-Memory aid: e**x**change
-
-## Add cursor
-
-Keybindings:
-
-- `q`: Add cursor to the next selection
-- `Q`: Add cursor to the previous selection
-
-## Extend
-
-Keybindings:
-
-- `e`: Extend selection until the next selection
-- `E`: Extend selection until the previous selection
-
-This is used for grouping multiple selections into a single selection.
-
-For example, selecting multiple words or multiple lines.
-
-It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune **both** ends, unlike using a mouse where an incorrect selection means you have to start over again.
-
-When selection extension is enabled:
-
-1. Each selection is composed of 2 ranges (formerly 1 range).
-1. There's only one moveable range at a time.
-1. If the current moveable range is the right one, then pressing `E` changes the movable range to the left one without expanding the selection leftward.
-1. If the current moveable range is the left one, then pressing `e` changes the movable range to the right one without expanding the selection rightward.
-1. Every character between the two ranges, including the two ranges, is selected
-1. Selection-wise actions work on the extended range
-1. Press `ESC` to disable selection extension
-
 ## Change
 
 Keybindings:
@@ -173,7 +134,7 @@ This replaces the current selected text with the copied text.
 Keybinding: `ctrl+r`
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configurator](../selection-modes/local-global/text-search.md#configurator).
+pattern specified in the [Text Search Configurator](../selection-modes/native-global/text-search.md#configurator).
 
 For example:
 
@@ -184,9 +145,9 @@ For example:
 | AST Grep      | `f(x)`        | `f($Z)`  | `$Z(f)`     | `x(f)`  |
 | Case Agnostic | `a_bu`        | `a bu`   | `to li`     | `to_li` |
 
-## Hoist
+## Raise
 
-Keybinding: `h`
+Keybinding: `^`
 
 This is one of my favorite actions, it only works for [syntax tree](../selection-modes/syntax-tree-based.md#syntax-tree) selection modes.
 
@@ -217,9 +178,9 @@ fn main() {
 
 Notes:
 
-- Hoist works not only for if-else expressions, it works for any syntax node
-- Hoist should never cause syntax error (if it does that's a bug)
-- Hoist preserve the node type of the current node
+- Raise works not only for if-else expressions, it works for any syntax node
+- Raise should never cause syntax error (if it does that's a bug)
+- Raise preserve the node type of the current node
 
 ## Between
 
@@ -264,3 +225,24 @@ Reason: The `esc enter` combo is sweet.
 Upon saving, formatting will be applied if possible.
 
 After formatting, the [Current](../core-movements.md#current) movement will be executed, to reduce disorientation caused by the misplaced selection due to content changes.
+
+## Visual
+
+Keybinding: `v`
+
+This should also be known as "enable selection extension", it got its name from Vim's Visual mode.
+
+This is used for grouping multiple selections into a single selection.
+
+For example, selecting multiple words or multiple lines.
+
+It behaves more or less the same as click-and-drag in the textbox or text area of common GUI applications, but imagine being able to tune **both** ends, unlike using a mouse where an incorrect selection means you have to start over again.
+
+When selection extension is enabled:
+
+1. Each selection is composed of 2 ranges (formerly 1 range).
+1. There's only one moveable range at a time.
+1. Press `v` again to change the moveable range to the other range.
+1. Every character between the two ranges, including the two ranges, is selected
+1. Selection-wise actions work on the extended range
+1. Press `ESC` to disable selection extension

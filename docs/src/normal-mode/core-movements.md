@@ -5,29 +5,44 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Next/Previous](#nextprevious)
-1. [First-child/Parent](#first-childparent)
-1. [Last/First](#lastfirst)
+1. [Previous/Next](#previousnext)
+1. [Up/Down](#updown)
+1. [Down](#down)
+1. [First/Last](#firstlast)
 1. [Jump](#jump)
 1. [Parent Line](#parent-line)
 1. [To Index](#to-index)
 1. [Current](#current)
 
-## Next/Previous
+## Previous/Next
 
-Keybinding: `n`/`N`
+Keybinding: `h`/`l`  
+Memory aid:
 
-## First-child/Parent
+- h stands for higher, which means previous.
+- l stands for lower, which means next.
 
-Keybinding: `k`/`K`  
-Memory aid: k means kid, which means child.
+## Up/Down
 
-This is only useful in [Syntax Tree-based](./selection-modes/syntax-tree-based.md) selection modes.
+Keybinding: `k`/`j`  
+Memory aid:
 
-## Last/First
+- k means king, which means up.
+- j means jack, which means down.
 
-Keybinding: `z`/`Z`  
-Memory aid: z is the last alphabet.
+In most selection modes, up/down moves the selections upwards/downwards, except for the following selection modes:
+
+| Selection Mode | Up                                | Down                            |
+| -------------- | --------------------------------- | ------------------------------- |
+| Syntax Tree    | Expand selection to parent        | Shrink selection to first child |
+| Quickfix       | Go to first item of previous file | Go to first item of next file   |
+
+## First/Last
+
+Keybinding: `,`/`.`  
+Memory aid:
+
+- `,`/`.` looks like `<`/`>` on the keyboard
 
 Recommended selection modes:
 
@@ -37,7 +52,9 @@ Recommended selection modes:
 
 ## Jump
 
-Keybinding: `j`
+Keybinding: `f`  
+Reason: f is also used for jumping in [Vimium](https://github.com/philc/vimium).  
+Memory aid: f stands for jump, which roughly means jump
 
 This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
@@ -46,7 +63,7 @@ It allows you to jump to your desired position (as long as it is within the scre
 It works like this:
 
 1. Choose your selection mode
-1. Press `j`
+1. Press `f`
 1. Press the first letter of the selection that you want to jump to.
 1. Press the letter that appears on top of the selection.
 1. Done.
@@ -57,7 +74,7 @@ Recommended selection modes:
 1. Word
 1. Token
 
-This movement can also work with the Exchange movement-action submode to swap two syntax expressions that are far apart.
+This movement can also work with the Exchange mode to swap two syntax expressions that are far apart.
 
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
 

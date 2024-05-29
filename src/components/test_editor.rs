@@ -73,34 +73,6 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
 }
 
 #[test]
-fn extend_selection() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent("foo bar baz thing hom oz".to_string())),
-            Editor(MatchLiteral("baz".to_string())),
-            Editor(SetSelectionMode(WordShort)),
-            Editor(ExtendSelection { forward: true }),
-            Expect(CurrentSelectedTexts(&["baz thing"])),
-            Editor(ExtendSelection { forward: true }),
-            Expect(CurrentSelectedTexts(&["baz thing hom"])),
-            Editor(MoveSelection(Previous)),
-            Expect(CurrentSelectedTexts(&["baz thing"])),
-            Editor(ExtendSelection { forward: false }),
-            Editor(ExtendSelection { forward: false }),
-            Expect(CurrentSelectedTexts(&["bar baz thing"])),
-            Editor(ExtendSelection { forward: false }),
-            Expect(CurrentSelectedTexts(&["foo bar baz thing"])),
-            Editor(MoveSelection(Next)),
-            Expect(CurrentSelectedTexts(&["bar baz thing"])),
-            Editor(ExtendSelection { forward: true }),
-            Editor(ExtendSelection { forward: true }),
-            Expect(CurrentSelectedTexts(&["bar baz thing hom"])),
-        ])
-    })
-}
-
-#[test]
 /// Kill means delete until the next selection
 fn delete_should_kill_if_possible_1() -> anyhow::Result<()> {
     execute_test(|s| {

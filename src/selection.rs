@@ -418,19 +418,6 @@ impl SelectionSet {
     pub(crate) fn unset_initial_range(&mut self) {
         self.apply_mut(|selection| selection.initial_range = None);
     }
-
-    pub(crate) fn enable_extension(&mut self) {
-        self.apply_mut(|selection| selection.enable_extension());
-    }
-
-    pub(crate) fn is_extended(&self) -> bool {
-        self.primary.initial_range.is_some()
-    }
-
-    pub(crate) fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
-        self.apply_mut(|selection| selection.set_initial_range_position(at_tail))
-            .0
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -461,7 +448,6 @@ pub(crate) enum SelectionMode {
     // Bookmark
     Bookmark,
     LineFull,
-    Vertical,
 }
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
@@ -491,7 +477,6 @@ impl SelectionMode {
             SelectionMode::GitHunk => "GIT HUNK".to_string(),
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Vertical => "VERTICAL".to_string(),
         }
     }
 
@@ -534,12 +519,6 @@ impl SelectionMode {
                 }
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::Vertical => {
-                let current_column = buffer
-                    .char_to_position(current_selection.to_char_index(cursor_direction))?
-                    .column;
-                Box::new(selection_mode::Vertical::new(current_column))
-            }
             SelectionMode::SyntaxTreeCoarse => {
                 Box::new(selection_mode::SyntaxTree { coarse: true })
             }
@@ -738,22 +717,6 @@ impl Selection {
 
     fn enable_extension(&mut self) {
         self.initial_range = Some(self.range);
-    }
-
-    /// Returns whether self.initial_range and self.range is swapped
-    fn set_initial_range_position(&mut self, at_tail: bool) -> bool {
-        let range_x = self.initial_range.unwrap_or(self.range);
-        let range_y = self.range;
-        let (head, tail) = if range_x < range_y {
-            (range_x, range_y)
-        } else {
-            (range_y, range_x)
-        };
-        let new_range = if at_tail { tail } else { head };
-        self.initial_range = Some(if at_tail { head } else { tail });
-        let swapped = new_range != self.range;
-        self.range = new_range;
-        swapped
     }
 }
 

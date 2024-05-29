@@ -40,6 +40,6 @@ Like [Word (Short)](#word-short), but it treats each word as a sequence of alpha
 Keybinding: `u`  
 Memory aid: col**u**mn
 
-In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#nextprevious) means left/right, and so on.
+In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#previousnext) means left/right, and so on.
 
 [First/Last](./../core-movements.md#firstlast) means the first/last column of the current line.
