@@ -1109,6 +1109,8 @@ Press <code>]</code> to restore the selection to the current state.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>This is an obscure feature, although it is functional, it is hardly useful, because the undo history is too granular (character-by-character), see <a href="normal-mode/../universal-keybindings.html#undoredo">undo/redo</a>.</p>
 </div>
+<h2 id="picking-themes"><a class="header" href="#picking-themes">Picking themes</a></h2>
+<p>See more at <a href="normal-mode/../themes.html">Themes</a></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="commands"><a class="header" href="#commands">Commands</a></h1>
 <p>The command prompt can be brought up by pressing <code>:</code>.</p>
 <p>Commands (non-exhaustive):</p>
@@ -1254,7 +1256,12 @@ will be matched if either its group name <strong>or</strong> its own name satisf
 <p>See <a href="./normal-mode/actions/index.html#between">Between</a></p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="themes"><a class="header" href="#themes">Themes</a></h1>
-<p>The default theme is VS Code Light, and it is the only theme for now.</p>
+<p>Themes from <a href="https://zed.dev/">Zed Editor</a> can be imported into Ki, examples of imported themes<sup class="footnote-reference"><a href="#1">1</a></sup>:</p>
+<ol>
+<li>Gruvbox</li>
+<li>Ayu</li>
+<li>One</li>
+</ol>
 <h2 id="syntax-highlighting"><a class="header" href="#syntax-highlighting">Syntax highlighting</a></h2>
 <p>Syntax highlighting is powered by Tree-sitter, and for that to work it needs:</p>
 <ol>
@@ -1265,8 +1272,11 @@ will be matched if either its group name <strong>or</strong> its own name satisf
 <p>However, the highlight queries are the problem, the grammar author usually provides only barebone highlight queries for their language, and the maintenance of highlight queries is delegated to editor-specific community.</p>
 <p>I think this is a tragedy because these highlight queries should not be editor-specific, why should every editor maintain their highlight queries? These wheels should not be reinvented over and over.</p>
 <p>Currently, the largest of such communities are Neovim and Helix.</p>
-<p>To avoid further fragmentation, Ki currently downloads highlight queries from <a href="https://github.com/nvim-treesitter/nvim-treesitter">nvim-treesitter</a><sup class="footnote-reference"><a href="#1">1</a></sup>, until there's a standardized editor-agnostic highlight queries repository.</p>
+<p>To avoid further fragmentation, Ki currently downloads highlight queries from <a href="https://github.com/nvim-treesitter/nvim-treesitter">nvim-treesitter</a><sup class="footnote-reference"><a href="#2">2</a></sup>, until there's a standardized editor-agnostic highlight queries repository.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p>See more at <a href="https://github.com/zed-industries/zed/tree/main/assets/themes">Zed default themes</a></p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
 <p>Why not from Helix? Because Helix <a href="https://github.com/helix-editor/helix/issues/9436">precedence ordering</a> is not compatible with the <a href="https://github.com/tree-sitter/tree-sitter/tree/master/highlight">tree-sitter-highlight</a> library yet.</p>
 </div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
