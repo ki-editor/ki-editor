@@ -67,7 +67,7 @@ impl Theme {
             StyleKey::DiagnosticsHint => self.diagnostic.hint,
             StyleKey::DiagnosticsError => self.diagnostic.error,
             StyleKey::DiagnosticsWarning => self.diagnostic.warning,
-            StyleKey::DiagnosticsInformation => self.diagnostic.information,
+            StyleKey::DiagnosticsInformation => self.diagnostic.info,
             StyleKey::DiagnosticsDefault => self.diagnostic.default,
 
             StyleKey::HunkOld => Style::new().background_color(self.hunk.old_background),
@@ -100,7 +100,7 @@ impl Default for Theme {
 pub(crate) struct DiagnosticStyles {
     pub(crate) error: Style,
     pub(crate) warning: Style,
-    pub(crate) information: Style,
+    pub(crate) info: Style,
     pub(crate) hint: Style,
     pub(crate) default: Style,
 }
@@ -110,7 +110,7 @@ impl DiagnosticStyles {
         Self {
             error: Style::new().undercurl(hex!("#ff0000")),
             warning: Style::new().undercurl(hex!("#ffa500")),
-            information: Style::new().undercurl(hex!("#007acc")),
+            info: Style::new().undercurl(hex!("#007acc")),
             hint: Style::new().undercurl(hex!("#008000")),
             default: Style::new(),
         }
