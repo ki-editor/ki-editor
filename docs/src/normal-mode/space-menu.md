@@ -78,3 +78,7 @@ Because [every component is a buffer/editor](../core-concepts.md#every-component
 | `z`        | Opens the Undo Tree [^1]                 |
 
 [^1]: This is an obscure feature, although it is functional, it is hardly useful, because the undo history is too granular (character-by-character), see [undo/redo](../universal-keybindings.md#undoredo).
+
+## Picking themes
+
+See more at [Themes](../themes.md)

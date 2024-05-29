@@ -5,22 +5,22 @@ use crate::{
 };
 use my_proc_macros::hex;
 
-pub fn vscode_light() -> Theme {
+pub fn vscode_dark() -> Theme {
     Theme {
-        name: "VS Code (Light)".to_string(),
+        name: "VS Code (Dark)".to_string(),
         syntax: SyntaxStyles::new({
             use HighlightName::*;
             &[
-                (Variable, fg(hex!("#001080"))),
-                (Keyword, fg(hex!("#af00db"))),
-                (KeywordModifier, fg(hex!("#0000ff"))),
-                (Function, fg(hex!("#795e26"))),
-                (Type, fg(hex!("#267f99"))),
-                (TypeBuiltin, fg(hex!("#0000ff"))),
-                (String, fg(hex!("#a31515"))),
-                (Comment, fg(hex!("#008000"))),
-                (Tag, fg(hex!("#267f99"))),
-                (TagAttribute, fg(hex!("#e50000"))),
+                (Variable, fg(hex!("#aadafa"))),
+                (Keyword, fg(hex!("#679ad1"))),
+                (KeywordModifier, fg(hex!("#679ad1"))),
+                (Function, fg(hex!("#dcdcaf"))),
+                (Type, fg(hex!("#71c6b1"))),
+                (TypeBuiltin, fg(hex!("#71c6b1"))),
+                (String, fg(hex!("#c5947c"))),
+                (Comment, fg(hex!("#74985d"))),
+                (Tag, fg(hex!("#71c6b1"))),
+                (TagAttribute, fg(hex!("#aadafa"))),
             ]
         }),
         ui: UiStyles {
@@ -28,19 +28,19 @@ pub fn vscode_light() -> Theme {
                 .foreground_color(hex!("#ffffff"))
                 .background_color(hex!("#3478c6")),
             window_title: Style::new()
-                .foreground_color(hex!("#FFFFFF"))
-                .background_color(hex!("#2C2C2C")),
-            parent_lines_background: hex!("#E6EBF0"),
+                .foreground_color(hex!("#969696"))
+                .background_color(hex!("#2D2D2D")),
+            parent_lines_background: hex!("#3B3D41"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
                 .foreground_color(hex!("#ffffff")),
             jump_mark_even: Style::new()
                 .background_color(hex!("#84b701"))
                 .foreground_color(hex!("#ffffff")),
-            background_color: hex!("#ffffff"),
-            text_foreground: hex!("#333333"),
-            primary_selection_background: hex!("#c7e6ff"),
-            primary_selection_anchor_background: hex!("#add6ff"),
+            background_color: hex!("#1E1E1E"),
+            text_foreground: hex!("#FFFFFF"),
+            primary_selection_background: hex!("#304E75"),
+            primary_selection_anchor_background: hex!("#304E75"),
             primary_selection_secondary_cursor: Style::new()
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
@@ -52,16 +52,16 @@ pub fn vscode_light() -> Theme {
             secondary_selection_secondary_cursor: Style::new()
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
-            line_number: Style::new().foreground_color(hex!("#6a9955")),
-            border: Style::new().foreground_color(hex!("#d7d7d7")),
+            line_number: Style::new().foreground_color(hex!("#858585")),
+            border: Style::new().foreground_color(hex!("#1E1E1E")),
             bookmark: Style::new().background_color(hex!("#ffcc00")),
-            possible_selection_background: hex!("#f6f7b2"),
+            possible_selection_background: hex!("#5C3521"),
             keymap_hint: Style::new().underline(hex!("#af00db")),
             keymap_key: Style::new().bold().foreground_color(hex!("#af00db")),
             keymap_arrow: Style::new().foreground_color(hex!("#808080")),
-            fuzzy_matched_char: Style::new().foreground_color(hex!("#ff0000")),
+            fuzzy_matched_char: Style::new().foreground_color(hex!("#55A8F8")),
         },
         diagnostic: DiagnosticStyles::default(),
-        hunk: super::HunkStyles::light(),
+        hunk: super::HunkStyles::dark(),
     }
 }

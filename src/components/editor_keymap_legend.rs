@@ -20,6 +20,7 @@ use super::{
     component::Component,
     editor::{Direction, DispatchEditor, Editor, HandleEventResult, SurroundKind},
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
+    suggestive_editor::Info,
 };
 
 use DispatchEditor::*;
@@ -672,13 +673,13 @@ impl Editor {
                         title: "Find".to_string(),
                         keymaps: Keymaps::new(
                             &[
-                                ("g", "Git status", FilePickerKind::GitStatus),
+                                ("b", "Buffers", FilePickerKind::Opened),
                                 (
                                     "f",
                                     "Files (Not git ignored)",
                                     FilePickerKind::NonGitIgnored,
                                 ),
-                                ("b", "Buffers", FilePickerKind::Opened),
+                                ("g", "Git status", FilePickerKind::GitStatus),
                             ]
                             .into_iter()
                             .map(|(key, description, kind)| {
@@ -697,6 +698,11 @@ impl Editor {
                                     ),
                                 )
                             }))
+                            .chain(Some(Keymap::new(
+                                "t",
+                                "Theme".to_string(),
+                                Dispatch::OpenThemePrompt,
+                            )))
                             .collect_vec(),
                         ),
                     }])
@@ -733,6 +739,22 @@ impl Editor {
                                     "Undo Tree".to_string(),
                                     Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
                                 )))
+                                .chain(
+                                    self.buffer()
+                                        .get_current_node(&self.selection_set.primary, false)
+                                        .ok()
+                                        .flatten()
+                                        .map(|node| {
+                                            Keymap::new(
+                                                "x",
+                                                "Tree-sitter node S-expression".to_string(),
+                                                Dispatch::ShowEditorInfo(Info::new(
+                                                    "Tree-sitter node S-expression".to_string(),
+                                                    node.to_sexp(),
+                                                )),
+                                            )
+                                        }),
+                                )
                                 .collect_vec(),
                         ),
                     }))

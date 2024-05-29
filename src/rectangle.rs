@@ -1,11 +1,11 @@
 use itertools::{Either, Itertools};
-use my_proc_macros::hex;
 use std::collections::HashSet;
 
 use crate::{
     app::Dimension,
     grid::{Cell, PositionedCell},
     position::Position,
+    style::Style,
 };
 
 #[derive(Debug, PartialEq, Eq, Default, Clone)]
@@ -56,7 +56,7 @@ impl Border {
         }
     }
 
-    pub(crate) fn to_positioned_cells(&self) -> Vec<PositionedCell> {
+    pub(crate) fn to_positioned_cells(&self, border_style: Style) -> Vec<PositionedCell> {
         self.positions()
             .into_iter()
             .map(|position| PositionedCell {
@@ -66,7 +66,8 @@ impl Border {
                         BorderDirection::Horizontal => "─".to_string(),
                         BorderDirection::Vertical => "│".to_string(),
                     },
-                    foreground_color: hex!("#000000"),
+                    foreground_color: border_style.foreground_color.unwrap_or_default(),
+                    background_color: border_style.background_color.unwrap_or_default(),
                     ..Default::default()
                 },
             })

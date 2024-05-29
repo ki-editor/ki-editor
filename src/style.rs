@@ -46,6 +46,13 @@ impl Style {
         }
     }
 
+    pub(crate) fn set_some_foreground_color(self, foreground_color: Option<Color>) -> Style {
+        Style {
+            foreground_color,
+            ..self
+        }
+    }
+
     pub(crate) const fn line(self, line: Option<CellLine>) -> Style {
         Style { line, ..self }
     }

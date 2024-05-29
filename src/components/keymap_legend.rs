@@ -192,7 +192,7 @@ impl KeymapLegendConfig {
             .flat_map(|keymap| {
                 let keymap_key = RegexHighlightRule {
                     regex: Regex::new(&format!(
-                        "(?<key>{})(?<arrow>{})(?<description>{})",
+                        "(?<key>{})(?<arrow>{})({})",
                         regex::escape(keymap.key),
                         BETWEEN_KEY_AND_DESCRIPTION,
                         regex::escape(&keymap.description),
@@ -206,10 +206,6 @@ impl KeymapLegendConfig {
                         RegexHighlightRuleCaptureStyle::new(
                             "arrow",
                             Source::StyleKey(StyleKey::KeymapArrow),
-                        ),
-                        RegexHighlightRuleCaptureStyle::new(
-                            "description",
-                            Source::StyleKey(StyleKey::KeymapDescription),
                         ),
                     ],
                 };
@@ -476,13 +472,13 @@ mod test_keymap_legend {
         .collect_vec();
 
         let expected = [
-            "(?<key>a)(?<arrow> → )(?<description>Aloha)",
+            "(?<key>a)(?<arrow> → )(Aloha)",
             "a → (?<hint>A)loha",
-            "(?<key>b)(?<arrow> → )(?<description>Cob)",
+            "(?<key>b)(?<arrow> → )(Cob)",
             "b → Co(?<hint>b)",
-            "(?<key>f)(?<arrow> → )(?<description>Find \\(Local\\))",
+            "(?<key>f)(?<arrow> → )(Find \\(Local\\))",
             "f → (?<hint>F)ind \\(Local\\)",
-            "(?<key>g)(?<arrow> → )(?<description>Find \\(Global\\))",
+            "(?<key>g)(?<arrow> → )(Find \\(Global\\))",
             "g → Find \\((?<hint>G)lobal\\)",
         ];
         assert_eq!(regexes, expected)

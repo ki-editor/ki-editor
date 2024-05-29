@@ -480,7 +480,7 @@ impl Grid {
                                 Some(max_line_number_len),
                                 Some(max_line_number_len + 1),
                                 "│",
-                                &theme.ui.line_number_separator,
+                                &theme.ui.border,
                             ))
                             .map(|cell_update| {
                                 CalibratableCellUpdate {
@@ -588,7 +588,6 @@ pub(crate) enum StyleKey {
     HunkNewEmphasized,
     KeymapHint,
     KeymapArrow,
-    KeymapDescription,
     KeymapKey,
     UiFuzzyMatchedChar,
 }

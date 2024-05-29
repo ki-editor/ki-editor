@@ -264,7 +264,7 @@ impl<T: Frontend> App<T> {
             .unzip();
         let borders = self.layout.borders();
         let cursor = cursors.into_iter().find_map(|cursor| cursor);
-        let screen = Screen::new(windows, borders, cursor);
+        let screen = Screen::new(windows, borders, cursor, self.context.theme().ui.border);
 
         // Set the global title
         let global_title_window = {
@@ -523,10 +523,9 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleLspNotification(notification) => {
                 self.handle_lsp_notification(notification)?
             }
-            #[cfg(test)]
             Dispatch::SetTheme(theme) => {
                 let context = std::mem::take(&mut self.context);
-                self.context = context.set_theme(theme);
+                self.context = context.set_theme(theme.clone());
             }
             #[cfg(test)]
             Dispatch::HandleKeyEvents(key_events) => self.handle_key_events(key_events)?,
@@ -551,6 +550,7 @@ impl<T: Frontend> App<T> {
             Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
             Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
+            Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
         }
         Ok(())
     }
@@ -594,6 +594,7 @@ impl<T: Frontend> App<T> {
                 items: vec![],
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::MoveToIndex,
             None,
@@ -612,6 +613,7 @@ impl<T: Frontend> App<T> {
                 items: vec![],
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Rename,
             current_name,
@@ -631,6 +633,7 @@ impl<T: Frontend> App<T> {
                 },
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Search(scope),
             None,
@@ -645,6 +648,7 @@ impl<T: Frontend> App<T> {
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::AddPath,
             Some(path.display_absolute()),
@@ -659,6 +663,7 @@ impl<T: Frontend> App<T> {
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::MovePath,
             Some(path.display_absolute()),
@@ -682,6 +687,7 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::SelectSymbol { symbols },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Symbol,
             None,
@@ -699,6 +705,7 @@ impl<T: Frontend> App<T> {
                     .collect(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Command,
             None,
@@ -728,6 +735,7 @@ impl<T: Frontend> App<T> {
                 },
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::OpenFile,
             None,
@@ -1305,6 +1313,7 @@ impl<T: Frontend> App<T> {
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Omit,
             None,
@@ -1357,6 +1366,7 @@ impl<T: Frontend> App<T> {
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::FilterGlob(filter_glob),
             None,
@@ -1544,6 +1554,7 @@ impl<T: Frontend> App<T> {
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Replacement(scope),
             None,
@@ -1561,6 +1572,7 @@ impl<T: Frontend> App<T> {
                 items: self.words(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Search(scope),
             None,
@@ -1728,6 +1740,7 @@ impl<T: Frontend> App<T> {
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
                 leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
             },
             PromptHistoryKey::CodeAction,
             None,
@@ -1788,6 +1801,29 @@ impl<T: Frontend> App<T> {
 
     fn push_history_prompt(&mut self, key: PromptHistoryKey, line: String) {
         self.context.push_history_prompt(key, line)
+    }
+
+    fn open_theme_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                on_enter: DispatchPrompt::Null,
+                items: crate::themes::themes()?
+                    .into_iter()
+                    .map(|theme| {
+                        DropdownItem::new(theme.name.to_string())
+                            .set_dispatches(Dispatches::one(Dispatch::SetTheme(theme.clone())))
+                    })
+                    .collect_vec(),
+                title: "Theme".to_string(),
+                enter_selects_first_matching_item: true,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: Some(Dispatches::one(Dispatch::SetTheme(
+                    self.context.theme().clone(),
+                ))),
+            },
+            PromptHistoryKey::Theme,
+            None,
+        )
     }
 }
 
@@ -1860,7 +1896,6 @@ impl Dispatches {
 #[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub(crate) enum Dispatch {
-    #[cfg(test)]
     SetTheme(crate::themes::Theme),
     CloseCurrentWindow,
     OpenFilePicker(FilePickerKind),
@@ -1994,6 +2029,7 @@ pub(crate) enum Dispatch {
         key: PromptHistoryKey,
         line: String,
     },
+    OpenThemePrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
