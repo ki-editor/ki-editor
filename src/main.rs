@@ -55,7 +55,7 @@ fn main() {
 }
 
 pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
-    simple_logging::log_to_file("my_log.txt", LevelFilter::Info)?;
+    simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let _args = std::env::args();
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
