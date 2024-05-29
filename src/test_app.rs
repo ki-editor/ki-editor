@@ -429,19 +429,23 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
 
 #[test]
 #[serial]
+/// Should work across different files (via system clipboard)
 fn replace_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(SelectionMode::Token)),
+            Editor(SetContent("fn main() { call_main() }".to_string())),
+            App(OpenFile(s.foo_rs())),
+            Editor(SetContent("fn foo() { call_foo() }".to_string())),
+            Editor(MatchLiteral("call_foo()".to_string())),
             Editor(Copy),
-            Editor(MoveSelection(Movement::Next)),
+            App(OpenFile(s.main_rs())),
+            Editor(MatchLiteral("call_main()".to_string())),
             Editor(ReplaceCut),
-            Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
+            Expect(CurrentComponentContent("fn main() { call_foo() }")),
+            App(OpenFile(s.foo_rs())),
             Editor(ReplaceCut),
-            Expect(CurrentComponentContent("fn main() { let x = 1; }")),
-            Expect(CurrentSelectedTexts(&["main"])),
+            Expect(CurrentComponentContent("fn foo() { call_main() }")),
         ])
     })
 }

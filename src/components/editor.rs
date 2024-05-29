@@ -913,13 +913,18 @@ impl Editor {
         context: &Context,
         cut: bool,
     ) -> anyhow::Result<Dispatches> {
+        let dispatches = if cut {
+            self.copy(context)?
+        } else {
+            Default::default()
+        };
+
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
                     if let Some(replacement) = &selection.copied_text(context) {
                         let replacement_text_len = replacement.len_chars();
                         let range = selection.extended_range();
-                        let replaced_text = self.buffer.borrow().slice(&range)?;
                         Ok(EditTransaction::from_action_groups(
                             [ActionGroup::new(
                                 [
@@ -927,17 +932,9 @@ impl Editor {
                                         range,
                                         new: replacement.clone(),
                                     }),
-                                    Action::Select({
-                                        let selection = Selection::new(
-                                            (range.start..range.start + replacement_text_len)
-                                                .into(),
-                                        );
-                                        if cut {
-                                            selection.set_copied_text(Some(replaced_text))
-                                        } else {
-                                            selection
-                                        }
-                                    }),
+                                    Action::Select(Selection::new(
+                                        (range.start..range.start + replacement_text_len).into(),
+                                    )),
                                 ]
                                 .to_vec(),
                             )]
@@ -953,6 +950,7 @@ impl Editor {
         );
 
         self.apply_edit_transaction(edit_transaction)
+            .map(|d| d.chain(dispatches))
     }
 
     fn apply_edit_transaction(
