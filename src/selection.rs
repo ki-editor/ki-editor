@@ -433,8 +433,8 @@ pub(crate) enum SelectionMode {
 
     // Syntax-tree
     Token,
-    SyntaxTreeCoarse,
-    SyntaxTreeFine,
+    SyntaxNodeCoarse,
+    SyntaxNodeFine,
 
     // LSP
     Diagnostic(DiagnosticSeverityRange),
@@ -452,7 +452,7 @@ pub(crate) enum SelectionMode {
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, SyntaxTreeCoarse | SyntaxTreeFine)
+        matches!(self, SyntaxNodeCoarse | SyntaxNodeFine)
     }
 
     pub(crate) fn display(&self) -> String {
@@ -465,8 +465,8 @@ impl SelectionMode {
             SelectionMode::Column => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::SyntaxTreeCoarse => "SYNTAX TREE (COARSE)".to_string(),
-            SelectionMode::SyntaxTreeFine => "SYNTAX TREE (FINE)".to_string(),
+            SelectionMode::SyntaxNodeCoarse => "SYNTAX NODE (COARSE)".to_string(),
+            SelectionMode::SyntaxNodeFine => "SYNTAX NODE (FINE)".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {} {:?}", search.mode.display(), search.search)
             }
@@ -519,10 +519,10 @@ impl SelectionMode {
                 }
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::SyntaxTreeCoarse => {
-                Box::new(selection_mode::SyntaxTree { coarse: true })
+            SelectionMode::SyntaxNodeCoarse => {
+                Box::new(selection_mode::SyntaxNode { coarse: true })
             }
-            SelectionMode::SyntaxTreeFine => Box::new(selection_mode::SyntaxTree { coarse: false }),
+            SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
             }
@@ -544,8 +544,8 @@ impl SelectionMode {
                 | SelectionMode::LineFull
                 | SelectionMode::Column
                 | SelectionMode::Token
-                | SelectionMode::SyntaxTreeCoarse
-                | SelectionMode::SyntaxTreeFine
+                | SelectionMode::SyntaxNodeCoarse
+                | SelectionMode::SyntaxNodeFine
         )
     }
 }

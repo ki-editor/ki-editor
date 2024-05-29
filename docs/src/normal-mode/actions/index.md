@@ -54,7 +54,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `y`, and the
+Assuming the current selection mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), and the current selection is `y`, and the
 copied text is `z`, performing a `p` results in the following:
 
 ```js
@@ -78,7 +78,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `y`, pressing `o` results in the following (Note that `│` represents the cursor):
+Assuming the current selection mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), and the current selection is `y`, pressing `o` results in the following (Note that `│` represents the cursor):
 
 ```js
 hello(x, y, │);
@@ -104,7 +104,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), and the current selection is `x`, pressing `d` results in the following:
+Assuming the current selection mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), and the current selection is `x`, pressing `d` results in the following:
 
 ```js
 hello(y);
@@ -134,7 +134,7 @@ This replaces the current selected text with the copied text.
 Keybinding: `ctrl+r`
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configurator](../selection-modes/native-global/text-search.md#configurator).
+pattern specified in the [Text Search Configurator](../selection-modes/local-global/text-search.md#configurator).
 
 For example:
 
@@ -149,7 +149,7 @@ For example:
 
 Keybinding: `^`
 
-This is one of my favorite actions, it only works for [syntax tree](../selection-modes/syntax-tree-based.md#syntax-tree) selection modes.
+This is one of my favorite actions, it only works for [syntax node](../selection-modes/syntax-node-based.md#syntax-node) selection modes.
 
 This replaces the parent node of the current node, with the current node.
 
@@ -168,7 +168,7 @@ fn main() {
 ```
 
 Assuming the current selection is `println!("hello")` and the current selection
-mode is [Syntax Tree (Coarse)](../selection-modes/syntax-tree-based.md#syntax-tree-coarse), pressing `^` results in the following:
+mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), pressing `^` results in the following:
 
 ```rs
 fn main() {

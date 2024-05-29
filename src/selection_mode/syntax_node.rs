@@ -4,7 +4,7 @@ use crate::selection_mode::ApplyMovementResult;
 
 use super::{ByteRange, SelectionMode, TopNode};
 
-pub(crate) struct SyntaxTree {
+pub(crate) struct SyntaxNode {
     /// If this is true:
     /// - anonymous siblings node will be skipped
     /// - parent must be `TopNode`
@@ -12,7 +12,7 @@ pub(crate) struct SyntaxTree {
     pub coarse: bool,
 }
 
-impl SelectionMode for SyntaxTree {
+impl SelectionMode for SyntaxNode {
     fn jumps(
         &self,
         params: super::SelectionModeParams,
@@ -20,7 +20,7 @@ impl SelectionMode for SyntaxTree {
         line_number_range: std::ops::Range<usize>,
     ) -> anyhow::Result<Vec<crate::components::editor::Jump>> {
         // Why do we use TopNode.jumps?
-        // Because I realize I only use TopNode for jumping, and I never use jump in SyntaxTree
+        // Because I realize I only use TopNode for jumping, and I never use jump in SyntaxNode
         // With this decision, TopNode selection mode can be removed from user-space, and we get one more keymap space
         TopNode.jumps(params, chars, line_number_range)
     }
@@ -33,7 +33,7 @@ impl SelectionMode for SyntaxTree {
         let node = buffer
             .get_current_node(current_selection, false)?
             .ok_or(anyhow::anyhow!(
-                "SyntaxTree::iter: Cannot find Treesitter language"
+                "SyntaxNode::iter: Cannot find Treesitter language"
             ))?;
 
         if let Some(parent) = node.parent() {
@@ -109,7 +109,7 @@ impl SelectionMode for SyntaxTree {
     }
 }
 
-impl SyntaxTree {
+impl SyntaxNode {
     fn select_vertical(
         &self,
         params: super::SelectionModeParams,
@@ -145,7 +145,7 @@ fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tree_s
 }
 
 #[cfg(test)]
-mod test_syntax_tree {
+mod test_syntax_node {
     use crate::{
         buffer::Buffer,
         selection::{CharIndex, Filters, Selection},
@@ -160,12 +160,12 @@ mod test_syntax_tree {
             Some(tree_sitter_rust::language()),
             "fn main() { let x = X {z,b,c:d} }",
         );
-        SyntaxTree { coarse: true }.assert_all_selections(
+        SyntaxNode { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[(23..24, "z"), (25..26, "b"), (27..30, "c:d")],
         );
-        SyntaxTree { coarse: false }.assert_all_selections(
+        SyntaxNode { coarse: false }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(23)..CharIndex(24)).into()),
             &[
@@ -186,7 +186,7 @@ mod test_syntax_tree {
             Some(tree_sitter_rust::language()),
             "fn main() { let x = S(a); }",
         );
-        SyntaxTree { coarse: true }.assert_all_selections(
+        SyntaxNode { coarse: true }.assert_all_selections(
             &buffer,
             Selection::default().set_range((CharIndex(20)..CharIndex(21)).into()),
             &[(20..21, "S"), (21..24, "(a)")],
@@ -205,7 +205,7 @@ mod test_syntax_tree {
 
             let child_text = buffer.slice(&child_range).unwrap();
             assert_eq!(child_text, "z");
-            let selection = SyntaxTree { coarse }.parent(SelectionModeParams {
+            let selection = SyntaxNode { coarse }.parent(SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(child_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -233,7 +233,7 @@ mod test_syntax_tree {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = SyntaxTree { coarse }.first_child(SelectionModeParams {
+            let selection = SyntaxNode { coarse }.first_child(SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -263,7 +263,7 @@ fn main() {
 
             let range = (CharIndex(14)..CharIndex(17)).into();
             assert_eq!(buffer.slice(&range).unwrap(), "let");
-            let selection = SyntaxTree { coarse }.current(SelectionModeParams {
+            let selection = SyntaxNode { coarse }.current(SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(range),
                 cursor_direction: &crate::components::editor::Direction::Start,
@@ -290,7 +290,7 @@ fn main() {
 
         // Let the range be the space before `let`
         let range = (CharIndex(12)..CharIndex(13)).into();
-        let selection = SyntaxTree { coarse: true }.current(SelectionModeParams {
+        let selection = SyntaxNode { coarse: true }.current(SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(range),
             cursor_direction: &crate::components::editor::Direction::Start,

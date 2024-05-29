@@ -57,8 +57,8 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Movement::Last)),
                 ),
                 Keymap::new(
-                    "f",
-                    "Fly (Jump)".to_string(),
+                    "s",
+                    "Spring (Jump)".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps {
                         use_current_selection_mode: true,
                     }),
@@ -132,28 +132,28 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(LineFull)),
                 ),
                 Keymap::new(
+                    "f",
+                    "Find (Local)".to_string(),
+                    Dispatch::ShowKeymapLegend(
+                        self.find_keymap_legend_config(context, Scope::Local),
+                    ),
+                ),
+                Keymap::new(
                     "g",
-                    "Global".to_string(),
+                    "Find (Global)".to_string(),
                     Dispatch::ShowKeymapLegend(
                         self.find_keymap_legend_config(context, Scope::Global),
                     ),
                 ),
                 Keymap::new(
                     "n",
-                    "Native".to_string(),
-                    Dispatch::ShowKeymapLegend(
-                        self.find_keymap_legend_config(context, Scope::Local),
-                    ),
+                    "Syntax Node (Coarse)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(SyntaxNodeCoarse)),
                 ),
                 Keymap::new(
-                    "s",
-                    "Syntax Tree (Coarse)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(SyntaxTreeCoarse)),
-                ),
-                Keymap::new(
-                    "S",
-                    "Syntax Tree (Fine)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(SyntaxTreeFine)),
+                    "N",
+                    "Syntax Node (Fine)".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(SyntaxNodeFine)),
                 ),
                 Keymap::new(
                     "t",
@@ -162,7 +162,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "u",
-                    "Character (Unicode)".to_string(),
+                    "Column".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(Column)),
                 ),
                 Keymap::new(
@@ -915,9 +915,9 @@ impl Editor {
         };
         KeymapLegendConfig {
             title: format!(
-                "{} Find",
+                "Find ({})",
                 match scope {
-                    Scope::Local => "Native",
+                    Scope::Local => "Local",
                     Scope::Global => "Global",
                 }
             ),

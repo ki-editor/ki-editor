@@ -31,7 +31,7 @@ impl SelectionMode for Token {
             .current(params)?
             .map(|selection| crate::selection_mode::ApplyMovementResult {
                 selection,
-                mode: Some(crate::selection::SelectionMode::SyntaxTreeCoarse),
+                mode: Some(crate::selection::SelectionMode::SyntaxNodeCoarse),
             }))
     }
 }

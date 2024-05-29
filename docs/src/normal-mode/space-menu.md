@@ -68,7 +68,7 @@ Because [every component is a buffer/editor](../core-concepts.md#every-component
 
 [1]: ./selection-modes/index.md
 
-[^1]: Especially useful when used with [Text Search](./selection-modes/native-global/text-search.md) or [Syntax Tree](./selection-modes/syntax-tree-based.md).
+[^1]: Especially useful when used with [Text Search](./selection-modes/local-global/text-search.md) or [Syntax Node](./selection-modes/syntax-node-based.md).
 
 ## Opening other components
 

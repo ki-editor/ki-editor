@@ -555,7 +555,7 @@ impl Editor {
             .into();
 
         let mode = if self.buffer().given_range_is_node(&range) {
-            SelectionMode::SyntaxTreeCoarse
+            SelectionMode::SyntaxNodeCoarse
         } else {
             SelectionMode::Custom
         };
@@ -1446,7 +1446,7 @@ impl Editor {
     }
 
     /// Replace the next selection with the current selection without
-    /// making the syntax tree invalid
+    /// making the syntax node invalid
     fn replace_faultlessly(
         &mut self,
         selection_mode: &SelectionMode,
@@ -1971,7 +1971,7 @@ impl Editor {
         let cursor_count = self.selection_set.len();
         let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
-            format!("{} (JUMPING)", mode)
+            format!("{} (SNEAK)", mode)
         } else {
             mode
         }

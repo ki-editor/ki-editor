@@ -34,7 +34,7 @@ In most selection modes, up/down moves the selections upwards/downwards, except 
 
 | Selection Mode | Up                                | Down                            |
 | -------------- | --------------------------------- | ------------------------------- |
-| Syntax Tree    | Expand selection to parent        | Shrink selection to first child |
+| Syntax Node    | Expand selection to parent        | Shrink selection to first child |
 | Quickfix       | Go to first item of previous file | Go to first item of next file   |
 
 ## First/Last
@@ -52,9 +52,9 @@ Recommended selection modes:
 
 ## Jump
 
-Keybinding: `f`  
-Reason: f is also used for jumping in [Vimium](https://github.com/philc/vimium).  
-Memory aid: f stands for jump, which roughly means jump
+Keybinding: `s`  
+Reason: This keybinding is also used in [vim-sneak](https://github.com/justinmk/vim-sneak) and [leap.nvim](https://github.com/ggandor/leap.nvim).  
+Memory aid: s stands for spring or skip (over), which means jump
 
 This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
@@ -63,14 +63,14 @@ It allows you to jump to your desired position (as long as it is within the scre
 It works like this:
 
 1. Choose your selection mode
-1. Press `f`
+1. Press `s`
 1. Press the first letter of the selection that you want to jump to.
 1. Press the letter that appears on top of the selection.
 1. Done.
 
 Recommended selection modes:
 
-1. Syntax Tree
+1. Syntax Node
 1. Word
 1. Token
 

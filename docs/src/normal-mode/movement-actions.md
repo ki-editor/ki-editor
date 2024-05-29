@@ -23,7 +23,7 @@ f(x, 1 + 1);
 
 Suppose:
 
-- The current selection mode is [Syntax Tree (Coarse)][1]
+- The current selection mode is [Syntax Node (Coarse)][1]
 - The current selection is `x`
 - The current submode is Exchange
 
@@ -35,7 +35,7 @@ f(1 + 1, x);
 
 ### Tips
 
-Since exchange works with every core movement, it can be used with [Jump](./core-movements.md#jump) and [Syntax Tree (Coarse)][1] to swap two distant expressions.
+Since exchange works with every core movement, it can be used with [Jump](./core-movements.md#jump) and [Syntax Node (Coarse)][1] to swap two distant expressions.
 
 For example, using the following Rust code:
 
@@ -74,7 +74,7 @@ hello ki, hello vim, hello helix
 
 Suppose:
 
-- The current selection mode is [Find Literal "hello"](./selection-modes/native-global/text-search.md#1-literal)
+- The current selection mode is [Find Literal "hello"](./selection-modes/local-global/text-search.md#1-literal)
 - The current selection is the first `hello`
 - The current submode is Multi-cursor
 
@@ -128,5 +128,5 @@ only executes the [Up](./core-movements.md#updown) movement.
 
 [^1]: This is a temporary assignment, will be changed in the future.
 
-[1]: ./selection-modes/syntax-tree-based.md#syntax-tree-coarse
+[1]: ./selection-modes/syntax-node-based.md#syntax-node-coarse
 [2]: ./core-movements.md#nextprevious

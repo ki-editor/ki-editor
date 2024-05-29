@@ -25,7 +25,7 @@ For example, `myOatPepperBanana` consists of 4 short words, namely: `my`, `Oat`,
 
 This is useful for renaming identifiers, especially if we only want to change a single word of the name. [^1]
 
-It is also useful when we want to modify the content of a literal string because the [Token](./syntax-tree-based.md#token) selection mode skips every word in a literal string.
+It is also useful when we want to modify the content of a literal string because the [Token](./syntax-node-based.md#token) selection mode skips every word in a literal string.
 
 ## Word (Long)
 

@@ -1072,7 +1072,7 @@ fn f(
                 assert_eq!(saved_content, "fn main() {}\n");
                 assert_eq!(buffer_content, "fn main() {}\n");
 
-                // Expect the syntax tree is also updated
+                // Expect the syntax node is also updated
                 assert_eq!(
                     buffer
                         .get_next_token(CharIndex::default(), false)
@@ -1109,7 +1109,7 @@ fn f(
         }
 
         #[test]
-        fn should_not_run_when_syntax_tree_is_malformed() {
+        fn should_not_run_when_syntax_node_is_malformed() {
             run_test(|_, mut buffer| {
                 // Update the buffer to be invalid Rust code
                 buffer.update("fn main() {");
@@ -1118,7 +1118,7 @@ fn f(
                 buffer.save(SelectionSet::default()).unwrap();
 
                 // Expect the buffer remain unchanged,
-                // because the syntax tree is invalid
+                // because the syntax node is invalid
                 assert_eq!(buffer.rope.to_string(), "fn main() {");
             })
         }
