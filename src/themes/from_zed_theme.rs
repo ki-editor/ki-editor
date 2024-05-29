@@ -4,6 +4,7 @@ use itertools::Itertools;
 use my_proc_macros::hex;
 use serde::{Deserialize, Serialize};
 use shared::download::cache_download;
+
 typify::import_types!("./src/themes/zed_theme_schema.json");
 
 #[derive(serde::Deserialize)]
@@ -11,19 +12,6 @@ struct ZedThemeManiftest {
     themes: Vec<ThemeContent>,
 }
 
-#[derive(serde::Deserialize, PartialEq)]
-#[serde(rename_all(deserialize = "lowercase"))]
-enum Appearance {
-    Light,
-    Dark,
-}
-
-#[derive(serde::Deserialize)]
-#[serde(untagged)]
-enum Scope {
-    String(String),
-    Array(Vec<String>),
-}
 pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
     let json_str = cache_download(
         url,
@@ -33,7 +21,7 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
             .unwrap_or_else(|| panic!("The url ({:?}) should contain file name.", url))
             .to_string_lossy(),
     )?;
-    let manifest: ZedThemeManiftest = serde_json5::from_str(&json_str).unwrap();
+    let manifest: ZedThemeManiftest = serde_json::from_str(&json_str).unwrap();
     Ok(manifest
         .themes
         .into_iter()
