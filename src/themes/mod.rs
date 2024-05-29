@@ -486,7 +486,7 @@ impl Color {
 
     pub(crate) fn from_hex(hex: &str) -> anyhow::Result<Color> {
         let regex = lazy_regex::regex!(r"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8})$");
-        if !regex.is_match(&hex) {
+        if !regex.is_match(hex) {
             return Err(anyhow::anyhow!("Invalid hex color: {}", hex));
         }
         let hex = &hex[1..];
@@ -539,7 +539,7 @@ impl From<Color> for crossterm::style::Color {
     }
 }
 
-const ZED_THEME_LINKS: &[&'static str] = &[
+const ZED_THEME_LINKS: &[&str] = &[
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/gruvbox/gruvbox.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/one/one.json",
     "https://raw.githubusercontent.com/zed-industries/zed/main/assets/themes/andromeda/andromeda.json",

@@ -30,9 +30,8 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
         "zed-themes",
         &std::path::PathBuf::from(url)
             .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .to_string(),
+            .unwrap_or_else(|| panic!("The url ({:?}) should contain file name.", url))
+            .to_string_lossy(),
     )?;
     let manifest: ZedThemeManiftest = serde_json5::from_str(&json_str).unwrap();
     Ok(manifest
@@ -48,7 +47,7 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                     AppearanceContent::Dark => hex!("#000000"),
                 });
             let from_hex = |hex: &str| -> anyhow::Result<_> {
-                Ok(Color::from_hex(&hex)?.apply_alpha(background))
+                Ok(Color::from_hex(hex)?.apply_alpha(background))
             };
             let from_some_hex = |hex: Option<String>| {
                 hex.and_then(|hex| Some(Color::from_hex(&hex).ok()?.apply_alpha(background)))
@@ -59,11 +58,11 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                     AppearanceContent::Dark => hex!("#ffffff"),
                 });
             let to_style = |highlight_name: HighlightName, style: Option<HighlightStyleContent>| {
-                style.and_then(|style| {
-                    Some((
+                style.map(|style| {
+                    (
                         highlight_name,
                         Style::new().set_some_foreground_color(from_some_hex(style.color)),
-                    ))
+                    )
                 })
             };
             let primary_selection_background = theme
@@ -90,7 +89,7 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                 .style
                 .text_accent
                 .and_then(|hex| from_hex(&hex).ok())
-                .unwrap_or_else(|| text_color);
+                .unwrap_or(text_color);
             Ok(Theme {
                 name: theme.name,
                 syntax: SyntaxStyles::new(&{
