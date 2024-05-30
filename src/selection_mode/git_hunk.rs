@@ -8,12 +8,15 @@ pub(crate) struct GitHunk {
 }
 
 impl GitHunk {
-    pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<GitHunk> {
+    pub(crate) fn new(
+        diff_mode: &crate::git::DiffMode,
+        buffer: &Buffer,
+    ) -> anyhow::Result<GitHunk> {
         let Some(path) = buffer.path() else {
             return Ok(GitHunk { ranges: Vec::new() });
         };
         // TODO: pass in current working directory
-        let binding = path.file_diff(&".".try_into()?)?;
+        let binding = path.file_diff(diff_mode, &".".try_into()?)?;
         let hunks = binding.hunks();
         let ranges = hunks
             .iter()

@@ -26,36 +26,20 @@ impl TryFrom<&CanonicalizedPath> for GitRepo {
 }
 
 impl GitRepo {
-    pub(crate) fn git_status_files(&self) -> Result<Vec<CanonicalizedPath>, anyhow::Error> {
-        let entries = diff_entries(&self.path, DiffMode::UnstagedAgainstCurrentBranch)?;
-        return Ok(entries
+    fn git_status_files(&self) -> Result<Vec<CanonicalizedPath>, anyhow::Error> {
+        let entries = self.diff_entries(DiffMode::UnstagedAgainstCurrentBranch)?;
+        Ok(entries
             .into_iter()
             .map(|entry| entry.new_path)
-            .collect_vec());
-        let statuses = self.repo.statuses(None)?;
-
-        let new_and_modified_files: Vec<_> = statuses
-            .into_iter()
-            .filter(|entry| {
-                let status = entry.status();
-                status.is_wt_new() || status.is_wt_modified()
-            })
-            .filter_map(|entry| -> Option<CanonicalizedPath> {
-                let path = self.path.join(entry.path()?).ok()?;
-                Some(path)
-            })
-            .collect();
-
-        Ok(new_and_modified_files)
+            .collect_vec())
     }
 
-    pub(crate) fn diffs(&self) -> anyhow::Result<Vec<FileDiff>> {
-        let repo_path = self.path();
+    pub(crate) fn diffs(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<FileDiff>> {
         Ok(self
-            .git_status_files()?
+            .diff_entries(diff_mode)?
             .into_iter()
             .par_bridge()
-            .flat_map(|file| file.file_diff(repo_path))
+            .flat_map(|entry| entry.file_diff())
             .collect())
     }
 
@@ -106,6 +90,80 @@ impl GitRepo {
             .unique_by(|item| item.clone())
             .collect_vec())
     }
+
+    pub(crate) fn diff_entries(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<DiffEntry>> {
+        // Open the repository
+        let repo = &self.repo;
+
+        let diff = {
+            // Get the current branch
+            let mut diff_options = DiffOptions::new();
+
+            // Generate the diff
+            diff_options.include_untracked(true);
+
+            let tree = self.get_tree(&diff_mode)?;
+            repo.diff_tree_to_workdir(Some(&tree), Some(&mut diff_options))?
+        };
+
+        // Vector to hold the entries
+        let entries = diff
+            .deltas()
+            .map(|delta| -> anyhow::Result<_> {
+                let new_path = delta
+                    .new_file()
+                    .path()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string();
+
+                let get_blob_content = |oid: git2::Oid| -> anyhow::Result<_> {
+                    Ok(repo
+                        .find_blob(oid)
+                        .map(|blob| str::from_utf8(blob.content()).unwrap_or("").to_string())?)
+                };
+                // Get the old content
+                let old_oid = delta.old_file().id();
+                let old_content = get_blob_content(old_oid).ok();
+
+                // Get the new content
+                let new_oid = delta.new_file().id();
+                let new_content = get_blob_content(new_oid).or_else(|_| -> anyhow::Result<_> {
+                    Ok(std::fs::read_to_string(
+                        repo.workdir()
+                            .ok_or(anyhow::anyhow!(
+                                "Unable to get repository working directory."
+                            ))?
+                            .join(new_path.clone()),
+                    )?)
+                })?;
+
+                Ok(DiffEntry {
+                    new_path: self.path.join(&new_path)?,
+                    old_content,
+                    new_content,
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>, _>>()?;
+
+        // Iterate over each diff
+        Ok(entries)
+    }
+
+    fn get_tree(&self, diff_mode: &DiffMode) -> Result<git2::Tree<'_>, anyhow::Error> {
+        match diff_mode {
+            DiffMode::UnstagedAgainstMainBranch => Ok(self
+                .repo
+                .find_reference("refs/heads/main")
+                .or_else(|_| self.repo.find_reference("refs/heads/master"))?
+                .peel_to_commit()?
+                .tree()?),
+            DiffMode::UnstagedAgainstCurrentBranch => {
+                Ok(self.repo.head()?.peel_to_commit()?.tree()?)
+            }
+        }
+    }
 }
 
 pub(crate) struct FileDiff {
@@ -123,13 +181,24 @@ impl FileDiff {
 }
 
 pub trait GitOperation {
-    fn file_diff(&self, repo: &CanonicalizedPath) -> anyhow::Result<FileDiff>;
-    fn content_at_last_commit(&self, repo: &GitRepo) -> anyhow::Result<String>;
+    fn file_diff(&self, diff_mode: &DiffMode, repo: &CanonicalizedPath)
+        -> anyhow::Result<FileDiff>;
+    fn content_at_last_commit(
+        &self,
+        diff_mode: &DiffMode,
+        repo: &GitRepo,
+    ) -> anyhow::Result<String>;
 }
 
 impl GitOperation for CanonicalizedPath {
-    fn file_diff(&self, repo_path: &CanonicalizedPath) -> anyhow::Result<FileDiff> {
-        if let Ok(latest_committed_content) = self.content_at_last_commit(&repo_path.try_into()?) {
+    fn file_diff(
+        &self,
+        diff_mode: &DiffMode,
+        repo_path: &CanonicalizedPath,
+    ) -> anyhow::Result<FileDiff> {
+        if let Ok(latest_committed_content) =
+            self.content_at_last_commit(diff_mode, &repo_path.try_into()?)
+        {
             let current_content = self.read()?;
             let hunks = Hunk::get(&latest_committed_content, &current_content);
 
@@ -140,14 +209,17 @@ impl GitOperation for CanonicalizedPath {
         } else {
             Ok(FileDiff {
                 path: self.clone(),
-                hunks: [Hunk::one_insert("[This file is untracked by Git]")].to_vec(),
+                hunks: [Hunk::one_insert("[This file is untracked or renamed]")].to_vec(),
             })
         }
     }
 
-    fn content_at_last_commit(&self, repo: &GitRepo) -> anyhow::Result<String> {
-        let head_commit = repo.repo.head()?.peel_to_commit()?;
-        let tree = head_commit.tree()?;
+    fn content_at_last_commit(
+        &self,
+        diff_mode: &DiffMode,
+        repo: &GitRepo,
+    ) -> anyhow::Result<String> {
+        let tree = repo.get_tree(diff_mode)?;
         let entry = tree.get_path(std::path::Path::new(
             &self.display_relative_to(repo.path())?,
         ))?;
@@ -163,122 +235,50 @@ use std::str;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DiffEntry {
     new_path: CanonicalizedPath,
-    old_content: String,
+    old_content: Option<String>,
     new_content: String,
 }
 
-#[derive(Debug)]
-enum DiffMode {
-    CurrentBranchAgainstDefaultBranch,
+impl DiffEntry {
+    fn file_diff(&self) -> anyhow::Result<FileDiff> {
+        if let Some(old_content) = &self.old_content {
+            let hunks = Hunk::get(old_content, &self.new_content);
+            Ok(FileDiff {
+                path: self.new_path.clone(),
+                hunks,
+            })
+        } else {
+            Ok(FileDiff {
+                path: self.new_path.clone(),
+                hunks: [Hunk::one_insert("[This file is untracked or renamed]")].to_vec(),
+            })
+        }
+    }
+
+    pub(crate) fn new_path(&self) -> CanonicalizedPath {
+        self.new_path.clone()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum DiffMode {
+    UnstagedAgainstMainBranch,
     UnstagedAgainstCurrentBranch,
 }
 
-fn diff_entries(
-    working_directory: &CanonicalizedPath,
-    mode: DiffMode,
-) -> anyhow::Result<Vec<DiffEntry>> {
-    println!("diff_entries working_directory = {working_directory:?}");
-    println!("diff_entries mode = {mode:?}");
-    // Open the repository
-    let repo = Repository::open(working_directory)?;
-
-    // Get the current branch
-    let head = repo.head()?;
-    let current_branch = head.peel_to_commit()?;
-    // Get the default branch (usually 'main' or 'master')
-    let default_branch = repo
-        .find_reference("refs/heads/main")
-        .or_else(|_| repo.find_reference("refs/heads/master"))?
-        .peel_to_commit()?;
-
-    // Create a DiffOptions
-    let mut diff_options = DiffOptions::new();
-
-    // Generate the diff
-    let diff = match mode {
-        DiffMode::CurrentBranchAgainstDefaultBranch => repo.diff_tree_to_tree(
-            Some(&default_branch.tree()?),
-            Some(&current_branch.tree()?),
-            Some(&mut diff_options),
-        )?,
-        DiffMode::UnstagedAgainstCurrentBranch => {
-            diff_options.include_untracked(true);
-            repo.diff_tree_to_workdir(Some(&current_branch.tree()?), Some(&mut diff_options))?
+impl DiffMode {
+    pub(crate) fn display(&self) -> String {
+        match self {
+            DiffMode::UnstagedAgainstMainBranch => "against main branch".to_string(),
+            DiffMode::UnstagedAgainstCurrentBranch => "against current branch".to_string(),
         }
-    };
-
-    println!("diff = {:?}", diff.deltas().count());
-
-    // Vector to hold the entries
-    let entries = diff
-        .deltas()
-        .into_iter()
-        .map(|delta| -> anyhow::Result<_> {
-            let new_path = delta
-                .new_file()
-                .path()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string();
-
-            println!("new_path = {new_path:?}");
-
-            let get_blob_content = |oid: git2::Oid| -> anyhow::Result<_> {
-                // The oid is zero (nullish) when the it represents an unstaged file
-                if oid.is_zero() {
-                    return Ok(std::fs::read_to_string(
-                        repo.workdir()
-                            .ok_or(anyhow::anyhow!(
-                                "Unable to get repository working directory."
-                            ))?
-                            .join(new_path.clone()),
-                    )?);
-                } else {
-                    repo.find_blob(oid)
-                        .and_then(|blob| {
-                            Ok(str::from_utf8(blob.content()).unwrap_or("").to_string())
-                        })
-                        .or_else(|_| {
-                            Ok(std::fs::read_to_string(
-                                repo.workdir()
-                                    .ok_or(anyhow::anyhow!(
-                                        "Unable to get repository working directory."
-                                    ))?
-                                    .join(new_path.clone()),
-                            )?)
-                        })
-                }
-            };
-
-            // Get the old content
-            let old_oid = delta.old_file().id();
-            let old_content = get_blob_content(old_oid)?;
-
-            // Get the new content
-            let new_oid = delta.new_file().id();
-            let new_content = get_blob_content(new_oid)?;
-
-            Ok(DiffEntry {
-                new_path: working_directory.join(&new_path)?,
-                old_content,
-                new_content,
-            })
-        })
-        .collect::<anyhow::Result<Vec<_>, _>>()?;
-
-    // Iterate over each diff
-    println!("entries = {entries:#?}");
-    Ok(entries)
+    }
 }
 
 #[cfg(test)]
 mod test_git {
-    use rand::Rng;
     use std::process::Command;
     use tempfile::tempdir;
-
-    use super::diff_entries;
 
     fn run_command(dir: &tempfile::TempDir, command: &str, args: &[&str]) {
         Command::new(command)
@@ -290,14 +290,13 @@ mod test_git {
 
     #[test]
     fn test_diff_entries() -> anyhow::Result<()> {
-        // Create a temporary directory
-        let dir = tempdir().unwrap();
-        // Create file
-        let file1 = dir.path().join("file1.txt");
-        let test = |mode: super::DiffMode,
-                    expected_old_content: &str,
-                    expected_new_content: &str|
-         -> anyhow::Result<()> {
+        let test = |mode: super::DiffMode, expected_old_content: &str| -> anyhow::Result<()> {
+            // Create a temporary directory
+            let dir = tempdir().unwrap();
+            // Create file
+            let file1 = dir.path().join("file1.txt");
+            let file2 = dir.path().join("file2.txt");
+            let file3 = dir.path().join("file3.txt");
             // Initialize a new repository
             run_command(&dir, "git", &["init"]);
 
@@ -319,30 +318,49 @@ mod test_git {
             run_command(&dir, "git", &["add", "."]);
             run_command(&dir, "git", &["commit", "-m", "Third commit"]);
 
+            // Modify file1 again after commit
             std::fs::write(file1.clone(), "hello\nworld\nlook\nnow")?;
 
+            // Create a new file named file2
+            std::fs::write(file2.clone(), "This is file 2")?;
+
+            // Create a new file named file3, and stage it
+            std::fs::write(file3.clone(), "This is file 3")?;
+            run_command(&dir, "git", &["add", &file3.to_string_lossy().as_ref()]);
+
             // Check the diff
-            let entries = diff_entries(&dir.path().to_path_buf().try_into()?, mode)
-                .expect("Failed to get diff");
+            let repo = super::GitRepo::try_from(&dir.path().try_into()?)?;
+            let entries = repo.diff_entries(mode)?;
             assert_eq!(
                 entries,
-                vec![super::DiffEntry {
-                    new_content: expected_new_content.to_string(),
-                    old_content: expected_old_content.to_string(),
-                    new_path: file1.clone().try_into()?,
-                }]
+                vec![
+                    super::DiffEntry {
+                        old_content: Some(expected_old_content.to_string()),
+                        // Expect the new content is the latest content of the file
+                        // regardless of whether it is commited/staged or not
+                        new_content: "hello\nworld\nlook\nnow".to_string(),
+                        new_path: file1.clone().try_into()?,
+                    },
+                    // Expect unstaged files (file 2) are included
+                    super::DiffEntry {
+                        old_content: None,
+                        new_content: "This is file 2".to_string(),
+                        new_path: file2.clone().try_into()?,
+                    },
+                    // Expect staged files (file 3) are included
+                    super::DiffEntry {
+                        old_content: None,
+                        new_content: "This is file 3".to_string(),
+                        new_path: file3.clone().try_into()?,
+                    }
+                ]
             );
             Ok(())
         };
-        test(
-            super::DiffMode::CurrentBranchAgainstDefaultBranch,
-            "hello\n",
-            "hello\nworld\nlook",
-        )?;
+        test(super::DiffMode::UnstagedAgainstMainBranch, "hello\n")?;
         test(
             super::DiffMode::UnstagedAgainstCurrentBranch,
             "hello\nworld\nlook",
-            "hello\nworld\nlook\nnow",
         )?;
         Ok(())
     }

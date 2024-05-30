@@ -9,6 +9,7 @@ use crate::{
     app::{Dispatch, Dispatches, FilePickerKind, MakeFilterMechanism, Scope},
     components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
+    git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
     selection::{FilterKind, FilterTarget, SelectionMode},
@@ -638,16 +639,15 @@ impl Editor {
                     .contextual_keymaps()
                     .into_iter()
                     .chain([KeymapLegendSection {
-                        title: "Find".to_string(),
+                        title: "Pick".to_string(),
                         keymaps: Keymaps::new(
                             &[
                                 ("b", "Buffers", FilePickerKind::Opened),
                                 (
                                     "f",
-                                    "Files (Not git ignored)",
+                                    "Files (Non git ignored)",
                                     FilePickerKind::NonGitIgnored,
                                 ),
-                                ("g", "Git status", FilePickerKind::GitStatus),
                             ]
                             .into_iter()
                             .map(|(key, description, kind)| {
@@ -657,6 +657,22 @@ impl Editor {
                                     Dispatch::OpenFilePicker(kind),
                                 )
                             })
+                            .chain(
+                                [
+                                    ("g", DiffMode::UnstagedAgainstCurrentBranch),
+                                    ("G", DiffMode::UnstagedAgainstMainBranch),
+                                ]
+                                .into_iter()
+                                .map(|(key, diff_mode)| {
+                                    Keymap::new(
+                                        key,
+                                        format!("Git status ({})", diff_mode.display()),
+                                        Dispatch::OpenFilePicker(FilePickerKind::GitStatus(
+                                            diff_mode,
+                                        )),
+                                    )
+                                }),
+                            )
                             .chain(self.editor().get_request_params().map(|params| {
                                 Keymap::new(
                                     "s",
@@ -790,36 +806,50 @@ impl Editor {
         };
         let misc_keymaps = KeymapLegendSection {
             title: "Misc".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    "g",
-                    "Git Hunk".to_string(),
-                    match scope {
-                        Scope::Global => Dispatch::GetRepoGitHunks,
-                        Scope::Local => Dispatch::ToEditor(SetSelectionMode(GitHunk)),
-                    },
-                ),
-                Keymap::new(
-                    "m",
-                    "Mark".to_string(),
-                    match scope {
-                        Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
-                        Scope::Local => Dispatch::ToEditor(SetSelectionMode(Bookmark)),
-                    },
-                ),
-                Keymap::new(
-                    "q",
-                    "Quickfix".to_string(),
-                    match scope {
-                        Scope::Global => Dispatch::SetGlobalMode(Some(
-                            crate::context::GlobalMode::QuickfixListItem,
-                        )),
-                        Scope::Local => Dispatch::ToEditor(SetSelectionMode(LocalQuickfix {
-                            title: "LOCAL QUICKFIX".to_string(),
-                        })),
-                    },
-                ),
-            ]),
+            keymaps: Keymaps::new(
+                &[
+                    Keymap::new(
+                        "m",
+                        "Mark".to_string(),
+                        match scope {
+                            Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
+                            Scope::Local => Dispatch::ToEditor(SetSelectionMode(Bookmark)),
+                        },
+                    ),
+                    Keymap::new(
+                        "q",
+                        "Quickfix".to_string(),
+                        match scope {
+                            Scope::Global => Dispatch::SetGlobalMode(Some(
+                                crate::context::GlobalMode::QuickfixListItem,
+                            )),
+                            Scope::Local => Dispatch::ToEditor(SetSelectionMode(LocalQuickfix {
+                                title: "LOCAL QUICKFIX".to_string(),
+                            })),
+                        },
+                    ),
+                ]
+                .into_iter()
+                .chain(
+                    [
+                        ("g", DiffMode::UnstagedAgainstCurrentBranch),
+                        ("G", DiffMode::UnstagedAgainstMainBranch),
+                    ]
+                    .map(|(key, diff_mode)| {
+                        Keymap::new(
+                            key,
+                            format!("Git hunk ({})", diff_mode.display()),
+                            match scope {
+                                Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
+                                Scope::Local => {
+                                    Dispatch::ToEditor(SetSelectionMode(GitHunk(diff_mode)))
+                                }
+                            },
+                        )
+                    }),
+                )
+                .collect_vec(),
+            ),
         };
         let diagnostics_keymaps = {
             let keymaps = [

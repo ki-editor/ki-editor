@@ -440,7 +440,7 @@ pub(crate) enum SelectionMode {
     Diagnostic(DiagnosticSeverityRange),
 
     // Git
-    GitHunk,
+    GitHunk(crate::git::DiffMode),
 
     // Local quickfix
     LocalQuickfix { title: String },
@@ -474,7 +474,9 @@ impl SelectionMode {
                 let severity = format!("{:?}", severity).to_uppercase();
                 format!("DIAGNOSTIC:{}", severity)
             }
-            SelectionMode::GitHunk => "GIT HUNK".to_string(),
+            SelectionMode::GitHunk(diff_mode) => {
+                format!("GIT HUNK ({})", diff_mode.display()).to_string()
+            }
             SelectionMode::Bookmark => "BOOKMARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
         }
@@ -526,7 +528,9 @@ impl SelectionMode {
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
             }
-            SelectionMode::GitHunk => Box::new(selection_mode::GitHunk::new(buffer)?),
+            SelectionMode::GitHunk(diff_mode) => {
+                Box::new(selection_mode::GitHunk::new(diff_mode, buffer)?)
+            }
             SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
             SelectionMode::EmptyLine => Box::new(selection_mode::Regex::new(buffer, r"(?m)^\s*$")?),
             SelectionMode::LocalQuickfix { .. } => {
