@@ -110,6 +110,11 @@ impl GitRepo {
         let entries = diff
             .deltas()
             .map(|delta| -> anyhow::Result<_> {
+                if !delta.new_file().exists() {
+                    // It means this file is deleted
+                    return Ok(None);
+                }
+
                 let new_path = delta
                     .new_file()
                     .path()
@@ -139,16 +144,15 @@ impl GitRepo {
                     )?)
                 })?;
 
-                Ok(DiffEntry {
+                Ok(Some(DiffEntry {
                     new_path: self.path.join(&new_path)?,
                     old_content,
                     new_content,
-                })
+                }))
             })
             .collect::<anyhow::Result<Vec<_>, _>>()?;
 
-        // Iterate over each diff
-        Ok(entries)
+        Ok(entries.into_iter().flatten().collect_vec())
     }
 
     fn get_tree(&self, diff_mode: &DiffMode) -> Result<git2::Tree<'_>, anyhow::Error> {
@@ -293,19 +297,23 @@ mod test_git {
         let test = |mode: super::DiffMode, expected_old_content: &str| -> anyhow::Result<()> {
             // Create a temporary directory
             let dir = tempdir().unwrap();
-            // Create file
+            // Create files
+            let file0 = dir.path().join("file0.txt");
             let file1 = dir.path().join("file1.txt");
             let file2 = dir.path().join("file2.txt");
             let file3 = dir.path().join("file3.txt");
+
             // Initialize a new repository
             run_command(&dir, "git", &["init"]);
 
+            std::fs::write(file0.clone(), "hello\n")?;
             std::fs::write(file1.clone(), "hello\n")?;
 
+            // First commit should contain two files
             run_command(&dir, "git", &["add", "."]);
             run_command(&dir, "git", &["commit", "-m", "First commit"]);
 
-            // Create a new branch
+            // Checkout two a new branch
             run_command(&dir, "git", &["checkout", "-b", "new-branch"]);
 
             // Make two commits
@@ -327,6 +335,9 @@ mod test_git {
             // Create a new file named file3, and stage it
             std::fs::write(file3.clone(), "This is file 3")?;
             run_command(&dir, "git", &["add", &file3.to_string_lossy().as_ref()]);
+
+            // Deletes file0
+            std::fs::remove_file(file0)?;
 
             // Check the diff
             let repo = super::GitRepo::try_from(&dir.path().try_into()?)?;
