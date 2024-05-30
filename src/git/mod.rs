@@ -109,7 +109,12 @@ impl GitRepo {
         // Vector to hold the entries
         let entries = diff
             .deltas()
-            .map(|delta| -> anyhow::Result<_> {
+            // We will be conservative here, we will just ignore any errors.
+            // We could have used `.map(...).collect::<Result<Vec<_>, _>>()` instead of
+            // using `.flat_map(...), but that assumes nothing can ever goes wrong.
+            // We don't want the user to not be able to get any diffs at all if some diffs
+            // cannot be processed properly without error.
+            .flat_map(|delta| -> anyhow::Result<_> {
                 if !delta.new_file().exists() {
                     // It means this file is deleted
                     return Ok(None);
@@ -118,9 +123,9 @@ impl GitRepo {
                 let new_path = delta
                     .new_file()
                     .path()
-                    .unwrap()
+                    .ok_or(anyhow::anyhow!("No path found for delta.new_file()"))?
                     .to_str()
-                    .unwrap()
+                    .ok_or(anyhow::anyhow!("Unable to convert path to string."))?
                     .to_string();
 
                 let get_blob_content = |oid: git2::Oid| -> anyhow::Result<_> {
@@ -150,9 +155,10 @@ impl GitRepo {
                     new_content,
                 }))
             })
-            .collect::<anyhow::Result<Vec<_>, _>>()?;
+            .flatten()
+            .collect_vec();
 
-        Ok(entries.into_iter().flatten().collect_vec())
+        Ok(entries)
     }
 
     fn get_tree(&self, diff_mode: &DiffMode) -> Result<git2::Tree<'_>, anyhow::Error> {
@@ -335,6 +341,10 @@ mod test_git {
             // Create a new file named file3, and stage it
             std::fs::write(file3.clone(), "This is file 3")?;
             run_command(&dir, "git", &["add", &file3.to_string_lossy().as_ref()]);
+
+            // Create a new file at a new directory
+            std::fs::create_dir_all(dir.path().join("organic"))?;
+            std::fs::write(dir.path().join("organic").join("nuts.txt"), "This is nuts")?;
 
             // Deletes file0
             std::fs::remove_file(file0)?;
