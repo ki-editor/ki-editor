@@ -34,16 +34,18 @@ Contextual actions are actions that are only applicable within a specific contex
 [^2]: Works like `mkdir -p`, it will create new directories when required.
 [^3]: This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.
 
-## Searching files/symbols
+## Pickers
 
-| Keybinding | Action                  |
-| ---------- | ----------------------- |
-| b          | Buffers (opened files)  |
-| f          | Files (Not git ignored) |
-| g          | Git status [^1]         |
-| s          | LSP Symbols             |
+| Keybinding | Object                                   |
+| ---------- | ---------------------------------------- |
+| b          | Buffers (opened files)                   |
+| f          | Files (Not git ignored)                  |
+| g          | Git status (against current branch) [^1] |
+| G          | Git status (against main branch)         |
+| s          | LSP Symbols                              |
+| t          | Themes                                   |
 
-[^1]: It means files that are modified when compared to their latest version found on the latest commit of this Git repository.
+[^1]: See more at [Git hunk](./selection-modes/local-global/misc.md#git-hunk)
 
 Searching is powered by [Helix's Nucleo](https://github.com/helix-editor/nucleo), and some [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax)-esque search syntax works here:
 

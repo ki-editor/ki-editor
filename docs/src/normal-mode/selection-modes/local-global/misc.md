@@ -4,11 +4,14 @@ These are selections mode that are neither based on [Text Search](./text-search.
 
 ## Git Hunk
 
-Keybinding: `g`
+Keybindings:
+
+- `g`: Get git hunks against current branch
+- `G`: Get git hunks against main branch
 
 Git hunks are the diffs of the current Git repository.
 
-It is computed by comparing the current file contents with the content on the latest commit of the current branch.
+It is computed by comparing the current file contents with the content on the latest commit of the current/main branch.
 
 This is useful when you want to navigate to your recent changes, but forgot where they are.
 
