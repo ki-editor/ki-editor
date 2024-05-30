@@ -10,4 +10,4 @@ Commands (non-exhaustive):
 | `write-all`      | Save all buffers.                     |
 | `write-quit-all` | Save all buffers and quit the editor. |
 
-Aliases are not supported because you can leverage [fuzzy find](./space-menu.md#searching-filessymbols). For example, `qa` matches `quit-all`, since the first letter of `quit` is `q`, and for `all` it's `a`.
+Aliases are not supported because you can leverage [fuzzy find](./space-menu.md#pickers). For example, `qa` matches `quit-all`, since the first letter of `quit` is `q`, and for `all` it's `a`.

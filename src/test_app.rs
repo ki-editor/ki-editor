@@ -693,7 +693,9 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
             // Add a new file
             App(AddPath(path_new_file.display().to_string())),
             // Get the repo hunks
-            App(GetRepoGitHunks),
+            App(GetRepoGitHunks(
+                crate::git::DiffMode::UnstagedAgainstCurrentBranch,
+            )),
             Step::ExpectLater(Box::new(move || {
                 Quickfixes(Box::new([
                     QuickfixListItem::new(
@@ -701,7 +703,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                             path: path_new_file.clone().try_into().unwrap(),
                             range: Position { line: 0, column: 0 }..Position { line: 0, column: 0 },
                         },
-                        strs_to_strings(&["[This file is untracked by Git]"]),
+                        strs_to_strings(&["[This file is untracked or renamed]"]),
                     ),
                     QuickfixListItem::new(
                         Location {

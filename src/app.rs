@@ -482,7 +482,7 @@ impl<T: Frontend> App<T> {
             Dispatch::HandleKeyEvent(key_event) => {
                 self.handle_event(Event::Key(key_event))?;
             }
-            Dispatch::GetRepoGitHunks => self.get_repo_git_hunks()?,
+            Dispatch::GetRepoGitHunks(diff_mode) => self.get_repo_git_hunks(diff_mode)?,
             Dispatch::SaveAll => self.save_all()?,
             #[cfg(test)]
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
@@ -724,8 +724,12 @@ impl<T: Frontend> App<T> {
                             git::GitRepo::try_from(&self.working_directory)?
                                 .non_git_ignored_files()?
                         }
-                        FilePickerKind::GitStatus => {
-                            git::GitRepo::try_from(&self.working_directory)?.git_status_files()?
+                        FilePickerKind::GitStatus(diff_mode) => {
+                            git::GitRepo::try_from(&self.working_directory)?
+                                .diff_entries(diff_mode)?
+                                .into_iter()
+                                .map(|entry| entry.new_path())
+                                .collect_vec()
                         }
                         FilePickerKind::Opened => self.layout.get_opened_files(),
                     }
@@ -1238,10 +1242,10 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn get_repo_git_hunks(&mut self) -> anyhow::Result<()> {
+    fn get_repo_git_hunks(&mut self, diff_mode: git::DiffMode) -> anyhow::Result<()> {
         let working_directory = self.working_directory.clone();
         let repo = git::GitRepo::try_from(&working_directory)?;
-        let diffs = repo.diffs()?;
+        let diffs = repo.diffs(diff_mode)?;
         self.set_quickfix_list_type(
             ResponseContext::default().set_description("Git Hunks"),
             QuickfixListType::Items(
@@ -1968,7 +1972,7 @@ pub(crate) enum Dispatch {
     HandleKeyEvent(event::KeyEvent),
     #[cfg(test)]
     HandleKeyEvents(Vec<event::KeyEvent>),
-    GetRepoGitHunks,
+    GetRepoGitHunks(git::DiffMode),
     SaveAll,
     #[cfg(test)]
     TerminalDimensionChanged(Dimension),
@@ -2059,14 +2063,14 @@ pub(crate) struct YesNoPrompt {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum FilePickerKind {
     NonGitIgnored,
-    GitStatus,
+    GitStatus(git::DiffMode),
     Opened,
 }
 impl FilePickerKind {
     pub(crate) fn display(&self) -> String {
         match self {
             FilePickerKind::NonGitIgnored => "Not Git Ignored".to_string(),
-            FilePickerKind::GitStatus => "Git Status".to_string(),
+            FilePickerKind::GitStatus(diff_mode) => format!("Git Status ({})", diff_mode.display()),
             FilePickerKind::Opened => "Opened".to_string(),
         }
     }
