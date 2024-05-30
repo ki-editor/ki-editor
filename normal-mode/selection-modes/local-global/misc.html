@@ -182,14 +182,18 @@
                         <h1 id="misc"><a class="header" href="#misc">Misc</a></h1>
 <p>These are selections mode that are neither based on <a href="./text-search.html">Text Search</a> nor <a href="./lsp-based.html">LSP</a>.</p>
 <h2 id="git-hunk"><a class="header" href="#git-hunk">Git Hunk</a></h2>
-<p>Keybinding: <code>g</code></p>
+<p>Keybindings:</p>
+<ul>
+<li><code>g</code>: Get git hunks against current branch</li>
+<li><code>G</code>: Get git hunks against main branch</li>
+</ul>
 <p>Git hunks are the diffs of the current Git repository.</p>
-<p>It is computed by comparing the current file contents with the content on the latest commit of the current branch.</p>
+<p>It is computed by comparing the current file contents with the content on the latest commit of the current/main branch.</p>
 <p>This is useful when you want to navigate to your recent changes, but forgot where they are.</p>
 <h2 id="marks"><a class="header" href="#marks">Marks</a></h2>
 <p>Keybinding: <code>m</code></p>
 <p>Marks or bookmarks is a powerful feature that allows you to jump to files that contain marks (which can be toggled).</p>
-<p>It also allows you to exchange two sections of the file.</p>
+<p>It also allows you to exchange two sections of the same file.</p>
 <h2 id="quickfix"><a class="header" href="#quickfix">Quickfix</a></h2>
 <p>Keybinding: <code>q</code></p>
 <p>When getting selections using the Global mode, the matches will be stored into

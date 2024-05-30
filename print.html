@@ -696,14 +696,18 @@ local references are very useful, especially when used in conjunction with Multi
 <div style="break-before: page; page-break-before: always;"></div><h1 id="misc"><a class="header" href="#misc">Misc</a></h1>
 <p>These are selections mode that are neither based on <a href="normal-mode/selection-modes/local-global/./text-search.html">Text Search</a> nor <a href="normal-mode/selection-modes/local-global/./lsp-based.html">LSP</a>.</p>
 <h2 id="git-hunk"><a class="header" href="#git-hunk">Git Hunk</a></h2>
-<p>Keybinding: <code>g</code></p>
+<p>Keybindings:</p>
+<ul>
+<li><code>g</code>: Get git hunks against current branch</li>
+<li><code>G</code>: Get git hunks against main branch</li>
+</ul>
 <p>Git hunks are the diffs of the current Git repository.</p>
-<p>It is computed by comparing the current file contents with the content on the latest commit of the current branch.</p>
+<p>It is computed by comparing the current file contents with the content on the latest commit of the current/main branch.</p>
 <p>This is useful when you want to navigate to your recent changes, but forgot where they are.</p>
 <h2 id="marks"><a class="header" href="#marks">Marks</a></h2>
 <p>Keybinding: <code>m</code></p>
 <p>Marks or bookmarks is a powerful feature that allows you to jump to files that contain marks (which can be toggled).</p>
-<p>It also allows you to exchange two sections of the file.</p>
+<p>It also allows you to exchange two sections of the same file.</p>
 <h2 id="quickfix"><a class="header" href="#quickfix">Quickfix</a></h2>
 <p>Keybinding: <code>q</code></p>
 <p>When getting selections using the Global mode, the matches will be stored into
@@ -1062,10 +1066,10 @@ Press <code>]</code> to restore the selection to the current state.</p>
 </div>
 <h3 id="file-explorer-actions"><a class="header" href="#file-explorer-actions">File Explorer Actions:</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
-<tr><td><code>a</code></td><td>Add a new file/folder under the current path<sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
+<tr><td><code>a</code></td><td>Add a new file/folder under the current path <sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
 <tr><td><code>d</code></td><td>Delete current file/folder</td></tr>
-<tr><td><code>m</code></td><td>Move (or rename) the current file/folder<sup class="footnote-reference"><a href="#2">2</a></sup></td></tr>
-<tr><td><code>r</code></td><td>Refresh the <a href="normal-mode/../components/file-explorer.html">file explorer</a><sup class="footnote-reference"><a href="#3">3</a></sup></td></tr>
+<tr><td><code>m</code></td><td>Move (or rename) the current file/folder <sup class="footnote-reference"><a href="#2">2</a></sup></td></tr>
+<tr><td><code>r</code></td><td>Refresh the <a href="normal-mode/../components/file-explorer.html">file explorer</a> <sup class="footnote-reference"><a href="#3">3</a></sup></td></tr>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
@@ -1077,16 +1081,21 @@ Press <code>]</code> to restore the selection to the current state.</p>
 <div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
 <p>This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.</p>
 </div>
-<h2 id="searching-filessymbols"><a class="header" href="#searching-filessymbols">Searching files/symbols</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
+<h2 id="pickers"><a class="header" href="#pickers">Pickers</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Object</th></tr></thead><tbody>
 <tr><td>b</td><td>Buffers (opened files)</td></tr>
 <tr><td>f</td><td>Files (Not git ignored)</td></tr>
-<tr><td>g</td><td>Git status <sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
+<tr><td>g</td><td>Git status (against current branch) <sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
+<tr><td>G</td><td>Git status (against main branch) <sup class="footnote-reference"><a href="#2">2</a></sup></td></tr>
 <tr><td>s</td><td>LSP Symbols</td></tr>
+<tr><td>t</td><td>Themes</td></tr>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>It means files that are modified when compared to their latest version found on the latest commit of this Git repository.</p>
+<p>See more at <a href="normal-mode/./selection-modes/local-global/misc.html#git-hunk">Git hunk</a></p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
+<p>This is very useful when you want to get the modified/added files commited into the current branch that you are working on.</p>
 </div>
 <p>Searching is powered by <a href="https://github.com/helix-editor/nucleo">Helix's Nucleo</a>, and some <a href="https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax">fzf</a>-esque search syntax works here:</p>
 <div class="table-wrapper"><table><thead><tr><th>Token</th><th>Description</th></tr></thead><tbody>
@@ -1127,7 +1136,7 @@ Press <code>]</code> to restore the selection to the current state.</p>
 <tr><td><code>write-quit-all</code></td><td>Save all buffers and quit the editor.</td></tr>
 </tbody></table>
 </div>
-<p>Aliases are not supported because you can leverage <a href="normal-mode/./space-menu.html#searching-filessymbols">fuzzy find</a>. For example, <code>qa</code> matches <code>quit-all</code>, since the first letter of <code>quit</code> is <code>q</code>, and for <code>all</code> it's <code>a</code>.</p>
+<p>Aliases are not supported because you can leverage <a href="normal-mode/./space-menu.html#pickers">fuzzy find</a>. For example, <code>qa</code> matches <code>quit-all</code>, since the first letter of <code>quit</code> is <code>q</code>, and for <code>all</code> it's <code>a</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="universal-keybindings"><a class="header" href="#universal-keybindings">Universal Keybindings</a></h1>
 <p>The keybindings presented here work in any <a href="./modes.html">Modes</a>.</p>
 <h2 id="switch-view-alignment"><a class="header" href="#switch-view-alignment">Switch view alignment</a></h2>

@@ -199,10 +199,10 @@
 </div>
 <h3 id="file-explorer-actions"><a class="header" href="#file-explorer-actions">File Explorer Actions:</a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
-<tr><td><code>a</code></td><td>Add a new file/folder under the current path<sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
+<tr><td><code>a</code></td><td>Add a new file/folder under the current path <sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
 <tr><td><code>d</code></td><td>Delete current file/folder</td></tr>
-<tr><td><code>m</code></td><td>Move (or rename) the current file/folder<sup class="footnote-reference"><a href="#2">2</a></sup></td></tr>
-<tr><td><code>r</code></td><td>Refresh the <a href="../components/file-explorer.html">file explorer</a><sup class="footnote-reference"><a href="#3">3</a></sup></td></tr>
+<tr><td><code>m</code></td><td>Move (or rename) the current file/folder <sup class="footnote-reference"><a href="#2">2</a></sup></td></tr>
+<tr><td><code>r</code></td><td>Refresh the <a href="../components/file-explorer.html">file explorer</a> <sup class="footnote-reference"><a href="#3">3</a></sup></td></tr>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
@@ -214,16 +214,21 @@
 <div class="footnote-definition" id="3"><sup class="footnote-definition-label">3</sup>
 <p>This is necessary sometimes because the file system is modified by external factors, and Ki does not watch for file changes.</p>
 </div>
-<h2 id="searching-filessymbols"><a class="header" href="#searching-filessymbols">Searching files/symbols</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
+<h2 id="pickers"><a class="header" href="#pickers">Pickers</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Object</th></tr></thead><tbody>
 <tr><td>b</td><td>Buffers (opened files)</td></tr>
 <tr><td>f</td><td>Files (Not git ignored)</td></tr>
-<tr><td>g</td><td>Git status <sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
+<tr><td>g</td><td>Git status (against current branch) <sup class="footnote-reference"><a href="#1">1</a></sup></td></tr>
+<tr><td>G</td><td>Git status (against main branch) <sup class="footnote-reference"><a href="#2">2</a></sup></td></tr>
 <tr><td>s</td><td>LSP Symbols</td></tr>
+<tr><td>t</td><td>Themes</td></tr>
 </tbody></table>
 </div>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
-<p>It means files that are modified when compared to their latest version found on the latest commit of this Git repository.</p>
+<p>See more at <a href="./selection-modes/local-global/misc.html#git-hunk">Git hunk</a></p>
+</div>
+<div class="footnote-definition" id="2"><sup class="footnote-definition-label">2</sup>
+<p>This is very useful when you want to get the modified/added files commited into the current branch that you are working on.</p>
 </div>
 <p>Searching is powered by <a href="https://github.com/helix-editor/nucleo">Helix's Nucleo</a>, and some <a href="https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax">fzf</a>-esque search syntax works here:</p>
 <div class="table-wrapper"><table><thead><tr><th>Token</th><th>Description</th></tr></thead><tbody>
