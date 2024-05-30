@@ -23,12 +23,12 @@ Contextual actions are actions that are only applicable within a specific contex
 
 ### File Explorer Actions:
 
-| Keybinding | Action                                                          |
-| ---------- | --------------------------------------------------------------- |
-| `a`        | Add a new file/folder under the current path[^1]                |
-| `d`        | Delete current file/folder                                      |
-| `m`        | Move (or rename) the current file/folder[^2]                    |
-| `r`        | Refresh the [file explorer](../components/file-explorer.md)[^3] |
+| Keybinding | Action                                                           |
+| ---------- | ---------------------------------------------------------------- |
+| `a`        | Add a new file/folder under the current path [^1]                |
+| `d`        | Delete current file/folder                                       |
+| `m`        | Move (or rename) the current file/folder [^2]                    |
+| `r`        | Refresh the [file explorer](../components/file-explorer.md) [^3] |
 
 [^1]: To add a folder, append `/` to the file name. Can be nested, and new directories will be created as required.
 [^2]: Works like `mkdir -p`, it will create new directories when required.
@@ -41,11 +41,12 @@ Contextual actions are actions that are only applicable within a specific contex
 | b          | Buffers (opened files)                   |
 | f          | Files (Not git ignored)                  |
 | g          | Git status (against current branch) [^1] |
-| G          | Git status (against main branch)         |
+| G          | Git status (against main branch) [^2]    |
 | s          | LSP Symbols                              |
 | t          | Themes                                   |
 
 [^1]: See more at [Git hunk](./selection-modes/local-global/misc.md#git-hunk)
+[^2]: This is very useful when you want to get the modified/added files commited into the current branch that you are working on.
 
 Searching is powered by [Helix's Nucleo](https://github.com/helix-editor/nucleo), and some [fzf](https://github.com/junegunn/fzf?tab=readme-ov-file#search-syntax)-esque search syntax works here:
 
