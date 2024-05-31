@@ -2,6 +2,11 @@ use std::path::{Path, PathBuf};
 
 use url::Url;
 
+/// This is used as a standardization of Paths across the codebase,
+/// so that we have a single unified representation of paths.
+///
+/// However, the construction of a `CanonicalizedPath` is slow,
+/// because `std::path::Path::canonicalize` is expensive.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct CanonicalizedPath(PathBuf);
 
@@ -70,18 +75,25 @@ impl TryFrom<&String> for CanonicalizedPath {
     }
 }
 
+pub fn get_path_icon(path: &Path) -> &String {
+    let config = crate::icons::get_icon_config();
+    path.file_name()
+        .and_then(|filename| {
+            config
+                .file_names
+                .get(&filename.to_string_lossy().to_string())
+        })
+        .or_else(|| {
+            config
+                .file_extensions
+                .get(path.extension().and_then(|s| s.to_str())?)
+        })
+        .unwrap_or(&config.file)
+}
+
 impl CanonicalizedPath {
     pub fn icon(&self) -> &String {
-        let config = crate::icons::get_icon_config();
-        self.0
-            .file_name()
-            .and_then(|filename| {
-                config
-                    .file_names
-                    .get(&filename.to_string_lossy().to_string())
-            })
-            .or_else(|| config.file_extensions.get(self.extension()?))
-            .unwrap_or(&config.file)
+        get_path_icon(&self.0)
     }
     pub fn read(&self) -> anyhow::Result<String> {
         Ok(std::fs::read_to_string(&self.0)?)
@@ -136,6 +148,10 @@ impl CanonicalizedPath {
 
     pub fn to_path_buf(&self) -> &PathBuf {
         &self.0
+    }
+
+    pub fn into_path_buf(self) -> PathBuf {
+        self.0
     }
 
     pub fn is_file(&self) -> bool {

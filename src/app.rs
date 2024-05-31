@@ -377,6 +377,10 @@ impl<T: Frontend> App<T> {
                 self.open_file(&path, OpenFileOption::Focus)?;
             }
 
+            Dispatch::OpenFileFromPathBuf(path) => {
+                self.open_file(&path.try_into()?, OpenFileOption::Focus)?;
+            }
+
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
@@ -721,20 +725,47 @@ impl<T: Frontend> App<T> {
                 items: {
                     match kind {
                         FilePickerKind::NonGitIgnored => {
-                            git::GitRepo::try_from(&self.working_directory)?
-                                .non_git_ignored_files()?
+                            // Note: we should not use CanonicalizedPath here, as it is resource-intensive
+                            list::WalkBuilderConfig::non_git_ignored_files(
+                                self.working_directory.clone(),
+                            )?
                         }
                         FilePickerKind::GitStatus(diff_mode) => {
                             git::GitRepo::try_from(&self.working_directory)?
                                 .diff_entries(diff_mode)?
                                 .into_iter()
-                                .map(|entry| entry.new_path())
+                                .map(|entry| entry.new_path().into_path_buf())
                                 .collect_vec()
                         }
-                        FilePickerKind::Opened => self.layout.get_opened_files(),
+                        FilePickerKind::Opened => self
+                            .layout
+                            .get_opened_files()
+                            .into_iter()
+                            .map(|path| path.into_path_buf())
+                            .collect_vec(),
                     }
                     .into_iter()
-                    .map(|path| path.into())
+                    .map(|path| {
+                        DropdownItem::new({
+                            let name = path
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string();
+                            let icon = shared::canonicalized_path::get_path_icon(&path);
+                            format!("{icon} {name}")
+                        })
+                        .set_group(path.parent().map(|parent| {
+                            let relative = parent
+                                .strip_prefix(&self.working_directory)
+                                .map(|path| path.display().to_string())
+                                .unwrap_or_else(|_| parent.display().to_string());
+                            format!("{} {}", shared::icons::get_icon_config().folder, relative,)
+                        }))
+                        .set_dispatches(Dispatches::one(
+                            crate::app::Dispatch::OpenFileFromPathBuf(path),
+                        ))
+                    })
                     .collect_vec()
                 },
                 enter_selects_first_matching_item: true,
@@ -1907,6 +1938,7 @@ pub(crate) enum Dispatch {
         scope: Scope,
     },
     OpenFile(CanonicalizedPath),
+    OpenFileFromPathBuf(PathBuf),
     ShowGlobalInfo(Info),
     RequestCompletion(RequestParams),
     RequestSignatureHelp(RequestParams),

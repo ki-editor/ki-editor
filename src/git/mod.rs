@@ -26,14 +26,6 @@ impl TryFrom<&CanonicalizedPath> for GitRepo {
 }
 
 impl GitRepo {
-    fn git_status_files(&self) -> Result<Vec<CanonicalizedPath>, anyhow::Error> {
-        let entries = self.diff_entries(DiffMode::UnstagedAgainstCurrentBranch)?;
-        Ok(entries
-            .into_iter()
-            .map(|entry| entry.new_path)
-            .collect_vec())
-    }
-
     pub(crate) fn diffs(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<FileDiff>> {
         Ok(self
             .diff_entries(diff_mode)?
@@ -45,50 +37,6 @@ impl GitRepo {
 
     fn path(&self) -> &CanonicalizedPath {
         &self.path
-    }
-
-    pub(crate) fn non_git_ignored_files(&self) -> anyhow::Result<Vec<CanonicalizedPath>> {
-        let git_status_files = self.git_status_files()?;
-
-        let git_files = {
-            let repo = git2::Repository::open(&self.path)?;
-
-            // Get the current branch name
-            let head = repo.head()?.target().map(Ok).unwrap_or_else(|| {
-                Err(anyhow::anyhow!(
-                    "Couldn't find HEAD for repository {}",
-                    repo.path().display(),
-                ))
-            })?;
-
-            // Get the generic object of the current branch
-            let object = repo.find_object(head, None)?;
-
-            // Get the tree object of the current branch
-            let tree = object.peel_to_tree()?;
-
-            let mut result = vec![];
-            // Iterate over the tree entries and print their names
-            tree.walk(git2::TreeWalkMode::PostOrder, |root, entry| {
-                let entry_name = entry.name().unwrap_or_default();
-                if let Ok(path) = self.path.join(
-                    &std::path::Path::new(root)
-                        .join(entry_name)
-                        .to_string_lossy(),
-                ) {
-                    result.push(path)
-                };
-                git2::TreeWalkResult::Ok
-            })?;
-
-            result
-        };
-        Ok(git_files
-            .into_iter()
-            .chain(git_status_files)
-            .filter(|path| path.is_file())
-            .unique_by(|item| item.clone())
-            .collect_vec())
     }
 
     pub(crate) fn diff_entries(&self, diff_mode: DiffMode) -> anyhow::Result<Vec<DiffEntry>> {

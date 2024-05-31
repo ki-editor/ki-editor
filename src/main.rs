@@ -54,14 +54,20 @@ fn main() {
     cli::cli().unwrap();
 }
 
-pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+#[derive(Default)]
+pub(crate) struct RunConfig {
+    pub(crate) entry_path: Option<CanonicalizedPath>,
+    pub(crate) working_directory: Option<CanonicalizedPath>,
+}
+
+pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     simple_logging::log_to_file(grammar::default_log_file(), LevelFilter::Info)?;
     let _args = std::env::args();
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
         Arc::new(Mutex::new(Crossterm::default())),
-        CanonicalizedPath::try_from(".")?,
+        config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
     )?;
@@ -79,7 +85,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
         }
     });
 
-    app.run(path)
+    app.run(config.entry_path)
         .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
 
     crossterm_join_handle.join().unwrap();

@@ -67,9 +67,7 @@ impl WalkBuilderConfig {
         let (sender, receiver) = crossbeam::channel::unbounded::<T>();
         WalkBuilder::new(root)
             .filter_entry(move |entry| {
-                let path = CanonicalizedPath::try_from(entry.path())
-                    .map(|path| path.display_absolute())
-                    .unwrap_or_else(|_| entry.path().display().to_string());
+                let path = entry.path().display().to_string();
 
                 entry
                     .file_type()
@@ -84,6 +82,7 @@ impl WalkBuilderConfig {
                             .map(|pattern| !pattern.compile_matcher().is_match(&path))
                             .unwrap_or(true))
             })
+            .hidden(false)
             .build_parallel()
             .run(|| {
                 Box::new(|path| {
@@ -96,6 +95,8 @@ impl WalkBuilderConfig {
                             if let Err(error) = f(path, sender.clone()) {
                                 log::error!("sender.send {:?}", error)
                             }
+                        } else if path.path().ends_with(".git") {
+                            return WalkState::Skip;
                         }
                     }
                     WalkState::Continue
@@ -108,6 +109,22 @@ impl WalkBuilderConfig {
         }
 
         Ok(receiver.into_iter().collect::<Vec<_>>())
+    }
+
+    fn new(root: PathBuf) -> Self {
+        Self {
+            root,
+            include: None,
+            exclude: None,
+        }
+    }
+
+    /// This method returns `PathBuf` instead of `CanonicalizedPath`
+    /// because constructing `CanonicalizedPath` is expensive.
+    /// For reference: read https://blobfolio.com/2021/faster-path-canonicalization-rust/
+    pub(crate) fn non_git_ignored_files(root: CanonicalizedPath) -> anyhow::Result<Vec<PathBuf>> {
+        WalkBuilderConfig::new(root.to_path_buf().clone())
+            .run(Box::new(|path, sender| Ok(sender.send(path)?)))
     }
 }
 
@@ -134,6 +151,7 @@ mod test_walk_builder_config {
         assert_eq!(
             paths.into_iter().sorted().collect_vec(),
             [
+                PathBuf::from("./tests/mock_repos/rust1/.gitignore"),
                 PathBuf::from("./tests/mock_repos/rust1/Cargo.lock"),
                 PathBuf::from("./tests/mock_repos/rust1/Cargo.toml")
             ]

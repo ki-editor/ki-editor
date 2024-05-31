@@ -23,9 +23,15 @@ enum Commands {
     Edit(EditArgs),
     /// Prints the log file path
     Log,
+    /// Run Ki in the given path, treating the path as the working directory
+    In(InArgs),
 }
 #[derive(Args)]
 struct EditArgs {
+    path: String,
+}
+#[derive(Args)]
+struct InArgs {
     path: String,
 }
 #[derive(Subcommand)]
@@ -68,7 +74,10 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 if !path.exists() {
                     std::fs::write(path, "")?;
                 }
-                crate::run(Some(args.path.try_into()?))
+                crate::run(crate::RunConfig {
+                    entry_path: Some(args.path.try_into()?),
+                    ..Default::default()
+                })
             }
             Commands::Log => {
                 println!(
@@ -77,8 +86,12 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 );
                 Ok(())
             }
+            Commands::In(args) => crate::run(crate::RunConfig {
+                working_directory: Some(args.path.try_into()?),
+                ..Default::default()
+            }),
         }
     } else {
-        crate::run(None)
+        crate::run(Default::default())
     }
 }

@@ -739,12 +739,14 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
             App(SaveAll),
             // Add new txt file
             App(AddPath(s.new_path("temp.txt").display().to_string())),
+            // Add a hidden file
+            App(AddPath(s.new_path(".bashrc").display().to_string())),
+            // Add a file under `.git` folder
+            App(AddPath(s.new_path(".git/hello").display().to_string())),
             // Add a new Rust file
             App(AddPath(s.new_path("src/rust.rs").display().to_string())),
             ExpectCustom(Box::new(move || {
-                let paths = crate::git::GitRepo::try_from(&temp_dir)
-                    .unwrap()
-                    .non_git_ignored_files()
+                let paths = crate::list::WalkBuilderConfig::non_git_ignored_files(temp_dir.clone())
                     .unwrap();
 
                 // Expect all the paths are files, not directory for example
@@ -752,7 +754,11 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
 
                 let paths = paths
                     .into_iter()
-                    .flat_map(|path| path.display_relative_to(&s.temp_dir()))
+                    .flat_map(|path| {
+                        CanonicalizedPath::try_from(path)
+                            .unwrap()
+                            .display_relative_to(&s.temp_dir())
+                    })
                     .collect_vec();
 
                 // Expect "temp.txt" is not in the list, since it is git-ignored
@@ -763,6 +769,12 @@ pub(crate) fn non_git_ignored_files() -> Result<(), anyhow::Error> {
 
                 // Expect the staged file "main.rs" is in the list
                 assert!(paths.contains(&"src/main.rs".to_string()));
+
+                // Expect the hidden file ".bashrc" is in the list
+                assert!(paths.contains(&".bashrc".to_string()));
+
+                // Expect files under ".git" is ignored
+                assert!(!paths.contains(&".git/hello".to_string()));
             })),
         ])
     })
