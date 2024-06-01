@@ -288,7 +288,7 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open(direction) => return self.smart_insert(direction),
+            Open(direction) => return self.open(direction),
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
@@ -298,8 +298,6 @@ impl Component for Editor {
             DeleteSurround(enclosure) => return self.delete_surround(enclosure),
             ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
             ReplaceWithPattern => return self.replace_with_pattern(context),
-            AddCursor(movement) => self.add_cursor(&movement)?,
-            Exchange(movement) => return self.exchange(movement),
             Replace(movement) => return self.replace_with_movement(&movement),
         }
         Ok(Default::default())
@@ -1757,17 +1755,21 @@ impl Editor {
                         buffer.slice(&in_between_range.into()).ok()
                     }
                 };
-                let gap = match (
-                    get_in_between_gap(Movement::Next),
-                    get_in_between_gap(Movement::Previous),
-                ) {
-                    (None, None) => Default::default(),
-                    (None, Some(gap)) | (Some(gap), None) => gap,
-                    (Some(next_gap), Some(prev_gap)) => {
-                        if next_gap.len_chars() > prev_gap.len_chars() {
-                            next_gap
-                        } else {
-                            prev_gap
+                let gap = if !self.selection_set.mode.is_contiguous() {
+                    Rope::from_str("")
+                } else {
+                    match (
+                        get_in_between_gap(Movement::Next),
+                        get_in_between_gap(Movement::Previous),
+                    ) {
+                        (None, None) => Default::default(),
+                        (None, Some(gap)) | (Some(gap), None) => gap,
+                        (Some(next_gap), Some(prev_gap)) => {
+                            if next_gap.len_chars() > prev_gap.len_chars() {
+                                next_gap
+                            } else {
+                                prev_gap
+                            }
                         }
                     }
                 };
@@ -1777,11 +1779,16 @@ impl Editor {
             .collect_vec()
     }
 
-    fn smart_insert(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap()
                 .into_iter()
                 .map(|(selection, gap)| {
+                    let gap = if gap.len_chars() == 0 {
+                        Rope::from_str(" ")
+                    } else {
+                        gap
+                    };
                     let gap_len = gap.len_chars();
                     ActionGroup::new(
                         [
@@ -2609,8 +2616,6 @@ pub(crate) enum DispatchEditor {
         from: EnclosureKind,
         to: EnclosureKind,
     },
-    AddCursor(Movement),
-    Exchange(Movement),
     Replace(Movement),
 }
 

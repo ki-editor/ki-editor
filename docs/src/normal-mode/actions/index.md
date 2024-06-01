@@ -68,7 +68,9 @@ Keybindings:
 - `o`: Open after selection
 - `O`: Open before selection
 
-If the current selection mode is **not** [contiguous](../selection-modes/index.md#contiguity), then `o` behaves like `a`, and `O` behaves like `i`.
+If the current selection mode is **not** [contiguous](../selection-modes/index.md#contiguity),
+then `o`/`O` inserts one space after/before the current
+selection.
 
 Otherwise, it inserts a gap before/after the current selection, and enter Insert mode.
 

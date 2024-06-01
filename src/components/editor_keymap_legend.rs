@@ -205,12 +205,12 @@ impl Editor {
                 ),
                 Keymap::new(
                     "d",
-                    "Delete".to_string(),
+                    "Delete (until next selection)".to_string(),
                     Dispatch::ToEditor(Delete { backward: false }),
                 ),
                 Keymap::new(
                     "D",
-                    "Delete Cut".to_string(),
+                    "Delete (until previous selection)".to_string(),
                     Dispatch::ToEditor(Delete { backward: true }),
                 ),
                 Keymap::new(
@@ -244,16 +244,6 @@ impl Editor {
                     Dispatch::ToEditor(Paste(Direction::Start)),
                 ),
                 Keymap::new(
-                    "q",
-                    "Add Cursor (Next)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::AddCursor(Movement::Next)),
-                ),
-                Keymap::new(
-                    "Q",
-                    "Add Cursor (Previous)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::AddCursor(Movement::Previous)),
-                ),
-                Keymap::new(
                     "r",
                     "Replace".to_string(),
                     Dispatch::ToEditor(ReplaceWithCopiedText),
@@ -272,16 +262,6 @@ impl Editor {
                     "v",
                     "Toggle Visual Mode".to_string(),
                     Dispatch::ToEditor(ToggleVisualMode),
-                ),
-                Keymap::new(
-                    "x",
-                    "Exchange (Next)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::Exchange(Movement::Next)),
-                ),
-                Keymap::new(
-                    "X",
-                    "Exchange (Previous)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::Exchange(Movement::Previous)),
                 ),
                 Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
