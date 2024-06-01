@@ -2,14 +2,14 @@
 
 This is one of the most useful selection modes.
 
-Keymaps:
+Keybindings:
 
-| Keymap | Meaning                        |
-| ------ | ------------------------------ |
-| `s`    | Open search prompt             |
-| `c`    | Search using current selection |
-| `p`    | Search using previous search   |
-| `,`    | Configure search               |
+| Keybinding | Meaning                        |
+| ---------- | ------------------------------ |
+| `s`        | Open search prompt             |
+| `c`        | Search using current selection |
+| `p`        | Search using previous search   |
+| `,`        | Configure search               |
 
 By default, the search prompt searches using Literal mode.
 
@@ -88,3 +88,26 @@ When turned on, the search will be restricted to match word boundary (`\b`). For
 Keybinding: `i`
 
 When turned on, the uppercase or lowercase of each alphabet of the search becomes important. For example, `hello` will not match `Hello`.
+
+## Globbing
+
+This only works in Global text search.  
+This is useful when you want to include/exclude certain files/directories during
+global search/replace.
+
+This feature is powered by the [globset](https://docs.rs/globset/latest/globset/#syntax) library, which supports alternation such as:
+
+- `*.{js,jsx}`
+
+Keybindings:
+
+| Keybinding | Action           |
+| ---------- | ---------------- |
+| `I`        | Set include glob |
+| `E`        | Set exclude glob |
+
+## Replace All
+
+This is a global action that replaces all matches with the replacement pattern[^1].
+
+[^1]: See more at [Replace with Pattern](../../actions/index.md#replace-with-pattern)

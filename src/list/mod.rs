@@ -65,6 +65,18 @@ impl WalkBuilderConfig {
             exclude,
         } = self;
         let (sender, receiver) = crossbeam::channel::unbounded::<T>();
+        let build_matcher = |glob: Option<&Glob>| -> anyhow::Result<_> {
+            let pattern = if let Some(glob) = glob {
+                Some(Glob::new(&root.join(glob.glob()).to_string_lossy())?.compile_matcher())
+            } else {
+                None
+            };
+            Ok(Box::new(move |path: &str| {
+                pattern.as_ref().map(|pattern| pattern.is_match(path))
+            }))
+        };
+        let include_match = build_matcher(include.as_ref())?;
+        let exclude_match = build_matcher(exclude.as_ref())?;
         WalkBuilder::new(root)
             .filter_entry(move |entry| {
                 let path = entry.path().display().to_string();
@@ -73,14 +85,8 @@ impl WalkBuilderConfig {
                     .file_type()
                     .map(|file_type| !file_type.is_file())
                     .unwrap_or(false)
-                    || (include
-                        .as_ref()
-                        .map(|pattern| pattern.compile_matcher().is_match(&path))
-                        .unwrap_or(true)
-                        && exclude
-                            .as_ref()
-                            .map(|pattern| !pattern.compile_matcher().is_match(&path))
-                            .unwrap_or(true))
+                    || (include_match(&path).unwrap_or(true)
+                        && !exclude_match(&path).unwrap_or(false))
             })
             .hidden(false)
             .build_parallel()
@@ -142,7 +148,7 @@ mod test_walk_builder_config {
         let config = WalkBuilderConfig {
             root: "./tests/mock_repos/rust1".into(),
             include: None,
-            exclude: Some(Glob::new("*.rs")?),
+            exclude: Some(Glob::new("src/*.rs")?),
         };
         let paths = config.run(Box::new(|path, sender| {
             sender.send(path).unwrap();
@@ -163,7 +169,7 @@ mod test_walk_builder_config {
     fn test_include() -> anyhow::Result<()> {
         let config = WalkBuilderConfig {
             root: "./tests/mock_repos/rust1".into(),
-            include: Some(Glob::new("**/src/*.rs")?),
+            include: Some(Glob::new("src/*.rs")?),
             exclude: None,
         };
         let paths = config.run(Box::new(|path, sender| {
