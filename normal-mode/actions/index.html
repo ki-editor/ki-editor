@@ -229,7 +229,9 @@ copied text is <code>z</code>, performing a <code>p</code> results in the follow
 <li><code>o</code>: Open after selection</li>
 <li><code>O</code>: Open before selection</li>
 </ul>
-<p>If the current selection mode is <strong>not</strong> <a href="../selection-modes/index.html#contiguity">contiguous</a>, then <code>o</code> behaves like <code>a</code>, and <code>O</code> behaves like <code>i</code>.</p>
+<p>If the current selection mode is <strong>not</strong> <a href="../selection-modes/index.html#contiguity">contiguous</a>,
+then <code>o</code>/<code>O</code> inserts one space after/before the current
+selection.</p>
 <p>Otherwise, it inserts a gap before/after the current selection, and enter Insert mode.</p>
 <p>For example, consider the following Javascript code:</p>
 <pre><code class="language-js">hello(x, y);
