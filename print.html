@@ -612,8 +612,8 @@ Memory aid: col<strong>u</strong>mn</p>
 <p>These selection modes are nested under <code>f</code> (Find (Local)) or <code>g</code> (Find (Global)).</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="text-search"><a class="header" href="#text-search">Text Search</a></h1>
 <p>This is one of the most useful selection modes.</p>
-<p>Keymaps:</p>
-<div class="table-wrapper"><table><thead><tr><th>Keymap</th><th>Meaning</th></tr></thead><tbody>
+<p>Keybindings:</p>
+<div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>s</code></td><td>Open search prompt</td></tr>
 <tr><td><code>c</code></td><td>Search using current selection</td></tr>
 <tr><td><code>p</code></td><td>Search using previous search</td></tr>
@@ -669,6 +669,25 @@ of a capture group.</p>
 <h3 id="2-case-sensitive"><a class="header" href="#2-case-sensitive">2. Case-sensitive</a></h3>
 <p>Keybinding: <code>i</code></p>
 <p>When turned on, the uppercase or lowercase of each alphabet of the search becomes important. For example, <code>hello</code> will not match <code>Hello</code>.</p>
+<h2 id="globbing"><a class="header" href="#globbing">Globbing</a></h2>
+<p>This only works in Global text search.<br />
+This is useful when you want to include/exclude certain files/directories during
+global search/replace.</p>
+<p>This feature is powered by the <a href="https://docs.rs/globset/latest/globset/#syntax">globset</a> library, which supports alternation such as:</p>
+<ul>
+<li><code>*.{js,jsx}</code></li>
+</ul>
+<p>Keybindings:</p>
+<div class="table-wrapper"><table><thead><tr><th>Keybinding</th><th>Action</th></tr></thead><tbody>
+<tr><td><code>I</code></td><td>Set include glob</td></tr>
+<tr><td><code>E</code></td><td>Set exclude glob</td></tr>
+</tbody></table>
+</div>
+<h2 id="replace-all"><a class="header" href="#replace-all">Replace All</a></h2>
+<p>This is a global action that replaces all matches with the replacement pattern<sup class="footnote-reference"><a href="#1">1</a></sup>.</p>
+<div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
+<p>See more at <a href="normal-mode/selection-modes/local-global/../../actions/index.html#replace-with-pattern">Replace with Pattern</a></p>
+</div>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="lsp-based"><a class="header" href="#lsp-based">LSP-based</a></h1>
 <p>These are selection modes powered by LSP, so it's not always available.</p>
 <h2 id="diagnostics"><a class="header" href="#diagnostics">Diagnostics</a></h2>
