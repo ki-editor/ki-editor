@@ -48,6 +48,7 @@ impl GitRepo {
             let mut diff_options = DiffOptions::new();
 
             // Generate the diff
+            diff_options.recurse_untracked_dirs(true);
             diff_options.include_untracked(true);
 
             let tree = self.get_tree(&diff_mode)?;
@@ -292,38 +293,43 @@ mod test_git {
 
             // Create a new file at a new directory
             std::fs::create_dir_all(dir.path().join("organic"))?;
-            std::fs::write(dir.path().join("organic").join("nuts.txt"), "This is nuts")?;
-
+            let untracked_file_in_untracked_dir = dir.path().join("organic").join("nuts.txt");
+            std::fs::write(untracked_file_in_untracked_dir.clone(), "This is nuts")?;
             // Deletes file0
             std::fs::remove_file(file0)?;
 
             // Check the diff
             let repo = super::GitRepo::try_from(&dir.path().try_into()?)?;
             let entries = repo.diff_entries(mode)?;
-            assert_eq!(
-                entries,
-                vec![
-                    super::DiffEntry {
-                        old_content: Some(expected_old_content.to_string()),
-                        // Expect the new content is the latest content of the file
-                        // regardless of whether it is commited/staged or not
-                        new_content: "hello\nworld\nlook\nnow".to_string(),
-                        new_path: file1.clone().try_into()?,
-                    },
-                    // Expect unstaged files (file 2) are included
-                    super::DiffEntry {
-                        old_content: None,
-                        new_content: "This is file 2".to_string(),
-                        new_path: file2.clone().try_into()?,
-                    },
-                    // Expect staged files (file 3) are included
-                    super::DiffEntry {
-                        old_content: None,
-                        new_content: "This is file 3".to_string(),
-                        new_path: file3.clone().try_into()?,
-                    }
-                ]
-            );
+            let expected = [
+                super::DiffEntry {
+                    old_content: Some(expected_old_content.to_string()),
+                    // Expect the new content is the latest content of the file
+                    // regardless of whether it is commited/staged or not
+                    new_content: "hello\nworld\nlook\nnow".to_string(),
+                    new_path: file1.clone().try_into()?,
+                },
+                // Expect unstaged files (file 2) are included
+                super::DiffEntry {
+                    old_content: None,
+                    new_content: "This is file 2".to_string(),
+                    new_path: file2.clone().try_into()?,
+                },
+                // Expect staged files (file 3) are included
+                super::DiffEntry {
+                    old_content: None,
+                    new_content: "This is file 3".to_string(),
+                    new_path: file3.clone().try_into()?,
+                },
+                // Expect untracked files under an untracked directory are also included
+                super::DiffEntry {
+                    old_content: None,
+                    new_content: "This is nuts".to_string(),
+                    new_path: untracked_file_in_untracked_dir.clone().try_into()?,
+                },
+            ]
+            .to_vec();
+            assert_eq!(entries, expected);
             Ok(())
         };
         test(super::DiffMode::UnstagedAgainstMainBranch, "hello\n")?;
