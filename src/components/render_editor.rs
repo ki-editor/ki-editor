@@ -555,9 +555,14 @@ mod test_render_editor {
 
     impl Arbitrary for Rectangle {
         fn arbitrary(g: &mut quickcheck::Gen) -> Self {
+            const MAX_CHARACTER_WIDTH: u8 = 4;
+            const LINE_NUMBER_UI_WIDTH: u8 = 2;
+            const PADDING_FOR_CURSOR_AT_LAST_COLUMN: u8 = 1;
             Self {
                 origin: Default::default(),
-                width: (u8::arbitrary(g) / 10) as u16,
+                width: (u8::arbitrary(g) / 10).max(
+                    MAX_CHARACTER_WIDTH + LINE_NUMBER_UI_WIDTH + PADDING_FOR_CURSOR_AT_LAST_COLUMN,
+                ) as u16,
                 height: (u8::arbitrary(g) / 10) as u16,
             }
         }

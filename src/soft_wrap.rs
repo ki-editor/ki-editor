@@ -64,9 +64,12 @@ impl WrappedLines {
 
         Ok(new_positions
             .into_iter()
-            .map(|new_position| Position {
-                line: vertical_offset + new_position.line,
-                column: new_position.column,
+            .map(|new_position| {
+                debug_assert!(new_position.column <= self.width);
+                Position {
+                    line: vertical_offset + new_position.line,
+                    column: new_position.column,
+                }
             })
             .collect_vec())
     }
@@ -107,7 +110,7 @@ impl WrappedLine {
         self.line_number
     }
 
-    fn get_positions(&self, column: usize, _width: usize) -> Option<Vec<Position>> {
+    fn get_positions(&self, column: usize, width: usize) -> Option<Vec<Position>> {
         let chars_with_line_index = &self.chars_with_line_index;
         if chars_with_line_index.is_empty() && column == 0 {
             return Some([Position::default()].to_vec());
@@ -134,9 +137,13 @@ impl WrappedLine {
         );
         Some(
             (0..char_width)
-                .map(|column| Position {
-                    line: *line,
-                    column: column + previous_columns_chars_total_width,
+                .map(|column| {
+                    let calibrated_column = column + previous_columns_chars_total_width;
+                    debug_assert!(calibrated_column <= width);
+                    Position {
+                        line: *line,
+                        column: calibrated_column,
+                    }
                 })
                 .collect_vec(),
         )
@@ -149,22 +156,35 @@ impl WrappedLine {
 
 pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
     let re = Regex::new(r"\b").unwrap();
+
+    // Need to reduce the width by 1 for wrapping,
+    // that one space is reserved for rendering cursor at the last column
+    let wrap_width = width.saturating_sub(1);
     let lines = text
         .lines()
         .enumerate()
         .filter_map(|(line_number, line)| {
-            let wrapped_lines: Vec<String> = re.split(line).fold(vec![], |mut lines, word| {
-                match lines.last_mut() {
-                    Some(last_line)
-                        if get_string_width(last_line.as_str()) + get_string_width(word)
-                            <= width =>
-                    {
-                        last_line.push_str(word);
-                    }
-                    _ => lines.push(word.to_string()),
-                }
-                lines
-            });
+            let wrapped_lines: Vec<String> = re
+                .split(line)
+                .flat_map(|line| chop_str(line, wrap_width))
+                .fold(
+                    vec![],
+                    |mut lines: Vec<(usize, String)>, (chunk_width, chunk)| {
+                        match lines.last_mut() {
+                            Some((last_line_width, last_line))
+                                if *last_line_width + chunk_width <= wrap_width =>
+                            {
+                                last_line.push_str(&chunk);
+                                *last_line_width += chunk_width;
+                            }
+                            _ => lines.push((chunk_width, chunk)),
+                        }
+                        lines
+                    },
+                )
+                .into_iter()
+                .map(|(_, line)| line)
+                .collect_vec();
             let (primary, wrapped) = wrapped_lines.split_first()?;
             Some(WrappedLine {
                 primary: primary.to_string(),
@@ -180,11 +200,39 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
             })
         })
         .collect();
-    WrappedLines {
+    let result = WrappedLines {
         lines,
         width,
         ending_with_newline_character: text.ends_with('\n'),
+    };
+    debug_assert_eq!(
+        result.to_string().replace("\n", ""),
+        text.to_string().replace("\n", "")
+    );
+    result
+}
+
+fn chop_str(s: &str, max_width: usize) -> Vec<(usize, String)> {
+    let mut result = vec![];
+    let mut current = vec![];
+    let mut current_width = 0;
+    for c in s.chars() {
+        let char_width = get_char_width(c);
+        if char_width + current_width <= max_width {
+            current.push(c);
+            current_width += char_width;
+        } else {
+            result.push((current_width, current.drain(..).join("")));
+            current_width = char_width;
+            current = vec![c];
+        }
     }
+    if !current.is_empty() {
+        result.push((current_width, current.drain(..).join("")));
+    }
+    debug_assert_eq!(result.iter().map(|(_, s)| s).join(""), s);
+    debug_assert!(result.iter().all(|(_, s)| get_string_width(s) <= max_width));
+    result
 }
 
 #[cfg(test)]
@@ -197,7 +245,7 @@ mod test_soft_wrap {
     #[test]
     fn consider_unicode_width_1() {
         let content = "→ abc";
-        let wrapped_lines = soft_wrap(content, 5);
+        let wrapped_lines = soft_wrap(content, content.chars().count() + 1);
         assert_eq!(UnicodeWidthStr::width("→"), 1);
         assert_eq!(wrapped_lines.wrapped_lines_count(), 1)
     }
@@ -206,7 +254,7 @@ mod test_soft_wrap {
     /// Line with emoji: wrapped
     fn consider_unicode_width_2() {
         let content = "👩 abc";
-        let wrapped_lines = soft_wrap(content, 5);
+        let wrapped_lines = soft_wrap(content, content.chars().count() + 1);
         assert_eq!(UnicodeWidthStr::width("👩"), 2);
         assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
 
@@ -224,10 +272,28 @@ mod test_soft_wrap {
     }
 
     #[test]
-    fn consider_tab_width() {
+    fn hard_wrap_word_longer_than_container_width() {
+        let content = "spongebob";
+        let wrapped_lines = soft_wrap(content, 6);
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
+        assert_eq!(wrapped_lines.to_string(), "spong\nebob")
+    }
+
+    #[test]
+    fn consider_tab_width_1() {
         let content = "\tabc";
         let wrapped_lines = soft_wrap(content, 5);
         assert_eq!(wrapped_lines.wrapped_lines_count(), 2)
+    }
+
+    #[test]
+    fn wrap_width_should_be_one_less_than_container_width() {
+        let content = "a ba";
+        let wrapped_lines = soft_wrap(content, content.len());
+
+        // Although the container width is same as the content length,
+        // the content is still wrapped, because `wrap_width = container_width - 1`.
+        assert_eq!(wrapped_lines.wrapped_lines_count(), 2);
     }
 
     #[cfg(test)]
@@ -260,7 +326,7 @@ mod test_soft_wrap {
         fn normal() {
             fn assert(input: (usize, usize), expected: (usize, usize)) {
                 let content = "hello world\nhey";
-                let wrapped_lines = soft_wrap(content, 5);
+                let wrapped_lines = soft_wrap(content, 6);
                 assert_eq!(
                     wrapped_lines.calibrate(Position::new(input.0, input.1)),
                     Ok(vec![Position::new(expected.0, expected.1),])

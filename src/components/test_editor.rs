@@ -1282,7 +1282,7 @@ fn test_wrapped_lines() -> anyhow::Result<()> {
             )),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 13,
+                width: 14,
                 height: 4,
             })),
             Editor(MatchLiteral("world".to_string())),
@@ -1448,7 +1448,7 @@ fn main() { // too long
             )),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 13,
+                width: 14,
                 height: 4,
             })),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
@@ -1456,7 +1456,7 @@ fn main() { // too long
             Editor(ApplySyntaxHighlight),
             Editor(SetRectangle(Rectangle {
                 origin: Position::default(),
-                width: 20,
+                width: 21,
                 height: 4,
             })),
             Editor(SwitchViewAlignment),
