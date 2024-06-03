@@ -166,7 +166,7 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         .filter_map(|(line_number, line)| {
             let wrapped_lines: Vec<String> = re
                 .split(line)
-                .flat_map(|line| chop_str(line, wrap_width))
+                .flat_map(|chunk| chop_str(chunk, wrap_width))
                 .fold(
                     vec![],
                     |mut lines: Vec<(usize, String)>, (chunk_width, chunk)| {
@@ -177,7 +177,7 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
                                 last_line.push_str(&chunk);
                                 *last_line_width += chunk_width;
                             }
-                            _ => lines.push((chunk_width, chunk)),
+                            _ => lines.push((chunk_width, chunk.to_string())),
                         }
                         lines
                     },
@@ -206,32 +206,59 @@ pub(crate) fn soft_wrap(text: &str, width: usize) -> WrappedLines {
         ending_with_newline_character: text.ends_with('\n'),
     };
     debug_assert_eq!(
-        result.to_string().replace("\n", ""),
-        text.to_string().replace("\n", "")
+        result.to_string().replace('\n', ""),
+        text.to_string().replace('\n', "")
     );
     result
 }
 
+/// Chop the given string into chunks by the given `max_width`
+/// The width of each chunk is paired with each chunk in the result vector.
 fn chop_str(s: &str, max_width: usize) -> Vec<(usize, String)> {
-    let mut result = vec![];
-    let mut current = vec![];
-    let mut current_width = 0;
-    for c in s.chars() {
-        let char_width = get_char_width(c);
-        if char_width + current_width <= max_width {
-            current.push(c);
-            current_width += char_width;
-        } else {
-            result.push((current_width, current.drain(..).join("")));
-            current_width = char_width;
-            current = vec![c];
+    fn chop_str_(s: &str, max_width: usize) -> Vec<(usize, String)> {
+        let width = get_string_width(s);
+        if width <= max_width {
+            return vec![(width, s.to_string())];
         }
+        let mut result = vec![];
+        let mut current = vec![];
+        let mut current_width = 0;
+        for c in s.chars() {
+            let char_width = get_char_width(c);
+            if char_width + current_width <= max_width {
+                current.push(c);
+                current_width += char_width;
+            } else {
+                result.push((current_width, current.drain(..).join("")));
+                current_width = char_width;
+                current = vec![c];
+            }
+        }
+        if !current.is_empty() {
+            result.push((current_width, current.drain(..).join("")));
+        }
+
+        result
     }
-    if !current.is_empty() {
-        result.push((current_width, current.drain(..).join("")));
-    }
+    let result = chop_str_(s, max_width);
+    debug_assert!(if get_string_width(s) <= max_width {
+        result.len() == 1
+    } else {
+        result.len() > 1
+    });
     debug_assert_eq!(result.iter().map(|(_, s)| s).join(""), s);
     debug_assert!(result.iter().all(|(_, s)| get_string_width(s) <= max_width));
+    debug_assert_eq!(
+        result
+            .iter()
+            .map(|(_, s)| get_string_width(s))
+            .sum::<usize>(),
+        get_string_width(s)
+    );
+    debug_assert_eq!(
+        result.iter().map(|(width, _)| width).sum::<usize>(),
+        get_string_width(s)
+    );
     result
 }
 
@@ -239,8 +266,22 @@ fn chop_str(s: &str, max_width: usize) -> Vec<(usize, String)> {
 mod test_soft_wrap {
     use crate::position::Position;
 
-    use super::soft_wrap;
+    use super::{chop_str, soft_wrap};
     use unicode_width::UnicodeWidthStr;
+
+    #[test]
+    fn test_chop_str() {
+        assert_eq!(chop_str("hello", 6), vec![(5, "hello".to_string())]);
+        assert_eq!(chop_str("", 6), vec![(0, "".to_string())]);
+        assert_eq!(
+            chop_str("spongebob", 6),
+            vec![(6, "sponge".to_string()), (3, "bob".to_string())]
+        );
+        assert_eq!(
+            chop_str("\t\t", 6),
+            vec![(4, "\t".to_string()), (4, "\t".to_string())]
+        )
+    }
 
     #[test]
     fn consider_unicode_width_1() {
