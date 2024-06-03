@@ -659,6 +659,7 @@ impl LspServerProcess {
     }
 
     fn handle_reply(&mut self, reply: serde_json::Value) -> anyhow::Result<()> {
+        log::info!("LspServerProcess::handle_reply reply = {:?}", reply);
         // Check if reply is Response or Notification
         // Only Notification contains the `method` field
         match reply.get("method") {
@@ -946,6 +947,12 @@ impl LspServerProcess {
                             )))
                             .unwrap();
                     }
+                    "workspace/configuration" => {
+                        let params: <lsp_request!("workspace/configuration") as Request>::Params =
+                            serde_json::from_value(request.params.unwrap())?;
+
+                        self.send_reply(request.id, serde_json::Value::Null);
+                    }
 
                     _ => log::info!("unhandled Incoming Notification: {}", method),
                 }
@@ -980,7 +987,11 @@ impl LspServerProcess {
             params: Some(params),
         };
 
-        log::info!("Sending notification: {:?}", N::METHOD);
+        log::info!(
+            "Sending notification: {:?} {:?}",
+            self.language.id(),
+            N::METHOD
+        );
         let message = serde_json::to_string(&notification)?;
 
         write!(
@@ -989,6 +1000,32 @@ impl LspServerProcess {
             message.len(),
             message
         )?;
+
+        Ok(())
+    }
+
+    /// Used for sending response to reponses of the LSP server
+    fn send_reply(
+        &mut self,
+        id: Option<json_rpc_types::Id>,
+        result: serde_json::Value,
+    ) -> anyhow::Result<()> {
+        /// Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#responseMessage
+        #[derive(serde::Serialize)]
+        struct ResponseMessage {
+            id: Option<json_rpc_types::Id>,
+            result: serde_json::Value,
+        };
+        let request = ResponseMessage { id, result };
+
+        let json = serde_json::to_string(&request)?;
+
+        let message = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
+
+        log::info!("Sending message: {:?}", message);
+
+        // The message format is according to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#contentPart
+        write!(&mut self.stdin, "{}", message)?;
 
         Ok(())
     }
@@ -1015,17 +1052,14 @@ impl LspServerProcess {
             id: Some(json_rpc_types::Id::Num(id)),
         };
 
-        let message = serde_json::to_string(&request)?;
+        let json = serde_json::to_string(&request)?;
 
-        log::info!("Sending request: {}", message);
+        let message = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
+
+        log::info!("Sending message: {:?}", message);
 
         // The message format is according to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#contentPart
-        write!(
-            &mut self.stdin,
-            "Content-Length: {}\r\n\r\n{}",
-            message.len(),
-            message
-        )?;
+        write!(&mut self.stdin, "{}", message)?;
 
         self.pending_response_requests.insert(
             id,

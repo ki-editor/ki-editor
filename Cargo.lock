@@ -2195,6 +2195,7 @@ dependencies = [
  "anyhow",
  "grammar",
  "isahc",
+ "log",
  "lsp-types",
  "once_cell",
  "regex",

@@ -14,8 +14,7 @@ serde.workspace = true
 lsp-types.workspace = true
 regex.workspace = true
 tempfile.workspace = true
+log.workspace = true
 grammar = {path = "../grammar"}
 isahc = "1.7.2"
 url = "2.5.0"
-
-
