@@ -79,7 +79,7 @@ const fn graphql() -> Language {
             commit: "master",
             subpath: None,
         }),
-        formatter_command: Some(Command("prettierd", &[".graphql", ".gql"])),
+        formatter_command: Some(Command("prettierd", &[".graphql"])),
         ..Language::new()
     }
 }
