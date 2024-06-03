@@ -948,10 +948,10 @@ impl LspServerProcess {
                             .unwrap();
                     }
                     "workspace/configuration" => {
-                        let params: <lsp_request!("workspace/configuration") as Request>::Params =
-                            serde_json::from_value(request.params.unwrap())?;
+                        // Just return null for now, since I don't know how how to handle this properly
+                        // This reply is necessary for Graphql LSP to work
 
-                        self.send_reply(request.id, serde_json::Value::Null);
+                        self.send_reply(request.id, serde_json::Value::Null)?;
                     }
 
                     _ => log::info!("unhandled Incoming Notification: {}", method),
@@ -992,14 +992,8 @@ impl LspServerProcess {
             self.language.id(),
             N::METHOD
         );
-        let message = serde_json::to_string(&notification)?;
 
-        write!(
-            &mut self.stdin,
-            "Content-Length: {}\r\n\r\n{}",
-            message.len(),
-            message
-        )?;
+        self.send_json(&notification)?;
 
         Ok(())
     }
@@ -1015,18 +1009,23 @@ impl LspServerProcess {
         struct ResponseMessage {
             id: Option<json_rpc_types::Id>,
             result: serde_json::Value,
-        };
+        }
         let request = ResponseMessage { id, result };
 
-        let json = serde_json::to_string(&request)?;
+        self.send_json(&request)?;
 
-        let message = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
+        Ok(())
+    }
 
-        log::info!("Sending message: {:?}", message);
+    /// Send JSON to the LSP server by writing to the server's stdin
+    fn send_json<T: serde::Serialize>(&mut self, value: T) -> anyhow::Result<()> {
+        let json = serde_json::to_string(&value)?;
 
         // The message format is according to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#contentPart
-        write!(&mut self.stdin, "{}", message)?;
+        let message = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
+        log::info!("Sending message: {:?}", message);
 
+        write!(&mut self.stdin, "{}", message)?;
         Ok(())
     }
 
@@ -1052,14 +1051,7 @@ impl LspServerProcess {
             id: Some(json_rpc_types::Id::Num(id)),
         };
 
-        let json = serde_json::to_string(&request)?;
-
-        let message = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
-
-        log::info!("Sending message: {:?}", message);
-
-        // The message format is according to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#contentPart
-        write!(&mut self.stdin, "{}", message)?;
+        self.send_json(&request)?;
 
         self.pending_response_requests.insert(
             id,
