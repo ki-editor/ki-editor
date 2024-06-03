@@ -688,7 +688,7 @@ mod test_grid {
         fn case_2() {
             let actual = Grid::new(Dimension {
                 height: 2,
-                width: 7,
+                width: 8,
             })
             .render_content(
                 "hello tim",
@@ -905,7 +905,7 @@ mod test_grid {
         fn case_9() {
             let grid = Grid::new(Dimension {
                 height: 1,
-                width: 7,
+                width: 8,
             });
             let actual = grid
                 .render_content(
@@ -919,7 +919,7 @@ mod test_grid {
                 .into_iter()
                 .map(|cell| cell.cell.symbol)
                 .collect_vec();
-            assert_eq!(["\t", " ", " ", " ", "h", "e", "l"].to_vec(), actual)
+            assert_eq!(["\t", " ", " ", " ", "h", "e", "l", " "].to_vec(), actual)
         }
 
         #[test]
