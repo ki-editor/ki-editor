@@ -80,6 +80,10 @@ const fn graphql() -> Language {
             subpath: None,
         }),
         formatter_command: Some(Command("prettierd", &[".graphql"])),
+        lsp_command: Some(LspCommand {
+            command: Command("graphql-lsp", &["server", "-m", "stream"]),
+            initialization_options: Some(r#"{ "graphql-config.load.legacy": true }"#),
+        }),
         ..Language::new()
     }
 }

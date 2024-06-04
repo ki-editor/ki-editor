@@ -2102,7 +2102,6 @@ impl Editor {
     ) -> Result<Dispatches, anyhow::Error> {
         let dispatches = self.select(selection_mode, movement)?;
         self.current_view_alignment = None;
-        log::info!("dispatches = {:?}", dispatches);
 
         Ok(dispatches)
     }

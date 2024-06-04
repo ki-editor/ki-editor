@@ -13,6 +13,8 @@ impl ProcessCommand {
     }
 
     pub fn spawn(&self) -> anyhow::Result<std::process::Child> {
+        log::info!("ProcessCommand::spawn {:?} {:?}", self.command, self.args);
+        // TODO: handle command spawning failure
         std::process::Command::new(&self.command)
             .args(&self.args)
             .stdin(std::process::Stdio::piped())
