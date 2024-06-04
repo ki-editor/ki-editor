@@ -659,7 +659,6 @@ impl LspServerProcess {
     }
 
     fn handle_reply(&mut self, reply: serde_json::Value) -> anyhow::Result<()> {
-        log::info!("LspServerProcess::handle_reply reply = {:?}", reply);
         // Check if reply is Response or Notification
         // Only Notification contains the `method` field
         match reply.get("method") {
