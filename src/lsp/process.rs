@@ -1022,10 +1022,12 @@ impl LspServerProcess {
         let json = serde_json::to_string(&value)?;
 
         // The message format is according to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#contentPart
-        let message = format!("Content-Length: {}\r\n\r\n{}", json.len(), json);
-        log::info!("Sending message: {:?}", message);
-
-        write!(&mut self.stdin, "{}", message)?;
+        write!(
+            &mut self.stdin,
+            "Content-Length: {}\r\n\r\n{}",
+            json.len(),
+            json
+        )?;
         Ok(())
     }
 
