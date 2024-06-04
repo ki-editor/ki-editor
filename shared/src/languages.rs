@@ -2,6 +2,7 @@ use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
     &common_lisp(),
+    &css(),
     &csv(),
     &dockerfile(),
     &graphql(),
@@ -47,6 +48,23 @@ const fn csv() -> Language {
             id: "csv",
             url: "https://github.com/arnau/tree-sitter-csv",
             commit: "main",
+            subpath: None,
+        }),
+    }
+}
+
+const fn css() -> Language {
+    Language {
+        file_names: &[],
+        extensions: &["css"],
+        lsp_language_id: None,
+        lsp_command: None,
+        highlight_query: None,
+        formatter_command: Some(Command("prettierd", &[".css"])),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "css",
+            url: "https://github.com/tree-sitter/tree-sitter-css",
+            commit: "master",
             subpath: None,
         }),
     }
