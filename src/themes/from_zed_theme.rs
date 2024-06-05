@@ -2,10 +2,8 @@ use super::{Color, DiagnosticStyles, HighlightName, Theme, UiStyles};
 use crate::{style::Style, themes::SyntaxStyles};
 use itertools::Itertools;
 use my_proc_macros::hex;
-use serde::{Deserialize, Serialize};
 use shared::download::cache_download;
-
-typify::import_types!("./src/themes/zed_theme_schema.json");
+use zed_theme::*;
 
 #[derive(serde::Deserialize)]
 struct ZedThemeManiftest {

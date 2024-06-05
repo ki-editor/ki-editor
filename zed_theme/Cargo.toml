@@ -1,0 +1,10 @@
+[package]
+name = "zed-theme"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+typify = "0.1.0"
+serde.workspace = true
