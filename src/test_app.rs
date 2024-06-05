@@ -1714,3 +1714,30 @@ fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn workspace_edit() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("who lives in a pineapple".to_string())),
+            Editor(MatchLiteral("pineapple".to_string())),
+            Expect(CurrentSelectedTexts(&["pineapple"])),
+            App(Dispatch::ApplyWorkspaceEdit(WorkspaceEdit {
+                edits: [TextDocumentEdit {
+                    path: s.main_rs(),
+                    edits: [PositionalEdit {
+                        range: Position::new(0, 0)..Position::new(0, 0),
+                        new_text: "hello ".to_string(),
+                    }]
+                    .to_vec(),
+                }]
+                .to_vec(),
+                resource_operations: Vec::new(),
+            })),
+            Expect(CurrentComponentContent("hello who lives in a pineapple")),
+            // Expect the selection is still "pineapple"
+            Expect(CurrentSelectedTexts(&["pineapple"])),
+        ])
+    })
+}

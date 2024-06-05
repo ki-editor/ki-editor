@@ -1828,28 +1828,22 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             edits
                 .into_iter()
-                .enumerate()
-                .filter_map(|(index, edit)| {
+                .filter_map(|edit| {
                     let range = edit.range.start.to_char_index(&self.buffer()).ok()?
                         ..edit.range.end.to_char_index(&self.buffer()).ok()?;
-                    let next_text_len = edit.new_text.chars().count();
 
                     let action_edit = Action::Edit(Edit {
                         range: range.clone().into(),
                         new: edit.new_text.into(),
                     });
 
-                    let action_select = Action::Select(Selection::new({
-                        let end = range.start + next_text_len;
-                        (end..end).into()
-                    }));
-
-                    Some(if index == 0 {
-                        ActionGroup::new(vec![action_edit, action_select])
-                    } else {
-                        ActionGroup::new(vec![action_edit])
-                    })
+                    Some(ActionGroup::new(vec![action_edit]))
                 })
+                .chain(
+                    // This is necessary to retain the current selection set
+                    self.selection_set
+                        .map(|selection| ActionGroup::new(vec![Action::Select(selection.clone())])),
+                )
                 .collect(),
         );
         self.apply_edit_transaction(edit_transaction)
