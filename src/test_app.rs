@@ -1405,6 +1405,7 @@ fn cycle_window() -> anyhow::Result<()> {
             sort_text: None,
             kind: None,
             detail: None,
+            insert_text: None,
         };
         execute_test(|s| {
             Box::new([
@@ -1456,6 +1457,7 @@ fn esc_in_normal_mode_in_suggestive_editor_should_close_all_other_windows() -> a
             sort_text: None,
             kind: None,
             detail: None,
+            insert_text: None,
         };
         execute_test(|s| {
             Box::new([
@@ -1499,6 +1501,7 @@ fn saving_in_insert_mode_in_suggestive_editor_should_close_all_other_windows() -
             sort_text: None,
             kind: None,
             detail: None,
+            insert_text: None,
         };
         execute_test(|s| {
             Box::new([

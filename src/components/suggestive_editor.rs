@@ -39,11 +39,13 @@ pub(crate) enum SuggestiveEditorFilter {
 }
 
 impl From<CompletionItem> for DropdownItem {
-    fn from(value: CompletionItem) -> Self {
-        DropdownItem::new(format!("{} {}", value.emoji(), value.label()))
-            .set_info(value.info())
-            .set_dispatches(Dispatches::one(match value.edit {
-                None => Dispatch::ToEditor(TryReplaceCurrentLongWord(value.label())),
+    fn from(item: CompletionItem) -> Self {
+        DropdownItem::new(format!("{} {}", item.emoji(), item.label()))
+            .set_info(item.info())
+            .set_dispatches(Dispatches::one(match item.edit {
+                None => Dispatch::ToEditor(TryReplaceCurrentLongWord(
+                    item.insert_text().unwrap_or_else(|| item.label()),
+                )),
                 Some(edit) => match edit {
                     CompletionItemEdit::PositionalEdit(edit) => {
                         Dispatch::ToEditor(ApplyPositionalEdit(edit))
@@ -463,6 +465,33 @@ mod test_suggestive_editor {
     }
 
     #[test]
+    /// Should use `insert_text` if is it defined present
+    fn completion_without_edit_5() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                Editor(MatchLiteral("hello".to_string())),
+                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                // Pretend that the LSP server returned a completion
+                SuggestiveEditor(Completion(Completion {
+                    trigger_characters: vec![".".to_string()],
+                    items: [CompletionItem::from_label("aBigCatDog".to_string())
+                        .set_insert_text(Some("harimau".to_string()))]
+                    .into_iter()
+                    .map(|item| item.into())
+                    .collect(),
+                })),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Insert(" aBig".to_string())),
+                App(HandleKeyEvent(key!("ctrl+space"))),
+                Expect(CurrentComponentContent("hello harimau")),
+            ])
+        })
+    }
+
+    #[test]
     fn completion_info_documentation() -> anyhow::Result<()> {
         let completion_item = |label: &str, documentation: Option<&str>| CompletionItem {
             label: label.to_string(),
@@ -472,6 +501,7 @@ mod test_suggestive_editor {
             })),
             documentation: documentation.map(Documentation::new),
             sort_text: None,
+            insert_text: None,
             kind: None,
             detail: None,
         };
@@ -525,6 +555,7 @@ mod test_suggestive_editor {
                         sort_text: None,
                         kind: None,
                         detail: None,
+                        insert_text: None,
                     }]
                     .into_iter()
                     .map(|item| item.into())
@@ -700,6 +731,7 @@ mod test_suggestive_editor {
                         edit: None,
                         documentation: None,
                         sort_text: None,
+                        insert_text: None,
                         kind: Some(CompletionItemKind::FUNCTION),
                         detail: None,
                     }]

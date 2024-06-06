@@ -24,6 +24,7 @@ pub(crate) struct CompletionItem {
     pub(crate) detail: Option<String>,
     pub(crate) documentation: Option<Documentation>,
     pub(crate) sort_text: Option<String>,
+    pub(crate) insert_text: Option<String>,
     pub(crate) edit: Option<CompletionItemEdit>,
 }
 
@@ -109,6 +110,7 @@ impl CompletionItem {
             documentation: None,
             sort_text: None,
             edit: None,
+            insert_text: None,
         }
     }
 
@@ -127,6 +129,18 @@ impl CompletionItem {
             ..self
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn set_insert_text(self, insert_text: Option<String>) -> CompletionItem {
+        CompletionItem {
+            insert_text,
+            ..self
+        }
+    }
+
+    pub(crate) fn insert_text(&self) -> Option<String> {
+        self.insert_text.clone()
+    }
 }
 
 impl From<lsp_types::CompletionItem> for CompletionItem {
@@ -137,6 +151,7 @@ impl From<lsp_types::CompletionItem> for CompletionItem {
             detail: item.detail,
             documentation: item.documentation.map(|doc| doc.into()),
             sort_text: item.sort_text,
+            insert_text: item.insert_text,
             edit: item.text_edit.and_then(|edit| match edit {
                 lsp_types::CompletionTextEdit::Edit(edit) => {
                     Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
