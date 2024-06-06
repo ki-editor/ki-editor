@@ -688,38 +688,36 @@ impl Editor {
                     .chain(Some(KeymapLegendSection {
                         title: "Misc".to_string(),
                         keymaps: Keymaps::new(
-                            &self
-                                .path()
-                                .map(|path| {
-                                    Keymap::new(
-                                        "e",
-                                        "Explorer".to_string(),
-                                        Dispatch::RevealInExplorer(path),
-                                    )
-                                })
-                                .into_iter()
-                                .chain(Some(Keymap::new(
-                                    "z",
-                                    "Undo Tree".to_string(),
-                                    Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
-                                )))
-                                .chain(
-                                    self.buffer()
-                                        .get_current_node(&self.selection_set.primary, false)
-                                        .ok()
-                                        .flatten()
-                                        .map(|node| {
-                                            Keymap::new(
-                                                "x",
+                            &Some(Keymap::new(
+                                "e",
+                                "Reveal current file in Explorer".to_string(),
+                                Dispatch::RevealInExplorer(self.path().unwrap_or_else(|| {
+                                    context.current_working_directory().clone()
+                                })),
+                            ))
+                            .into_iter()
+                            .chain(Some(Keymap::new(
+                                "z",
+                                "Undo Tree".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
+                            )))
+                            .chain(
+                                self.buffer()
+                                    .get_current_node(&self.selection_set.primary, false)
+                                    .ok()
+                                    .flatten()
+                                    .map(|node| {
+                                        Keymap::new(
+                                            "x",
+                                            "Tree-sitter node S-expression".to_string(),
+                                            Dispatch::ShowEditorInfo(Info::new(
                                                 "Tree-sitter node S-expression".to_string(),
-                                                Dispatch::ShowEditorInfo(Info::new(
-                                                    "Tree-sitter node S-expression".to_string(),
-                                                    node.to_sexp(),
-                                                )),
-                                            )
-                                        }),
-                                )
-                                .collect_vec(),
+                                                node.to_sexp(),
+                                            )),
+                                        )
+                                    }),
+                            )
+                            .collect_vec(),
                         ),
                     }))
                     .collect(),
