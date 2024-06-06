@@ -22,7 +22,7 @@ pub(crate) struct Context {
 
     #[cfg(test)]
     highlight_configs: crate::syntax_highlight::HighlightConfigs,
-    current_working_directory: Option<CanonicalizedPath>,
+    current_working_directory: CanonicalizedPath,
     local_search_config: LocalSearchConfig,
     global_search_config: GlobalSearchConfig,
     quickfix_list_state: Option<QuickfixListState>,
@@ -67,7 +67,7 @@ impl Default for Context {
             mode: None,
             #[cfg(test)]
             highlight_configs: crate::syntax_highlight::HighlightConfigs::new(),
-            current_working_directory: None,
+            current_working_directory: CanonicalizedPath::try_from(".").unwrap(),
             local_search_config: LocalSearchConfig::default(),
             global_search_config: GlobalSearchConfig::default(),
             quickfix_list_state: Default::default(),
@@ -80,7 +80,7 @@ impl Default for Context {
 impl Context {
     pub(crate) fn new(current_working_directory: CanonicalizedPath) -> Self {
         Self {
-            current_working_directory: Some(current_working_directory),
+            current_working_directory,
             ..Self::default()
         }
     }
@@ -116,8 +116,8 @@ impl Context {
         self.highlight_configs.highlight(language, source_code)
     }
 
-    pub(crate) fn current_working_directory(&self) -> Option<&CanonicalizedPath> {
-        self.current_working_directory.as_ref()
+    pub(crate) fn current_working_directory(&self) -> &CanonicalizedPath {
+        &self.current_working_directory
     }
 
     pub(crate) fn local_search_config(&self) -> &LocalSearchConfig {

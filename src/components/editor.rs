@@ -85,7 +85,7 @@ impl Component for Editor {
         title
             .or_else(|| {
                 let path = self.buffer().path()?;
-                let current_working_directory = context.current_working_directory()?;
+                let current_working_directory = context.current_working_directory();
                 let string = path
                     .display_relative_to(current_working_directory)
                     .unwrap_or_else(|_| path.display_absolute());
