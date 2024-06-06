@@ -1,9 +1,6 @@
 use itertools::Itertools;
 
-use crate::{
-    app::{Dispatch, RequestParams},
-    components::dropdown::DropdownItem,
-};
+use crate::{app::Dispatch, components::dropdown::DropdownItem};
 
 use super::workspace_edit::WorkspaceEdit;
 
@@ -28,6 +25,12 @@ impl Command {
     }
 }
 
+impl From<lsp_types::Command> for Command {
+    fn from(value: lsp_types::Command) -> Self {
+        Self(value)
+    }
+}
+
 impl PartialEq for Command {
     fn eq(&self, other: &Self) -> bool {
         self.0.command.eq(&other.0.command)
@@ -36,9 +39,8 @@ impl PartialEq for Command {
 
 impl Eq for Command {}
 
-impl CodeAction {
-    pub(crate) fn into_dropdown_item(self, params: Option<RequestParams>) -> DropdownItem {
-        let value = self;
+impl From<CodeAction> for DropdownItem {
+    fn from(value: CodeAction) -> DropdownItem {
         DropdownItem::new(value.title)
             .set_group(Some(
                 value
@@ -55,11 +57,11 @@ impl CodeAction {
                     // provides an edit and a command, first the edit is
                     // executed and then the command.
                     // Refer https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeAction
-                    .chain(params.and_then(|params| {
+                    .chain(
                         value
                             .command
-                            .map(|command| Dispatch::LspExecuteCommand { command, params })
-                    }))
+                            .map(|command| Dispatch::LspExecuteCommand { command }),
+                    )
                     .collect_vec()
                     .into(),
             )

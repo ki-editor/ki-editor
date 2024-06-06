@@ -20,6 +20,7 @@ use crate::{
     layout::Layout,
     list::{self, grep::RegexConfig, WalkBuilderConfig},
     lsp::{
+        completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
         process::{LspNotification, ResponseContext},
@@ -363,6 +364,13 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn get_request_params(&self) -> Option<RequestParams> {
+        self.current_component()
+            .borrow()
+            .editor()
+            .get_request_params()
+    }
+
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
         log::info!("App::handle_dispatch {}", dispatch.variant_name());
         match dispatch {
@@ -386,6 +394,12 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::RequestCompletion(params) => {
                 self.lsp_manager.request_completion(params)?;
+            }
+            Dispatch::ResolveCompletionItem(completion_item) => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager
+                        .completion_item_resolve(params, completion_item)?
+                }
             }
             Dispatch::RequestReferences {
                 params,
@@ -498,9 +512,12 @@ impl<T: Frontend> App<T> {
                 make_mechanism,
             } => self.open_omit_prompt(kind, target, make_mechanism)?,
 
-            Dispatch::LspExecuteCommand { command, params } => self
-                .lsp_manager
-                .workspace_execute_command(params, command)?,
+            Dispatch::LspExecuteCommand { command } => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager
+                        .workspace_execute_command(params, command)?
+                };
+            }
             Dispatch::UpdateLocalSearchConfig {
                 update,
                 scope,
@@ -945,6 +962,9 @@ impl<T: Frontend> App<T> {
             LspNotification::Symbols(context, symbols) => {
                 self.open_symbol_picker(context.component_id, symbols)?;
                 Ok(())
+            }
+            LspNotification::CompletionItemResolve(completion_item) => {
+                self.update_current_completion_item(completion_item.into())
             }
         }
     }
@@ -1763,14 +1783,12 @@ impl<T: Frontend> App<T> {
         &mut self,
         code_actions: Vec<crate::lsp::code_action::CodeAction>,
     ) -> anyhow::Result<()> {
-        let component = self.layout.get_current_component();
-        let params = component.borrow().editor().get_request_params();
         self.open_prompt(
             PromptConfig {
                 on_enter: DispatchPrompt::Null,
                 items: code_actions
                     .into_iter()
-                    .map(move |code_action| code_action.into_dropdown_item(params.clone()))
+                    .map(move |code_action| code_action.into())
                     .collect(),
                 title: "Code Actions".to_string(),
                 enter_selects_first_matching_item: true,
@@ -1860,6 +1878,15 @@ impl<T: Frontend> App<T> {
             None,
         )
     }
+
+    fn update_current_completion_item(
+        &mut self,
+        completion_item: CompletionItem,
+    ) -> anyhow::Result<()> {
+        self.handle_dispatch_suggestive_editor(
+            DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item),
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -1890,7 +1917,7 @@ impl Dimension {
 }
 
 #[must_use]
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub(crate) struct Dispatches(Vec<Dispatch>);
 impl From<Vec<Dispatch>> for Dispatches {
     fn from(value: Vec<Dispatch>) -> Self {
@@ -1928,7 +1955,7 @@ impl Dispatches {
 }
 
 #[must_use]
-#[derive(Clone, Debug, PartialEq, Eq, name_variant::NamedVariant)]
+#[derive(Clone, Debug, PartialEq, name_variant::NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub(crate) enum Dispatch {
     SetTheme(crate::themes::Theme),
@@ -2016,7 +2043,6 @@ pub(crate) enum Dispatch {
         make_mechanism: MakeFilterMechanism,
     },
     LspExecuteCommand {
-        params: RequestParams,
         command: crate::lsp::code_action::Command,
     },
     UpdateLocalSearchConfig {
@@ -2066,6 +2092,7 @@ pub(crate) enum Dispatch {
         line: String,
     },
     OpenThemePrompt,
+    ResolveCompletionItem(lsp_types::CompletionItem),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2086,7 +2113,7 @@ pub(crate) enum LocalSearchConfigUpdate {
     Search(String),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct YesNoPrompt {
     pub(crate) title: String,
     pub(crate) yes: Box<Dispatch>,

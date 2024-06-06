@@ -229,4 +229,16 @@ impl LspManager {
             |channel| channel.workspace_execute_command(params.clone(), command.clone()),
         )
     }
+
+    pub(crate) fn completion_item_resolve(
+        &self,
+        params: RequestParams,
+        completion_item: lsp_types::CompletionItem,
+    ) -> anyhow::Result<()> {
+        self.invoke_channels(
+            &params.path.clone(),
+            "Failed to resolve completion item",
+            |channel| channel.completion_item_resolve(params.clone(), completion_item.clone()),
+        )
+    }
 }

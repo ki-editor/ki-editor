@@ -5,19 +5,20 @@ use lsp_types::CompletionItemKind;
 use shared::icons::get_icon_config;
 
 use crate::{
-    components::{dropdown::DropdownItem, suggestive_editor::Info},
+    app::{Dispatch, Dispatches},
+    components::{dropdown::DropdownItem, editor::DispatchEditor, suggestive_editor::Info},
     position::Position,
 };
 
 use super::documentation::Documentation;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Completion {
     pub(crate) items: Vec<DropdownItem>,
     pub(crate) trigger_characters: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompletionItem {
     pub(crate) label: String,
     pub(crate) kind: Option<CompletionItemKind>,
@@ -26,11 +27,21 @@ pub(crate) struct CompletionItem {
     pub(crate) sort_text: Option<String>,
     pub(crate) insert_text: Option<String>,
     pub(crate) edit: Option<CompletionItemEdit>,
+    pub(crate) completion_item: lsp_types::CompletionItem,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum CompletionItemEdit {
     PositionalEdit(PositionalEdit),
+}
+impl CompletionItemEdit {
+    fn to_dispatch(&self) -> Dispatch {
+        match self {
+            CompletionItemEdit::PositionalEdit(edit) => {
+                Dispatch::ToEditor(DispatchEditor::ApplyPositionalEdit(edit.clone()))
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,18 +66,6 @@ impl TryFrom<lsp_types::TextEdit> for PositionalEdit {
             range: value.range.start.into()..value.range.end.into(),
             new_text: value.new_text,
         })
-    }
-}
-
-impl PartialOrd for CompletionItem {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for CompletionItem {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -111,6 +110,7 @@ impl CompletionItem {
             sort_text: None,
             edit: None,
             insert_text: None,
+            completion_item: Default::default(),
         }
     }
 
@@ -120,6 +120,24 @@ impl CompletionItem {
 
     pub(crate) fn documentation(&self) -> Option<Documentation> {
         self.documentation.clone()
+    }
+
+    pub(crate) fn additional_text_edits(&self) -> Vec<CompletionItemEdit> {
+        self.completion_item
+            .additional_text_edits
+            .as_ref()
+            .map(|edits| {
+                edits
+                    .iter()
+                    .map(|edit| {
+                        CompletionItemEdit::PositionalEdit(PositionalEdit {
+                            range: edit.range.start.into()..edit.range.end.into(),
+                            new_text: edit.new_text.clone(),
+                        })
+                    })
+                    .collect_vec()
+            })
+            .unwrap_or_default()
     }
 
     #[cfg(test)]
@@ -141,18 +159,48 @@ impl CompletionItem {
     pub(crate) fn insert_text(&self) -> Option<String> {
         self.insert_text.clone()
     }
+
+    pub(crate) fn dispatches(&self) -> crate::app::Dispatches {
+        Dispatches::one(match &self.edit {
+            None => Dispatch::ToEditor(DispatchEditor::TryReplaceCurrentLongWord(
+                self.insert_text().unwrap_or_else(|| self.label()),
+            )),
+            Some(edit) => edit.to_dispatch(),
+        })
+        .append_some(
+            self.command()
+                .clone()
+                .map(|command| Dispatch::LspExecuteCommand {
+                    command: command.into(),
+                }),
+        )
+        .chain(Dispatches::new(
+            self.additional_text_edits()
+                .into_iter()
+                .map(|edit| edit.to_dispatch())
+                .collect_vec(),
+        ))
+    }
+
+    pub(crate) fn completion_item(&self) -> lsp_types::CompletionItem {
+        self.completion_item.clone()
+    }
+
+    fn command(&self) -> Option<lsp_types::Command> {
+        self.completion_item.command.clone()
+    }
 }
 
 impl From<lsp_types::CompletionItem> for CompletionItem {
     fn from(item: lsp_types::CompletionItem) -> Self {
         Self {
-            label: item.label,
+            label: item.label.clone(),
             kind: item.kind,
-            detail: item.detail,
-            documentation: item.documentation.map(|doc| doc.into()),
-            sort_text: item.sort_text,
-            insert_text: item.insert_text,
-            edit: item.text_edit.and_then(|edit| match edit {
+            detail: item.detail.clone(),
+            documentation: item.documentation.clone().map(|doc| doc.into()),
+            sort_text: item.sort_text.clone(),
+            insert_text: item.insert_text.clone(),
+            edit: item.text_edit.clone().and_then(|edit| match edit {
                 lsp_types::CompletionTextEdit::Edit(edit) => {
                     Some(CompletionItemEdit::PositionalEdit(PositionalEdit {
                         range: edit.range.start.into()..edit.range.end.into(),
@@ -161,6 +209,7 @@ impl From<lsp_types::CompletionItem> for CompletionItem {
                 }
                 lsp_types::CompletionTextEdit::InsertAndReplace(_) => None,
             }),
+            completion_item: item,
         }
     }
 }

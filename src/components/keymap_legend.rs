@@ -23,20 +23,20 @@ pub(crate) struct KeymapLegend {
     config: KeymapLegendConfig,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct KeymapLegendConfig {
     pub(crate) title: String,
     pub(crate) body: KeymapLegendBody,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum KeymapLegendBody {
     SingleSection { keymaps: Keymaps },
     MultipleSections { sections: Vec<KeymapLegendSection> },
 }
 const BETWEEN_KEY_AND_DESCRIPTION: &str = " → ";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymaps(Vec<Keymap>);
 impl Keymaps {
     fn display(&self, indent: usize, width: usize) -> String {
@@ -128,7 +128,7 @@ fn dedent(s: &str) -> String {
     dedented_lines.join("\n")
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct KeymapLegendSection {
     pub(crate) title: String,
     pub(crate) keymaps: Keymaps,
@@ -246,7 +246,7 @@ impl KeymapLegendConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymap {
     key: &'static str,
     description: String,

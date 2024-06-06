@@ -9,7 +9,7 @@ use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
 
 use super::suggestive_editor::{Decoration, Info};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 /// Note: filtering will be done on the combination of `display` and `group` (if applicable)
 pub(crate) struct DropdownItem {
     pub(crate) dispatches: Dispatches,
@@ -18,6 +18,10 @@ pub(crate) struct DropdownItem {
     info: Option<Info>,
     /// Sorting will be based on `rank` if defined, otherwise sorting will be based on `display`
     rank: Option<Box<[usize]>>,
+
+    on_focused: Dispatches,
+    /// Used to prevent spamming the LSP server with the same "completionItem/resolve" request
+    resolved: bool,
 }
 
 impl DropdownItem {
@@ -32,6 +36,8 @@ impl DropdownItem {
             group: Default::default(),
             info: Default::default(),
             rank: None,
+            on_focused: Default::default(),
+            resolved: false,
         }
     }
 
@@ -49,6 +55,18 @@ impl DropdownItem {
 
     pub(crate) fn set_rank(self, rank: Option<Box<[usize]>>) -> DropdownItem {
         Self { rank, ..self }
+    }
+
+    pub(crate) fn set_on_focused(self, on_focused: Dispatches) -> DropdownItem {
+        Self { on_focused, ..self }
+    }
+
+    pub(crate) fn on_focused(&self) -> Dispatches {
+        self.on_focused.clone()
+    }
+
+    pub(crate) fn resolved(&self) -> bool {
+        self.resolved
     }
 }
 
@@ -524,6 +542,17 @@ impl Dropdown {
 
     pub(crate) fn no_matching_candidates(&self) -> bool {
         self.filtered_item_groups.is_empty()
+    }
+
+    pub(crate) fn update_current_item(&mut self, item: DropdownItem) {
+        if let Some(matching) = self.items.iter_mut().find(|i| i.display == item.display) {
+            debug_assert!(!matching.resolved());
+            *matching = DropdownItem {
+                resolved: true,
+                ..item
+            }
+        }
+        self.compute_filtered_items()
     }
 }
 

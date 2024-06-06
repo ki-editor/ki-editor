@@ -54,7 +54,7 @@ struct PendingResponseRequest {
     context: ResponseContext,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum LspNotification {
     Initialized(Language),
     PublishDiagnostics(PublishDiagnosticsParams),
@@ -68,6 +68,7 @@ pub(crate) enum LspNotification {
     CodeAction(ResponseContext, Vec<CodeAction>),
     SignatureHelp(Option<SignatureHelp>),
     Symbols(ResponseContext, Symbols),
+    CompletionItemResolve(lsp_types::CompletionItem),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -144,6 +145,10 @@ enum FromEditor {
     WorkspaceExecuteCommand {
         params: RequestParams,
         command: super::code_action::Command,
+    },
+    CompletionItemResolve {
+        completion_item: lsp_types::CompletionItem,
+        params: RequestParams,
     },
 }
 
@@ -350,6 +355,19 @@ impl LspServerProcessChannel {
             FromEditor::WorkspaceExecuteCommand { command, params },
         ))
     }
+
+    pub(crate) fn completion_item_resolve(
+        &self,
+        params: RequestParams,
+        completion_item: lsp_types::CompletionItem,
+    ) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(
+            FromEditor::CompletionItemResolve {
+                completion_item,
+                params,
+            },
+        ))
+    }
 }
 
 impl LspServerProcess {
@@ -455,6 +473,10 @@ impl LspServerProcess {
                         }),
                         completion: Some(CompletionClientCapabilities {
                             completion_item: Some(CompletionItemCapability {
+                                resolve_support: Some(CompletionItemCapabilityResolveSupport {
+                                    properties: vec!["additionalTextEdits".to_string()],
+                                }),
+
                                 ..CompletionItemCapability::default()
                             }),
                             completion_item_kind: Some(CompletionItemKindCapability {
@@ -647,6 +669,10 @@ impl LspServerProcess {
                     FromEditor::WorkspaceExecuteCommand { params, command } => {
                         self.workspace_execute_command(params, command)
                     }
+                    FromEditor::CompletionItemResolve {
+                        completion_item,
+                        params,
+                    } => self.completion_item_resolve(params, completion_item),
                 },
             }
             .unwrap_or_else(|error| {
@@ -893,8 +919,6 @@ impl LspServerProcess {
                         let payload: <lsp_request!("textDocument/documentSymbol") as Request>::Result =
                             serde_json::from_value(response)?;
 
-                        log::info!("Symbols response: {:?}", payload);
-
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Symbols(
@@ -903,6 +927,16 @@ impl LspServerProcess {
                                 )))
                                 .unwrap();
                         }
+                    }
+                    "completionItem/resolve" => {
+                        let payload: <lsp_request!("completionItem/resolve") as Request>::Result =
+                            serde_json::from_value(response)?;
+
+                        self.app_message_sender
+                            .send(AppMessage::LspNotification(
+                                LspNotification::CompletionItemResolve(payload),
+                            ))
+                            .unwrap();
                     }
                     _ => {
                         log::info!("Unknown method: {:#?}", method);
@@ -1413,6 +1447,22 @@ impl LspServerProcess {
                 },
             },
         )
+    }
+
+    fn completion_item_resolve(
+        &mut self,
+        params: RequestParams,
+        completion_item: lsp_types::CompletionItem,
+    ) -> Result<(), anyhow::Error> {
+        if !self.has_capability(|c| {
+            c.completion_provider
+                .as_ref()
+                .map(|p| p.resolve_provider.is_some())
+                .unwrap_or(false)
+        }) {
+            return Ok(());
+        }
+        self.send_request::<lsp_request!("completionItem/resolve")>(params.context, completion_item)
     }
 }
 

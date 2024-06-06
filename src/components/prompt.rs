@@ -26,7 +26,7 @@ pub(crate) struct Prompt {
     fire_dispatches_on_change: Option<Dispatches>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PromptConfig {
     pub(crate) on_enter: DispatchPrompt,
     pub(crate) items: Vec<DropdownItem>,
@@ -90,7 +90,7 @@ impl Prompt {
             items: config.items,
             trigger_characters: vec![" ".to_string()],
         });
-        let dispatches = dispatches.append(editor.render_completion_dropdown(true));
+        let dispatches = dispatches.chain(editor.render_completion_dropdown(true));
         (
             Prompt {
                 editor,
