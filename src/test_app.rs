@@ -23,7 +23,7 @@ pub(crate) use SelectionMode::*;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, Scope},
+    app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope},
     char_index_range::CharIndexRange,
     components::{
         component::Component,
@@ -39,6 +39,7 @@ use crate::{
         code_action::CodeAction,
         completion::{Completion, CompletionItem, CompletionItemEdit, PositionalEdit},
         documentation::Documentation,
+        process::FromEditor,
         signature_help::SignatureInformation,
         workspace_edit::{TextDocumentEdit, WorkspaceEdit},
     },
@@ -107,6 +108,7 @@ pub(crate) enum ExpectKind {
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(&'static str),
     CurrentSelectionMode(SelectionMode),
+    LspRequestSent(FromEditor),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -318,6 +320,7 @@ impl ExpectKind {
                 expected,
                 &app.current_component().borrow().editor().selection_set.mode,
             ),
+            LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
         })
     }
 }
@@ -894,7 +897,6 @@ fn local_lsp_references() -> anyhow::Result<()> {
             App(HandleLspNotification(LspNotification::References(
                 crate::lsp::process::ResponseContext {
                     scope: Some(Scope::Local),
-                    component_id: Default::default(),
                     description: None,
                 },
                 [
@@ -1744,6 +1746,33 @@ fn workspace_edit() -> anyhow::Result<()> {
             Expect(CurrentComponentContent("hello who lives in a pineapple")),
             // Expect the selection is still "pineapple"
             Expect(CurrentSelectedTexts(&["pineapple"])),
+        ])
+    })
+}
+
+#[test]
+fn request_signature_help() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("f()".to_string())),
+            Editor(MatchLiteral("f()".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            Expect(ExpectKind::LspRequestSent(
+                FromEditor::TextDocumentSignatureHelp(RequestParams {
+                    path: s.main_rs(),
+                    position: Position::new(0, 3),
+                    context: Default::default(),
+                }),
+            )),
+            App(HandleKeyEvent(key!("left"))),
+            Expect(ExpectKind::LspRequestSent(
+                FromEditor::TextDocumentSignatureHelp(RequestParams {
+                    path: s.main_rs(),
+                    position: Position::new(0, 2),
+                    context: Default::default(),
+                }),
+            )),
         ])
     })
 }

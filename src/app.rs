@@ -23,7 +23,7 @@ use crate::{
         completion::CompletionItem,
         goto_definition_response::GotoDefinitionResponse,
         manager::LspManager,
-        process::{LspNotification, ResponseContext},
+        process::{FromEditor, LspNotification, ResponseContext},
         symbols::Symbols,
         workspace_edit::WorkspaceEdit,
     },
@@ -395,13 +395,21 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::RequestCompletion => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_completion(params)?;
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentCompletion(params),
+                    )?;
                 }
             }
             Dispatch::ResolveCompletionItem(completion_item) => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager
-                        .completion_item_resolve(params, completion_item)?
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::CompletionItemResolve {
+                            completion_item,
+                            params,
+                        },
+                    )?
                 }
             }
             Dispatch::RequestReferences {
@@ -409,80 +417,112 @@ impl<T: Frontend> App<T> {
                 scope,
             } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_references(
+                    let params =
                         params
                             .set_kind(Some(scope))
                             .set_description(if include_declaration {
                                 "References (include declaration)"
                             } else {
                                 "References (exclude declaration)"
-                            }),
-                        include_declaration,
+                            });
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentReferences {
+                            params,
+                            include_declaration,
+                        },
                     )?;
                 }
             }
             Dispatch::RequestHover => {
                 if let Some(params) = self.get_request_params() {
+                    let params = params.set_description("Hover");
                     self.lsp_manager
-                        .request_hover(params.set_description("Hover"))?;
+                        .send_message(params.path.clone(), FromEditor::TextDocumentHover(params))?;
                 }
             }
             Dispatch::RequestDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_definition(
-                        params.set_kind(Some(scope)).set_description("Definitions"),
+                    let params = params.set_kind(Some(scope)).set_description("Definitions");
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentDefinition(params),
                     )?;
                 }
             }
             Dispatch::RequestDeclarations(scope) => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_declaration(
-                        params.set_kind(Some(scope)).set_description("Declarations"),
+                    let params = params.set_kind(Some(scope)).set_description("Declarations");
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentDeclaration(params),
                     )?;
                 }
             }
             Dispatch::RequestImplementations(scope) => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_implementation(
-                        params
-                            .set_kind(Some(scope))
-                            .set_description("Implementations"),
+                    let params = params
+                        .set_kind(Some(scope))
+                        .set_description("Implementations");
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentImplementation(params),
                     )?;
                 }
             }
             Dispatch::RequestTypeDefinitions(scope) => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_type_definition(
-                        params
-                            .set_kind(Some(scope))
-                            .set_description("Type Definitions"),
+                    let params = params
+                        .set_kind(Some(scope))
+                        .set_description("Type Definitions");
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentTypeDefinition(params),
                     )?;
                 }
             }
             Dispatch::RequestDocumentSymbols => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager
-                        .request_document_symbols(params.set_description("Document Symbols"))?;
+                    let params = params.set_description("Document Symbols");
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentDocumentSymbol(params),
+                    )?;
                 }
             }
             Dispatch::PrepareRename => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.prepare_rename_symbol(params)?;
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentPrepareRename(params),
+                    )?;
                 }
             }
             Dispatch::RenameSymbol { new_name } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.rename_symbol(params, new_name)?;
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentRename { params, new_name },
+                    )?;
                 }
             }
             Dispatch::RequestCodeAction { diagnostics } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_code_action(params, diagnostics)?;
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentCodeAction {
+                            params,
+                            diagnostics,
+                        },
+                    )?;
                 }
             }
             Dispatch::RequestSignatureHelp => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager.request_signature_help(params)?;
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::TextDocumentSignatureHelp(params),
+                    )?;
                 }
             }
             Dispatch::DocumentDidChange {
@@ -497,11 +537,21 @@ impl<T: Frontend> App<T> {
                     // self.update_highlighted_spans(component_id, highlight_spans)?
                 }
                 if let Some(path) = path {
-                    self.lsp_manager.document_did_change(path, content)?;
+                    self.lsp_manager.send_message(
+                        path.clone(),
+                        FromEditor::TextDocumentDidChange {
+                            content,
+                            file_path: path,
+                            version: 2,
+                        },
+                    )?;
                 }
             }
             Dispatch::DocumentDidSave { path } => {
-                self.lsp_manager.document_did_save(path)?;
+                self.lsp_manager.send_message(
+                    path.clone(),
+                    FromEditor::TextDocumentDidSave { file_path: path },
+                )?;
             }
             Dispatch::ShowGlobalInfo(info) => self.show_global_info(info),
             Dispatch::SetQuickfixList(r#type) => {
@@ -559,8 +609,10 @@ impl<T: Frontend> App<T> {
 
             Dispatch::LspExecuteCommand { command } => {
                 if let Some(params) = self.get_request_params() {
-                    self.lsp_manager
-                        .workspace_execute_command(params, command)?
+                    self.lsp_manager.send_message(
+                        params.path.clone(),
+                        FromEditor::WorkspaceExecuteCommand { params, command },
+                    )?
                 };
             }
             Dispatch::UpdateLocalSearchConfig {
@@ -732,11 +784,7 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn open_symbol_picker(
-        &mut self,
-        _component_id: ComponentId,
-        symbols: Symbols,
-    ) -> anyhow::Result<()> {
+    fn open_symbol_picker(&mut self, symbols: Symbols) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
                 title: "Symbols".to_string(),
@@ -875,13 +923,6 @@ impl<T: Frontend> App<T> {
         Ok(component)
     }
 
-    fn get_suggestive_editor(
-        &mut self,
-        component_id: ComponentId,
-    ) -> anyhow::Result<Rc<RefCell<SuggestiveEditor>>> {
-        self.layout.get_suggestive_editor(component_id)
-    }
-
     pub(crate) fn handle_lsp_notification(
         &mut self,
         notification: LspNotification,
@@ -951,8 +992,8 @@ impl<T: Frontend> App<T> {
                 )?;
                 Ok(())
             }
-            LspNotification::PrepareRenameResponse(context, response) => {
-                let editor = self.get_suggestive_editor(context.component_id)?;
+            LspNotification::PrepareRenameResponse(response) => {
+                let editor = self.current_component();
 
                 let current_name = {
                     let editor = editor.borrow();
@@ -979,18 +1020,16 @@ impl<T: Frontend> App<T> {
             LspNotification::WorkspaceEdit(workspace_edit) => {
                 self.apply_workspace_edit(workspace_edit)
             }
-            LspNotification::CodeAction(context, code_actions) => {
-                if context.component_id == self.layout.get_current_component().borrow().id() {
-                    self.handle_dispatch(Dispatch::ReceiveCodeActions(code_actions))?;
-                }
+            LspNotification::CodeAction(code_actions) => {
+                self.handle_dispatch(Dispatch::ReceiveCodeActions(code_actions))?;
                 Ok(())
             }
             LspNotification::SignatureHelp(signature_help) => {
                 self.handle_signature_help(signature_help)?;
                 Ok(())
             }
-            LspNotification::Symbols(context, symbols) => {
-                self.open_symbol_picker(context.component_id, symbols)?;
+            LspNotification::Symbols(symbols) => {
+                self.open_symbol_picker(symbols)?;
                 Ok(())
             }
             LspNotification::CompletionItemResolve(completion_item) => {
@@ -1240,8 +1279,13 @@ impl<T: Frontend> App<T> {
         self.layout.refresh_file_explorer(&self.working_directory)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
-        self.lsp_manager
-            .document_did_rename(from.clone(), to.clone())?;
+        self.lsp_manager.send_message(
+            from.clone(),
+            FromEditor::WorkspaceDidRenameFiles {
+                old: from.clone(),
+                new: to,
+            },
+        )?;
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
@@ -1916,6 +1960,11 @@ impl<T: Frontend> App<T> {
         self.handle_dispatch_suggestive_editor(
             DispatchSuggestiveEditor::UpdateCurrentCompletionItem(completion_item),
         )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
+        self.lsp_manager.lsp_request_sent(from_editor)
     }
 }
 

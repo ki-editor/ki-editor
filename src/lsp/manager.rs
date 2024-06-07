@@ -1,9 +1,8 @@
-use crate::app::RequestParams;
 use std::{collections::HashMap, sync::mpsc::Sender};
 
 use crate::app::AppMessage;
 
-use super::process::LspServerProcessChannel;
+use super::process::{FromEditor, LspServerProcessChannel};
 use shared::{
     canonicalized_path::CanonicalizedPath,
     language::{self, Language, LanguageId},
@@ -13,6 +12,11 @@ pub(crate) struct LspManager {
     lsp_server_process_channels: HashMap<LanguageId, LspServerProcessChannel>,
     sender: Sender<AppMessage>,
     current_working_directory: CanonicalizedPath,
+    #[cfg(test)]
+    /// Used for testing the correctness of LSP requests
+    /// We use HashMap instead of Vec because we only one to store the latest
+    /// requests of the same kind
+    history: HashMap</* request name */ &'static str, FromEditor>,
 }
 
 impl Drop for LspManager {
@@ -30,6 +34,8 @@ impl LspManager {
             lsp_server_process_channels: HashMap::new(),
             sender,
             current_working_directory,
+            #[cfg(test)]
+            history: Default::default(),
         }
     }
 
@@ -45,119 +51,22 @@ impl LspManager {
             .unwrap_or_else(|| Ok(()))
     }
 
-    pub(crate) fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to request completion", |channel| {
-            channel.request_completion(params.clone())
-        })
-    }
-
-    pub(crate) fn request_hover(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to request hover", |channel| {
-            channel.request_hover(params.clone())
-        })
-    }
-
-    pub(crate) fn request_definition(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to go to definition", |channel| {
-            channel.request_definition(params.clone())
-        })
-    }
-
-    pub(crate) fn request_references(
-        &self,
-        params: RequestParams,
-        include_declaration: bool,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to find references", |channel| {
-            channel.request_references(params.clone(), include_declaration)
-        })
-    }
-
-    pub(crate) fn request_declaration(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to go to declaration", |channel| {
-            channel.request_declaration(params.clone())
-        })
-    }
-
-    pub(crate) fn request_implementation(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to go to implementation", |channel| {
-            channel.request_implementation(params.clone())
-        })
-    }
-
-    pub(crate) fn request_type_definition(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to go to type definition", |channel| {
-            channel.request_type_definition(params.clone())
-        })
-    }
-
-    pub(crate) fn prepare_rename_symbol(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to prepare rename symbol", |channel| {
-            channel.prepare_rename_symbol(params.clone())
-        })
-    }
-
-    pub(crate) fn rename_symbol(
-        &self,
-        params: RequestParams,
-        new_name: String,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&params.path, "Failed to rename symbol", |channel| {
-            channel.rename_symbol(params.clone(), new_name.clone())
-        })
-    }
-
-    pub(crate) fn request_code_action(
-        &self,
-        action: RequestParams,
-        diagnostics: Vec<lsp_types::Diagnostic>,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&action.path, "Failed to request code action", |channel| {
-            channel.request_code_action(action.clone(), diagnostics.clone())
-        })
-    }
-
-    pub(crate) fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(
-            &params.path,
-            "Failed to request signature help",
-            |channel| channel.request_signature_help(params.clone()),
-        )
-    }
-
-    pub(crate) fn request_document_symbols(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.invoke_channels(
-            &params.path,
-            "Failed to request document symbols",
-            |channel| channel.request_document_symbols(params.clone()),
-        )
-    }
-
-    pub(crate) fn document_did_change(
-        &self,
-        path: CanonicalizedPath,
-        content: String,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(&path, "Failed to notify document did change", |channel| {
-            channel.document_did_change(&path, &content)
-        })
-    }
-
-    pub(crate) fn document_did_save(&self, path: CanonicalizedPath) -> anyhow::Result<()> {
-        self.invoke_channels(&path, "Failed to notify document did save", |channel| {
-            channel.document_did_save(&path)
-        })
-    }
-
-    pub(crate) fn document_did_rename(
+    pub(crate) fn send_message(
         &mut self,
-        old: CanonicalizedPath,
-        new: CanonicalizedPath,
+        path: CanonicalizedPath,
+        from_editor: FromEditor,
     ) -> anyhow::Result<()> {
-        self.invoke_channels(&old, "Failed to notify document did rename", |channel| {
-            channel.document_did_rename(old.clone(), new.clone())
-        })
+        #[cfg(test)]
+        self.history
+            .insert(from_editor.variant(), from_editor.clone());
+
+        self.invoke_channels(
+            &path,
+            &format!("Failed to send message '{}'", from_editor.variant()),
+            |channel| channel.send_from_editor(from_editor.clone()),
+        )
     }
+
     /// Open file can do one of the following:
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
@@ -218,27 +127,8 @@ impl LspManager {
         }
     }
 
-    pub(crate) fn workspace_execute_command(
-        &self,
-        params: RequestParams,
-        command: super::code_action::Command,
-    ) -> Result<(), anyhow::Error> {
-        self.invoke_channels(
-            &params.path.clone(),
-            "Failed to execute command",
-            |channel| channel.workspace_execute_command(params.clone(), command.clone()),
-        )
-    }
-
-    pub(crate) fn completion_item_resolve(
-        &self,
-        params: RequestParams,
-        completion_item: lsp_types::CompletionItem,
-    ) -> anyhow::Result<()> {
-        self.invoke_channels(
-            &params.path.clone(),
-            "Failed to resolve completion item",
-            |channel| channel.completion_item_resolve(params.clone(), completion_item.clone()),
-        )
+    #[cfg(test)]
+    pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
+        self.history.get(from_editor.variant()) == Some(from_editor)
     }
 }

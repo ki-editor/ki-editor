@@ -1169,13 +1169,11 @@ impl Editor {
     }
 
     pub(crate) fn get_request_params(&self) -> Option<RequestParams> {
-        let component_id = self.id();
         let position = self.get_cursor_position().ok()?;
         self.path().map(|path| RequestParams {
             path,
             position,
             context: ResponseContext {
-                component_id,
                 scope: None,
                 description: None,
             },

@@ -18,7 +18,6 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use crate::app::AppMessage;
-use crate::components::component::ComponentId;
 use crate::utils::consolidate_errors;
 
 use super::code_action::CodeAction;
@@ -64,26 +63,17 @@ pub(crate) enum LspNotification {
     Hover(Hover),
     Definition(ResponseContext, GotoDefinitionResponse),
     References(ResponseContext, Vec<Location>),
-    PrepareRenameResponse(ResponseContext, PrepareRenameResponse),
+    PrepareRenameResponse(PrepareRenameResponse),
     Error(String),
     WorkspaceEdit(WorkspaceEdit),
-    CodeAction(ResponseContext, Vec<CodeAction>),
+    CodeAction(Vec<CodeAction>),
     SignatureHelp(Option<SignatureHelp>),
-    Symbols(ResponseContext, Symbols),
+    Symbols(Symbols),
     CompletionItemResolve(lsp_types::CompletionItem),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct ResponseContext {
-    /// This indicates that this request was sent by a component,
-    /// and the response should be sent back to that component.
-    ///
-    /// If the response of this request need not be sent back to a component,
-    /// just use the default value `ComponentId::default()`.
-    ///
-    /// This field is purposefully not an `Option` so that we do not need to
-    /// use `unwrap()` to obtain the `component_id`.
-    pub(crate) component_id: ComponentId,
     pub(crate) scope: Option<Scope>,
     pub(crate) description: Option<String>,
 }
@@ -96,14 +86,14 @@ impl ResponseContext {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum LspServerProcessMessage {
     FromLspServer(serde_json::Value),
     FromEditor(FromEditor),
 }
 
-#[derive(Debug, NamedVariant)]
-enum FromEditor {
+#[derive(Debug, NamedVariant, Clone, PartialEq)]
+pub(crate) enum FromEditor {
     TextDocumentHover(RequestParams),
     TextDocumentCompletion(RequestParams),
     TextDocumentDefinition(RequestParams),
@@ -139,7 +129,7 @@ enum FromEditor {
     TextDocumentDeclaration(RequestParams),
     TextDocumentImplementation(RequestParams),
     TextDocumentTypeDefinition(RequestParams),
-    RequestDocumentSymbols(RequestParams),
+    TextDocumentDocumentSymbol(RequestParams),
     WorkspaceDidRenameFiles {
         old: CanonicalizedPath,
         new: CanonicalizedPath,
@@ -152,6 +142,12 @@ enum FromEditor {
         completion_item: lsp_types::CompletionItem,
         params: RequestParams,
     },
+}
+
+impl FromEditor {
+    pub(crate) fn variant(&self) -> &'static str {
+        self.variant_name()
+    }
 }
 
 pub(crate) struct LspServerProcessChannel {
@@ -168,102 +164,6 @@ impl LspServerProcessChannel {
         current_working_directory: CanonicalizedPath,
     ) -> Result<Option<LspServerProcessChannel>, anyhow::Error> {
         LspServerProcess::start(language, screen_message_sender, current_working_directory)
-    }
-
-    pub(crate) fn request_hover(&self, params: RequestParams) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentHover(params),
-        ))
-    }
-
-    pub(crate) fn request_definition(&self, params: RequestParams) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentDefinition(params),
-        ))
-    }
-
-    pub(crate) fn request_references(
-        &self,
-        params: RequestParams,
-        include_declaration: bool,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentReferences {
-                params,
-                include_declaration,
-            },
-        ))
-    }
-
-    pub(crate) fn request_declaration(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentDeclaration(clone),
-        ))
-    }
-
-    pub(crate) fn request_implementation(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentImplementation(clone),
-        ))
-    }
-
-    pub(crate) fn request_type_definition(
-        &self,
-        clone: RequestParams,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentTypeDefinition(clone),
-        ))
-    }
-
-    pub(crate) fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentCompletion(params),
-        ))
-    }
-
-    pub(crate) fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentSignatureHelp(params),
-        ))
-    }
-
-    pub(crate) fn prepare_rename_symbol(&self, params: RequestParams) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentPrepareRename(params),
-        ))
-    }
-
-    pub(crate) fn rename_symbol(
-        &self,
-        params: RequestParams,
-        new_name: String,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentRename { params, new_name },
-        ))
-    }
-
-    pub(crate) fn request_code_action(
-        &self,
-        params: RequestParams,
-        diagnostics: Vec<lsp_types::Diagnostic>,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentCodeAction {
-                params,
-                diagnostics,
-            },
-        ))
-    }
-
-    pub(crate) fn request_document_symbols(
-        &self,
-        params: RequestParams,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestDocumentSymbols(params),
-        ))
     }
 
     pub(crate) fn shutdown(self) -> anyhow::Result<()> {
@@ -309,19 +209,6 @@ impl LspServerProcessChannel {
         ))
     }
 
-    pub(crate) fn document_did_change(
-        &self,
-        path: &CanonicalizedPath,
-        content: &str,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentDidChange {
-                file_path: path.clone(),
-                version: 2,
-                content: content.to_string(),
-            },
-        ))
-    }
     pub(crate) fn is_initialized(&self) -> bool {
         self.is_initialized
     }
@@ -330,45 +217,8 @@ impl LspServerProcessChannel {
         self.is_initialized = true
     }
 
-    pub(crate) fn document_did_save(&self, path: &CanonicalizedPath) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::TextDocumentDidSave {
-                file_path: path.clone(),
-            },
-        ))
-    }
-
-    pub(crate) fn document_did_rename(
-        &self,
-        old: CanonicalizedPath,
-        new: CanonicalizedPath,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::WorkspaceDidRenameFiles { old, new },
-        ))
-    }
-
-    pub(crate) fn workspace_execute_command(
-        &self,
-        params: RequestParams,
-        command: super::code_action::Command,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::WorkspaceExecuteCommand { command, params },
-        ))
-    }
-
-    pub(crate) fn completion_item_resolve(
-        &self,
-        params: RequestParams,
-        completion_item: lsp_types::CompletionItem,
-    ) -> Result<(), anyhow::Error> {
-        self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::CompletionItemResolve {
-                completion_item,
-                params,
-            },
-        ))
+    pub(crate) fn send_from_editor(&self, from_editor: FromEditor) -> Result<(), anyhow::Error> {
+        self.send(LspServerProcessMessage::FromEditor(from_editor))
     }
 }
 
@@ -682,7 +532,7 @@ impl LspServerProcess {
                     params,
                     diagnostics,
                 } => self.text_document_code_action(params, diagnostics),
-                FromEditor::RequestDocumentSymbols(params) => {
+                FromEditor::TextDocumentDocumentSymbol(params) => {
                     self.text_document_document_symbol(params)
                 }
 
@@ -902,10 +752,7 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(
-                                    LspNotification::PrepareRenameResponse(
-                                        response_context,
-                                        payload.into(),
-                                    ),
+                                    LspNotification::PrepareRenameResponse(payload.into()),
                                 ))
                                 .unwrap();
                         }
@@ -929,7 +776,6 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::CodeAction(
-                                    response_context,
                                     payload
                                         .into_iter()
                                         .map(|r| match r {
@@ -960,7 +806,6 @@ impl LspServerProcess {
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::Symbols(
-                                    response_context,
                                     payload.try_into()?,
                                 )))
                                 .unwrap();
