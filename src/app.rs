@@ -372,7 +372,6 @@ impl<T: Frontend> App<T> {
     }
 
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
-        log::info!("App::handle_dispatch {}", dispatch.variant_name());
         match dispatch {
             Dispatch::CloseCurrentWindow => {
                 self.close_current_window();
@@ -1955,7 +1954,7 @@ impl Dispatches {
 }
 
 #[must_use]
-#[derive(Clone, Debug, PartialEq, name_variant::NamedVariant)]
+#[derive(Clone, Debug, PartialEq)]
 /// Dispatch are for child component to request action from the root node
 pub(crate) enum Dispatch {
     SetTheme(crate::themes::Theme),

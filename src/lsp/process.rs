@@ -1,10 +1,12 @@
 use crate::app::{RequestParams, Scope};
 use anyhow::Context;
+use debounce::EventDebouncer;
 use lsp_types::notification::Notification;
 use lsp_types::request::{
     GotoDeclarationParams, GotoImplementationParams, GotoTypeDefinitionParams, Request,
 };
 use lsp_types::*;
+use name_variant::NamedVariant;
 use shared::canonicalized_path::CanonicalizedPath;
 use shared::language::Language;
 use std::collections::HashMap;
@@ -13,6 +15,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use crate::app::AppMessage;
 use crate::components::component::ComponentId;
@@ -42,7 +45,6 @@ struct LspServerProcess {
     pending_response_requests: HashMap<RequestId, PendingResponseRequest>,
     app_message_sender: Sender<AppMessage>,
 
-    receiver: Receiver<LspServerProcessMessage>,
     sender: Sender<LspServerProcessMessage>,
 }
 
@@ -100,12 +102,12 @@ enum LspServerProcessMessage {
     FromEditor(FromEditor),
 }
 
-#[derive(Debug)]
+#[derive(Debug, NamedVariant)]
 enum FromEditor {
-    RequestHover(RequestParams),
-    RequestCompletion(RequestParams),
-    RequestDefinition(RequestParams),
-    RequestReferences {
+    TextDocumentHover(RequestParams),
+    TextDocumentCompletion(RequestParams),
+    TextDocumentDefinition(RequestParams),
+    TextDocumentReferences {
         params: RequestParams,
         include_declaration: bool,
     },
@@ -124,19 +126,19 @@ enum FromEditor {
     TextDocumentDidSave {
         file_path: CanonicalizedPath,
     },
-    PrepareRenameSymbol(RequestParams),
-    RenameSymbol {
+    TextDocumentPrepareRename(RequestParams),
+    TextDocumentRename {
         params: RequestParams,
         new_name: String,
     },
-    RequestCodeAction {
+    TextDocumentCodeAction {
         params: RequestParams,
         diagnostics: Vec<lsp_types::Diagnostic>,
     },
-    RequestSignatureHelp(RequestParams),
-    RequestDeclaration(RequestParams),
-    RequestImplementation(RequestParams),
-    RequestTypeDefinition(RequestParams),
+    TextDocumentSignatureHelp(RequestParams),
+    TextDocumentDeclaration(RequestParams),
+    TextDocumentImplementation(RequestParams),
+    TextDocumentTypeDefinition(RequestParams),
     RequestDocumentSymbols(RequestParams),
     WorkspaceDidRenameFiles {
         old: CanonicalizedPath,
@@ -170,13 +172,13 @@ impl LspServerProcessChannel {
 
     pub(crate) fn request_hover(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestHover(params),
+            FromEditor::TextDocumentHover(params),
         ))
     }
 
     pub(crate) fn request_definition(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestDefinition(params),
+            FromEditor::TextDocumentDefinition(params),
         ))
     }
 
@@ -186,7 +188,7 @@ impl LspServerProcessChannel {
         include_declaration: bool,
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestReferences {
+            FromEditor::TextDocumentReferences {
                 params,
                 include_declaration,
             },
@@ -195,13 +197,13 @@ impl LspServerProcessChannel {
 
     pub(crate) fn request_declaration(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestDeclaration(clone),
+            FromEditor::TextDocumentDeclaration(clone),
         ))
     }
 
     pub(crate) fn request_implementation(&self, clone: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestImplementation(clone),
+            FromEditor::TextDocumentImplementation(clone),
         ))
     }
 
@@ -210,25 +212,25 @@ impl LspServerProcessChannel {
         clone: RequestParams,
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestTypeDefinition(clone),
+            FromEditor::TextDocumentTypeDefinition(clone),
         ))
     }
 
     pub(crate) fn request_completion(&self, params: RequestParams) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestCompletion(params),
+            FromEditor::TextDocumentCompletion(params),
         ))
     }
 
     pub(crate) fn request_signature_help(&self, params: RequestParams) -> anyhow::Result<()> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestSignatureHelp(params),
+            FromEditor::TextDocumentSignatureHelp(params),
         ))
     }
 
     pub(crate) fn prepare_rename_symbol(&self, params: RequestParams) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::PrepareRenameSymbol(params),
+            FromEditor::TextDocumentPrepareRename(params),
         ))
     }
 
@@ -238,7 +240,7 @@ impl LspServerProcessChannel {
         new_name: String,
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RenameSymbol { params, new_name },
+            FromEditor::TextDocumentRename { params, new_name },
         ))
     }
 
@@ -248,7 +250,7 @@ impl LspServerProcessChannel {
         diagnostics: Vec<lsp_types::Diagnostic>,
     ) -> Result<(), anyhow::Error> {
         self.send(LspServerProcessMessage::FromEditor(
-            FromEditor::RequestCodeAction {
+            FromEditor::TextDocumentCodeAction {
                 params,
                 diagnostics,
             },
@@ -407,13 +409,12 @@ impl LspServerProcess {
             pending_response_requests: HashMap::new(),
             server_capabilities: None,
             app_message_sender,
-            receiver,
             sender: sender.clone(),
         };
 
         lsp_server_process.initialize()?;
 
-        let join_handle = std::thread::spawn(move || lsp_server_process.listen());
+        let join_handle = std::thread::spawn(move || lsp_server_process.listen(receiver));
 
         Ok(Some(LspServerProcessChannel {
             language,
@@ -538,7 +539,7 @@ impl LspServerProcess {
         Ok(())
     }
 
-    pub(crate) fn listen(mut self) -> JoinHandle<()> {
+    pub(crate) fn listen(mut self, receiver: Receiver<LspServerProcessMessage>) -> JoinHandle<()> {
         let mut stdout_reader = BufReader::new(self.stdout.take().unwrap());
         let mut stderr_reader = BufReader::new(self.stderr.take().unwrap());
         let sender = self.sender.clone();
@@ -551,8 +552,6 @@ impl LspServerProcess {
                 reader
                     .read_line(&mut line)
                     .with_context(|| "Failed to read Content-Length")?;
-
-                log::info!("LspServerProcess::listen line = {line:?}");
 
                 let content_length = line
                     .split(':')
@@ -611,73 +610,121 @@ impl LspServerProcess {
         });
 
         log::info!("[LspServerProcess] Listening for messages from LSP server");
-        while let Ok(message) = self.receiver.recv() {
-            match message {
-                LspServerProcessMessage::FromLspServer(json_value) => self.handle_reply(json_value),
-                LspServerProcessMessage::FromEditor(from_editor) => match from_editor {
-                    FromEditor::RequestCompletion(params) => self.text_document_completion(params),
-                    FromEditor::RequestHover(params) => self.text_document_hover(params),
-                    FromEditor::RequestDefinition(params) => self.text_document_definition(params),
-                    FromEditor::RequestReferences {
-                        params,
-                        include_declaration,
-                    } => self.text_document_references(params, include_declaration),
-                    FromEditor::RequestDeclaration(params) => {
-                        self.text_document_declaration(params)
-                    }
-                    FromEditor::RequestImplementation(params) => {
-                        self.text_document_implementation(params)
-                    }
-                    FromEditor::RequestTypeDefinition(params) => {
-                        self.text_document_type_definition(params)
-                    }
-                    FromEditor::RenameSymbol { params, new_name } => {
-                        self.text_document_rename(params, new_name)
-                    }
-                    FromEditor::PrepareRenameSymbol(params) => {
-                        self.text_document_prepare_rename(params)
-                    }
-                    FromEditor::RequestCodeAction {
-                        params,
-                        diagnostics,
-                    } => self.text_document_code_action(params, diagnostics),
-                    FromEditor::RequestDocumentSymbols(params) => {
-                        self.text_document_document_symbol(params)
-                    }
 
-                    FromEditor::TextDocumentDidOpen {
-                        file_path,
-                        language_id,
-                        version,
-                        content,
-                    } => self.text_document_did_open(file_path, language_id, version, content),
-                    FromEditor::Shutdown => self.shutdown(),
-                    FromEditor::TextDocumentDidChange {
-                        file_path,
-                        version,
-                        content,
-                    } => self.text_document_did_change(file_path, version, content),
-                    FromEditor::TextDocumentDidSave { file_path } => {
-                        self.text_document_did_save(file_path)
+        struct Event(LspServerProcessMessage);
+        impl PartialEq for Event {
+            fn eq(&self, other: &Self) -> bool {
+                match (&self.0, &other.0) {
+                    // We only want to throttle request sent from the editor to the LSP server
+                    // Also, we only want to throttle requests that are fired on every keypresses
+                    (
+                        LspServerProcessMessage::FromEditor(a),
+                        LspServerProcessMessage::FromEditor(b),
+                    ) => {
+                        use FromEditor::*;
+                        #[allow(clippy::match_like_matches_macro)]
+                        match (a, b) {
+                            (TextDocumentCompletion(_), TextDocumentCompletion(_))
+                            | (TextDocumentDidChange { .. }, TextDocumentDidChange { .. })
+                            | (TextDocumentSignatureHelp(_), TextDocumentSignatureHelp(_))
+                            | (CompletionItemResolve { .. }, CompletionItemResolve { .. }) => true,
+                            _ => false,
+                        }
                     }
-                    FromEditor::RequestSignatureHelp(params) => {
-                        self.text_document_signature_help(params)
-                    }
-                    FromEditor::WorkspaceDidRenameFiles { old, new } => {
-                        self.workspace_did_rename_files(old, new)
-                    }
-                    FromEditor::WorkspaceExecuteCommand { params, command } => {
-                        self.workspace_execute_command(params, command)
-                    }
-                    FromEditor::CompletionItemResolve {
-                        completion_item,
-                        params,
-                    } => self.completion_item_resolve(params, completion_item),
-                },
+                    // but not the request sent from the LSP server to the editor
+                    _ => false,
+                }
             }
-            .unwrap_or_else(|error| {
-                log::info!("[LspServerProcess] Error handling reply: {:?}", error);
+        }
+        // Throttle request being sent to LSP server
+        // This is crucial for request such as 'textDocument/completion', 'completionItem/resolve' etc,
+        // which are being fired on every keypress
+        let debounce = EventDebouncer::new(Duration::from_millis(150), move |Event(message)| {
+            let from_editor = match message {
+                LspServerProcessMessage::FromLspServer(json_value) => {
+                    return self.handle_reply(json_value).unwrap_or_else(|error| {
+                        log::info!(
+                            "LspServerProcess::listen | Error handling reply: {:?}",
+                            error
+                        );
+                    })
+                }
+                LspServerProcessMessage::FromEditor(from_editor) => from_editor,
+            };
+            log::info!(
+                "LspServerProcess::listen sending request '{}'",
+                from_editor.variant_name()
+            );
+            let result = match from_editor {
+                FromEditor::TextDocumentCompletion(params) => self.text_document_completion(params),
+                FromEditor::TextDocumentHover(params) => self.text_document_hover(params),
+                FromEditor::TextDocumentDefinition(params) => self.text_document_definition(params),
+                FromEditor::TextDocumentReferences {
+                    params,
+                    include_declaration,
+                } => self.text_document_references(params, include_declaration),
+                FromEditor::TextDocumentDeclaration(params) => {
+                    self.text_document_declaration(params)
+                }
+                FromEditor::TextDocumentImplementation(params) => {
+                    self.text_document_implementation(params)
+                }
+                FromEditor::TextDocumentTypeDefinition(params) => {
+                    self.text_document_type_definition(params)
+                }
+                FromEditor::TextDocumentRename { params, new_name } => {
+                    self.text_document_rename(params, new_name)
+                }
+                FromEditor::TextDocumentPrepareRename(params) => {
+                    self.text_document_prepare_rename(params)
+                }
+                FromEditor::TextDocumentCodeAction {
+                    params,
+                    diagnostics,
+                } => self.text_document_code_action(params, diagnostics),
+                FromEditor::RequestDocumentSymbols(params) => {
+                    self.text_document_document_symbol(params)
+                }
+
+                FromEditor::TextDocumentDidOpen {
+                    file_path,
+                    language_id,
+                    version,
+                    content,
+                } => self.text_document_did_open(file_path, language_id, version, content),
+                FromEditor::Shutdown => self.shutdown(),
+                FromEditor::TextDocumentDidChange {
+                    file_path,
+                    version,
+                    content,
+                } => self.text_document_did_change(file_path, version, content),
+                FromEditor::TextDocumentDidSave { file_path } => {
+                    self.text_document_did_save(file_path)
+                }
+                FromEditor::TextDocumentSignatureHelp(params) => {
+                    self.text_document_signature_help(params)
+                }
+                FromEditor::WorkspaceDidRenameFiles { old, new } => {
+                    self.workspace_did_rename_files(old, new)
+                }
+                FromEditor::WorkspaceExecuteCommand { params, command } => {
+                    self.workspace_execute_command(params, command)
+                }
+                FromEditor::CompletionItemResolve {
+                    completion_item,
+                    params,
+                } => self.completion_item_resolve(params, completion_item),
+            };
+            result.unwrap_or_else(|error| {
+                log::info!(
+                    "LspServerProcess::listen | Error handling request from editor: {:?}",
+                    error
+                );
             })
+        });
+        while let Ok(message) = receiver.recv() {
+            log::info!("receiver.recv = {:#?}", message);
+            debounce.put(Event(message))
         }
 
         log::info!("[LspServerProcess] Stopped listening for messages from LSP server");
@@ -749,8 +796,6 @@ impl LspServerProcess {
                     "textDocument/completion" => {
                         let payload: <lsp_request!("textDocument/completion") as Request>::Result =
                             serde_json::from_value(response)?;
-
-                        log::info!("Recevied completion");
 
                         if let Some(payload) = payload {
                             self.app_message_sender
@@ -870,8 +915,6 @@ impl LspServerProcess {
                         let payload: <lsp_request!("textDocument/rename") as Request>::Result =
                             serde_json::from_value(response)?;
 
-                        log::info!("Rename response: {:?}", payload);
-
                         if let Some(payload) = payload {
                             self.app_message_sender
                                 .send(AppMessage::LspNotification(LspNotification::WorkspaceEdit(
@@ -883,8 +926,6 @@ impl LspServerProcess {
                     "textDocument/codeAction" => {
                         let payload: <lsp_request!("textDocument/codeAction") as Request>::Result =
                             serde_json::from_value(response)?;
-
-                        log::info!("CodeAction response: {:?}", payload);
 
                         if let Some(payload) = payload {
                             self.app_message_sender
@@ -906,8 +947,6 @@ impl LspServerProcess {
                     "textDocument/signatureHelp" => {
                         let payload: <lsp_request!("textDocument/signatureHelp") as Request>::Result =
                             serde_json::from_value(response)?;
-
-                        log::info!("SignatureHelp response: {:?}", payload);
 
                         self.app_message_sender
                             .send(AppMessage::LspNotification(LspNotification::SignatureHelp(
