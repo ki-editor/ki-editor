@@ -185,17 +185,6 @@ impl Layout {
         }
     }
 
-    pub(crate) fn get_suggestive_editor(
-        &self,
-        component_id: ComponentId,
-    ) -> Result<Rc<RefCell<SuggestiveEditor>>, anyhow::Error> {
-        self.background_suggestive_editors
-            .iter()
-            .find(|(_, editor)| editor.borrow().id() == component_id)
-            .map(|(_, editor)| editor.clone())
-            .ok_or_else(|| anyhow!("Couldn't find component with id {:?}", component_id))
-    }
-
     fn show_info_on(
         &mut self,
         node_id: NodeId,

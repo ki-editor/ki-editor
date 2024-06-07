@@ -1169,13 +1169,11 @@ impl Editor {
     }
 
     pub(crate) fn get_request_params(&self) -> Option<RequestParams> {
-        let component_id = self.id();
         let position = self.get_cursor_position().ok()?;
         self.path().map(|path| RequestParams {
             path,
             position,
             context: ResponseContext {
-                component_id,
                 scope: None,
                 description: None,
             },
@@ -1263,10 +1261,7 @@ impl Editor {
         )?);
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
-        Ok(self
-            .get_request_params()
-            .map(|params| Dispatches::one(Dispatch::RequestSignatureHelp(params)))
-            .unwrap_or_default())
+        Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
     pub(crate) fn enter_normal_mode(&mut self) -> anyhow::Result<()> {

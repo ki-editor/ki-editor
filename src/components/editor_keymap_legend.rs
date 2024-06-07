@@ -18,7 +18,6 @@ use crate::{
 };
 
 use super::{
-    component::Component,
     editor::{Direction, DispatchEditor, Editor, HandleEventResult, SurroundKind},
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
     suggestive_editor::Info,
@@ -653,15 +652,11 @@ impl Editor {
                                     )
                                 }),
                             )
-                            .chain(self.editor().get_request_params().map(|params| {
-                                Keymap::new(
-                                    "s",
-                                    "Symbols".to_string(),
-                                    Dispatch::RequestDocumentSymbols(
-                                        params.set_description("Symbols"),
-                                    ),
-                                )
-                            }))
+                            .chain(Some(Keymap::new(
+                                "s",
+                                "Symbols".to_string(),
+                                Dispatch::RequestDocumentSymbols,
+                            )))
                             .chain(Some(Keymap::new(
                                 "t",
                                 "Theme".to_string(),
@@ -857,64 +852,44 @@ impl Editor {
             }
         };
         let lsp_keymaps = {
-            let keymaps = Keymaps::new(
-                &self
-                    .get_request_params()
-                    .map(|params| {
-                        let params = params.set_kind(Some(scope));
-                        [
-                            Keymap::new(
-                                "d",
-                                "Definitions".to_string(),
-                                Dispatch::RequestDefinitions(
-                                    params.clone().set_description("Definitions"),
-                                ),
-                            ),
-                            Keymap::new(
-                                "D",
-                                "Declarations".to_string(),
-                                Dispatch::RequestDeclarations(
-                                    params.clone().set_description("Declarations"),
-                                ),
-                            ),
-                            Keymap::new(
-                                "i",
-                                "Implementations".to_string(),
-                                Dispatch::RequestImplementations(
-                                    params.clone().set_description("Implementations"),
-                                ),
-                            ),
-                            Keymap::new(
-                                "r",
-                                "References".to_string(),
-                                Dispatch::RequestReferences {
-                                    params: params.clone().set_description("References"),
-                                    include_declaration: false,
-                                },
-                            ),
-                            Keymap::new(
-                                "R",
-                                "References (include declaration)".to_string(),
-                                Dispatch::RequestReferences {
-                                    params: params
-                                        .clone()
-                                        .set_description("References (include declaration)"),
-                                    include_declaration: true,
-                                },
-                            ),
-                            Keymap::new(
-                                "t",
-                                "Type Definitions".to_string(),
-                                Dispatch::RequestTypeDefinitions(
-                                    params.clone().set_description("Type Definitions"),
-                                ),
-                            ),
-                        ]
-                        .into_iter()
-                        .collect_vec()
-                    })
-                    .unwrap_or_default(),
-            );
+            let keymaps = Keymaps::new(&[
+                Keymap::new(
+                    "d",
+                    "Definitions".to_string(),
+                    Dispatch::RequestDefinitions(scope),
+                ),
+                Keymap::new(
+                    "D",
+                    "Declarations".to_string(),
+                    Dispatch::RequestDeclarations(scope),
+                ),
+                Keymap::new(
+                    "i",
+                    "Implementations".to_string(),
+                    Dispatch::RequestImplementations(scope),
+                ),
+                Keymap::new(
+                    "r",
+                    "References".to_string(),
+                    Dispatch::RequestReferences {
+                        include_declaration: false,
+                        scope,
+                    },
+                ),
+                Keymap::new(
+                    "R",
+                    "References (include declaration)".to_string(),
+                    Dispatch::RequestReferences {
+                        include_declaration: true,
+                        scope,
+                    },
+                ),
+                Keymap::new(
+                    "t",
+                    "Type Definitions".to_string(),
+                    Dispatch::RequestTypeDefinitions(scope),
+                ),
+            ]);
 
             KeymapLegendSection {
                 title: "LSP".to_string(),
