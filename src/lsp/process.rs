@@ -723,11 +723,10 @@ impl LspServerProcess {
             })
         });
         while let Ok(message) = receiver.recv() {
-            log::info!("receiver.recv = {:#?}", message);
             debounce.put(Event(message))
         }
 
-        log::info!("[LspServerProcess] Stopped listening for messages from LSP server");
+        log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
         handle
     }
 

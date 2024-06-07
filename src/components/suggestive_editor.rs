@@ -114,60 +114,40 @@ impl Component for SuggestiveEditor {
                 ]
                 .to_vec()
                 .into(),
-                _ if self.editor.mode == Mode::Insert => self
-                    .editor
-                    .get_request_params()
-                    .map(|params| {
-                        vec![
-                            Dispatch::RequestCompletion(params.clone()),
-                            Dispatch::RequestSignatureHelp(params),
-                        ]
-                    })
-                    .unwrap_or_default()
-                    .into_iter()
-                    .collect_vec()
-                    .into(),
+                _ if self.editor.mode == Mode::Insert => {
+                    vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()
+                }
                 _ => Default::default(),
             }))
     }
 
     fn contextual_keymaps(&self) -> Vec<super::keymap_legend::KeymapLegendSection> {
-        [self
-            .editor()
-            .get_request_params()
-            .map(|params| KeymapLegendSection {
-                title: "LSP".to_string(),
-                keymaps: Keymaps::new(&[
-                    Keymap::new("c", "Code Actions".to_string(), {
-                        let cursor_char_index = self.editor().get_cursor_char_index();
-                        Dispatch::RequestCodeAction {
-                            params: params.clone(),
-                            diagnostics: self
-                                .editor()
-                                .buffer()
-                                .diagnostics()
-                                .into_iter()
-                                .filter_map(|diagnostic| {
-                                    if diagnostic.range.contains(&cursor_char_index) {
-                                        diagnostic.original_value.clone()
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect_vec(),
-                        }
-                    }),
-                    Keymap::new(
-                        "h",
-                        "Hover".to_string(),
-                        Dispatch::RequestHover(params.clone()),
-                    ),
-                    Keymap::new("r", "Rename".to_string(), Dispatch::PrepareRename(params)),
-                ]),
-            })]
-        .into_iter()
-        .flatten()
-        .collect()
+        [KeymapLegendSection {
+            title: "LSP".to_string(),
+            keymaps: Keymaps::new(&[
+                Keymap::new("c", "Code Actions".to_string(), {
+                    let cursor_char_index = self.editor().get_cursor_char_index();
+                    Dispatch::RequestCodeAction {
+                        diagnostics: self
+                            .editor()
+                            .buffer()
+                            .diagnostics()
+                            .into_iter()
+                            .filter_map(|diagnostic| {
+                                if diagnostic.range.contains(&cursor_char_index) {
+                                    diagnostic.original_value.clone()
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect_vec(),
+                    }
+                }),
+                Keymap::new("h", "Hover".to_string(), Dispatch::RequestHover),
+                Keymap::new("r", "Rename".to_string(), Dispatch::PrepareRename),
+            ]),
+        }]
+        .to_vec()
     }
 }
 
@@ -353,7 +333,7 @@ mod test_suggestive_editor {
         assert!(dispatches
             .into_vec()
             .into_iter()
-            .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion(_))));
+            .any(|dispatch| matches!(&dispatch, Dispatch::RequestCompletion)));
     }
 
     #[test]
@@ -376,7 +356,7 @@ mod test_suggestive_editor {
         assert!(dispatches
             .into_vec()
             .into_iter()
-            .any(|dispatch| matches!(&dispatch, Dispatch::RequestSignatureHelp(_))));
+            .any(|dispatch| matches!(&dispatch, Dispatch::RequestSignatureHelp)));
     }
 
     #[test]

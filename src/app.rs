@@ -36,6 +36,7 @@ use crate::{
 };
 use event::event::Event;
 use itertools::Itertools;
+use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     cell::RefCell,
@@ -372,6 +373,7 @@ impl<T: Frontend> App<T> {
     }
 
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {
+        log::info!("App::handle_dispatch = {}", dispatch.variant_name());
         match dispatch {
             Dispatch::CloseCurrentWindow => {
                 self.close_current_window();
@@ -391,8 +393,10 @@ impl<T: Frontend> App<T> {
             Dispatch::OpenFilePicker(kind) => {
                 self.open_file_picker(kind)?;
             }
-            Dispatch::RequestCompletion(params) => {
-                self.lsp_manager.request_completion(params)?;
+            Dispatch::RequestCompletion => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_completion(params)?;
+                }
             }
             Dispatch::ResolveCompletionItem(completion_item) => {
                 if let Some(params) = self.get_request_params() {
@@ -401,43 +405,85 @@ impl<T: Frontend> App<T> {
                 }
             }
             Dispatch::RequestReferences {
-                params,
                 include_declaration,
-            } => self
-                .lsp_manager
-                .request_references(params, include_declaration)?,
-            Dispatch::RequestHover(params) => {
-                self.lsp_manager.request_hover(params)?;
-            }
-            Dispatch::RequestDefinitions(params) => {
-                self.lsp_manager.request_definition(params)?;
-            }
-            Dispatch::RequestDeclarations(params) => {
-                self.lsp_manager.request_declaration(params)?;
-            }
-            Dispatch::RequestImplementations(params) => {
-                self.lsp_manager.request_implementation(params)?;
-            }
-            Dispatch::RequestTypeDefinitions(params) => {
-                self.lsp_manager.request_type_definition(params)?;
-            }
-            Dispatch::PrepareRename(params) => {
-                self.lsp_manager.prepare_rename_symbol(params)?;
-            }
-            Dispatch::RenameSymbol { params, new_name } => {
-                self.lsp_manager.rename_symbol(params, new_name)?;
-            }
-            Dispatch::RequestCodeAction {
-                params,
-                diagnostics,
+                scope,
             } => {
-                self.lsp_manager.request_code_action(params, diagnostics)?;
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_references(
+                        params
+                            .set_kind(Some(scope))
+                            .set_description(if include_declaration {
+                                "References (include declaration)"
+                            } else {
+                                "References (exclude declaration)"
+                            }),
+                        include_declaration,
+                    )?;
+                }
             }
-            Dispatch::RequestSignatureHelp(params) => {
-                self.lsp_manager.request_signature_help(params)?;
+            Dispatch::RequestHover => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager
+                        .request_hover(params.set_description("Hover"))?;
+                }
             }
-            Dispatch::RequestDocumentSymbols(params) => {
-                self.lsp_manager.request_document_symbols(params)?;
+            Dispatch::RequestDefinitions(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_definition(
+                        params.set_kind(Some(scope)).set_description("Definitions"),
+                    )?;
+                }
+            }
+            Dispatch::RequestDeclarations(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_declaration(
+                        params.set_kind(Some(scope)).set_description("Declarations"),
+                    )?;
+                }
+            }
+            Dispatch::RequestImplementations(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_implementation(
+                        params
+                            .set_kind(Some(scope))
+                            .set_description("Implementations"),
+                    )?;
+                }
+            }
+            Dispatch::RequestTypeDefinitions(scope) => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_type_definition(
+                        params
+                            .set_kind(Some(scope))
+                            .set_description("Type Definitions"),
+                    )?;
+                }
+            }
+            Dispatch::RequestDocumentSymbols => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager
+                        .request_document_symbols(params.set_description("Document Symbols"))?;
+                }
+            }
+            Dispatch::PrepareRename => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.prepare_rename_symbol(params)?;
+                }
+            }
+            Dispatch::RenameSymbol { new_name } => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.rename_symbol(params, new_name)?;
+                }
+            }
+            Dispatch::RequestCodeAction { diagnostics } => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_code_action(params, diagnostics)?;
+                }
+            }
+            Dispatch::RequestSignatureHelp => {
+                if let Some(params) = self.get_request_params() {
+                    self.lsp_manager.request_signature_help(params)?;
+                }
             }
             Dispatch::DocumentDidChange {
                 path,
@@ -621,15 +667,11 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn open_rename_prompt(
-        &mut self,
-        params: RequestParams,
-        current_name: Option<String>,
-    ) -> anyhow::Result<()> {
+    fn open_rename_prompt(&mut self, current_name: Option<String>) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
                 title: "Rename".to_string(),
-                on_enter: DispatchPrompt::RenameSymbol { params },
+                on_enter: DispatchPrompt::RenameSymbol,
                 items: vec![],
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
@@ -911,19 +953,11 @@ impl<T: Frontend> App<T> {
             }
             LspNotification::PrepareRenameResponse(context, response) => {
                 let editor = self.get_suggestive_editor(context.component_id)?;
-                // Note: we cannot refactor the following code into the below code, otherwise we will get error,
-                // because RefCell is borrow_mut twice. The borrow has to be dropped.
-                //
-                //
-                //     if let Some(params) = editor.borrow().editor().get_request_params() {
-                //         self.open_rename_prompt(params);
-                //     }
-                //
-                let (params, current_name) = {
+
+                let current_name = {
                     let editor = editor.borrow();
-                    let params = editor.editor().get_request_params();
                     let buffer = editor.editor().buffer();
-                    let current_name = response
+                    response
                         .range
                         .map(|range| {
                             let range = buffer.position_to_char(range.start)?
@@ -932,12 +966,9 @@ impl<T: Frontend> App<T> {
                         })
                         .transpose()
                         .unwrap_or_default()
-                        .map(|rope| rope.to_string());
-                    (params, current_name)
+                        .map(|rope| rope.to_string())
                 };
-                if let Some(params) = params {
-                    self.open_rename_prompt(params, current_name)?;
-                }
+                self.open_rename_prompt(current_name)?;
 
                 Ok(())
             }
@@ -1954,7 +1985,7 @@ impl Dispatches {
 }
 
 #[must_use]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, NamedVariant)]
 /// Dispatch are for child component to request action from the root node
 pub(crate) enum Dispatch {
     SetTheme(crate::themes::Theme),
@@ -1966,24 +1997,22 @@ pub(crate) enum Dispatch {
     OpenFile(CanonicalizedPath),
     OpenFileFromPathBuf(PathBuf),
     ShowGlobalInfo(Info),
-    RequestCompletion(RequestParams),
-    RequestSignatureHelp(RequestParams),
-    RequestHover(RequestParams),
-    RequestDefinitions(RequestParams),
-    RequestDeclarations(RequestParams),
-    RequestImplementations(RequestParams),
-    RequestTypeDefinitions(RequestParams),
+    RequestCompletion,
+    RequestSignatureHelp,
+    RequestHover,
+    RequestDefinitions(Scope),
+    RequestDeclarations(Scope),
+    RequestImplementations(Scope),
+    RequestTypeDefinitions(Scope),
     RequestReferences {
-        params: RequestParams,
+        scope: Scope,
         include_declaration: bool,
     },
-    PrepareRename(RequestParams),
+    PrepareRename,
     RequestCodeAction {
-        params: RequestParams,
         diagnostics: Vec<lsp_types::Diagnostic>,
     },
     RenameSymbol {
-        params: RequestParams,
         new_name: String,
     },
     DocumentDidChange {
@@ -2005,7 +2034,7 @@ pub(crate) enum Dispatch {
     /// Used for testing
     Custom(String),
     ToEditor(DispatchEditor),
-    RequestDocumentSymbols(RequestParams),
+    RequestDocumentSymbols,
     GotoLocation(Location),
     OpenMoveToIndexPrompt,
     RunCommand(String),
@@ -2196,9 +2225,7 @@ pub(crate) enum DispatchPrompt {
         filter_glob: GlobalSearchFilterGlob,
     },
     MoveSelectionByIndex,
-    RenameSymbol {
-        params: RequestParams,
-    },
+    RenameSymbol,
     UpdateLocalSearchConfigSearch {
         scope: Scope,
         show_config_after_enter: bool,
@@ -2254,12 +2281,9 @@ impl DispatchPrompt {
                     [Dispatch::ToEditor(MoveSelection(Movement::Index(index)))].to_vec(),
                 ))
             }
-            DispatchPrompt::RenameSymbol { params } => {
-                Ok(Dispatches::new(vec![Dispatch::RenameSymbol {
-                    params: params.clone(),
-                    new_name: text.to_string(),
-                }]))
-            }
+            DispatchPrompt::RenameSymbol => Ok(Dispatches::new(vec![Dispatch::RenameSymbol {
+                new_name: text.to_string(),
+            }])),
             DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
                 show_config_after_enter,

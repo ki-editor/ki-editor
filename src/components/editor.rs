@@ -1263,10 +1263,7 @@ impl Editor {
         )?);
         self.mode = Mode::Insert;
         self.cursor_direction = Direction::Start;
-        Ok(self
-            .get_request_params()
-            .map(|params| Dispatches::one(Dispatch::RequestSignatureHelp(params)))
-            .unwrap_or_default())
+        Ok(Dispatches::one(Dispatch::RequestSignatureHelp))
     }
 
     pub(crate) fn enter_normal_mode(&mut self) -> anyhow::Result<()> {
