@@ -284,7 +284,7 @@ mod test_suggestive_editor {
         test_app::ExpectKind::*,
         test_app::Step::*,
     };
-    use lsp_types::{CompletionItemKind, TextEdit};
+    use lsp_types::{CompletionItemKind, CompletionTextEdit, TextEdit};
     use my_proc_macros::{key, keys};
     use shared::canonicalized_path::CanonicalizedPath;
     use std::{cell::RefCell, rc::Rc};
@@ -487,42 +487,66 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    fn should_utilize_addtional_edits() -> Result<(), anyhow::Error> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("hello".to_string())),
-                Editor(EnterInsertMode(Direction::Start)),
-                Editor(MatchLiteral("hello".to_string())),
-                SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
-                // Pretend that the LSP server returned a completion
-                SuggestiveEditor(Completion(Completion {
-                    trigger_characters: vec![".".to_string()],
-                    items: [lsp_types::CompletionItem {
-                        label: "aBigCat".to_string(),
-                        additional_text_edits: Some(
-                            [TextEdit {
-                                range: lsp_types::Range::new(
-                                    lsp_types::Position::new(0, 0),
-                                    lsp_types::Position::new(0, 0),
-                                ),
-                                new_text: "import 'cats';".to_string(),
-                            }]
-                            .to_vec(),
-                        ),
-                        ..Default::default()
-                    }
-                    .into()]
-                    .into_iter()
-                    .map(|item: CompletionItem| item.into())
-                    .collect(),
-                })),
-                Editor(EnterInsertMode(Direction::End)),
-                Editor(Insert(" aBig".to_string())),
-                App(HandleKeyEvent(key!("ctrl+space"))),
-                Expect(CurrentComponentContent("import 'cats';hello aBigCat")),
-            ])
-        })
+    fn should_utilize_additional_edits() -> Result<(), anyhow::Error> {
+        let test = |text_edit: Option<CompletionTextEdit>| {
+            execute_test(move |s| {
+                Box::new([
+                    App(OpenFile(s.main_rs())),
+                    Editor(SetContent("hello".to_string())),
+                    Editor(EnterInsertMode(Direction::Start)),
+                    Editor(MatchLiteral("hello".to_string())),
+                    SuggestiveEditor(CompletionFilter(SuggestiveEditorFilter::CurrentWord)),
+                    // Pretend that the LSP server returned a completion
+                    SuggestiveEditor(Completion(Completion {
+                        trigger_characters: vec![".".to_string()],
+                        items: [lsp_types::CompletionItem {
+                            label: "aBigCat".to_string(),
+                            text_edit: text_edit.clone(),
+                            additional_text_edits: Some(
+                                [
+                                    TextEdit {
+                                        range: lsp_types::Range::new(
+                                            lsp_types::Position::new(0, 0),
+                                            lsp_types::Position::new(0, 0),
+                                        ),
+                                        new_text: "import 'cats';".to_string(),
+                                    },
+                                    TextEdit {
+                                        range: lsp_types::Range::new(
+                                            lsp_types::Position::new(0, 5),
+                                            lsp_types::Position::new(0, 5),
+                                        ),
+                                        new_text: "!".to_string(),
+                                    },
+                                ]
+                                .to_vec(),
+                            ),
+                            ..Default::default()
+                        }
+                        .into()]
+                        .into_iter()
+                        .map(|item: CompletionItem| item.into())
+                        .collect(),
+                    })),
+                    Editor(EnterInsertMode(Direction::End)),
+                    Editor(Insert(" aBig".to_string())),
+                    App(HandleKeyEvent(key!("ctrl+space"))),
+                    Expect(CurrentComponentContent("import 'cats';hello! aBigCat")),
+                ])
+            })
+        };
+        // Case 1: without `text_edit`
+        test(None)?;
+
+        // Case 2: with `text_edit`
+        test(Some(CompletionTextEdit::Edit(TextEdit {
+            range: lsp_types::Range::new(
+                lsp_types::Position::new(0, 6),
+                lsp_types::Position::new(0, 10),
+            ),
+            new_text: "aBigCat".to_string(),
+        })))?;
+        Ok(())
     }
 
     #[test]

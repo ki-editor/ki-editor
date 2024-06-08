@@ -4,7 +4,7 @@ use crate::{
     char_index_range::CharIndexRange,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     history::History,
-    lsp::process::ResponseContext,
+    lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::{Filter, Filters},
     selection_mode::{self, CaseAgnostic},
     surround::EnclosureKind,
@@ -253,7 +253,6 @@ impl Component for Editor {
             ReplaceCurrentSelectionWith(string) => {
                 return self.replace_current_selection_with(|_| Some(Rope::from_str(&string)))
             }
-            ApplyPositionalEdit(edit) => return self.apply_positional_edit(edit),
             SelectLineAt(index) => return Ok(self.select_line_at(index)?.into_vec().into()),
             EnterMultiCursorMode => self.enter_multicursor_mode(),
             Surround(open, close) => return self.enclose(open, close),
@@ -299,6 +298,16 @@ impl Component for Editor {
             ChangeSurround { from, to } => return self.change_surround(from, Some(to)),
             ReplaceWithPattern => return self.replace_with_pattern(context),
             Replace(movement) => return self.replace_with_movement(&movement),
+            ApplyPositionalEdits(edits) => {
+                return self.apply_positional_edits(
+                    edits
+                        .into_iter()
+                        .map(|edit| match edit {
+                            CompletionItemEdit::PositionalEdit(positional_edit) => positional_edit,
+                        })
+                        .collect_vec(),
+                )
+            }
         }
         Ok(Default::default())
     }
@@ -1844,17 +1853,11 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub(crate) fn apply_positional_edit(
-        &mut self,
-        edit: PositionalEdit,
-    ) -> anyhow::Result<Dispatches> {
-        self.apply_positional_edits(vec![edit])
-    }
-
     pub(crate) fn save(&mut self) -> anyhow::Result<Dispatches> {
         let Some(path) = self.buffer.borrow_mut().save(self.selection_set.clone())? else {
             return Ok(Default::default());
         };
+
         self.clamp()?;
         self.cursor_keep_primary_only();
         self.enter_normal_mode()?;
@@ -2590,7 +2593,6 @@ pub(crate) enum DispatchEditor {
     ApplySyntaxHighlight,
     ReplaceCurrentSelectionWith(String),
     TryReplaceCurrentLongWord(String),
-    ApplyPositionalEdit(crate::lsp::completion::PositionalEdit),
     SelectLineAt(usize),
     ShowKeymapLegendNormalMode,
     ShowKeymapLegendInsertMode,
@@ -2605,6 +2607,7 @@ pub(crate) enum DispatchEditor {
         to: EnclosureKind,
     },
     Replace(Movement),
+    ApplyPositionalEdits(Vec<CompletionItemEdit>),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
