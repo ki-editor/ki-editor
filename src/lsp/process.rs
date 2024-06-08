@@ -89,7 +89,10 @@ impl ResponseContext {
 #[derive(Debug, Clone)]
 enum LspServerProcessMessage {
     FromLspServer(serde_json::Value),
+    /// This message might be throttled depending on its variant
     FromEditor(FromEditor),
+    /// Throttled message should be executed immediately
+    Throttled(FromEditor),
 }
 
 #[derive(Debug, NamedVariant, Clone, PartialEq)]
@@ -461,119 +464,54 @@ impl LspServerProcess {
 
         log::info!("[LspServerProcess] Listening for messages from LSP server");
 
-        struct Event(LspServerProcessMessage);
+        struct Event(FromEditor);
         impl PartialEq for Event {
             fn eq(&self, other: &Self) -> bool {
-                match (&self.0, &other.0) {
-                    // We only want to throttle request sent from the editor to the LSP server
-                    // Also, we only want to throttle requests that are fired on every keypresses
-                    (
-                        LspServerProcessMessage::FromEditor(a),
-                        LspServerProcessMessage::FromEditor(b),
-                    ) => {
-                        use FromEditor::*;
-                        #[allow(clippy::match_like_matches_macro)]
-                        match (a, b) {
-                            (TextDocumentCompletion(_), TextDocumentCompletion(_))
-                            | (TextDocumentDidChange { .. }, TextDocumentDidChange { .. })
-                            | (TextDocumentSignatureHelp(_), TextDocumentSignatureHelp(_))
-                            | (CompletionItemResolve { .. }, CompletionItemResolve { .. }) => true,
-                            _ => false,
-                        }
-                    }
-                    // but not the request sent from the LSP server to the editor
-                    _ => false,
-                }
+                self.0.variant_name() == other.0.variant_name()
             }
         }
         // Throttle request being sent to LSP server
         // This is crucial for request such as 'textDocument/completion', 'completionItem/resolve' etc,
         // which are being fired on every keypress
-        let debounce = EventDebouncer::new(Duration::from_millis(150), move |Event(message)| {
-            let from_editor = match message {
-                LspServerProcessMessage::FromLspServer(json_value) => {
-                    return self.handle_reply(json_value).unwrap_or_else(|error| {
-                        log::info!(
-                            "LspServerProcess::listen | Error handling reply: {:?}",
-                            error
-                        );
+        let debounce = {
+            let sender = self.sender.clone();
+            EventDebouncer::new(Duration::from_millis(150), move |Event(from_editor)| {
+                sender
+                    .send(LspServerProcessMessage::Throttled(from_editor.clone()))
+                    .unwrap_or_else(|error| {
+                        log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
                     })
-                }
-                LspServerProcessMessage::FromEditor(from_editor) => from_editor,
-            };
-            log::info!(
-                "LspServerProcess::listen sending request '{}'",
-                from_editor.variant_name()
-            );
-            let result = match from_editor {
-                FromEditor::TextDocumentCompletion(params) => self.text_document_completion(params),
-                FromEditor::TextDocumentHover(params) => self.text_document_hover(params),
-                FromEditor::TextDocumentDefinition(params) => self.text_document_definition(params),
-                FromEditor::TextDocumentReferences {
-                    params,
-                    include_declaration,
-                } => self.text_document_references(params, include_declaration),
-                FromEditor::TextDocumentDeclaration(params) => {
-                    self.text_document_declaration(params)
-                }
-                FromEditor::TextDocumentImplementation(params) => {
-                    self.text_document_implementation(params)
-                }
-                FromEditor::TextDocumentTypeDefinition(params) => {
-                    self.text_document_type_definition(params)
-                }
-                FromEditor::TextDocumentRename { params, new_name } => {
-                    self.text_document_rename(params, new_name)
-                }
-                FromEditor::TextDocumentPrepareRename(params) => {
-                    self.text_document_prepare_rename(params)
-                }
-                FromEditor::TextDocumentCodeAction {
-                    params,
-                    diagnostics,
-                } => self.text_document_code_action(params, diagnostics),
-                FromEditor::TextDocumentDocumentSymbol(params) => {
-                    self.text_document_document_symbol(params)
-                }
-
-                FromEditor::TextDocumentDidOpen {
-                    file_path,
-                    language_id,
-                    version,
-                    content,
-                } => self.text_document_did_open(file_path, language_id, version, content),
-                FromEditor::Shutdown => self.shutdown(),
-                FromEditor::TextDocumentDidChange {
-                    file_path,
-                    version,
-                    content,
-                } => self.text_document_did_change(file_path, version, content),
-                FromEditor::TextDocumentDidSave { file_path } => {
-                    self.text_document_did_save(file_path)
-                }
-                FromEditor::TextDocumentSignatureHelp(params) => {
-                    self.text_document_signature_help(params)
-                }
-                FromEditor::WorkspaceDidRenameFiles { old, new } => {
-                    self.workspace_did_rename_files(old, new)
-                }
-                FromEditor::WorkspaceExecuteCommand { params, command } => {
-                    self.workspace_execute_command(params, command)
-                }
-                FromEditor::CompletionItemResolve {
-                    completion_item,
-                    params,
-                } => self.completion_item_resolve(params, completion_item),
-            };
-            result.unwrap_or_else(|error| {
-                log::info!(
-                    "LspServerProcess::listen | Error handling request from editor: {:?}",
-                    error
-                );
             })
-        });
+        };
         while let Ok(message) = receiver.recv() {
-            debounce.put(Event(message))
+            match &message {
+                LspServerProcessMessage::FromLspServer(json_value) => {
+                    self.handle_reply(json_value.clone())
+                        .unwrap_or_else(|error| {
+                            log::info!(
+                                "LspServerProcess::listen | Error handling reply from LSP server, json={:?}, error={:?}",
+                                json_value,
+                                error
+                            );
+                        });
+                }
+                LspServerProcessMessage::FromEditor(from_editor) => match from_editor.clone() {
+                    // We only want to throttle request sent from the editor to the LSP server
+                    // Also, we only want to throttle requests that are fired on every keypresses
+                    FromEditor::CompletionItemResolve {
+                        completion_item,
+                        params,
+                    } => debounce.put(Event(FromEditor::CompletionItemResolve {
+                        completion_item,
+                        params,
+                    })),
+                    // Other requests should not be throttled, and hanlded immediately
+                    _ => self.handle_from_editor(from_editor),
+                },
+                LspServerProcessMessage::Throttled(from_editor) => {
+                    self.handle_from_editor(from_editor)
+                }
+            }
         }
 
         log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
@@ -1346,6 +1284,72 @@ impl LspServerProcess {
             return Ok(());
         }
         self.send_request::<lsp_request!("completionItem/resolve")>(params.context, completion_item)
+    }
+
+    fn handle_from_editor(&mut self, from_editor: &FromEditor) {
+        log::info!(
+            "LspServerProcess::handle_from_editor = {}",
+            from_editor.variant_name()
+        );
+        match from_editor.clone() {
+            FromEditor::TextDocumentCompletion(params) => self.text_document_completion(params),
+            FromEditor::TextDocumentHover(params) => self.text_document_hover(params),
+            FromEditor::TextDocumentDefinition(params) => self.text_document_definition(params),
+            FromEditor::TextDocumentReferences {
+                params,
+                include_declaration,
+            } => self.text_document_references(params, include_declaration),
+            FromEditor::TextDocumentDeclaration(params) => self.text_document_declaration(params),
+            FromEditor::TextDocumentImplementation(params) => {
+                self.text_document_implementation(params)
+            }
+            FromEditor::TextDocumentTypeDefinition(params) => {
+                self.text_document_type_definition(params)
+            }
+            FromEditor::TextDocumentRename { params, new_name } => {
+                self.text_document_rename(params, new_name)
+            }
+            FromEditor::TextDocumentPrepareRename(params) => {
+                self.text_document_prepare_rename(params)
+            }
+            FromEditor::TextDocumentCodeAction {
+                params,
+                diagnostics,
+            } => self.text_document_code_action(params, diagnostics),
+            FromEditor::TextDocumentDocumentSymbol(params) => {
+                self.text_document_document_symbol(params)
+            }
+
+            FromEditor::TextDocumentDidOpen {
+                file_path,
+                language_id,
+                version,
+                content,
+            } => self.text_document_did_open(file_path, language_id, version, content),
+            FromEditor::Shutdown => self.shutdown(),
+            FromEditor::TextDocumentDidChange {
+                file_path,
+                version,
+                content,
+            } => self.text_document_did_change(file_path, version, content),
+            FromEditor::TextDocumentDidSave { file_path } => self.text_document_did_save(file_path),
+            FromEditor::TextDocumentSignatureHelp(params) => {
+                self.text_document_signature_help(params)
+            }
+            FromEditor::WorkspaceDidRenameFiles { old, new } => {
+                self.workspace_did_rename_files(old, new)
+            }
+            FromEditor::WorkspaceExecuteCommand { params, command } => {
+                self.workspace_execute_command(params, command)
+            }
+            FromEditor::CompletionItemResolve {
+                completion_item,
+                params,
+            } => self.completion_item_resolve(params, completion_item),
+        }
+        .unwrap_or_else(|error| {
+            log::info!("LspServerProcess::handle_from_editor | error={:?}", error);
+        });
     }
 }
 
