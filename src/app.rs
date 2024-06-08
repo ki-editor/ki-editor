@@ -39,6 +39,7 @@ use itertools::Itertools;
 use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
+    any::TypeId,
     cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
@@ -366,10 +367,14 @@ impl<T: Frontend> App<T> {
     }
 
     fn get_request_params(&self) -> Option<RequestParams> {
-        self.current_component()
-            .borrow()
-            .editor()
-            .get_request_params()
+        if self.current_component().borrow().type_id() != TypeId::of::<SuggestiveEditor>() {
+            None
+        } else {
+            self.current_component()
+                .borrow()
+                .editor()
+                .get_request_params()
+        }
     }
 
     pub(crate) fn handle_dispatch(&mut self, dispatch: Dispatch) -> Result<(), anyhow::Error> {

@@ -1410,7 +1410,18 @@ fn cycle_window() -> anyhow::Result<()> {
             insert_text: None,
             completion_item: Default::default(),
         };
+
         execute_test(|s| {
+            let completion = Completion {
+                trigger_characters: vec![".".to_string()],
+                items: [
+                    completion_item("Patrick", Some("hacker")),
+                    completion_item("Spongebob squarepants", Some("krabby patty maker")),
+                ]
+                .into_iter()
+                .map(|item| item.into())
+                .collect(),
+            };
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("".to_string())),
@@ -1418,30 +1429,23 @@ fn cycle_window() -> anyhow::Result<()> {
                 SuggestiveEditor(DispatchSuggestiveEditor::CompletionFilter(
                     SuggestiveEditorFilter::CurrentWord,
                 )),
-                // Pretend that the LSP server returned a completion
-                SuggestiveEditor(DispatchSuggestiveEditor::Completion(Completion {
-                    trigger_characters: vec![".".to_string()],
-                    items: Some(completion_item(
-                        "Spongebob squarepants",
-                        Some("krabby patty maker"),
-                    ))
-                    .into_iter()
-                    .map(|item| item.into())
-                    .collect(),
-                })),
+                Editor(EnterInsertMode(Direction::End)),
+                SuggestiveEditor(DispatchSuggestiveEditor::Completion(completion.clone())),
                 Expect(ComponentCount(3)),
-                Editor(Insert("sponge".to_string())),
-                Expect(CurrentComponentContent("sponge")),
+                // Move to the next completion item (which is 'Spongebob squarepants')
+                App(HandleKeyEvent(key!("ctrl+n"))),
+                Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 Expect(ComponentCount(3)),
-                Expect(CurrentComponentContent(" Spongebob squarepants")),
+                Expect(CurrentComponentContent(" Patrick\n Spongebob squarepants")),
+                Expect(CurrentSelectedTexts(&[" Spongebob squarepants"])),
                 App(OtherWindow),
                 Expect(CurrentComponentContent("krabby patty maker")),
                 App(OtherWindow),
-                Expect(CurrentComponentContent("sponge")),
+                Expect(CurrentComponentContent("")),
                 App(OtherWindow),
                 App(CloseCurrentWindow),
-                Expect(CurrentComponentContent("sponge")),
+                Expect(CurrentComponentContent("")),
             ])
         })
     }
