@@ -244,6 +244,9 @@ impl Dropdown {
     }
 
     pub(crate) fn set_items(&mut self, items: Vec<DropdownItem>) {
+        if items == self.items {
+            return;
+        }
         self.items = items;
         self.current_item_index = 0;
         self.compute_filtered_items();
@@ -400,6 +403,9 @@ impl Dropdown {
     }
 
     pub(crate) fn set_filter(&mut self, filter: &str) {
+        if filter == self.filter {
+            return;
+        }
         self.filter = filter.to_string();
         self.current_item_index = 0;
         self.compute_filtered_items();
@@ -602,6 +608,45 @@ mod test_dropdown {
                 .set_info(Some(value.info.clone()))
                 .set_group(Some(value.group.clone()))
         }
+    }
+
+    #[test]
+    fn setting_the_same_items_again_should_do_nothing() {
+        let items = ["bytes_offset".to_string(), "len_bytes".to_string()]
+            .into_iter()
+            .map(|s| s.into())
+            .collect_vec();
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+        });
+        dropdown.set_items(items.clone());
+        dropdown.set_filter("off");
+        dropdown.set_current_item_index(1);
+        assert_eq!(dropdown.current_item_index(), 1);
+        assert_eq!(dropdown.filter, "off");
+
+        dropdown.set_items(items);
+        assert_eq!(dropdown.current_item_index(), 1);
+        assert_eq!(dropdown.filter, "off");
+    }
+
+    #[test]
+    fn setting_the_same_filter_again_should_not_change_current_item_index() {
+        let items = ["bytes_offset".to_string(), "len_bytes".to_string()]
+            .into_iter()
+            .map(|s| s.into())
+            .collect_vec();
+        let mut dropdown = Dropdown::new(DropdownConfig {
+            title: "test".to_string(),
+        });
+        dropdown.set_items(items.clone());
+        dropdown.set_filter("off");
+        dropdown.set_current_item_index(1);
+        assert_eq!(dropdown.current_item_index(), 1);
+        assert_eq!(dropdown.filter, "off");
+
+        dropdown.set_filter("off");
+        assert_eq!(dropdown.current_item_index(), 1);
     }
 
     #[test]
