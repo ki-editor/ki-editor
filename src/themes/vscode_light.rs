@@ -27,9 +27,12 @@ pub fn vscode_light() -> Theme {
             global_title: Style::new()
                 .foreground_color(hex!("#ffffff"))
                 .background_color(hex!("#3478c6")),
-            window_title: Style::new()
+            window_title_focused: Style::new()
                 .foreground_color(hex!("#FFFFFF"))
                 .background_color(hex!("#2C2C2C")),
+            window_title_unfocused: Style::new()
+                .foreground_color(hex!("#FFFFFF"))
+                .background_color(hex!("#aaaaaa")),
             parent_lines_background: hex!("#E6EBF0"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
@@ -53,7 +56,9 @@ pub fn vscode_light() -> Theme {
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
             line_number: Style::new().foreground_color(hex!("#6a9955")),
-            border: Style::new().foreground_color(hex!("#d7d7d7")),
+            border: Style::new()
+                .foreground_color(hex!("#aaaaaa"))
+                .background_color(hex!("#ffffff")),
             bookmark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#f6f7b2"),
             keymap_hint: Style::new().underline(hex!("#af00db")),

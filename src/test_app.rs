@@ -162,7 +162,11 @@ impl ExpectKind {
                 expected_quickfixes.clone(),
             ),
             EditorGrid(grid) => contextualize(
-                component.borrow().editor().get_grid(context).to_string(),
+                component
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .to_string(),
                 grid.to_string(),
             ),
             AppGrid(grid) => {
@@ -184,7 +188,7 @@ impl ExpectKind {
                 component
                     .borrow()
                     .editor()
-                    .get_grid(context)
+                    .get_grid(context, false)
                     .cursor
                     .unwrap()
                     .position(),
@@ -202,20 +206,34 @@ impl ExpectKind {
                 *view_alignment,
             ),
             GridCellBackground(row_index, column_index, background_color) => contextualize(
-                component.borrow().editor().get_grid(context).grid.rows[*row_index][*column_index]
+                component
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .grid
+                    .rows[*row_index][*column_index]
                     .background_color,
                 *background_color,
             ),
             GridCellLine(row_index, column_index, underline_color) => contextualize(
-                component.borrow().editor().get_grid(context).grid.rows[*row_index][*column_index]
+                component
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .grid
+                    .rows[*row_index][*column_index]
                     .line
                     .unwrap()
                     .color,
                 *underline_color,
             ),
             GridCellStyleKey(position, style_key) => contextualize(
-                component.borrow().editor().get_grid(context).grid.rows[position.line]
-                    [position.column]
+                component
+                    .borrow()
+                    .editor()
+                    .get_grid(context, false)
+                    .grid
+                    .rows[position.line][position.column]
                     .source
                     .clone(),
                 style_key.clone(),

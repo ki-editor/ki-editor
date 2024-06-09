@@ -842,7 +842,13 @@ mod test_grid {
                     .filter(|cell| cell.cell.background_color == color)
                     .map(|cell| cell.position.column)
                     .collect_vec(),
-                (0..10).collect_vec()
+                (0..10)
+                    .filter(|column| {
+                        // Remove the column index 1, because it is the line number separator
+                        // Which is not affected by the line update
+                        column != &1
+                    })
+                    .collect_vec()
             )
         }
 

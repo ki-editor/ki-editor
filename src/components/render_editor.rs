@@ -24,7 +24,7 @@ use super::{component::GetGridResult, editor::Editor};
 use StyleKey::*;
 
 impl Editor {
-    pub(crate) fn get_grid(&self, context: &Context) -> GetGridResult {
+    pub(crate) fn get_grid(&self, context: &Context, focused: bool) -> GetGridResult {
         let editor = self;
         let Dimension { height, width } = editor.render_area();
         let buffer = editor.buffer();
@@ -377,7 +377,11 @@ impl Editor {
 
             hidden_parent_lines_grid.merge_vertical(bottom)
         };
-        let window_title_style = theme.ui.window_title;
+        let window_title_style = if focused {
+            theme.ui.window_title_focused
+        } else {
+            theme.ui.window_title_unfocused
+        };
 
         // NOTE: due to performance issue, we only highlight the content that are within view
         // This might result in some incorrectness, but that's a reasonable trade-off, because
@@ -582,7 +586,7 @@ mod test_render_editor {
     fn get_grid_cells_should_be_always_within_bound(rectangle: Rectangle, content: String) -> bool {
         let mut editor = Editor::from_text(None, &content);
         editor.set_rectangle(rectangle.clone());
-        let grid = editor.get_grid(&Context::default());
+        let grid = editor.get_grid(&Context::default(), false);
         let cells = grid.grid.to_positioned_cells();
         cells.into_iter().all(|cell| {
             cell.position.line < (rectangle.height as usize)
