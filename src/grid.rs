@@ -590,6 +590,7 @@ pub(crate) enum StyleKey {
     KeymapArrow,
     KeymapKey,
     UiFuzzyMatchedChar,
+    ParentLine,
 }
 
 /// TODO: in the future, tab size should be configurable

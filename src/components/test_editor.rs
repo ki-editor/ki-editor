@@ -1195,13 +1195,14 @@ fn main() {
             ExpectMulti(
                 // Line 1 = `fn main() {`
                 // Line 4 = `for a in b`
-                [1, 4]
+                [(1, 12), (4, 15)]
                     .into_iter()
-                    .flat_map(|row_index| {
-                        [0, width - 1].into_iter().map(move |column_index| {
+                    .flat_map(|(row_index, max_column)| {
+                        let line_number_ui_width = 2;
+                        (0..max_column).map(move |column_index| {
                             GridCellBackground(
                                 row_index,
-                                column_index as usize,
+                                column_index + line_number_ui_width as usize,
                                 parent_lines_background,
                             )
                         })
@@ -1210,8 +1211,7 @@ fn main() {
             ),
             // Expect the current line is not treated as parent line
             ExpectMulti(
-                [0, width - 1]
-                    .into_iter()
+                (0..width - 1)
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             5,

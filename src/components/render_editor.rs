@@ -263,8 +263,15 @@ impl Editor {
             .flatten()
             .collect_vec();
 
+        let visible_parent_lines = visible_parent_lines.into_iter().map(|line| HighlightSpan {
+            source: Source::StyleKey(StyleKey::ParentLine),
+            ranges: HighlightSpanRange::Line(line.line),
+            set_symbol: None,
+            is_cursor: false,
+        });
         let updates = vec![]
             .into_iter()
+            .chain(visible_parent_lines)
             .chain(highlighted_spans)
             .chain(extra_decorations)
             .chain(possible_selections)
@@ -303,14 +310,7 @@ impl Editor {
                     ..cell_update
                 })
                 .collect_vec(),
-            visible_parent_lines
-                .into_iter()
-                .map(|line| LineUpdate {
-                    line_index: line.line.saturating_sub(scroll_offset as usize),
-                    style: Style::default()
-                        .set_some_background_color(Some(theme.ui.parent_lines_background)),
-                })
-                .collect_vec(),
+            Vec::new(),
             theme,
         );
 
@@ -319,8 +319,15 @@ impl Editor {
             let hidden_parent_line_range = line_indices.clone().min().unwrap_or_default()
                 ..line_indices.max().unwrap_or_default() + 1;
             let boundaries = [Boundary::new(&buffer, hidden_parent_line_range)];
-            let updates = updates
-                .into_iter()
+            let updates = hidden_parent_lines
+                .iter()
+                .map(|line| HighlightSpan {
+                    source: Source::StyleKey(StyleKey::ParentLine),
+                    ranges: HighlightSpanRange::Line(line.line),
+                    set_symbol: None,
+                    is_cursor: false,
+                })
+                .chain(updates)
                 .flat_map(|span| span.to_cell_update(&buffer, theme, &boundaries))
                 .collect_vec();
             hidden_parent_lines.into_iter().fold(
@@ -336,24 +343,16 @@ impl Editor {
                             }
                         })
                         .collect_vec();
-                    grid.merge_vertical(
-                        Grid::new(Dimension { height: 1, width }).render_content(
-                            &line.content,
-                            RenderContentLineNumber::LineNumber {
-                                start_line_index: line.line,
-                                max_line_number: len_lines as usize,
-                            },
-                            updates,
-                            [LineUpdate {
-                                line_index: 0,
-                                style: Style::default().set_some_background_color(Some(
-                                    theme.ui.parent_lines_background,
-                                )),
-                            }]
-                            .to_vec(),
-                            theme,
-                        ),
-                    )
+                    grid.merge_vertical(Grid::new(Dimension { height: 1, width }).render_content(
+                        &line.content,
+                        RenderContentLineNumber::LineNumber {
+                            start_line_index: line.line,
+                            max_line_number: len_lines as usize,
+                        },
+                        updates,
+                        Default::default(),
+                        theme,
+                    ))
                 },
             )
         };
@@ -472,6 +471,12 @@ impl HighlightSpan {
                         boundary.char_index_range.clone(),
                     )?
                     .into(),
+                    HighlightSpanRange::Line(line) => buffer
+                        .line_range_to_char_index_range(range_intersection(
+                            *line..line + 1,
+                            boundary.line_range.clone(),
+                        )?)
+                        .ok()?,
                 };
                 Some(
                     char_index_range
@@ -520,11 +525,15 @@ pub(crate) enum HighlightSpanRange {
     CharIndexRange(CharIndexRange),
     ByteRange(Range<usize>),
     CharIndex(CharIndex),
+    /// 0-based index.
+    Line(usize),
 }
 
 struct Boundary {
     byte_range: Range<usize>,
     char_index_range: Range<CharIndex>,
+    /// 0-based index.
+    line_range: Range<usize>,
 }
 impl Boundary {
     fn new(buffer: &Buffer, visible_line_range: Range<usize>) -> Self {
@@ -538,6 +547,7 @@ impl Boundary {
         Self {
             byte_range: byte_start..byte_end,
             char_index_range: char_index_start..char_index_end,
+            line_range: start..end,
         }
     }
 }

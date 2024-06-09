@@ -86,6 +86,7 @@ impl Theme {
             StyleKey::KeymapArrow => self.ui.keymap_arrow,
             StyleKey::KeymapKey => self.ui.keymap_key,
             StyleKey::UiFuzzyMatchedChar => self.ui.fuzzy_matched_char,
+            StyleKey::ParentLine => Style::new().background_color(self.ui.parent_lines_background),
         }
     }
 }
