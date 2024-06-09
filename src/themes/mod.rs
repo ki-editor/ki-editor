@@ -122,7 +122,8 @@ impl DiagnosticStyles {
 pub(crate) struct UiStyles {
     pub(crate) fuzzy_matched_char: Style,
     pub(crate) global_title: Style,
-    pub(crate) window_title: Style,
+    pub(crate) window_title_focused: Style,
+    pub(crate) window_title_unfocused: Style,
     pub(crate) parent_lines_background: Color,
     pub(crate) jump_mark_odd: Style,
     pub(crate) jump_mark_even: Style,

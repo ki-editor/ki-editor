@@ -116,9 +116,14 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                         .set_some_background_color(from_some_hex(
                             theme.style.status_bar_background,
                         )),
-                    window_title: Style::new()
+                    window_title_focused: Style::new()
+                        .set_some_foreground_color(from_some_hex(theme.style.tab_bar_background))
+                        .set_some_background_color(Some(text_color)),
+                    window_title_unfocused: Style::new()
                         .foreground_color(text_color)
-                        .set_some_background_color(from_some_hex(theme.style.tab_bar_background)),
+                        .set_some_background_color(from_some_hex(
+                            theme.style.tab_inactive_background,
+                        )),
                     parent_lines_background,
                     jump_mark_odd: Style::new()
                         .background_color(hex!("#b5485d"))

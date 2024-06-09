@@ -27,9 +27,12 @@ pub fn vscode_dark() -> Theme {
             global_title: Style::new()
                 .foreground_color(hex!("#ffffff"))
                 .background_color(hex!("#3478c6")),
-            window_title: Style::new()
+            window_title_focused: Style::new()
+                .foreground_color(hex!("#444444"))
+                .background_color(hex!("#ffffff")),
+            window_title_unfocused: Style::new()
                 .foreground_color(hex!("#969696"))
-                .background_color(hex!("#2D2D2D")),
+                .background_color(hex!("#444444")),
             parent_lines_background: hex!("#3B3D41"),
             jump_mark_odd: Style::new()
                 .background_color(hex!("#b5485d"))
@@ -53,7 +56,9 @@ pub fn vscode_dark() -> Theme {
                 .background_color(hex!("#808080"))
                 .foreground_color(hex!("#ffffff")),
             line_number: Style::new().foreground_color(hex!("#858585")),
-            border: Style::new().foreground_color(hex!("#1E1E1E")),
+            border: Style::new()
+                .background_color(hex!("#1E1E1E"))
+                .foreground_color(hex!("#858585")),
             bookmark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#5C3521"),
             keymap_hint: Style::new().underline(hex!("#af00db")),

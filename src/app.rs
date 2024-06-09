@@ -237,11 +237,13 @@ impl<T: Frontend> App<T> {
             .into_iter()
             .map(|component| {
                 let rectangle = component.component().borrow().rectangle().clone();
-                let GetGridResult { grid, cursor } =
-                    component.component().borrow().get_grid(&self.context);
                 let focused_component_id = self.layout.focused_component_id();
-                let cursor_position = if component.component().borrow().id() == focused_component_id
-                {
+                let focused = component.component().borrow().id() == focused_component_id;
+                let GetGridResult { grid, cursor } = component
+                    .component()
+                    .borrow()
+                    .get_grid(&self.context, focused);
+                let cursor_position = if focused {
                     if let Some(cursor) = cursor {
                         let cursor_position = cursor.position();
                         // If cursor position is not in view
