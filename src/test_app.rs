@@ -25,6 +25,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope},
     char_index_range::CharIndexRange,
+    clipboard::CopiedTexts,
     components::{
         component::Component,
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
@@ -109,6 +110,7 @@ pub(crate) enum ExpectKind {
     CurrentComponentTitle(&'static str),
     CurrentSelectionMode(SelectionMode),
     LspRequestSent(FromEditor),
+    CurrentCopiedTextHistoryOffset(isize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -339,6 +341,13 @@ impl ExpectKind {
                 &app.current_component().borrow().editor().selection_set.mode,
             ),
             LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
+            CurrentCopiedTextHistoryOffset(expected) => contextualize(
+                expected,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .copied_text_history_offset(),
+            ),
         })
     }
 }
@@ -426,7 +435,6 @@ fn run_test(
 }
 
 #[test]
-#[serial]
 fn copy_replace_from_different_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -434,23 +442,29 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
             App(OpenFile(s.foo_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             App(OpenFile(s.foo_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             App(OpenFile(s.main_rs())),
             Editor(SetSelectionMode(LineTrimmed)),
             Editor(SelectAll),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(FileContentEqual(s.main_rs, s.foo_rs)),
         ])
     })
 }
 
 #[test]
-#[serial]
-/// Should work across different files (via system clipboard)
+/// Should work across different files
 fn replace_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -459,59 +473,77 @@ fn replace_cut() -> anyhow::Result<()> {
             App(OpenFile(s.foo_rs())),
             Editor(SetContent("fn foo() { call_foo() }".to_string())),
             Editor(MatchLiteral("call_foo()".to_string())),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             App(OpenFile(s.main_rs())),
             Editor(MatchLiteral("call_main()".to_string())),
-            Editor(ReplaceCut),
+            Editor(ReplaceWithCopiedText {
+                cut: true,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("fn main() { call_foo() }")),
             App(OpenFile(s.foo_rs())),
-            Editor(ReplaceCut),
+            Editor(ReplaceWithCopiedText {
+                cut: false,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("fn foo() { call_main() }")),
         ])
     })
 }
 
 #[test]
-#[serial]
 fn copy_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(SelectionMode::Token)),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             Editor(MoveSelection(Movement::Next)),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(CurrentComponentContent("fn fn() { let x = 1; }")),
             Expect(CurrentSelectedTexts(&["fn"])),
             Editor(MoveSelection(Next)),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(CurrentComponentContent("fn fnfn) { let x = 1; }")),
         ])
     })
 }
 
 #[test]
-#[serial]
 fn cut_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
             Editor(SetSelectionMode(Token)),
-            Editor(Change { cut: true }),
+            Editor(ChangeCut {
+                use_system_clipboard: false,
+            }),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
             Editor(MoveSelection(Current)),
             Expect(CurrentSelectedTexts(&["main"])),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(CurrentComponentContent(" fn() { let x = 1; }")),
         ])
     })
 }
 
 #[test]
-#[serial]
 fn highlight_mode_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -525,9 +557,14 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Change { cut: true }),
+            Editor(ChangeCut {
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("{ let x = S(a); let y = S(b); }")),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = S(a); let y = S(b); }",
             )),
@@ -536,7 +573,6 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn highlight_mode_copy() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -550,11 +586,16 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             Editor(Reset),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["{"])),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(CurrentComponentContent(
                 "fn f()fn f() let x = S(a); let y = S(b); }",
             )),
@@ -563,7 +604,6 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn highlight_mode_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -577,19 +617,23 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["fn f()"])),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(SelectionMode::SyntaxNodeCoarse)),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                use_system_clipboard: false,
+                cut: false,
+            }),
             Expect(CurrentComponentContent("fn f()fn f()")),
         ])
     })
 }
 
 #[test]
-#[serial]
 fn multi_paste() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -605,18 +649,29 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(MoveSelection(Movement::FirstChild)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
-            Editor(Change { cut: true }),
+            Editor(ChangeCut {
+                use_system_clipboard: false,
+            }),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("Some(".to_owned())),
-            Editor(Paste(Direction::End)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
             Editor(Insert(")".to_owned())),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
             )),
             Editor(CursorKeepPrimaryOnly),
-            App(SetClipboardContent(".hello".to_owned())),
+            App(SetClipboardContent {
+                use_system_clipboard: false,
+                copied_texts: CopiedTexts::one(".hello".to_owned()),
+            }),
             Expect(CurrentMode(Mode::Insert)),
-            Editor(Paste(Direction::End)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent(
                 "fn f(){ let x = Some(S(spongebob_squarepants)).hello; let y = Some(S(b)); }",
             )),
@@ -1796,5 +1851,99 @@ fn request_signature_help() -> anyhow::Result<()> {
                 }),
             )),
         ])
+    })
+}
+
+#[serial]
+#[test]
+fn copy_paste_using_system_clipboard() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+a1 a2 a3
+b1 b2 b3
+c1 c2 c3"
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(CursorAddToAllSelections),
+                Editor(SetSelectionMode(WordLong)),
+                Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
+                Editor(Copy {
+                    use_system_clipboard: true,
+                }),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
+                Editor(Paste {
+                    direction: Direction::End,
+                    use_system_clipboard: true,
+                }),
+                Expect(CurrentSelectedTexts(&[
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                ])),
+                Expect(CurrentComponentContent(
+                    "
+a1 a2 a3 a1\nb1\nc1
+b1 b2 b3 a1\nb1\nc1
+c1 c2 c3 a1\nb1\nc1
+"
+                    .trim(),
+                )),
+            ])
+        }
+    })
+}
+
+#[serial]
+#[test]
+fn replace_using_system_clipboard() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+a1 a2 a3
+b1 b2 b3
+c1 c2 c3"
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(CursorAddToAllSelections),
+                Editor(SetSelectionMode(WordLong)),
+                Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
+                Editor(Copy {
+                    use_system_clipboard: true,
+                }),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
+                Editor(ReplaceWithCopiedText {
+                    cut: false,
+                    use_system_clipboard: true,
+                }),
+                Expect(CurrentSelectedTexts(&[
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                ])),
+                Expect(CurrentComponentContent(
+                    "
+a1 a2 a1\nb1\nc1
+b1 b2 a1\nb1\nc1
+c1 c2 a1\nb1\nc1
+"
+                    .trim(),
+                )),
+            ])
+        }
     })
 }

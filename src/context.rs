@@ -8,7 +8,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
     app::{GlobalSearchConfigUpdate, GlobalSearchFilterGlob, LocalSearchConfigUpdate, Scope},
-    clipboard::Clipboard,
+    clipboard::{Clipboard, CopiedTexts},
     components::{keymap_legend::KeymapLegendSection, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
@@ -85,12 +85,27 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_clipboard_content(&self) -> Option<String> {
-        self.clipboard.get_content()
+    /// Note: `history_offset` is ignored when `use_system_clipboard` is true.
+    pub(crate) fn get_clipboard_content(
+        &self,
+        use_system_clipboard: bool,
+        history_offset: isize,
+    ) -> anyhow::Result<Option<CopiedTexts>> {
+        Ok(if use_system_clipboard {
+            Some(CopiedTexts::new(nonempty::NonEmpty::singleton(
+                self.clipboard.get_from_system_clipboard()?,
+            )))
+        } else {
+            self.clipboard.get(history_offset)
+        })
     }
 
-    pub(crate) fn set_clipboard_content(&mut self, content: String) {
-        self.clipboard.set_content(content.clone());
+    pub(crate) fn set_clipboard_content(
+        &mut self,
+        contents: CopiedTexts,
+        use_system_clipboard: bool,
+    ) -> anyhow::Result<()> {
+        self.clipboard.set(contents.clone(), use_system_clipboard)
     }
     pub(crate) fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()

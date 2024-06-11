@@ -3,7 +3,7 @@
 ## Notes for reading
 
 1. When "selection" is mentioned, you should read it as "selection(s)", because
-   these actions work with multi-cursors.
+   these actions work with multiple cursors.
 
 ## Enter [insert mode](../../insert-mode/index.md)
 
@@ -11,55 +11,6 @@ Keybindings:
 
 - `i`: Enter insert mode before selection
 - `a`: Enter insert mode after selection
-
-## Copy
-
-Keybinding: `y`  
-Memory aid: y stands for yank, yank to the clipboard.
-
-This action copies the current selected text.
-
-Copy behaves differently depending on the number of cursors.
-
-When there is only one cursor, the content is copied to the system clipboard.
-
-When there is more than one cursor, the selected texts of each cursor will be
-copied to a cursor-specific clipboard instead.
-
-## Paste
-
-Keybindings:
-
-- `p`: Paste after selection
-- `P`: Paste before selection
-
-This action pastes the content from the clipboard (either the system clipboard or
-cursor-specific clipboard) after/before the current selection.
-
-Notes:
-
-- It does not replace the current selection.
-- The pasted text will be selected.
-
-### Smart Paste
-
-When the selection mode is [contiguous](../selection-modes/index.md#contiguity), Smart Paste will be executed.
-
-Smart Paste works by analyzing the gap between the current selection and the
-previous/next selection, then insert the gap before/after the pasted text.
-
-For example, consider the following Javascript code:
-
-```js
-hello(x, y);
-```
-
-Assuming the current selection mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), and the current selection is `y`, and the
-copied text is `z`, performing a `p` results in the following:
-
-```js
-hello(x, y, z);
-```
 
 ## Open
 
@@ -117,19 +68,20 @@ hello(y);
 Keybindings:
 
 - `c`: Change
-- `C`: Change (Cut), copies the deleted content into the clipboard
 
 This deletes the current selected text, and enter [Insert mode
 ](../../modes.md#insert).
 
-## Replace
+## Replace with previous/next copied text
 
 Keybindings:
 
-- `r`: Replace
-- `R`: Replace (Cut), copies the replaced content into the clipboard
+- `ctrl+n`: Replace current selection with next copied text in the clipboard history
+- `ctrl+p`: Replace current selection with previous copied text in the clipboard history
 
-This replaces the current selected text with the copied text.
+This is similar to [Yanking Earlier Kills](https://www.gnu.org/software/emacs/manual/html_node/emacs/Earlier-Kills.html) in Emacs.
+
+This is useful when you want to retrieve earlier copies.
 
 ## Replace with pattern
 
