@@ -258,6 +258,16 @@ impl Editor {
                     Dispatch::ToEditor(ReplaceWithPattern),
                 ),
                 Keymap::new(
+                    "ctrl+p",
+                    "Replace (with previous copied text)".to_string(),
+                    Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
+                ),
+                Keymap::new(
+                    "ctrl+n",
+                    "Replace (with next copied text)".to_string(),
+                    Dispatch::ToEditor(ReplaceWithNextCopiedText),
+                ),
+                Keymap::new(
                     "v",
                     "Toggle Visual Mode".to_string(),
                     Dispatch::ToEditor(ToggleVisualMode),
@@ -673,6 +683,21 @@ impl Editor {
                                 "o",
                                 "Keep only primary cursor".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+                            ),
+                        ]),
+                    }))
+                    .chain(Some(KeymapLegendSection {
+                        title: "Clipboard".to_string(),
+                        keymaps: Keymaps::new(&[
+                            Keymap::new(
+                                "y",
+                                "Copy to system clipboard".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::CopyToSystemClipboard),
+                            ),
+                            Keymap::new(
+                                "p",
+                                "Paste from system clipboard".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::PasteFromSystemClipboard),
                             ),
                         ]),
                     }))

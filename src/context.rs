@@ -85,12 +85,20 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_clipboard_content(&self) -> Option<String> {
-        self.clipboard.get_content()
+    pub(crate) fn get_clipboard_content(&self, history_offset: isize) -> Option<Vec<String>> {
+        self.clipboard.get(history_offset)
     }
 
-    pub(crate) fn set_clipboard_content(&mut self, content: String) {
-        self.clipboard.set_content(content.clone());
+    pub(crate) fn get_from_system_clipboard(&self) -> anyhow::Result<String> {
+        self.clipboard.get_from_system_clipboard()
+    }
+
+    pub(crate) fn set_clipboard_content(
+        &mut self,
+        contents: Vec<String>,
+        to_system_clipboard: bool,
+    ) -> anyhow::Result<()> {
+        self.clipboard.set(contents.clone(), to_system_clipboard)
     }
     pub(crate) fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()

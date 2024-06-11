@@ -595,7 +595,12 @@ impl<T: Frontend> App<T> {
             Dispatch::RefreshFileExplorer => {
                 self.layout.refresh_file_explorer(&self.working_directory)?
             }
-            Dispatch::SetClipboardContent(content) => self.context.set_clipboard_content(content),
+            Dispatch::SetClipboardContent {
+                contents,
+                to_system_clipboard,
+            } => self
+                .context
+                .set_clipboard_content(contents, to_system_clipboard)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
 
             #[cfg(test)]
@@ -2109,7 +2114,10 @@ pub(crate) enum Dispatch {
     },
     AddPath(String),
     RefreshFileExplorer,
-    SetClipboardContent(String),
+    SetClipboardContent {
+        contents: Vec<String>,
+        to_system_clipboard: bool,
+    },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]
     HandleKeyEvent(event::KeyEvent),

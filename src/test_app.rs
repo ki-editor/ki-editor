@@ -109,6 +109,7 @@ pub(crate) enum ExpectKind {
     CurrentComponentTitle(&'static str),
     CurrentSelectionMode(SelectionMode),
     LspRequestSent(FromEditor),
+    CurrentCopiedTextHistoryOffset(isize),
 }
 fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
@@ -339,6 +340,13 @@ impl ExpectKind {
                 &app.current_component().borrow().editor().selection_set.mode,
             ),
             LspRequestSent(from_editor) => contextualize(true, app.lsp_request_sent(from_editor)),
+            CurrentCopiedTextHistoryOffset(expected) => contextualize(
+                expected,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .copied_text_history_offset(),
+            ),
         })
     }
 }
@@ -426,7 +434,6 @@ fn run_test(
 }
 
 #[test]
-#[serial]
 fn copy_replace_from_different_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -449,7 +456,6 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 /// Should work across different files (via system clipboard)
 fn replace_cut() -> anyhow::Result<()> {
     execute_test(|s| {
@@ -472,7 +478,6 @@ fn replace_cut() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn copy_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -492,7 +497,6 @@ fn copy_replace() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn cut_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -511,7 +515,6 @@ fn cut_replace() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn highlight_mode_cut() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -536,7 +539,6 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn highlight_mode_copy() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -563,7 +565,6 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn highlight_mode_replace() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -589,7 +590,6 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
 }
 
 #[test]
-#[serial]
 fn multi_paste() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -614,7 +614,10 @@ fn multi_paste() -> anyhow::Result<()> {
                 "fn f(){ let x = Some(S(spongebob_squarepants)); let y = Some(S(b)); }",
             )),
             Editor(CursorKeepPrimaryOnly),
-            App(SetClipboardContent(".hello".to_owned())),
+            App(SetClipboardContent {
+                to_system_clipboard: false,
+                contents: [".hello".to_owned()].to_vec(),
+            }),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Paste(Direction::End)),
             Expect(CurrentComponentContent(
@@ -1796,5 +1799,47 @@ fn request_signature_help() -> anyhow::Result<()> {
                 }),
             )),
         ])
+    })
+}
+
+#[serial]
+#[test]
+fn copy_paste_using_system_clipboard() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+a1 a2 a3
+b1 b2 b3
+c1 c2 c3"
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(CursorAddToAllSelections),
+                Editor(SetSelectionMode(WordLong)),
+                Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
+                Editor(CopyToSystemClipboard),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
+                Editor(PasteFromSystemClipboard),
+                Expect(CurrentSelectedTexts(&[
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                ])),
+                Expect(CurrentComponentContent(
+                    "
+a1 a2 a1\nb1\nc1
+b1 b2 a1\nb1\nc1
+c1 c2 a1\nb1\nc1
+"
+                    .trim(),
+                )),
+            ])
+        }
     })
 }

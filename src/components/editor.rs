@@ -167,9 +167,7 @@ impl Component for Editor {
     ) -> anyhow::Result<Dispatches> {
         match event {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
-            event::event::Event::Paste(content) => {
-                Ok(Dispatches::one(Dispatch::ToEditor(Insert(content))))
-            }
+            event::event::Event::Paste(content) => self.replace_with_texts(vec![content]),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
         }
@@ -193,11 +191,15 @@ impl Component for Editor {
             FindOneChar => self.enter_single_character_mode(),
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
-            Copy => return self.copy(context),
-            ReplaceWithCopiedText => return self.replace_with_copied_text(context, false),
+            Copy => return self.copy(false),
+            CopyToSystemClipboard => return self.copy(true),
+            PasteFromSystemClipboard => {
+                return self.replace_with_texts(vec![context.get_from_system_clipboard()?])
+            }
+            ReplaceWithCopiedText => return self.replace_with_copied_text(context, false, 0),
+            ReplaceCut => return self.replace_with_copied_text(context, true, 0),
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.set_content(&content)?,
-            ReplaceCut => return self.replace_with_copied_text(context, true),
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
@@ -232,7 +234,7 @@ impl Component for Editor {
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement),
             Redo => return self.redo(),
-            Change { cut } => return self.change(cut, context),
+            Change { cut } => return self.change(cut),
             #[cfg(test)]
             SetRectangle(rectangle) => self.set_rectangle(rectangle),
             ScrollPageDown => return self.scroll_page_down(),
@@ -308,6 +310,14 @@ impl Component for Editor {
                         .collect_vec(),
                 )
             }
+            ReplaceWithPreviousCopiedText => {
+                let history_offset = self.copied_text_history_offset.decrement();
+                return self.replace_with_copied_text(context, false, history_offset);
+            }
+            ReplaceWithNextCopiedText => {
+                let history_offset = self.copied_text_history_offset.increment();
+                return self.replace_with_copied_text(context, false, history_offset);
+            }
         }
         Ok(Default::default())
     }
@@ -328,6 +338,7 @@ impl Clone for Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             selection_set_history: History::new(),
+            copied_text_history_offset: Default::default(),
         }
     }
 }
@@ -351,6 +362,33 @@ pub(crate) struct Editor {
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
     selection_set_history: History<SelectionSet>,
+    copied_text_history_offset: Counter,
+}
+
+#[derive(Default)]
+struct Counter {
+    value: isize,
+}
+
+impl Counter {
+    fn decrement(&mut self) -> isize {
+        self.value -= 1;
+        self.value
+    }
+
+    fn increment(&mut self) -> isize {
+        self.value += 1;
+        self.value
+    }
+
+    #[cfg(test)]
+    fn value(&self) -> isize {
+        self.value
+    }
+
+    fn reset(&mut self) {
+        self.value = 0;
+    }
 }
 
 pub(crate) struct RegexHighlightRule {
@@ -463,6 +501,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             selection_set_history: History::new(),
+            copied_text_history_offset: Default::default(),
         }
     }
 
@@ -485,6 +524,7 @@ impl Editor {
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
             selection_set_history: History::new(),
+            copied_text_history_offset: Default::default(),
         }
     }
 
@@ -773,8 +813,25 @@ impl Editor {
         Ok(dispatches)
     }
 
-    pub(crate) fn copy(&mut self, context: &Context) -> anyhow::Result<Dispatches> {
-        self.selection_set.copy(&self.buffer.borrow(), context)
+    pub(crate) fn copy(&mut self, to_system_clipboard: bool) -> anyhow::Result<Dispatches> {
+        Ok([Dispatch::SetClipboardContent {
+            to_system_clipboard,
+            contents: self
+                .selection_set
+                .map(|selection| {
+                    Some(
+                        self.buffer()
+                            .slice(&selection.extended_range())
+                            .ok()?
+                            .to_string(),
+                    )
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        }]
+        .to_vec()
+        .into())
     }
 
     fn replace_current_selection_with<F>(&mut self, f: F) -> anyhow::Result<Dispatches>
@@ -792,13 +849,10 @@ impl Editor {
                                 range,
                                 new: copied_text.clone(),
                             }),
-                            Action::Select(
-                                Selection::new({
-                                    let start = start + copied_text.len_chars();
-                                    (start..start).into()
-                                })
-                                .set_copied_text(Some(copied_text)),
-                            ),
+                            Action::Select(Selection::new({
+                                let start = start + copied_text.len_chars();
+                                (start..start).into()
+                            })),
                         ]
                         .to_vec(),
                     )]
@@ -858,16 +912,21 @@ impl Editor {
         context: &Context,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
+            let copied_texts = context.get_clipboard_content(0).unwrap_or_default();
             self.get_selection_set_with_gap()
                 .into_iter()
-                .map(|(selection, gap)| {
+                .enumerate()
+                .map(|(index, (selection, gap))| {
                     let current_range = selection.extended_range();
                     let insertion_range_start = match direction {
                         Direction::Start => current_range.start,
                         Direction::End => current_range.end,
                     };
                     let insertion_range = insertion_range_start..insertion_range_start;
-                    let copied_text = selection.copied_text(context).unwrap_or_default();
+                    let copied_text: Rope = copied_texts
+                        .get(index)
+                        .map(|str| Rope::from_str(str))
+                        .unwrap_or_default();
                     let copied_text_len = copied_text.len_chars();
 
                     let (selection_range, paste_text) = if self.mode == Mode::Normal {
@@ -904,7 +963,7 @@ impl Editor {
                                 range: insertion_range.into(),
                                 new: paste_text,
                             }),
-                            Action::Select(Selection::new(selection_range)),
+                            Action::Select(selection.set_range(selection_range)),
                         ]
                         .to_vec(),
                     )
@@ -914,50 +973,65 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    /// If `cut` if true, the replaced text will override the clipboard
+    /// If `cut` if true, the replaced text will override the clipboard.  
+    ///
+    /// If `history_offset` is 0, it means select the latest copied text;  
+    ///   +n means select the nth next copied text (cycle to the first copied text if current copied text is the latest)  
+    ///   -n means select the nth previous copied text (cycle to the last copied text if current copied text is the first)
     pub(crate) fn replace_with_copied_text(
         &mut self,
         context: &Context,
         cut: bool,
+        history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
         let dispatches = if cut {
-            self.copy(context)?
+            self.copy(false)?
         } else {
             Default::default()
         };
 
+        let copied_texts = context
+            .get_clipboard_content(history_offset)
+            .unwrap_or_default();
+
+        self.replace_with_texts(copied_texts)
+            .map(|d| d.chain(dispatches))
+    }
+
+    fn replace_with_texts(&mut self, texts: Vec<String>) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
-                .map(|selection| -> anyhow::Result<_> {
-                    if let Some(replacement) = &selection.copied_text(context) {
-                        let replacement_text_len = replacement.len_chars();
-                        let range = selection.extended_range();
-                        Ok(EditTransaction::from_action_groups(
-                            [ActionGroup::new(
-                                [
-                                    Action::Edit(Edit {
-                                        range,
-                                        new: replacement.clone(),
-                                    }),
-                                    Action::Select(Selection::new(
-                                        (range.start..range.start + replacement_text_len).into(),
-                                    )),
-                                ]
-                                .to_vec(),
-                            )]
-                            .to_vec(),
-                        ))
-                    } else {
-                        Ok(EditTransaction::from_action_groups(vec![]))
-                    }
-                })
+                .map(|selection| selection.clone())
                 .into_iter()
-                .flatten()
+                .enumerate()
+                .map(|(index, selection)| {
+                    let replacement = texts
+                        .get(index)
+                        .or_else(|| texts.first())
+                        .map(|s| Rope::from_str(s))
+                        .unwrap_or_default();
+                    let replacement_text_len = replacement.len_chars();
+                    let range = selection.extended_range();
+                    EditTransaction::from_action_groups(
+                        [ActionGroup::new(
+                            [
+                                Action::Edit(Edit {
+                                    range,
+                                    new: replacement,
+                                }),
+                                Action::Select(selection.clone().set_range(
+                                    (range.start..range.start + replacement_text_len).into(),
+                                )),
+                            ]
+                            .to_vec(),
+                        )]
+                        .to_vec(),
+                    )
+                })
                 .collect(),
         );
 
         self.apply_edit_transaction(edit_transaction)
-            .map(|d| d.chain(dispatches))
     }
 
     fn apply_edit_transaction(
@@ -1114,9 +1188,9 @@ impl Editor {
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    pub(crate) fn change(&mut self, cut: bool, context: &Context) -> anyhow::Result<Dispatches> {
+    pub(crate) fn change(&mut self, cut: bool) -> anyhow::Result<Dispatches> {
         let dispatches = if cut {
-            self.copy(context)?
+            self.copy(false)?
         } else {
             Default::default()
         };
@@ -1228,6 +1302,7 @@ impl Editor {
         context: &Context,
         movement: Movement,
     ) -> anyhow::Result<Dispatches> {
+        self.copied_text_history_offset.reset();
         match self.mode {
             Mode::Normal => self.move_selection_with_selection_mode(
                 context,
@@ -2501,6 +2576,11 @@ impl Editor {
         };
         self.apply_edit_transaction(edit_transaction)
     }
+
+    #[cfg(test)]
+    pub(crate) fn copied_text_history_offset(&self) -> isize {
+        self.copied_text_history_offset.value()
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2608,6 +2688,10 @@ pub(crate) enum DispatchEditor {
     },
     Replace(Movement),
     ApplyPositionalEdits(Vec<CompletionItemEdit>),
+    ReplaceWithPreviousCopiedText,
+    CopyToSystemClipboard,
+    PasteFromSystemClipboard,
+    ReplaceWithNextCopiedText,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

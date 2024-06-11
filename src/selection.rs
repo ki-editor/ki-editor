@@ -1,17 +1,14 @@
 use itertools::Itertools;
 use std::ops::{Add, Sub};
 
-use ropey::Rope;
-
 use crate::{
-    app::{Dispatch, Dispatches},
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
         editor::{Direction, Movement},
         suggestive_editor::Info,
     },
-    context::{Context, LocalSearchConfigMode, Search},
+    context::{LocalSearchConfigMode, Search},
     position::Position,
     quickfix_list::DiagnosticSeverityRange,
     selection_mode::{self, ApplyMovementResult, SelectionModeParams},
@@ -177,7 +174,6 @@ impl SelectionSet {
     pub(crate) fn only(&mut self) {
         self.secondary.clear();
         self.primary.initial_range = None;
-        self.primary.copied_text = None;
     }
 
     pub(crate) fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
@@ -221,36 +217,6 @@ impl SelectionSet {
             tail.push(f(selection));
         }
         (head, tail)
-    }
-
-    pub(crate) fn copy(
-        &mut self,
-        buffer: &Buffer,
-        context: &Context,
-    ) -> anyhow::Result<Dispatches> {
-        if self.secondary.is_empty() {
-            // Copy the primary selected text to clipboard
-            let copied_text = buffer.slice(&self.primary.extended_range())?;
-            self.primary = Selection {
-                range: self.primary.range,
-                initial_range: self.primary.initial_range,
-                // `copied_text` should be `None`, so that pasting between different files can work properly
-                copied_text: None,
-                info: None,
-            };
-            Ok([Dispatch::SetClipboardContent(copied_text.to_string())]
-                .to_vec()
-                .into())
-        } else {
-            // Otherwise, don't copy to clipboard, since there's multiple selection,
-            // we don't know which one to copy.
-            let _ = self.apply_mut(|selection| -> anyhow::Result<()> {
-                selection.copied_text = Some(buffer.slice(&selection.extended_range())?)
-                    .or_else(|| context.get_clipboard_content().map(Rope::from));
-                Ok(())
-            });
-            Ok(Vec::new().into())
-        }
     }
 
     pub(crate) fn generate(
@@ -563,7 +529,6 @@ impl From<Selection> for ApplyMovementResult {
 #[derive(PartialEq, Clone, Debug, Eq, Hash, Default)]
 pub(crate) struct Selection {
     range: CharIndexRange,
-    copied_text: Option<Rope>,
 
     /// Used for extended selection.
     /// Some = the selection is being extended
@@ -586,13 +551,6 @@ impl Selection {
         Selection {
             range,
             ..Selection::default()
-        }
-    }
-
-    pub(crate) fn set_copied_text(self, copied_text: Option<Rope>) -> Self {
-        Selection {
-            copied_text,
-            ..self
         }
     }
 
@@ -622,7 +580,6 @@ impl Selection {
     pub(crate) fn default() -> Selection {
         Selection {
             range: (CharIndex(0)..CharIndex(0)).into(),
-            copied_text: None,
             initial_range: None,
             info: None,
         }
@@ -675,16 +632,9 @@ impl Selection {
             (self.range.start.min(max_char_index)..self.range.end.min(max_char_index)).into();
         Selection {
             range,
-            copied_text: self.copied_text.clone(),
             initial_range: self.initial_range,
             info: self.info.clone(),
         }
-    }
-
-    pub(crate) fn copied_text(&self, context: &Context) -> Option<Rope> {
-        self.copied_text
-            .clone()
-            .or_else(|| context.get_clipboard_content().map(Rope::from))
     }
 
     pub(crate) fn info(&self) -> Option<Info> {
@@ -733,7 +683,6 @@ impl Add<usize> for Selection {
     fn add(self, rhs: usize) -> Self::Output {
         Self {
             range: (self.range.start + rhs..self.range.end + rhs).into(),
-            copied_text: self.copied_text,
             initial_range: self.initial_range,
             info: self.info,
         }
@@ -746,7 +695,6 @@ impl Sub<usize> for Selection {
     fn sub(self, rhs: usize) -> Self::Output {
         Self {
             range: (self.range.start - rhs..self.range.end - rhs).into(),
-            copied_text: self.copied_text,
             initial_range: self.initial_range,
             info: self.info,
         }
