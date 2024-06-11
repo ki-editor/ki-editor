@@ -68,7 +68,6 @@ hello(y);
 Keybindings:
 
 - `c`: Change
-- `C`: Change (Cut), copies the deleted content into the clipboard
 
 This deletes the current selected text, and enter [Insert mode
 ](../../modes.md#insert).
