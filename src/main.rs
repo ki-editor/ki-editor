@@ -20,7 +20,6 @@ mod position;
 
 mod app;
 pub(crate) mod history;
-
 mod quickfix_list;
 mod rectangle;
 mod screen;
