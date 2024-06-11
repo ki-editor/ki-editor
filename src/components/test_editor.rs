@@ -408,7 +408,7 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             // Expect bookmark position is updated, and still selects "spim"
             Expect(CurrentSelectedTexts(&["spim"])),
             // Remove "spim"
-            Editor(Change { cut: false }),
+            Editor(Change),
             Expect(CurrentComponentContent("bar ")),
             Editor(EnterNormalMode),
             Editor(SetSelectionMode(WordShort)),
@@ -746,11 +746,14 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
                 contents: ["haha".to_string()].to_vec(),
-                to_system_clipboard: false,
+                use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
             Editor(EnterInsertMode(Direction::End)),
-            Editor(Paste(Direction::End)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("foo barhaha spam")),
             Editor(Insert("Hello".to_string())),
             Expect(CurrentComponentContent("foo barhahaHello spam")),
@@ -766,9 +769,14 @@ fn paste_in_insert_mode_2() -> anyhow::Result<()> {
             Editor(SetContent("fn main(a:A,b:B){}".to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(SyntaxNodeCoarse)),
-            Editor(Copy),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
             Editor(EnterInsertMode(Direction::End)),
-            Editor(Paste(Direction::End)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("fn main(a:Aa:A,b:B){}")),
             Editor(Insert("Hello".to_string())),
             Expect(CurrentComponentContent("fn main(a:Aa:AHello,b:B){}")),
@@ -784,10 +792,13 @@ fn paste_after() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
                 contents: ["haha".to_string()].to_vec(),
-                to_system_clipboard: false,
+                use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(Paste(Direction::End)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("foo barhaha spam")),
             Expect(CurrentSelectedTexts(&["haha"])),
         ])
@@ -804,10 +815,13 @@ fn smart_paste() -> anyhow::Result<()> {
                 Editor(MatchLiteral("a:A".to_string())),
                 App(SetClipboardContent {
                     contents: ["c:C".to_string()].to_vec(),
-                    to_system_clipboard: false,
+                    use_system_clipboard: false,
                 }),
                 Editor(SetSelectionMode(SyntaxNodeCoarse)),
-                Editor(Paste(direction.clone())),
+                Editor(Paste {
+                    direction: direction.clone(),
+                    use_system_clipboard: false,
+                }),
                 Expect(CurrentComponentContent(expected_result)),
                 Expect(CurrentSelectedTexts(&["c:C"])),
             ])
@@ -825,10 +839,13 @@ fn paste_before() -> anyhow::Result<()> {
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
                 contents: ["haha".to_string()].to_vec(),
-                to_system_clipboard: false,
+                use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(Paste(Direction::Start)),
+            Editor(Paste {
+                direction: Direction::Start,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("foo hahabar spam")),
             Expect(CurrentSelectedTexts(&["haha"])),
         ])
@@ -845,9 +862,12 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
             )),
             App(SetClipboardContent {
                 contents: ["let z = S(c);".to_string()].to_vec(),
-                to_system_clipboard: false,
+                use_system_clipboard: false,
             }),
-            Editor(ReplaceWithCopiedText),
+            Editor(ReplaceWithCopiedText {
+                cut: false,
+                use_system_clipboard: true,
+            }),
             Expect(CurrentComponentContent(
                 "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
             )),
@@ -967,7 +987,7 @@ fn highlight_change() -> anyhow::Result<()> {
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["hello world"])),
-            Editor(Change { cut: false }),
+            Editor(Change),
             Editor(Insert("wow".to_string())),
             Expect(CurrentSelectedTexts(&[""])),
             Expect(CurrentComponentContent("wow yo")),
@@ -1894,10 +1914,13 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             Editor(SetContent("".to_string())),
             App(SetClipboardContent {
                 contents: ["foo".to_string()].to_vec(),
-                to_system_clipboard: false,
+                use_system_clipboard: false,
             }),
             Editor(EnterInsertMode(Direction::Start)),
-            Editor(Paste(Direction::End)),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
             Expect(CurrentComponentContent("foo")),
             Editor(Undo),
             Expect(CurrentComponentContent("")),
@@ -2136,14 +2159,23 @@ c1 c2 c3"
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
-                Editor(Copy),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["a2", "b2", "c2"])),
-                Editor(Copy),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
                 Editor(MoveSelection(Next)),
-                Editor(Copy),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
-                Editor(Paste(Direction::End)),
+                Editor(Paste {
+                    direction: Direction::End,
+                    use_system_clipboard: false,
+                }),
                 Editor(ReplaceWithPreviousCopiedText),
                 Expect(CurrentSelectedTexts(&["a2", "b2", "c2"])),
                 Expect(CurrentComponentContent(

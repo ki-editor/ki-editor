@@ -21,10 +21,10 @@ impl Clipboard {
     pub(crate) fn set(
         &mut self,
         content: Vec<String>,
-        to_system_clipboard: bool,
+        use_system_clipboard: bool,
     ) -> anyhow::Result<()> {
         self.history.add(content.clone());
-        if to_system_clipboard {
+        if use_system_clipboard {
             arboard::Clipboard::new()?.set_text(content.join("\n"))?
         }
         Ok(())

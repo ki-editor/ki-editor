@@ -192,16 +192,7 @@ impl Editor {
                     "Insert (after selection)".to_string(),
                     Dispatch::ToEditor(EnterInsertMode(Direction::End)),
                 ),
-                Keymap::new(
-                    "c",
-                    "Change".to_string(),
-                    Dispatch::ToEditor(Change { cut: false }),
-                ),
-                Keymap::new(
-                    "C",
-                    "Change Cut".to_string(),
-                    Dispatch::ToEditor(Change { cut: true }),
-                ),
+                Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
                 Keymap::new(
                     "d",
                     "Delete (until next selection)".to_string(),
@@ -233,26 +224,6 @@ impl Editor {
                     Dispatch::ToEditor(Open(Direction::Start)),
                 ),
                 Keymap::new(
-                    "p",
-                    "Paste (after selection)".to_string(),
-                    Dispatch::ToEditor(Paste(Direction::End)),
-                ),
-                Keymap::new(
-                    "P",
-                    "Paste (before selection)".to_string(),
-                    Dispatch::ToEditor(Paste(Direction::Start)),
-                ),
-                Keymap::new(
-                    "r",
-                    "Replace".to_string(),
-                    Dispatch::ToEditor(ReplaceWithCopiedText),
-                ),
-                Keymap::new(
-                    "R",
-                    "Replace Cut".to_string(),
-                    Dispatch::ToEditor(ReplaceCut),
-                ),
-                Keymap::new(
                     "ctrl+r",
                     "Replace with pattern".to_string(),
                     Dispatch::ToEditor(ReplaceWithPattern),
@@ -272,12 +243,65 @@ impl Editor {
                     "Toggle Visual Mode".to_string(),
                     Dispatch::ToEditor(ToggleVisualMode),
                 ),
-                Keymap::new("y", "Yank (Copy)".to_string(), Dispatch::ToEditor(Copy)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
                 Keymap::new(
                     "!",
                     "Transform".to_string(),
                     Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
+                ),
+            ]),
+        }
+    }
+
+    fn keymap_clipboard_related_actions(&self, use_system_clipboard: bool) -> KeymapLegendSection {
+        KeymapLegendSection {
+            title: "Clipboard-related actions".to_string(),
+            keymaps: Keymaps::new(&[
+                Keymap::new(
+                    "C",
+                    "Change Cut".to_string(),
+                    Dispatch::ToEditor(ChangeCut {
+                        use_system_clipboard,
+                    }),
+                ),
+                Keymap::new(
+                    "p",
+                    "Paste (after selection)".to_string(),
+                    Dispatch::ToEditor(Paste {
+                        direction: Direction::End,
+                        use_system_clipboard,
+                    }),
+                ),
+                Keymap::new(
+                    "P",
+                    "Paste (before selection)".to_string(),
+                    Dispatch::ToEditor(Paste {
+                        direction: Direction::Start,
+                        use_system_clipboard,
+                    }),
+                ),
+                Keymap::new(
+                    "r",
+                    "Replace".to_string(),
+                    Dispatch::ToEditor(ReplaceWithCopiedText {
+                        use_system_clipboard,
+                        cut: false,
+                    }),
+                ),
+                Keymap::new(
+                    "R",
+                    "Replace Cut".to_string(),
+                    Dispatch::ToEditor(ReplaceWithCopiedText {
+                        use_system_clipboard,
+                        cut: true,
+                    }),
+                ),
+                Keymap::new(
+                    "y",
+                    "Yank (Copy)".to_string(),
+                    Dispatch::ToEditor(Copy {
+                        use_system_clipboard,
+                    }),
                 ),
             ]),
         }
@@ -301,7 +325,10 @@ impl Editor {
                 Keymap::new(
                     "ctrl+v",
                     "Paste".to_string(),
-                    Dispatch::ToEditor(Paste(Direction::End)),
+                    Dispatch::ToEditor(Paste {
+                        direction: Direction::End,
+                        use_system_clipboard: false,
+                    }),
                 ),
                 Keymap::new("ctrl+y", "Redo".to_string(), Dispatch::ToEditor(Redo)),
                 Keymap::new("ctrl+z", "Undo".to_string(), Dispatch::ToEditor(Undo)),
@@ -451,6 +478,16 @@ impl Editor {
                     Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
                 ),
                 Keymap::new(
+                    "\\",
+                    "Clipboard-related actions (use system clipboard)".to_string(),
+                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                        title: "Clipboard-related actions (use system clipboard)".to_string(),
+                        body: KeymapLegendBody::SingleSection {
+                            keymaps: self.keymap_clipboard_related_actions(true).keymaps,
+                        },
+                    }),
+                ),
+                Keymap::new(
                     "'",
                     "Find literal".to_string(),
                     Dispatch::ShowKeymapLegend(self.show_literal_keymap_legend_config()),
@@ -533,6 +570,7 @@ impl Editor {
                     self.keymap_other_movements(),
                     self.keymap_selection_modes(context),
                     self.keymap_actions(),
+                    self.keymap_clipboard_related_actions(false),
                     self.keymap_others(context),
                     self.keymap_universal(),
                 ]
@@ -683,21 +721,6 @@ impl Editor {
                                 "o",
                                 "Keep only primary cursor".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
-                            ),
-                        ]),
-                    }))
-                    .chain(Some(KeymapLegendSection {
-                        title: "Clipboard".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "y",
-                                "Copy to system clipboard".to_string(),
-                                Dispatch::ToEditor(DispatchEditor::CopyToSystemClipboard),
-                            ),
-                            Keymap::new(
-                                "p",
-                                "Paste from system clipboard".to_string(),
-                                Dispatch::ToEditor(DispatchEditor::PasteFromSystemClipboard),
                             ),
                         ]),
                     }))

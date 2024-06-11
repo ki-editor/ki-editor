@@ -597,10 +597,10 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetClipboardContent {
                 contents,
-                to_system_clipboard,
+                use_system_clipboard,
             } => self
                 .context
-                .set_clipboard_content(contents, to_system_clipboard)?,
+                .set_clipboard_content(contents, use_system_clipboard)?,
             Dispatch::SetGlobalMode(mode) => self.set_global_mode(mode),
 
             #[cfg(test)]
@@ -2116,7 +2116,7 @@ pub(crate) enum Dispatch {
     RefreshFileExplorer,
     SetClipboardContent {
         contents: Vec<String>,
-        to_system_clipboard: bool,
+        use_system_clipboard: bool,
     },
     SetGlobalMode(Option<GlobalMode>),
     #[cfg(test)]

@@ -96,9 +96,9 @@ impl Context {
     pub(crate) fn set_clipboard_content(
         &mut self,
         contents: Vec<String>,
-        to_system_clipboard: bool,
+        use_system_clipboard: bool,
     ) -> anyhow::Result<()> {
-        self.clipboard.set(contents.clone(), to_system_clipboard)
+        self.clipboard.set(contents.clone(), use_system_clipboard)
     }
     pub(crate) fn mode(&self) -> Option<GlobalMode> {
         self.mode.clone()

@@ -167,7 +167,7 @@ impl Component for Editor {
     ) -> anyhow::Result<Dispatches> {
         match event {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
-            event::event::Event::Paste(content) => self.replace_with_texts(vec![content]),
+            event::event::Event::Paste(content) => self.paste_text(Direction::End, vec![content]),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
         }
@@ -191,13 +191,13 @@ impl Component for Editor {
             FindOneChar => self.enter_single_character_mode(),
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
-            Copy => return self.copy(false),
-            CopyToSystemClipboard => return self.copy(true),
-            PasteFromSystemClipboard => {
-                return self.replace_with_texts(vec![context.get_from_system_clipboard()?])
-            }
-            ReplaceWithCopiedText => return self.replace_with_copied_text(context, false, 0),
-            ReplaceCut => return self.replace_with_copied_text(context, true, 0),
+            Copy {
+                use_system_clipboard,
+            } => return self.copy(use_system_clipboard),
+            ReplaceWithCopiedText {
+                cut,
+                use_system_clipboard,
+            } => return self.replace_with_copied_text(context, cut, use_system_clipboard, 0),
             SelectAll => return Ok(self.select_all()),
             SetContent(content) => self.set_content(&content)?,
             ToggleVisualMode => self.toggle_visual_mode(),
@@ -234,7 +234,10 @@ impl Component for Editor {
             MoveToLineEnd => return self.move_to_line_end(),
             SelectLine(movement) => return self.select_line(movement),
             Redo => return self.redo(),
-            Change { cut } => return self.change(cut),
+            Change => return self.change(),
+            ChangeCut {
+                use_system_clipboard,
+            } => return self.change_cut(use_system_clipboard),
             #[cfg(test)]
             SetRectangle(rectangle) => self.set_rectangle(rectangle),
             ScrollPageDown => return self.scroll_page_down(),
@@ -280,7 +283,10 @@ impl Component for Editor {
                 .into())
             }
             EnterReplaceMode => self.enter_replace_mode(),
-            Paste(direction) => return self.paste(direction, context),
+            Paste {
+                direction,
+                use_system_clipboard,
+            } => return self.paste(direction, context, use_system_clipboard),
             SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -312,11 +318,11 @@ impl Component for Editor {
             }
             ReplaceWithPreviousCopiedText => {
                 let history_offset = self.copied_text_history_offset.decrement();
-                return self.replace_with_copied_text(context, false, history_offset);
+                return self.replace_with_copied_text(context, false, false, history_offset);
             }
             ReplaceWithNextCopiedText => {
                 let history_offset = self.copied_text_history_offset.increment();
-                return self.replace_with_copied_text(context, false, history_offset);
+                return self.replace_with_copied_text(context, false, false, history_offset);
             }
         }
         Ok(Default::default())
@@ -813,9 +819,9 @@ impl Editor {
         Ok(dispatches)
     }
 
-    pub(crate) fn copy(&mut self, to_system_clipboard: bool) -> anyhow::Result<Dispatches> {
+    pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
         Ok([Dispatch::SetClipboardContent {
-            to_system_clipboard,
+            use_system_clipboard,
             contents: self
                 .selection_set
                 .map(|selection| {
@@ -906,13 +912,12 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
-    pub(crate) fn paste(
+    fn paste_text(
         &mut self,
         direction: Direction,
-        context: &Context,
+        texts: Vec<String>,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            let copied_texts = context.get_clipboard_content(0).unwrap_or_default();
             self.get_selection_set_with_gap()
                 .into_iter()
                 .enumerate()
@@ -923,8 +928,9 @@ impl Editor {
                         Direction::End => current_range.end,
                     };
                     let insertion_range = insertion_range_start..insertion_range_start;
-                    let copied_text: Rope = copied_texts
+                    let copied_text: Rope = texts
                         .get(index)
+                        .or_else(|| texts.first())
                         .map(|str| Rope::from_str(str))
                         .unwrap_or_default();
                     let copied_text_len = copied_text.len_chars();
@@ -973,6 +979,20 @@ impl Editor {
         self.apply_edit_transaction(edit_transaction)
     }
 
+    pub(crate) fn paste(
+        &mut self,
+        direction: Direction,
+        context: &Context,
+        use_system_clipboard: bool,
+    ) -> anyhow::Result<Dispatches> {
+        let copied_texts = if use_system_clipboard {
+            [context.get_from_system_clipboard()?].to_vec()
+        } else {
+            context.get_clipboard_content(0).unwrap_or_default()
+        };
+        self.paste_text(direction, copied_texts)
+    }
+
     /// If `cut` if true, the replaced text will override the clipboard.  
     ///
     /// If `history_offset` is 0, it means select the latest copied text;  
@@ -982,10 +1002,11 @@ impl Editor {
         &mut self,
         context: &Context,
         cut: bool,
+        use_system_clipboard: bool,
         history_offset: isize,
     ) -> anyhow::Result<Dispatches> {
         let dispatches = if cut {
-            self.copy(false)?
+            self.copy(use_system_clipboard)?
         } else {
             Default::default()
         };
@@ -994,20 +1015,15 @@ impl Editor {
             .get_clipboard_content(history_offset)
             .unwrap_or_default();
 
-        self.replace_with_texts(copied_texts)
-            .map(|d| d.chain(dispatches))
-    }
-
-    fn replace_with_texts(&mut self, texts: Vec<String>) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::merge(
             self.selection_set
                 .map(|selection| selection.clone())
                 .into_iter()
                 .enumerate()
                 .map(|(index, selection)| {
-                    let replacement = texts
+                    let replacement = copied_texts
                         .get(index)
-                        .or_else(|| texts.first())
+                        .or_else(|| copied_texts.first())
                         .map(|s| Rope::from_str(s))
                         .unwrap_or_default();
                     let replacement_text_len = replacement.len_chars();
@@ -1030,8 +1046,8 @@ impl Editor {
                 })
                 .collect(),
         );
-
         self.apply_edit_transaction(edit_transaction)
+            .map(|d| d.chain(dispatches))
     }
 
     fn apply_edit_transaction(
@@ -1188,12 +1204,7 @@ impl Editor {
     }
 
     /// Similar to Change in Vim, but does not copy the current selection
-    pub(crate) fn change(&mut self, cut: bool) -> anyhow::Result<Dispatches> {
-        let dispatches = if cut {
-            self.copy(false)?
-        } else {
-            Default::default()
-        };
+    pub(crate) fn change(&mut self) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -1219,10 +1230,13 @@ impl Editor {
                 .collect(),
         );
 
-        let dispatches = dispatches
-            .chain(self.apply_edit_transaction(edit_transaction)?)
-            .chain(self.enter_insert_mode(Direction::Start)?);
-        Ok(dispatches)
+        Ok(self
+            .apply_edit_transaction(edit_transaction)?
+            .chain(self.enter_insert_mode(Direction::Start)?))
+    }
+
+    pub(crate) fn change_cut(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
+        Ok(self.copy(use_system_clipboard)?.chain(self.change()?))
     }
 
     pub(crate) fn insert(&mut self, s: &str) -> anyhow::Result<Dispatches> {
@@ -2615,22 +2629,27 @@ pub(crate) enum DispatchEditor {
     FindOneChar,
     MoveSelection(Movement),
     SwitchViewAlignment,
-    Copy,
+    Copy {
+        use_system_clipboard: bool,
+    },
     GoBack,
     GoForward,
-    ReplaceCut,
     SelectAll,
     SetContent(String),
     SetDecorations(Vec<Decoration>),
     #[cfg(test)]
     SetRectangle(Rectangle),
     ToggleVisualMode,
-    Change {
-        cut: bool,
+    Change,
+    ChangeCut {
+        use_system_clipboard: bool,
     },
     EnterUndoTreeMode,
     EnterInsertMode(Direction),
-    ReplaceWithCopiedText,
+    ReplaceWithCopiedText {
+        cut: bool,
+        use_system_clipboard: bool,
+    },
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
@@ -2676,7 +2695,10 @@ pub(crate) enum DispatchEditor {
     SelectLineAt(usize),
     ShowKeymapLegendNormalMode,
     ShowKeymapLegendInsertMode,
-    Paste(Direction),
+    Paste {
+        direction: Direction,
+        use_system_clipboard: bool,
+    },
     SwapCursorWithAnchor,
     MoveCharacterBack,
     MoveCharacterForward,
@@ -2689,8 +2711,6 @@ pub(crate) enum DispatchEditor {
     Replace(Movement),
     ApplyPositionalEdits(Vec<CompletionItemEdit>),
     ReplaceWithPreviousCopiedText,
-    CopyToSystemClipboard,
-    PasteFromSystemClipboard,
     ReplaceWithNextCopiedText,
 }
 
