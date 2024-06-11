@@ -19,6 +19,9 @@ When there are multiple cursors:
 - Copy joins every selection into a single string and then place it in the system clipboard
 - Paste uses the same string from the system clipboard for every cursor
 
+Note: when new content are copied to the system clipboard, it will also be
+copied to the editor clipboard.
+
 ## Copy
 
 Keybindings:
