@@ -16,6 +16,7 @@
       - [LSP](./normal-mode/selection-modes/local-global/lsp-based.md)
       - [Misc](./normal-mode/selection-modes/local-global/misc.md)
   - [Actions](./normal-mode/actions/index.md)
+    - [Clipboard-related Actions](./normal-mode/actions/clipboard-related-actions.md)
   - [Movement-Actions](./normal-mode/movement-actions.md)
   - [Other Movements](./normal-mode/other-movements.md)
   - [Space Menu](./normal-mode/space-menu.md)

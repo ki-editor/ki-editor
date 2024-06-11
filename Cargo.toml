@@ -94,6 +94,7 @@ nary_tree = "0.4.3"
 name-variant = "0.1.0"
 strum = "0.26.2"
 strum_macros = "0.26.2"
+nonempty = "0.10.0"
 
 [dev-dependencies]
 serial_test = "2.0.0"

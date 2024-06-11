@@ -1,5 +1,6 @@
 use crate::{
     buffer::Buffer,
+    clipboard::CopiedTexts,
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
@@ -596,7 +597,7 @@ impl<T: Frontend> App<T> {
                 self.layout.refresh_file_explorer(&self.working_directory)?
             }
             Dispatch::SetClipboardContent {
-                contents,
+                copied_texts: contents,
                 use_system_clipboard,
             } => self
                 .context
@@ -2115,7 +2116,7 @@ pub(crate) enum Dispatch {
     AddPath(String),
     RefreshFileExplorer,
     SetClipboardContent {
-        contents: Vec<String>,
+        copied_texts: CopiedTexts,
         use_system_clipboard: bool,
     },
     SetGlobalMode(Option<GlobalMode>),

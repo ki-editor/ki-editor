@@ -1,6 +1,7 @@
 use crate::app::LocalSearchConfigUpdate;
 use crate::app::Scope;
 use crate::char_index_range::CharIndexRange;
+use crate::clipboard::CopiedTexts;
 use crate::components::editor::DispatchEditor::*;
 use crate::components::editor::Movement::*;
 
@@ -745,7 +746,7 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                contents: ["haha".to_string()].to_vec(),
+                copied_texts: CopiedTexts::one("haha".to_string()),
                 use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
@@ -791,7 +792,7 @@ fn paste_after() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                contents: ["haha".to_string()].to_vec(),
+                copied_texts: CopiedTexts::one("haha".to_string()),
                 use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
@@ -814,7 +815,7 @@ fn smart_paste() -> anyhow::Result<()> {
                 Editor(SetContent("fn main(a:A, b:B) {}".to_string())),
                 Editor(MatchLiteral("a:A".to_string())),
                 App(SetClipboardContent {
-                    contents: ["c:C".to_string()].to_vec(),
+                    copied_texts: CopiedTexts::one("c:C".to_string()),
                     use_system_clipboard: false,
                 }),
                 Editor(SetSelectionMode(SyntaxNodeCoarse)),
@@ -838,7 +839,7 @@ fn paste_before() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             App(SetClipboardContent {
-                contents: ["haha".to_string()].to_vec(),
+                copied_texts: CopiedTexts::one("haha".to_string()),
                 use_system_clipboard: false,
             }),
             Editor(MatchLiteral("bar".to_string())),
@@ -861,12 +862,12 @@ fn replace_from_clipboard() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             App(SetClipboardContent {
-                contents: ["let z = S(c);".to_string()].to_vec(),
+                copied_texts: CopiedTexts::one("let z = S(c);".to_string()),
                 use_system_clipboard: false,
             }),
             Editor(ReplaceWithCopiedText {
                 cut: false,
-                use_system_clipboard: true,
+                use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent(
                 "let z = S(c);fn f(){ let x = S(a); let y = S(b); }",
@@ -1913,7 +1914,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("".to_string())),
             App(SetClipboardContent {
-                contents: ["foo".to_string()].to_vec(),
+                copied_texts: CopiedTexts::one("foo".to_string()),
                 use_system_clipboard: false,
             }),
             Editor(EnterInsertMode(Direction::Start)),

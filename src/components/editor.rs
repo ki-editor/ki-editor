@@ -2,6 +2,7 @@ use crate::{
     app::{Dispatches, RequestParams},
     buffer::Line,
     char_index_range::CharIndexRange,
+    clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     history::History,
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
@@ -11,6 +12,7 @@ use crate::{
     transformation::Transformation,
 };
 
+use nonempty::NonEmpty;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -167,7 +169,10 @@ impl Component for Editor {
     ) -> anyhow::Result<Dispatches> {
         match event {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
-            event::event::Event::Paste(content) => self.paste_text(Direction::End, vec![content]),
+            event::event::Event::Paste(content) => self.paste_text(
+                Direction::End,
+                CopiedTexts::new(NonEmpty::singleton(content)),
+            ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
             _ => Ok(Default::default()),
         }
@@ -820,24 +825,16 @@ impl Editor {
     }
 
     pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
-        Ok([Dispatch::SetClipboardContent {
+        Ok(Dispatches::one(Dispatch::SetClipboardContent {
             use_system_clipboard,
-            contents: self
-                .selection_set
-                .map(|selection| {
-                    Some(
-                        self.buffer()
-                            .slice(&selection.extended_range())
-                            .ok()?
-                            .to_string(),
-                    )
-                })
-                .into_iter()
-                .flatten()
-                .collect_vec(),
-        }]
-        .to_vec()
-        .into())
+            copied_texts: CopiedTexts::new(self.selection_set.map(|selection| {
+                self.buffer()
+                    .slice(&selection.extended_range())
+                    .ok()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default()
+            })),
+        }))
     }
 
     fn replace_current_selection_with<F>(&mut self, f: F) -> anyhow::Result<Dispatches>
@@ -868,7 +865,7 @@ impl Editor {
                 EditTransaction::from_action_groups(vec![])
             }
         });
-        let edit_transaction = EditTransaction::merge(edit_transactions);
+        let edit_transaction = EditTransaction::merge(edit_transactions.into());
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -908,14 +905,14 @@ impl Editor {
                 .to_vec(),
             )
         });
-        let edit_transaction = EditTransaction::merge(edit_transactions);
+        let edit_transaction = EditTransaction::merge(edit_transactions.into());
         self.apply_edit_transaction(edit_transaction)
     }
 
     fn paste_text(
         &mut self,
         direction: Direction,
-        texts: Vec<String>,
+        copied_texts: CopiedTexts,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             self.get_selection_set_with_gap()
@@ -928,11 +925,7 @@ impl Editor {
                         Direction::End => current_range.end,
                     };
                     let insertion_range = insertion_range_start..insertion_range_start;
-                    let copied_text: Rope = texts
-                        .get(index)
-                        .or_else(|| texts.first())
-                        .map(|str| Rope::from_str(str))
-                        .unwrap_or_default();
+                    let copied_text: Rope = copied_texts.get(index).into();
                     let copied_text_len = copied_text.len_chars();
 
                     let (selection_range, paste_text) = if self.mode == Mode::Normal {
@@ -985,10 +978,8 @@ impl Editor {
         context: &Context,
         use_system_clipboard: bool,
     ) -> anyhow::Result<Dispatches> {
-        let copied_texts = if use_system_clipboard {
-            [context.get_from_system_clipboard()?].to_vec()
-        } else {
-            context.get_clipboard_content(0).unwrap_or_default()
+        let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
+            return Ok(Default::default());
         };
         self.paste_text(direction, copied_texts)
     }
@@ -1011,9 +1002,11 @@ impl Editor {
             Default::default()
         };
 
-        let copied_texts = context
-            .get_clipboard_content(history_offset)
-            .unwrap_or_default();
+        let Some(copied_texts) =
+            context.get_clipboard_content(use_system_clipboard, history_offset)?
+        else {
+            return Ok(Default::default());
+        };
 
         let edit_transaction = EditTransaction::merge(
             self.selection_set
@@ -1021,11 +1014,7 @@ impl Editor {
                 .into_iter()
                 .enumerate()
                 .map(|(index, selection)| {
-                    let replacement = copied_texts
-                        .get(index)
-                        .or_else(|| copied_texts.first())
-                        .map(|s| Rope::from_str(s))
-                        .unwrap_or_default();
+                    let replacement: Rope = copied_texts.get(index).into();
                     let replacement_text_len = replacement.len_chars();
                     let range = selection.extended_range();
                     EditTransaction::from_action_groups(
@@ -1241,26 +1230,28 @@ impl Editor {
 
     pub(crate) fn insert(&mut self, s: &str) -> anyhow::Result<Dispatches> {
         let edit_transaction =
-            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let range = selection.extended_range();
-                ActionGroup::new(
-                    [
-                        Action::Edit(Edit {
-                            range: {
-                                let start = selection.to_char_index(&Direction::End);
-                                (start..start).into()
-                            },
-                            new: Rope::from_str(s),
-                        }),
-                        Action::Select(
-                            selection
-                                .clone()
-                                .set_range((range.start + s.len()..range.start + s.len()).into()),
-                        ),
-                    ]
-                    .to_vec(),
-                )
-            }));
+            EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|selection| {
+                        let range = selection.extended_range();
+                        ActionGroup::new(
+                            [
+                                Action::Edit(Edit {
+                                    range: {
+                                        let start = selection.to_char_index(&Direction::End);
+                                        (start..start).into()
+                                    },
+                                    new: Rope::from_str(s),
+                                }),
+                                Action::Select(selection.clone().set_range(
+                                    (range.start + s.len()..range.start + s.len()).into(),
+                                )),
+                            ]
+                            .to_vec(),
+                        )
+                    })
+                    .into(),
+            );
 
         self.apply_edit_transaction(edit_transaction)
     }
@@ -1335,7 +1326,7 @@ impl Editor {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_bookmarks(selections)
+        self.buffer_mut().save_bookmarks(selections.into())
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -1647,20 +1638,23 @@ impl Editor {
     }
 
     pub(crate) fn backspace(&mut self) -> anyhow::Result<Dispatches> {
-        let edit_transaction =
-            EditTransaction::from_action_groups(self.selection_set.map(|selection| {
-                let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
-                ActionGroup::new(
-                    [
-                        Action::Edit(Edit {
-                            range: (start..selection.extended_range().start).into(),
-                            new: Rope::from(""),
-                        }),
-                        Action::Select(selection.clone().set_range((start..start).into())),
-                    ]
-                    .to_vec(),
-                )
-            }));
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| {
+                    let start = CharIndex(selection.extended_range().start.0.saturating_sub(1));
+                    ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: (start..selection.extended_range().start).into(),
+                                new: Rope::from(""),
+                            }),
+                            Action::Select(selection.clone().set_range((start..start).into())),
+                        ]
+                        .to_vec(),
+                    )
+                })
+                .into(),
+        );
 
         self.apply_edit_transaction(edit_transaction)
     }

@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use nonempty::NonEmpty;
 use std::ops::{Add, Sub};
 
 use crate::{
@@ -161,14 +162,15 @@ impl Default for SelectionSet {
 }
 
 impl SelectionSet {
-    pub(crate) fn map<F, A>(&self, f: F) -> Vec<A>
+    pub(crate) fn map<F, A>(&self, f: F) -> NonEmpty<A>
     where
         F: Fn(&Selection) -> A,
     {
-        vec![f(&self.primary)]
-            .into_iter()
-            .chain(self.secondary.iter().map(f))
-            .collect()
+        NonEmpty {
+            head: &self.primary,
+            tail: self.secondary.iter().collect(),
+        }
+        .map(f)
     }
 
     pub(crate) fn only(&mut self) {

@@ -1,16 +1,50 @@
+use itertools::Itertools;
+use nonempty::NonEmpty;
+
 #[derive(Clone)]
 pub(crate) struct Clipboard {
-    history: RingHistory<Vec<String>>,
+    history: RingHistory<CopiedTexts>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+/// Why is it a vector?  
+/// Because it needs to support multiple cursors.
+/// The first entry represent the copied text of the first cursor,
+/// and so forth.
+pub(crate) struct CopiedTexts {
+    texts: NonEmpty<String>,
+}
+impl CopiedTexts {
+    pub(crate) fn new(texts: NonEmpty<String>) -> Self {
+        Self { texts }
+    }
+
+    fn join(&self, separator: &str) -> String {
+        self.texts.clone().into_iter().join(separator)
+    }
+
+    /// Returns the first element if no element is found at the given `index`
+    pub(crate) fn get(&self, index: usize) -> String {
+        self.texts
+            .get(index)
+            .unwrap_or_else(|| self.texts.first())
+            .to_string()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn one(string: String) -> CopiedTexts {
+        CopiedTexts::new(NonEmpty::singleton(string))
+    }
 }
 
 impl Clipboard {
     pub(crate) fn new() -> Clipboard {
         Clipboard {
-            history: Default::default(),
+            history: RingHistory::new(),
         }
     }
 
-    pub(crate) fn get(&self, history_offset: isize) -> Option<Vec<String>> {
+    pub(crate) fn get(&self, history_offset: isize) -> Option<CopiedTexts> {
         self.history.get(history_offset)
     }
 
@@ -20,12 +54,12 @@ impl Clipboard {
 
     pub(crate) fn set(
         &mut self,
-        content: Vec<String>,
+        copied_texts: CopiedTexts,
         use_system_clipboard: bool,
     ) -> anyhow::Result<()> {
-        self.history.add(content.clone());
+        self.history.add(copied_texts.clone());
         if use_system_clipboard {
-            arboard::Clipboard::new()?.set_text(content.join("\n"))?
+            arboard::Clipboard::new()?.set_text(copied_texts.join("\n"))?
         }
         Ok(())
     }
@@ -62,6 +96,12 @@ impl<T: Clone> RingHistory<T> {
 
     pub(crate) fn add(&mut self, item: T) {
         self.items.push(item)
+    }
+
+    fn new() -> Self {
+        Self {
+            items: Default::default(),
+        }
     }
 }
 

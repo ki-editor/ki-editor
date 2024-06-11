@@ -25,6 +25,7 @@ use shared::canonicalized_path::CanonicalizedPath;
 use crate::{
     app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope},
     char_index_range::CharIndexRange,
+    clipboard::CopiedTexts,
     components::{
         component::Component,
         editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
@@ -664,7 +665,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(CursorKeepPrimaryOnly),
             App(SetClipboardContent {
                 use_system_clipboard: false,
-                contents: [".hello".to_owned()].to_vec(),
+                copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Paste {
@@ -1892,6 +1893,53 @@ c1 c2 c3"
 a1 a2 a3 a1\nb1\nc1
 b1 b2 b3 a1\nb1\nc1
 c1 c2 c3 a1\nb1\nc1
+"
+                    .trim(),
+                )),
+            ])
+        }
+    })
+}
+
+#[serial]
+#[test]
+fn replace_using_system_clipboard() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+a1 a2 a3
+b1 b2 b3
+c1 c2 c3"
+                        .trim()
+                        .to_string(),
+                )),
+                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(CursorAddToAllSelections),
+                Editor(SetSelectionMode(WordLong)),
+                Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
+                Editor(Copy {
+                    use_system_clipboard: true,
+                }),
+                Editor(MoveSelection(Next)),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
+                Editor(ReplaceWithCopiedText {
+                    cut: false,
+                    use_system_clipboard: true,
+                }),
+                Expect(CurrentSelectedTexts(&[
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                    "a1\nb1\nc1",
+                ])),
+                Expect(CurrentComponentContent(
+                    "
+a1 a2 a1\nb1\nc1
+b1 b2 a1\nb1\nc1
+c1 c2 a1\nb1\nc1
 "
                     .trim(),
                 )),
