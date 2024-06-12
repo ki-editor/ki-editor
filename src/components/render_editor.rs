@@ -48,7 +48,7 @@ impl Editor {
 
         let visible_lines_grid: Grid = Grid::new(Dimension { height, width });
 
-        let selection = &editor.selection_set.primary;
+        let selection = &editor.selection_set.primary_selection();
         // If the buffer selection is updated less recently than the window's scroll offset,
 
         // use the window's scroll offset.
@@ -56,7 +56,7 @@ impl Editor {
         let theme = context.theme();
 
         let possible_selections = self
-            .possible_selections_in_line_number_range(&self.selection_set.primary)
+            .possible_selections_in_line_number_range(self.selection_set.primary_selection())
             .unwrap_or_default()
             .into_iter()
             .map(|range| HighlightSpan {
@@ -77,7 +77,7 @@ impl Editor {
                 ranges: HighlightSpanRange::CharIndexRange(bookmark),
             })
             .collect_vec();
-        let secondary_selections = &editor.selection_set.secondary;
+        let secondary_selections = &editor.selection_set.secondary_selections();
         let primary_selection = HighlightSpan {
             set_symbol: None,
             is_cursor: false,

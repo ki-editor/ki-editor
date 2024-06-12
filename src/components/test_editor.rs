@@ -2221,3 +2221,26 @@ c1 c2 c3 c1"
         }
     })
 }
+
+#[test]
+/// Primary cursor should remain in position when entering insert mode
+fn multi_cursor_insert() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("hello world".to_string())),
+                Editor(SetSelectionMode(WordShort)),
+                Editor(EnterMultiCursorMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["hello", "world"])),
+                Editor(EnterInsertMode(Direction::End)),
+                App(HandleKeyEvent(key!("x"))),
+                Editor(EnterNormalMode),
+                Editor(CursorKeepPrimaryOnly),
+                Editor(MoveSelection(Current)),
+                Expect(CurrentSelectedTexts(&["worldx"])),
+            ])
+        }
+    })
+}

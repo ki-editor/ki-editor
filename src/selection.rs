@@ -10,6 +10,7 @@ use crate::{
         suggestive_editor::Info,
     },
     context::{LocalSearchConfigMode, Search},
+    non_empty_extensions::{NonEmptyTryCollectOption, NonEmptyTryCollectResult},
     position::Position,
     quickfix_list::DiagnosticSeverityRange,
     selection_mode::{self, ApplyMovementResult, SelectionModeParams},
@@ -17,8 +18,9 @@ use crate::{
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SelectionSet {
-    pub(crate) primary: Selection,
-    pub(crate) secondary: Vec<Selection>,
+    /// 0 means the cursor is at the first selection
+    cursor_index: usize,
+    selections: NonEmpty<Selection>,
     pub(crate) mode: SelectionMode,
     /// TODO: filters should be stored globally, not at SelectionSet
     pub(crate) filters: Filters,
@@ -153,8 +155,8 @@ impl Eq for FilterMechanism {}
 impl Default for SelectionSet {
     fn default() -> Self {
         Self {
-            primary: Selection::default(),
-            secondary: vec![],
+            cursor_index: 0,
+            selections: NonEmpty::singleton(Selection::default()),
             mode: SelectionMode::LineTrimmed,
             filters: Filters::default(),
         }
@@ -166,16 +168,13 @@ impl SelectionSet {
     where
         F: Fn(&Selection) -> A,
     {
-        NonEmpty {
-            head: &self.primary,
-            tail: self.secondary.iter().collect(),
-        }
-        .map(f)
+        self.selections.clone().map(|selection| f(&selection))
     }
 
     pub(crate) fn only(&mut self) {
-        self.secondary.clear();
-        self.primary.initial_range = None;
+        self.selections.head = self.primary_selection().clone().set_initial_range(None);
+        self.selections.tail.clear();
+        self.cursor_index = 0;
     }
 
     pub(crate) fn apply<F>(&self, mode: SelectionMode, f: F) -> anyhow::Result<SelectionSet>
@@ -183,12 +182,12 @@ impl SelectionSet {
         F: Fn(&Selection) -> anyhow::Result<Selection>,
     {
         Ok(SelectionSet {
-            primary: f(&self.primary)?,
-            secondary: self
-                .secondary
-                .iter()
-                .map(f)
-                .collect::<anyhow::Result<Vec<_>>>()?,
+            cursor_index: self.cursor_index,
+            selections: self
+                .selections
+                .clone()
+                .map(|selection| f(&selection))
+                .try_collect()?,
             mode,
             filters: self.filters.clone(),
         })
@@ -209,16 +208,14 @@ impl SelectionSet {
         });
     }
 
-    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> (A, Vec<A>)
+    pub(crate) fn apply_mut<F, A>(&mut self, f: F) -> NonEmpty<A>
     where
         F: Fn(&mut Selection) -> A,
     {
-        let head = f(&mut self.primary);
-        let mut tail = vec![];
-        for selection in &mut self.secondary {
-            tail.push(f(selection));
-        }
-        (head, tail)
+        let head = f(&mut self.selections.head);
+        let tail = self.selections.tail.iter_mut().map(f).collect_vec();
+
+        NonEmpty { head, tail }
     }
 
     pub(crate) fn generate(
@@ -228,7 +225,7 @@ impl SelectionSet {
         direction: &Movement,
         cursor_direction: &Direction,
     ) -> anyhow::Result<Option<SelectionSet>> {
-        let result = self
+        let Some(selections) = self
             .map(|selection| {
                 Selection::get_selection_(
                     buffer,
@@ -239,26 +236,16 @@ impl SelectionSet {
                     &self.filters,
                 )
             })
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
-        let result_len = result.len();
-        let filtered = result.into_iter().flatten().collect_vec();
-        if filtered.len() != result_len {
+            .try_collect()?
+            .try_collect()
+        else {
             return Ok(None);
-        }
-        let (
-            ApplyMovementResult {
-                selection,
-                mode: new_mode,
-            },
-            tail,
-        ) = filtered
-            .split_first()
-            .expect("We should refactor `SelectionSet::map` to return NonEmpty instead of Vec.");
+        };
+
         Ok(Some(SelectionSet {
-            primary: selection.to_owned(),
-            secondary: tail.iter().map(|it| it.selection.to_owned()).collect(),
-            mode: new_mode.clone().unwrap_or_else(|| mode.clone()),
+            cursor_index: self.cursor_index,
+            mode: selections.head.mode.clone().unwrap_or_else(|| mode.clone()),
+            selections: selections.clone().map(|selection| selection.selection),
             filters: self.filters.clone(),
         }))
     }
@@ -269,9 +256,12 @@ impl SelectionSet {
         direction: &Movement,
         cursor_direction: &Direction,
     ) -> anyhow::Result<()> {
-        let last_selection = &self.primary;
+        let last_selection = &self
+            .selections
+            .get(self.cursor_index)
+            .unwrap_or(self.selections.last());
 
-        if let Some(next_selection) = Selection::get_selection_(
+        if let Some(new_selection) = Selection::get_selection_(
             buffer,
             last_selection,
             &self.mode,
@@ -279,20 +269,28 @@ impl SelectionSet {
             cursor_direction,
             &self.filters,
         )? {
-            let next_selection = next_selection.selection;
+            let new_selection = new_selection.selection;
 
-            let matching_index = self.secondary.iter().enumerate().find(|(_, selection)| {
-                selection.extended_range() == next_selection.extended_range()
-            });
-            let previous_primary = std::mem::replace(&mut self.primary, next_selection);
+            let new_selection_range = new_selection.extended_range();
 
-            if let Some((matching_index, _)) = matching_index {
-                log::info!("Remove = {}", matching_index);
-                self.secondary.remove(matching_index);
+            // Only add this selection if it is distinct from the existing selections
+            if !self
+                .selections
+                .iter()
+                .any(|selection| selection.extended_range() == new_selection.extended_range())
+            {
+                self.selections.push(new_selection);
             }
 
-            log::info!("Push");
-            self.secondary.push(previous_primary);
+            let matching_index = self
+                .selections
+                .iter()
+                .enumerate()
+                .find(|(_, selection)| selection.extended_range() == new_selection_range);
+
+            if let Some((matching_index, _)) = matching_index {
+                self.cursor_index = matching_index
+            }
         }
 
         Ok(())
@@ -325,7 +323,7 @@ impl SelectionSet {
                     .ok()?;
                 let result = iter
                     .filter_map(|range| -> Option<Selection> {
-                        range.to_selection(buffer, &self.primary).ok()
+                        range.to_selection(buffer, &self.selections.head).ok()
                     })
                     .collect_vec();
                 Some(result)
@@ -337,8 +335,11 @@ impl SelectionSet {
             .collect_vec()
             .split_first()
         {
-            head.clone_into(&mut self.primary);
-            self.secondary = tail.to_vec();
+            self.selections = NonEmpty {
+                head: (*head).clone(),
+                tail: tail.to_vec(),
+            };
+            self.cursor_index = 0;
         };
         Ok(())
     }
@@ -358,19 +359,19 @@ impl SelectionSet {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.secondary.len() + 1
+        self.selections.len() + 1
     }
 
     pub(crate) fn filter_push(self, filter: Filter) -> SelectionSet {
         let SelectionSet {
-            primary,
-            secondary,
+            selections,
             mode,
             filters,
+            cursor_index,
         } = self;
         Self {
-            primary,
-            secondary,
+            cursor_index,
+            selections,
             mode,
             filters: filters.push(filter),
         }
@@ -385,6 +386,46 @@ impl SelectionSet {
 
     pub(crate) fn unset_initial_range(&mut self) {
         self.apply_mut(|selection| selection.initial_range = None);
+    }
+
+    pub(crate) fn new(selections: NonEmpty<Selection>) -> Self {
+        Self {
+            selections,
+            ..Default::default()
+        }
+    }
+
+    pub(crate) fn primary_selection(&self) -> &Selection {
+        if let Some(selection) = self.selections.get(self.cursor_index) {
+            selection
+        } else {
+            #[cfg(test)]
+            {
+                unreachable!();
+            }
+
+            // In production code, we do not want to crash the app
+            // Just carry on
+            #[allow(unreachable_code)]
+            self.selections.first()
+        }
+    }
+
+    pub(crate) fn set_selections(self, selections: NonEmpty<Selection>) -> SelectionSet {
+        Self { selections, ..self }
+    }
+
+    pub(crate) fn set_mode(self, mode: SelectionMode) -> SelectionSet {
+        Self { mode, ..self }
+    }
+
+    pub(crate) fn secondary_selections(&self) -> Vec<&Selection> {
+        self.selections
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| index != &self.cursor_index)
+            .map(|(_, selection)| selection)
+            .collect_vec()
     }
 }
 
