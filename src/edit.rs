@@ -1,11 +1,12 @@
 use std::ops::Range;
 
 use itertools::Itertools;
+use nonempty::NonEmpty;
 use ropey::Rope;
 
 use crate::{
     char_index_range::CharIndexRange,
-    selection::{CharIndex, Selection, SelectionSet},
+    selection::{CharIndex, Selection},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -198,17 +199,11 @@ impl EditTransaction {
         (self.min_char_index()..self.max_char_index()).into()
     }
 
-    pub(crate) fn selection_set(
-        &self,
-        mode: crate::selection::SelectionMode,
-        filters: crate::selection::Filters,
-    ) -> Option<SelectionSet> {
+    pub(crate) fn non_empty_selections(&self) -> Option<NonEmpty<Selection>> {
         if let Some((head, tail)) = self.selections().split_first() {
-            Some(SelectionSet {
-                primary: (*head).clone(),
-                secondary: tail.iter().map(|selection| (*selection).clone()).collect(),
-                mode,
-                filters,
+            Some(NonEmpty {
+                head: (*head).to_owned(),
+                tail: tail.iter().map(|selection| (*selection).clone()).collect(),
             })
         } else {
             None

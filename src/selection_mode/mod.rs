@@ -111,7 +111,7 @@ pub(crate) struct SelectionModeParams<'a> {
     pub(crate) cursor_direction: &'a Direction,
     pub(crate) filters: &'a Filters,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ApplyMovementResult {
     pub(crate) selection: Selection,
     pub(crate) mode: Option<crate::selection::SelectionMode>,

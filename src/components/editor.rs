@@ -6,7 +6,7 @@ use crate::{
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     history::History,
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
-    selection::{Filter, Filters},
+    selection::Filter,
     selection_mode::{self, CaseAgnostic},
     surround::EnclosureKind,
     transformation::Transformation,
@@ -495,12 +495,7 @@ impl Editor {
 
     pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
         Self {
-            selection_set: SelectionSet {
-                primary: Selection::default(),
-                secondary: vec![],
-                mode: SelectionMode::Custom,
-                filters: Filters::default(),
-            },
+            selection_set: SelectionSet::default(),
             jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
@@ -518,12 +513,7 @@ impl Editor {
 
     pub(crate) fn from_buffer(buffer: Rc<RefCell<Buffer>>) -> Self {
         Self {
-            selection_set: SelectionSet {
-                primary: Selection::default(),
-                secondary: vec![],
-                mode: SelectionMode::LineTrimmed,
-                filters: Filters::default(),
-            },
+            selection_set: SelectionSet::default(),
             jumps: None,
             mode: Mode::Normal,
             cursor_direction: Direction::Start,
@@ -561,21 +551,16 @@ impl Editor {
 
     pub(crate) fn select_line_at(&mut self, line: usize) -> anyhow::Result<Dispatches> {
         let start = self.buffer.borrow().line_to_char(line)?;
-        let selection_set = SelectionSet {
-            primary: Selection::new(
-                (start
-                    ..start
-                        + self
-                            .buffer
-                            .borrow()
-                            .get_line_by_char_index(start)?
-                            .len_chars())
-                    .into(),
-            ),
-            secondary: vec![],
-            mode: SelectionMode::LineTrimmed,
-            filters: Filters::default(),
-        };
+        let selection_set = SelectionSet::new(NonEmpty::singleton(Selection::new(
+            (start
+                ..start
+                    + self
+                        .buffer
+                        .borrow()
+                        .get_line_by_char_index(start)?
+                        .len_chars())
+                .into(),
+        )));
 
         Ok(self.update_selection_set(selection_set, false))
     }
@@ -617,13 +602,12 @@ impl Editor {
         } else {
             SelectionMode::Custom
         };
-        let primary = self.selection_set.primary.clone().set_range(range);
-        Ok(SelectionSet {
-            primary,
-            secondary: vec![],
-            mode,
-            filters: Filters::default(),
-        })
+        let primary = self
+            .selection_set
+            .primary_selection()
+            .clone()
+            .set_range(range);
+        Ok(SelectionSet::new(NonEmpty::new(primary)).set_mode(mode))
     }
 
     fn cursor_row(&self) -> u16 {
@@ -731,7 +715,7 @@ impl Editor {
 
     pub(crate) fn show_jumps(&mut self, use_current_selection_mode: bool) -> anyhow::Result<()> {
         self.jump_from_selection(
-            &self.selection_set.primary.clone(),
+            &self.selection_set.primary_selection().clone(),
             use_current_selection_mode,
         )
     }
@@ -1117,7 +1101,7 @@ impl Editor {
 
     pub(crate) fn get_cursor_char_index(&self) -> CharIndex {
         self.selection_set
-            .primary
+            .primary_selection()
             .to_char_index(&self.cursor_direction)
     }
 
@@ -1410,15 +1394,13 @@ impl Editor {
         let start = (self.buffer.borrow().line_to_char(row as usize)?) + column.into();
         let primary = self
             .selection_set
-            .primary
+            .primary_selection()
             .clone()
             .set_range((start..start).into());
         Ok(self.update_selection_set(
-            SelectionSet {
-                mode: self.selection_set.mode.clone(),
-                primary,
-                ..self.selection_set.clone()
-            },
+            self.selection_set
+                .clone()
+                .set_selections(NonEmpty::new(primary)),
             true,
         ))
     }

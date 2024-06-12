@@ -742,7 +742,7 @@ impl Editor {
                             )))
                             .chain(
                                 self.buffer()
-                                    .get_current_node(&self.selection_set.primary, false)
+                                    .get_current_node(self.selection_set.primary_selection(), false)
                                     .ok()
                                     .flatten()
                                     .map(|node| {
@@ -789,7 +789,7 @@ impl Editor {
                     .into_iter()
                     .chain(
                         self.buffer()
-                            .slice(&self.selection_set.primary.extended_range())
+                            .slice(&self.selection_set.primary_selection().extended_range())
                             .map(|search| {
                                 Keymap::new(
                                     "c",
