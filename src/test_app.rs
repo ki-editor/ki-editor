@@ -440,19 +440,19 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
             Editor(SelectAll),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -499,7 +499,7 @@ fn copy_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(SelectionMode::Token)),
+            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
@@ -526,7 +526,7 @@ fn cut_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(Token)),
+            Editor(SetSelectionMode(Movement::Current, Token)),
             Editor(ChangeCut {
                 use_system_clipboard: false,
             }),
@@ -551,7 +551,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(Token)),
+            Editor(SetSelectionMode(Movement::Current, Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
@@ -580,7 +580,7 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(SelectionMode::Token)),
+            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
@@ -611,7 +611,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(SelectionMode::Token)),
+            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
@@ -622,7 +622,10 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             }),
             Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
-            Editor(SetSelectionMode(SelectionMode::SyntaxNodeCoarse)),
+            Editor(SetSelectionMode(
+                Movement::Current,
+                SelectionMode::SyntaxNodeCoarse,
+            )),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -643,7 +646,10 @@ fn multi_paste() -> anyhow::Result<()> {
                 "fn f(){ let x = S(spongebob_squarepants); let y = S(b); }".to_string(),
             )),
             Editor(MatchLiteral("let x = S(spongebob_squarepants);".to_owned())),
-            Editor(SetSelectionMode(SelectionMode::SyntaxNodeCoarse)),
+            Editor(SetSelectionMode(
+                Movement::Current,
+                SelectionMode::SyntaxNodeCoarse,
+            )),
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
             Editor(MoveSelection(Movement::FirstChild)),
@@ -700,7 +706,7 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(SelectionMode::Token)),
+            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
             Expect(CurrentMode(Mode::Normal)),
             //
             // Signature help should not be shown in normal mode
@@ -759,7 +765,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
         Box::new([
             // Delete the first line of main.rs
             App(OpenFile(s.main_rs().clone())),
-            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
             Editor(Delete { backward: false }),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
@@ -866,7 +872,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(LineTrimmed)),
+            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
             Editor(SelectAll),
             Editor(Delete { backward: false }),
             Editor(Insert(
@@ -931,10 +937,10 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(WordShort)),
+            Editor(SetSelectionMode(Movement::Current, WordShort)),
             Editor(ToggleBookmark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(WordShort)),
+            Editor(SetSelectionMode(Movement::Current, WordShort)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Bookmark,
@@ -1286,7 +1292,10 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                     version: None,
                 }),
             )),
-            Editor(SetSelectionMode(Diagnostic(DiagnosticSeverityRange::All))),
+            Editor(SetSelectionMode(
+                Movement::Current,
+                Diagnostic(DiagnosticSeverityRange::All),
+            )),
             Expect(EditorInfoOpen(true)),
             Expect(EditorInfoContent("Hello world")),
             App(HandleKeyEvent(key!("esc"))),
@@ -1400,7 +1409,10 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                     version: None,
                 }),
             )),
-            Editor(SetSelectionMode(Diagnostic(DiagnosticSeverityRange::All))),
+            Editor(SetSelectionMode(
+                Movement::Current,
+                Diagnostic(DiagnosticSeverityRange::All),
+            )),
             Expect(EditorInfoContent(expected_info)),
             // Expect there's only one diagnostic, by the fact that moving to the first and
             // last diagnostic still renders the same info
@@ -1869,9 +1881,9 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(WordLong)),
+                Editor(SetSelectionMode(Movement::Current, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -1916,9 +1928,9 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(LineTrimmed)),
+                Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(WordLong)),
+                Editor(SetSelectionMode(Movement::Current, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,

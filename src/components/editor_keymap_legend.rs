@@ -58,7 +58,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "s",
-                    "Spring (Jump)".to_string(),
+                    "Sneak".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps {
                         use_current_selection_mode: true,
                     }),
@@ -124,56 +124,69 @@ impl Editor {
                 Keymap::new(
                     "e",
                     "Line (Trimmed)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(LineTrimmed)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, LineTrimmed)),
                 ),
                 Keymap::new(
                     "E",
                     "Line (Full)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(LineFull)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, LineFull)),
                 ),
                 Keymap::new(
                     "f",
-                    "Find (Local)".to_string(),
-                    Dispatch::ShowKeymapLegend(
-                        self.find_keymap_legend_config(context, Scope::Local),
-                    ),
+                    "Find (Local) - Forward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        Movement::Next,
+                    )),
+                ),
+                Keymap::new(
+                    "F",
+                    "Find (Local) - Backward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        Movement::Previous,
+                    )),
                 ),
                 Keymap::new(
                     "g",
                     "Find (Global)".to_string(),
-                    Dispatch::ShowKeymapLegend(
-                        self.find_keymap_legend_config(context, Scope::Global),
-                    ),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Global,
+                        Movement::Current,
+                    )),
                 ),
                 Keymap::new(
                     "n",
                     "Syntax Node (Coarse)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(SyntaxNodeCoarse)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, SyntaxNodeCoarse)),
                 ),
                 Keymap::new(
                     "N",
                     "Syntax Node (Fine)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(SyntaxNodeFine)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, SyntaxNodeFine)),
                 ),
                 Keymap::new(
                     "t",
                     "Token".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(Token)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, Token)),
                 ),
                 Keymap::new(
                     "u",
                     "Column".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(Column)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, Column)),
                 ),
                 Keymap::new(
                     "w",
                     "Word (Short)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(WordShort)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, WordShort)),
                 ),
                 Keymap::new(
                     "W",
                     "Word (Long)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(WordLong)),
+                    Dispatch::ToEditor(SetSelectionMode(Movement::Current, WordLong)),
                 ),
             ]),
         }
@@ -490,7 +503,9 @@ impl Editor {
                 Keymap::new(
                     "'",
                     "Find literal".to_string(),
-                    Dispatch::ShowKeymapLegend(self.show_literal_keymap_legend_config()),
+                    Dispatch::ShowKeymapLegend(
+                        self.show_literal_keymap_legend_config(Movement::Next),
+                    ),
                 ),
                 Keymap::new("*", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
                 Keymap::new(
@@ -768,6 +783,7 @@ impl Editor {
         &self,
         context: &Context,
         scope: Scope,
+        movement: Movement,
     ) -> KeymapLegendConfig {
         let search_keymaps = {
             let config = context.get_local_search_config(scope);
@@ -830,7 +846,9 @@ impl Editor {
                         "Mark".to_string(),
                         match scope {
                             Scope::Global => Dispatch::SetQuickfixList(QuickfixListType::Bookmark),
-                            Scope::Local => Dispatch::ToEditor(SetSelectionMode(Bookmark)),
+                            Scope::Local => {
+                                Dispatch::ToEditor(SetSelectionMode(movement, Bookmark))
+                            }
                         },
                     ),
                     Keymap::new(
@@ -840,9 +858,12 @@ impl Editor {
                             Scope::Global => Dispatch::SetGlobalMode(Some(
                                 crate::context::GlobalMode::QuickfixListItem,
                             )),
-                            Scope::Local => Dispatch::ToEditor(SetSelectionMode(LocalQuickfix {
-                                title: "LOCAL QUICKFIX".to_string(),
-                            })),
+                            Scope::Local => Dispatch::ToEditor(SetSelectionMode(
+                                movement,
+                                LocalQuickfix {
+                                    title: "LOCAL QUICKFIX".to_string(),
+                                },
+                            )),
                         },
                     ),
                 ]
@@ -858,9 +879,10 @@ impl Editor {
                             format!("Git hunk ({})", diff_mode.display()),
                             match scope {
                                 Scope::Global => Dispatch::GetRepoGitHunks(diff_mode),
-                                Scope::Local => {
-                                    Dispatch::ToEditor(SetSelectionMode(GitHunk(diff_mode)))
-                                }
+                                Scope::Local => Dispatch::ToEditor(SetSelectionMode(
+                                    movement,
+                                    GitHunk(diff_mode),
+                                )),
                             },
                         )
                     }),
@@ -882,7 +904,9 @@ impl Editor {
                     char,
                     description.to_string(),
                     match scope {
-                        Scope::Local => Dispatch::ToEditor(SetSelectionMode(Diagnostic(severity))),
+                        Scope::Local => {
+                            Dispatch::ToEditor(SetSelectionMode(movement, Diagnostic(severity)))
+                        }
                         Scope::Global => {
                             Dispatch::SetQuickfixList(QuickfixListType::Diagnostic(severity))
                         }
@@ -1160,7 +1184,10 @@ impl Editor {
         }
     }
 
-    pub(crate) fn show_literal_keymap_legend_config(&self) -> KeymapLegendConfig {
+    pub(crate) fn show_literal_keymap_legend_config(
+        &self,
+        movement: Movement,
+    ) -> KeymapLegendConfig {
         KeymapLegendConfig {
             title: "Find literal".to_string(),
 
@@ -1182,19 +1209,20 @@ impl Editor {
                                 case_sensitive: false,
                             }),
                         };
-                        let dispatch = Dispatch::ToEditor(SetSelectionMode(Find { search }));
+                        let dispatch =
+                            Dispatch::ToEditor(SetSelectionMode(movement, Find { search }));
                         Keymap::new(key, description.to_string(), dispatch)
                     })
                     .chain([
                         Keymap::new(
                             "o",
                             "One character".to_string(),
-                            Dispatch::ToEditor(FindOneChar),
+                            Dispatch::ToEditor(FindOneChar(movement)),
                         ),
                         Keymap::new(
                             "space",
                             "Empty line".to_string(),
-                            Dispatch::ToEditor(SetSelectionMode(EmptyLine)),
+                            Dispatch::ToEditor(SetSelectionMode(movement, EmptyLine)),
                         ),
                     ])
                     .collect_vec(),

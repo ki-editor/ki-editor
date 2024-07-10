@@ -51,7 +51,7 @@ pub(crate) enum Mode {
     Normal,
     Insert,
     MultiCursor,
-    FindOneChar,
+    FindOneChar(Movement),
     Exchange,
     UndoTree,
     Replace,
@@ -189,11 +189,11 @@ impl Component for Editor {
             #[cfg(test)]
             AlignViewBottom => self.align_cursor_to_bottom(),
             Transform(transformation) => return self.transform_selection(transformation),
-            SetSelectionMode(selection_mode) => {
-                return self.set_selection_mode(selection_mode);
+            SetSelectionMode(movement, selection_mode) => {
+                return self.set_selection_mode(movement, selection_mode);
             }
 
-            FindOneChar => self.enter_single_character_mode(),
+            FindOneChar(movement) => self.enter_single_character_mode(movement),
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy {
@@ -653,13 +653,7 @@ impl Editor {
         movement: Movement,
     ) -> anyhow::Result<Dispatches> {
         //  There are a few selection modes where Current make sense.
-        let direction = if self.selection_set.mode != selection_mode {
-            Movement::Current
-        } else {
-            movement
-        };
-
-        if let Some(selection_set) = self.get_selection_set(&selection_mode, direction)? {
+        if let Some(selection_set) = self.get_selection_set(&selection_mode, movement)? {
             Ok(self.update_selection_set(selection_set, true))
         } else {
             Ok(Default::default())
@@ -1123,7 +1117,9 @@ impl Editor {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
                         Mode::Insert => self.handle_insert_mode(key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
-                        Mode::FindOneChar => self.handle_find_one_char_mode(key_event),
+                        Mode::FindOneChar(movement) => {
+                            self.handle_find_one_char_mode(*movement, key_event)
+                        }
                         Mode::Exchange => self.handle_normal_mode(context, key_event),
                         Mode::UndoTree => self.handle_normal_mode(context, key_event),
                         Mode::Replace => self.handle_normal_mode(context, key_event),
@@ -1254,19 +1250,17 @@ impl Editor {
 
     pub(crate) fn set_selection_mode(
         &mut self,
+        movement: Movement,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Dispatches> {
-        self.move_selection_with_selection_mode_without_global_mode(
-            Movement::Current,
-            selection_mode,
-        )
-        .map(|dispatches| {
-            Some(Dispatch::SetGlobalMode(None))
-                .into_iter()
-                .chain(dispatches.into_vec())
-                .collect::<Vec<_>>()
-                .into()
-        })
+        self.move_selection_with_selection_mode_without_global_mode(movement, selection_mode)
+            .map(|dispatches| {
+                Some(Dispatch::SetGlobalMode(None))
+                    .into_iter()
+                    .chain(dispatches.into_vec())
+                    .collect::<Vec<_>>()
+                    .into()
+            })
     }
 
     fn move_selection_with_selection_mode(
@@ -2025,7 +2019,7 @@ impl Editor {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
-            Mode::FindOneChar => "FIND ONE CHAR",
+            Mode::FindOneChar(Movement) => "FIND ONE CHAR",
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
@@ -2072,27 +2066,31 @@ impl Editor {
         self.selection_set.only();
     }
 
-    fn enter_single_character_mode(&mut self) {
-        self.mode = Mode::FindOneChar;
+    fn enter_single_character_mode(&mut self, movement: Movement) {
+        self.mode = Mode::FindOneChar(movement);
     }
 
     fn handle_find_one_char_mode(
         &mut self,
+        movement: Movement,
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
                 self.mode = Mode::Normal;
-                self.set_selection_mode(SelectionMode::Find {
-                    search: Search {
-                        search: c.to_string(),
-                        mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
-                            escaped: true,
-                            case_sensitive: true,
-                            match_whole_word: false,
-                        }),
+                self.set_selection_mode(
+                    movement,
+                    SelectionMode::Find {
+                        search: Search {
+                            search: c.to_string(),
+                            mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
+                                escaped: true,
+                                case_sensitive: true,
+                                match_whole_word: false,
+                            }),
+                        },
                     },
-                })
+                )
             }
             KeyCode::Esc => {
                 self.mode = Mode::Normal;
@@ -2112,16 +2110,19 @@ impl Editor {
 
     #[cfg(test)]
     pub(crate) fn match_literal(&mut self, search: &str) -> anyhow::Result<Dispatches> {
-        self.set_selection_mode(SelectionMode::Find {
-            search: Search {
-                mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
-                    escaped: true,
-                    case_sensitive: false,
-                    match_whole_word: false,
-                }),
-                search: search.to_string(),
+        self.set_selection_mode(
+            Movement::Current,
+            SelectionMode::Find {
+                search: Search {
+                    mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    }),
+                    search: search.to_string(),
+                },
             },
-        })
+        )
     }
 
     pub(crate) fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
@@ -2393,7 +2394,7 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(SelectionMode::Custom);
+        let _ = self.set_selection_mode(Movement::Current, SelectionMode::Custom);
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -2457,7 +2458,7 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(SelectionMode::Custom);
+        let _ = self.set_selection_mode(Movement::Current, SelectionMode::Custom);
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -2600,9 +2601,9 @@ pub(crate) enum DispatchEditor {
     #[cfg(test)]
     AlignViewBottom,
     Transform(Transformation),
-    SetSelectionMode(SelectionMode),
+    SetSelectionMode(Movement, SelectionMode),
     Save,
-    FindOneChar,
+    FindOneChar(Movement),
     MoveSelection(Movement),
     SwitchViewAlignment,
     Copy {

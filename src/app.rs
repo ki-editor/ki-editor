@@ -632,7 +632,10 @@ impl<T: Frontend> App<T> {
                 update,
                 scope,
                 show_config_after_enter,
-            } => self.update_local_search_config(update, scope, show_config_after_enter)?,
+                movement,
+            } => {
+                self.update_local_search_config(update, scope, show_config_after_enter, movement)?
+            }
             Dispatch::UpdateGlobalSearchConfig { update } => {
                 self.update_global_search_config(update)?;
             }
@@ -694,17 +697,20 @@ impl<T: Frontend> App<T> {
         self.layout.close_current_window()
     }
 
-    fn local_search(&mut self) -> anyhow::Result<()> {
+    fn local_search(&mut self, movement: Movement) -> anyhow::Result<()> {
         let config = self.context.local_search_config();
         let search = config.search();
         if !search.is_empty() {
             self.handle_dispatch_editor_custom(
-                SetSelectionMode(SelectionMode::Find {
-                    search: Search {
-                        mode: config.mode,
-                        search,
+                SetSelectionMode(
+                    movement,
+                    SelectionMode::Find {
+                        search: Search {
+                            mode: config.mode,
+                            search,
+                        },
                     },
-                }),
+                ),
                 self.current_component(),
             )?;
         }
@@ -1148,6 +1154,7 @@ impl<T: Frontend> App<T> {
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
+                Movement::Current,
                 SelectionMode::LocalQuickfix { title },
             ))),
         }
@@ -1472,10 +1479,11 @@ impl<T: Frontend> App<T> {
         update: LocalSearchConfigUpdate,
         scope: Scope,
         show_legend: bool,
+        movement: Movement,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         match scope {
-            Scope::Local => self.local_search()?,
+            Scope::Local => self.local_search(movement)?,
             Scope::Global => {
                 self.global_search()?;
             }
@@ -1535,6 +1543,7 @@ impl<T: Frontend> App<T> {
                         update,
                         scope,
                         show_config_after_enter: true,
+                        movement: Movement::Current,
                     },
                 )
             };
@@ -2142,6 +2151,7 @@ pub(crate) enum Dispatch {
         update: LocalSearchConfigUpdate,
         scope: Scope,
         show_config_after_enter: bool,
+        movement: Movement,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
