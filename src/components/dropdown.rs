@@ -457,7 +457,7 @@ impl Dropdown {
     pub(crate) fn apply_movement(&mut self, movement: Movement) {
         match movement {
             Movement::Next => self.next_item(),
-            Movement::Current => {}
+            Movement::Current(_) => {}
             Movement::Previous => self.previous_item(),
             Movement::Last => self.last_item(),
             Movement::First => self.first_item(),

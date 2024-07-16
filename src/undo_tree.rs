@@ -65,7 +65,7 @@ impl<T: Applicable> UndoTree<T> {
             Movement::Last => Err(anyhow::anyhow!(
                 "UndoTree: moving to Last is not supported yet",
             )),
-            Movement::Current => Err(anyhow::anyhow!(
+            Movement::Current(_) => Err(anyhow::anyhow!(
                 "UndoTree: moving to Current is not supported yet",
             )),
             Movement::Up => {

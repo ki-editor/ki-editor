@@ -28,7 +28,7 @@ use crate::{
     clipboard::CopiedTexts,
     components::{
         component::Component,
-        editor::{Direction, DispatchEditor, Mode, Movement, ViewAlignment},
+        editor::{Direction, DispatchEditor, IfCurrentNotFound, Mode, Movement, ViewAlignment},
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
@@ -440,19 +440,28 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
             Editor(SelectAll),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -499,7 +508,10 @@ fn copy_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Token,
+            )),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
@@ -526,13 +538,13 @@ fn cut_replace() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(Movement::Current, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(ChangeCut {
                 use_system_clipboard: false,
             }),
             Editor(EnterNormalMode),
             Expect(CurrentComponentContent(" main() { let x = 1; }")),
-            Editor(MoveSelection(Current)),
+            Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
             Expect(CurrentSelectedTexts(&["main"])),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -551,7 +563,7 @@ fn highlight_mode_cut() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(Movement::Current, Token)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
@@ -580,7 +592,10 @@ fn highlight_mode_copy() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Token,
+            )),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
@@ -611,7 +626,10 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Token,
+            )),
             Editor(ToggleVisualMode),
             Editor(MoveSelection(Movement::Next)),
             Editor(MoveSelection(Movement::Next)),
@@ -623,7 +641,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(Reset),
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(
-                Movement::Current,
+                IfCurrentNotFound::LookForward,
                 SelectionMode::SyntaxNodeCoarse,
             )),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
@@ -647,7 +665,7 @@ fn multi_paste() -> anyhow::Result<()> {
             )),
             Editor(MatchLiteral("let x = S(spongebob_squarepants);".to_owned())),
             Editor(SetSelectionMode(
-                Movement::Current,
+                IfCurrentNotFound::LookForward,
                 SelectionMode::SyntaxNodeCoarse,
             )),
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
@@ -706,7 +724,10 @@ fn signature_help() -> anyhow::Result<()> {
             Editor(SetContent(
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
-            Editor(SetSelectionMode(Movement::Current, SelectionMode::Token)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SelectionMode::Token,
+            )),
             Expect(CurrentMode(Mode::Normal)),
             //
             // Signature help should not be shown in normal mode
@@ -765,7 +786,10 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
         Box::new([
             // Delete the first line of main.rs
             App(OpenFile(s.main_rs().clone())),
-            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
             Editor(Delete { backward: false }),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
@@ -872,7 +896,10 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
             Editor(SelectAll),
             Editor(Delete { backward: false }),
             Editor(Insert(
@@ -937,10 +964,10 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(Movement::Current, WordShort)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
             Editor(ToggleBookmark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(Movement::Current, WordShort)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Bookmark,
@@ -1070,6 +1097,7 @@ fn test_global_search_replace(
                 update,
                 scope: Scope::Global,
                 show_config_after_enter: true,
+                if_current_not_found: IfCurrentNotFound::LookForward,
             }
         };
         let main_rs = s.main_rs();
@@ -1166,6 +1194,7 @@ fn quickfix_list() -> Result<(), anyhow::Error> {
                 update,
                 scope: Scope::Global,
                 show_config_after_enter: false,
+                if_current_not_found: IfCurrentNotFound::LookForward,
             }
         };
         Box::new([
@@ -1293,7 +1322,7 @@ fn diagnostic_info() -> Result<(), anyhow::Error> {
                 }),
             )),
             Editor(SetSelectionMode(
-                Movement::Current,
+                IfCurrentNotFound::LookForward,
                 Diagnostic(DiagnosticSeverityRange::All),
             )),
             Expect(EditorInfoOpen(true)),
@@ -1410,7 +1439,7 @@ fn same_range_diagnostics_should_be_merged() -> Result<(), anyhow::Error> {
                 }),
             )),
             Editor(SetSelectionMode(
-                Movement::Current,
+                IfCurrentNotFound::LookForward,
                 Diagnostic(DiagnosticSeverityRange::All),
             )),
             Expect(EditorInfoContent(expected_info)),
@@ -1790,6 +1819,7 @@ fn open_search_prompt_in_file_explorer() -> anyhow::Result<()> {
             Expect(CurrentComponentTitle("File Explorer")),
             App(OpenSearchPrompt {
                 scope: Scope::Local,
+                if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             Expect(Not(Box::new(CurrentComponentTitle("File Explorer")))),
             App(HandleKeyEvents(keys!("m a i n enter").to_vec())),
@@ -1806,6 +1836,7 @@ fn global_search_should_not_using_empty_pattern() -> anyhow::Result<()> {
                 update: LocalSearchConfigUpdate::Search("".to_string()),
                 scope: Scope::Global,
                 show_config_after_enter: true,
+                if_current_not_found: IfCurrentNotFound::LookForward,
             }),
             Expect(ExpectKind::Quickfixes(Box::new([]))),
         ])
@@ -1881,9 +1912,12 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    LineTrimmed,
+                )),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(Movement::Current, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -1928,9 +1962,12 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(Movement::Current, LineTrimmed)),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    LineTrimmed,
+                )),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(Movement::Current, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,

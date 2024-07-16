@@ -4,7 +4,7 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{DispatchEditor, Editor, Movement},
+        editor::{DispatchEditor, Editor, IfCurrentNotFound, Movement},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
@@ -389,7 +389,10 @@ impl<T: Frontend> App<T> {
             Dispatch::CloseCurrentWindowAndFocusParent => {
                 self.close_current_window_and_focus_parent();
             }
-            Dispatch::OpenSearchPrompt { scope } => self.open_search_prompt(scope)?,
+            Dispatch::OpenSearchPrompt {
+                scope,
+                if_current_not_found,
+            } => self.open_search_prompt(scope, if_current_not_found)?,
             Dispatch::OpenFile(path) => {
                 self.open_file(&path, OpenFileOption::Focus)?;
             }
@@ -632,21 +635,37 @@ impl<T: Frontend> App<T> {
                 update,
                 scope,
                 show_config_after_enter,
-                movement,
+                if_current_not_found,
+            } => self.update_local_search_config(
+                update,
+                scope,
+                show_config_after_enter,
+                if_current_not_found,
+            )?,
+            Dispatch::UpdateGlobalSearchConfig {
+                update,
+                if_current_not_found,
             } => {
-                self.update_local_search_config(update, scope, show_config_after_enter, movement)?
+                self.update_global_search_config(update, if_current_not_found)?;
             }
-            Dispatch::UpdateGlobalSearchConfig { update } => {
-                self.update_global_search_config(update)?;
+            Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
+                filter_glob,
+                if_current_not_found,
+            } => {
+                self.open_set_global_search_filter_glob_prompt(filter_glob, if_current_not_found)?
             }
-            Dispatch::OpenSetGlobalSearchFilterGlobPrompt { filter_glob } => {
-                self.open_set_global_search_filter_glob_prompt(filter_glob)?
-            }
-            Dispatch::ShowSearchConfig { scope } => self.show_search_config(scope),
-            Dispatch::OpenUpdateReplacementPrompt { scope } => {
-                self.open_update_replacement_prompt(scope)?
-            }
-            Dispatch::OpenUpdateSearchPrompt { scope } => self.open_update_search_prompt(scope)?,
+            Dispatch::ShowSearchConfig {
+                scope,
+                if_current_not_found,
+            } => self.show_search_config(scope, if_current_not_found),
+            Dispatch::OpenUpdateReplacementPrompt {
+                scope,
+                if_current_not_found,
+            } => self.open_update_replacement_prompt(scope, if_current_not_found)?,
+            Dispatch::OpenUpdateSearchPrompt {
+                scope,
+                if_current_not_found,
+            } => self.open_update_search_prompt(scope, if_current_not_found)?,
             Dispatch::Replace { scope } => match scope {
                 Scope::Local => self.handle_dispatch_editor(ReplacePattern {
                     config: self.context.local_search_config().clone(),
@@ -697,13 +716,13 @@ impl<T: Frontend> App<T> {
         self.layout.close_current_window()
     }
 
-    fn local_search(&mut self, movement: Movement) -> anyhow::Result<()> {
+    fn local_search(&mut self, if_current_not_found: IfCurrentNotFound) -> anyhow::Result<()> {
         let config = self.context.local_search_config();
         let search = config.search();
         if !search.is_empty() {
             self.handle_dispatch_editor_custom(
                 SetSelectionMode(
-                    movement,
+                    if_current_not_found,
                     SelectionMode::Find {
                         search: Search {
                             mode: config.mode,
@@ -753,7 +772,11 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn open_search_prompt(&mut self, scope: Scope) -> anyhow::Result<()> {
+    fn open_search_prompt(
+        &mut self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<()> {
         let config = self.context.get_local_search_config(scope);
         let mode = config.mode;
         self.open_prompt(
@@ -763,6 +786,7 @@ impl<T: Frontend> App<T> {
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     show_config_after_enter: false,
+                    if_current_not_found,
                 },
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
@@ -1150,11 +1174,11 @@ impl<T: Frontend> App<T> {
         }
         match context.scope {
             None | Some(Scope::Global) => {
-                self.goto_quickfix_list_item(Movement::Current)?;
+                self.goto_quickfix_list_item(Movement::Current(IfCurrentNotFound::LookForward))?;
                 Ok(())
             }
             Some(Scope::Local) => self.handle_dispatch(Dispatch::ToEditor(SetSelectionMode(
-                Movement::Current,
+                IfCurrentNotFound::LookForward,
                 SelectionMode::LocalQuickfix { title },
             ))),
         }
@@ -1479,18 +1503,18 @@ impl<T: Frontend> App<T> {
         update: LocalSearchConfigUpdate,
         scope: Scope,
         show_legend: bool,
-        movement: Movement,
+        if_current_not_found: IfCurrentNotFound,
     ) -> Result<(), anyhow::Error> {
         self.context.update_local_search_config(update, scope);
         match scope {
-            Scope::Local => self.local_search(movement)?,
+            Scope::Local => self.local_search(if_current_not_found)?,
             Scope::Global => {
                 self.global_search()?;
             }
         }
 
         if show_legend {
-            self.show_search_config(scope);
+            self.show_search_config(scope, if_current_not_found);
         }
         Ok(())
     }
@@ -1498,21 +1522,26 @@ impl<T: Frontend> App<T> {
     fn update_global_search_config(
         &mut self,
         update: GlobalSearchConfigUpdate,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
         self.context.update_global_search_config(update)?;
         self.global_search()?;
-        self.show_search_config(Scope::Global);
+        self.show_search_config(Scope::Global, if_current_not_found);
         Ok(())
     }
 
     fn open_set_global_search_filter_glob_prompt(
         &mut self,
         filter_glob: GlobalSearchFilterGlob,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Set global search {:?} files glob", filter_glob),
-                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob },
+                on_enter: DispatchPrompt::GlobalSearchConfigSetGlob {
+                    filter_glob,
+                    if_current_not_found,
+                },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
@@ -1523,7 +1552,7 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn show_search_config(&mut self, scope: Scope) {
+    fn show_search_config(&mut self, scope: Scope, if_current_not_found: IfCurrentNotFound) {
         fn show_checkbox(title: &str, checked: bool) -> String {
             format!("[{}] {title}", if checked { "X" } else { " " })
         }
@@ -1543,7 +1572,7 @@ impl<T: Frontend> App<T> {
                         update,
                         scope,
                         show_config_after_enter: true,
-                        movement: Movement::Current,
+                        if_current_not_found: IfCurrentNotFound::LookForward,
                     },
                 )
             };
@@ -1571,12 +1600,18 @@ impl<T: Frontend> App<T> {
                                 Keymap::new(
                                     "s",
                                     format!("Search = {}", local_search_config.search()),
-                                    Dispatch::OpenUpdateSearchPrompt { scope },
+                                    Dispatch::OpenUpdateSearchPrompt {
+                                        scope,
+                                        if_current_not_found,
+                                    },
                                 ),
                                 Keymap::new(
                                     "r",
                                     format!("Replacement = {}", local_search_config.replacement()),
-                                    Dispatch::OpenUpdateReplacementPrompt { scope },
+                                    Dispatch::OpenUpdateReplacementPrompt {
+                                        scope,
+                                        if_current_not_found,
+                                    },
                                 ),
                             ]
                             .into_iter()
@@ -1595,6 +1630,7 @@ impl<T: Frontend> App<T> {
                                                 ),
                                                 Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                                                     filter_glob: GlobalSearchFilterGlob::Include,
+                                                    if_current_not_found,
                                                 },
                                             ),
                                             Keymap::new(
@@ -1608,6 +1644,7 @@ impl<T: Frontend> App<T> {
                                                 ),
                                                 Dispatch::OpenSetGlobalSearchFilterGlobPrompt {
                                                     filter_glob: GlobalSearchFilterGlob::Exclude,
+                                                    if_current_not_found,
                                                 },
                                             ),
                                         ]
@@ -1697,11 +1734,18 @@ impl<T: Frontend> App<T> {
         })
     }
 
-    fn open_update_replacement_prompt(&mut self, scope: Scope) -> Result<(), anyhow::Error> {
+    fn open_update_replacement_prompt(
+        &mut self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> Result<(), anyhow::Error> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Set Replace ({:?})", scope),
-                on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement { scope },
+                on_enter: DispatchPrompt::UpdateLocalSearchConfigReplacement {
+                    scope,
+                    if_current_not_found,
+                },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: false,
@@ -1712,13 +1756,18 @@ impl<T: Frontend> App<T> {
         )
     }
 
-    fn open_update_search_prompt(&mut self, scope: Scope) -> Result<(), anyhow::Error> {
+    fn open_update_search_prompt(
+        &mut self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> Result<(), anyhow::Error> {
         self.open_prompt(
             PromptConfig {
                 title: format!("Set Search ({:?})", scope),
                 on_enter: DispatchPrompt::UpdateLocalSearchConfigSearch {
                     scope,
                     show_config_after_enter: true,
+                    if_current_not_found,
                 },
                 items: self.words(),
                 enter_selects_first_matching_item: false,
@@ -2064,6 +2113,7 @@ pub(crate) enum Dispatch {
     OpenFilePicker(FilePickerKind),
     OpenSearchPrompt {
         scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
     },
     OpenFile(CanonicalizedPath),
     OpenFileFromPathBuf(PathBuf),
@@ -2151,22 +2201,27 @@ pub(crate) enum Dispatch {
         update: LocalSearchConfigUpdate,
         scope: Scope,
         show_config_after_enter: bool,
-        movement: Movement,
+        if_current_not_found: IfCurrentNotFound,
     },
     UpdateGlobalSearchConfig {
         update: GlobalSearchConfigUpdate,
+        if_current_not_found: IfCurrentNotFound,
     },
     OpenSetGlobalSearchFilterGlobPrompt {
         filter_glob: GlobalSearchFilterGlob,
+        if_current_not_found: IfCurrentNotFound,
     },
     ShowSearchConfig {
         scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
     },
     OpenUpdateReplacementPrompt {
         scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
     },
     OpenUpdateSearchPrompt {
         scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
     },
     Replace {
         scope: Scope,
@@ -2298,12 +2353,14 @@ pub(crate) enum DispatchPrompt {
     },
     GlobalSearchConfigSetGlob {
         filter_glob: GlobalSearchFilterGlob,
+        if_current_not_found: IfCurrentNotFound,
     },
     MoveSelectionByIndex,
     RenameSymbol,
     UpdateLocalSearchConfigSearch {
         scope: Scope,
         show_config_after_enter: bool,
+        if_current_not_found: IfCurrentNotFound,
     },
     AddPath,
     MovePath {
@@ -2321,6 +2378,7 @@ pub(crate) enum DispatchPrompt {
     },
     UpdateLocalSearchConfigReplacement {
         scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
     },
     #[cfg(test)]
     SetContent,
@@ -2344,9 +2402,13 @@ impl DispatchPrompt {
                     .to_vec(),
                 ))
             }
-            DispatchPrompt::GlobalSearchConfigSetGlob { filter_glob } => Ok(Dispatches::new(
+            DispatchPrompt::GlobalSearchConfigSetGlob {
+                filter_glob,
+                if_current_not_found,
+            } => Ok(Dispatches::new(
                 [Dispatch::UpdateGlobalSearchConfig {
                     update: GlobalSearchConfigUpdate::SetGlob(filter_glob, text.to_string()),
+                    if_current_not_found,
                 }]
                 .to_vec(),
             )),
@@ -2362,11 +2424,13 @@ impl DispatchPrompt {
             DispatchPrompt::UpdateLocalSearchConfigSearch {
                 scope,
                 show_config_after_enter,
+                if_current_not_found,
             } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
                     update: LocalSearchConfigUpdate::Search(text.to_string()),
                     scope,
                     show_config_after_enter,
+                    if_current_not_found,
                 }]
                 .to_vec(),
             )),
@@ -2406,11 +2470,15 @@ impl DispatchPrompt {
                 let path = working_directory.join(text)?;
                 Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
             }
-            DispatchPrompt::UpdateLocalSearchConfigReplacement { scope } => Ok(Dispatches::new(
+            DispatchPrompt::UpdateLocalSearchConfigReplacement {
+                scope,
+                if_current_not_found,
+            } => Ok(Dispatches::new(
                 [Dispatch::UpdateLocalSearchConfig {
                     scope,
                     update: LocalSearchConfigUpdate::Replacement(text.to_owned()),
                     show_config_after_enter: true,
+                    if_current_not_found,
                 }]
                 .to_vec(),
             )),

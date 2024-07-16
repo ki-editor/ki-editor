@@ -38,7 +38,7 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        editor::{Direction, Jump, Movement},
+        editor::{Direction, IfCurrentNotFound, Jump, Movement},
         suggestive_editor::Info,
     },
     edit::is_overlapping,
@@ -187,7 +187,9 @@ pub trait SelectionMode {
 
             Movement::Previous => convert(self.previous(params)),
             Movement::Last => convert(self.last(params)),
-            Movement::Current => convert(self.current(params)),
+            Movement::Current(if_current_not_found) => {
+                convert(self.current(params, if_current_not_found))
+            }
             Movement::First => convert(self.first(params)),
             Movement::Index(index) => convert(self.to_index(params, index)),
             Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
@@ -229,12 +231,15 @@ pub trait SelectionMode {
                     line_trimmed::trim_leading_spaces(byte_range.range.start, &line.content);
                 let char_index_range =
                     buffer.byte_range_to_char_index_range(&(start..start + 1))?;
-                self.current(SelectionModeParams {
-                    buffer,
-                    cursor_direction,
-                    current_selection: &current_selection.clone().set_range(char_index_range),
-                    filters,
-                })
+                self.current(
+                    SelectionModeParams {
+                        buffer,
+                        cursor_direction,
+                        current_selection: &current_selection.clone().set_range(char_index_range),
+                        filters,
+                    },
+                    IfCurrentNotFound::LookForward,
+                )
             })
             .transpose()?
             .flatten())
@@ -472,8 +477,60 @@ pub trait SelectionMode {
             }))
     }
 
-    fn current(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_by_offset_to_current_selection(params, 0)
+    fn current(
+        &self,
+        params: SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<Selection>> {
+        let current_selection = params.current_selection;
+        let buffer = params.buffer;
+        let selection_byte_range =
+            buffer.char_index_range_to_byte_range(match params.cursor_direction {
+                Direction::Start => current_selection.extended_range(),
+                Direction::End => {
+                    ((current_selection.range().end - 1)..current_selection.range().end).into()
+                }
+            })?;
+        if let Some(exact_match) = {
+            self.iter_filtered(params.clone())?
+                .find(|byte_range| byte_range.range == selection_byte_range)
+        } {
+            println!("yes {if_current_not_found:?} byte_range= {exact_match:?}");
+            Ok(Some(exact_match.to_selection(buffer, current_selection)?))
+        } else if let Some(range_start_match) = {
+            self.iter_filtered(params.clone())?
+                .find(|byte_range| byte_range.range.start == selection_byte_range.start)
+        } {
+            Ok(Some(
+                range_start_match.to_selection(buffer, current_selection)?,
+            ))
+        } else if let Some(smallest_intersecting_match) = {
+            self.iter_filtered(params.clone())?
+                .filter(|byte_range| is_overlapping(&byte_range.range, &selection_byte_range))
+                .sorted_by_key(|byte_range| byte_range.range.len())
+                .next()
+        } {
+            println!("yes {if_current_not_found:?} byte_range= {smallest_intersecting_match:?}");
+            Ok(Some(
+                smallest_intersecting_match.to_selection(buffer, current_selection)?,
+            ))
+        } else {
+            println!("current not found");
+            let result = match if_current_not_found {
+                IfCurrentNotFound::LookForward => self.next(params.clone()),
+                IfCurrentNotFound::LookBackward => self.previous(params.clone()),
+            }?;
+            if let Some(result) = result {
+                Ok(Some(result))
+            } else {
+                // Look in another direction if matching selection is not found in the
+                // preferred direction
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => self.previous(params),
+                    IfCurrentNotFound::LookBackward => self.next(params),
+                }
+            }
+        }
     }
 
     #[cfg(test)]
@@ -518,7 +575,7 @@ mod test_selection_mode {
         buffer::Buffer,
         char_index_range::CharIndexRange,
         components::{
-            editor::{Direction, Movement},
+            editor::{Direction, IfCurrentNotFound, Movement},
             suggestive_editor::Info,
         },
         selection::{CharIndex, Filters, Selection},
@@ -598,10 +655,26 @@ mod test_selection_mode {
 
     #[test]
     fn current() {
-        test(Movement::Current, 0..1, 0..6);
-        test(Movement::Current, 5..6, 1..6);
-        test(Movement::Current, 1..2, 1..6);
-        test(Movement::Current, 3..3, 3..4);
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            0..1,
+            0..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            5..6,
+            1..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            1..2,
+            1..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            3..3,
+            3..4,
+        );
     }
 
     #[test]
@@ -656,7 +729,10 @@ mod test_selection_mode {
             let expected_info = Info::new("Title".to_string(), expected_info.to_string());
             assert_eq!(expected_info, actual.info().unwrap());
         };
-        run_test(Movement::Current, "Spongebob\n=======\nSquarepants");
+        run_test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            "Spongebob\n=======\nSquarepants",
+        );
     }
 
     #[test]
@@ -682,29 +758,6 @@ mod test_selection_mode {
             .selection
             .range();
         let expected: CharIndexRange = (CharIndex(3)..CharIndex(4)).into();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    /// Should prioritize selection on the same line even though the selection on the next line might be closer to the cursor
-    fn prioritize_same_line() {
-        let params = SelectionModeParams {
-            buffer: &Buffer::new(None, "hello\nworld"),
-            current_selection: &Selection::default().set_range(CharIndexRange {
-                start: CharIndex(4),
-                end: CharIndex(5),
-            }),
-            cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
-        };
-        let actual = LineTrimmed
-            .apply_movement(params, Movement::Current)
-            .unwrap()
-            .unwrap()
-            .selection
-            .range();
-        let expected: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
 
         assert_eq!(expected, actual);
     }

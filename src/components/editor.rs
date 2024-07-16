@@ -51,7 +51,7 @@ pub(crate) enum Mode {
     Normal,
     Insert,
     MultiCursor,
-    FindOneChar(Movement),
+    FindOneChar(IfCurrentNotFound),
     Exchange,
     UndoTree,
     Replace,
@@ -189,11 +189,13 @@ impl Component for Editor {
             #[cfg(test)]
             AlignViewBottom => self.align_cursor_to_bottom(),
             Transform(transformation) => return self.transform_selection(transformation),
-            SetSelectionMode(movement, selection_mode) => {
-                return self.set_selection_mode(movement, selection_mode);
+            SetSelectionMode(if_current_not_found, selection_mode) => {
+                return self.set_selection_mode(if_current_not_found, selection_mode);
             }
 
-            FindOneChar(movement) => self.enter_single_character_mode(movement),
+            FindOneChar(if_current_not_found) => {
+                self.enter_single_character_mode(if_current_not_found)
+            }
 
             MoveSelection(direction) => return self.handle_movement(context, direction),
             Copy {
@@ -442,12 +444,18 @@ impl Direction {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+pub(crate) enum IfCurrentNotFound {
+    LookForward,
+    LookBackward,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
     Next,
     Previous,
     Last,
-    Current,
+    Current(IfCurrentNotFound),
     Up,
     Down,
     First,
@@ -1117,8 +1125,8 @@ impl Editor {
                         Mode::Normal => self.handle_normal_mode(context, key_event),
                         Mode::Insert => self.handle_insert_mode(key_event),
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
-                        Mode::FindOneChar(movement) => {
-                            self.handle_find_one_char_mode(*movement, key_event)
+                        Mode::FindOneChar(if_current_not_found) => {
+                            self.handle_find_one_char_mode(*if_current_not_found, key_event)
                         }
                         Mode::Exchange => self.handle_normal_mode(context, key_event),
                         Mode::UndoTree => self.handle_normal_mode(context, key_event),
@@ -1250,17 +1258,21 @@ impl Editor {
 
     pub(crate) fn set_selection_mode(
         &mut self,
-        movement: Movement,
+        if_current_not_found: IfCurrentNotFound,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Dispatches> {
-        self.move_selection_with_selection_mode_without_global_mode(movement, selection_mode)
-            .map(|dispatches| {
-                Some(Dispatch::SetGlobalMode(None))
-                    .into_iter()
-                    .chain(dispatches.into_vec())
-                    .collect::<Vec<_>>()
-                    .into()
-            })
+        println!("Editor::set_selection_mode selection_mode = {selection_mode:?}");
+        self.move_selection_with_selection_mode_without_global_mode(
+            Movement::Current(if_current_not_found),
+            selection_mode,
+        )
+        .map(|dispatches| {
+            Some(Dispatch::SetGlobalMode(None))
+                .into_iter()
+                .chain(dispatches.into_vec())
+                .collect::<Vec<_>>()
+                .into()
+        })
     }
 
     fn move_selection_with_selection_mode(
@@ -1667,7 +1679,8 @@ impl Editor {
                         )
                         .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
                     };
-                    let current_word = get_word(Movement::Current)?.selection;
+                    let current_word =
+                        get_word(Movement::Current(IfCurrentNotFound::LookBackward))?.selection;
                     if current_word.extended_range().start <= start {
                         current_word
                     } else {
@@ -1925,7 +1938,9 @@ impl Editor {
             .chain(self.get_document_did_change_dispatch())
             .append(Dispatch::RemainOnlyCurrentComponent)
             .append_some(if self.selection_set.mode.is_contiguous() {
-                Some(Dispatch::ToEditor(MoveSelection(Movement::Current)))
+                Some(Dispatch::ToEditor(MoveSelection(Movement::Current(
+                    IfCurrentNotFound::LookForward,
+                ))))
             } else {
                 None
             }))
@@ -2066,20 +2081,20 @@ impl Editor {
         self.selection_set.only();
     }
 
-    fn enter_single_character_mode(&mut self, movement: Movement) {
-        self.mode = Mode::FindOneChar(movement);
+    fn enter_single_character_mode(&mut self, if_current_not_found: IfCurrentNotFound) {
+        self.mode = Mode::FindOneChar(if_current_not_found);
     }
 
     fn handle_find_one_char_mode(
         &mut self,
-        movement: Movement,
+        if_current_not_found: IfCurrentNotFound,
         key_event: KeyEvent,
     ) -> Result<Dispatches, anyhow::Error> {
         match key_event.code {
             KeyCode::Char(c) => {
                 self.mode = Mode::Normal;
                 self.set_selection_mode(
-                    movement,
+                    if_current_not_found,
                     SelectionMode::Find {
                         search: Search {
                             search: c.to_string(),
@@ -2111,7 +2126,7 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn match_literal(&mut self, search: &str) -> anyhow::Result<Dispatches> {
         self.set_selection_mode(
-            Movement::Current,
+            IfCurrentNotFound::LookForward,
             SelectionMode::Find {
                 search: Search {
                     mode: LocalSearchConfigMode::Regex(crate::list::grep::RegexConfig {
@@ -2127,7 +2142,9 @@ impl Editor {
 
     pub(crate) fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
         Ok([
-            Dispatch::ToEditor(SelectLine(Movement::Current)),
+            Dispatch::ToEditor(SelectLine(Movement::Current(
+                IfCurrentNotFound::LookForward,
+            ))),
             Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
         ]
         .to_vec()
@@ -2136,7 +2153,9 @@ impl Editor {
 
     pub(crate) fn move_to_line_end(&mut self) -> anyhow::Result<Dispatches> {
         Ok([
-            Dispatch::ToEditor(SelectLine(Movement::Current)),
+            Dispatch::ToEditor(SelectLine(Movement::Current(
+                IfCurrentNotFound::LookForward,
+            ))),
             Dispatch::ToEditor(EnterInsertMode(Direction::End)),
         ]
         .to_vec()
@@ -2241,7 +2260,9 @@ impl Editor {
     fn filters_push(&mut self, _context: &Context, filter: Filter) -> Dispatches {
         let selection_set = self.selection_set.clone().filter_push(filter);
         self.update_selection_set(selection_set, true)
-            .append(Dispatch::ToEditor(MoveSelection(Movement::Current)))
+            .append(Dispatch::ToEditor(MoveSelection(Movement::Current(
+                IfCurrentNotFound::LookForward,
+            ))))
     }
 
     pub(crate) fn apply_dispatches(
@@ -2394,7 +2415,7 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(Movement::Current, SelectionMode::Custom);
+        let _ = self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Custom);
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -2458,7 +2479,7 @@ impl Editor {
                 .flatten()
                 .collect_vec(),
         );
-        let _ = self.set_selection_mode(Movement::Current, SelectionMode::Custom);
+        let _ = self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Custom);
         self.apply_edit_transaction(edit_transaction)
     }
 
@@ -2601,9 +2622,9 @@ pub(crate) enum DispatchEditor {
     #[cfg(test)]
     AlignViewBottom,
     Transform(Transformation),
-    SetSelectionMode(Movement, SelectionMode),
+    SetSelectionMode(IfCurrentNotFound, SelectionMode),
     Save,
-    FindOneChar(Movement),
+    FindOneChar(IfCurrentNotFound),
     MoveSelection(Movement),
     SwitchViewAlignment,
     Copy {
