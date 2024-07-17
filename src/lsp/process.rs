@@ -1278,7 +1278,7 @@ impl LspServerProcess {
         if !self.has_capability(|c| {
             c.completion_provider
                 .as_ref()
-                .map(|p| p.resolve_provider.is_some())
+                .map(|p| p.resolve_provider.unwrap_or(false))
                 .unwrap_or(false)
         }) {
             return Ok(());
