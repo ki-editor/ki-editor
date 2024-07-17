@@ -243,14 +243,17 @@ const fn swift() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("swift")),
         extensions: &["swift"],
-        lsp_command: None,
+        lsp_command: Some(LspCommand {
+            command: Command("sourcekit-lsp", &[]),
+            ..LspCommand::default()
+        }),
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "swift",
             url: "https://github.com/alex-pinkus/tree-sitter-swift",
             commit: "with-generated-files",
             subpath: None,
         }),
-        formatter_command: None,
+        formatter_command: Some(Command("swiftformat", &[])),
         ..Language::new()
     }
 }
