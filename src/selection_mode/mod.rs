@@ -41,7 +41,6 @@ use crate::{
         editor::{Direction, IfCurrentNotFound, Jump, Movement},
         suggestive_editor::Info,
     },
-    edit::is_overlapping,
     selection::{Filters, Selection},
 };
 
@@ -429,6 +428,9 @@ pub trait SelectionMode {
         params: SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<Selection>> {
+        log::info!(
+            "SelectionMode::current_default_impl if_current_not_found = {if_current_not_found:?}"
+        );
         let current_selection = params.current_selection;
         let buffer = params.buffer;
         let selection_byte_range =
@@ -454,20 +456,29 @@ pub trait SelectionMode {
                 range_start_match.to_selection(buffer, current_selection)?,
             ))
         }
-        // 3. Look for largest intersecting match of the same line
+        // 3. Look for nearest and largest intersecting match of the same line
         else if let Some(smallest_intersecting_match) = {
-            let cursor_line =
-                buffer.char_to_line(current_selection.to_char_index(params.cursor_direction))?;
+            let cursor_char_index = current_selection.to_char_index(params.cursor_direction);
+            let cursor_line = buffer.char_to_line(cursor_char_index)?;
+            let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
             self.iter_filtered(params.clone())?
                 .filter(|byte_range| {
-                    is_overlapping(&byte_range.range, &selection_byte_range)
+                    // Get intersecting matches
+                    byte_range.range.contains(&cursor_byte)
                         && buffer
                             .byte_to_line(byte_range.range.start)
                             .map(|line| line == cursor_line)
                             .unwrap_or(false)
                 })
-                .sorted_by_key(|byte_range| byte_range.range.len())
-                .last()
+                .sorted_by_key(|byte_range| {
+                    (
+                        // Find the nearest first
+                        byte_range.range.start.abs_diff(cursor_byte),
+                        // If the ranges has the same start byte, then get the largest
+                        byte_range.range.len().wrapping_neg(),
+                    )
+                })
+                .next()
         } {
             Ok(Some(
                 smallest_intersecting_match.to_selection(buffer, current_selection)?,
@@ -618,6 +629,11 @@ mod test_selection_mode {
             Movement::Current(IfCurrentNotFound::LookForward),
             0..1,
             0..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            5..6,
+            1..6,
         );
         test(
             Movement::Current(IfCurrentNotFound::LookForward),

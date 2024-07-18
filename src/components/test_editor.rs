@@ -2360,3 +2360,31 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
         }
     })
 }
+
+#[test]
+fn search_backward() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent(
+                    "
+.to_string(),
+)),
+Editor(MatchLiteral(amos.foo())),
+"
+                    .to_string(),
+                )),
+                Editor(MatchLiteral("Editor".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    LineTrimmed,
+                )),
+                App(HandleKeyEvents(keys!("F s ( enter").to_vec())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["to_string"])),
+            ])
+        }
+    })
+}
