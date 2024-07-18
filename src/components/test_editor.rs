@@ -30,7 +30,6 @@ use my_proc_macros::{hex, key, keys};
 use SelectionMode::*;
 
 use super::editor::IfCurrentNotFound;
-use super::editor::Movement;
 use super::editor::SurroundKind;
 
 #[test]

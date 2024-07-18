@@ -1261,7 +1261,6 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Dispatches> {
-        println!("Editor::set_selection_mode selection_mode = {selection_mode:?}");
         self.move_selection_with_selection_mode_without_global_mode(
             Movement::Current(if_current_not_found),
             selection_mode,
@@ -2034,7 +2033,7 @@ impl Editor {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
-            Mode::FindOneChar(Movement) => "FIND ONE CHAR",
+            Mode::FindOneChar(_) => "FIND ONE CHAR",
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",

@@ -374,67 +374,6 @@ pub trait SelectionMode {
             Err(anyhow::anyhow!("Invalid index"))
         }
     }
-    fn get_by_offset_to_current_selection(
-        &self,
-        params: SelectionModeParams,
-        offset: isize,
-    ) -> anyhow::Result<Option<Selection>> {
-        let iter = self.iter_filtered(params.clone())?.sorted();
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-
-        // Find the range from the iterator that is most similar to the range of current selection
-        let current_selection_range = current_selection.range();
-        let cursor_position = current_selection_range.cursor_position(params.cursor_direction);
-        let current_selection_line = cursor_position.to_line(params.buffer)?;
-
-        let byte_range = match params.cursor_direction {
-            Direction::Start => {
-                buffer.char_to_byte(current_selection_range.start)?
-                    ..buffer.char_to_byte(current_selection_range.end)?
-            }
-            Direction::End => {
-                let start = buffer.char_to_byte(current_selection_range.end - 1)?;
-                start..(start + 1)
-            }
-        };
-        let info = current_selection.info();
-
-        let nearest = iter
-            .enumerate()
-            .map(|(i, range)| {
-                let cursor_position = match params.cursor_direction {
-                    Direction::Start => range.range.start,
-                    Direction::End => range.range.end,
-                };
-                let line = buffer.byte_to_line(cursor_position).unwrap_or(0);
-                (
-                    i,
-                    (
-                        // NOTE: we use ! (not) because false ranks lower than true
-                        // Prioritize selection of the same range
-                        !(range.range == byte_range && range.info == info),
-                        // Then by selection that is one the same line
-                        line.abs_diff(current_selection_line),
-                        // Then by if they overlaps
-                        !(is_overlapping(&range.range, &byte_range)),
-                        // Then by their distance to the current selection
-                        cursor_position.abs_diff(byte_range.start),
-                        // Then by their length
-                        range.range.len(),
-                    ),
-                )
-            })
-            .min_by_key(|(_, diff)| *diff)
-            .map(|(i, _)| i);
-
-        let mut iter = self.iter_filtered(params)?.sorted();
-        Ok(nearest.and_then(|i| {
-            iter.nth(((i as isize) + offset) as usize)
-                .and_then(|range| range.to_selection(buffer, current_selection).ok())
-        }))
-    }
-
     fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
@@ -481,6 +420,14 @@ pub trait SelectionMode {
         &self,
         params: SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.current_default_impl(params, if_current_not_found)
+    }
+
+    fn current_default_impl(
+        &self,
+        params: SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection;
         let buffer = params.buffer;
@@ -491,31 +438,43 @@ pub trait SelectionMode {
                     ((current_selection.range().end - 1)..current_selection.range().end).into()
                 }
             })?;
+        // 1. Look for exact match
         if let Some(exact_match) = {
             self.iter_filtered(params.clone())?
                 .find(|byte_range| byte_range.range == selection_byte_range)
         } {
-            println!("yes {if_current_not_found:?} byte_range= {exact_match:?}");
             Ok(Some(exact_match.to_selection(buffer, current_selection)?))
-        } else if let Some(range_start_match) = {
+        }
+        // 2. Look for match with the same range start
+        else if let Some(range_start_match) = {
             self.iter_filtered(params.clone())?
                 .find(|byte_range| byte_range.range.start == selection_byte_range.start)
         } {
             Ok(Some(
                 range_start_match.to_selection(buffer, current_selection)?,
             ))
-        } else if let Some(smallest_intersecting_match) = {
+        }
+        // 3. Look for largest intersecting match of the same line
+        else if let Some(smallest_intersecting_match) = {
+            let cursor_line =
+                buffer.char_to_line(current_selection.to_char_index(params.cursor_direction))?;
             self.iter_filtered(params.clone())?
-                .filter(|byte_range| is_overlapping(&byte_range.range, &selection_byte_range))
+                .filter(|byte_range| {
+                    is_overlapping(&byte_range.range, &selection_byte_range)
+                        && buffer
+                            .byte_to_line(byte_range.range.start)
+                            .map(|line| line == cursor_line)
+                            .unwrap_or(false)
+                })
                 .sorted_by_key(|byte_range| byte_range.range.len())
-                .next()
+                .last()
         } {
-            println!("yes {if_current_not_found:?} byte_range= {smallest_intersecting_match:?}");
             Ok(Some(
                 smallest_intersecting_match.to_selection(buffer, current_selection)?,
             ))
-        } else {
-            println!("current not found");
+        }
+        // Lastly, look in the reversed direction
+        else {
             let result = match if_current_not_found {
                 IfCurrentNotFound::LookForward => self.next(params.clone()),
                 IfCurrentNotFound::LookBackward => self.previous(params.clone()),
@@ -659,11 +618,6 @@ mod test_selection_mode {
             Movement::Current(IfCurrentNotFound::LookForward),
             0..1,
             0..6,
-        );
-        test(
-            Movement::Current(IfCurrentNotFound::LookForward),
-            5..6,
-            1..6,
         );
         test(
             Movement::Current(IfCurrentNotFound::LookForward),

@@ -63,7 +63,7 @@ impl SelectionMode for SyntaxNode {
         if self.coarse {
             super::TopNode.current(params, if_current_not_found)
         } else {
-            self.get_by_offset_to_current_selection(params, 0)
+            self.current_default_impl(params, if_current_not_found)
         }
     }
     fn up(
