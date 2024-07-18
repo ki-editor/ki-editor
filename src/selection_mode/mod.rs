@@ -38,10 +38,9 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        editor::{Direction, Jump, Movement},
+        editor::{Direction, IfCurrentNotFound, Jump, Movement},
         suggestive_editor::Info,
     },
-    edit::is_overlapping,
     selection::{Filters, Selection},
 };
 
@@ -187,7 +186,9 @@ pub trait SelectionMode {
 
             Movement::Previous => convert(self.previous(params)),
             Movement::Last => convert(self.last(params)),
-            Movement::Current => convert(self.current(params)),
+            Movement::Current(if_current_not_found) => {
+                convert(self.current(params, if_current_not_found))
+            }
             Movement::First => convert(self.first(params)),
             Movement::Index(index) => convert(self.to_index(params, index)),
             Movement::Jump(range) => Ok(Some(ApplyMovementResult::from_selection(
@@ -229,12 +230,15 @@ pub trait SelectionMode {
                     line_trimmed::trim_leading_spaces(byte_range.range.start, &line.content);
                 let char_index_range =
                     buffer.byte_range_to_char_index_range(&(start..start + 1))?;
-                self.current(SelectionModeParams {
-                    buffer,
-                    cursor_direction,
-                    current_selection: &current_selection.clone().set_range(char_index_range),
-                    filters,
-                })
+                self.current(
+                    SelectionModeParams {
+                        buffer,
+                        cursor_direction,
+                        current_selection: &current_selection.clone().set_range(char_index_range),
+                        filters,
+                    },
+                    IfCurrentNotFound::LookForward,
+                )
             })
             .transpose()?
             .flatten())
@@ -369,67 +373,6 @@ pub trait SelectionMode {
             Err(anyhow::anyhow!("Invalid index"))
         }
     }
-    fn get_by_offset_to_current_selection(
-        &self,
-        params: SelectionModeParams,
-        offset: isize,
-    ) -> anyhow::Result<Option<Selection>> {
-        let iter = self.iter_filtered(params.clone())?.sorted();
-        let buffer = params.buffer;
-        let current_selection = params.current_selection;
-
-        // Find the range from the iterator that is most similar to the range of current selection
-        let current_selection_range = current_selection.range();
-        let cursor_position = current_selection_range.cursor_position(params.cursor_direction);
-        let current_selection_line = cursor_position.to_line(params.buffer)?;
-
-        let byte_range = match params.cursor_direction {
-            Direction::Start => {
-                buffer.char_to_byte(current_selection_range.start)?
-                    ..buffer.char_to_byte(current_selection_range.end)?
-            }
-            Direction::End => {
-                let start = buffer.char_to_byte(current_selection_range.end - 1)?;
-                start..(start + 1)
-            }
-        };
-        let info = current_selection.info();
-
-        let nearest = iter
-            .enumerate()
-            .map(|(i, range)| {
-                let cursor_position = match params.cursor_direction {
-                    Direction::Start => range.range.start,
-                    Direction::End => range.range.end,
-                };
-                let line = buffer.byte_to_line(cursor_position).unwrap_or(0);
-                (
-                    i,
-                    (
-                        // NOTE: we use ! (not) because false ranks lower than true
-                        // Prioritize selection of the same range
-                        !(range.range == byte_range && range.info == info),
-                        // Then by selection that is one the same line
-                        line.abs_diff(current_selection_line),
-                        // Then by if they overlaps
-                        !(is_overlapping(&range.range, &byte_range)),
-                        // Then by their distance to the current selection
-                        cursor_position.abs_diff(byte_range.start),
-                        // Then by their length
-                        range.range.len(),
-                    ),
-                )
-            })
-            .min_by_key(|(_, diff)| *diff)
-            .map(|(i, _)| i);
-
-        let mut iter = self.iter_filtered(params)?.sorted();
-        Ok(nearest.and_then(|i| {
-            iter.nth(((i as isize) + offset) as usize)
-                .and_then(|range| range.to_selection(buffer, current_selection).ok())
-        }))
-    }
-
     fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
@@ -472,8 +415,66 @@ pub trait SelectionMode {
             }))
     }
 
-    fn current(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.get_by_offset_to_current_selection(params, 0)
+    fn current(
+        &self,
+        params: SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.current_default_impl(params, if_current_not_found)
+    }
+
+    fn current_default_impl(
+        &self,
+        params: SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<Option<Selection>> {
+        let current_selection = params.current_selection;
+        let buffer = params.buffer;
+        if let Some((_, best_intersecting_match)) = {
+            let cursor_char_index = current_selection.to_char_index(params.cursor_direction);
+            let cursor_line = buffer.char_to_line(cursor_char_index)?;
+            let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+            self.iter_filtered(params.clone())?
+                .filter_map(|byte_range| {
+                    // Get intersecting matches
+                    if byte_range.range.contains(&cursor_byte) {
+                        let line = buffer.byte_to_line(byte_range.range.start).ok()?;
+                        Some((line, byte_range))
+                    } else {
+                        None
+                    }
+                })
+                .sorted_by_key(|(line, byte_range)| {
+                    (
+                        // Prioritize same line
+                        line.abs_diff(cursor_line),
+                        // Then by nearest range start
+                        byte_range.range.start.abs_diff(cursor_byte),
+                    )
+                })
+                .next()
+        } {
+            Ok(Some(
+                best_intersecting_match.to_selection(buffer, current_selection)?,
+            ))
+        }
+        // If no intersecting match found, look in the reversed direction
+        else {
+            let result = match if_current_not_found {
+                IfCurrentNotFound::LookForward => self.next(params.clone()),
+                IfCurrentNotFound::LookBackward => self.previous(params.clone()),
+            }?;
+            if let Some(result) = result {
+                Ok(Some(result))
+            } else {
+                // Look in another direction if matching selection is not found in the
+                // preferred direction
+                match if_current_not_found {
+                    IfCurrentNotFound::LookForward => self.previous(params),
+                    IfCurrentNotFound::LookBackward => self.next(params),
+                }
+            }
+        }
     }
 
     #[cfg(test)]
@@ -518,7 +519,7 @@ mod test_selection_mode {
         buffer::Buffer,
         char_index_range::CharIndexRange,
         components::{
-            editor::{Direction, Movement},
+            editor::{Direction, IfCurrentNotFound, Movement},
             suggestive_editor::Info,
         },
         selection::{CharIndex, Filters, Selection},
@@ -598,10 +599,26 @@ mod test_selection_mode {
 
     #[test]
     fn current() {
-        test(Movement::Current, 0..1, 0..6);
-        test(Movement::Current, 5..6, 1..6);
-        test(Movement::Current, 1..2, 1..6);
-        test(Movement::Current, 3..3, 3..4);
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            0..1,
+            0..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            5..6,
+            1..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            1..2,
+            1..6,
+        );
+        test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            3..3,
+            3..4,
+        );
     }
 
     #[test]
@@ -656,7 +673,10 @@ mod test_selection_mode {
             let expected_info = Info::new("Title".to_string(), expected_info.to_string());
             assert_eq!(expected_info, actual.info().unwrap());
         };
-        run_test(Movement::Current, "Spongebob\n=======\nSquarepants");
+        run_test(
+            Movement::Current(IfCurrentNotFound::LookForward),
+            "Spongebob\n=======\nSquarepants",
+        );
     }
 
     #[test]
@@ -682,29 +702,6 @@ mod test_selection_mode {
             .selection
             .range();
         let expected: CharIndexRange = (CharIndex(3)..CharIndex(4)).into();
-
-        assert_eq!(expected, actual);
-    }
-
-    #[test]
-    /// Should prioritize selection on the same line even though the selection on the next line might be closer to the cursor
-    fn prioritize_same_line() {
-        let params = SelectionModeParams {
-            buffer: &Buffer::new(None, "hello\nworld"),
-            current_selection: &Selection::default().set_range(CharIndexRange {
-                start: CharIndex(4),
-                end: CharIndex(5),
-            }),
-            cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
-        };
-        let actual = LineTrimmed
-            .apply_movement(params, Movement::Current)
-            .unwrap()
-            .unwrap()
-            .selection
-            .range();
-        let expected: CharIndexRange = (CharIndex(0)..CharIndex(5)).into();
 
         assert_eq!(expected, actual);
     }

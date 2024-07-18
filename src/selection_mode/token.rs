@@ -1,6 +1,6 @@
 pub(crate) struct Token;
 
-use crate::selection_mode::SelectionMode;
+use crate::{components::editor::IfCurrentNotFound, selection_mode::SelectionMode};
 
 use super::{ByteRange, TopNode};
 
@@ -28,7 +28,7 @@ impl SelectionMode for Token {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
         Ok(TopNode
-            .current(params)?
+            .current(params, IfCurrentNotFound::LookForward)?
             .map(|selection| crate::selection_mode::ApplyMovementResult {
                 selection,
                 mode: Some(crate::selection::SelectionMode::SyntaxNodeCoarse),

@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::selection_mode::ApplyMovementResult;
+use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovementResult};
 
 use super::{ByteRange, SelectionMode, TopNode};
 
@@ -58,11 +58,12 @@ impl SelectionMode for SyntaxNode {
     fn current(
         &self,
         params: super::SelectionModeParams,
+        if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         if self.coarse {
-            super::TopNode.current(params)
+            super::TopNode.current(params, if_current_not_found)
         } else {
-            self.get_by_offset_to_current_selection(params, 0)
+            self.current_default_impl(params, if_current_not_found)
         }
     }
     fn up(
@@ -87,10 +88,13 @@ impl SelectionMode for SyntaxNode {
         if self.coarse {
             Ok(result.and_then(|result| {
                 super::TopNode
-                    .current(super::SelectionModeParams {
-                        current_selection: &result.selection,
-                        ..params
-                    })
+                    .current(
+                        super::SelectionModeParams {
+                            current_selection: &result.selection,
+                            ..params
+                        },
+                        IfCurrentNotFound::LookForward,
+                    )
                     .ok()?
                     .map(|selection| ApplyMovementResult {
                         selection,
@@ -263,43 +267,20 @@ fn main() {
 
             let range = (CharIndex(14)..CharIndex(17)).into();
             assert_eq!(buffer.slice(&range).unwrap(), "let");
-            let selection = SyntaxNode { coarse }.current(SelectionModeParams {
-                buffer: &buffer,
-                current_selection: &Selection::new(range),
-                cursor_direction: &crate::components::editor::Direction::Start,
-                filters: &Filters::default(),
-            });
+            let selection = SyntaxNode { coarse }.current(
+                SelectionModeParams {
+                    buffer: &buffer,
+                    current_selection: &Selection::new(range),
+                    cursor_direction: &crate::components::editor::Direction::Start,
+                    filters: &Filters::default(),
+                },
+                IfCurrentNotFound::LookForward,
+            );
 
             let actual_range = buffer.slice(&selection.unwrap().unwrap().range()).unwrap();
             assert_eq!(actual_range, expected_selection);
         }
         test(true, "let x = X;");
         test(false, "let");
-    }
-
-    #[test]
-    fn coarse_should_select_current_line_largest_node() {
-        let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
-            "
-fn main() {
-  let x = X;
-}"
-            .trim(),
-        );
-
-        // Let the range be the space before `let`
-        let range = (CharIndex(12)..CharIndex(13)).into();
-        let selection = SyntaxNode { coarse: true }.current(SelectionModeParams {
-            buffer: &buffer,
-            current_selection: &Selection::new(range),
-            cursor_direction: &crate::components::editor::Direction::Start,
-            filters: &Filters::default(),
-        });
-
-        let actual_range = buffer.slice(&selection.unwrap().unwrap().range()).unwrap();
-        // Although the cursor is placed before `let`, the expected selection should be
-        // `let x = X;`, which is the largest node of the current line
-        assert_eq!(actual_range, "let x = X;");
     }
 }

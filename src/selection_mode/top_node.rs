@@ -1,3 +1,5 @@
+use crate::components::editor::IfCurrentNotFound;
+
 use super::{ByteRange, SelectionMode, Token};
 use itertools::Itertools;
 
@@ -40,7 +42,7 @@ impl SelectionMode for TopNode {
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
         Ok(Token
-            .current(params)?
+            .current(params, IfCurrentNotFound::LookForward)?
             .map(crate::selection_mode::ApplyMovementResult::from_selection))
     }
 }

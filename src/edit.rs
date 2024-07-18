@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use ropey::Rope;
@@ -61,7 +59,7 @@ impl Action {
     }
 
     #[cfg(test)]
-    fn select(range: Range<usize>) -> Self {
+    fn select(range: std::ops::Range<usize>) -> Self {
         Action::Select(Selection::new(
             (CharIndex(range.start)..CharIndex(range.end)).into(),
         ))
@@ -390,52 +388,5 @@ mod test_is_subset {
     fn not_subset() {
         assert!(!is_subset(&(0..5), &(1..10)));
         assert!(!is_subset(&(0..5), &(0..4)));
-    }
-}
-
-pub(crate) fn is_overlapping<T: Ord>(a: &Range<T>, b: &Range<T>) -> bool {
-    use std::cmp::{max, min};
-    max(&a.start, &b.start) < min(&a.end, &b.end)
-}
-
-// Test is_overlapping
-#[cfg(test)]
-mod test_is_overlapping {
-    use crate::edit::is_overlapping;
-
-    #[test]
-    fn partial_overlap() {
-        assert!(is_overlapping(&(0..5), &(3..10)));
-        assert!(is_overlapping(&(3..10), &(0..5)));
-    }
-
-    #[test]
-    fn no_overlap() {
-        assert!(!is_overlapping(&(0..5), &(5..10)));
-        assert!(!is_overlapping(&(5..10), &(0..5)));
-    }
-
-    #[test]
-    fn no_overlap_no_touch() {
-        assert!(!is_overlapping(&(0..5), &(6..10)));
-        assert!(!is_overlapping(&(6..10), &(0..5)));
-    }
-
-    #[test]
-    fn subset() {
-        assert!(is_overlapping(&(0..10), &(3..5)));
-        assert!(is_overlapping(&(3..5), &(0..10)));
-    }
-
-    #[test]
-    fn same_start() {
-        assert!(is_overlapping(&(0..5), &(0..10)));
-        assert!(is_overlapping(&(0..10), &(0..5)));
-    }
-
-    #[test]
-    fn same_end() {
-        assert!(is_overlapping(&(0..10), &(5..10)));
-        assert!(is_overlapping(&(5..10), &(0..10)));
     }
 }

@@ -54,7 +54,7 @@ Recommended selection modes:
 
 Keybinding: `s`  
 Reason: This keybinding is also used in [vim-sneak](https://github.com/justinmk/vim-sneak) and [leap.nvim](https://github.com/ggandor/leap.nvim).  
-Memory aid: s stands for spring or skip (over), which means jump
+Memory aid: s stands for Sneak, which means jump
 
 This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
