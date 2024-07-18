@@ -428,63 +428,37 @@ pub trait SelectionMode {
         params: SelectionModeParams,
         if_current_not_found: IfCurrentNotFound,
     ) -> anyhow::Result<Option<Selection>> {
-        log::info!(
-            "SelectionMode::current_default_impl if_current_not_found = {if_current_not_found:?}"
-        );
         let current_selection = params.current_selection;
         let buffer = params.buffer;
-        let selection_byte_range =
-            buffer.char_index_range_to_byte_range(match params.cursor_direction {
-                Direction::Start => current_selection.extended_range(),
-                Direction::End => {
-                    ((current_selection.range().end - 1)..current_selection.range().end).into()
-                }
-            })?;
-        // 1. Look for exact match
-        if let Some(exact_match) = {
-            self.iter_filtered(params.clone())?
-                .find(|byte_range| byte_range.range == selection_byte_range)
-        } {
-            Ok(Some(exact_match.to_selection(buffer, current_selection)?))
-        }
-        // 2. Look for match with the same range start
-        else if let Some(range_start_match) = {
-            self.iter_filtered(params.clone())?
-                .find(|byte_range| byte_range.range.start == selection_byte_range.start)
-        } {
-            Ok(Some(
-                range_start_match.to_selection(buffer, current_selection)?,
-            ))
-        }
-        // 3. Look for nearest and largest intersecting match of the same line
-        else if let Some(smallest_intersecting_match) = {
+        if let Some((_, best_intersecting_match)) = {
             let cursor_char_index = current_selection.to_char_index(params.cursor_direction);
             let cursor_line = buffer.char_to_line(cursor_char_index)?;
             let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
             self.iter_filtered(params.clone())?
-                .filter(|byte_range| {
+                .filter_map(|byte_range| {
                     // Get intersecting matches
-                    byte_range.range.contains(&cursor_byte)
-                        && buffer
-                            .byte_to_line(byte_range.range.start)
-                            .map(|line| line == cursor_line)
-                            .unwrap_or(false)
+                    if byte_range.range.contains(&cursor_byte) {
+                        let line = buffer.byte_to_line(byte_range.range.start).ok()?;
+                        Some((line, byte_range))
+                    } else {
+                        None
+                    }
                 })
-                .sorted_by_key(|byte_range| {
+                .sorted_by_key(|(line, byte_range)| {
                     (
-                        // Find the nearest first
+                        // Prioritize same line
+                        line.abs_diff(cursor_line),
+                        // Then by nearest range start
                         byte_range.range.start.abs_diff(cursor_byte),
-                        // If the ranges has the same start byte, then get the largest
-                        byte_range.range.len().wrapping_neg(),
                     )
                 })
                 .next()
         } {
             Ok(Some(
-                smallest_intersecting_match.to_selection(buffer, current_selection)?,
+                best_intersecting_match.to_selection(buffer, current_selection)?,
             ))
         }
-        // Lastly, look in the reversed direction
+        // If no intersecting match found, look in the reversed direction
         else {
             let result = match if_current_not_found {
                 IfCurrentNotFound::LookForward => self.next(params.clone()),

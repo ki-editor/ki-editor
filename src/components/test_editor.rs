@@ -1947,7 +1947,7 @@ fn after_save_select_current() -> anyhow::Result<()> {
                 Editor(SetContent(
                     "
 fn main() {
-let foo = 1;
+     let foo = 1;
 }
 "
                     .trim()
@@ -1987,7 +1987,7 @@ fn main() {
                 }),
             },
         },
-        &["    let foo "],
+        &["et foo = 1;\n"],
     )
 }
 

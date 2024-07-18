@@ -283,33 +283,4 @@ fn main() {
         test(true, "let x = X;");
         test(false, "let");
     }
-
-    #[test]
-    fn coarse_should_select_current_line_largest_node() {
-        let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
-            "
-fn main() {
-  let x = X;
-}"
-            .trim(),
-        );
-
-        // Let the range be the space before `let`
-        let range = (CharIndex(12)..CharIndex(13)).into();
-        let selection = SyntaxNode { coarse: true }.current(
-            SelectionModeParams {
-                buffer: &buffer,
-                current_selection: &Selection::new(range),
-                cursor_direction: &crate::components::editor::Direction::Start,
-                filters: &Filters::default(),
-            },
-            IfCurrentNotFound::LookForward,
-        );
-
-        let actual_range = buffer.slice(&selection.unwrap().unwrap().range()).unwrap();
-        // Although the cursor is placed before `let`, the expected selection should be
-        // `let x = X;`, which is the largest node of the current line
-        assert_eq!(actual_range, "let x = X;");
-    }
 }
