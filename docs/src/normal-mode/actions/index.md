@@ -200,3 +200,15 @@ When selection extension is enabled:
 1. Every character between the two ranges, including the two ranges, is selected
 1. Selection-wise actions work on the extended range
 1. Press `ESC` to disable selection extension
+
+## Undo/Redo
+
+Keybindings:
+
+- `u`: Undo
+- `U`: Redo
+
+Notes:
+
+1. Undo/redo works for multi-cursors as well
+2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating

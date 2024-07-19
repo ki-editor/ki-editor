@@ -184,11 +184,8 @@ impl Editor {
                     "Token".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 ),
-                Keymap::new(
-                    "u",
-                    "Column".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
-                ),
+                Keymap::new("U", "Redo".to_string(), Dispatch::ToEditor(Redo)),
+                Keymap::new("u", "Undo".to_string(), Dispatch::ToEditor(Undo)),
                 Keymap::new(
                     "w",
                     "Word (Short)".to_string(),
@@ -198,6 +195,11 @@ impl Editor {
                     "W",
                     "Word (Long)".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                ),
+                Keymap::new(
+                    "z",
+                    "Column".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
                 ),
             ]),
         }
@@ -354,8 +356,6 @@ impl Editor {
                         use_system_clipboard: false,
                     }),
                 ),
-                Keymap::new("ctrl+y", "Redo".to_string(), Dispatch::ToEditor(Redo)),
-                Keymap::new("ctrl+z", "Undo".to_string(), Dispatch::ToEditor(Undo)),
             ]),
         }
     }
