@@ -892,6 +892,17 @@ Reason: The <code>esc enter</code> combo is sweet.</p>
 <li>Selection-wise actions work on the extended range</li>
 <li>Press <code>ESC</code> to disable selection extension</li>
 </ol>
+<h2 id="undoredo"><a class="header" href="#undoredo">Undo/Redo</a></h2>
+<p>Keybindings:</p>
+<ul>
+<li><code>u</code>: Undo</li>
+<li><code>U</code>: Redo</li>
+</ul>
+<p>Notes:</p>
+<ol>
+<li>Undo/redo works for multi-cursors as well</li>
+<li>The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating</li>
+</ol>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="clipboard-related-actions"><a class="header" href="#clipboard-related-actions">Clipboard-related Actions</a></h1>
 <p>The following actions are grouped separately on this page because they interact with the clipboard.</p>
 <p>There are two kinds of clipboards:</p>
@@ -1228,20 +1239,7 @@ Insert mode and Normal mode for minuscule changes.</p>
 <tr><td>Insert</td><td><code>&lt; d i v &gt; ctrl+v &lt; / d i v &gt;</code></td><td>12</td></tr>
 <tr><td>Normal</td><td><code>&lt; d i v &gt; esc p a &lt; / d i v &gt;</code></td><td>14</td></tr>
 </tbody></table>
-</div>
-<h2 id="undoredo"><a class="header" href="#undoredo">Undo/Redo</a></h2>
-<p>Keybindings:</p>
-<ul>
-<li><code>ctrl+z</code>: Undo</li>
-<li><code>ctrl+y</code>: Redo</li>
-</ul>
-<p>Memory aid: same as Windows</p>
-<p>Notes:</p>
-<ol>
-<li>Undo/redo works even for multi-cursors</li>
-<li>The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating</li>
-</ol>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="components"><a class="header" href="#components">Components</a></h1>
+</div><div style="break-before: page; page-break-before: always;"></div><h1 id="components"><a class="header" href="#components">Components</a></h1>
 <p>Every components is built on top of the Editor component.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="file-explorer"><a class="header" href="#file-explorer">File Explorer</a></h1>
 <p>Ki's file explorer is rendered using YAML, for example:</p>
