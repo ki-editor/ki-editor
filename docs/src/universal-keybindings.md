@@ -47,20 +47,6 @@ Insert mode and Normal mode for minuscule changes.
 For example, assuming the clipboard contains `hello`, and you wanted the result to be `<div>hello</div>`, and the current mode is Insert mode:
 
 | Mode   | Keys sequence                   | Keypress count |
-| ------ | ------------------------------- | --------------- |
-| Insert | `< d i v > ctrl+v < / d i v >`  | 12              |
-| Normal | `< d i v > esc p a < / d i v >` | 14              |
-
-## Undo/Redo
-
-Keybindings:
-
-- `ctrl+z`: Undo
-- `ctrl+y`: Redo
-
-Memory aid: same as Windows
-
-Notes:
-
-1. Undo/redo works even for multi-cursors
-2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
+| ------ | ------------------------------- | -------------- |
+| Insert | `< d i v > ctrl+v < / d i v >`  | 12             |
+| Normal | `< d i v > esc p a < / d i v >` | 14             |
