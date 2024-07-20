@@ -2041,7 +2041,7 @@ impl Editor {
         let cursor_count = self.selection_set.len();
         let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
-            format!("{} (SNEAK)", mode)
+            format!("{} (FLY)", mode)
         } else {
             mode
         }
