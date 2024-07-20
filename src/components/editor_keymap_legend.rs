@@ -527,13 +527,6 @@ impl Editor {
                         },
                     }),
                 ),
-                Keymap::new(
-                    "'",
-                    "Find literal".to_string(),
-                    Dispatch::ShowKeymapLegend(
-                        self.show_literal_keymap_legend_config(IfCurrentNotFound::LookForward),
-                    ),
-                ),
                 Keymap::new("*", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
                 Keymap::new(
                     ":",
@@ -1000,6 +993,47 @@ impl Editor {
                 keymaps,
             }
         };
+        let local_keymaps = match scope {
+            Scope::Local => Some(KeymapLegendSection {
+                title: "Local only".to_string(),
+                keymaps: Keymaps::new(
+                    &[("n", "Natural Number", r"\d+")]
+                        .into_iter()
+                        .map(|(key, description, regex)| {
+                            let search = Search {
+                                search: regex.to_string(),
+                                mode: LocalSearchConfigMode::Regex(RegexConfig {
+                                    escaped: false,
+                                    match_whole_word: false,
+                                    case_sensitive: false,
+                                }),
+                            };
+                            let dispatch = Dispatch::ToEditor(SetSelectionMode(
+                                if_current_not_found,
+                                Find { search },
+                            ));
+                            Keymap::new(key, description.to_string(), dispatch)
+                        })
+                        .chain([
+                            Keymap::new(
+                                "o",
+                                "One character".to_string(),
+                                Dispatch::ToEditor(FindOneChar(if_current_not_found)),
+                            ),
+                            Keymap::new(
+                                "space",
+                                "Empty line".to_string(),
+                                Dispatch::ToEditor(SetSelectionMode(
+                                    if_current_not_found,
+                                    EmptyLine,
+                                )),
+                            ),
+                        ])
+                        .collect_vec(),
+                ),
+            }),
+            Scope::Global => None,
+        };
         KeymapLegendConfig {
             title: format!(
                 "Find ({})",
@@ -1015,6 +1049,7 @@ impl Editor {
                     .chain(Some(misc_keymaps))
                     .chain(Some(diagnostics_keymaps))
                     .chain(Some(lsp_keymaps))
+                    .chain(local_keymaps)
                     .collect_vec(),
             },
         }
@@ -1215,55 +1250,6 @@ impl Editor {
                         ),
                     ]
                     .as_ref(),
-                ),
-            },
-        }
-    }
-
-    pub(crate) fn show_literal_keymap_legend_config(
-        &self,
-        if_current_not_found: IfCurrentNotFound,
-    ) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Find literal".to_string(),
-
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    &[
-                        ("b", "Binary", r"\b[01]+\b"),
-                        ("f", "Float", r"[-+]?\d*\.\d+|\d+"),
-                        ("i", "Integer", r"-?\d+"),
-                        ("n", "Natural", r"\d+"),
-                    ]
-                    .into_iter()
-                    .map(|(key, description, regex)| {
-                        let search = Search {
-                            search: regex.to_string(),
-                            mode: LocalSearchConfigMode::Regex(RegexConfig {
-                                escaped: false,
-                                match_whole_word: false,
-                                case_sensitive: false,
-                            }),
-                        };
-                        let dispatch = Dispatch::ToEditor(SetSelectionMode(
-                            if_current_not_found,
-                            Find { search },
-                        ));
-                        Keymap::new(key, description.to_string(), dispatch)
-                    })
-                    .chain([
-                        Keymap::new(
-                            "o",
-                            "One character".to_string(),
-                            Dispatch::ToEditor(FindOneChar(if_current_not_found)),
-                        ),
-                        Keymap::new(
-                            "space",
-                            "Empty line".to_string(),
-                            Dispatch::ToEditor(SetSelectionMode(if_current_not_found, EmptyLine)),
-                        ),
-                    ])
-                    .collect_vec(),
                 ),
             },
         }
