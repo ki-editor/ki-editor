@@ -275,6 +275,22 @@ impl Editor {
                     "Transform".to_string(),
                     Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
                 ),
+                Keymap::new(
+                    "/",
+                    "Search Forward".to_string(),
+                    Dispatch::OpenSearchPrompt {
+                        scope: Scope::Local,
+                        if_current_not_found: IfCurrentNotFound::LookForward,
+                    },
+                ),
+                Keymap::new(
+                    "?",
+                    "Search Backward".to_string(),
+                    Dispatch::OpenSearchPrompt {
+                        scope: Scope::Local,
+                        if_current_not_found: IfCurrentNotFound::LookBackward,
+                    },
+                ),
             ]),
         }
     }
@@ -525,12 +541,12 @@ impl Editor {
                     Dispatch::OpenCommandPrompt,
                 ),
                 Keymap::new(
-                    "/",
+                    "&", // TODO: rebind to better keymap, this is a random keymap
                     "Omit selection".to_string(),
                     Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
                 ),
                 Keymap::new(
-                    "?",
+                    "@", // TODO: rebind to better keymap, this is a random keymap
                     "Help (Normal mode)".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
                 ),
