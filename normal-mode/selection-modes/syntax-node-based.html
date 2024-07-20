@@ -194,7 +194,7 @@ powered by <a href="https://github.com/tree-sitter">Tree-sitter</a>.</p>
 <li>Fine: higher accuracy, slower movement</li>
 </ul>
 <h2 id="syntax-node-coarse"><a class="header" href="#syntax-node-coarse">Syntax Node (Coarse)</a></h2>
-<p>Keybinding: <code>n</code></p>
+<p>Keybinding: <code>s</code></p>
 <div class="table-wrapper"><table><thead><tr><th>Movement</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><a href="../core-movements.html#previousnext">Previous/Next</a></td><td>Previous/Next named sibling node</td></tr>
 <tr><td>Up</td><td>Parent largest node</td></tr>
@@ -213,7 +213,7 @@ powered by <a href="https://github.com/tree-sitter">Tree-sitter</a>.</p>
 <li><code>fox.bar</code> (member expression)</li>
 <li><code>fox.bar()</code> (call expression)</li>
 </ul>
-<p>Suppose the cursor is below <code>f</code>, pressing <code>n</code> selects <code>fox.bar()</code>, because <code>fox.bar()</code> is the largest node that starts with <code>f</code>.</p>
+<p>Suppose the cursor is below <code>f</code>, pressing <code>s</code> selects <code>fox.bar()</code>, because <code>fox.bar()</code> is the largest node that starts with <code>f</code>.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>You can try it out at <a href="https://astexplorer.net/">https://astexplorer.net/</a>, using the <code>@typescript-eslint/parser</code>.</p>
 </div>
@@ -225,7 +225,7 @@ anonymous) in most language grammars, thus it will be skipped when using the
 Previous/Next movement in Syntax Node (Coarse).</p>
 <p>See more at <a href="https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes">https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes</a>.</p>
 <h2 id="syntax-node-fine"><a class="header" href="#syntax-node-fine">Syntax Node (Fine)</a></h2>
-<p>Keybinding: <code>N</code><br />
+<p>Keybinding: <code>S</code><br />
 Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-to-press key.</p>
 <div class="table-wrapper"><table><thead><tr><th>Movement</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><a href="../core-movements.html#previousnext">Previous/Next</a></td><td>Previous/Next sibling node</td></tr>
@@ -239,8 +239,8 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 <p>Suppose we have the following Javascript expression, and the current selection is <code>hello</code>, and we want to select <code>hello.world()</code>.</p>
 <pre><code class="language-js">hello.world().foo().bar().spam().wise();
 </code></pre>
-<p>If we press <code>n</code>, the whole expression will be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
-<p>However, if we use <code>N</code> instead, the selection will remain as <code>hello</code>, and pressing <code>k</code> two times will get us to <code>hello.world()</code>.</p>
+<p>If we press <code>s</code>, the whole expression will be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
+<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and pressing <code>k</code> two times will get us to <code>hello.world()</code>.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>See <a href="#largest-node">Largest Node</a></p>
 </div>
