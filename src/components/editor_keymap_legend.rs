@@ -59,8 +59,8 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Movement::Last)),
                 ),
                 Keymap::new(
-                    "s",
-                    "Sneak".to_string(),
+                    "f",
+                    "Fly".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps {
                         use_current_selection_mode: true,
                     }),
@@ -137,7 +137,7 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
                 ),
                 Keymap::new(
-                    "f",
+                    "n",
                     "Find (Local) - Forward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
@@ -146,7 +146,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "F",
+                    "N",
                     "Find (Local) - Backward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
@@ -164,7 +164,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "n",
+                    "s",
                     "Syntax Node (Coarse)".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
@@ -172,7 +172,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "N",
+                    "S",
                     "Syntax Node (Fine)".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
