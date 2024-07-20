@@ -269,6 +269,7 @@ impl Editor {
                     "Toggle Visual Mode".to_string(),
                     Dispatch::ToEditor(ToggleVisualMode),
                 ),
+                Keymap::new("V", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
                 Keymap::new(
                     "!",
@@ -527,7 +528,6 @@ impl Editor {
                         },
                     }),
                 ),
-                Keymap::new("*", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
                 Keymap::new(
                     ":",
                     "Open command prompt".to_string(),
