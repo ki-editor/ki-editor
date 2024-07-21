@@ -901,7 +901,7 @@ impl Editor {
         copied_texts: CopiedTexts,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
-            self.get_selection_set_with_gap()
+            self.get_selection_set_with_gap(&direction)
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
@@ -1805,7 +1805,7 @@ impl Editor {
     /// with a gap that is the maximum of previous-current gap and current-next gap.
     ///
     /// Used for `Self::open` and `Self::paste`.
-    fn get_selection_set_with_gap(&self) -> Vec<(Selection, Rope)> {
+    fn get_selection_set_with_gap(&self, direction: &Direction) -> Vec<(Selection, Rope)> {
         self.selection_set
             .map(|selection| {
                 let buffer = self.buffer.borrow();
@@ -1840,10 +1840,12 @@ impl Editor {
                         (None, None) => Default::default(),
                         (None, Some(gap)) | (Some(gap), None) => gap,
                         (Some(next_gap), Some(prev_gap)) => {
-                            if next_gap.len_chars() > prev_gap.len_chars() {
-                                next_gap
-                            } else {
-                                prev_gap
+                            let larger = next_gap.len_chars() > prev_gap.len_chars();
+                            match (direction, larger) {
+                                (Direction::Start, true) => prev_gap,
+                                (Direction::Start, false) => next_gap,
+                                (Direction::End, true) => next_gap,
+                                (Direction::End, false) => prev_gap,
                             }
                         }
                     }
@@ -1856,7 +1858,7 @@ impl Editor {
 
     fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let edit_transaction = EditTransaction::from_action_groups(
-            self.get_selection_set_with_gap()
+            self.get_selection_set_with_gap(&direction)
                 .into_iter()
                 .map(|(selection, gap)| {
                     let gap = if gap.len_chars() == 0 {
