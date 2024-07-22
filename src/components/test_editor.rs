@@ -645,6 +645,39 @@ fn open_before_selection() -> anyhow::Result<()> {
 }
 
 #[test]
+fn open_before_use_min_gap() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+def main():
+  hello
+    world
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("hello".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
+            Editor(Open(Direction::Start)),
+            Expect(CurrentComponentContent(
+                "
+def main():
+  
+  hello
+    world
+"
+                .trim(),
+            )),
+        ])
+    })
+}
+
+#[test]
 fn open_after_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -673,7 +706,7 @@ fn open_after_selection() -> anyhow::Result<()> {
 }
 
 #[test]
-fn open_use_max_gap() -> anyhow::Result<()> {
+fn open_after_use_max_gap() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
