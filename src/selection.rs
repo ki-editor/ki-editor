@@ -359,7 +359,7 @@ impl SelectionSet {
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.selections.len() + 1
+        self.selections.len()
     }
 
     pub(crate) fn filter_push(self, filter: Filter) -> SelectionSet {
