@@ -21,6 +21,7 @@ mod position;
 mod app;
 pub(crate) mod history;
 mod non_empty_extensions;
+mod osc52;
 mod quickfix_list;
 mod rectangle;
 mod screen;
