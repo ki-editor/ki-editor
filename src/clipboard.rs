@@ -1,6 +1,8 @@
 use itertools::Itertools;
 use nonempty::NonEmpty;
 
+use crate::osc52;
+
 #[derive(Clone)]
 pub(crate) struct Clipboard {
     history: RingHistory<CopiedTexts>,
@@ -59,7 +61,9 @@ impl Clipboard {
     ) -> anyhow::Result<()> {
         self.history.add(copied_texts.clone());
         if use_system_clipboard {
-            arboard::Clipboard::new()?.set_text(copied_texts.join("\n"))?
+            arboard::Clipboard::new()
+                .and_then(|mut clipboard| clipboard.set_text(copied_texts.join("\n")))
+                .or_else(|_| osc52::copy_to_clipboard(&copied_texts.join("\n")))?
         }
         Ok(())
     }
