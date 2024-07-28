@@ -4,7 +4,6 @@ use crate::{
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
-    history::History,
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
     selection_mode::{self, CaseAgnostic},
@@ -350,7 +349,6 @@ impl Clone for Editor {
             id: self.id,
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            selection_set_history: History::new(),
             copied_text_history_offset: Default::default(),
         }
     }
@@ -374,7 +372,6 @@ pub(crate) struct Editor {
     title: Option<String>,
     id: ComponentId,
     pub(crate) current_view_alignment: Option<ViewAlignment>,
-    selection_set_history: History<SelectionSet>,
     copied_text_history_offset: Counter,
 }
 
@@ -514,7 +511,6 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            selection_set_history: History::new(),
             copied_text_history_offset: Default::default(),
         }
     }
@@ -532,7 +528,6 @@ impl Editor {
             id: ComponentId::new(),
             current_view_alignment: None,
             regex_highlight_rules: Vec::new(),
-            selection_set_history: History::new(),
             copied_text_history_offset: Default::default(),
         }
     }
@@ -591,7 +586,8 @@ impl Editor {
             .map(Dispatch::ShowEditorInfo);
         self.cursor_direction = Direction::Start;
         if store_history {
-            self.selection_set_history.push(selection_set.clone());
+            self.buffer_mut()
+                .push_selection_set_history(selection_set.clone());
         }
         self.set_selection_set(selection_set);
         Dispatches::default().append_some(show_info)
@@ -2359,13 +2355,15 @@ impl Editor {
     }
 
     fn go_back(&mut self) {
-        if let Some(selection_set) = self.selection_set_history.undo() {
+        let selection_set = self.buffer_mut().previous_selection_set();
+        if let Some(selection_set) = selection_set {
             self.set_selection_set(selection_set)
         }
     }
 
     fn go_forward(&mut self) {
-        if let Some(selection_set) = self.selection_set_history.redo() {
+        let selection_set = self.buffer_mut().next_selection_set();
+        if let Some(selection_set) = selection_set {
             self.set_selection_set(selection_set)
         }
     }

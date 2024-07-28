@@ -1,4 +1,7 @@
-pub(crate) struct History<T> {
+use itertools::Itertools;
+
+#[derive(Clone, Debug)]
+pub(crate) struct History<T: Clone + std::fmt::Debug> {
     backward_history: Vec<T>,
     forward_history: Vec<T>,
 }
@@ -34,9 +37,21 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
         }
         item
     }
+
+    pub(crate) fn apply(mut self, f: impl Fn(T) -> T) -> History<T> {
+        self.forward_history = std::mem::take(&mut self.forward_history)
+            .into_iter()
+            .map(|item| f(item))
+            .collect_vec();
+        self.backward_history = std::mem::take(&mut self.backward_history)
+            .into_iter()
+            .map(f)
+            .collect_vec();
+        self
+    }
 }
 
-impl<T> Default for History<T> {
+impl<T: Clone + std::fmt::Debug> Default for History<T> {
     fn default() -> Self {
         Self {
             backward_history: Default::default(),
