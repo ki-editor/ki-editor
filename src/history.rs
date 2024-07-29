@@ -41,7 +41,7 @@ impl<T: Eq + Clone + std::fmt::Debug> History<T> {
     pub(crate) fn apply(mut self, f: impl Fn(T) -> T) -> History<T> {
         self.forward_history = std::mem::take(&mut self.forward_history)
             .into_iter()
-            .map(|item| f(item))
+            .map(&f)
             .collect_vec();
         self.backward_history = std::mem::take(&mut self.backward_history)
             .into_iter()
