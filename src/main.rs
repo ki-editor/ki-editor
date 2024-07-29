@@ -37,7 +37,6 @@ mod terminal;
 mod test_app;
 pub(crate) mod themes;
 pub(crate) mod transformation;
-pub(crate) mod tree_sitter_traversal;
 pub(crate) mod ui_tree;
 pub(crate) mod undo_tree;
 mod utils;

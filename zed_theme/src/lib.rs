@@ -1,3 +1,3 @@
-use serde::{Deserialize, Serialize};
+pub mod zed_theme_schema;
 
-typify::import_types!("./src/zed_theme_schema.json");
+pub use zed_theme_schema::*;

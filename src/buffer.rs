@@ -2,7 +2,6 @@ use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
 use crate::selection_mode::case_agnostic::CaseAgnostic;
-use crate::tree_sitter_traversal::{traverse, Order};
 use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
@@ -24,6 +23,7 @@ use shared::{
 };
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
+use tree_sitter_traversal::{traverse, Order};
 
 #[derive(Clone)]
 pub(crate) struct Buffer {
@@ -616,7 +616,7 @@ impl Buffer {
         let mut parser = tree_sitter::Parser::new();
         if let Some(tree) = self.tree.as_ref() {
             parser.set_language(&tree.language())?;
-            self.tree = parser.parse(&self.rope.to_string(), None);
+            self.tree = parser.parse(self.rope.to_string(), None);
         }
         Ok(())
     }
