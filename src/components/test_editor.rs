@@ -2421,3 +2421,24 @@ Editor(MatchLiteral(amos.foo())),
         }
     })
 }
+
+#[test]
+fn selection_set_history_updates_upon_edit() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("foo bar spam".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(MoveSelection(Last)),
+                Expect(CurrentSelectedTexts(&["spam"])),
+                Editor(MoveSelection(Previous)),
+                Expect(CurrentSelectedTexts(&["bar"])),
+                Editor(Delete { backward: true }),
+                Expect(CurrentComponentContent("foo spam")),
+                Editor(GoBack),
+                Expect(CurrentSelectedTexts(&["spam"])),
+            ])
+        }
+    })
+}

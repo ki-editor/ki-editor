@@ -1,3 +1,4 @@
+use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
 use crate::selection_mode::case_agnostic::CaseAgnostic;
@@ -37,6 +38,7 @@ pub(crate) struct Buffer {
     diagnostics: Vec<Diagnostic>,
     quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
+    selection_set_history: History<SelectionSet>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -69,6 +71,7 @@ impl Buffer {
             undo_tree: UndoTree::new(),
             diagnostics: Vec::new(),
             quickfix_list_items: Vec::new(),
+            selection_set_history: History::new(),
         }
     }
     pub(crate) fn clear_quickfix_list_items(&mut self) {
@@ -508,6 +511,9 @@ impl Buffer {
                 })
             })
             .collect_vec();
+        let max_char_index = CharIndex(self.len_chars());
+        self.selection_set_history = std::mem::take(&mut self.selection_set_history)
+            .apply(|selection_set| selection_set.apply_edit(edit, max_char_index));
         if let Ok(byte_range) = self.char_index_range_to_byte_range(edit.range()) {
             self.highlighted_spans = std::mem::take(&mut self.highlighted_spans).apply_edit(
                 &byte_range,
@@ -895,6 +901,18 @@ impl Buffer {
         range: Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
         Ok((self.line_to_char(range.start)?..self.line_to_char(range.end)?).into())
+    }
+
+    pub(crate) fn push_selection_set_history(&mut self, selection_set: SelectionSet) {
+        self.selection_set_history.push(selection_set.clone());
+    }
+
+    pub(crate) fn previous_selection_set(&mut self) -> Option<SelectionSet> {
+        self.selection_set_history.undo()
+    }
+
+    pub(crate) fn next_selection_set(&mut self) -> Option<SelectionSet> {
+        self.selection_set_history.redo()
     }
 }
 

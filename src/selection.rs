@@ -427,6 +427,29 @@ impl SelectionSet {
             .map(|(_, selection)| selection)
             .collect_vec()
     }
+
+    pub(crate) fn apply_edit(self, edit: &crate::edit::Edit, max_char_index: CharIndex) -> Self {
+        let NonEmpty { head, tail } = self.selections;
+        let head = head
+            .clone()
+            .apply_edit(edit)
+            .unwrap_or_else(|| head.clamp(max_char_index));
+
+        let selections = NonEmpty {
+            head,
+            tail: tail
+                .into_iter()
+                .map(|selection| {
+                    selection
+                        .clone()
+                        .apply_edit(edit)
+                        .unwrap_or_else(|| selection.clamp(max_char_index))
+                })
+                .collect_vec(),
+        };
+
+        Self { selections, ..self }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -714,6 +737,20 @@ impl Selection {
 
     fn enable_extension(&mut self) {
         self.initial_range = Some(self.range);
+    }
+
+    fn apply_edit(self, edit: &crate::edit::Edit) -> Option<Self> {
+        let Self {
+            range,
+            info,
+            initial_range,
+        } = self;
+
+        Some(Self {
+            range: range.apply_edit(edit)?,
+            initial_range: initial_range.and_then(|range| range.apply_edit(edit)),
+            info,
+        })
     }
 }
 
