@@ -289,7 +289,7 @@ mod test_git {
 
             // Create a new file named file3, and stage it
             std::fs::write(file3.clone(), "This is file 3")?;
-            run_command(&dir, "git", &["add", &file3.to_string_lossy().as_ref()]);
+            run_command(&dir, "git", &["add", file3.to_string_lossy().as_ref()]);
 
             // Create a new file at a new directory
             std::fs::create_dir_all(dir.path().join("organic"))?;

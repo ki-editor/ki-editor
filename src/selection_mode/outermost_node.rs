@@ -13,9 +13,9 @@ impl SelectionMode for OutermostNode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         Ok(Box::new(
-            crate::tree_sitter_traversal::traverse(
+            tree_sitter_traversal::traverse(
                 buffer.tree().walk(),
-                crate::tree_sitter_traversal::Order::Pre,
+                tree_sitter_traversal::Order::Pre,
             )
             .group_by(|node| node.byte_range().start)
             .into_iter()

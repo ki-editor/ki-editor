@@ -16,24 +16,21 @@ impl SelectionMode for TopNode {
         ))?;
         let root_node_id = tree.root_node().id();
         Ok(Box::new(
-            crate::tree_sitter_traversal::traverse(
-                tree.walk(),
-                crate::tree_sitter_traversal::Order::Pre,
-            )
-            .filter(|node| node.id() != root_node_id)
-            .group_by(|node| node.byte_range().start)
-            .into_iter()
-            .map(|(_, group)| {
-                ByteRange::new(
-                    group
-                        .into_iter()
-                        .max_by_key(|node| node.byte_range().end)
-                        .unwrap()
-                        .byte_range(),
-                )
-            })
-            .collect_vec()
-            .into_iter(),
+            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Pre)
+                .filter(|node| node.id() != root_node_id)
+                .group_by(|node| node.byte_range().start)
+                .into_iter()
+                .map(|(_, group)| {
+                    ByteRange::new(
+                        group
+                            .into_iter()
+                            .max_by_key(|node| node.byte_range().end)
+                            .unwrap()
+                            .byte_range(),
+                    )
+                })
+                .collect_vec()
+                .into_iter(),
         ))
     }
 
