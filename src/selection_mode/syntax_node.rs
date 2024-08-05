@@ -17,12 +17,12 @@ impl SelectionMode for SyntaxNode {
         &self,
         params: super::SelectionModeParams,
         chars: Vec<char>,
-        line_number_range: std::ops::Range<usize>,
+        line_number_ranges: Vec<std::ops::Range<usize>>,
     ) -> anyhow::Result<Vec<crate::components::editor::Jump>> {
         // Why do we use TopNode.jumps?
         // Because I realize I only use TopNode for jumping, and I never use jump in SyntaxNode
         // With this decision, TopNode selection mode can be removed from user-space, and we get one more keymap space
-        TopNode.jumps(params, chars, line_number_range)
+        TopNode.jumps(params, chars, line_number_ranges)
     }
     fn iter<'a>(
         &'a self,
