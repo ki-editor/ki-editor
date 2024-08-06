@@ -330,6 +330,7 @@ impl Component for Editor {
                 let history_offset = self.copied_text_history_offset.increment();
                 return self.replace_with_copied_text(context, false, false, history_offset);
             }
+            MoveToLastChar => return Ok(self.move_to_last_char()),
         }
         Ok(Default::default())
     }
@@ -2617,6 +2618,17 @@ impl Editor {
             .map(|line| (line.line..line.line + 1))
             .collect_vec())
     }
+
+    fn move_to_last_char(&mut self) -> Dispatches {
+        let last_cursor_index = CharIndex(self.buffer().len_chars());
+        self.update_selection_set(
+            SelectionSet::new(NonEmpty::singleton(
+                Selection::default().set_range((last_cursor_index..last_cursor_index).into()),
+            )),
+            false,
+        )
+        .append(Dispatch::ToEditor(EnterInsertMode(Direction::Start)))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2734,6 +2746,7 @@ pub(crate) enum DispatchEditor {
     ApplyPositionalEdits(Vec<CompletionItemEdit>),
     ReplaceWithPreviousCopiedText,
     ReplaceWithNextCopiedText,
+    MoveToLastChar,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
