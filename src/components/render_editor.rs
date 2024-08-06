@@ -433,7 +433,7 @@ impl Editor {
                 cursor_direction: &self.cursor_direction,
                 filters: &self.selection_set.filters,
             },
-            line_range,
+            [line_range].to_vec(),
         )
     }
 }

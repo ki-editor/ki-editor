@@ -1182,6 +1182,57 @@ fn jump() -> anyhow::Result<()> {
 }
 
 #[test]
+fn jump_to_hidden_parent_lines() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+  alpha()
+  beta()
+}
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 14,
+                height: 4,
+            })),
+            Editor(MatchLiteral("beta".to_string())),
+            Editor(SetRectangle(Rectangle {
+                origin: Position::default(),
+                width: 21,
+                height: 4,
+            })),
+            Editor(SwitchViewAlignment),
+            // The "long" of "too long" is not shown, because it exceeded the view width
+            Expect(EditorGrid(
+                "
+🦀  src/main.rs
+1│fn main() {
+3│  █eta()
+4│}
+"
+                .trim(),
+            )),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                LineTrimmed,
+            )),
+            Editor(ShowJumps {
+                use_current_selection_mode: true,
+            }),
+            Expect(JumpChars(&['f', 'b', '}'])),
+            App(HandleKeyEvent(key!("f"))),
+            Expect(CurrentSelectedTexts(&["fn main() {"])),
+        ])
+    })
+}
+
+#[test]
 fn highlight_and_jump() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

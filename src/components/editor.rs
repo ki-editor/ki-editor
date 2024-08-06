@@ -695,7 +695,10 @@ impl Editor {
 
         let object = self.get_selection_mode_trait_object(selection, use_current_selection_mode)?;
 
-        let line_range = self.visible_line_range();
+        let line_ranges = Some(self.visible_line_range())
+            .into_iter()
+            .chain(self.hidden_parent_line_ranges()?)
+            .collect_vec();
         let jumps = object.jumps(
             selection_mode::SelectionModeParams {
                 buffer: &self.buffer(),
@@ -704,7 +707,7 @@ impl Editor {
                 filters: &self.selection_set.filters,
             },
             chars,
-            line_range,
+            line_ranges,
         )?;
         self.jumps = Some(jumps);
 
@@ -2591,6 +2594,14 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn copied_text_history_offset(&self) -> isize {
         self.copied_text_history_offset.value()
+    }
+
+    fn hidden_parent_line_ranges(&self) -> anyhow::Result<Vec<Range<usize>>> {
+        let (hidden_parent_lines, _) = self.get_parent_lines()?;
+        Ok(hidden_parent_lines
+            .into_iter()
+            .map(|line| (line.line..line.line + 1))
+            .collect_vec())
     }
 }
 

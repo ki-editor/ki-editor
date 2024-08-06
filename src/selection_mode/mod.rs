@@ -287,24 +287,36 @@ pub trait SelectionMode {
     fn selections_in_line_number_range(
         &self,
         params: &SelectionModeParams,
-        line_number_range: Range<usize>,
+        line_number_ranges: Vec<Range<usize>>,
     ) -> anyhow::Result<Vec<ByteRange>> {
-        let byte_range = params.buffer.line_to_byte(line_number_range.start)?
-            ..params.buffer.line_to_byte(line_number_range.end)?;
+        let byte_ranges: Vec<_> = line_number_ranges
+            .into_iter()
+            .filter_map(|range| {
+                Some(
+                    params.buffer.line_to_byte(range.start).ok()?
+                        ..params.buffer.line_to_byte(range.end).ok()?,
+                )
+            })
+            .collect();
+
         Ok(self
             .iter_filtered(params.clone())?
-            .filter(|range| (byte_range.start..byte_range.end).contains(&range.range.start))
-            .collect_vec())
+            .filter(|range| {
+                byte_ranges
+                    .iter()
+                    .any(|byte_range| byte_range.contains(&range.range.start))
+            })
+            .collect())
     }
 
     fn jumps(
         &self,
         params: SelectionModeParams,
         chars: Vec<char>,
-        line_number_range: Range<usize>,
+        line_number_ranges: Vec<Range<usize>>,
     ) -> anyhow::Result<Vec<Jump>> {
         let iter = self
-            .selections_in_line_number_range(&params, line_number_range)?
+            .selections_in_line_number_range(&params, line_number_ranges)?
             .into_iter();
         let jumps = iter
             .filter_map(|range| {
