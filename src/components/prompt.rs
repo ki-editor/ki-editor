@@ -5,7 +5,7 @@ use my_proc_macros::key;
 use crate::{
     app::{Dispatch, DispatchPrompt, Dispatches, GlobalSearchFilterGlob, Scope},
     buffer::Buffer,
-    components::editor::{self, DispatchEditor},
+    components::editor::DispatchEditor,
     context::Context,
     lsp::completion::Completion,
 };
@@ -61,26 +61,29 @@ impl Prompt {
     pub(crate) fn new(
         config: PromptConfig,
         prompt_history_key: PromptHistoryKey,
-        mut history: Vec<String>,
+        history: Vec<String>,
     ) -> (Self, Dispatches) {
         let text = {
-            history.reverse();
-            format!(
-                "{}{}",
-                if config.leaves_current_line_empty {
-                    "\n"
-                } else {
-                    ""
-                },
-                history.join("\n")
-            )
+            if history.is_empty() {
+                "".to_string()
+            } else {
+                format!(
+                    "{}{}",
+                    history.join("\n"),
+                    if config.leaves_current_line_empty {
+                        "\n"
+                    } else {
+                        ""
+                    }
+                )
+            }
         };
         let mut editor = SuggestiveEditor::from_buffer(
             Rc::new(RefCell::new(Buffer::new(None, &text))),
             SuggestiveEditorFilter::CurrentLine,
         );
         let dispatches = Dispatches::one(Dispatch::ToEditor(if config.leaves_current_line_empty {
-            DispatchEditor::EnterInsertMode(editor::Direction::Start)
+            DispatchEditor::MoveToLastChar
         } else {
             DispatchEditor::MoveToLineEnd
         }));
@@ -218,7 +221,7 @@ mod test_prompt {
             })
             .unwrap();
         }
-        test(true, "\nhello", Position::default());
+        test(true, "hello\n", Position::new(1, 0));
         test(false, "hello", Position::new(0, 5));
     }
 
@@ -243,22 +246,22 @@ mod test_prompt {
                 Expect(CurrentComponentContent("\n")),
                 App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
                 App(open_prompt.clone()),
-                Expect(CurrentComponentContent("\nhello")),
+                Expect(CurrentComponentContent("hello\n")),
                 App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
                 App(open_prompt.clone()),
                 // Duplicates should not be repeated
-                Expect(CurrentComponentContent("\nhello")),
+                Expect(CurrentComponentContent("hello\n")),
                 App(open_prompt.clone()),
                 App(HandleKeyEvents(keys!("y o enter").to_vec())),
                 App(open_prompt.clone()),
-                // Latest entry should appear on first
-                Expect(CurrentComponentContent("\nyo\nhello")),
+                // Latest entry should appear last
+                Expect(CurrentComponentContent("hello\nyo\n")),
                 // Enter 'hello' again
                 App(open_prompt.clone()),
                 App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
-                // 'hello' should appear on top
+                // 'hello' should appear last
                 App(open_prompt.clone()),
-                Expect(CurrentComponentContent("\nhello\nyo")),
+                Expect(CurrentComponentContent("yo\nhello\n")),
             ])
         })
         .unwrap();
@@ -282,10 +285,34 @@ mod test_prompt {
                     },
                 })
                 .clone()),
-                Expect(CurrentComponentContent("\nspongebob squarepants")),
+                Expect(CurrentComponentContent("spongebob squarepants\n")),
             ])
         })
         .unwrap();
+    }
+
+    #[test]
+    fn should_not_contain_newline_if_empty() -> Result<(), anyhow::Error> {
+        execute_test(|s| {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("".to_string())),
+                Editor(EnterInsertMode(Direction::Start)),
+                App(Dispatch::OpenPrompt {
+                    key: PromptHistoryKey::Null,
+                    current_line: None,
+                    config: super::PromptConfig {
+                        on_enter: DispatchPrompt::SetContent,
+                        items: Default::default(),
+                        title: "".to_string(),
+                        enter_selects_first_matching_item: true,
+                        leaves_current_line_empty: true,
+                        fire_dispatches_on_change: None,
+                    },
+                }),
+                Expect(CurrentComponentContent("")),
+            ])
+        })
     }
 
     #[test]
