@@ -2141,14 +2141,28 @@ impl Editor {
     }
 
     pub(crate) fn move_to_line_start(&mut self) -> anyhow::Result<Dispatches> {
-        Ok([
-            Dispatch::ToEditor(SelectLine(Movement::Current(
-                IfCurrentNotFound::LookForward,
-            ))),
-            Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-        ]
-        .to_vec()
-        .into())
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let cursor = selection.to_char_index(&self.cursor_direction);
+                    let line = buffer.char_to_line(cursor)?;
+                    let char_index = buffer.line_to_char(line)?;
+                    Ok(ActionGroup::new(
+                        [Action::Select(
+                            selection
+                                .clone()
+                                .set_range((char_index..char_index).into())
+                                .set_initial_range(None),
+                        )]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction)
     }
 
     pub(crate) fn move_to_line_end(&mut self) -> anyhow::Result<Dispatches> {

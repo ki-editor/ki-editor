@@ -452,14 +452,14 @@ fn move_to_line_start_end() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetContent("hello\n".to_string())),
+            Editor(SetContent("hello\nnext line".to_string())),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(MoveToLineEnd),
             Editor(Insert(" world".to_string())),
-            Expect(CurrentComponentContent("hello world\n")),
+            Expect(CurrentComponentContent("hello world\nnext line")),
             Editor(MoveToLineStart),
             Editor(Insert("hey ".to_string())),
-            Expect(CurrentComponentContent("hey hello world\n")),
+            Expect(CurrentComponentContent("hey hello world\nnext line")),
         ])
     })
 }
