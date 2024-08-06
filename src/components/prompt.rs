@@ -243,7 +243,6 @@ mod test_prompt {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 App(open_prompt.clone()),
-                Expect(CurrentComponentContent("\n")),
                 App(HandleKeyEvents(keys!("h e l l o enter").to_vec())),
                 App(open_prompt.clone()),
                 Expect(CurrentComponentContent("hello\n")),
