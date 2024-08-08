@@ -171,6 +171,18 @@ impl SelectionSet {
         self.selections.clone().map(|selection| f(&selection))
     }
 
+    pub(crate) fn map_with_index<F, A>(&self, f: F) -> NonEmpty<A>
+    where
+        F: Fn(usize, &Selection) -> A,
+    {
+        let mut index = 0;
+        self.selections.clone().map(|selection| {
+            let result = f(index, &selection);
+            index += 1;
+            result
+        })
+    }
+
     pub(crate) fn only(&mut self) {
         self.selections.head = self.primary_selection().clone().set_initial_range(None);
         self.selections.tail.clear();

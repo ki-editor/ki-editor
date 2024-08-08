@@ -393,6 +393,7 @@ impl<T: Frontend> App<T> {
                 scope,
                 if_current_not_found,
             } => self.open_search_prompt(scope, if_current_not_found)?,
+            Dispatch::OpenPipeToShellPrompt => self.open_pipe_to_shell_prompt()?,
             Dispatch::OpenFile(path) => {
                 self.open_file(&path, OpenFileOption::Focus)?;
             }
@@ -1690,14 +1691,6 @@ impl<T: Frontend> App<T> {
                             ),
                         ]),
                     },
-                    KeymapLegendSection {
-                        title: "Actions".to_string(),
-                        keymaps: Keymaps::new(&[Keymap::new(
-                            "R",
-                            "Replace all".to_string(),
-                            Dispatch::Replace { scope },
-                        )]),
-                    },
                 ]
                 .into_iter()
                 .chain(regex.map(|regex| {
@@ -1728,6 +1721,14 @@ impl<T: Frontend> App<T> {
                             .collect_vec(),
                         ),
                     }
+                }))
+                .chain(Some(KeymapLegendSection {
+                    title: "Actions".to_string(),
+                    keymaps: Keymaps::new(&[Keymap::new(
+                        "R",
+                        "Replace all".to_string(),
+                        Dispatch::Replace { scope },
+                    )]),
                 }))
                 .collect(),
             },
@@ -2037,6 +2038,21 @@ impl<T: Frontend> App<T> {
     pub(crate) fn lsp_request_sent(&self, from_editor: &FromEditor) -> bool {
         self.lsp_manager.lsp_request_sent(from_editor)
     }
+
+    fn open_pipe_to_shell_prompt(&mut self) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                title: "Pipe to shell".to_string(),
+                items: Default::default(),
+                on_enter: DispatchPrompt::PipeToShell,
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+            },
+            PromptHistoryKey::PipeToShell,
+            None,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2251,6 +2267,7 @@ pub(crate) enum Dispatch {
     },
     OpenThemePrompt,
     ResolveCompletionItem(lsp_types::CompletionItem),
+    OpenPipeToShellPrompt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2382,6 +2399,7 @@ pub(crate) enum DispatchPrompt {
     },
     #[cfg(test)]
     SetContent,
+    PipeToShell,
 }
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
@@ -2487,6 +2505,11 @@ impl DispatchPrompt {
                 [Dispatch::ToEditor(SetContent(text.to_string()))].to_vec(),
             )),
             DispatchPrompt::Null => Ok(Default::default()),
+            DispatchPrompt::PipeToShell => Ok(Dispatches::one(Dispatch::ToEditor(
+                DispatchEditor::PipeToShell {
+                    command: text.to_string(),
+                },
+            ))),
         }
     }
 }

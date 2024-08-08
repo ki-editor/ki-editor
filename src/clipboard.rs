@@ -8,7 +8,7 @@ pub(crate) struct Clipboard {
     history: RingHistory<CopiedTexts>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// Why is it a vector?  
 /// Because it needs to support multiple cursors.
 /// The first entry represent the copied text of the first cursor,

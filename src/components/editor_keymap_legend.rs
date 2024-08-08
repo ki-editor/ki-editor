@@ -277,6 +277,11 @@ impl Editor {
                     Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
                 ),
                 Keymap::new(
+                    "|",
+                    "Pipe to shell".to_string(),
+                    Dispatch::OpenPipeToShellPrompt,
+                ),
+                Keymap::new(
                     "/",
                     "Search Forward".to_string(),
                     Dispatch::OpenSearchPrompt {

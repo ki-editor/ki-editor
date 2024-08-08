@@ -331,6 +331,7 @@ impl Component for Editor {
                 return self.replace_with_copied_text(context, false, false, history_offset);
             }
             MoveToLastChar => return Ok(self.move_to_last_char()),
+            PipeToShell { command } => return self.pipe_to_shell(command),
         }
         Ok(Default::default())
     }
@@ -825,10 +826,15 @@ impl Editor {
 
     fn replace_current_selection_with<F>(&mut self, f: F) -> anyhow::Result<Dispatches>
     where
-        F: Fn(&Selection) -> Option<Rope>,
+        F: Fn(Rope) -> Option<Rope>,
     {
         let edit_transactions = self.selection_set.map(|selection| {
-            if let Some(copied_text) = f(selection) {
+            let content = self
+                .buffer()
+                .slice(&selection.extended_range())
+                .ok()
+                .unwrap_or_default();
+            if let Some(result) = f(content) {
                 let range = selection.extended_range();
                 let start = range.start;
                 EditTransaction::from_action_groups(
@@ -836,10 +842,10 @@ impl Editor {
                         [
                             Action::Edit(Edit {
                                 range,
-                                new: copied_text.clone(),
+                                new: result.clone(),
                             }),
                             Action::Select(Selection::new({
-                                let start = start + copied_text.len_chars();
+                                let start = start + result.len_chars();
                                 (start..start).into()
                             })),
                         ]
@@ -994,35 +1000,9 @@ impl Editor {
             return Ok(Default::default());
         };
 
-        let edit_transaction = EditTransaction::merge(
-            self.selection_set
-                .map(|selection| selection.clone())
-                .into_iter()
-                .enumerate()
-                .map(|(index, selection)| {
-                    let replacement: Rope = copied_texts.get(index).into();
-                    let replacement_text_len = replacement.len_chars();
-                    let range = selection.extended_range();
-                    EditTransaction::from_action_groups(
-                        [ActionGroup::new(
-                            [
-                                Action::Edit(Edit {
-                                    range,
-                                    new: replacement,
-                                }),
-                                Action::Select(selection.clone().set_range(
-                                    (range.start..range.start + replacement_text_len).into(),
-                                )),
-                            ]
-                            .to_vec(),
-                        )]
-                        .to_vec(),
-                    )
-                })
-                .collect(),
-        );
-        self.apply_edit_transaction(edit_transaction)
-            .map(|d| d.chain(dispatches))
+        Ok(self
+            .transform_selection(Transformation::ReplaceWithCopiedText { copied_texts })?
+            .chain(dispatches))
     }
 
     fn apply_edit_transaction(
@@ -1994,13 +1974,14 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
-                .map(|selection| -> anyhow::Result<_> {
+                .map_with_index(|index, selection| -> anyhow::Result<_> {
                     let new: Rope = transformation
                         .apply(
+                            index,
                             self.buffer()
                                 .slice(&selection.extended_range())?
                                 .to_string(),
-                        )
+                        )?
                         .into();
                     let new_char_count = new.chars().count();
                     let range = selection.extended_range();
@@ -2017,8 +1998,7 @@ impl Editor {
                     ))
                 })
                 .into_iter()
-                .flatten()
-                .collect_vec(),
+                .try_collect()?,
         );
         self.apply_edit_transaction(edit_transaction)
     }
@@ -2629,6 +2609,10 @@ impl Editor {
         )
         .append(Dispatch::ToEditor(EnterInsertMode(Direction::Start)))
     }
+
+    fn pipe_to_shell(&mut self, command: String) -> Result<Dispatches, anyhow::Error> {
+        self.transform_selection(Transformation::PipeToShell { command })
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2747,6 +2731,9 @@ pub(crate) enum DispatchEditor {
     ReplaceWithPreviousCopiedText,
     ReplaceWithNextCopiedText,
     MoveToLastChar,
+    PipeToShell {
+        command: String,
+    },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

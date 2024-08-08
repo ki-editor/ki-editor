@@ -1,3 +1,6 @@
+use anyhow::Context;
+use std::io::{Read, Write};
+
 #[derive(Debug)]
 pub struct ProcessCommand {
     command: String,
@@ -5,7 +8,7 @@ pub struct ProcessCommand {
 }
 
 impl ProcessCommand {
-    pub(crate) fn new(command: &str, args: &[&str]) -> Self {
+    pub fn new(command: &str, args: &[&str]) -> Self {
         Self {
             command: command.to_string(),
             args: args.iter().map(|s| s.to_string()).collect(),
@@ -28,6 +31,38 @@ impl ProcessCommand {
                     e
                 )
             })
+    }
+
+    pub fn run_with_input(&self, input: &str) -> anyhow::Result<String> {
+        let mut child = self.spawn()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin
+                .write_all(input.as_bytes())
+                .context("Failed to write to stdin")?;
+        } else {
+            return Err(anyhow::anyhow!("Failed to open stdin"));
+        }
+
+        let mut output = String::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            stdout
+                .read_to_string(&mut output)
+                .context("Failed to read from stdout")?;
+        } else {
+            return Err(anyhow::anyhow!("Failed to open stdout"));
+        }
+
+        let status = child.wait().context("Failed to wait on child process")?;
+
+        if !status.success() {
+            return Err(anyhow::anyhow!(
+                "Command failed with exit code: {:?}",
+                status.code()
+            ));
+        }
+
+        Ok(output)
     }
 }
 
