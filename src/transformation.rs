@@ -35,7 +35,7 @@ impl Transformation {
                 .to_string()),
             Transformation::Wrap => Ok(soft_wrap(&string, 80).to_string()),
             Transformation::PipeToShell { command } => {
-                ProcessCommand::new("bash", &["-c", &command]).run_with_input(&string)
+                ProcessCommand::new("bash", &["-c", command]).run_with_input(&string)
             }
             Transformation::ReplaceWithCopiedText { copied_texts } => {
                 Ok(copied_texts.get(selection_index))
@@ -46,7 +46,7 @@ impl Transformation {
             Transformation::CaseAgnosticReplace {
                 search,
                 replacement,
-            } => CaseAgnostic::replace(&string, &search, &replacement),
+            } => CaseAgnostic::replace(&string, search, replacement),
         }
     }
 }
