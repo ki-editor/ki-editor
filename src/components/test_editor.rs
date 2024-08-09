@@ -298,6 +298,22 @@ fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_pipe_to_shell_1() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("snake_case".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+            Editor(PipeToShell {
+                command: "tr '_' ' '".to_string(),
+            }),
+            Expect(CurrentComponentContent("snake case")),
+            Expect(CurrentSelectedTexts(&["snake case"])),
+        ])
+    })
+}
+
+#[test]
 fn kill_line_to_end() -> anyhow::Result<()> {
     let input = "lala\nfoo bar spam\nyoyo";
     execute_test(|s| {

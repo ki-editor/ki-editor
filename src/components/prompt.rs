@@ -55,6 +55,7 @@ pub(crate) enum PromptHistoryKey {
     #[cfg(test)]
     Null,
     Theme,
+    PipeToShell,
 }
 
 impl Prompt {
