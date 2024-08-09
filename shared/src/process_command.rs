@@ -56,9 +56,24 @@ impl ProcessCommand {
         let status = child.wait().context("Failed to wait on child process")?;
 
         if !status.success() {
+            let stderr = child
+                .stderr
+                .take()
+                .map(|mut stderr| -> anyhow::Result<_> {
+                    let mut output = String::new();
+                    stderr.read_to_string(&mut output)?;
+                    Ok(output)
+                })
+                .unwrap_or(Ok("[No stderr]".to_string()))
+                .unwrap_or("[Failed to obtain stderr]".to_string());
             return Err(anyhow::anyhow!(
-                "Command failed with exit code: {:?}",
-                status.code()
+                "Command failed with exit code: {}\n\nSTDERR =\n\n{}\n\nSTDOUT =\n\n{}",
+                status
+                    .code()
+                    .map(|code| code.to_string())
+                    .unwrap_or("[Process terminated by signal]".to_string()),
+                stderr,
+                output,
             ));
         }
 
@@ -69,5 +84,34 @@ impl ProcessCommand {
 impl std::fmt::Display for ProcessCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.command, self.args.join(" "))
+    }
+}
+
+#[cfg(test)]
+mod test_process_command {
+    use super::ProcessCommand;
+
+    #[test]
+    fn failed_command_includes_exit_code_and_stderr() {
+        let err = ProcessCommand::new("python", &["-c", "yo"])
+            .run_with_input("hello")
+            .unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "
+Command failed with exit code: 1
+
+STDERR =
+
+Traceback (most recent call last):
+  File \"<string>\", line 1, in <module>
+NameError: name 'yo' is not defined
+
+
+STDOUT =
+
+"
+            .trim_start()
+        )
     }
 }

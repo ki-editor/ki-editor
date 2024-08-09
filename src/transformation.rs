@@ -1,7 +1,7 @@
 use convert_case::Casing;
 use shared::process_command::ProcessCommand;
 
-use crate::{clipboard::CopiedTexts, soft_wrap::soft_wrap};
+use crate::{clipboard::CopiedTexts, selection_mode::CaseAgnostic, soft_wrap::soft_wrap};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Transformation {
@@ -10,7 +10,21 @@ pub(crate) enum Transformation {
     Wrap,
     PipeToShell { command: String },
     ReplaceWithCopiedText { copied_texts: CopiedTexts },
+    RegexReplace { regex: MyRegex, replacement: String },
+    CaseAgnosticReplace { search: String, replacement: String },
 }
+
+#[derive(Debug, Clone)]
+pub(crate) struct MyRegex(pub(crate) regex::Regex);
+
+impl PartialEq for MyRegex {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_str() == other.0.as_str()
+    }
+}
+
+impl Eq for MyRegex {}
+
 impl Transformation {
     pub(crate) fn apply(&self, selection_index: usize, string: String) -> anyhow::Result<String> {
         match self {
@@ -26,6 +40,13 @@ impl Transformation {
             Transformation::ReplaceWithCopiedText { copied_texts } => {
                 Ok(copied_texts.get(selection_index))
             }
+            Transformation::RegexReplace { regex, replacement } => {
+                Ok(regex.0.replace(&string, replacement).to_string())
+            }
+            Transformation::CaseAgnosticReplace {
+                search,
+                replacement,
+            } => CaseAgnostic::replace(&string, &search, &replacement),
         }
     }
 }
