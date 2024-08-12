@@ -929,14 +929,17 @@ impl Buffer {
     pub(crate) fn line_range_to_byte_range(
         &self,
         visible_line_range: &Range<usize>,
-    ) -> Range<usize> {
-        self.line_to_byte_range(visible_line_range.start)
-            .map(|range| range.range().start)
-            .unwrap_or(0)
-            ..self
-                .line_to_byte_range(visible_line_range.end)
-                .map(|range| range.range().end)
-                .unwrap_or(0)
+    ) -> anyhow::Result<Range<usize>> {
+        let start = self
+            .line_to_byte_range(visible_line_range.start)?
+            .range()
+            .start;
+        let end = self
+            .line_to_byte_range(visible_line_range.end.saturating_sub(1))?
+            .range()
+            .end;
+        debug_assert!(start <= end);
+        Ok(start..end)
     }
 }
 

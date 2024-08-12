@@ -198,37 +198,22 @@ impl Editor {
         let hidden_parent_line_range = line_indices.clone().min().unwrap_or_default()
             ..line_indices.max().unwrap_or_default() + 1;
         let visible_line_range = self.visible_line_range();
-        let visible_line_byte_range = buffer.line_range_to_byte_range(&visible_line_range);
-        let hidden_parent_line_byte_range =
-            buffer.line_range_to_byte_range(&hidden_parent_line_range);
+        let visible_line_byte_range = buffer
+            .line_range_to_byte_range(&visible_line_range)
+            .unwrap_or_default();
+        let hidden_parent_line_byte_range = buffer
+            .line_range_to_byte_range(&hidden_parent_line_range)
+            .unwrap_or_default();
         let spans = buffer.highlighted_spans();
-        let highlighted_spans = {
-            fn range_search<T, F>(items: &[T], start: usize, end: usize, get_range: F) -> &[T]
-            where
-                F: Fn(&T) -> Range<usize>,
-            {
-                // Find the start index
-                // We consider an item to be "greater" than start if its range's end is greater than start
-                let start_idx = items.partition_point(|item| get_range(item).end <= start);
-
-                // Find the end index
-                // We consider an item to be "less than or equal" to end if its range's start is less than or equal to end
-                let end_idx = items.partition_point(|item| get_range(item).start <= end);
-                debug_assert!(end_idx < items.len());
-                debug_assert!(start_idx <= end_idx);
-
-                // Return the slice containing items that potentially overlap with [start, end]
-                &items[start_idx..end_idx]
-            }
-
-            range_search(
+        let filtered_highlighted_spans = {
+            filter_items_by_range(
                 &spans,
                 visible_line_byte_range.start,
                 visible_line_byte_range.end,
                 |span| span.byte_range.clone(),
             )
-            .into_iter()
-            .chain(range_search(
+            .iter()
+            .chain(filter_items_by_range(
                 &spans,
                 hidden_parent_line_byte_range.start,
                 hidden_parent_line_byte_range.end,
@@ -295,7 +280,7 @@ impl Editor {
         let updates = vec![]
             .into_iter()
             .chain(visible_parent_lines)
-            .chain(highlighted_spans)
+            .chain(filtered_highlighted_spans)
             .chain(extra_decorations)
             .chain(possible_selections)
             .chain(Some(primary_selection))
@@ -489,7 +474,7 @@ impl HighlightSpan {
                     }
                     HighlightSpanRange::ByteRange(range) => buffer
                         .byte_range_to_char_index_range(&range_intersection(
-                            &range,
+                            range,
                             &boundary.byte_range,
                         )?)
                         .ok()?,
@@ -616,5 +601,66 @@ mod test_render_editor {
             cell.position.line < (rectangle.height as usize)
                 && cell.position.column < (rectangle.width as usize)
         })
+    }
+}
+
+/// This functions utilize binary search to quickly extract the
+/// ranges that intersects with the given `start..end`.
+///
+/// It computes the result without iterating through every item of `items`.
+///
+/// Precondition: `items` must be sorted by their range
+fn filter_items_by_range<T, F>(items: &[T], start: usize, end: usize, get_range: F) -> &[T]
+where
+    F: Fn(&T) -> Range<usize>,
+{
+    debug_assert!(
+        items.iter().map(&get_range).collect_vec()
+            == items
+                .iter()
+                .map(&get_range)
+                .sorted_by_key(|range| (range.start, range.end))
+                .collect_vec(),
+    );
+    debug_assert!(start <= end);
+
+    // Find the start index
+    // We consider an item to be "greater" than start if its range's end is greater than start
+    let start_idx = items.partition_point(|item| get_range(item).end <= start);
+
+    // Find the end index
+    // We consider an item to be "less than or equal" to end if its range's start is less than or equal to end
+    let end_idx = items.partition_point(|item| get_range(item).start < end);
+
+    // Ensure start_idx is not greater than end_idx to avoid panics
+    let safe_start = std::cmp::min(start_idx, items.len());
+    let safe_end = std::cmp::max(safe_start, end_idx);
+
+    debug_assert!(safe_start <= safe_end);
+
+    // Return the slice containing items that potentially overlap with [start, end]
+    // Expect the result to be the same as using `range_intersection`
+    debug_assert_eq!(
+        (safe_start..safe_end).collect_vec(),
+        items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| range_intersection(&get_range(item), &(start..end)).is_some())
+            .map(|(index, _)| index)
+            .collect_vec()
+    );
+
+    &items[safe_start..safe_end]
+}
+
+#[cfg(test)]
+mod test_range_search {
+    use super::filter_items_by_range;
+
+    #[test]
+    fn case_1() {
+        let items = vec![(0..5), (3..8), (7..10), (9..15)];
+        let result = filter_items_by_range(&items, 6, 12, |r| r.clone());
+        assert_eq!(result, &[(3..8), (7..10), (9..15)]);
     }
 }
