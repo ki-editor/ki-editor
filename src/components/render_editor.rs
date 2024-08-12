@@ -194,15 +194,12 @@ impl Editor {
             })
         });
 
-        let line_indices = hidden_parent_lines.iter().map(|line| line.line);
-        let hidden_parent_line_range = line_indices.clone().min().unwrap_or_default()
-            ..line_indices.max().unwrap_or_default() + 1;
+        let hidden_parent_line_ranges = hidden_parent_lines
+            .iter()
+            .map(|line| line.line..line.line + 1);
         let visible_line_range = self.visible_line_range();
         let visible_line_byte_range = buffer
             .line_range_to_byte_range(&visible_line_range)
-            .unwrap_or_default();
-        let hidden_parent_line_byte_range = buffer
-            .line_range_to_byte_range(&hidden_parent_line_range)
             .unwrap_or_default();
         let spans = buffer.highlighted_spans();
         let filtered_highlighted_spans = {
@@ -213,12 +210,11 @@ impl Editor {
                 |span| span.byte_range.clone(),
             )
             .iter()
-            .chain(filter_items_by_range(
-                &spans,
-                hidden_parent_line_byte_range.start,
-                hidden_parent_line_byte_range.end,
-                |span| span.byte_range.clone(),
-            ))
+            .chain(hidden_parent_line_ranges.into_iter().flat_map(|range| {
+                filter_items_by_range(&spans, range.start, range.end, |span| {
+                    span.byte_range.clone()
+                })
+            }))
             .map(|span| HighlightSpan {
                 range: HighlightSpanRange::ByteRange(span.byte_range.clone()),
                 source: Source::StyleKey(span.style_key.clone()),
@@ -446,7 +442,7 @@ impl Editor {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct HighlightSpan {
     pub(crate) source: Source,
     pub(crate) range: HighlightSpanRange,
@@ -527,13 +523,13 @@ fn range_intersection<T: Ord + Copy>(a: &Range<T>, b: &Range<T>) -> Option<Range
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum Source {
     StyleKey(StyleKey),
     Style(Style),
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum HighlightSpanRange {
     CharIndexRange(CharIndexRange),
     ByteRange(Range<usize>),

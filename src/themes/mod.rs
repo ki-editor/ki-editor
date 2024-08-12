@@ -449,7 +449,7 @@ pub fn highlight_names() -> &'static Vec<&'static str> {
 }
 
 /// This should be constructed using the `hex!` macro.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize, PartialOrd, Ord)]
 pub(crate) struct Color {
     r: u8,
     g: u8,

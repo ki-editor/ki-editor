@@ -3,7 +3,7 @@ use crate::{
     themes::Color,
 };
 
-#[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub(crate) struct Style {
     pub(crate) foreground_color: Option<Color>,
     pub(crate) background_color: Option<Color>,

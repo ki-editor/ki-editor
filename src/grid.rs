@@ -33,13 +33,13 @@ pub(crate) struct Cell {
     pub(crate) is_bold: bool,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy, PartialOrd, Ord)]
 pub(crate) struct CellLine {
     pub(crate) color: Color,
     pub(crate) style: CellLineStyle,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy, PartialOrd, Ord)]
 pub(crate) enum CellLineStyle {
     Undercurl,
     Underline,
