@@ -210,8 +210,11 @@ impl Editor {
                 |span| span.byte_range.clone(),
             )
             .iter()
-            .chain(hidden_parent_line_ranges.into_iter().flat_map(|range| {
-                filter_items_by_range(&spans, range.start, range.end, |span| {
+            .chain(hidden_parent_line_ranges.clone().flat_map(|line_range| {
+                let byte_range = buffer
+                    .line_range_to_byte_range(&line_range)
+                    .unwrap_or_default();
+                filter_items_by_range(&spans, byte_range.start, byte_range.end, |span| {
                     span.byte_range.clone()
                 })
             }))
@@ -319,10 +322,10 @@ impl Editor {
         );
 
         let hidden_parent_lines_grid = {
-            let line_indices = hidden_parent_lines.iter().map(|line| line.line);
-            let hidden_parent_line_range = line_indices.clone().min().unwrap_or_default()
-                ..line_indices.max().unwrap_or_default() + 1;
-            let boundaries = [Boundary::new(&buffer, hidden_parent_line_range)];
+            let boundaries = hidden_parent_line_ranges
+                .into_iter()
+                .map(|hidden_parent_line_range| Boundary::new(&buffer, hidden_parent_line_range))
+                .collect_vec();
             let updates = hidden_parent_lines
                 .iter()
                 .map(|line| HighlightSpan {
