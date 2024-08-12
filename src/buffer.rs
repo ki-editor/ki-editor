@@ -671,8 +671,19 @@ impl Buffer {
         self.apply_edit_transaction(&edit_transaction, current_selection_set, true)
     }
 
+    /// The resulting spans must be sorted by range
     pub(crate) fn highlighted_spans(&self) -> Vec<HighlighedSpan> {
-        self.highlighted_spans.0.clone()
+        let spans = self.highlighted_spans.0.clone();
+        debug_assert!(
+            spans
+                .iter()
+                .enumerate()
+                .sorted_by_key(|(_, span)| (span.byte_range.start, span.byte_range.end))
+                .map(|(index, _)| index)
+                .collect_vec()
+                == (0..spans.len()).collect_vec(),
+        );
+        spans
     }
 
     pub(crate) fn language(&self) -> Option<Language> {
@@ -913,6 +924,19 @@ impl Buffer {
 
     pub(crate) fn next_selection_set(&mut self) -> Option<SelectionSet> {
         self.selection_set_history.redo()
+    }
+
+    pub(crate) fn line_range_to_byte_range(
+        &self,
+        visible_line_range: &Range<usize>,
+    ) -> Range<usize> {
+        self.line_to_byte_range(visible_line_range.start)
+            .map(|range| range.range().start)
+            .unwrap_or(0)
+            ..self
+                .line_to_byte_range(visible_line_range.end)
+                .map(|range| range.range().end)
+                .unwrap_or(0)
     }
 }
 
