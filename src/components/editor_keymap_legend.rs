@@ -22,7 +22,6 @@ use super::{
         Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, SurroundKind,
     },
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
-    suggestive_editor::Info,
 };
 
 use DispatchEditor::*;
@@ -766,38 +765,25 @@ impl Editor {
                     }))
                     .chain(Some(KeymapLegendSection {
                         title: "Misc".to_string(),
-                        keymaps: Keymaps::new(
-                            &Some(Keymap::new(
+                        keymaps: Keymaps::new(&[
+                            Keymap::new(
                                 "e",
                                 "Reveal current file in Explorer".to_string(),
                                 Dispatch::RevealInExplorer(self.path().unwrap_or_else(|| {
                                     context.current_working_directory().clone()
                                 })),
-                            ))
-                            .into_iter()
-                            .chain(Some(Keymap::new(
+                            ),
+                            Keymap::new(
                                 "z",
                                 "Undo Tree".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::EnterUndoTreeMode),
-                            )))
-                            .chain(
-                                self.buffer()
-                                    .get_current_node(self.selection_set.primary_selection(), false)
-                                    .ok()
-                                    .flatten()
-                                    .map(|node| {
-                                        Keymap::new(
-                                            "x",
-                                            "Tree-sitter node S-expression".to_string(),
-                                            Dispatch::ShowEditorInfo(Info::new(
-                                                "Tree-sitter node S-expression".to_string(),
-                                                node.to_sexp(),
-                                            )),
-                                        )
-                                    }),
-                            )
-                            .collect_vec(),
-                        ),
+                            ),
+                            Keymap::new(
+                                "x",
+                                "Tree-sitter node S-expression".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
+                            ),
+                        ]),
                     }))
                     .collect(),
             },

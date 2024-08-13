@@ -332,6 +332,7 @@ impl Component for Editor {
             }
             MoveToLastChar => return Ok(self.move_to_last_char()),
             PipeToShell { command } => return self.pipe_to_shell(command),
+            ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
         }
         Ok(Default::default())
     }
@@ -2573,6 +2574,18 @@ impl Editor {
     fn pipe_to_shell(&mut self, command: String) -> Result<Dispatches, anyhow::Error> {
         self.transform_selection(Transformation::PipeToShell { command })
     }
+
+    fn show_current_tree_sitter_node_sexp(&self) -> Result<Dispatches, anyhow::Error> {
+        let buffer = self.buffer();
+        let node = buffer.get_current_node(self.selection_set.primary_selection(), false)?;
+        let info = node
+            .map(|node| node.to_sexp())
+            .unwrap_or("[No node found]".to_string());
+        Ok(Dispatches::one(Dispatch::ShowEditorInfo(Info::new(
+            "Tree-sitter node S-expression".to_string(),
+            info,
+        ))))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2694,6 +2707,7 @@ pub(crate) enum DispatchEditor {
     PipeToShell {
         command: String,
     },
+    ShowCurrentTreeSitterNodeSexp,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
