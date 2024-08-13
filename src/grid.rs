@@ -1,7 +1,7 @@
 use crate::{
     app::Dimension,
     position::Position,
-    soft_wrap,
+    soft_wrap::{self},
     style::Style,
     themes::{Color, Theme},
 };
@@ -500,27 +500,30 @@ impl Grid {
             .chain(line_numbers)
             .flat_map(|update| {
                 if update.should_be_calibrated {
-                    wrapped_lines
-                        .calibrate(update.cell_update.position)
-                        .ok()
-                        .unwrap_or_default()
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, position)| CellUpdate {
-                            position: position.move_right(
-                                (max_line_number_len + line_number_separator_width) as u16,
-                            ),
-                            symbol: if index == 0 {
-                                update.cell_update.symbol.clone()
-                            } else {
-                                // Fill extra paddings with no-symbol cells
-                                None
+                    if let Ok(calibrated_position) =
+                        wrapped_lines.calibrate(update.cell_update.position)
+                    {
+                        Box::new(calibrated_position.into_iter().enumerate().map(
+                            move |(index, position)| CellUpdate {
+                                position: position.move_right(
+                                    (max_line_number_len + line_number_separator_width) as u16,
+                                ),
+                                symbol: if index == 0 {
+                                    update.cell_update.symbol.clone()
+                                } else {
+                                    // Fill extra paddings with no-symbol cells
+                                    None
+                                },
+                                ..update.cell_update.clone()
                             },
-                            ..update.cell_update.clone()
-                        })
-                        .collect_vec()
+                        )) as Box<dyn Iterator<Item = CellUpdate>>
+                    } else {
+                        Box::new(std::iter::empty::<CellUpdate>())
+                            as Box<dyn Iterator<Item = CellUpdate>>
+                    }
                 } else {
-                    vec![update.cell_update]
+                    Box::new(std::iter::once(update.cell_update))
+                        as Box<dyn Iterator<Item = CellUpdate>>
                 }
             })
             .collect_vec();
