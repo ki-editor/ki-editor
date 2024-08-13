@@ -1686,6 +1686,13 @@ fn main() { // too long
                 })
                 .collect(),
             ),
+            Expect(
+                // Expect the left parenthesis of the outbound parent line "fn main() { // too long" is highlighted properly
+                ExpectKind::GridCellStyleKey(
+                    Position::new(1, 9),
+                    Some(StyleKey::Syntax("punctuation.bracket".to_string())),
+                ),
+            ),
             ExpectMulti(
                 [
                     // Expect the `let` keyword of line 3 (which is inbound and not wrapped) is highlighted properly
