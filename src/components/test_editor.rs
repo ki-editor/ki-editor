@@ -2516,3 +2516,24 @@ fn selection_set_history_updates_upon_edit() -> Result<(), anyhow::Error> {
         }
     })
 }
+
+#[test]
+fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("fn main() {}".to_string())),
+                Editor(SetSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                    SyntaxNodeCoarse,
+                )),
+                Editor(ShowCurrentTreeSitterNodeSexp),
+                App(OtherWindow),
+                Expect(CurrentComponentContent(
+                    "(function_item name: (identifier) parameters: (parameters) body: (block))",
+                )),
+            ])
+        }
+    })
+}
