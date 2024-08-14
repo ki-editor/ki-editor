@@ -8,6 +8,7 @@ use crate::{
     components::editor::DispatchEditor,
     context::Context,
     lsp::completion::Completion,
+    selection::SelectionMode,
 };
 
 use super::{
@@ -83,11 +84,23 @@ impl Prompt {
             Rc::new(RefCell::new(Buffer::new(None, &text))),
             SuggestiveEditorFilter::CurrentLine,
         );
-        let dispatches = Dispatches::one(Dispatch::ToEditor(if config.leaves_current_line_empty {
-            DispatchEditor::MoveToLastChar
+        let dispatches = if config.leaves_current_line_empty {
+            Dispatches::one(Dispatch::ToEditor(DispatchEditor::MoveToLastChar))
         } else {
-            DispatchEditor::MoveToLineEnd
-        }));
+            Dispatches::new(
+                [
+                    Dispatch::ToEditor(DispatchEditor::SetSelectionMode(
+                        super::editor::IfCurrentNotFound::LookForward,
+                        SelectionMode::LineTrimmed,
+                    )),
+                    Dispatch::ToEditor(DispatchEditor::MoveSelection(
+                        super::editor::Movement::Last,
+                    )),
+                    Dispatch::ToEditor(DispatchEditor::MoveToLineEnd),
+                ]
+                .to_vec(),
+            )
+        };
         // TODO: set cursor to last line
         editor.set_title(config.title);
         editor.set_completion(Completion {
@@ -205,7 +218,7 @@ mod test_prompt {
                 Box::new([
                     App(OpenFile(s.main_rs())),
                     App(OpenPrompt {
-                        current_line: Some("hello".to_string()),
+                        current_line: Some("hello\nworld".to_string()),
                         key: PromptHistoryKey::Null,
                         config: PromptConfig {
                             on_enter: DispatchPrompt::Null,
@@ -222,8 +235,8 @@ mod test_prompt {
             })
             .unwrap();
         }
-        test(true, "hello\n", Position::new(1, 0));
-        test(false, "hello", Position::new(0, 5));
+        test(true, "hello\nworld\n", Position::new(2, 0));
+        test(false, "hello\nworld", Position::new(1, 5));
     }
 
     #[test]
