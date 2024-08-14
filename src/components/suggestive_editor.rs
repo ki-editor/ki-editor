@@ -66,7 +66,6 @@ impl Component for SuggestiveEditor {
             .editor_mut()
             .handle_dispatch_editor(context, dispatch)?;
         let update_filter_result = self.update_filter();
-
         Ok(dispatches.chain(update_filter_result?))
     }
 
@@ -225,6 +224,9 @@ impl SuggestiveEditor {
     }
 
     fn update_filter(&mut self) -> anyhow::Result<Dispatches> {
+        if self.editor.mode != Mode::Insert {
+            return Ok(Dispatches::empty());
+        }
         let filter = match self.filter {
             SuggestiveEditorFilter::CurrentWord => {
                 // We need to subtract 1 because we need to get the character

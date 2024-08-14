@@ -2118,6 +2118,10 @@ impl Dispatches {
     pub(crate) fn one(edit: Dispatch) -> Dispatches {
         Dispatches(vec![edit])
     }
+
+    pub(crate) fn empty() -> Dispatches {
+        Dispatches(Default::default())
+    }
 }
 
 #[must_use]
