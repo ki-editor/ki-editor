@@ -62,12 +62,11 @@ impl Screen {
         // We use `IndexSet` instead of `HashSet` because the latter does not preserve ordering,
         // which can cause re-render to flicker like old TV (at least on Kitty term)
 
-        let new: indexmap::IndexSet<PositionedCell> =
-            self.get_positioned_cells().into_iter().collect();
+        let new = self.get_positioned_cells();
         let old: indexmap::IndexSet<PositionedCell> =
             old_screen.get_positioned_cells().into_iter().collect();
-        new.difference(&old)
-            .map(|cell| cell.to_owned())
+        new.into_iter()
+            .filter(|cell| !old.contains(cell))
             .collect_vec()
     }
 
