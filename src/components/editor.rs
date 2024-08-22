@@ -333,6 +333,8 @@ impl Component for Editor {
             MoveToLastChar => return Ok(self.move_to_last_char()),
             PipeToShell { command } => return self.pipe_to_shell(command),
             ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
+            Indent => return self.indent(),
+            Dedent => todo!(),
         }
         Ok(Default::default())
     }
@@ -2586,6 +2588,78 @@ impl Editor {
             info,
         ))))
     }
+
+    fn indent(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let indentations: Vec<String> = self
+            .content()
+            .lines()
+            .map(|line| line.chars().take_while(|c| c.is_whitespace()).collect())
+            .collect_vec();
+        let indent_char = {
+            let unique_indentations = indentations
+                .iter()
+                .flat_map(|indentation| indentation.chars())
+                .unique()
+                .collect_vec();
+            match unique_indentations.split_first() {
+                Some((head, [])) => head.clone(),
+                Some(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Different kinds of indentations found: {}",
+                        unique_indentations
+                            .iter()
+                            .map(|&c| match c {
+                                ' ' => "whitespace".to_string(),
+                                '\t' => "tab".to_string(),
+                                _ => format!("U+{:04X}", c as u32),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                None => return Err(anyhow::anyhow!("No indentations found",)),
+            }
+        };
+        let indent_width: usize = indentations
+            .iter()
+            .filter(|indent| !indent.is_empty())
+            .map(|indent| indent.chars().count())
+            .min()
+            .unwrap_or(0);
+        let indentation: Rope = std::iter::repeat(indent_char)
+            .take(indent_width)
+            .collect::<String>()
+            .into();
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let range = selection.extended_range();
+                    let content = self.buffer().slice(&range)?;
+                    let new: Rope = content
+                        .lines()
+                        .map(|line| format!("{}{}", indentation, line))
+                        .collect_vec()
+                        .join("")
+                        .into();
+                    let new_len_chars = new.len_chars();
+                    let select_range = {
+                        let start = range.start + indent_width;
+                        start..(start + new_len_chars.saturating_sub(indent_width))
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit { range, new }),
+                            Action::Select(selection.clone().set_range(select_range.into())),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2708,6 +2782,8 @@ pub(crate) enum DispatchEditor {
         command: String,
     },
     ShowCurrentTreeSitterNodeSexp,
+    Indent,
+    Dedent,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

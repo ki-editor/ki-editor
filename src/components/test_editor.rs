@@ -2537,3 +2537,36 @@ fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
         }
     })
 }
+
+#[test]
+fn test_indent_dedent() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+    foo()
+}
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SyntaxNodeCoarse,
+            )),
+            Editor(Indent),
+            Expect(CurrentComponentContent(
+                "
+    fn main() {
+        foo()
+    }
+",
+            )),
+            Expect(CurrentSelectedTexts(&["fn main() {
+        foo()
+    }"])),
+        ])
+    })
+}
