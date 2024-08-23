@@ -4,14 +4,16 @@ use crate::{
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
+    edit::ApplyOffset,
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
-    selection_mode::{self},
+    selection_mode,
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
 
 use nonempty::NonEmpty;
+use num::Signed;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -333,8 +335,7 @@ impl Component for Editor {
             MoveToLastChar => return Ok(self.move_to_last_char()),
             PipeToShell { command } => return self.pipe_to_shell(command),
             ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
-            Indent => return self.indent(),
-            Dedent => todo!(),
+            Indent(direction) => return self.indent(direction),
         }
         Ok(Default::default())
     }
@@ -2589,7 +2590,7 @@ impl Editor {
         ))))
     }
 
-    fn indent(&mut self) -> Result<Dispatches, anyhow::Error> {
+    fn indent(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
         let indentations: Vec<String> = self
             .content()
             .lines()
@@ -2620,12 +2621,19 @@ impl Editor {
                 None => return Err(anyhow::anyhow!("No indentations found",)),
             }
         };
-        let indent_width: usize = indentations
-            .iter()
-            .filter(|indent| !indent.is_empty())
-            .map(|indent| indent.chars().count())
-            .min()
-            .unwrap_or(0);
+        let indent_width = {
+            let non_empty_indents = indentations
+                .iter()
+                .filter(|indent| !indent.is_empty())
+                .map(|indent| indent.len())
+                .collect::<Vec<_>>();
+
+            match non_empty_indents.as_slice() {
+                [] => 4, // Default to 4 if no non-empty indents found
+                [single] => *single,
+                multiple => multiple.iter().fold(0, |acc, &x| num::integer::gcd(acc, x)),
+            }
+        };
         let indentation: Rope = std::iter::repeat(indent_char)
             .take(indent_width)
             .collect::<String>()
@@ -2633,22 +2641,71 @@ impl Editor {
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
-                    let range = selection.extended_range();
-                    let content = self.buffer().slice(&range)?;
-                    let new: Rope = content
+                    let original_range = selection.extended_range();
+                    let line_range = self
+                        .buffer()
+                        .char_index_range_to_line_range(original_range)?;
+                    let linewise_range = self
+                        .buffer()
+                        .line_range_to_char_index_range(line_range.clone())?;
+                    let content = self.buffer().slice(&linewise_range)?;
+                    let get_remove_leading_char_count = |line: &str| {
+                        let leading_indent_count =
+                            line.chars().take_while(|c| c == &indent_char).count();
+                        leading_indent_count.min(indent_width)
+                    };
+                    let modified_lines = content
                         .lines()
-                        .map(|line| format!("{}{}", indentation, line))
-                        .collect_vec()
+                        .filter(|line| line.len_chars() > 0)
+                        .map(|line| match direction {
+                            Direction::Start => {
+                                let remove_leading_char_count =
+                                    get_remove_leading_char_count(&line.to_string());
+                                (
+                                    -(remove_leading_char_count as isize),
+                                    line.slice(remove_leading_char_count..).to_string(),
+                                )
+                            }
+                            Direction::End => (
+                                indentation.len_chars() as isize,
+                                format!("{}{}", indentation, line),
+                            ),
+                        })
+                        .collect_vec();
+                    let length_changes = modified_lines
+                        .iter()
+                        .map(|(length_change, _)| *length_change)
+                        .collect_vec();
+                    let first_length_change = length_changes.first().cloned().unwrap_or_default();
+                    let length_change: isize = length_changes.into_iter().sum();
+                    let new: Rope = modified_lines
+                        .into_iter()
+                        .map(|(_, line)| line)
                         .join("")
                         .into();
-                    let new_len_chars = new.len_chars();
                     let select_range = {
-                        let start = range.start + indent_width;
-                        start..(start + new_len_chars.saturating_sub(indent_width))
+                        let offset: isize = match direction {
+                            Direction::Start => first_length_change,
+                            Direction::End => indent_width as isize,
+                        };
+                        let start = original_range.start.apply_offset(offset);
+                        let original_len = original_range.len();
+                        let end = (start
+                            + if length_change.is_negative() {
+                                original_len.saturating_sub(length_change.abs() as usize)
+                            } else {
+                                original_len + length_change as usize
+                            })
+                        .apply_offset(-offset);
+                        start..end
                     };
+
                     Ok(ActionGroup::new(
                         [
-                            Action::Edit(Edit { range, new }),
+                            Action::Edit(Edit {
+                                range: linewise_range,
+                                new,
+                            }),
                             Action::Select(selection.clone().set_range(select_range.into())),
                         ]
                         .to_vec(),
@@ -2782,8 +2839,7 @@ pub(crate) enum DispatchEditor {
         command: String,
     },
     ShowCurrentTreeSitterNodeSexp,
-    Indent,
-    Dedent,
+    Indent(Direction),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

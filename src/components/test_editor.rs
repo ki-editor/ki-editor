@@ -2539,7 +2539,7 @@ fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-fn test_indent_dedent() -> anyhow::Result<()> {
+fn test_indent() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2556,7 +2556,7 @@ fn main() {
                 IfCurrentNotFound::LookForward,
                 SyntaxNodeCoarse,
             )),
-            Editor(Indent),
+            Editor(Indent(Direction::End)),
             Expect(CurrentComponentContent(
                 "
     fn main() {
@@ -2567,6 +2567,17 @@ fn main() {
             Expect(CurrentSelectedTexts(&["fn main() {
         foo()
     }"])),
+            Editor(Indent(Direction::Start)),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+    foo()
+}
+",
+            )),
+            Expect(CurrentSelectedTexts(&["fn main() {
+    foo()
+}"])),
         ])
     })
 }
