@@ -266,6 +266,64 @@ fn test_delete_word_long() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_delete_extended_selection() -> anyhow::Result<()> {
+    let run_test =
+        |backward: bool, expected_selected_texts: &'static [&'static str]| -> anyhow::Result<()> {
+            execute_test(|s| {
+                Box::new([
+                    App(OpenFile(s.main_rs())),
+                    Editor(SetContent("who lives in a pineapple".to_string())),
+                    Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+                    Editor(MoveSelection(Next)),
+                    Editor(ToggleVisualMode),
+                    Editor(MoveSelection(Next)),
+                    Expect(CurrentSelectedTexts(&["lives in"])),
+                    Editor(Delete { backward }),
+                    Expect(CurrentComponentContent("who a pineapple")),
+                    Expect(CurrentSelectedTexts(expected_selected_texts)),
+                ])
+            })
+        };
+    run_test(false, &["a"])?;
+    run_test(true, &["who"])
+}
+
+#[test]
+fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("who lives in".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(MoveSelection(Next)),
+            Editor(ToggleVisualMode),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["lives in"])),
+            Editor(Delete { backward: false }),
+            Expect(CurrentComponentContent("who")),
+            Expect(CurrentSelectedTexts(&["who"])),
+        ])
+    })
+}
+
+#[test]
+fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("who lives in".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(ToggleVisualMode),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["who lives"])),
+            Editor(Delete { backward: true }),
+            Expect(CurrentComponentContent("in")),
+            Expect(CurrentSelectedTexts(&["in"])),
+        ])
+    })
+}
+
+#[test]
 fn test_delete_word_short_backward_from_middle_of_file() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([

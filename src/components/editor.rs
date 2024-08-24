@@ -426,7 +426,9 @@ impl RegexHighlightRuleCaptureStyle {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Direction {
+    /// Also means Backward
     Start,
+    /// Also means Forward
     End,
 }
 
@@ -441,6 +443,13 @@ impl Direction {
     #[cfg(test)]
     pub(crate) fn default() -> Direction {
         Direction::Start
+    }
+
+    fn to_movement(&self) -> Movement {
+        match self {
+            Direction::Start => Movement::Previous,
+            Direction::End => Movement::Next,
+        }
     }
 }
 
@@ -734,12 +743,18 @@ impl Editor {
                         let start = current_range.start;
                         (current_range, (start..start + 1).into())
                     };
-                    let get_selection = |movement: Movement| {
+
+                    let get_selection = |direction: Direction| {
+                        // The start selection is used for getting the next/previous selection
+                        // It cannot be the extended selection, otherwise the next/previous selection
+                        // will not be found
+                        let start_selection =
+                            &selection.clone().collapsed_to_anchor_range(&direction);
                         Selection::get_selection_(
                             &buffer,
-                            selection,
+                            start_selection,
                             &self.selection_set.mode,
-                            &movement,
+                            &direction.to_movement(),
                             &self.cursor_direction,
                             &self.selection_set.filters,
                         )
@@ -747,22 +762,22 @@ impl Editor {
                         .flatten()
                     };
                     let (delete_range, select_range) = {
-                        if !self.selection_set.mode.is_contiguous() || selection.is_extended() {
+                        if !self.selection_set.mode.is_contiguous() {
                             default
                         }
-                        // If the selection mode is contiguous and the selection is not extended,
+                        // If the selection mode is contiguous,
                         // perform a "kill next/previous" instead
                         else {
                             let other_selection = get_selection(if backward {
-                                Movement::Previous
+                                Direction::Start
                             } else {
-                                Movement::Next
+                                Direction::End
                             })
                             .or_else(|| {
                                 get_selection(if backward {
-                                    Movement::Next
+                                    Direction::End
                                 } else {
-                                    Movement::Previous
+                                    Direction::Start
                                 })
                             })
                             .unwrap_or(selection.clone().into())
