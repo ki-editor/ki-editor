@@ -209,7 +209,7 @@ impl Component for Editor {
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete { backward } => return self.delete(backward),
+            Delete(direction) => return self.delete(direction),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -426,7 +426,9 @@ impl RegexHighlightRuleCaptureStyle {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Direction {
+    /// Also means Backward or Next
     Start,
+    /// Also means Forward or Previous
     End,
 }
 
@@ -441,6 +443,13 @@ impl Direction {
     #[cfg(test)]
     pub(crate) fn default() -> Direction {
         Direction::Start
+    }
+
+    fn to_movement(&self) -> Movement {
+        match self {
+            Direction::Start => Movement::Previous,
+            Direction::End => Movement::Next,
+        }
     }
 }
 
@@ -724,7 +733,7 @@ impl Editor {
         )
     }
 
-    pub(crate) fn delete(&mut self, backward: bool) -> anyhow::Result<Dispatches> {
+    pub(crate) fn delete(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -734,12 +743,18 @@ impl Editor {
                         let start = current_range.start;
                         (current_range, (start..start + 1).into())
                     };
-                    let get_selection = |movement: Movement| {
+
+                    let get_selection = |direction: &Direction| {
+                        // The start selection is used for getting the next/previous selection
+                        // It cannot be the extended selection, otherwise the next/previous selection
+                        // will not be found
+                        let start_selection =
+                            &selection.clone().collapsed_to_anchor_range(direction);
                         Selection::get_selection_(
                             &buffer,
-                            selection,
+                            start_selection,
                             &self.selection_set.mode,
-                            &movement,
+                            &direction.to_movement(),
                             &self.cursor_direction,
                             &self.selection_set.filters,
                         )
@@ -747,28 +762,15 @@ impl Editor {
                         .flatten()
                     };
                     let (delete_range, select_range) = {
-                        if !self.selection_set.mode.is_contiguous() || selection.is_extended() {
+                        if !self.selection_set.mode.is_contiguous() {
                             default
                         }
-                        // If the selection mode is contiguous and the selection is not extended,
+                        // If the selection mode is contiguous,
                         // perform a "kill next/previous" instead
-                        else {
-                            let other_selection = get_selection(if backward {
-                                Movement::Previous
-                            } else {
-                                Movement::Next
-                            })
-                            .or_else(|| {
-                                get_selection(if backward {
-                                    Movement::Next
-                                } else {
-                                    Movement::Previous
-                                })
-                            })
-                            .unwrap_or(selection.clone().into())
-                            .selection;
-
-                            let other_range = other_selection.range();
+                        else if let Some(other_selection) = get_selection(&direction)
+                            .or_else(|| get_selection(&direction.reverse()))
+                        {
+                            let other_range = other_selection.selection.range();
                             if other_range == current_range {
                                 default
                             } else if other_range.start >= current_range.end {
@@ -776,6 +778,7 @@ impl Editor {
                                     (current_range.start..other_range.start).into();
                                 let select_range = {
                                     other_selection
+                                        .selection
                                         .extended_range()
                                         .shift_left(delete_range.len())
                                 };
@@ -783,9 +786,15 @@ impl Editor {
                             } else {
                                 let delete_range: CharIndexRange =
                                     (other_range.end..current_range.end).into();
-                                let select_range = other_selection.range();
+                                let select_range = other_selection.selection.range();
                                 (delete_range, select_range)
                             }
+                        }
+                        // If the other selection not found, then only deletes the selection
+                        // without moving forward or backward
+                        else {
+                            let range = selection.extended_range();
+                            (range, (range.start..range.start).into())
                         }
                     };
                     Ok(ActionGroup::new(
@@ -2644,9 +2653,7 @@ pub(crate) enum DispatchEditor {
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
-    Delete {
-        backward: bool,
-    },
+    Delete(Direction),
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,

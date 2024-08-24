@@ -790,7 +790,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
                 IfCurrentNotFound::LookForward,
                 LineTrimmed,
             )),
-            Editor(Delete { backward: false }),
+            Editor(Delete(Direction::End)),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
             Editor(Insert("// Hello".to_string())),
@@ -901,7 +901,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 LineTrimmed,
             )),
             Editor(SelectAll),
-            Editor(Delete { backward: false }),
+            Editor(Delete(Direction::End)),
             Editor(Insert(
                 "
 fn first () {

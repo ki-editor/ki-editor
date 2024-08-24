@@ -221,12 +221,12 @@ impl Editor {
                 Keymap::new(
                     "d",
                     "Delete (until next selection)".to_string(),
-                    Dispatch::ToEditor(Delete { backward: false }),
+                    Dispatch::ToEditor(Delete(Direction::End)),
                 ),
                 Keymap::new(
                     "D",
                     "Delete (until previous selection)".to_string(),
-                    Dispatch::ToEditor(Delete { backward: true }),
+                    Dispatch::ToEditor(Delete(Direction::Start)),
                 ),
                 Keymap::new(
                     "^",
