@@ -749,7 +749,7 @@ impl Editor {
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
                         let start_selection =
-                            &selection.clone().collapsed_to_anchor_range(&direction);
+                            &selection.clone().collapsed_to_anchor_range(direction);
                         Selection::get_selection_(
                             &buffer,
                             start_selection,
@@ -767,36 +767,34 @@ impl Editor {
                         }
                         // If the selection mode is contiguous,
                         // perform a "kill next/previous" instead
+                        else if let Some(other_selection) = get_selection(&direction)
+                            .or_else(|| get_selection(&direction.reverse()))
+                        {
+                            let other_range = other_selection.selection.range();
+                            if other_range == current_range {
+                                default
+                            } else if other_range.start >= current_range.end {
+                                let delete_range: CharIndexRange =
+                                    (current_range.start..other_range.start).into();
+                                let select_range = {
+                                    other_selection
+                                        .selection
+                                        .extended_range()
+                                        .shift_left(delete_range.len())
+                                };
+                                (delete_range, select_range)
+                            } else {
+                                let delete_range: CharIndexRange =
+                                    (other_range.end..current_range.end).into();
+                                let select_range = other_selection.selection.range();
+                                (delete_range, select_range)
+                            }
+                        }
+                        // If the other selection not found, then only deletes the selection
+                        // without moving forward or backward
                         else {
-                            if let Some(other_selection) = get_selection(&direction)
-                                .or_else(|| get_selection(&direction.reverse()))
-                            {
-                                let other_range = other_selection.selection.range();
-                                if other_range == current_range {
-                                    default
-                                } else if other_range.start >= current_range.end {
-                                    let delete_range: CharIndexRange =
-                                        (current_range.start..other_range.start).into();
-                                    let select_range = {
-                                        other_selection
-                                            .selection
-                                            .extended_range()
-                                            .shift_left(delete_range.len())
-                                    };
-                                    (delete_range, select_range)
-                                } else {
-                                    let delete_range: CharIndexRange =
-                                        (other_range.end..current_range.end).into();
-                                    let select_range = other_selection.selection.range();
-                                    (delete_range, select_range)
-                                }
-                            }
-                            // If other selection not found, then only deletes the selection
-                            // without moving forward or backward
-                            else {
-                                let range = selection.extended_range();
-                                (range, (range.start..range.start).into())
-                            }
+                            let range = selection.extended_range();
+                            (range, (range.start..range.start).into())
                         }
                     };
                     Ok(ActionGroup::new(
