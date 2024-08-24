@@ -187,7 +187,7 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
             )),
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("fn main() {}")),
-            Expect(CurrentSelectedTexts(&[")"])),
+            Expect(CurrentSelectedTexts(&[""])),
         ])
     })
 }
@@ -320,6 +320,21 @@ fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
             Editor(Delete(Direction::Start)),
             Expect(CurrentComponentContent("in")),
             Expect(CurrentSelectedTexts(&["in"])),
+        ])
+    })
+}
+
+#[test]
+fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
+    execute_test(move |s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("who lives in a pineapple".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(SelectAll),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("")),
+            Expect(CurrentSelectedTexts(&[""])),
         ])
     })
 }
