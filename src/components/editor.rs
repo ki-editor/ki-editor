@@ -209,7 +209,7 @@ impl Component for Editor {
             ToggleVisualMode => self.toggle_visual_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete { backward } => return self.delete(backward),
+            Delete(direction) => return self.delete(direction),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -426,9 +426,9 @@ impl RegexHighlightRuleCaptureStyle {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Direction {
-    /// Also means Backward
+    /// Also means Backward or Next
     Start,
-    /// Also means Forward
+    /// Also means Forward or Previous
     End,
 }
 
@@ -733,7 +733,7 @@ impl Editor {
         )
     }
 
-    pub(crate) fn delete(&mut self, backward: bool) -> anyhow::Result<Dispatches> {
+    pub(crate) fn delete(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -744,7 +744,7 @@ impl Editor {
                         (current_range, (start..start + 1).into())
                     };
 
-                    let get_selection = |direction: Direction| {
+                    let get_selection = |direction: &Direction| {
                         // The start selection is used for getting the next/previous selection
                         // It cannot be the extended selection, otherwise the next/previous selection
                         // will not be found
@@ -768,20 +768,10 @@ impl Editor {
                         // If the selection mode is contiguous,
                         // perform a "kill next/previous" instead
                         else {
-                            let other_selection = get_selection(if backward {
-                                Direction::Start
-                            } else {
-                                Direction::End
-                            })
-                            .or_else(|| {
-                                get_selection(if backward {
-                                    Direction::End
-                                } else {
-                                    Direction::Start
-                                })
-                            })
-                            .unwrap_or(selection.clone().into())
-                            .selection;
+                            let other_selection = get_selection(&direction)
+                                .or_else(|| get_selection(&direction.reverse()))
+                                .unwrap_or(selection.clone().into())
+                                .selection;
 
                             let other_range = other_selection.range();
                             if other_range == current_range {
@@ -2659,9 +2649,7 @@ pub(crate) enum DispatchEditor {
     ReplaceWithPattern,
     SelectLine(Movement),
     Backspace,
-    Delete {
-        backward: bool,
-    },
+    Delete(Direction),
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,
