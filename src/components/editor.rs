@@ -335,7 +335,8 @@ impl Component for Editor {
             MoveToLastChar => return Ok(self.move_to_last_char()),
             PipeToShell { command } => return self.pipe_to_shell(command),
             ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
-            Indent(direction) => return self.indent(direction),
+            Indent => return self.indent(),
+            Dedent => return self.dedent(),
         }
         Ok(Default::default())
     }
@@ -2590,7 +2591,7 @@ impl Editor {
         ))))
     }
 
-    fn indent(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+    fn indent(&mut self) -> Result<Dispatches, anyhow::Error> {
         let indentations: Vec<String> = self
             .content()
             .lines()
@@ -2621,19 +2622,7 @@ impl Editor {
                 None => return Err(anyhow::anyhow!("No indentations found",)),
             }
         };
-        let indent_width = {
-            let non_empty_indents = indentations
-                .iter()
-                .filter(|indent| !indent.is_empty())
-                .map(|indent| indent.len())
-                .collect::<Vec<_>>();
-
-            match non_empty_indents.as_slice() {
-                [] => 4, // Default to 4 if no non-empty indents found
-                [single] => *single,
-                multiple => multiple.iter().fold(0, |acc, &x| num::integer::gcd(acc, x)),
-            }
-        };
+        let indent_width = 4; // should be configurable in the future
         let indentation: Rope = std::iter::repeat(indent_char)
             .take(indent_width)
             .collect::<String>()
@@ -2657,19 +2646,11 @@ impl Editor {
                     let modified_lines = content
                         .lines()
                         .filter(|line| line.len_chars() > 0)
-                        .map(|line| match direction {
-                            Direction::Start => {
-                                let remove_leading_char_count =
-                                    get_remove_leading_char_count(&line.to_string());
-                                (
-                                    -(remove_leading_char_count as isize),
-                                    line.slice(remove_leading_char_count..).to_string(),
-                                )
-                            }
-                            Direction::End => (
+                        .map(|line| {
+                            (
                                 indentation.len_chars() as isize,
                                 format!("{}{}", indentation, line),
-                            ),
+                            )
                         })
                         .collect_vec();
                     let length_changes = modified_lines
@@ -2684,10 +2665,114 @@ impl Editor {
                         .join("")
                         .into();
                     let select_range = {
-                        let offset: isize = match direction {
-                            Direction::Start => first_length_change,
-                            Direction::End => indent_width as isize,
-                        };
+                        let offset: isize = indent_width as isize;
+                        let start = original_range.start.apply_offset(offset);
+                        let original_len = original_range.len();
+                        let end = (start
+                            + if length_change.is_negative() {
+                                original_len.saturating_sub(length_change.abs() as usize)
+                            } else {
+                                original_len + length_change as usize
+                            })
+                        .apply_offset(-offset);
+                        start..end
+                    };
+
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: linewise_range,
+                                new,
+                            }),
+                            Action::Select(selection.clone().set_range(select_range.into())),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction)
+    }
+
+    fn dedent(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let indentations: Vec<String> = self
+            .content()
+            .lines()
+            .map(|line| line.chars().take_while(|c| c.is_whitespace()).collect())
+            .collect_vec();
+        let indent_char = {
+            let unique_indentations = indentations
+                .iter()
+                .flat_map(|indentation| indentation.chars())
+                .unique()
+                .collect_vec();
+            match unique_indentations.split_first() {
+                Some((head, [])) => head.clone(),
+                Some(_) => {
+                    return Err(anyhow::anyhow!(
+                        "Different kinds of indentations found: {}",
+                        unique_indentations
+                            .iter()
+                            .map(|&c| match c {
+                                ' ' => "whitespace".to_string(),
+                                '\t' => "tab".to_string(),
+                                _ => format!("U+{:04X}", c as u32),
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                None => return Err(anyhow::anyhow!("No indentations found",)),
+            }
+        };
+        let indent_width = 4; // should be configurable in the future
+        let indentation: Rope = std::iter::repeat(indent_char)
+            .take(indent_width)
+            .collect::<String>()
+            .into();
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let original_range = selection.extended_range();
+                    let line_range = self
+                        .buffer()
+                        .char_index_range_to_line_range(original_range)?;
+                    let linewise_range = self
+                        .buffer()
+                        .line_range_to_char_index_range(line_range.clone())?;
+                    let content = self.buffer().slice(&linewise_range)?;
+                    let get_remove_leading_char_count = |line: &str| {
+                        let leading_indent_count =
+                            line.chars().take_while(|c| c == &indent_char).count();
+                        leading_indent_count.min(indent_width)
+                    };
+                    let modified_lines = content
+                        .lines()
+                        .filter(|line| line.len_chars() > 0)
+                        .map(|line| {
+                            let remove_leading_char_count =
+                                get_remove_leading_char_count(&line.to_string());
+                            (
+                                -(remove_leading_char_count as isize),
+                                line.slice(remove_leading_char_count..).to_string(),
+                            )
+                        })
+                        .collect_vec();
+                    let length_changes = modified_lines
+                        .iter()
+                        .map(|(length_change, _)| *length_change)
+                        .collect_vec();
+                    let first_length_change = length_changes.first().cloned().unwrap_or_default();
+                    let length_change: isize = length_changes.into_iter().sum();
+                    let new: Rope = modified_lines
+                        .into_iter()
+                        .map(|(_, line)| line)
+                        .join("")
+                        .into();
+                    let select_range = {
+                        let offset: isize = first_length_change;
                         let start = original_range.start.apply_offset(offset);
                         let original_len = original_range.len();
                         let end = (start
@@ -2839,7 +2924,8 @@ pub(crate) enum DispatchEditor {
         command: String,
     },
     ShowCurrentTreeSitterNodeSexp,
-    Indent(Direction),
+    Indent,
+    Dedent,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

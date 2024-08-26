@@ -2556,7 +2556,7 @@ fn main() {
                 IfCurrentNotFound::LookForward,
                 SyntaxNodeCoarse,
             )),
-            Editor(Indent(Direction::End)),
+            Editor(Indent),
             Expect(CurrentComponentContent(
                 "
     fn main() {
@@ -2567,7 +2567,7 @@ fn main() {
             Expect(CurrentSelectedTexts(&["fn main() {
         foo()
     }"])),
-            Editor(Indent(Direction::Start)),
+            Editor(Dedent),
             Expect(CurrentComponentContent(
                 "
 fn main() {
