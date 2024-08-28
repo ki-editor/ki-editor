@@ -528,7 +528,7 @@ powered by <a href="https://github.com/tree-sitter">Tree-sitter</a>.</p>
 <p>Keybinding: <code>s</code></p>
 <div class="table-wrapper"><table><thead><tr><th>Movement</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><a href="normal-mode/selection-modes/../core-movements.html#previousnext">Previous/Next</a></td><td>Previous/Next named sibling node</td></tr>
-<tr><td>Up</td><td>Parent largest node</td></tr>
+<tr><td>Up</td><td>Parent node</td></tr>
 <tr><td>Down</td><td>First named child node</td></tr>
 <tr><td>Current</td><td>Largest node</td></tr>
 <tr><td>Jump</td><td>Jump to largest node</td></tr>
@@ -560,7 +560,7 @@ Previous/Next movement in Syntax Node (Coarse).</p>
 Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-to-press key.</p>
 <div class="table-wrapper"><table><thead><tr><th>Movement</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><a href="normal-mode/selection-modes/../core-movements.html#previousnext">Previous/Next</a></td><td>Previous/Next sibling node</td></tr>
-<tr><td>Up</td><td>Parent largest node</td></tr>
+<tr><td>Up</td><td>Parent node</td></tr>
 <tr><td>Down</td><td>First child</td></tr>
 <tr><td>Current</td><td>Smallest node that matches the current selection</td></tr>
 <tr><td>Jump</td><td>Jump to smallest node</td></tr>
@@ -571,7 +571,7 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 <pre><code class="language-js">hello.world().foo().bar().spam().wise();
 </code></pre>
 <p>If we press <code>s</code>, the whole expression will be selected<sup class="footnote-reference"><a href="#1">1</a></sup>, and we will need to press <code>j</code> several times to shrink the selection down to <code>hello.world()</code>.</p>
-<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and pressing <code>k</code> two times will get us to <code>hello.world()</code>.</p>
+<p>However, if we use <code>S</code> instead, the selection will remain as <code>hello</code>, and pressing <code>k</code> multiple times will get us to <code>hello.world()</code>.</p>
 <div class="footnote-definition" id="1"><sup class="footnote-definition-label">1</sup>
 <p>See <a href="normal-mode/selection-modes/syntax-node-based.html#largest-node">Largest Node</a></p>
 </div>
