@@ -2611,3 +2611,32 @@ fn show_current_tree_sitter_node_sexp() -> Result<(), anyhow::Error> {
         }
     })
 }
+
+#[test]
+fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("who lives in a".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+                Editor(ToggleVisualMode),
+                Editor(MoveSelection(Next)),
+                Expect(CurrentSelectedTexts(&["who lives"])),
+                Editor(Copy {
+                    use_system_clipboard: false,
+                }),
+                Editor(Paste {
+                    direction: Direction::End,
+                    use_system_clipboard: false,
+                }),
+                Expect(CurrentComponentContent("who lives who lives in a")),
+                Expect(CurrentSelectedTexts(&["who lives"])),
+                Editor(EnterInsertMode(Direction::End)),
+                Editor(Insert("foo".to_string())),
+                Editor(EnterInsertMode(Direction::End)),
+                Expect(CurrentComponentContent("who lives who livesfoo in a")),
+            ])
+        }
+    })
+}
