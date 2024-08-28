@@ -187,9 +187,21 @@
 <li><a href="./lsp-based.html">LSP-based</a></li>
 <li><a href="./misc.html">Misc</a></li>
 </ol>
-<p>These selection modes are nested under <code>n</code> (Find (Local)) or <code>g</code> (Find (Global)).</p>
-<p>When using Find (Local) mode, <code>n</code> searches forward and <code>N</code> searchs backward if
+<blockquote>
+<p>These selection modes are nested under <code>[</code>/<code>]</code> (Find (Local)) or <code>g</code> (Find (Global)).</p>
+</blockquote>
+<p>When using Find (Local) mode, <code>[</code> searches backward and <code>]</code> searchs forward if
 no matching selection is found under cursor.</p>
+<h2 id="shortcut-nn"><a class="header" href="#shortcut-nn">Shortcut (<code>n</code>/<code>N</code>)</a></h2>
+<p>All selection modes under this Local/Global category are non-contiguous,
+and since they require at least two keypresses, Ki provides a shortcut:</p>
+<blockquote>
+<p>To set the current selection mode back to the last non-contiguous selection modes,
+press <code>n</code> (search forward) or <code>N</code> (search backward).</p>
+</blockquote>
+<p>For example, after you searched for a term (either locally or globally),
+and you've changed to another contiguous selection mode (such as Word),
+pressing <code>n</code>/<code>N</code> will set the selection mode back to the term search.</p>
 
                     </main>
 

@@ -609,9 +609,21 @@ Memory aid: col<strong>u</strong>mn</p>
 <li><a href="normal-mode/selection-modes/local-global/./lsp-based.html">LSP-based</a></li>
 <li><a href="normal-mode/selection-modes/local-global/./misc.html">Misc</a></li>
 </ol>
-<p>These selection modes are nested under <code>n</code> (Find (Local)) or <code>g</code> (Find (Global)).</p>
-<p>When using Find (Local) mode, <code>n</code> searches forward and <code>N</code> searchs backward if
+<blockquote>
+<p>These selection modes are nested under <code>[</code>/<code>]</code> (Find (Local)) or <code>g</code> (Find (Global)).</p>
+</blockquote>
+<p>When using Find (Local) mode, <code>[</code> searches backward and <code>]</code> searchs forward if
 no matching selection is found under cursor.</p>
+<h2 id="shortcut-nn"><a class="header" href="#shortcut-nn">Shortcut (<code>n</code>/<code>N</code>)</a></h2>
+<p>All selection modes under this Local/Global category are non-contiguous,
+and since they require at least two keypresses, Ki provides a shortcut:</p>
+<blockquote>
+<p>To set the current selection mode back to the last non-contiguous selection modes,
+press <code>n</code> (search forward) or <code>N</code> (search backward).</p>
+</blockquote>
+<p>For example, after you searched for a term (either locally or globally),
+and you've changed to another contiguous selection mode (such as Word),
+pressing <code>n</code>/<code>N</code> will set the selection mode back to the term search.</p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="text-search"><a class="header" href="#text-search">Text Search</a></h1>
 <p>This is one of the most useful selection modes.</p>
 <p>Keybindings:</p>
@@ -1098,8 +1110,8 @@ Memory aid: <code>%</code> looks contains two circles which look like two ends.<
 <h2 id="go-backforward"><a class="header" href="#go-backforward">Go back/forward</a></h2>
 <p>Keybindings:</p>
 <ul>
-<li><code>[</code>: Go back</li>
-<li><code>]</code>: Go forward</li>
+<li><code>ctrl+o</code>: Go back</li>
+<li><code>ctrl+i</code>/<code>tab</code>: Go forward</li>
 </ul>
 <p><code>[</code> is useful when you messed up the current selection, especially when you are
 using <a href="normal-mode/./selection-modes/syntax-node-based.html#syntax-node">Syntax Node</a>, and
@@ -1225,8 +1237,8 @@ Memory aid: In bash/fish shell, press <code>ctrl+l</code> clears the screen and 
 <li>Completion Info</li>
 </ol>
 <h2 id="close-current-window"><a class="header" href="#close-current-window">Close current window</a></h2>
-<p>Keybinding: <code>ctrl+q</code><br />
-Memory aid: q stands for quit</p>
+<p>Keybinding: <code>ctrl+c</code><br />
+Memory aid: c stands for close</p>
 <p>Note: when the current window is closed, all of its children will be unmounted (removed) from the screen as well.</p>
 <h2 id="paste-1"><a class="header" href="#paste-1">Paste</a></h2>
 <p>Keybinding: <code>ctrl+v</code><br />
