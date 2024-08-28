@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use globset::Glob;
 
 use indexmap::IndexSet;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
@@ -12,6 +12,7 @@ use crate::{
     components::{keymap_legend::KeymapLegendSection, prompt::PromptHistoryKey},
     list::grep::RegexConfig,
     quickfix_list::DiagnosticSeverityRange,
+    selection::SelectionMode,
     themes::Theme,
 };
 
@@ -28,6 +29,7 @@ pub(crate) struct Context {
     quickfix_list_state: Option<QuickfixListState>,
     contextual_keymaps: Vec<KeymapLegendSection>,
     prompt_histories: HashMap<PromptHistoryKey, IndexSet<String>>,
+    last_non_contiguous_selection_mode: Option<Either<SelectionMode, GlobalMode>>,
 }
 
 pub(crate) struct QuickfixListState {
@@ -73,6 +75,7 @@ impl Default for Context {
             quickfix_list_state: Default::default(),
             contextual_keymaps: Default::default(),
             prompt_histories: Default::default(),
+            last_non_contiguous_selection_mode: None,
         }
     }
 }
@@ -111,7 +114,10 @@ impl Context {
         self.mode.clone()
     }
     pub(crate) fn set_mode(&mut self, mode: Option<GlobalMode>) {
-        self.mode = mode;
+        self.mode = mode.clone();
+        if let Some(mode) = mode {
+            self.last_non_contiguous_selection_mode = Some(Either::Right(mode))
+        }
     }
 
     pub(crate) fn theme(&self) -> &Theme {
@@ -243,6 +249,19 @@ impl Context {
             .unwrap_or_default()
             .into_iter()
             .collect_vec()
+    }
+
+    pub(crate) fn set_last_non_contiguous_selection_mode(
+        &mut self,
+        selection_mode: Either<crate::selection::SelectionMode, GlobalMode>,
+    ) {
+        self.last_non_contiguous_selection_mode = Some(selection_mode)
+    }
+
+    pub(crate) fn last_non_contiguous_selection_mode(
+        &self,
+    ) -> Option<&Either<crate::selection::SelectionMode, GlobalMode>> {
+        self.last_non_contiguous_selection_mode.as_ref()
     }
 }
 

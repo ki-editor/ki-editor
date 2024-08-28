@@ -8,7 +8,19 @@ There are 3 categories of Local/Global selection modes:
 1. [LSP-based](./lsp-based.md)
 1. [Misc](./misc.md)
 
-These selection modes are nested under `n` (Find (Local)) or `g` (Find (Global)).
+> These selection modes are nested under `[`/`]` (Find (Local)) or `g` (Find (Global)).
 
-When using Find (Local) mode, `n` searches forward and `N` searchs backward if
+When using Find (Local) mode, `[` searches backward and `]` searchs forward if
 no matching selection is found under cursor.
+
+## Shortcut (`n`/`N`)
+
+All selection modes under this Local/Global category are non-contiguous,
+and since they require at least two keypresses, Ki provides a shortcut:
+
+> To set the current selection mode back to the last non-contiguous selection modes,
+> press `n` (search forward) or `N` (search backward).
+
+For example, after you searched for a term (either locally or globally),
+and you've changed to another contiguous selection mode (such as Word),
+pressing `n`/`N` will set the selection mode back to the term search.

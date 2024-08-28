@@ -1298,6 +1298,12 @@ fn main() {
             )),
             App(SetGlobalMode(Some(GlobalMode::QuickfixListItem))),
             Expect(ExpectKind::QuickfixListInfo("This is fine")),
+            App(OpenFile(s.foo_rs())),
+            Expect(CurrentComponentPath(Some(s.foo_rs()))),
+            App(UseLastNonContiguousSelectionMode(
+                IfCurrentNotFound::LookForward,
+            )),
+            Expect(CurrentComponentPath(Some(s.main_rs()))),
         ])
     })
 }
