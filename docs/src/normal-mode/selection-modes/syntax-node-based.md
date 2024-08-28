@@ -27,7 +27,7 @@ Keybinding: `s`
 | Movement                                           | Meaning                          |
 | -------------------------------------------------- | -------------------------------- |
 | [Previous/Next](../core-movements.md#previousnext) | Previous/Next named sibling node |
-| Up                                                 | Parent largest node              |
+| Up                                                 | Parent node                      |
 | Down                                               | First named child node           |
 | Current                                            | Largest node                     |
 | Jump                                               | Jump to largest node             |
@@ -69,7 +69,7 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 | Movement                                           | Meaning                                          |
 | -------------------------------------------------- | ------------------------------------------------ |
 | [Previous/Next](../core-movements.md#previousnext) | Previous/Next sibling node                       |
-| Up                                                 | Parent largest node                              |
+| Up                                                 | Parent node                                      |
 | Down                                               | First child                                      |
 | Current                                            | Smallest node that matches the current selection |
 | Jump                                               | Jump to smallest node                            |
@@ -84,6 +84,6 @@ hello.world().foo().bar().spam().wise();
 
 If we press `s`, the whole expression will be selected[^1], and we will need to press `j` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `S` instead, the selection will remain as `hello`, and pressing `k` two times will get us to `hello.world()`.
+However, if we use `S` instead, the selection will remain as `hello`, and pressing `k` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)
