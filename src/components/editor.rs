@@ -964,7 +964,9 @@ impl Editor {
                                 range: insertion_range.into(),
                                 new: paste_text,
                             }),
-                            Action::Select(selection.set_range(selection_range)),
+                            Action::Select(
+                                selection.set_range(selection_range).set_initial_range(None),
+                            ),
                         ]
                         .to_vec(),
                     )
