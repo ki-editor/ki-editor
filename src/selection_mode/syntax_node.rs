@@ -84,26 +84,7 @@ impl SelectionMode for SyntaxNode {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let result = self.select_vertical(params.clone(), true)?;
-        if self.coarse {
-            Ok(result.and_then(|result| {
-                super::TopNode
-                    .current(
-                        super::SelectionModeParams {
-                            current_selection: &result.selection,
-                            ..params
-                        },
-                        IfCurrentNotFound::LookForward,
-                    )
-                    .ok()?
-                    .map(|selection| ApplyMovementResult {
-                        selection,
-                        mode: result.mode,
-                    })
-            }))
-        } else {
-            Ok(result)
-        }
+        self.select_vertical(params.clone(), true)
     }
     fn first_child(
         &self,
@@ -199,30 +180,27 @@ mod test_syntax_node {
 
     #[test]
     fn parent() {
-        fn test(coarse: bool, expected_parent: &str) {
-            let buffer = Buffer::new(
-                Some(tree_sitter_rust::language()),
-                "fn main() { let x = z.b(); }",
-            );
+        let expected_parent: &str = "z.b";
+        let buffer = Buffer::new(
+            Some(tree_sitter_rust::language()),
+            "fn main() { let x = z.b(); }",
+        );
 
-            let child_range = (CharIndex(20)..CharIndex(21)).into();
+        let child_range = (CharIndex(20)..CharIndex(21)).into();
 
-            let child_text = buffer.slice(&child_range).unwrap();
-            assert_eq!(child_text, "z");
-            let selection = SyntaxNode { coarse }.parent(SelectionModeParams {
-                buffer: &buffer,
-                current_selection: &Selection::new(child_range),
-                cursor_direction: &crate::components::editor::Direction::Start,
-                filters: &Filters::default(),
-            });
+        let child_text = buffer.slice(&child_range).unwrap();
+        assert_eq!(child_text, "z");
+        let selection = SyntaxNode { coarse: false }.parent(SelectionModeParams {
+            buffer: &buffer,
+            current_selection: &Selection::new(child_range),
+            cursor_direction: &crate::components::editor::Direction::Start,
+            filters: &Filters::default(),
+        });
 
-            let parent_range = selection.unwrap().unwrap().selection.range();
+        let parent_range = selection.unwrap().unwrap().selection.range();
 
-            let parent_text = buffer.slice(&parent_range).unwrap();
-            assert_eq!(parent_text, expected_parent);
-        }
-        test(true, "z.b()");
-        test(false, "z.b");
+        let parent_text = buffer.slice(&parent_range).unwrap();
+        assert_eq!(parent_text, expected_parent);
     }
 
     #[test]
