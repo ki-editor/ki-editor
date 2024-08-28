@@ -97,8 +97,12 @@ impl Editor {
                     "Scroll page up".to_string(),
                     Dispatch::ToEditor(ScrollPageUp),
                 ),
-                Keymap::new("[", "Go back".to_string(), Dispatch::ToEditor(GoBack)),
-                Keymap::new("]", "Go forward".to_string(), Dispatch::ToEditor(GoForward)),
+                Keymap::new("ctrl+o", "Go back".to_string(), Dispatch::ToEditor(GoBack)),
+                Keymap::new(
+                    "tab",
+                    "Go forward".to_string(),
+                    Dispatch::ToEditor(GoForward),
+                ),
                 Keymap::new(
                     "{",
                     "Go to previous file".to_string(),
@@ -136,24 +140,6 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
                 ),
                 Keymap::new(
-                    "n",
-                    "Find (Local) - Forward".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                        context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookForward,
-                    )),
-                ),
-                Keymap::new(
-                    "N",
-                    "Find (Local) - Backward".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                        context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookBackward,
-                    )),
-                ),
-                Keymap::new(
                     "g",
                     "Find (Global)".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
@@ -161,6 +147,16 @@ impl Editor {
                         Scope::Global,
                         IfCurrentNotFound::LookForward,
                     )),
+                ),
+                Keymap::new(
+                    "n",
+                    "Last non-contiguous selection mode - Forward".to_string(),
+                    Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookForward),
+                ),
+                Keymap::new(
+                    "N",
+                    "Last non-contiguous selection mode - Backward".to_string(),
+                    Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookBackward),
                 ),
                 Keymap::new(
                     "s",
@@ -199,6 +195,24 @@ impl Editor {
                     "z",
                     "Column".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+                ),
+                Keymap::new(
+                    "[",
+                    "Find (Local) - Backward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookBackward,
+                    )),
+                ),
+                Keymap::new(
+                    "]",
+                    "Find (Local) - Forward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookForward,
+                    )),
                 ),
             ]),
         }
@@ -359,16 +373,16 @@ impl Editor {
             title: "Universal keymaps (works in every mode)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
+                    "ctrl+c",
+                    "Close current window".to_string(),
+                    Dispatch::CloseCurrentWindow,
+                ),
+                Keymap::new(
                     "ctrl+l",
                     "Switch view alignment".to_string(),
                     Dispatch::ToEditor(SwitchViewAlignment),
                 ),
-                Keymap::new("ctrl+o", "Other window".to_string(), Dispatch::OtherWindow),
-                Keymap::new(
-                    "ctrl+q",
-                    "Close current window".to_string(),
-                    Dispatch::CloseCurrentWindow,
-                ),
+                Keymap::new("ctrl+s", "Switch window".to_string(), Dispatch::OtherWindow),
                 Keymap::new(
                     "ctrl+v",
                     "Paste".to_string(),

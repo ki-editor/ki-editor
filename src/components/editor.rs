@@ -1255,14 +1255,18 @@ impl Editor {
     ) -> anyhow::Result<Dispatches> {
         self.move_selection_with_selection_mode_without_global_mode(
             Movement::Current(if_current_not_found),
-            selection_mode,
+            selection_mode.clone(),
         )
         .map(|dispatches| {
-            Some(Dispatch::SetGlobalMode(None))
-                .into_iter()
-                .chain(dispatches.into_vec())
-                .collect::<Vec<_>>()
-                .into()
+            Dispatches::one(Dispatch::SetGlobalMode(None))
+                .chain(dispatches)
+                .append_some(if selection_mode.is_contiguous() {
+                    None
+                } else {
+                    Some(Dispatch::SetLastNonContiguousSelectionMode(Either::Left(
+                        selection_mode,
+                    )))
+                })
         })
     }
 

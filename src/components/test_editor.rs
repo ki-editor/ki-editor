@@ -2561,7 +2561,7 @@ Editor(MatchLiteral(amos.foo())),
                     IfCurrentNotFound::LookForward,
                     LineTrimmed,
                 )),
-                App(HandleKeyEvents(keys!("N s ( enter").to_vec())),
+                App(HandleKeyEvents(keys!("? ( enter").to_vec())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Editor(MoveSelection(Previous)),
                 Expect(CurrentSelectedTexts(&["to_string"])),
@@ -2636,6 +2636,30 @@ fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
                 Editor(Insert("foo".to_string())),
                 Editor(EnterInsertMode(Direction::End)),
                 Expect(CurrentComponentContent("who lives who livesfoo in a")),
+            ])
+        }
+    })
+}
+
+#[test]
+fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        {
+            Box::new([
+                App(OpenFile(s.main_rs())),
+                Editor(SetContent("who lives in a".to_string())),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+                Editor(ToggleBookmark),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+                Expect(CurrentSelectedTexts(&["who"])),
+                Editor(MoveSelection(Last)),
+                Expect(CurrentSelectedTexts(&["a"])),
+                App(UseLastNonContiguousSelectionMode(
+                    IfCurrentNotFound::LookForward,
+                )),
+                Expect(CurrentSelectedTexts(&["who"])),
+                Expect(CurrentSelectionMode(Bookmark)),
             ])
         }
     })

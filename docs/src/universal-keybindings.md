@@ -30,8 +30,8 @@ Examples of such windows are:
 
 ## Close current window
 
-Keybinding: `ctrl+q`  
-Memory aid: q stands for quit
+Keybinding: `ctrl+c`  
+Memory aid: c stands for close
 
 Note: when the current window is closed, all of its children will be unmounted (removed) from the screen as well.
 

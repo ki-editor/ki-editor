@@ -36,7 +36,7 @@ use crate::{
     ui_tree::{ComponentKind, KindedComponent},
 };
 use event::event::Event;
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use name_variant::NamedVariant;
 use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
@@ -705,6 +705,12 @@ impl<T: Frontend> App<T> {
             Dispatch::GoToNextFile => self.go_to_next_file()?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
+            Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
+                .context
+                .set_last_non_contiguous_selection_mode(selection_mode),
+            Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
+                self.use_last_non_contiguous_selection_mode(if_current_not_found)?
+            }
         }
         Ok(())
     }
@@ -2053,6 +2059,30 @@ impl<T: Frontend> App<T> {
             None,
         )
     }
+
+    fn use_last_non_contiguous_selection_mode(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> anyhow::Result<()> {
+        if let Some(selection_mode) = self.context.last_non_contiguous_selection_mode() {
+            match selection_mode {
+                Either::Left(selection_mode) => self.handle_dispatch_editor(
+                    DispatchEditor::SetSelectionMode(if_current_not_found, selection_mode.clone()),
+                )?,
+                Either::Right(global_mode) => self.handle_dispatches(Dispatches::new(
+                    [
+                        Dispatch::SetGlobalMode(Some(global_mode.clone())),
+                        Dispatch::ToEditor(MoveSelection(match if_current_not_found {
+                            IfCurrentNotFound::LookForward => Movement::Next,
+                            IfCurrentNotFound::LookBackward => Movement::Previous,
+                        })),
+                    ]
+                    .to_vec(),
+                ))?,
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2272,6 +2302,8 @@ pub(crate) enum Dispatch {
     OpenThemePrompt,
     ResolveCompletionItem(lsp_types::CompletionItem),
     OpenPipeToShellPrompt,
+    SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
+    UseLastNonContiguousSelectionMode(IfCurrentNotFound),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
