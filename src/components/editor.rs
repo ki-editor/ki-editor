@@ -6,7 +6,7 @@ use crate::{
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
-    selection_mode::{self},
+    selection_mode,
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
@@ -333,6 +333,8 @@ impl Component for Editor {
             MoveToLastChar => return Ok(self.move_to_last_char()),
             PipeToShell { command } => return self.pipe_to_shell(command),
             ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
+            Indent => return self.indent(),
+            Dedent => return self.dedent(),
         }
         Ok(Default::default())
     }
@@ -2601,6 +2603,143 @@ impl Editor {
             info,
         ))))
     }
+
+    fn indent(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let indentation: Rope = std::iter::repeat(INDENT_CHAR)
+            .take(INDENT_WIDTH)
+            .collect::<String>()
+            .into();
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let original_range = selection.extended_range();
+                    let line_range = self
+                        .buffer()
+                        .char_index_range_to_line_range(original_range)?;
+                    let linewise_range = self
+                        .buffer()
+                        .line_range_to_full_char_index_range(line_range.clone())?;
+                    let content = self.buffer().slice(&linewise_range)?;
+                    let modified_lines = content
+                        .lines()
+                        .filter(|line| line.len_chars() > 0)
+                        .map(|line| {
+                            (
+                                indentation.len_chars() as isize,
+                                format!("{}{}", indentation, line),
+                            )
+                        })
+                        .collect_vec();
+                    let length_changes = modified_lines
+                        .iter()
+                        .map(|(length_change, _)| *length_change)
+                        .collect_vec();
+                    let length_change: isize = length_changes.into_iter().sum();
+                    let new: Rope = modified_lines
+                        .into_iter()
+                        .map(|(_, line)| line)
+                        .join("")
+                        .into();
+                    let select_range = {
+                        let offset: isize = INDENT_WIDTH as isize;
+                        let start = original_range.start.apply_offset(offset);
+                        let original_len = original_range.len();
+                        let end =
+                            (start + original_len + length_change as usize).apply_offset(-offset);
+                        start..end
+                    };
+
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: linewise_range,
+                                new,
+                            }),
+                            Action::Select(selection.clone().set_range(select_range.into())),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction)
+    }
+
+    fn dedent(&mut self) -> Result<Dispatches, anyhow::Error> {
+        let edit_transaction = EditTransaction::from_action_groups(
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let original_range = selection.extended_range();
+                    let line_range = self
+                        .buffer()
+                        .char_index_range_to_line_range(original_range)?;
+                    let linewise_range = self
+                        .buffer()
+                        .line_range_to_full_char_index_range(line_range.clone())?;
+                    let content = self.buffer().slice(&linewise_range)?;
+                    let get_remove_leading_char_count = |line: &str| {
+                        let leading_indent_count =
+                            line.chars().take_while(|c| c == &INDENT_CHAR).count();
+                        leading_indent_count.min(INDENT_WIDTH)
+                    };
+                    let modified_lines = content
+                        .lines()
+                        .filter(|line| line.len_chars() > 0)
+                        .map(|line| {
+                            let remove_leading_char_count =
+                                get_remove_leading_char_count(&line.to_string());
+                            (
+                                -(remove_leading_char_count as isize),
+                                line.slice(remove_leading_char_count..).to_string(),
+                            )
+                        })
+                        .collect_vec();
+                    let length_changes = modified_lines
+                        .iter()
+                        .map(|(length_change, _)| *length_change)
+                        .collect_vec();
+                    let first_length_change = length_changes.first().cloned().unwrap_or_default();
+                    let length_change: isize = length_changes.into_iter().sum();
+                    let new: Rope = modified_lines
+                        .into_iter()
+                        .map(|(_, line)| line)
+                        .join("")
+                        .into();
+                    let select_range = {
+                        let offset: isize = first_length_change;
+                        let start = original_range.start.apply_offset(offset);
+                        let original_len = original_range.len();
+
+                        let end = if line_range.len() <= 1 {
+                            start + original_len
+                        } else {
+                            (start
+                                + original_len
+                                    .saturating_sub(length_change.unsigned_abs())
+                                    .max(1))
+                            .apply_offset(-offset)
+                        };
+                        start..end
+                    };
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: linewise_range,
+                                new,
+                            }),
+                            Action::Select(selection.clone().set_range(select_range.into())),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect_vec(),
+        );
+        self.apply_edit_transaction(edit_transaction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2721,6 +2860,8 @@ pub(crate) enum DispatchEditor {
         command: String,
     },
     ShowCurrentTreeSitterNodeSexp,
+    Indent,
+    Dedent,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -2728,3 +2869,5 @@ pub(crate) enum SurroundKind {
     Inside,
     Around,
 }
+const INDENT_CHAR: char = ' ';
+const INDENT_WIDTH: usize = 4;

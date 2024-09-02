@@ -2664,3 +2664,91 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
         }
     })
 }
+
+#[test]
+fn test_indent_dedent() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+    foo()
+}
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SyntaxNodeCoarse,
+            )),
+            Editor(Indent),
+            Expect(CurrentComponentContent(
+                "
+    fn main() {
+        foo()
+    }
+",
+            )),
+            Expect(CurrentSelectedTexts(&["fn main() {
+        foo()
+    }"])),
+            Editor(Dedent),
+            Expect(CurrentComponentContent(
+                "
+fn main() {
+    foo()
+}
+",
+            )),
+            Expect(CurrentSelectedTexts(&["fn main() {
+    foo()
+}"])),
+        ])
+    })
+}
+
+#[test]
+fn test_dedent_in_column_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fom".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Expect(CurrentSelectedTexts(&["f"])),
+            Editor(Indent),
+            Expect(CurrentComponentContent("    fom")),
+            Expect(CurrentSelectedTexts(&["f"])),
+            Editor(Dedent),
+            Expect(CurrentComponentContent("fom")),
+            Expect(CurrentSelectedTexts(&["f"])),
+        ])
+    })
+}
+
+#[test]
+fn test_over_dedent() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+    foo()
+}
+"
+                .to_string(),
+            )),
+            Editor(MatchLiteral("fn".to_string())),
+            Editor(SetSelectionMode(
+                IfCurrentNotFound::LookForward,
+                SyntaxNodeCoarse,
+            )),
+            Editor(Dedent),
+            Expect(CurrentSelectedTexts(&["fn main() {
+foo()
+}"])),
+        ])
+    })
+}

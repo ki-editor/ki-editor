@@ -310,6 +310,8 @@ impl Editor {
                         if_current_not_found: IfCurrentNotFound::LookBackward,
                     },
                 ),
+                Keymap::new(">", "Indent".to_string(), Dispatch::ToEditor(Indent)),
+                Keymap::new("<", "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
             ]),
         }
     }

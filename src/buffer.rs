@@ -914,6 +914,27 @@ impl Buffer {
         Ok((self.line_to_char(range.start)?..self.line_to_char(range.end)?).into())
     }
 
+    pub(crate) fn line_range_to_full_char_index_range(
+        &self,
+        range: Range<usize>,
+    ) -> anyhow::Result<CharIndexRange> {
+        let end_line_char_start = self.line_to_char(range.end)?;
+        let line = self.get_line_by_line_index(range.end).ok_or_else(|| {
+            anyhow::anyhow!(
+                "Buffer::line_range_to_char_index_range: Unable to get line at index {}",
+                range.end
+            )
+        })?;
+        Ok((self.line_to_char(range.start)?..end_line_char_start + line.len_chars()).into())
+    }
+
+    pub(crate) fn char_index_range_to_line_range(
+        &self,
+        range: CharIndexRange,
+    ) -> anyhow::Result<Range<usize>> {
+        Ok(self.char_to_line(range.start)?..self.char_to_line(range.end)?)
+    }
+
     pub(crate) fn push_selection_set_history(&mut self, selection_set: SelectionSet) {
         self.selection_set_history.push(selection_set.clone());
     }
