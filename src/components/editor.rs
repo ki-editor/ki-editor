@@ -4,7 +4,6 @@ use crate::{
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
-    edit::ApplyOffset,
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
     selection_mode,
@@ -13,7 +12,6 @@ use crate::{
 };
 
 use nonempty::NonEmpty;
-use num::Signed;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -2607,39 +2605,8 @@ impl Editor {
     }
 
     fn indent(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let indentations: Vec<String> = self
-            .content()
-            .lines()
-            .map(|line| line.chars().take_while(|c| c.is_whitespace()).collect())
-            .collect_vec();
-        let indent_char = {
-            let unique_indentations = indentations
-                .iter()
-                .flat_map(|indentation| indentation.chars())
-                .unique()
-                .collect_vec();
-            match unique_indentations.split_first() {
-                Some((head, [])) => head.clone(),
-                Some(_) => {
-                    return Err(anyhow::anyhow!(
-                        "Different kinds of indentations found: {}",
-                        unique_indentations
-                            .iter()
-                            .map(|&c| match c {
-                                ' ' => "whitespace".to_string(),
-                                '\t' => "tab".to_string(),
-                                _ => format!("U+{:04X}", c as u32),
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
-                }
-                None => return Err(anyhow::anyhow!("No indentations found",)),
-            }
-        };
-        let indent_width = 4; // should be configurable in the future
-        let indentation: Rope = std::iter::repeat(indent_char)
-            .take(indent_width)
+        let indentation: Rope = std::iter::repeat(INDENT_CHAR)
+            .take(INDENT_WIDTH)
             .collect::<String>()
             .into();
         let edit_transaction = EditTransaction::from_action_groups(
@@ -2651,13 +2618,8 @@ impl Editor {
                         .char_index_range_to_line_range(original_range)?;
                     let linewise_range = self
                         .buffer()
-                        .line_range_to_char_index_range(line_range.clone())?;
+                        .line_range_to_full_char_index_range(line_range.clone())?;
                     let content = self.buffer().slice(&linewise_range)?;
-                    let get_remove_leading_char_count = |line: &str| {
-                        let leading_indent_count =
-                            line.chars().take_while(|c| c == &indent_char).count();
-                        leading_indent_count.min(indent_width)
-                    };
                     let modified_lines = content
                         .lines()
                         .filter(|line| line.len_chars() > 0)
@@ -2672,7 +2634,6 @@ impl Editor {
                         .iter()
                         .map(|(length_change, _)| *length_change)
                         .collect_vec();
-                    let first_length_change = length_changes.first().cloned().unwrap_or_default();
                     let length_change: isize = length_changes.into_iter().sum();
                     let new: Rope = modified_lines
                         .into_iter()
@@ -2680,16 +2641,11 @@ impl Editor {
                         .join("")
                         .into();
                     let select_range = {
-                        let offset: isize = indent_width as isize;
+                        let offset: isize = INDENT_WIDTH as isize;
                         let start = original_range.start.apply_offset(offset);
                         let original_len = original_range.len();
-                        let end = (start
-                            + if length_change.is_negative() {
-                                original_len.saturating_sub(length_change.abs() as usize)
-                            } else {
-                                original_len + length_change as usize
-                            })
-                        .apply_offset(-offset);
+                        let end =
+                            (start + original_len + length_change as usize).apply_offset(-offset);
                         start..end
                     };
 
@@ -2712,41 +2668,6 @@ impl Editor {
     }
 
     fn dedent(&mut self) -> Result<Dispatches, anyhow::Error> {
-        let indentations: Vec<String> = self
-            .content()
-            .lines()
-            .map(|line| line.chars().take_while(|c| c.is_whitespace()).collect())
-            .collect_vec();
-        let indent_char = {
-            let unique_indentations = indentations
-                .iter()
-                .flat_map(|indentation| indentation.chars())
-                .unique()
-                .collect_vec();
-            match unique_indentations.split_first() {
-                Some((head, [])) => head.clone(),
-                Some(_) => {
-                    return Err(anyhow::anyhow!(
-                        "Different kinds of indentations found: {}",
-                        unique_indentations
-                            .iter()
-                            .map(|&c| match c {
-                                ' ' => "whitespace".to_string(),
-                                '\t' => "tab".to_string(),
-                                _ => format!("U+{:04X}", c as u32),
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    ));
-                }
-                None => return Err(anyhow::anyhow!("No indentations found",)),
-            }
-        };
-        let indent_width = 4; // should be configurable in the future
-        let indentation: Rope = std::iter::repeat(indent_char)
-            .take(indent_width)
-            .collect::<String>()
-            .into();
         let edit_transaction = EditTransaction::from_action_groups(
             self.selection_set
                 .map(|selection| -> anyhow::Result<_> {
@@ -2756,12 +2677,12 @@ impl Editor {
                         .char_index_range_to_line_range(original_range)?;
                     let linewise_range = self
                         .buffer()
-                        .line_range_to_char_index_range(line_range.clone())?;
+                        .line_range_to_full_char_index_range(line_range.clone())?;
                     let content = self.buffer().slice(&linewise_range)?;
                     let get_remove_leading_char_count = |line: &str| {
                         let leading_indent_count =
-                            line.chars().take_while(|c| c == &indent_char).count();
-                        leading_indent_count.min(indent_width)
+                            line.chars().take_while(|c| c == &INDENT_CHAR).count();
+                        leading_indent_count.min(INDENT_WIDTH)
                     };
                     let modified_lines = content
                         .lines()
@@ -2790,16 +2711,18 @@ impl Editor {
                         let offset: isize = first_length_change;
                         let start = original_range.start.apply_offset(offset);
                         let original_len = original_range.len();
-                        let end = (start
-                            + if length_change.is_negative() {
-                                original_len.saturating_sub(length_change.abs() as usize)
-                            } else {
-                                original_len + length_change as usize
-                            })
-                        .apply_offset(-offset);
+
+                        let end = if line_range.len() <= 1 {
+                            start + original_len
+                        } else {
+                            (start
+                                + original_len
+                                    .saturating_sub(length_change.unsigned_abs())
+                                    .max(1))
+                            .apply_offset(-offset)
+                        };
                         start..end
                     };
-
                     Ok(ActionGroup::new(
                         [
                             Action::Edit(Edit {
@@ -2946,3 +2869,5 @@ pub(crate) enum SurroundKind {
     Inside,
     Around,
 }
+const INDENT_CHAR: char = ' ';
+const INDENT_WIDTH: usize = 4;

@@ -911,6 +911,13 @@ impl Buffer {
         &self,
         range: Range<usize>,
     ) -> anyhow::Result<CharIndexRange> {
+        Ok((self.line_to_char(range.start)?..self.line_to_char(range.end)?).into())
+    }
+
+    pub(crate) fn line_range_to_full_char_index_range(
+        &self,
+        range: Range<usize>,
+    ) -> anyhow::Result<CharIndexRange> {
         let end_line_char_start = self.line_to_char(range.end)?;
         let line = self.get_line_by_line_index(range.end).ok_or_else(|| {
             anyhow::anyhow!(
