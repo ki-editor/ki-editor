@@ -37,8 +37,8 @@ Usefulness of `%`:
 
 Keybindings:
 
-- `[`: Go back
-- `]`: Go forward
+- `ctrl+o`: Go back
+- `ctrl+i`/`tab`: Go forward
 
 `[` is useful when you messed up the current selection, especially when you are
 using [Syntax Node](./selection-modes/syntax-node-based.md#syntax-node), and

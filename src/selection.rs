@@ -743,10 +743,6 @@ impl Selection {
         }
     }
 
-    pub(crate) fn is_extended(&self) -> bool {
-        self.initial_range.is_some()
-    }
-
     fn enable_extension(&mut self) {
         self.initial_range = Some(self.range);
     }
@@ -763,6 +759,23 @@ impl Selection {
             initial_range: initial_range.and_then(|range| range.apply_edit(edit)),
             info,
         })
+    }
+
+    pub(crate) fn collapsed_to_anchor_range(self, direction: &Direction) -> Self {
+        let range = if let Some(initial_range) = self.initial_range {
+            let (start, end) = if initial_range.start < self.range.start {
+                (initial_range, self.range)
+            } else {
+                (self.range, initial_range)
+            };
+            match direction {
+                Direction::Start => start,
+                Direction::End => end,
+            }
+        } else {
+            self.range
+        };
+        self.set_range(range).set_initial_range(None)
     }
 }
 
