@@ -335,6 +335,7 @@ impl Component for Editor {
             ShowCurrentTreeSitterNodeSexp => return self.show_current_tree_sitter_node_sexp(),
             Indent => return self.indent(),
             Dedent => return self.dedent(),
+            CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
         }
         Ok(Default::default())
     }
@@ -428,9 +429,9 @@ impl RegexHighlightRuleCaptureStyle {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Direction {
-    /// Also means Backward or Next
+    /// Also means Backward or Previous
     Start,
-    /// Also means Forward or Previous
+    /// Also means Forward or Next
     End,
 }
 
@@ -2740,6 +2741,32 @@ impl Editor {
         );
         self.apply_edit_transaction(edit_transaction)
     }
+
+    #[cfg(test)]
+    pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
+        println!(
+            "Editor::primary_selection range = {:?}",
+            &self
+                .editor()
+                .selection_set
+                .primary_selection()
+                .extended_range()
+        );
+        Ok(self
+            .buffer()
+            .slice(
+                &self
+                    .editor()
+                    .selection_set
+                    .primary_selection()
+                    .extended_range(),
+            )?
+            .to_string())
+    }
+
+    fn cycle_primary_selection(&mut self, direction: Direction) {
+        self.selection_set.cycle_primary_selection(direction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2817,6 +2844,7 @@ pub(crate) enum DispatchEditor {
     FilterPush(Filter),
     FilterClear,
     CursorAddToAllSelections,
+    CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,
     ReplacePattern {
         config: crate::context::LocalSearchConfig,
