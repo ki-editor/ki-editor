@@ -47,6 +47,13 @@ expanding the current selection to parent node.
 Simply press `[` to restore the selection to the previous state.  
 Press `]` to restore the selection to the current state.
 
+## Cycle primary selection
+
+Keybindings:
+
+- `(`: Cycle primary selection (backward)
+- `)`: Cycle primary selection (forward)
+
 ## Go to the previous/next opened file
 
 Keybindings:
