@@ -5,10 +5,10 @@ Currently, only the "build from source" method is available.
 ## Build from source
 
 1. Ensure the Rust toolchain is installed using [rustup.rs](https://rustup.rs/).
-2. Use Rust 1.76.0:
+2. Use Rust 1.80.0:
 
 ```sh
-rustup default 1.76.0
+rustup default 1.80.0
 ```
 
 3. Clone the project:

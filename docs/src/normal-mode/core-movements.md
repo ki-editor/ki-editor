@@ -52,9 +52,8 @@ Recommended selection modes:
 
 ## Jump
 
-Keybinding: `s`  
-Reason: This keybinding is also used in [vim-sneak](https://github.com/justinmk/vim-sneak) and [leap.nvim](https://github.com/ggandor/leap.nvim).  
-Memory aid: s stands for Sneak, which means jump
+Keybinding: `f`  
+Reason: This keybinding is used by Vimium.
 
 This is my favorite movement, which is inspired by [Vim Easymotion](https://github.com/easymotion/vim-easymotion) and friends [^1].
 
@@ -63,7 +62,7 @@ It allows you to jump to your desired position (as long as it is within the scre
 It works like this:
 
 1. Choose your selection mode
-1. Press `s`
+1. Press `f`
 1. Press the first letter of the selection that you want to jump to.
 1. Press the letter that appears on top of the selection.
 1. Done.

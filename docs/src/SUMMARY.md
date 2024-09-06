@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](./introduction.md)
+- [Pitch](./pitch.md)
 - [Comparisons](./comparisons/index.md)
   - [Modal editors](./comparisons/modal-editors.md)
 - [Core Concepts](./core-concepts.md)
