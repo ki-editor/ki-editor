@@ -88,6 +88,16 @@ impl Editor {
                     Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
                 ),
                 Keymap::new(
+                    "(",
+                    "Cycle primary selection (backward)".to_string(),
+                    Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
+                ),
+                Keymap::new(
+                    ")",
+                    "Cycle primary selection (forward)".to_string(),
+                    Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
+                ),
+                Keymap::new(
                     "ctrl+d",
                     "Scroll page down".to_string(),
                     Dispatch::ToEditor(ScrollPageDown),

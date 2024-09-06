@@ -84,6 +84,7 @@ pub(crate) enum ExpectKind {
     FileContent(CanonicalizedPath, String),
     FileContentEqual(CanonicalizedPath, CanonicalizedPath),
     CurrentSelectedTexts(&'static [&'static str]),
+    CurrentPrimarySelection(&'static str),
     CurrentCursorDirection(Direction),
     CurrentViewAlignment(Option<ViewAlignment>),
     ComponentsLength(usize),
@@ -347,6 +348,13 @@ impl ExpectKind {
                     .borrow()
                     .editor()
                     .copied_text_history_offset(),
+            ),
+            CurrentPrimarySelection(expected) => contextualize(
+                *expected,
+                &app.current_component()
+                    .borrow()
+                    .editor()
+                    .primary_selection()?,
             ),
         })
     }

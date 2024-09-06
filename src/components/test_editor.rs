@@ -2752,3 +2752,63 @@ foo()
         ])
     })
 }
+
+#[test]
+fn cycle_primary_selection_forward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentPrimarySelection("foo")),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("bar")),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("spam")),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("foo")),
+        ])
+    })
+}
+
+#[test]
+fn cycle_primary_selection_backward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentPrimarySelection("foo")),
+            Editor(CyclePrimarySelection(Direction::Start)),
+            Expect(CurrentPrimarySelection("spam")),
+            Editor(CyclePrimarySelection(Direction::Start)),
+            Expect(CurrentPrimarySelection("bar")),
+            Editor(CyclePrimarySelection(Direction::Start)),
+            Expect(CurrentPrimarySelection("foo")),
+        ])
+    })
+}
+
+#[test]
+fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentPrimarySelection("spam")),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(Previous)),
+            Editor(MoveSelection(Previous)),
+            Editor(EnterNormalMode),
+            Expect(CurrentPrimarySelection("foo")),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("bar")),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("spam")),
+        ])
+    })
+}

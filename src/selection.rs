@@ -462,6 +462,46 @@ impl SelectionSet {
 
         Self { selections, ..self }
     }
+
+    pub(crate) fn cycle_primary_selection(&mut self, direction: Direction) {
+        let sorted_ranges = self
+            .selections
+            .iter()
+            .map(|selection| selection.extended_range())
+            .sorted()
+            .collect_vec();
+        let primary_range = self.primary_selection().extended_range();
+        if let Some(primary_index) = sorted_ranges
+            .iter()
+            .position(|range| range == &primary_range)
+        {
+            let last_index = sorted_ranges.len().saturating_sub(1);
+            let next_primary_selection_index = match direction {
+                Direction::Start => {
+                    if primary_index == 0 {
+                        last_index
+                    } else {
+                        primary_index.saturating_sub(1)
+                    }
+                }
+                Direction::End => {
+                    if primary_index == last_index {
+                        0
+                    } else {
+                        primary_index + 1
+                    }
+                }
+            };
+            let next_range = sorted_ranges[next_primary_selection_index];
+            if let Some(index) = self
+                .selections
+                .iter()
+                .position(|selection| selection.extended_range() == next_range)
+            {
+                self.cursor_index = index;
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
