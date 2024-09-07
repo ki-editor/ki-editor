@@ -25,10 +25,15 @@ To delete multiple sibling AST nodes in a row, first press `s`, then repeat `d`.
 
 ### 2.2 Duplication
 
-To duplicate an AST node, first press `s`, then `y` (Copy), and then `p` (Paste).
+To duplicate an AST node, press `s`, then `y` (Copy), and then `p` (Paste).
 
 ![duplicate-node](https://github.com/user-attachments/assets/c5d67419-1fe9-473b-954b-58912d40109d)
 
+### 2.3 Swap
+
+To swap an AST node, press `s`, then `x` (Exchange mode)`, and press `l` (Next) or `h` (Previous).
+
+![swap-node](https://github.com/user-attachments/assets/14d314c3-4d15-4f48-bda2-3efa33b4725b)
 
 
 ## 3. First-class structural navigation
