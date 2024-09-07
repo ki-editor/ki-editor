@@ -2,7 +2,7 @@
 
 The following are reasons that prevented me from escaping the Ki island, although the sirens of the Copilots were irresistible.
 
-No land in the archipelago of the modal editors has a more economic keybindings for these actions.
+No land in the archipelago of the modal editors has more economic keybindings for these actions.
 
 ## 1. First-class syntactic selection
 
@@ -28,7 +28,7 @@ To delete multiple sibling syntax nodes in a row, first press `s`, then repeat `
 
 Notice the comma between the current and the next node is also deleted.
 
-This doesn't only works for JSON, it can be used to also delete statements, array elements, arguments, basically anything within a list of syntax nodes.
+This doesn't only work for JSON, it can be used to also delete statements, array elements, arguments, and basically anything within a list of syntax nodes.
 
 ### 2.2 Duplication
 
@@ -40,7 +40,7 @@ Notice how `comma` is added automatically.
 
 ### 2.3 Swap
 
-To swap an AST node, press `s`, then `x` (Exchange mode)`, and press `l`(Next) or`h` (Previous).
+To swap an AST node, press `s`, then `x` (Exchange mode)`, and press `l`(Next) or `h` (Previous).
 
 ![swap-node](https://github.com/user-attachments/assets/14d314c3-4d15-4f48-bda2-3efa33b4725b)
 
