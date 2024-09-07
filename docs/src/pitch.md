@@ -2,7 +2,7 @@
 
 ## 1. First-class structural selection
 
-To select the largest AST node under the cursor, simply press `s`. 
+To select the largest AST node under the cursor, simply press `s` (Syntax Node). 
 
 This feature is handy if you ever asked this question: _"How can I select the current expression/function/argument/statement?"_
 
@@ -12,6 +12,17 @@ And this works as long as your language is blessed by the Tree-sitter grammarian
 
 
 ## 2. First-class structural modification
+
+### 2.1 Deletion
+
+To delete multiple sibling AST nodes in a row, first press `s`, then repeat `d`.
+
+![delete-node](https://github.com/user-attachments/assets/8b2c263d-d05b-4f50-ae1d-ee17914f7c09)
+
+### 2.2 Duplication
+
+To duplicate an AST node, first press `s`, then `y` (Copy), and then `p` (Paste).
+
 
 ## 3. First-class structural navigation
 
