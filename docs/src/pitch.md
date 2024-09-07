@@ -26,6 +26,8 @@ To delete multiple sibling syntax nodes in a row, first press `s`, then repeat `
 
 ![delete-node](https://github.com/user-attachments/assets/8b2c263d-d05b-4f50-ae1d-ee17914f7c09)
 
+Notice the comma between the current and the next node is also deleted.
+
 This doesn't only works for JSON, it can be used to also delete statements, array elements, arguments, basically anything within a list of syntax nodes.
 
 ### 2.2 Duplication
@@ -33,6 +35,8 @@ This doesn't only works for JSON, it can be used to also delete statements, arra
 To duplicate an AST node, press `s`, then `y` (Copy), and then `p` (Paste).
 
 ![duplicate-node](https://github.com/user-attachments/assets/c5d67419-1fe9-473b-954b-58912d40109d)
+
+Notice how `comma` is added automatically.
 
 ### 2.3 Swap
 
