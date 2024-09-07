@@ -40,12 +40,12 @@ Keybindings:
 - `ctrl+o`: Go back
 - `ctrl+i`/`tab`: Go forward
 
-`[` is useful when you messed up the current selection, especially when you are
+`ctrl+o` is useful when you messed up the current selection, especially when you are
 using [Syntax Node](./selection-modes/syntax-node-based.md#syntax-node), and
 expanding the current selection to parent node.
 
-Simply press `[` to restore the selection to the previous state.  
-Press `]` to restore the selection to the current state.
+Simply press `ctrl+o` to restore the selection to the previous state.  
+Press `ctrl+i`/`tab` to restore the selection to the current state.
 
 ## Cycle primary selection
 
