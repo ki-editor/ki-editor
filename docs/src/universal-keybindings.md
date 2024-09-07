@@ -17,7 +17,7 @@ Pressing `ctrl+l` continuously cycles through the list above in order, starting 
 
 ## Other Window
 
-Keybinding: `ctrl+o`
+Keybinding: `ctrl+s`
 
 This cycles the cursor to the next window on the screen.
 

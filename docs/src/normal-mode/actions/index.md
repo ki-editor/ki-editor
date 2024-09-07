@@ -194,7 +194,7 @@ It behaves more or less the same as click-and-drag in the textbox or text area o
 
 When selection extension is enabled:
 
-1. Each selection is composed of 2 ranges (formerly 1 range).
+1. Each selection is composed of two ranges (originally one range).
 1. There's only one moveable range at a time.
 1. Press `v` again to change the moveable range to the other range.
 1. Every character between the two ranges, including the two ranges, is selected
