@@ -8,16 +8,15 @@ No land in the archipelago of the modal editors has a more economic keybindings 
 
 > Being first-class means that it is not an extra or even sidekick; it is the **protagonist**.
 
-To select the largest syntax node under the cursor, simply press `s` (Syntax Node). 
+To select the largest syntax node under the cursor, simply press `s` (Syntax Node).
 
-This feature is handy if you ever asked this question: 
+This feature is handy if you ever asked this question:
 
 _"How can I select the current expression/function/argument/statement?"_
 
 And this works as long as your language is blessed by the Tree-sitter grammarians.
 
 ![select-largest-node](https://github.com/user-attachments/assets/1bc1bbf4-d5f2-4233-b2a6-f07f8316fd84)
-
 
 ## 2. First-class syntactic modification
 
@@ -27,6 +26,8 @@ To delete multiple sibling syntax nodes in a row, first press `s`, then repeat `
 
 ![delete-node](https://github.com/user-attachments/assets/8b2c263d-d05b-4f50-ae1d-ee17914f7c09)
 
+This doesn't only works for JSON, it can be used to also delete statements, array elements, arguments, basically anything within a list of syntax nodes.
+
 ### 2.2 Duplication
 
 To duplicate an AST node, press `s`, then `y` (Copy), and then `p` (Paste).
@@ -35,14 +36,14 @@ To duplicate an AST node, press `s`, then `y` (Copy), and then `p` (Paste).
 
 ### 2.3 Swap
 
-To swap an AST node, press `s`, then `x` (Exchange mode)`, and press `l` (Next) or `h` (Previous).
+To swap an AST node, press `s`, then `x` (Exchange mode)`, and press `l`(Next) or`h` (Previous).
 
 ![swap-node](https://github.com/user-attachments/assets/14d314c3-4d15-4f48-bda2-3efa33b4725b)
-
 
 ## 3. First-class syntactic navigation
 
 To navigate the syntax tree, press `s`, then press any of the following keys:
+
 - `h` (Previous sibling)
 - `l` (Next sibling)
 - `,` (First sibling)
@@ -51,4 +52,3 @@ To navigate the syntax tree, press `s`, then press any of the following keys:
 - `k` (Parent)
 
 ![node-navigation](https://github.com/user-attachments/assets/549f225c-835e-4c3e-a69f-eca053f987eb)
-
