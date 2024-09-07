@@ -2,6 +2,8 @@
 
 The following are reasons that prevented me from escaping the Ki island, although the sirens of the Copilots were irresistible.
 
+No land in the archipelago of the modal editors has a more economic keybindings for these actions.
+
 ## 1. First-class syntactic selection
 
 > Being first-class means that it is not an extra or even sidekick; it is the **protagonist**.
