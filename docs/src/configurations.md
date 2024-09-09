@@ -10,6 +10,8 @@ At the moment, configuration files are not supported, because I'm in favor of co
    - Ability to reduce duplications using functions
    - Easy backup (fork Ki-editor and push your modified config)
 
+However, I'm open to suggestions, I might even create a new language for that.
+
 ## Files for configurations
 
 | Type      | Path                                 |

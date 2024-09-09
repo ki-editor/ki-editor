@@ -30,13 +30,7 @@ Unlike Emacs and Vim, Ki took this approach to the extreme, literally everything
 
 Part of the reason why Ki was created is due to the configuration nightmare that I have been through when using Neovim for the past 4 years.
 
-Thus, I'm in favor of minimal configurations, users should not spend days configuring something simple (which makes Helix attractive).
-
-However, unlike Helix editor, I will take this step even further: _keybindings should not be configurable_.
-
-A ridiculous amount of time is spent thinking about keybindings: their coherence, their rationality, their ease of typing etc.
-
-Thus, if you feel like certain keybindings should be remapped, discuss them with me, and we will sort it out, I want every Ki user to experience the best keybindings that they ever had.
+Thus, I'm in favor of minimal configurations, users should not spend eons configuring something simple (which makes Helix attractive).
 
 That being said, the following components should be configurable:
 
@@ -45,6 +39,7 @@ That being said, the following components should be configurable:
    - Formatter
    - Tree-sitter grammar
    - LSP
+3. Keybindings
 
 ## 4. Vim keybindings-compatible
 
