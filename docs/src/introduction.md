@@ -6,7 +6,7 @@ Ki [^1] Editor is a modal [^2] editor that supports multi-cursor structural edit
 [^2]: Modal: root word _mode_, meaning multiple modes.
 
 ## Community
-- Matrix (https://matrix.to/#/#ki-editor:matrix.org)
+- Matrix [https://matrix.to/#/#ki-editor:matrix.org](https://matrix.to/#/#ki-editor:matrix.org)
 
 ## Showcase
 
