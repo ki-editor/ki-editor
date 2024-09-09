@@ -2,7 +2,7 @@
 
 ## Line (Trimmed)
 
-Keybinding: `l`
+Keybinding: `e`
 
 In this selection mode `h`/`l` behaves exactly like `j`/`k`, and trimmed means
 that the leading and trailing spaces of each line are not selected.
@@ -11,7 +11,7 @@ This is usually used in conjunction with `i`/`a` to immediately enter insert mod
 
 ## Line (Full)
 
-Keybinding: `L`
+Keybinding: `E`
 
 Same as [Line (Trimmed)](#line-trimmed), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
@@ -37,8 +37,8 @@ Like [Word (Short)](#word-short), but it treats each word as a sequence of alpha
 
 ## Column
 
-Keybinding: `u`  
-Memory aid: col**u**mn
+Keybinding: `z`
+
 
 In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#previousnext) means left/right, and so on.
 
