@@ -181,6 +181,7 @@ impl<T: Frontend> App<T> {
         let mut frontend = self.frontend.lock().unwrap();
         frontend.leave_alternate_screen()?;
         frontend.disable_raw_mode()?;
+        frontend.disable_mouse_capture()?;
         // self.lsp_manager.shutdown();
 
         std::process::exit(0);

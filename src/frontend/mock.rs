@@ -26,6 +26,10 @@ impl super::Frontend for MockFrontend {
         Ok(())
     }
 
+    fn disable_mouse_capture(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     fn leave_alternate_screen(&mut self) -> anyhow::Result<()> {
         Ok(())
     }
