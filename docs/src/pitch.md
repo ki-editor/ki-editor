@@ -56,3 +56,16 @@ To navigate the syntax tree, press `s`, then press any of the following keys:
 - `k` (Parent)
 
 ![node-navigation](https://github.com/user-attachments/assets/549f225c-835e-4c3e-a69f-eca053f987eb)
+
+## 4. Multi-cursor
+Delete unused imports:
+- `] h` (set selection mode to Diagnostics Hint)
+- `q` (enter multi-cursor mode)
+- `l` (add a cursor to the next selection)
+- `s` (set selection mode to Syntax Node)
+- `d` (delete)
+- `space o` (keep only the primary selection)
+
+Again, notice how the commas are removed automatically.
+
+![remove-unused-imports](https://github.com/user-attachments/assets/1e26cae5-e24d-4010-bebc-c9ee8837293b)
