@@ -25,7 +25,7 @@ impl Default for Crossterm {
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::{DisableBracketedPaste, EnableBracketedPaste, EnableMouseCapture, DisableMouseCapture},
+    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute, queue,
     style::{
         Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
