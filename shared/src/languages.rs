@@ -21,6 +21,7 @@ pub const LANGUAGES: &[&Language] = &[
     &typescript(true),
     &xml(),
     &yaml(),
+    &zig(),
 ];
 
 const fn common_lisp() -> Language {
@@ -354,6 +355,26 @@ const fn yaml() -> Language {
             commit: "master",
         }),
         formatter_command: None,
+        highlight_query: None,
+    }
+}
+
+const fn zig() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("zig")),
+        extensions: &["zig"],
+        lsp_command: Some(LspCommand {
+            command: Command("zls", &[]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "zig",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-zig",
+            subpath: None,
+            commit: "master",
+        }),
+        formatter_command: Some(Command("zig", &["fmt", "--stdin"])),
         highlight_query: None,
     }
 }
