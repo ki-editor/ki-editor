@@ -374,7 +374,7 @@ const fn zig() -> Language {
             subpath: None,
             commit: "master",
         }),
-        formatter_command: Some(Command("zig", &["fmt"])),
+        formatter_command: Some(Command("zig", &["fmt", "--stdin"])),
         highlight_query: None,
     }
 }
