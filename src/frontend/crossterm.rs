@@ -25,7 +25,7 @@ impl Default for Crossterm {
 
 use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
-    event::{DisableBracketedPaste, EnableBracketedPaste, EnableMouseCapture},
+    event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute, queue,
     style::{
         Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
@@ -48,6 +48,11 @@ impl Frontend for Crossterm {
 
     fn enable_mouse_capture(&mut self) -> anyhow::Result<()> {
         self.stdout.execute(EnableMouseCapture)?;
+        Ok(())
+    }
+
+    fn disable_mouse_capture(&mut self) -> anyhow::Result<()> {
+        self.stdout.execute(DisableMouseCapture)?;
         Ok(())
     }
 
