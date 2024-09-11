@@ -807,6 +807,26 @@ impl LspServerProcess {
 
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
+                    "window/logMessage" => {
+                        let command = self
+                            .language
+                            .lsp_process_command()
+                            .map(|command| command.to_string())
+                            .unwrap_or_default();
+                        let params: <lsp_notification!("window/logMessage") as Notification>::Params =
+                            serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
+                        let typ = match params.typ {
+                            MessageType::LOG => "LOG".to_string(),
+                            MessageType::ERROR => "ERROR".to_string(),
+                            MessageType::WARNING => "WARNING".to_string(),
+                            MessageType::INFO => "INFO".to_string(),
+                            _ => format!("[Unknown message type {:?}]", params.typ),
+                        };
+                        log::info!(
+                            "LSP(window/logMessage)({command})[{typ}]: '{}'",
+                            params.message
+                        )
+                    }
 
                     _ => log::info!("unhandled Incoming Notification: {}", method),
                 }
