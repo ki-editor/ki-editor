@@ -182,6 +182,7 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        self.last_dispatch = Some(dispatch.clone());
         match dispatch {
             #[cfg(test)]
             AlignViewTop => self.align_cursor_to_top(),
@@ -350,6 +351,7 @@ impl Clone for Editor {
             cursor_direction: self.cursor_direction.clone(),
             scroll_offset: self.scroll_offset,
             rectangle: self.rectangle.clone(),
+            last_dispatch: None,
             buffer: self.buffer.clone(),
             title: self.title.clone(),
             id: self.id,
@@ -373,6 +375,7 @@ pub(crate) struct Editor {
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
     rectangle: Rectangle,
+    last_dispatch: Option<DispatchEditor>,
 
     buffer: Rc<RefCell<Buffer>>,
     title: Option<String>,
@@ -521,6 +524,7 @@ impl Editor {
             cursor_direction: Direction::Start,
             scroll_offset: 0,
             rectangle: Rectangle::default(),
+            last_dispatch: None,
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
             title: None,
             id: ComponentId::new(),
@@ -538,6 +542,7 @@ impl Editor {
             cursor_direction: Direction::Start,
             scroll_offset: 0,
             rectangle: Rectangle::default(),
+            last_dispatch: None,
             buffer,
             title: None,
             id: ComponentId::new(),
@@ -2039,8 +2044,15 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
         };
+        let last_dispatch = match self.last_dispatch {
+            None => "",
+            Some(ref dispatch) => &dispatch.to_string(),
+        };
         let cursor_count = self.selection_set.len();
-        let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
+        let mode = format!(
+            "{}:{}{} x {} {}",
+            mode, selection_mode, filters, cursor_count, last_dispatch
+        );
         if self.jumps.is_some() {
             format!("{} (FLY)", mode)
         } else {
@@ -2890,6 +2902,109 @@ pub(crate) enum DispatchEditor {
     ShowCurrentTreeSitterNodeSexp,
     Indent,
     Dedent,
+}
+
+impl std::fmt::Display for DispatchEditor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Surround(_, _) => "Surround",
+                ShowJumps { .. } => "ShowJumps",
+                ScrollPageDown => "ScrollPageDown",
+                ScrollPageUp => "ScrollPageUp",
+                Transform(_) => "Transform",
+                SetSelectionMode(_, _) => "SetSelectionMode",
+                Save => "Save",
+                FindOneChar(_) => "FindOneChar",
+                MoveSelection(_) => "MoveSelection",
+                SwitchViewAlignment => "SwitchViewAlignment",
+                Copy {
+                    use_system_clipboard,
+                } =>
+                    if *use_system_clipboard {
+                        "Copy (system clipboard)"
+                    } else {
+                        "Copy"
+                    },
+                GoBack => "GoBack",
+                GoForward => "GoForward",
+                SelectAll => "SelectAll",
+                SetContent(_) => "SetContent",
+                SetDecorations(_) => "SetDecorations",
+                ToggleVisualMode => "ToggleVisualMode",
+                Change => "Change",
+                ChangeCut {
+                    use_system_clipboard,
+                } =>
+                    if *use_system_clipboard {
+                        "ChangeCut (system clipboard)"
+                    } else {
+                        "ChangeCut"
+                    },
+                EnterUndoTreeMode => "EnterUndoTreeMode",
+                EnterInsertMode(_) => "EnterInsertMode",
+                ReplaceWithCopiedText {
+                    cut: _,
+                    use_system_clipboard: _,
+                } => "ReplaceWithCopiedText",
+                ReplaceWithPattern => "ReplaceWithPattern",
+                SelectLine(_) => "SelectLine",
+                Backspace => "Backspace",
+                Delete(_) => "Delete",
+                Insert(_) => "Insert",
+                MoveToLineStart => "MoveToLineStart",
+                MoveToLineEnd => "MoveToLineEnd",
+                SelectSurround {
+                    enclosure: _,
+                    kind: _,
+                } => "SelectSurround",
+                Open(_) => "Open",
+                ToggleBookmark => "ToggleBookmark",
+                EnterNormalMode => "EnterNormalMode",
+                EnterExchangeMode => "EnterExchangeMode",
+                EnterReplaceMode => "EnterReplaceMode",
+                EnterMultiCursorMode => "EnterMultiCursorMode",
+                FilterPush(_) => "FilterPush",
+                FilterClear => "FilterClear",
+                CursorAddToAllSelections => "CursorAddToAllSelections",
+                CyclePrimarySelection(_) => "CyclePrimarySelection",
+                CursorKeepPrimaryOnly => "CursorKeepPrimaryOnly",
+                ReplacePattern { config: _ } => "ReplacePattern",
+                Undo => "Undo",
+                Redo => "Redo",
+                KillLine(_) => "KillLine",
+                DeleteWordBackward { short: _ } => "DeleteWordBackward",
+                ReplaceCurrentSelectionWith(_) => "ReplaceCurrentSelectionWith",
+                TryReplaceCurrentLongWord(_) => "TryReplaceCurrentLongWord",
+                SelectLineAt(_) => "SelectLineAt",
+                ShowKeymapLegendNormalMode => "ShowKeymapLegendNormalMode",
+                ShowKeymapLegendInsertMode => "ShowKeymapLegendInsertMode",
+                Paste {
+                    direction: _,
+                    use_system_clipboard: _,
+                } => "Paste",
+                SwapCursorWithAnchor => "SwapCursorWithAnchor",
+                MoveCharacterBack => "MoveCharacterBack",
+                MoveCharacterForward => "MoveCharacterForward",
+                ShowKeymapLegendHelp => "ShowKeymapLegendHelp",
+                DeleteSurround(_) => "DeleteSurround",
+                ChangeSurround { from: _, to: _ } => "ChangeSurround",
+                Replace(_) => "Replace",
+                ApplyPositionalEdits(_) => "ApplyPositionalEdits",
+                ReplaceWithPreviousCopiedText => "ReplaceWithPreviousCopiedText",
+                ReplaceWithNextCopiedText => "ReplaceWithNextCopiedText",
+                MoveToLastChar => "MoveToLastChar",
+                PipeToShell { command: _ } => "PipeToShell",
+                ShowCurrentTreeSitterNodeSexp => "ShowCurrentTreeSitterNodeSexp",
+                Indent => "Indent",
+                Dedent => "Dedent",
+                #[cfg(test)]
+                _ => "",
+            }
+        )
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
