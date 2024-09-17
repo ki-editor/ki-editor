@@ -2050,7 +2050,7 @@ impl Editor {
         };
         let cursor_count = self.selection_set.len();
         let mode = format!(
-            "{}:{}{} x {} {}",
+            "{} │ {}{} x {} │ {}",
             mode, selection_mode, filters, cursor_count, last_dispatch
         );
         if self.jumps.is_some() {
@@ -2906,104 +2906,115 @@ pub(crate) enum DispatchEditor {
 
 impl std::fmt::Display for DispatchEditor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Surround(_, _) => "Surround",
-                ShowJumps { .. } => "ShowJumps",
-                ScrollPageDown => "ScrollPageDown",
-                ScrollPageUp => "ScrollPageUp",
-                Transform(_) => "Transform",
-                SetSelectionMode(_, _) => "SetSelectionMode",
-                Save => "Save",
-                FindOneChar(_) => "FindOneChar",
-                MoveSelection(_) => "MoveSelection",
-                SwitchViewAlignment => "SwitchViewAlignment",
-                Copy {
-                    use_system_clipboard,
-                } =>
-                    if *use_system_clipboard {
-                        "Copy (system clipboard)"
-                    } else {
-                        "Copy"
-                    },
-                GoBack => "GoBack",
-                GoForward => "GoForward",
-                SelectAll => "SelectAll",
-                SetContent(_) => "SetContent",
-                SetDecorations(_) => "SetDecorations",
-                ToggleVisualMode => "ToggleVisualMode",
-                Change => "Change",
-                ChangeCut {
-                    use_system_clipboard,
-                } =>
-                    if *use_system_clipboard {
-                        "ChangeCut (system clipboard)"
-                    } else {
-                        "ChangeCut"
-                    },
-                EnterUndoTreeMode => "EnterUndoTreeMode",
-                EnterInsertMode(_) => "EnterInsertMode",
-                ReplaceWithCopiedText {
-                    cut: _,
-                    use_system_clipboard: _,
-                } => "ReplaceWithCopiedText",
-                ReplaceWithPattern => "ReplaceWithPattern",
-                SelectLine(_) => "SelectLine",
-                Backspace => "Backspace",
-                Delete(_) => "Delete",
-                Insert(_) => "Insert",
-                MoveToLineStart => "MoveToLineStart",
-                MoveToLineEnd => "MoveToLineEnd",
-                SelectSurround {
-                    enclosure: _,
-                    kind: _,
-                } => "SelectSurround",
-                Open(_) => "Open",
-                ToggleBookmark => "ToggleBookmark",
-                EnterNormalMode => "EnterNormalMode",
-                EnterExchangeMode => "EnterExchangeMode",
-                EnterReplaceMode => "EnterReplaceMode",
-                EnterMultiCursorMode => "EnterMultiCursorMode",
-                FilterPush(_) => "FilterPush",
-                FilterClear => "FilterClear",
-                CursorAddToAllSelections => "CursorAddToAllSelections",
-                CyclePrimarySelection(_) => "CyclePrimarySelection",
-                CursorKeepPrimaryOnly => "CursorKeepPrimaryOnly",
-                ReplacePattern { config: _ } => "ReplacePattern",
-                Undo => "Undo",
-                Redo => "Redo",
-                KillLine(_) => "KillLine",
-                DeleteWordBackward { short: _ } => "DeleteWordBackward",
-                ReplaceCurrentSelectionWith(_) => "ReplaceCurrentSelectionWith",
-                TryReplaceCurrentLongWord(_) => "TryReplaceCurrentLongWord",
-                SelectLineAt(_) => "SelectLineAt",
-                ShowKeymapLegendNormalMode => "ShowKeymapLegendNormalMode",
-                ShowKeymapLegendInsertMode => "ShowKeymapLegendInsertMode",
-                Paste {
-                    direction: _,
-                    use_system_clipboard: _,
-                } => "Paste",
-                SwapCursorWithAnchor => "SwapCursorWithAnchor",
-                MoveCharacterBack => "MoveCharacterBack",
-                MoveCharacterForward => "MoveCharacterForward",
-                ShowKeymapLegendHelp => "ShowKeymapLegendHelp",
-                DeleteSurround(_) => "DeleteSurround",
-                ChangeSurround { from: _, to: _ } => "ChangeSurround",
-                Replace(_) => "Replace",
-                ApplyPositionalEdits(_) => "ApplyPositionalEdits",
-                ReplaceWithPreviousCopiedText => "ReplaceWithPreviousCopiedText",
-                ReplaceWithNextCopiedText => "ReplaceWithNextCopiedText",
-                MoveToLastChar => "MoveToLastChar",
-                PipeToShell { command: _ } => "PipeToShell",
-                ShowCurrentTreeSitterNodeSexp => "ShowCurrentTreeSitterNodeSexp",
-                Indent => "Indent",
-                Dedent => "Dedent",
-                #[cfg(test)]
-                _ => "",
+        match self {
+            Surround(open, close) => write!(f, "Surround {open}{close}",),
+            ShowJumps { .. } => write!(f, "{}", "Show Jumps"),
+            ScrollPageDown => write!(f, "{}", "Scroll Page Down"),
+            ScrollPageUp => write!(f, "{}", "Scroll Page Up"),
+            Transform(transformation) => write!(f, "{}", transformation),
+            SetSelectionMode(_, selection_mode) => {
+                write!(
+                    f,
+                    "Set Selection Mode - {}",
+                    convert_case::Casing::to_case(
+                        &format!("{:?}", selection_mode),
+                        convert_case::Case::Title
+                    )
+                )
             }
-        )
+            MoveSelection(movement) => write!(f, "Move Selection - {movement:?}",),
+            Save => write!(f, "{}", "Save"),
+
+            // TODO: show details for the following
+            FindOneChar(_) => write!(f, "{}", "Find One Char"),
+            SwitchViewAlignment => write!(f, "{}", "Switch View Alignment"),
+            Copy {
+                use_system_clipboard,
+            } => write!(
+                f,
+                "{}",
+                if *use_system_clipboard {
+                    "Copy (use system Clipboard)"
+                } else {
+                    "Copy"
+                }
+            ),
+            ChangeCut {
+                use_system_clipboard,
+            } => write!(f, "{}", {
+                if *use_system_clipboard {
+                    "ChangeCut (system clipboard)"
+                } else {
+                    "ChangeCut"
+                }
+            }),
+            GoBack => write!(f, "{}", "Go Back"),
+            GoForward => write!(f, "{}", "Go Forward"),
+            SelectAll => write!(f, "{}", "Select All"),
+            SetContent(_) => write!(f, "{}", "Set Content"),
+            SetDecorations(_) => write!(f, "{}", "Set Decorations"),
+            ToggleVisualMode => write!(f, "{}", "Toggle Visual Mode"),
+            Change => write!(f, "{}", "Change"),
+            EnterUndoTreeMode => write!(f, "{}", "Enter Undo Tree Mode"),
+            EnterInsertMode(_) => write!(f, "{}", "Enter Insert Mode"),
+            ReplaceWithCopiedText {
+                cut: _,
+                use_system_clipboard: _,
+            } => write!(f, "{}", "Replace With Copied Text"),
+            ReplaceWithPattern => write!(f, "{}", "Replace With Pattern"),
+            SelectLine(_) => write!(f, "{}", "Select Line"),
+            Backspace => write!(f, "{}", "Backspace"),
+            Delete(_) => write!(f, "{}", "Delete"),
+            Insert(_) => write!(f, "{}", "Insert"),
+            MoveToLineStart => write!(f, "{}", "Move To Line Start"),
+            MoveToLineEnd => write!(f, "{}", "Move To Line End"),
+            SelectSurround {
+                enclosure: _,
+                kind: _,
+            } => write!(f, "{}", "Select Surround"),
+            Open(_) => write!(f, "{}", "Open"),
+            ToggleBookmark => write!(f, "{}", "Toggle Bookmark"),
+            EnterNormalMode => write!(f, "{}", "Enter Normal Mode"),
+            EnterExchangeMode => write!(f, "{}", "Enter Exchange Mode"),
+            EnterReplaceMode => write!(f, "{}", "Enter Replace Mode"),
+            EnterMultiCursorMode => write!(f, "{}", "Enter Multi Cursor Mode"),
+            FilterPush(_) => write!(f, "{}", "Filter Push"),
+            FilterClear => write!(f, "{}", "Filter Clear"),
+            CursorAddToAllSelections => write!(f, "{}", "Cursor Add To All Selections"),
+            CyclePrimarySelection(_) => write!(f, "{}", "Cycle Primary Selection"),
+            CursorKeepPrimaryOnly => write!(f, "{}", "Cursor Keep Primary Only"),
+            ReplacePattern { config: _ } => write!(f, "{}", "Replace Pattern"),
+            Undo => write!(f, "{}", "Undo"),
+            Redo => write!(f, "{}", "Redo"),
+            KillLine(_) => write!(f, "{}", "Kill Line"),
+            DeleteWordBackward { short: _ } => write!(f, "{}", "Delete Word Backward"),
+            ReplaceCurrentSelectionWith(_) => write!(f, "{}", "Replace Current Selection With"),
+            TryReplaceCurrentLongWord(_) => write!(f, "{}", "Try Replace Current Long Word"),
+            SelectLineAt(_) => write!(f, "{}", "Select Line At"),
+            ShowKeymapLegendNormalMode => write!(f, "{}", "Show Keymap Legend Normal Mode"),
+            ShowKeymapLegendInsertMode => write!(f, "{}", "Show Keymap Legend Insert Mode"),
+            Paste {
+                direction: _,
+                use_system_clipboard: _,
+            } => write!(f, "{}", "Paste"),
+            SwapCursorWithAnchor => write!(f, "{}", "Swap Cursor With Anchor"),
+            MoveCharacterBack => write!(f, "{}", "Move Character Back"),
+            MoveCharacterForward => write!(f, "{}", "Move Character Forward"),
+            ShowKeymapLegendHelp => write!(f, "{}", "Show Keymap Legend Help"),
+            DeleteSurround(_) => write!(f, "{}", "Delete Surround"),
+            ChangeSurround { from: _, to: _ } => write!(f, "{}", "Change Surround"),
+            Replace(_) => write!(f, "{}", "Replace"),
+            ApplyPositionalEdits(_) => write!(f, "{}", "Apply Positional Edits"),
+            ReplaceWithPreviousCopiedText => write!(f, "{}", "Replace With Previous Copied Text"),
+            ReplaceWithNextCopiedText => write!(f, "{}", "Replace With Next Copied Text"),
+            MoveToLastChar => write!(f, "{}", "Move To Last Char"),
+            PipeToShell { command: _ } => write!(f, "{}", "Pipe To Shell"),
+            ShowCurrentTreeSitterNodeSexp => write!(f, "{}", "Show Current Tree Sitter Node Sexp"),
+            Indent => write!(f, "{}", "Indent"),
+            Dedent => write!(f, "{}", "Dedent"),
+            #[cfg(test)]
+            _ => write!(f, "{}", ""),
+        }
     }
 }
 
