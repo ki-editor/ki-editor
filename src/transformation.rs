@@ -14,6 +14,35 @@ pub(crate) enum Transformation {
     CaseAgnosticReplace { search: String, replacement: String },
 }
 
+impl std::fmt::Display for Transformation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Transformation::Case(case) => write!(
+                f,
+                "{}",
+                format!("{:?}", case).to_case(convert_case::Case::Title)
+            ),
+            Transformation::Join => write!(f, "Join",),
+            Transformation::Wrap => write!(f, "Wrap",),
+            Transformation::PipeToShell { command } => write!(f, "Pipe To Shell `{command}`",),
+            Transformation::ReplaceWithCopiedText { .. } => {
+                write!(f, "Replace With Copied Text",)
+            }
+            Transformation::RegexReplace { regex, replacement } => {
+                write!(
+                    f,
+                    "Regex Replace /{}/ with /{replacement}/",
+                    regex.0.as_str(),
+                )
+            }
+            Transformation::CaseAgnosticReplace {
+                search,
+                replacement,
+            } => write!(f, "Case-agnostic Replace `{search}` with `{replacement}`",),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct MyRegex(pub(crate) regex::Regex);
 
