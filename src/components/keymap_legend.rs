@@ -229,7 +229,9 @@ impl KeymapLegendConfig {
                         regex: regex::Regex::new(
                             &(format!(
                                 "{}{}{}",
-                                keymap.key, BETWEEN_KEY_AND_DESCRIPTION, marked_description
+                                regex::escape(keymap.key),
+                                BETWEEN_KEY_AND_DESCRIPTION,
+                                marked_description
                             )),
                         )
                         .unwrap(),
