@@ -13,6 +13,20 @@ pub(crate) enum EnclosureKind {
     Backticks,
 }
 
+impl std::fmt::Display for EnclosureKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EnclosureKind::Parentheses => write!(f, "Parentheses"),
+            EnclosureKind::CurlyBraces => write!(f, "CurlyBraces"),
+            EnclosureKind::AngularBrackets => write!(f, "AngularBrackets"),
+            EnclosureKind::SquareBrackets => write!(f, "SquareBrackets"),
+            EnclosureKind::DoubleQuotes => write!(f, "DoubleQuotes"),
+            EnclosureKind::SingleQuotes => write!(f, "SingleQuotes"),
+            EnclosureKind::Backticks => write!(f, "Backticks"),
+        }
+    }
+}
+
 /// Return the open index and close index of the given `kind`.
 pub(crate) fn get_surrounding_indices(
     content: &str,
