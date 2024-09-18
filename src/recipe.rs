@@ -3,15 +3,15 @@ use my_proc_macros::keys;
 
 use crate::{components::editor::IfCurrentNotFound, test_app::*};
 
-#[test]
-fn generate_recipes() -> anyhow::Result<()> {
-    let recipes = [
+fn recipes() -> Vec<Recipe> {
+    [
         Recipe {
             description: "Select a line",
             content: "
 To be, or not to be?
 That, is the question.
-",
+"
+            .trim(),
             file_extension: "md",
             events: keys!("e"),
             expectations: &[CurrentSelectedTexts(&["To be, or not to be?"])],
@@ -39,15 +39,19 @@ Why?
             events: keys!("e d d"),
             expectations: &[CurrentSelectedTexts(&["Why?"])],
         },
-    ];
-    let recipes_output = recipes
+    ]
+    .to_vec()
+}
+
+#[test]
+fn generate_recipes() -> anyhow::Result<()> {
+    let recipes_output = recipes()
         .into_iter()
         .map(|recipe| -> anyhow::Result<RecipeOutput> {
             let path = format!("docu/assets/{}/", recipe.description);
             std::fs::create_dir_all(path.clone())?;
             let accum_events = create_nested_vectors(recipe.events);
             let accum_events_len = accum_events.len();
-
             let steps = accum_events
                 .into_iter()
                 .enumerate()
@@ -75,7 +79,10 @@ Why?
                         .into_boxed_slice()
                     })?;
                     Ok(StepOutput {
-                        key: format!("{:?}", events.last().map(|event| event.code)),
+                        key: events
+                            .last()
+                            .map(|event| key_event_to_string(event.code))
+                            .unwrap_or("[START]".to_string()),
                         description: "".to_string(),
                         term_output: result.unwrap(),
                     })
@@ -100,6 +107,33 @@ Why?
     Ok(())
 }
 
+use crossterm::event::KeyCode;
+fn key_event_to_string(key_code: KeyCode) -> String {
+    match key_code {
+        KeyCode::Char(c) => c.to_string(),
+        KeyCode::Backspace => String::from("backspace"),
+        KeyCode::Enter => String::from("enter"),
+        KeyCode::Left => String::from("left"),
+        KeyCode::Right => String::from("right"),
+        KeyCode::Up => String::from("up"),
+        KeyCode::Down => String::from("down"),
+        KeyCode::Home => String::from("home"),
+        KeyCode::End => String::from("end"),
+        KeyCode::PageUp => String::from("pageup"),
+        KeyCode::PageDown => String::from("pagedown"),
+        KeyCode::Tab => String::from("tab"),
+        KeyCode::BackTab => String::from("backtab"),
+        KeyCode::Delete => String::from("delete"),
+        KeyCode::Insert => String::from("insert"),
+        KeyCode::F(n) => format!("F{}", n),
+        KeyCode::Null => String::from("Null"),
+        KeyCode::Esc => String::from("Esc"),
+        // Add more cases as needed
+        _ => String::from("Unknown"),
+    }
+}
+
+#[derive(Clone)]
 struct Recipe {
     description: &'static str,
     content: &'static str,

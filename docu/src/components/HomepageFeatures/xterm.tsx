@@ -39,7 +39,6 @@ export const Recipe = (props: { recipe: Recipe }) => {
 
     const handleResize = () => fitAddon.fit();
 
-    instance?.clear();
     instance?.write(step.term_output);
 
     // Handle resize event
@@ -72,10 +71,18 @@ export const Recipe = (props: { recipe: Recipe }) => {
               {step.key}
             </code>
           ))}
-          <button onClick={() => setStepIndex(stepIndex - 1)}>
+          <button onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}>
             previous step
           </button>
-          <button onClick={() => setStepIndex(stepIndex + 1)}>next step</button>
+          <button
+            onClick={() =>
+              setStepIndex(
+                Math.min(stepIndex + 1, props.recipe.steps.length - 1)
+              )
+            }
+          >
+            next step
+          </button>
         </div>
       </div>
     </div>
