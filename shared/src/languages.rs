@@ -10,6 +10,7 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript(false),
     &just(),
     &json(),
+    &nix(),
     &markdown(),
     &python(),
     &rescript(),
@@ -166,6 +167,26 @@ const fn just() -> Language {
         }),
         highlight_query: None,
         formatter_command: None,
+    }
+}
+
+const fn nix() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("nix")),
+        lsp_command: Some(LspCommand {
+            command: Command("nil", &[]),
+            ..LspCommand::default()
+        }),
+        extensions: &["nix"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "nix",
+            url: "https://github.com/nix-community/tree-sitter-nix",
+            commit: "master",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: Some(Command("nixfmt", &[])),
     }
 }
 
