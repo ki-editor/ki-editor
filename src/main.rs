@@ -23,6 +23,8 @@ pub(crate) mod history;
 mod non_empty_extensions;
 mod osc52;
 mod quickfix_list;
+#[cfg(test)]
+mod recipe;
 mod rectangle;
 mod screen;
 mod selection;
@@ -68,7 +70,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
-        Arc::new(Mutex::new(Crossterm::default())),
+        Arc::new(Mutex::new(Crossterm::new(None)?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,

@@ -1,25 +1,95 @@
 use crate::{components::component::Cursor, screen::Screen};
+use std::any::Any;
+use std::io::{self, Write};
 
 use super::Frontend;
 
 pub(crate) struct Crossterm {
-    stdout: std::io::Stdout,
+    stdout: Box<dyn MyWriter>,
     /// Used for diffing to reduce unnecessary re-painting.
     previous_screen: Screen,
 }
 
 impl Crossterm {
-    pub(crate) fn new() -> Crossterm {
-        Crossterm {
-            stdout: std::io::stdout(),
-            previous_screen: Screen::default(),
+    pub(crate) fn string_content(&self) -> Option<String> {
+        match self.stdout.as_any().downcast_ref::<StringWriter>() {
+            Some(string_writer) => Some(string_writer.into_string()),
+            None => None,
         }
     }
 }
 
-impl Default for Crossterm {
-    fn default() -> Self {
-        Self::new()
+struct StringWriter {
+    buffer: Vec<u8>,
+}
+trait MyWriter: Write + Any {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn into_any(self: Box<Self>) -> Box<dyn Any>;
+}
+
+impl MyWriter for StringWriter {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
+}
+
+impl MyWriter for std::io::Stdout {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
+}
+
+impl StringWriter {
+    fn new() -> Self {
+        StringWriter { buffer: Vec::new() }
+    }
+
+    fn into_string(&self) -> String {
+        String::from_utf8(self.buffer.clone()).unwrap_or_default()
+    }
+}
+
+impl Write for StringWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.buffer.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Crossterm {
+    pub(crate) fn new(file_path: Option<String>) -> anyhow::Result<Crossterm> {
+        let output: Box<dyn MyWriter> = if let Some(file_path) = file_path {
+            // Box::new(std::fs::File::create(file_path)?)
+
+            Box::new(StringWriter::new())
+        } else {
+            Box::new(io::stdout())
+        };
+        Ok(Crossterm {
+            stdout: output,
+            previous_screen: Screen::default(),
+        })
     }
 }
 

@@ -32,7 +32,7 @@ use crate::{
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
-    frontend::mock::MockFrontend,
+    frontend::{crossterm::Crossterm, mock::MockFrontend},
     grid::StyleKey,
     integration_test::TestRunner,
     list::grep::RegexConfig,
@@ -63,7 +63,7 @@ pub(crate) enum Step {
     ExpectCustom(Box<dyn Fn()>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum ExpectKind {
     FileExplorerContent(String),
     EditorInfoContent(&'static str),
@@ -117,12 +117,12 @@ fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
 }
 impl ExpectKind {
-    fn run(&self, app: &mut App<MockFrontend>) {
+    fn run(&self, app: &mut App<Crossterm>) {
         log(self);
         let (result, context) = self.get_result(app).unwrap();
         assert!(result, "{context}",)
     }
-    fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
+    fn get_result(&self, app: &mut App<Crossterm>) -> anyhow::Result<(bool, String)> {
         let context = app.context();
         fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
             (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
@@ -391,7 +391,23 @@ impl State {
 }
 
 pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
-    run_test(|mut app, temp_dir| {
+    execute_test_helper(None, callback)?;
+    Ok(())
+}
+
+pub(crate) fn execute_recipe(
+    log_path: String,
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<Option<String>> {
+    execute_test_helper(Some(log_path), callback)
+}
+
+fn execute_test_helper(
+    log_path: Option<String>,
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<Option<String>> {
+    let has_log_path = log_path.is_some();
+    run_test(log_path, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -401,6 +417,9 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
             })
         };
 
+        if has_log_path {
+            app.render()?
+        }
         for step in steps.iter() {
             match step.to_owned() {
                 Step::App(dispatch) => {
@@ -427,18 +446,29 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
                 }
             };
         }
+
+        if has_log_path {
+            app.render()?
+        }
+
         Ok(())
     })
 }
 
 fn run_test(
-    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
-) -> anyhow::Result<()> {
-    TestRunner::run(|temp_dir| {
-        let mock_frontend = Arc::new(Mutex::new(MockFrontend::default()));
-        let mut app = App::new(mock_frontend, temp_dir.clone())?;
+    log_path: Option<String>,
+    callback: impl Fn(App<Crossterm>, CanonicalizedPath) -> anyhow::Result<()>,
+) -> anyhow::Result<Option<String>> {
+    TestRunner::run(move |temp_dir| {
+        let frontend = Arc::new(Mutex::new(Crossterm::new(log_path.clone())?));
+
+        let mut app = App::new(frontend.clone(), temp_dir.clone())?;
         app.disable_lsp();
-        callback(app, temp_dir)
+        callback(app, temp_dir)?;
+        use std::borrow::Borrow;
+        let output = frontend.lock().unwrap().borrow().string_content();
+
+        Ok(output)
     })
 }
 

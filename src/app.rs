@@ -221,7 +221,7 @@ impl<T: Frontend> App<T> {
         self.layout.components().is_empty()
     }
 
-    fn render(&mut self) -> Result<(), anyhow::Error> {
+    pub(crate) fn render(&mut self) -> Result<(), anyhow::Error> {
         let screen = self.get_screen()?;
         self.render_screen(screen)?;
         Ok(())
