@@ -2982,12 +2982,10 @@ impl std::fmt::Display for DispatchEditor {
                     } else {
                         write!(f, "Cut With Copied Text")
                     }
+                } else if *use_system_clipboard {
+                    write!(f, "Replace With Copied Text (System Clipboard)")
                 } else {
-                    if *use_system_clipboard {
-                        write!(f, "Replace With Copied Text (System Clipboard)")
-                    } else {
-                        write!(f, "Replace With Copied Text")
-                    }
+                    write!(f, "Replace With Copied Text")
                 }
             }
             ReplaceWithPattern => write!(f, "Replace With Pattern"),
@@ -3086,7 +3084,7 @@ impl std::fmt::Display for DispatchEditor {
             Indent => write!(f, "Indent"),
             Dedent => write!(f, "Dedent"),
             #[cfg(test)]
-            _ => write!(f, "{}", ""),
+            _ => write!(f, ""),
         }
     }
 }
