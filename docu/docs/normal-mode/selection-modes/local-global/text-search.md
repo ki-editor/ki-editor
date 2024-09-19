@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Text Search
 
 This is one of the most useful selection modes.

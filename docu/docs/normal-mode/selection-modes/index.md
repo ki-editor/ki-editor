@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Selection Modes
 
 Selection modes [^1] dictates how [core movements](../core-movements.md) works.

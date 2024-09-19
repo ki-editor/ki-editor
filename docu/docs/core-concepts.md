@@ -1,3 +1,7 @@
+---
+sidebar_position: 4
+---
+
 # Core concepts
 
 ## 1. All selection modes are equal

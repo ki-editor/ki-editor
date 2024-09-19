@@ -1,3 +1,7 @@
+---
+sidebar_position: 6
+---
+
 # Insert Mode
 
 In this mode, Ki functions like the usual editor, where pressing keys on

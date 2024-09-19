@@ -82,7 +82,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                         key: events
                             .last()
                             .map(|event| key_event_to_string(event.code))
-                            .unwrap_or("[START]".to_string()),
+                            .unwrap_or(" ".to_string()),
                         description: "".to_string(),
                         term_output: result.unwrap(),
                     })

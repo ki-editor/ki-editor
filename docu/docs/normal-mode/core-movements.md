@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # Core Movements
 
 Core Movements is one of the main concepts in Ki, because it is standardized for

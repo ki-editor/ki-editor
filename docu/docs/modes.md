@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Modes
 
 In Ki, there are two major modes:

@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Regex-based
 
 ## Line (Trimmed)
@@ -38,7 +42,6 @@ Like [Word (Short)](#word-short), but it treats each word as a sequence of alpha
 ## Column
 
 Keybinding: `z`
-
 
 In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#previousnext) means left/right, and so on.
 

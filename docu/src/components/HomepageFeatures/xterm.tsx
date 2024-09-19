@@ -54,45 +54,46 @@ export const Recipe = (props: { recipe: Recipe }) => {
   }, [ref, instance, stepIndex]);
 
   return (
-    <div style={{ display: "grid" }}>
+    <div style={{ display: "grid", gap: 16 }}>
       <div>{props.recipe.description}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-        <div ref={ref} style={{ height: "100%", width: "100%" }} />
-        <div
-          style={{
-            display: "grid",
-            justifyContent: "center",
-            alignContent: "start",
-            justifyItems: "center",
-            gap: 8,
-          }}
+      <div
+        style={{
+          display: "grid",
+          justifyContent: "center",
+          alignContent: "start",
+          justifyItems: "center",
+          gridAutoFlow: "column",
+          gap: 8,
+        }}
+      >
+        <button
+          className="kbc-button"
+          onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}
         >
-          {props.recipe.steps.map((step, index) => (
-            <button
-              onClick={() => setStepIndex(index)}
-              className={[
-                "kbc-button",
-                index === stepIndex ? "active" : undefined,
-              ].join(" ")}
-              style={{ margin: 4 }}
-            >
-              {step.key}
-            </button>
-          ))}
-          <button onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}>
-            previous step
-          </button>
+          previous step
+        </button>
+        {props.recipe.steps.map((step, index) => (
           <button
-            onClick={() =>
-              setStepIndex(
-                Math.min(stepIndex + 1, props.recipe.steps.length - 1)
-              )
-            }
+            onClick={() => setStepIndex(index)}
+            className={[
+              "kbc-button",
+              index === stepIndex ? "active" : undefined,
+            ].join(" ")}
+            style={{ margin: 4 }}
           >
-            next step
+            {step.key}
           </button>
-        </div>
+        ))}
+        <button
+          className="kbc-button"
+          onClick={() =>
+            setStepIndex(Math.min(stepIndex + 1, props.recipe.steps.length - 1))
+          }
+        >
+          next step
+        </button>
       </div>
+      <div ref={ref} style={{ height: "100%", width: "100%" }} />
     </div>
   );
 };

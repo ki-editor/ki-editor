@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # Syntax Node-based
 
 The following selection modes are based on the syntax node of the file, which are

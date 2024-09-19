@@ -404,7 +404,12 @@ pub(crate) fn execute_recipe(
 ) -> anyhow::Result<Option<String>> {
     execute_test_helper(
         Some(log_path),
-        [StatusLineComponent::LastDispatch].to_vec(),
+        [
+            StatusLineComponent::Mode,
+            StatusLineComponent::SelectionMode,
+            StatusLineComponent::LastDispatch,
+        ]
+        .to_vec(),
         callback,
     )
 }

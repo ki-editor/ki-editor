@@ -1,3 +1,7 @@
+---
+sidebar_position: 1
+---
+
 # Introduction
 
 Ki [^1] Editor is a modal [^2] editor that supports multi-cursor structural editing.

@@ -75,7 +75,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         sender,
         receiver,
         [
-            StatusLineComponent::Mode,
+            StatusLineComponent::CurrentWorkingDirectory,
             StatusLineComponent::GitBranch,
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,

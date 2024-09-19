@@ -1,3 +1,7 @@
+---
+sidebar_position: 8
+---
+
 # Universal Keybindings
 
 The keybindings presented here work in any [Modes](./modes.md).
