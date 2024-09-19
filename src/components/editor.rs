@@ -2028,13 +2028,6 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let selection_mode = self.selection_set.mode.display();
-        let filters = self
-            .selection_set
-            .filters
-            .display()
-            .map(|display| format!("({})", display))
-            .unwrap_or_default();
         let mode = match &self.mode {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
@@ -2044,19 +2037,30 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
         };
-        let last_dispatch = match self.last_dispatch {
-            None => "",
-            Some(ref dispatch) => &dispatch.to_string(),
-        };
+        format!("{}", mode)
+    }
+
+    pub(crate) fn display_last_dispatch(&self) -> Option<String> {
+        match self.last_dispatch {
+            None => None,
+            Some(ref dispatch) => Some(dispatch.to_string()),
+        }
+    }
+
+    pub(crate) fn display_selection_mode(&self) -> String {
+        let selection_mode = self.selection_set.mode.display();
+        let filters = self
+            .selection_set
+            .filters
+            .display()
+            .map(|display| format!("({})", display))
+            .unwrap_or_default();
         let cursor_count = self.selection_set.len();
-        let mode = format!(
-            "{} │ {}{} x {} │ {}",
-            mode, selection_mode, filters, cursor_count, last_dispatch
-        );
+        let result = format!("{}{} x {}", selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
-            format!("{} (FLY)", mode)
+            format!("{} (FLY)", result)
         } else {
-            mode
+            result
         }
     }
 

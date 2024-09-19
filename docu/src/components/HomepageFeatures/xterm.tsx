@@ -21,6 +21,11 @@ const recipes = z.array(recipeSchema).parse(recipesData.recipes_output);
 export const Recipes = () => {
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      <link
+        rel="stylesheet"
+        href="https://unpkg.com/keyboard-css@1.2.4/dist/css/main.min.css"
+      />
+
       {recipes.map((recipe, index) => (
         <Recipe key={index} recipe={recipe} />
       ))}
@@ -58,18 +63,21 @@ export const Recipe = (props: { recipe: Recipe }) => {
             display: "grid",
             justifyContent: "center",
             alignContent: "start",
+            justifyItems: "center",
+            gap: 8,
           }}
         >
           {props.recipe.steps.map((step, index) => (
-            <code
-              key={index}
-              style={{
-                margin: 4,
-                backgroundColor: index === stepIndex ? "yellow" : undefined,
-              }}
+            <button
+              onClick={() => setStepIndex(index)}
+              className={[
+                "kbc-button",
+                index === stepIndex ? "active" : undefined,
+              ].join(" ")}
+              style={{ margin: 4 }}
             >
               {step.key}
-            </code>
+            </button>
           ))}
           <button onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}>
             previous step

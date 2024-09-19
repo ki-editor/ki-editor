@@ -23,7 +23,10 @@ pub(crate) use SelectionMode::*;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope},
+    app::{
+        App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope,
+        StatusLineComponent,
+    },
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     components::{
@@ -391,7 +394,7 @@ impl State {
 }
 
 pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
-    execute_test_helper(None, callback)?;
+    execute_test_helper(None, [StatusLineComponent::LastDispatch].to_vec(), callback)?;
     Ok(())
 }
 
@@ -399,15 +402,20 @@ pub(crate) fn execute_recipe(
     log_path: String,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
-    execute_test_helper(Some(log_path), callback)
+    execute_test_helper(
+        Some(log_path),
+        [StatusLineComponent::LastDispatch].to_vec(),
+        callback,
+    )
 }
 
 fn execute_test_helper(
     log_path: Option<String>,
+    status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
     let has_log_path = log_path.is_some();
-    run_test(log_path, |mut app, temp_dir| {
+    run_test(log_path, status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -457,12 +465,17 @@ fn execute_test_helper(
 
 fn run_test(
     log_path: Option<String>,
+    status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(App<Crossterm>, CanonicalizedPath) -> anyhow::Result<()>,
 ) -> anyhow::Result<Option<String>> {
     TestRunner::run(move |temp_dir| {
         let frontend = Arc::new(Mutex::new(Crossterm::new(log_path.clone())?));
 
-        let mut app = App::new(frontend.clone(), temp_dir.clone())?;
+        let mut app = App::new(
+            frontend.clone(),
+            temp_dir.clone(),
+            status_line_components.clone(),
+        )?;
         app.disable_lsp();
         callback(app, temp_dir)?;
         use std::borrow::Borrow;

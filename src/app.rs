@@ -75,17 +75,35 @@ pub(crate) struct App<T: Frontend> {
 
     /// Used for navigating between opened files
     file_path_history: History<CanonicalizedPath>,
+    status_line_components: Vec<StatusLineComponent>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
+
+#[derive(Clone)]
+pub(crate) enum StatusLineComponent {
+    CurrentWorkingDirectory,
+    GitBranch,
+    Mode,
+    SelectionMode,
+    LastDispatch,
+}
+
 impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn new(
         frontend: Arc<Mutex<T>>,
         working_directory: CanonicalizedPath,
+        status_line_components: Vec<StatusLineComponent>,
     ) -> anyhow::Result<App<T>> {
         let (sender, receiver) = std::sync::mpsc::channel();
-        Self::from_channel(frontend, working_directory, sender, receiver)
+        Self::from_channel(
+            frontend,
+            working_directory,
+            sender,
+            receiver,
+            status_line_components,
+        )
     }
 
     #[cfg(test)]
@@ -98,6 +116,7 @@ impl<T: Frontend> App<T> {
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
+        status_line_components: Vec<StatusLineComponent>,
     ) -> anyhow::Result<App<T>> {
         let dimension = frontend.lock().unwrap().get_terminal_dimension()?;
         let app = App {
@@ -116,6 +135,8 @@ impl<T: Frontend> App<T> {
             global_title: None,
 
             file_path_history: History::new(),
+
+            status_line_components,
         };
         Ok(app)
     }
@@ -275,30 +296,35 @@ impl<T: Frontend> App<T> {
 
         // Set the global title
         let global_title_window = {
-            let mode = self
-                .context
-                .mode()
-                .map(|mode| mode.display())
-                .unwrap_or_else(|| self.current_component().borrow().editor().display_mode());
-
-            let mode = format!("│ {}", mode);
-
-            let title = if let Some(title) = self.global_title.as_ref() {
-                title.clone()
-            } else {
-                let branch = if let Some(current_branch) = self.current_branch() {
-                    format!(" ({}) ", current_branch,)
-                } else {
-                    " ".to_string()
-                };
-                format!(
-                    "{}{}{}",
-                    self.working_directory.display_absolute(),
-                    branch,
-                    mode
-                )
-            };
-
+            let title = self
+                .status_line_components
+                .iter()
+                .filter_map(|component| match component {
+                    StatusLineComponent::CurrentWorkingDirectory => {
+                        Some(self.working_directory.display_absolute())
+                    }
+                    StatusLineComponent::GitBranch => self.current_branch(),
+                    StatusLineComponent::Mode => Some(
+                        self.context
+                            .mode()
+                            .map(|mode| mode.display())
+                            .unwrap_or_else(|| {
+                                self.current_component().borrow().editor().display_mode()
+                            }),
+                    ),
+                    StatusLineComponent::SelectionMode => Some(
+                        self.current_component()
+                            .borrow()
+                            .editor()
+                            .display_selection_mode(),
+                    ),
+                    StatusLineComponent::LastDispatch => self
+                        .current_component()
+                        .borrow()
+                        .editor()
+                        .display_last_dispatch(),
+                })
+                .join(" │ ");
             let grid = Grid::new(Dimension {
                 height: 1,
                 width: dimension.width,

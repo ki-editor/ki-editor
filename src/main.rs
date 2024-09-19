@@ -50,7 +50,7 @@ use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::App;
+use app::{App, StatusLineComponent};
 
 use crate::app::AppMessage;
 
@@ -74,6 +74,14 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
+        [
+            StatusLineComponent::Mode,
+            StatusLineComponent::GitBranch,
+            StatusLineComponent::Mode,
+            StatusLineComponent::SelectionMode,
+            StatusLineComponent::LastDispatch,
+        ]
+        .to_vec(),
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 
