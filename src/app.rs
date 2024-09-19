@@ -281,7 +281,7 @@ impl<T: Frontend> App<T> {
                 .map(|mode| mode.display())
                 .unwrap_or_else(|| self.current_component().borrow().editor().display_mode());
 
-            let mode = format!("[{}]", mode);
+            let mode = format!("│ {}", mode);
 
             let title = if let Some(title) = self.global_title.as_ref() {
                 title.clone()

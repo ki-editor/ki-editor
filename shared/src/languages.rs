@@ -10,8 +10,10 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript(false),
     &just(),
     &json(),
+    &nix(),
     &markdown(),
     &python(),
+    &rescript(),
     &rust(),
     &sql(),
     &swift(),
@@ -40,6 +42,7 @@ const fn common_lisp() -> Language {
         formatter_command: None,
     }
 }
+
 const fn csv() -> Language {
     Language {
         file_names: &[],
@@ -167,6 +170,26 @@ const fn just() -> Language {
     }
 }
 
+const fn nix() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("nix")),
+        lsp_command: Some(LspCommand {
+            command: Command("nil", &[]),
+            ..LspCommand::default()
+        }),
+        extensions: &["nix"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "nix",
+            url: "https://github.com/nix-community/tree-sitter-nix",
+            commit: "master",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: Some(Command("nixfmt", &[])),
+    }
+}
+
 const fn markdown() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("markdown")),
@@ -202,6 +225,29 @@ const fn python() -> Language {
         }),
         formatter_command: Some(Command("ruff", &["format", "--stdin-filename", ".py"])),
         ..Language::new()
+    }
+}
+
+const fn rescript() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("rescript")),
+        lsp_command: Some(LspCommand {
+            command: Command("./node_modules/.bin/rescript-language-server", &["--stdio"]),
+            ..LspCommand::default()
+        }),
+        extensions: &["res"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "rescript",
+            url: "https://github.com/rescript-lang/tree-sitter-rescript",
+            commit: "main",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: Some(Command(
+            "./node_modules/.bin/rescript",
+            &["format", "-stdin", ".res"],
+        )),
     }
 }
 

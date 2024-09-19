@@ -182,6 +182,7 @@ impl Component for Editor {
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
+        self.last_dispatch = Some(dispatch.clone());
         match dispatch {
             #[cfg(test)]
             AlignViewTop => self.align_cursor_to_top(),
@@ -350,6 +351,7 @@ impl Clone for Editor {
             cursor_direction: self.cursor_direction.clone(),
             scroll_offset: self.scroll_offset,
             rectangle: self.rectangle.clone(),
+            last_dispatch: None,
             buffer: self.buffer.clone(),
             title: self.title.clone(),
             id: self.id,
@@ -373,6 +375,7 @@ pub(crate) struct Editor {
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
     rectangle: Rectangle,
+    last_dispatch: Option<DispatchEditor>,
 
     buffer: Rc<RefCell<Buffer>>,
     title: Option<String>,
@@ -521,6 +524,7 @@ impl Editor {
             cursor_direction: Direction::Start,
             scroll_offset: 0,
             rectangle: Rectangle::default(),
+            last_dispatch: None,
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
             title: None,
             id: ComponentId::new(),
@@ -538,6 +542,7 @@ impl Editor {
             cursor_direction: Direction::Start,
             scroll_offset: 0,
             rectangle: Rectangle::default(),
+            last_dispatch: None,
             buffer,
             title: None,
             id: ComponentId::new(),
@@ -2039,8 +2044,15 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
         };
+        let last_dispatch = match self.last_dispatch {
+            None => "",
+            Some(ref dispatch) => &dispatch.to_string(),
+        };
         let cursor_count = self.selection_set.len();
-        let mode = format!("{}:{}{} x {}", mode, selection_mode, filters, cursor_count);
+        let mode = format!(
+            "{} │ {}{} x {} │ {}",
+            mode, selection_mode, filters, cursor_count, last_dispatch
+        );
         if self.jumps.is_some() {
             format!("{} (FLY)", mode)
         } else {
@@ -2892,10 +2904,205 @@ pub(crate) enum DispatchEditor {
     Dedent,
 }
 
+impl std::fmt::Display for DispatchEditor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Surround(open, close) => write!(f, "Surround {open}{close}",),
+            ShowJumps { .. } => write!(f, "Show Jumps"),
+            ScrollPageDown => write!(f, "Scroll Page - Down"),
+            ScrollPageUp => write!(f, "Scroll Page - Up"),
+            Transform(transformation) => write!(f, "{transformation}"),
+            SetSelectionMode(_, selection_mode) => {
+                write!(
+                    f,
+                    "Set Selection Mode - {}",
+                    convert_case::Casing::to_case(
+                        &format!("{:?}", selection_mode),
+                        convert_case::Case::Title
+                    )
+                )
+            }
+            MoveSelection(movement) => write!(
+                f,
+                "Move Selection - {}",
+                convert_case::Casing::to_case(
+                    &format!("{:?}", movement),
+                    convert_case::Case::Title
+                )
+            ),
+            Save => write!(f, "Save"),
+            FindOneChar(not_found) => match not_found {
+                IfCurrentNotFound::LookForward => write!(f, "Find One Char - Forward"),
+                IfCurrentNotFound::LookBackward => write!(f, "Find One Char - Backward"),
+            },
+            SwitchViewAlignment => write!(f, "Switch View Alignment"),
+            Copy {
+                use_system_clipboard,
+            } => write!(
+                f,
+                "{}",
+                if *use_system_clipboard {
+                    "Copy (System Clipboard)"
+                } else {
+                    "Copy"
+                }
+            ),
+            ChangeCut {
+                use_system_clipboard,
+            } => write!(f, "{}", {
+                if *use_system_clipboard {
+                    "Cut Change (System Clipboard)"
+                } else {
+                    "Cut Change"
+                }
+            }),
+            GoBack => write!(f, "Go Back"),
+            GoForward => write!(f, "Go Forward"),
+            SelectAll => write!(f, "Select All"),
+            SetContent(content) => write!(f, "Set Content ({content})"),
+            SetDecorations(decorations) => write!(
+                f,
+                "Set Decorations [{:?}]",
+                decorations.iter().map(|d| d.style_key())
+            ),
+            ToggleVisualMode => write!(f, "Toggle Visual Mode"),
+            Change => write!(f, "Change"),
+            EnterUndoTreeMode => write!(f, "Enter Undo Tree Mode"),
+            EnterInsertMode(direction) => match direction {
+                Direction::Start => write!(f, "Enter Insert Mode - Start"),
+                Direction::End => write!(f, "Enter Insert Mode - End"),
+            },
+            ReplaceWithCopiedText {
+                cut,
+                use_system_clipboard,
+            } => {
+                if *cut {
+                    if *use_system_clipboard {
+                        write!(f, "Cut With Copied Text (System Clipboard)")
+                    } else {
+                        write!(f, "Cut With Copied Text")
+                    }
+                } else if *use_system_clipboard {
+                    write!(f, "Replace With Copied Text (System Clipboard)")
+                } else {
+                    write!(f, "Replace With Copied Text")
+                }
+            }
+            ReplaceWithPattern => write!(f, "Replace With Pattern"),
+            SelectLine(movement) => match movement {
+                Movement::Next => write!(f, "Select Next Line"),
+                Movement::Previous => write!(f, "Select Previous Line"),
+                Movement::Last => write!(f, "Select Last Line"),
+                Movement::Current(_) => write!(f, "Select Current Line"),
+                Movement::Up => write!(f, "Select Line Up"),
+                Movement::Down => write!(f, "Select Line Down"),
+                Movement::First => write!(f, "Select First Line"),
+                Movement::Index(line) => write!(f, "Select Line {line}"),
+                Movement::Jump(_) => write!(f, "Jump to Line"),
+                Movement::ToParentLine => write!(f, "Select Parent Line"),
+                Movement::Parent => write!(f, "Select Parent"),
+                #[cfg(test)]
+                Movement::FirstChild => write!(f, "Select First Child"),
+            },
+            Backspace => write!(f, "Backspace"),
+            Delete(direction) => match direction {
+                Direction::Start => write!(f, "Delete - Start"),
+                Direction::End => write!(f, "Delete - End"),
+            },
+            Insert(content) => write!(f, "Insert ({content})"),
+            MoveToLineStart => write!(f, "Move To Line - Start"),
+            MoveToLineEnd => write!(f, "Move To Line - End"),
+            SelectSurround { enclosure, kind } => {
+                write!(f, "Select {kind} Surrounding {enclosure}")
+            }
+            Open(direction) => match direction {
+                Direction::Start => write!(f, "Open - Start"),
+                Direction::End => write!(f, "Open - End"),
+            },
+            ToggleBookmark => write!(f, "Toggle Bookmark"),
+            EnterNormalMode => write!(f, "Enter Normal Mode"),
+            EnterExchangeMode => write!(f, "Enter Exchange Mode"),
+            EnterReplaceMode => write!(f, "Enter Replace Mode"),
+            EnterMultiCursorMode => write!(f, "Enter Multi Cursor Mode"),
+            FilterPush(_) => write!(f, "Filter Push"),
+            FilterClear => write!(f, "Filter Clear"),
+            CursorAddToAllSelections => write!(f, "Cursor Add To All Selections"),
+            CyclePrimarySelection(direction) => match direction {
+                Direction::Start => write!(f, "Cycle Primary Selection - Start"),
+                Direction::End => write!(f, "Cycle Primary Selection - End"),
+            },
+            CursorKeepPrimaryOnly => write!(f, "Cursor Keep Primary Only"),
+            ReplacePattern { config: _ } => write!(f, "Replace Pattern"),
+            Undo => write!(f, "Undo"),
+            Redo => write!(f, "Redo"),
+            KillLine(direction) => match direction {
+                Direction::Start => write!(f, "Kill Line - Start"),
+                Direction::End => write!(f, "Kill Line - End"),
+            },
+            DeleteWordBackward { .. } => write!(f, "Delete Word Backward"),
+            ReplaceCurrentSelectionWith(content) => {
+                write!(f, "Replace Current Selection With ({content})")
+            }
+            TryReplaceCurrentLongWord(content) => {
+                write!(f, "Try Replace Current Long Word ({content})")
+            }
+            SelectLineAt(line) => write!(f, "Select Line {line}"),
+            ShowKeymapLegendNormalMode => write!(f, "Show Keymap Legend Normal Mode"),
+            ShowKeymapLegendInsertMode => write!(f, "Show Keymap Legend Insert Mode"),
+            Paste {
+                direction,
+                use_system_clipboard,
+            } => match direction {
+                Direction::Start => {
+                    if *use_system_clipboard {
+                        write!(f, "Paste - Start (System Clipboard)")
+                    } else {
+                        write!(f, "Paste - Start")
+                    }
+                }
+                Direction::End => {
+                    if *use_system_clipboard {
+                        write!(f, "Paste - End (System Clipboard)")
+                    } else {
+                        write!(f, "Paste - End")
+                    }
+                }
+            },
+            SwapCursorWithAnchor => write!(f, "Swap Cursor With Anchor"),
+            MoveCharacterBack => write!(f, "Move Character Back"),
+            MoveCharacterForward => write!(f, "Move Character Forward"),
+            ShowKeymapLegendHelp => write!(f, "Show Keymap Legend Help"),
+            DeleteSurround(enclosure) => write!(f, "Delete Surrounding {enclosure}"),
+            ChangeSurround { from, to } => write!(f, "Change Surrounding {from} to {to}"),
+            Replace(_) => write!(f, "Replace"),
+            ApplyPositionalEdits(_) => write!(f, "Apply Positional Edits"),
+            ReplaceWithPreviousCopiedText => write!(f, "Replace With Previous Copied Text"),
+            ReplaceWithNextCopiedText => write!(f, "Replace With Next Copied Text"),
+            MoveToLastChar => write!(f, "Move To Last Char"),
+            PipeToShell { .. } => write!(f, "Pipe To Shell"),
+            ShowCurrentTreeSitterNodeSexp => write!(f, "Show Current Tree Sitter Node Sexp"),
+            Indent => write!(f, "Indent"),
+            Dedent => write!(f, "Dedent"),
+            #[cfg(test)]
+            _ => write!(f, ""),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub(crate) enum SurroundKind {
     Inside,
     Around,
 }
+
+impl std::fmt::Display for SurroundKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SurroundKind::Inside => write!(f, "Inside"),
+            SurroundKind::Around => write!(f, "Outside"),
+        }
+    }
+}
+
 const INDENT_CHAR: char = ' ';
 const INDENT_WIDTH: usize = 4;
