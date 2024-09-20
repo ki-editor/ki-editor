@@ -1,7 +1,7 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { useEffect, useMemo, useState } from "react";
 import { useXTerm } from "react-xtermjs";
-import * as recipesData from "../../../assets/recipes.json";
+import * as recipesData from "../../assets/recipes.json";
 import * as z from "zod";
 
 const recipeSchema = z.object({

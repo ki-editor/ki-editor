@@ -1,8 +1,6 @@
 import clsx from "clsx";
 import Heading from "@theme/Heading";
 import styles from "./styles.module.css";
-import { Recipes, Recipe } from "./xterm";
-import rawLog from "./log.txt";
 
 type FeatureItem = {
   title: string;
@@ -18,8 +16,6 @@ const FeatureList: FeatureItem[] = [
       <>
         Docusaurus was designed from the ground up to be easily installed and
         used to get your website up and running quickly.
-        <button>hello</button>
-        <Recipes />
       </>
     ),
   },
