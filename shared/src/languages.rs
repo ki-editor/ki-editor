@@ -1,11 +1,13 @@
 use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
+    &bash(),
     &common_lisp(),
     &css(),
     &csv(),
     &dockerfile(),
     &graphql(),
+    &html(),
     &javascript(true),
     &javascript(false),
     &just(),
@@ -25,6 +27,26 @@ pub const LANGUAGES: &[&Language] = &[
     &yaml(),
     &zig(),
 ];
+
+const fn bash() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("bash")),
+        file_names: &[".bashrc", ".bash_profile", "bashrc", "bash_profile"],
+        extensions: &["sh", "bash"],
+        lsp_command: Some(LspCommand {
+            command: Command("bash-language-server", &["start"]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "bash",
+            url: "https://github.com/tree-sitter/tree-sitter-bash",
+            commit: "master",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("shfmt", &[".sh", ".bash"])),
+        ..Language::new()
+    }
+}
 
 const fn common_lisp() -> Language {
     Language {
@@ -109,6 +131,25 @@ const fn graphql() -> Language {
             command: Command("graphql-lsp", &["server", "-m", "stream"]),
             initialization_options: Some(r#"{ "graphql-config.load.legacy": true }"#),
         }),
+        ..Language::new()
+    }
+}
+
+const fn html() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("html")),
+        extensions: &["htm", "html"],
+        lsp_command: Some(LspCommand {
+            command: Command("emmet-language-server", &["--stdio"]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "html",
+            url: "https://github.com/tree-sitter/tree-sitter-html",
+            commit: "master",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("prettierd", &[".html"])),
         ..Language::new()
     }
 }
