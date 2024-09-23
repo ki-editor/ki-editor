@@ -62,7 +62,7 @@ const config: Config = {
 
   themeConfig: {
     // Replace with your project's social card
-    image: "img/ki.gif",
+    image: "img/tree-seal-script.svg",
     navbar: {
       title: "Ki Editor",
       logo: {

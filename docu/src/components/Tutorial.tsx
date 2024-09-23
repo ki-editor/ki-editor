@@ -20,7 +20,7 @@ const recipes = z.array(recipeSchema).parse(recipesData.recipes_output);
 
 export const Recipes = () => {
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gap: 64 }}>
       <link
         rel="stylesheet"
         href="https://unpkg.com/keyboard-css@1.2.4/dist/css/main.min.css"
@@ -55,11 +55,11 @@ export const Recipe = (props: { recipe: Recipe }) => {
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div>{props.recipe.description}</div>
+      <h2>{props.recipe.description}</h2>
       <div
         style={{
           display: "grid",
-          justifyContent: "center",
+          justifyContent: "start",
           alignContent: "start",
           justifyItems: "center",
           gridAutoFlow: "column",
@@ -70,7 +70,7 @@ export const Recipe = (props: { recipe: Recipe }) => {
           className="kbc-button"
           onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}
         >
-          previous step
+          ‹
         </button>
         {props.recipe.steps.map((step, index) => (
           <button
@@ -79,7 +79,6 @@ export const Recipe = (props: { recipe: Recipe }) => {
               "kbc-button",
               index === stepIndex ? "active" : undefined,
             ].join(" ")}
-            style={{ margin: 4 }}
           >
             {step.key}
           </button>
@@ -90,7 +89,7 @@ export const Recipe = (props: { recipe: Recipe }) => {
             setStepIndex(Math.min(stepIndex + 1, props.recipe.steps.length - 1))
           }
         >
-          next step
+          ›
         </button>
       </div>
       <div ref={ref} style={{ height: "100%", width: "100%" }} />
