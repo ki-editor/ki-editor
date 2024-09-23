@@ -58,6 +58,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 
 pub(crate) enum Step {
     App(Dispatch),
+    AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
     Editor(DispatchEditor),
@@ -437,6 +438,11 @@ fn execute_test_helper(
             match step.to_owned() {
                 Step::App(dispatch) => {
                     log(dispatch);
+                    app.handle_dispatch(dispatch.to_owned())?
+                }
+                Step::AppLater(get_dispatch) => {
+                    let dispatch = get_dispatch();
+                    log(&dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
                 }
                 Step::Expect(expect_kind) => expect_kind.run(&mut app),

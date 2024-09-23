@@ -36,11 +36,13 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' -- cargo test --workspace  -- --nocapture -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' --ignore 'docu/assets/recipes.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests
 
 doc-serve:
 	mdbook serve --open docs/
-	
+
+generate-recipes:
+	just test "generate_recipes"

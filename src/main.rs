@@ -19,12 +19,14 @@ mod lsp;
 mod position;
 
 mod app;
+#[cfg(test)]
+mod generate_recipes;
 pub(crate) mod history;
 mod non_empty_extensions;
 mod osc52;
 mod quickfix_list;
 #[cfg(test)]
-mod recipe;
+mod recipes;
 mod rectangle;
 mod screen;
 mod selection;

@@ -1,51 +1,11 @@
 use itertools::Itertools;
-use my_proc_macros::keys;
+use my_proc_macros::{key, keys};
 
-use crate::{components::editor::IfCurrentNotFound, test_app::*};
-
-fn recipes() -> Vec<Recipe> {
-    [
-        Recipe {
-            description: "Select a line",
-            content: "
-To be, or not to be?
-That, is the question.
-"
-            .trim(),
-            file_extension: "md",
-            events: keys!("e"),
-            expectations: &[CurrentSelectedTexts(&["To be, or not to be?"])],
-        },
-        Recipe {
-            description: "Delete a line",
-            content: "
-To be, or not to be?
-That, is the question.
-"
-            .trim(),
-            file_extension: "md",
-            events: keys!("e d"),
-            expectations: &[CurrentSelectedTexts(&["That, is the question."])],
-        },
-        Recipe {
-            description: "Delete two lines consecutively",
-            content: "
-To be, or not to be?
-That, is the question.
-Why?
-"
-            .trim(),
-            file_extension: "md",
-            events: keys!("e d d"),
-            expectations: &[CurrentSelectedTexts(&["Why?"])],
-        },
-    ]
-    .to_vec()
-}
+use crate::{recipes, test_app::*};
 
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
-    let recipes_output = recipes()
+    let recipes_output = recipes::recipes()
         .into_iter()
         .map(|recipe| -> anyhow::Result<RecipeOutput> {
             let path = format!("docu/assets/{}/", recipe.description);
@@ -57,8 +17,24 @@ fn generate_recipes() -> anyhow::Result<()> {
                 .enumerate()
                 .map(|(index, events)| -> anyhow::Result<StepOutput> {
                     let result = execute_recipe(format!("{}/{}", path, index), |s| {
+                        let temp_path = s
+                            .temp_dir()
+                            .to_path_buf()
+                            .join(&format!("temp.{}", recipe.file_extension))
+                            .to_str()
+                            .unwrap()
+                            .to_string();
                         [
-                            App(OpenFile(s.main_rs())),
+                            App(TerminalDimensionChanged(crate::app::Dimension {
+                                width: 60,
+                                height: 10,
+                            })),
+                            App(AddPath(temp_path.clone())),
+                            AppLater(Box::new(move || {
+                                OpenFile(temp_path.clone().try_into().unwrap())
+                            })),
+                            // Editor(ApplySyntaxHighlight),
+                            App(HandleKeyEvent(key!("esc"))),
                             Editor(SetContent(recipe.content.to_string())),
                             Editor(SetLanguage(
                                 shared::language::from_extension(recipe.file_extension).unwrap(),
@@ -134,29 +110,29 @@ fn key_event_to_string(key_code: KeyCode) -> String {
 }
 
 #[derive(Clone)]
-struct Recipe {
-    description: &'static str,
-    content: &'static str,
-    file_extension: &'static str,
-    events: &'static [event::KeyEvent],
-    expectations: &'static [ExpectKind],
+pub(crate) struct Recipe {
+    pub(crate) description: &'static str,
+    pub(crate) content: &'static str,
+    pub(crate) file_extension: &'static str,
+    pub(crate) events: &'static [event::KeyEvent],
+    pub(crate) expectations: &'static [ExpectKind],
 }
 #[derive(serde::Serialize)]
-struct StepOutput {
-    key: String,
-    description: String,
-    term_output: String,
-}
-
-#[derive(serde::Serialize)]
-struct RecipeOutput {
-    description: String,
-    steps: Vec<StepOutput>,
+pub(crate) struct StepOutput {
+    pub(crate) key: String,
+    pub(crate) description: String,
+    pub(crate) term_output: String,
 }
 
 #[derive(serde::Serialize)]
-struct RecipesOutput {
-    recipes_output: Vec<RecipeOutput>,
+pub(crate) struct RecipeOutput {
+    pub(crate) description: String,
+    pub(crate) steps: Vec<StepOutput>,
+}
+
+#[derive(serde::Serialize)]
+pub(crate) struct RecipesOutput {
+    pub(crate) recipes_output: Vec<RecipeOutput>,
 }
 
 fn create_nested_vectors<T: Clone>(input: &[T]) -> Vec<Vec<T>> {

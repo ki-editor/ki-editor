@@ -1,6 +1,6 @@
 import { FitAddon } from "@xterm/addon-fit";
 import { useEffect, useMemo, useState } from "react";
-import { useXTerm } from "react-xtermjs";
+import { useXTerm, UseXTermProps } from "react-xtermjs";
 import * as recipesData from "../../assets/recipes.json";
 import * as z from "zod";
 
@@ -33,24 +33,28 @@ export const Recipes = () => {
   );
 };
 
+const xtermOptions: UseXTermProps = {
+  options: { fontSize: 20, cols: 60, rows: 10 },
+};
 export const Recipe = (props: { recipe: Recipe }) => {
-  const { instance, ref } = useXTerm();
+  const { instance, ref } = useXTerm(xtermOptions);
   const fitAddon = new FitAddon();
   const [stepIndex, setStepIndex] = useState(0);
   useEffect(() => {
-    const step = props.recipe.steps[stepIndex];
     // Load the fit addon
     instance?.loadAddon(fitAddon);
 
     const handleResize = () => fitAddon.fit();
-
-    instance?.write(step.term_output);
 
     // Handle resize event
     window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("resize", handleResize);
     };
+  }, [ref, instance]);
+  useEffect(() => {
+    const step = props.recipe.steps[stepIndex];
+    instance?.write(step.term_output);
   }, [ref, instance, stepIndex]);
 
   return (
@@ -92,7 +96,10 @@ export const Recipe = (props: { recipe: Recipe }) => {
           ›
         </button>
       </div>
-      <div ref={ref} style={{ height: "100%", width: "100%" }} />
+      <div
+        ref={ref}
+        style={{ justifySelf: "start", border: "1px solid black" }}
+      />
     </div>
   );
 };

@@ -59,7 +59,7 @@ impl Editor {
                 ),
                 Keymap::new(
                     "f",
-                    "Fly".to_string(),
+                    "Jump".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps {
                         use_current_selection_mode: true,
                     }),

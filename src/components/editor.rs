@@ -2058,7 +2058,7 @@ impl Editor {
         let cursor_count = self.selection_set.len();
         let result = format!("{}{} x {}", selection_mode, filters, cursor_count);
         if self.jumps.is_some() {
-            format!("{} (FLY)", result)
+            format!("{} (JUMP)", result)
         } else {
             result
         }
@@ -3010,8 +3010,8 @@ impl std::fmt::Display for DispatchEditor {
             },
             Backspace => write!(f, "Backspace"),
             Delete(direction) => match direction {
-                Direction::Start => write!(f, "Delete - Start"),
-                Direction::End => write!(f, "Delete - End"),
+                Direction::Start => write!(f, "Delete until previous selection"),
+                Direction::End => write!(f, "Delete until next selection"),
             },
             Insert(content) => write!(f, "Insert ({content})"),
             MoveToLineStart => write!(f, "Move To Line - Start"),
