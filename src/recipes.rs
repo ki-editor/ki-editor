@@ -143,6 +143,25 @@ hello_world
             events: keys!("w d u U"),
             expectations: &[CurrentComponentContent("Case")],
         },
+        Recipe {
+            description: "Multi-cursor: add using movement",
+            content: "
+foo bar spam
+spam foo bar
+bar spam foo
+foo bar spam
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("w ] c q l l esc a x"),
+            expectations: &[CurrentComponentContent(
+                "foox bar spam
+spam foox bar
+bar spam foox
+foo bar spam",
+            )],
+        },
     ]
     .to_vec()
 }

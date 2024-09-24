@@ -88,7 +88,7 @@ export const Recipe = (props: { recipe: Recipe }) => {
         <div
           style={{
             display: "grid",
-            gap: 16,
+            gap: 2,
             gridAutoFlow: "column",
             justifySelf: "start",
           }}
