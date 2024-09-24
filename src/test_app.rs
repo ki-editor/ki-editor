@@ -502,28 +502,19 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -704,7 +695,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::SyntaxNodeCoarse,
+                SelectionMode::SyntaxNode,
             )),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
             Editor(ReplaceWithCopiedText {
@@ -728,7 +719,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(MatchLiteral("let x = S(spongebob_squarepants);".to_owned())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::SyntaxNodeCoarse,
+                SelectionMode::SyntaxNode,
             )),
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
@@ -848,10 +839,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
         Box::new([
             // Delete the first line of main.rs
             App(OpenFile(s.main_rs().clone())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(Delete(Direction::End)),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
@@ -958,10 +946,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(Delete(Direction::End)),
             Editor(Insert(
@@ -1026,10 +1011,10 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleBookmark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Bookmark,
@@ -1980,10 +1965,7 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    LineTrimmed,
-                )),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
@@ -2030,10 +2012,7 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    LineTrimmed,
-                )),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),

@@ -138,15 +138,12 @@ impl Editor {
                 ),
                 Keymap::new(
                     "e",
-                    "Line (Trimmed)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(
-                        IfCurrentNotFound::LookForward,
-                        LineTrimmed,
-                    )),
+                    "Line".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 ),
                 Keymap::new(
                     "E",
-                    "Line (Full)".to_string(),
+                    "Full Line".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
                 ),
                 Keymap::new(
@@ -170,15 +167,15 @@ impl Editor {
                 ),
                 Keymap::new(
                     "s",
-                    "Syntax Node (Coarse)".to_string(),
+                    "Syntax Node".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
-                        SyntaxNodeCoarse,
+                        SyntaxNode,
                     )),
                 ),
                 Keymap::new(
                     "S",
-                    "Syntax Node (Fine)".to_string(),
+                    "Fine Syntax Node".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
                         SyntaxNodeFine,
@@ -194,7 +191,7 @@ impl Editor {
                 Keymap::new(
                     "w",
                     "Word (Short)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 ),
                 Keymap::new(
                     "W",
@@ -447,12 +444,12 @@ impl Editor {
                             ),
                             Keymap::new(
                                 "ctrl+w",
-                                "Delete word (long) backward".to_string(),
+                                "Delete long word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
                             Keymap::new(
                                 "alt+backspace",
-                                "Delete word (short) backward".to_string(),
+                                "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
                         ]),

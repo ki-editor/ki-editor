@@ -28,7 +28,7 @@ impl SelectionMode for Token {
             .current(params, IfCurrentNotFound::LookForward)?
             .map(|selection| crate::selection_mode::ApplyMovementResult {
                 selection,
-                mode: Some(crate::selection::SelectionMode::SyntaxNodeCoarse),
+                mode: Some(crate::selection::SelectionMode::SyntaxNode),
             }))
     }
 }

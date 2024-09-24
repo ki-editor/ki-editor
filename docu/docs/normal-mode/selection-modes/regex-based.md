@@ -4,22 +4,23 @@ sidebar_position: 3
 
 # Regex-based
 
-## Line (Trimmed)
+## Line
 
 Keybinding: `e`
 
-In this selection mode `h`/`l` behaves exactly like `j`/`k`, and trimmed means
-that the leading and trailing spaces of each line are not selected.
+In this selection mode `h`/`l` behaves exactly like `j`/`k`, and the selection
+is trimmed, which means that the leading and trailing spaces of each line are
+not selected.
 
 This is usually used in conjunction with `i`/`a` to immediately enter insert mode at the first/last non-whitespace symbol of the current line.
 
-## Line (Full)
+## Full Line
 
 Keybinding: `E`
 
-Same as [Line (Trimmed)](#line-trimmed), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
+Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## Word (Short)
+## Word
 
 Keybinding: `w`
 
@@ -35,9 +36,9 @@ It is also useful when we want to modify the content of a literal string because
 
 Keybinding: `W`
 
-Like [Word (Short)](#word-short), but it treats each word as a sequence of alphanumeric characters (including `-` and `_`).
+Like [Word](#word), but it treats each word as a sequence of alphanumeric characters (including `-` and `_`).
 
-[^1]: This is possible because even Prompt is an editor, so the Word (Short) mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## Column
 

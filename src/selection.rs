@@ -157,7 +157,7 @@ impl Default for SelectionSet {
         Self {
             cursor_index: 0,
             selections: NonEmpty::singleton(Selection::default()),
-            mode: SelectionMode::LineTrimmed,
+            mode: SelectionMode::Line,
             filters: Filters::default(),
         }
     }
@@ -508,16 +508,16 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     EmptyLine,
-    WordShort,
+    Word,
     WordLong,
-    LineTrimmed,
+    Line,
     Column,
     Custom,
     Find { search: Search },
 
     // Syntax-tree
     Token,
-    SyntaxNodeCoarse,
+    SyntaxNode,
     SyntaxNodeFine,
 
     // LSP
@@ -536,21 +536,21 @@ pub(crate) enum SelectionMode {
 impl SelectionMode {
     pub(crate) fn is_node(&self) -> bool {
         use SelectionMode::*;
-        matches!(self, SyntaxNodeCoarse | SyntaxNodeFine)
+        matches!(self, SyntaxNode | SyntaxNodeFine)
     }
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::WordShort => "WORD (SHORT)".to_string(),
-            SelectionMode::WordLong => "WORD (LONG)".to_string(),
+            SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::WordLong => "LONG WORD".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
-            SelectionMode::LineTrimmed => "LINE (TRIMMED)".to_string(),
-            SelectionMode::LineFull => "LINE (FULL)".to_string(),
+            SelectionMode::Line => "LINE".to_string(),
+            SelectionMode::LineFull => "FULL LINE".to_string(),
             SelectionMode::Column => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::Token => "TOKEN".to_string(),
-            SelectionMode::SyntaxNodeCoarse => "SYNTAX NODE (COARSE)".to_string(),
-            SelectionMode::SyntaxNodeFine => "SYNTAX NODE (FINE)".to_string(),
+            SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
+            SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
             SelectionMode::Find { search } => {
                 format!("FIND {} {:?}", search.mode.display(), search.search)
             }
@@ -580,9 +580,9 @@ impl SelectionMode {
             filters,
         };
         Ok(match self {
-            SelectionMode::WordShort => Box::new(selection_mode::WordShort::as_regex(buffer)?),
+            SelectionMode::Word => Box::new(selection_mode::WordShort::as_regex(buffer)?),
             SelectionMode::WordLong => Box::new(selection_mode::WordLong::as_regex(buffer)?),
-            SelectionMode::LineTrimmed => Box::new(selection_mode::LineTrimmed),
+            SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Column => {
                 let current_column = buffer
@@ -605,9 +605,7 @@ impl SelectionMode {
                 }
             },
             SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::SyntaxNodeCoarse => {
-                Box::new(selection_mode::SyntaxNode { coarse: true })
-            }
+            SelectionMode::SyntaxNode => Box::new(selection_mode::SyntaxNode { coarse: true }),
             SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))
@@ -626,13 +624,13 @@ impl SelectionMode {
     pub(crate) fn is_contiguous(&self) -> bool {
         matches!(
             self,
-            SelectionMode::WordShort
+            SelectionMode::Word
                 | SelectionMode::WordLong
-                | SelectionMode::LineTrimmed
+                | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Column
                 | SelectionMode::Token
-                | SelectionMode::SyntaxNodeCoarse
+                | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine
         )
     }

@@ -325,6 +325,7 @@ impl<T: Frontend> App<T> {
                         .display_last_dispatch(),
                 })
                 .join(" │ ");
+            let title = format!(" {}", title);
             let grid = Grid::new(Dimension {
                 height: 1,
                 width: dimension.width,

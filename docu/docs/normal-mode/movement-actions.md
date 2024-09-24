@@ -23,7 +23,7 @@ f(x, 1 + 1);
 
 Suppose:
 
-- The current selection mode is [Syntax Node (Coarse)][1]
+- The current selection mode is [Syntax Node][1]
 - The current selection is `x`
 - The current submode is Exchange
 
@@ -35,7 +35,7 @@ f(1 + 1, x);
 
 ### Tips
 
-Since exchange works with every core movement, it can be used with [Jump](./core-movements.md#jump) and [Syntax Node (Coarse)][1] to swap two distant expressions.
+Since exchange works with every core movement, it can be used with [Jump](./core-movements.md#jump) and [Syntax Node][1] to swap two distant expressions.
 
 For example, using the following Rust code:
 
@@ -51,7 +51,7 @@ else {
 
 ...we can swap the body of the if-else expression by:
 
-1. Set selection mode to [Synax Tree (Coarse)][1] by pressing `s`
+1. Set selection mode to [Syntax Node][1] by pressing `s`
 2. Jump to the body of `if` by pressing `f {`, then press the letter that appears on top of the first `{`.
 3. Enter Exchange submode by pressing `x`
 4. Press `f {`, then press the letter that appears on top of the second `{`
@@ -107,7 +107,7 @@ In this case, you can select `world`, [Change](./actions/index.md#change) it, an
 However, that's inefficient, and that can be shortened by:
 
 1. Select `hello`
-1. Set selection mode to [Word (Short)](./selection-modes/regex-based.md#word-short)
+1. Set selection mode to [Word](./selection-modes/regex-based.md#word)
 1. [Copy](./actions/index.md#copy)
 1. [Enable selection extension](./actions/index.md#extend)
 1. Move to `world` (by pressing `l`)
@@ -128,5 +128,5 @@ only executes the [Up](./core-movements.md#updown) movement.
 
 [^1]: This is a temporary assignment, will be changed in the future.
 
-[1]: ./selection-modes/syntax-node-based.md#syntax-node-coarse
+[1]: ./selection-modes/syntax-node-based.md#syntax-node
 [2]: ./core-movements.md#nextprevious

@@ -31,7 +31,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), and the current selection is `y`, pressing `o` results in the following (Note that `│` represents the cursor):
+Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), and the current selection is `y`, pressing `o` results in the following (Note that `│` represents the cursor):
 
 ```js
 hello(x, y, │);
@@ -57,7 +57,7 @@ For example, consider the following Javascript code:
 hello(x, y);
 ```
 
-Assuming the current selection mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), and the current selection is `x`, pressing `d` results in the following:
+Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), and the current selection is `x`, pressing `d` results in the following:
 
 ```js
 hello(y);
@@ -122,7 +122,7 @@ fn main() {
 ```
 
 Assuming the current selection is `println!("hello")` and the current selection
-mode is [Syntax Node (Coarse)](../selection-modes/syntax-node-based.md#syntax-node-coarse), pressing `^` results in the following:
+mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), pressing `^` results in the following:
 
 ```rs
 fn main() {

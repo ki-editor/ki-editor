@@ -37,15 +37,15 @@ in almost every terminal UI (TUI) application, for example:
 
 Implemented keybindings [^1]:
 
-| Keybinding      | Meaning                      |
-| --------------- | ---------------------------- |
-| `ctrl+b`        | Move back a character        |
-| `ctrl+f`        | Move forward a character     |
-| `ctrl+a`        | Move to line start           |
-| `ctrl+e`        | Move to line end             |
-| `ctrl+k`        | Kill line forward            |
-| `ctrl+u`        | Kill line backward           |
-| `ctrl+w`        | Delete word (long) backward  |
-| `alt+backspace` | Delete word (short) backward |
+| Keybinding      | Meaning                   |
+| --------------- | ------------------------- |
+| `ctrl+b`        | Move back a character     |
+| `ctrl+f`        | Move forward a character  |
+| `ctrl+a`        | Move to line start        |
+| `ctrl+e`        | Move to line end          |
+| `ctrl+k`        | Kill line forward         |
+| `ctrl+u`        | Kill line backward        |
+| `ctrl+w`        | Delete long word backward |
+| `alt+backspace` | Delete word backward      |
 
 [^1]: Not every unimplemented keybinding is incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!

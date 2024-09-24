@@ -24,7 +24,7 @@ There are two Syntax Node selection modes:
 - Coarse: faster movement, lower accuracy
 - Fine: higher accuracy, slower movement
 
-## Syntax Node (Coarse)
+## Syntax Node
 
 Keybinding: `s`
 
@@ -61,11 +61,11 @@ to not give names to a certain kind of nodes.
 
 For example, "," are usually unnamed (
 anonymous) in most language grammars, thus it will be skipped when using the
-Previous/Next movement in Syntax Node (Coarse).
+Previous/Next movement in Syntax Node.
 
 See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes).
 
-## Syntax Node (Fine)
+## Fine Syntax Node
 
 Keybinding: `S`  
 Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-to-press key.
@@ -78,7 +78,7 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 | Current                                            | Smallest node that matches the current selection |
 | Jump                                               | Jump to smallest node                            |
 
-Syntax Node (Fine) is useful when you start to expand the selection starting from the current token.
+Fine Syntax Node is useful when you start to expand the selection starting from the current token.
 
 Suppose we have the following Javascript expression, and the current selection is `hello`, and we want to select `hello.world()`.
 

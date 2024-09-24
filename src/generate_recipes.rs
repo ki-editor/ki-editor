@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use my_proc_macros::{key, keys};
 
-use crate::{recipes, test_app::*};
+use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
@@ -12,6 +12,8 @@ fn generate_recipes() -> anyhow::Result<()> {
             std::fs::create_dir_all(path.clone())?;
             let accum_events = create_nested_vectors(recipe.events);
             let accum_events_len = accum_events.len();
+            let width = 60;
+            let height = recipe.content.lines().count() + 3;
             let steps = accum_events
                 .into_iter()
                 .enumerate()
@@ -26,12 +28,17 @@ fn generate_recipes() -> anyhow::Result<()> {
                             .to_string();
                         [
                             App(TerminalDimensionChanged(crate::app::Dimension {
-                                width: 60,
-                                height: 10,
+                                width,
+                                height: height as u16,
                             })),
                             App(AddPath(temp_path.clone())),
                             AppLater(Box::new(move || {
                                 OpenFile(temp_path.clone().try_into().unwrap())
+                            })),
+                            Editor(SetRectangle(Rectangle {
+                                origin: Position::default(),
+                                width,
+                                height: height as u16,
                             })),
                             // Editor(ApplySyntaxHighlight),
                             App(HandleKeyEvent(key!("esc"))),
@@ -39,9 +46,10 @@ fn generate_recipes() -> anyhow::Result<()> {
                             Editor(SetLanguage(
                                 shared::language::from_extension(recipe.file_extension).unwrap(),
                             )),
-                            App(HandleKeyEvents(events.clone())),
                         ]
                         .into_iter()
+                        .chain(Some(App(HandleKeyEvents(recipe.prepare_events.to_vec()))))
+                        .chain(Some(App(HandleKeyEvents(events.clone()))))
                         .chain(
                             if index == accum_events_len - 1 {
                                 recipe.expectations
@@ -68,6 +76,8 @@ fn generate_recipes() -> anyhow::Result<()> {
             Ok(RecipeOutput {
                 description: recipe.description.to_string(),
                 steps,
+                terminal_height: height,
+                terminal_width: width as usize,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -114,6 +124,7 @@ pub(crate) struct Recipe {
     pub(crate) description: &'static str,
     pub(crate) content: &'static str,
     pub(crate) file_extension: &'static str,
+    pub(crate) prepare_events: &'static [event::KeyEvent],
     pub(crate) events: &'static [event::KeyEvent],
     pub(crate) expectations: &'static [ExpectKind],
 }
@@ -128,6 +139,8 @@ pub(crate) struct StepOutput {
 pub(crate) struct RecipeOutput {
     pub(crate) description: String,
     pub(crate) steps: Vec<StepOutput>,
+    pub(crate) terminal_height: usize,
+    pub(crate) terminal_width: usize,
 }
 
 #[derive(serde::Serialize)]

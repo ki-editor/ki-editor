@@ -13,6 +13,8 @@ const recipeSchema = z.object({
       term_output: z.string(),
     })
   ),
+  terminal_height: z.number(),
+  terminal_width: z.number(),
 });
 
 type Recipe = z.infer<typeof recipeSchema>;
@@ -33,10 +35,18 @@ export const Recipes = () => {
   );
 };
 
-const xtermOptions: UseXTermProps = {
-  options: { fontSize: 20, cols: 60, rows: 10 },
-};
 export const Recipe = (props: { recipe: Recipe }) => {
+  const xtermOptions: UseXTermProps = useMemo(
+    () => ({
+      options: {
+        fontSize: 20,
+        cols: props.recipe.terminal_width,
+        rows: props.recipe.terminal_height,
+      },
+    }),
+    []
+  );
+
   const { instance, ref } = useXTerm(xtermOptions);
   const fitAddon = new FitAddon();
   const [stepIndex, setStepIndex] = useState(0);
@@ -61,6 +71,10 @@ export const Recipe = (props: { recipe: Recipe }) => {
     <div style={{ display: "grid", gap: 16 }}>
       <h2>{props.recipe.description}</h2>
       <div
+        ref={ref}
+        style={{ justifySelf: "start", border: "1px solid black" }}
+      />
+      <div
         style={{
           display: "grid",
           justifyContent: "start",
@@ -68,38 +82,55 @@ export const Recipe = (props: { recipe: Recipe }) => {
           justifyItems: "center",
           gridAutoFlow: "column",
           gap: 8,
+          gridTemplateColumns: "auto 1fr",
         }}
       >
-        <button
-          className="kbc-button"
-          onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            gridAutoFlow: "column",
+            justifySelf: "start",
+          }}
         >
-          ‹
-        </button>
-        {props.recipe.steps.map((step, index) => (
+          {props.recipe.steps.map((step, index) => (
+            <button
+              onClick={() => setStepIndex(index)}
+              className={[
+                "kbc-button",
+                index === stepIndex ? "active" : undefined,
+              ].join(" ")}
+            >
+              {step.key}
+            </button>
+          ))}
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            gridAutoFlow: "column",
+            justifySelf: "end",
+          }}
+        >
           <button
-            onClick={() => setStepIndex(index)}
-            className={[
-              "kbc-button",
-              index === stepIndex ? "active" : undefined,
-            ].join(" ")}
+            className="kbc-button"
+            onClick={() => setStepIndex(Math.max(stepIndex - 1, 0))}
           >
-            {step.key}
+            ‹
           </button>
-        ))}
-        <button
-          className="kbc-button"
-          onClick={() =>
-            setStepIndex(Math.min(stepIndex + 1, props.recipe.steps.length - 1))
-          }
-        >
-          ›
-        </button>
+          <button
+            className="kbc-button"
+            onClick={() =>
+              setStepIndex(
+                Math.min(stepIndex + 1, props.recipe.steps.length - 1)
+              )
+            }
+          >
+            ›
+          </button>
+        </div>
       </div>
-      <div
-        ref={ref}
-        style={{ justifySelf: "start", border: "1px solid black" }}
-      />
     </div>
   );
 };
