@@ -100,6 +100,7 @@ export const Recipe = (props: { recipe: Recipe }) => {
                 "kbc-button",
                 index === stepIndex ? "active" : undefined,
               ].join(" ")}
+              style={{ fontFamily: "monospace" }}
             >
               {step.key}
             </button>
