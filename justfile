@@ -1,5 +1,5 @@
 default:
-    @just tree-sitter-quickfix fmt-check build clippy test
+    @just tree-sitter-quickfix fmt-check build clippy test doc
     
 install:
     cargo install --locked --path .
@@ -31,6 +31,9 @@ test testname="":
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
+doc:
+    just -f docu/justfile
+
 codecov:
 	cargo tarpaulin --out html
     
@@ -40,9 +43,7 @@ watch-test testname:
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests
-
-doc-serve:
-	mdbook serve --open docs/
+	
 
 generate-recipes:
 	just test "generate_recipes"

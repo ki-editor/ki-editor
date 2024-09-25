@@ -162,6 +162,25 @@ bar spam foox
 foo bar spam",
             )],
         },
+        Recipe {
+            description: "Multi-cursor: Select all matches",
+            content: "
+foo bar spam
+spam foo bar
+bar spam foo
+foo bar spam
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("w ] c space a a x"),
+            expectations: &[CurrentComponentContent(
+                "foox bar spam
+spam foox bar
+bar spam foox
+foox bar spam",
+            )],
+        },
     ]
     .to_vec()
 }

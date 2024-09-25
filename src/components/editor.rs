@@ -457,6 +457,13 @@ impl Direction {
             Direction::End => Movement::Next,
         }
     }
+
+    pub(crate) fn format_action(&self, action: &str) -> String {
+        match self {
+            Direction::Start => format!("◁ {action}"),
+            Direction::End => format!("{action} ▷"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -2917,14 +2924,7 @@ impl std::fmt::Display for DispatchEditor {
             ScrollPageUp => write!(f, "Scroll Up"),
             Transform(transformation) => write!(f, "{transformation}"),
             SetSelectionMode(_, selection_mode) => {
-                write!(
-                    f,
-                    "Select {}",
-                    convert_case::Casing::to_case(
-                        &format!("{:?}", selection_mode),
-                        convert_case::Case::Title
-                    )
-                )
+                write!(f, "Select {}", selection_mode.display())
             }
             MoveSelection(movement) => write!(
                 f,
@@ -2972,10 +2972,7 @@ impl std::fmt::Display for DispatchEditor {
             ToggleVisualMode => write!(f, "Toggle Visual Mode"),
             Change => write!(f, "Change"),
             EnterUndoTreeMode => write!(f, "Enter Undo Tree Mode"),
-            EnterInsertMode(direction) => match direction {
-                Direction::Start => write!(f, "INSERT"),
-                Direction::End => write!(f, "APPEND"),
-            },
+            EnterInsertMode(direction) => write!(f, "{}", direction.format_action("Insert")),
             ReplaceWithCopiedText {
                 cut,
                 use_system_clipboard,
@@ -3009,20 +3006,14 @@ impl std::fmt::Display for DispatchEditor {
                 Movement::FirstChild => write!(f, "Select First Child"),
             },
             Backspace => write!(f, "Backspace"),
-            Delete(direction) => match direction {
-                Direction::Start => write!(f, "Delete Backward"),
-                Direction::End => write!(f, "Delete Forward"),
-            },
+            Delete(direction) => write!(f, "{}", direction.format_action("Delete")),
             Insert(content) => write!(f, "Insert ({content})"),
             MoveToLineStart => write!(f, "Move To Line Start"),
             MoveToLineEnd => write!(f, "Move To Line End"),
             SelectSurround { enclosure, kind } => {
                 write!(f, "Select {kind} Surrounding {enclosure}")
             }
-            Open(direction) => match direction {
-                Direction::Start => write!(f, "Open Before"),
-                Direction::End => write!(f, "Open After"),
-            },
+            Open(direction) => write!(f, "{}", direction.format_action("Open")),
             ToggleBookmark => write!(f, "Toggle Bookmark"),
             EnterNormalMode => write!(f, "Enter Normal Mode"),
             EnterExchangeMode => write!(f, "Enter Exchange Mode"),
@@ -3030,19 +3021,15 @@ impl std::fmt::Display for DispatchEditor {
             EnterMultiCursorMode => write!(f, "Enter Multi Cursor Mode"),
             FilterPush(_) => write!(f, "Filter Push"),
             FilterClear => write!(f, "Filter Clear"),
-            CursorAddToAllSelections => write!(f, "Cursor Add To All Selections"),
-            CyclePrimarySelection(direction) => match direction {
-                Direction::Start => write!(f, "Cycle Primary Selection Forward"),
-                Direction::End => write!(f, "Cycle Primary Selection Backward"),
-            },
+            CursorAddToAllSelections => write!(f, "Select All Matches"),
+            CyclePrimarySelection(direction) => {
+                write!(f, "{}", direction.format_action("Cycle Primary Selection"))
+            }
             CursorKeepPrimaryOnly => write!(f, "Cursor Keep Primary Only"),
             ReplacePattern { config: _ } => write!(f, "Replace Pattern"),
             Undo => write!(f, "Undo"),
             Redo => write!(f, "Redo"),
-            KillLine(direction) => match direction {
-                Direction::Start => write!(f, "Kill Till Line Start"),
-                Direction::End => write!(f, "Kill Till Line End"),
-            },
+            KillLine(direction) => write!(f, "{}", direction.format_action("Kill Line")),
             DeleteWordBackward { .. } => write!(f, "Delete Word Backward"),
             ReplaceCurrentSelectionWith(content) => {
                 write!(f, "Replace Current Selection With ({content})")
@@ -3056,22 +3043,13 @@ impl std::fmt::Display for DispatchEditor {
             Paste {
                 direction,
                 use_system_clipboard,
-            } => match direction {
-                Direction::Start => {
-                    if *use_system_clipboard {
-                        write!(f, "Paste Before (System Clipboard)")
-                    } else {
-                        write!(f, "Paste Before")
-                    }
+            } => {
+                if *use_system_clipboard {
+                    write!(f, "{}", direction.format_action("Paste (System Clipboard)"))
+                } else {
+                    write!(f, "{}", direction.format_action("Paste"))
                 }
-                Direction::End => {
-                    if *use_system_clipboard {
-                        write!(f, "Paste After (System Clipboard)")
-                    } else {
-                        write!(f, "Paste After")
-                    }
-                }
-            },
+            }
             SwapCursorWithAnchor => write!(f, "Swap Cursor With Anchor"),
             MoveCharacterBack => write!(f, "Move Character Back"),
             MoveCharacterForward => write!(f, "Move Character Forward"),

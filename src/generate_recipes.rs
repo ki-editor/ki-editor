@@ -1,6 +1,11 @@
 use itertools::Itertools;
 use my_proc_macros::{key, keys};
 
+// TODO:
+// 1. Emoji not rendering properly
+// 2. keymap legend should be shown as vertical-split, not horizontal
+// 3. Search mode description too long
+
 use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 
 #[test]
@@ -96,6 +101,7 @@ fn generate_recipes() -> anyhow::Result<()> {
 use crossterm::event::KeyCode;
 fn key_event_to_string(key_code: KeyCode) -> String {
     match key_code {
+        KeyCode::Char(' ') => String::from("space"),
         KeyCode::Char(c) => c.to_string(),
         KeyCode::Backspace => String::from("backspace"),
         KeyCode::Enter => String::from("enter"),
@@ -113,7 +119,7 @@ fn key_event_to_string(key_code: KeyCode) -> String {
         KeyCode::Insert => String::from("insert"),
         KeyCode::F(n) => format!("F{}", n),
         KeyCode::Null => String::from("Null"),
-        KeyCode::Esc => String::from("Esc"),
+        KeyCode::Esc => String::from("esc"),
         // Add more cases as needed
         _ => String::from("Unknown"),
     }

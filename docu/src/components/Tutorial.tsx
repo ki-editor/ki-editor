@@ -1,4 +1,5 @@
 import { FitAddon } from "@xterm/addon-fit";
+
 import { useEffect, useMemo, useState } from "react";
 import { useXTerm, UseXTermProps } from "react-xtermjs";
 import * as recipesData from "../../assets/recipes.json";
@@ -18,9 +19,12 @@ const recipeSchema = z.object({
 });
 
 type Recipe = z.infer<typeof recipeSchema>;
-const recipes = z.array(recipeSchema).parse(recipesData.recipes_output);
 
-export const Recipes = () => {
+export const Tutorial = () => {
+  const recipes = useMemo(
+    () => z.array(recipeSchema).parse(recipesData.recipes_output),
+    []
+  );
   return (
     <div style={{ display: "grid", gap: 64 }}>
       <link
@@ -35,7 +39,7 @@ export const Recipes = () => {
   );
 };
 
-export const Recipe = (props: { recipe: Recipe }) => {
+const Recipe = (props: { recipe: Recipe }) => {
   const xtermOptions: UseXTermProps = useMemo(
     () => ({
       options: {

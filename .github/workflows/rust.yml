@@ -23,3 +23,10 @@ jobs:
     - uses: extractions/setup-just@v1
     - name: Just
       run: just
+
+    name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/master'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docu/build/

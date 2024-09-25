@@ -552,7 +552,7 @@ impl SelectionMode {
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
             SelectionMode::Find { search } => {
-                format!("FIND {} {:?}", search.mode.display(), search.search)
+                format!("{} {:?}", search.mode.display(), search.search)
             }
             SelectionMode::Diagnostic(severity) => {
                 let severity = format!("{:?}", severity).to_uppercase();
