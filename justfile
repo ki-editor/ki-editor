@@ -32,14 +32,17 @@ tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
 
 doc:
-    just -f docu/justfile
+    just -f docs/justfile
+
+doc-serve:
+	cd docs && just start
 
 codecov:
 	cargo tarpaulin --out html
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' --ignore 'docu/assets/recipes.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' --ignore 'docs/assets/recipes.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests

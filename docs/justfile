@@ -1,6 +1,9 @@
 default:
     @just build
     
+start:
+    npm run start
+    
 install:
     npm install
     
