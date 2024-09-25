@@ -283,7 +283,6 @@ impl ExpectKind {
             }
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
-                println!("content =\n{}", content);
                 contextualize(content.contains(substring), true)
             }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
