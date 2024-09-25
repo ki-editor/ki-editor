@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use my_proc_macros::{key, keys};
+use my_proc_macros::key;
 
 // TODO:
 // 1. Emoji not rendering properly
@@ -61,7 +61,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                             } else {
                                 Default::default()
                             }
-                            .into_iter()
+                            .iter()
                             .map(|kind| Expect(kind.clone())),
                         )
                         .collect_vec()

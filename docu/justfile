@@ -3,7 +3,10 @@ default:
     
 install:
     npm install
+    
+typecheck: install
+    npm run typecheck
 
-build: install
+build: typecheck
     npm run build
     

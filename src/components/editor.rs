@@ -2035,7 +2035,7 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        let mode = match &self.mode {
+        match &self.mode {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
@@ -2043,15 +2043,14 @@ impl Editor {
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
-        };
-        format!("{}", mode)
+        }
+        .to_string()
     }
 
     pub(crate) fn display_last_dispatch(&self) -> Option<String> {
-        match self.last_dispatch {
-            None => None,
-            Some(ref dispatch) => Some(dispatch.to_string()),
-        }
+        self.last_dispatch
+            .as_ref()
+            .map(|dispatch| dispatch.to_string())
     }
 
     pub(crate) fn display_selection_mode(&self) -> String {

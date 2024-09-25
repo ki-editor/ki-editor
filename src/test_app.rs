@@ -9,11 +9,7 @@ use my_proc_macros::{hex, key, keys};
 
 use serial_test::serial;
 
-use std::{
-    ops::Range,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{ops::Range, path::PathBuf, rc::Rc, sync::Mutex};
 pub(crate) use Dispatch::*;
 pub(crate) use DispatchEditor::*;
 
@@ -35,7 +31,7 @@ use crate::{
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
-    frontend::{crossterm::Crossterm, mock::MockFrontend},
+    frontend::crossterm::{Crossterm, StdoutKind},
     grid::StyleKey,
     integration_test::TestRunner,
     list::grep::RegexConfig,
@@ -421,7 +417,7 @@ fn execute_test_helper(
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
     let has_log_path = log_path.is_some();
-    run_test(log_path, status_line_components, |mut app, temp_dir| {
+    run_test(status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -475,12 +471,11 @@ fn execute_test_helper(
 }
 
 fn run_test(
-    log_path: Option<String>,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(App<Crossterm>, CanonicalizedPath) -> anyhow::Result<()>,
 ) -> anyhow::Result<Option<String>> {
     TestRunner::run(move |temp_dir| {
-        let frontend = Arc::new(Mutex::new(Crossterm::new(log_path.clone())?));
+        let frontend = Rc::new(Mutex::new(Crossterm::new(StdoutKind::String)?));
 
         let mut app = App::new(
             frontend.clone(),
@@ -969,7 +964,7 @@ fn first () {
 5│  █ifth();
 6│}
 
-[GLOBAL TITLE]
+ [GLOBAL TITLE]
 "
                 .to_string(),
             )),
@@ -981,7 +976,7 @@ fn first () {
 3│  third();
 4│  fourth(); // this line is long
 5│  █ifth();
-[GLOBAL TITLE]
+ [GLOBAL TITLE]
 "
                 .to_string(),
             )),
@@ -998,7 +993,7 @@ fn first () {
 4│  fourth(); //
 ↪│this line is long
 5│  █ifth();
-[GLOBAL TITLE]
+ [GLOBAL TITLE]
 "
                 .to_string(),
             )),

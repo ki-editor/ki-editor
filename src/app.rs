@@ -46,7 +46,7 @@ use std::{
     rc::Rc,
     sync::{
         mpsc::{Receiver, Sender},
-        Arc, Mutex,
+        Mutex,
     },
 };
 use DispatchEditor::*;
@@ -69,7 +69,7 @@ pub(crate) struct App<T: Frontend> {
 
     layout: Layout,
 
-    frontend: Arc<Mutex<T>>,
+    frontend: Rc<Mutex<T>>,
 
     syntax_highlight_request_sender: Option<Sender<SyntaxHighlightRequest>>,
 
@@ -92,7 +92,7 @@ pub(crate) enum StatusLineComponent {
 impl<T: Frontend> App<T> {
     #[cfg(test)]
     pub(crate) fn new(
-        frontend: Arc<Mutex<T>>,
+        frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         status_line_components: Vec<StatusLineComponent>,
     ) -> anyhow::Result<App<T>> {
@@ -112,7 +112,7 @@ impl<T: Frontend> App<T> {
     }
 
     pub(crate) fn from_channel(
-        frontend: Arc<Mutex<T>>,
+        frontend: Rc<Mutex<T>>,
         working_directory: CanonicalizedPath,
         sender: Sender<AppMessage>,
         receiver: Receiver<AppMessage>,
@@ -296,35 +296,36 @@ impl<T: Frontend> App<T> {
 
         // Set the global title
         let global_title_window = {
-            let title = self
-                .status_line_components
-                .iter()
-                .filter_map(|component| match component {
-                    StatusLineComponent::CurrentWorkingDirectory => {
-                        Some(self.working_directory.display_absolute())
-                    }
-                    StatusLineComponent::GitBranch => self.current_branch(),
-                    StatusLineComponent::Mode => Some(
-                        self.context
-                            .mode()
-                            .map(|mode| mode.display())
-                            .unwrap_or_else(|| {
-                                self.current_component().borrow().editor().display_mode()
-                            }),
-                    ),
-                    StatusLineComponent::SelectionMode => Some(
-                        self.current_component()
+            let title = self.global_title.clone().unwrap_or_else(|| {
+                self.status_line_components
+                    .iter()
+                    .filter_map(|component| match component {
+                        StatusLineComponent::CurrentWorkingDirectory => {
+                            Some(self.working_directory.display_absolute())
+                        }
+                        StatusLineComponent::GitBranch => self.current_branch(),
+                        StatusLineComponent::Mode => Some(
+                            self.context
+                                .mode()
+                                .map(|mode| mode.display())
+                                .unwrap_or_else(|| {
+                                    self.current_component().borrow().editor().display_mode()
+                                }),
+                        ),
+                        StatusLineComponent::SelectionMode => Some(
+                            self.current_component()
+                                .borrow()
+                                .editor()
+                                .display_selection_mode(),
+                        ),
+                        StatusLineComponent::LastDispatch => self
+                            .current_component()
                             .borrow()
                             .editor()
-                            .display_selection_mode(),
-                    ),
-                    StatusLineComponent::LastDispatch => self
-                        .current_component()
-                        .borrow()
-                        .editor()
-                        .display_last_dispatch(),
-                })
-                .join(" │ ");
+                            .display_last_dispatch(),
+                    })
+                    .join(" │ ")
+            });
             let title = format!(" {}", title);
             let grid = Grid::new(Dimension {
                 height: 1,

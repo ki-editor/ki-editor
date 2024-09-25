@@ -11,61 +11,50 @@ pub(crate) struct Crossterm {
 }
 
 impl Crossterm {
+    #[cfg(test)]
     pub(crate) fn string_content(&self) -> Option<String> {
-        match self.stdout.as_any().downcast_ref::<StringWriter>() {
-            Some(string_writer) => Some(string_writer.into_string()),
-            None => None,
-        }
+        self.stdout
+            .as_any()
+            .downcast_ref::<StringWriter>()
+            .map(|writer| writer.get_string())
     }
 }
 
+#[cfg(test)]
 struct StringWriter {
     buffer: Vec<u8>,
 }
 trait MyWriter: Write + Any {
+    #[cfg(test)]
     fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn into_any(self: Box<Self>) -> Box<dyn Any>;
 }
 
+#[cfg(test)]
 impl MyWriter for StringWriter {
     fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
 }
 
 impl MyWriter for std::io::Stdout {
+    #[cfg(test)]
     fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
-    }
-
-    fn into_any(self: Box<Self>) -> Box<dyn Any> {
         self
     }
 }
 
+#[cfg(test)]
 impl StringWriter {
     fn new() -> Self {
         StringWriter { buffer: Vec::new() }
     }
 
-    fn into_string(&self) -> String {
+    fn get_string(&self) -> String {
         String::from_utf8(self.buffer.clone()).unwrap_or_default()
     }
 }
 
+#[cfg(test)]
 impl Write for StringWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.buffer.extend_from_slice(buf);
@@ -77,14 +66,18 @@ impl Write for StringWriter {
     }
 }
 
-impl Crossterm {
-    pub(crate) fn new(file_path: Option<String>) -> anyhow::Result<Crossterm> {
-        let output: Box<dyn MyWriter> = if let Some(file_path) = file_path {
-            // Box::new(std::fs::File::create(file_path)?)
+pub(crate) enum StdoutKind {
+    #[cfg(test)]
+    String,
+    Io,
+}
 
-            Box::new(StringWriter::new())
-        } else {
-            Box::new(io::stdout())
+impl Crossterm {
+    pub(crate) fn new(stdout_kind: StdoutKind) -> anyhow::Result<Crossterm> {
+        let output: Box<dyn MyWriter> = match stdout_kind {
+            #[cfg(test)]
+            StdoutKind::String => Box::new(StringWriter::new()),
+            StdoutKind::Io => Box::new(io::stdout()),
         };
         Ok(Crossterm {
             stdout: output,

@@ -45,10 +45,10 @@ pub(crate) mod ui_tree;
 pub(crate) mod undo_tree;
 mod utils;
 
-use std::sync::{Arc, Mutex};
+use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
-use frontend::crossterm::Crossterm;
+use frontend::crossterm::{Crossterm, StdoutKind};
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -72,7 +72,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
-        Arc::new(Mutex::new(Crossterm::new(None)?)),
+        Rc::new(Mutex::new(Crossterm::new(StdoutKind::Io)?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
