@@ -391,6 +391,7 @@ impl State {
 
 pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
     execute_test_helper(
+        StdoutKind::Dummy,
         false,
         [StatusLineComponent::LastDispatch].to_vec(),
         callback,
@@ -402,6 +403,7 @@ pub(crate) fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
     execute_test_helper(
+        StdoutKind::String,
         true,
         [
             StatusLineComponent::Mode,
@@ -414,11 +416,12 @@ pub(crate) fn execute_recipe(
 }
 
 fn execute_test_helper(
+    stdout_kind: StdoutKind,
     render: bool,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
-    run_test(status_line_components, |mut app, temp_dir| {
+    run_test(stdout_kind, status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -472,11 +475,12 @@ fn execute_test_helper(
 }
 
 fn run_test(
+    stdout_kind: StdoutKind,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(App<Crossterm>, CanonicalizedPath) -> anyhow::Result<()>,
 ) -> anyhow::Result<Option<String>> {
     TestRunner::run(move |temp_dir| {
-        let frontend = Rc::new(Mutex::new(Crossterm::new(StdoutKind::String)?));
+        let frontend = Rc::new(Mutex::new(Crossterm::new(stdout_kind)?));
 
         let mut app = App::new(
             frontend.clone(),

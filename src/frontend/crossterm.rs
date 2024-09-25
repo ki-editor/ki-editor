@@ -20,10 +20,6 @@ impl Crossterm {
     }
 }
 
-#[cfg(test)]
-struct StringWriter {
-    buffer: Vec<u8>,
-}
 trait MyWriter: Write + Any {
     #[cfg(test)]
     fn as_any(&self) -> &dyn Any;
@@ -36,11 +32,23 @@ impl MyWriter for StringWriter {
     }
 }
 
+#[cfg(test)]
+impl MyWriter for DummyWriter {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
 impl MyWriter for std::io::Stdout {
     #[cfg(test)]
     fn as_any(&self) -> &dyn Any {
         self
     }
+}
+
+#[cfg(test)]
+struct StringWriter {
+    buffer: Vec<u8>,
 }
 
 #[cfg(test)]
@@ -66,7 +74,24 @@ impl Write for StringWriter {
     }
 }
 
+#[cfg(test)]
+struct DummyWriter;
+
+#[cfg(test)]
+impl Write for DummyWriter {
+    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
+        Ok(0)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
 pub(crate) enum StdoutKind {
+    #[cfg(test)]
+    Dummy,
     #[cfg(test)]
     String,
     Io,
@@ -78,6 +103,8 @@ impl Crossterm {
             #[cfg(test)]
             StdoutKind::String => Box::new(StringWriter::new()),
             StdoutKind::Io => Box::new(io::stdout()),
+            #[cfg(test)]
+            StdoutKind::Dummy => Box::new(DummyWriter),
         };
         Ok(Crossterm {
             stdout: output,
