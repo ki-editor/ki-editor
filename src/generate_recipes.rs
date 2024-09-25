@@ -13,7 +13,7 @@ fn generate_recipes() -> anyhow::Result<()> {
     let recipes_output = recipes::recipes()
         .into_iter()
         .map(|recipe| -> anyhow::Result<RecipeOutput> {
-            let path = format!("docu/assets/{}/", recipe.description);
+            let path = format!("docs/assets/{}/", recipe.description);
             std::fs::create_dir_all(path.clone())?;
             let accum_events = create_nested_vectors(recipe.events);
             let accum_events_len = accum_events.len();
@@ -23,7 +23,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                 .into_iter()
                 .enumerate()
                 .map(|(index, events)| -> anyhow::Result<StepOutput> {
-                    let result = execute_recipe(format!("{}/{}", path, index), |s| {
+                    let result = execute_recipe(|s| {
                         let temp_path = s
                             .temp_dir()
                             .to_path_buf()
@@ -90,7 +90,7 @@ fn generate_recipes() -> anyhow::Result<()> {
 
     use std::io::Write;
 
-    let mut file = std::fs::File::create("docu/assets/recipes.json")?;
+    let mut file = std::fs::File::create("docs/assets/recipes.json")?;
 
     // Write the JSON to the file
     file.write_all(json.as_bytes())?;

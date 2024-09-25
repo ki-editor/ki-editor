@@ -390,16 +390,19 @@ impl State {
 }
 
 pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
-    execute_test_helper(None, [StatusLineComponent::LastDispatch].to_vec(), callback)?;
+    execute_test_helper(
+        false,
+        [StatusLineComponent::LastDispatch].to_vec(),
+        callback,
+    )?;
     Ok(())
 }
 
 pub(crate) fn execute_recipe(
-    log_path: String,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
     execute_test_helper(
-        Some(log_path),
+        true,
         [
             StatusLineComponent::Mode,
             StatusLineComponent::SelectionMode,
@@ -411,11 +414,10 @@ pub(crate) fn execute_recipe(
 }
 
 fn execute_test_helper(
-    log_path: Option<String>,
+    render: bool,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
-    let has_log_path = log_path.is_some();
     run_test(status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
@@ -426,7 +428,7 @@ fn execute_test_helper(
             })
         };
 
-        if has_log_path {
+        if render {
             app.render()?
         }
         for step in steps.iter() {
@@ -461,7 +463,7 @@ fn execute_test_helper(
             };
         }
 
-        if has_log_path {
+        if render {
             app.render()?
         }
 
