@@ -24,6 +24,9 @@ jobs:
       - name: Just
         run: just
 
+      - name: Verify installation
+        run: just install
+
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         # if: github.ref == 'refs/heads/master'

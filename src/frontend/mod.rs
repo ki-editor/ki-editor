@@ -3,8 +3,9 @@ pub(crate) mod crossterm;
 pub(crate) mod mock;
 
 use std::any::Any;
+use std::io::Write;
 #[cfg(test)]
-use std::io::{self, Write};
+use std::io::{self};
 
 use crate::{app::Dimension, components::component::Cursor, screen::Screen};
 use ::crossterm::{
