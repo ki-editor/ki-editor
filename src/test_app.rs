@@ -9,11 +9,7 @@ use my_proc_macros::{hex, key, keys};
 
 use serial_test::serial;
 
-use std::{
-    ops::Range,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{ops::Range, path::PathBuf, rc::Rc, sync::Mutex};
 pub(crate) use Dispatch::*;
 pub(crate) use DispatchEditor::*;
 
@@ -23,7 +19,10 @@ pub(crate) use SelectionMode::*;
 use shared::canonicalized_path::CanonicalizedPath;
 
 use crate::{
-    app::{App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope},
+    app::{
+        App, Dimension, Dispatch, LocalSearchConfigUpdate, RequestParams, Scope,
+        StatusLineComponent,
+    },
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     components::{
@@ -32,7 +31,7 @@ use crate::{
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
-    frontend::mock::MockFrontend,
+    frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
     grid::StyleKey,
     integration_test::TestRunner,
     list::grep::RegexConfig,
@@ -55,6 +54,7 @@ use crate::{lsp::process::LspNotification, themes::Color};
 
 pub(crate) enum Step {
     App(Dispatch),
+    AppLater(Box<dyn Fn() -> Dispatch>),
     ExpectMulti(Vec<ExpectKind>),
     Expect(ExpectKind),
     Editor(DispatchEditor),
@@ -63,7 +63,7 @@ pub(crate) enum Step {
     ExpectCustom(Box<dyn Fn()>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum ExpectKind {
     FileExplorerContent(String),
     EditorInfoContent(&'static str),
@@ -283,7 +283,6 @@ impl ExpectKind {
             }
             AppGridContains(substring) => {
                 let content = app.get_screen().unwrap().stringify();
-                println!("content =\n{}", content);
                 contextualize(content.contains(substring), true)
             }
             FileExplorerContent(expected) => contextualize(expected, &app.file_explorer_content()),
@@ -391,7 +390,38 @@ impl State {
 }
 
 pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
-    run_test(|mut app, temp_dir| {
+    execute_test_helper(
+        || Box::new(NullWriter),
+        false,
+        [StatusLineComponent::LastDispatch].to_vec(),
+        callback,
+    )?;
+    Ok(())
+}
+
+pub(crate) fn execute_recipe(
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<Option<String>> {
+    execute_test_helper(
+        || Box::new(StringWriter::new()),
+        true,
+        [
+            StatusLineComponent::Mode,
+            StatusLineComponent::SelectionMode,
+            StatusLineComponent::LastDispatch,
+        ]
+        .to_vec(),
+        callback,
+    )
+}
+
+fn execute_test_helper(
+    writer: fn() -> Box<dyn MyWriter>,
+    render: bool,
+    status_line_components: Vec<StatusLineComponent>,
+    callback: impl Fn(State) -> Box<[Step]>,
+) -> anyhow::Result<Option<String>> {
+    run_test(writer, status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -401,10 +431,18 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
             })
         };
 
+        if render {
+            app.render()?
+        }
         for step in steps.iter() {
             match step.to_owned() {
                 Step::App(dispatch) => {
                     log(dispatch);
+                    app.handle_dispatch(dispatch.to_owned())?
+                }
+                Step::AppLater(get_dispatch) => {
+                    let dispatch = get_dispatch();
+                    log(&dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
                 }
                 Step::Expect(expect_kind) => expect_kind.run(&mut app),
@@ -427,18 +465,34 @@ pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::R
                 }
             };
         }
+
+        if render {
+            app.render()?
+        }
+
         Ok(())
     })
 }
 
 fn run_test(
+    writer: fn() -> Box<dyn MyWriter>,
+    status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
-) -> anyhow::Result<()> {
-    TestRunner::run(|temp_dir| {
-        let mock_frontend = Arc::new(Mutex::new(MockFrontend::default()));
-        let mut app = App::new(mock_frontend, temp_dir.clone())?;
+) -> anyhow::Result<Option<String>> {
+    TestRunner::run(move |temp_dir| {
+        let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
+
+        let mut app = App::new(
+            frontend.clone(),
+            temp_dir.clone(),
+            status_line_components.clone(),
+        )?;
         app.disable_lsp();
-        callback(app, temp_dir)
+        callback(app, temp_dir)?;
+        use std::borrow::Borrow;
+        let output = frontend.lock().unwrap().borrow().string_content();
+
+        Ok(output)
     })
 }
 
@@ -448,28 +502,19 @@ fn copy_replace_from_different_file() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(Copy {
                 use_system_clipboard: false,
             }),
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(ReplaceWithCopiedText {
                 use_system_clipboard: false,
@@ -650,7 +695,7 @@ fn highlight_mode_replace() -> anyhow::Result<()> {
             Editor(MatchLiteral("{".to_string())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::SyntaxNodeCoarse,
+                SelectionMode::SyntaxNode,
             )),
             Expect(CurrentSelectedTexts(&["{ let x = S(a); let y = S(b); }"])),
             Editor(ReplaceWithCopiedText {
@@ -674,7 +719,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(MatchLiteral("let x = S(spongebob_squarepants);".to_owned())),
             Editor(SetSelectionMode(
                 IfCurrentNotFound::LookForward,
-                SelectionMode::SyntaxNodeCoarse,
+                SelectionMode::SyntaxNode,
             )),
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
@@ -794,10 +839,7 @@ pub(crate) fn repo_git_hunks() -> Result<(), anyhow::Error> {
         Box::new([
             // Delete the first line of main.rs
             App(OpenFile(s.main_rs().clone())),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(Delete(Direction::End)),
             // Insert a comment at the first line of foo.rs
             App(OpenFile(s.foo_rs().clone())),
@@ -904,10 +946,7 @@ fn align_view_bottom_with_outbound_parent_lines() -> anyhow::Result<()> {
                 width: 200,
                 height: 6,
             })),
-            Editor(SetSelectionMode(
-                IfCurrentNotFound::LookForward,
-                LineTrimmed,
-            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Editor(SelectAll),
             Editor(Delete(Direction::End)),
             Editor(Insert(
@@ -930,7 +969,7 @@ fn first () {
 5│  █ifth();
 6│}
 
-[GLOBAL TITLE]
+ [GLOBAL TITLE]
 "
                 .to_string(),
             )),
@@ -942,7 +981,7 @@ fn first () {
 3│  third();
 4│  fourth(); // this line is long
 5│  █ifth();
-[GLOBAL TITLE]
+ [GLOBAL TITLE]
 "
                 .to_string(),
             )),
@@ -959,7 +998,7 @@ fn first () {
 4│  fourth(); //
 ↪│this line is long
 5│  █ifth();
-[GLOBAL TITLE]
+ [GLOBAL TITLE]
 "
                 .to_string(),
             )),
@@ -972,10 +1011,10 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleBookmark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordShort)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Bookmark,
@@ -1926,10 +1965,7 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    LineTrimmed,
-                )),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
@@ -1976,10 +2012,7 @@ c1 c2 c3"
                         .trim()
                         .to_string(),
                 )),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    LineTrimmed,
-                )),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),

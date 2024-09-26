@@ -26,11 +26,11 @@ fn increment_counter() -> usize {
 
 impl TestRunner {
     pub(crate) fn run(
-        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<()>,
-    ) -> anyhow::Result<()> {
+        callback: impl Fn(CanonicalizedPath) -> anyhow::Result<Option<String>>,
+    ) -> anyhow::Result<Option<String>> {
         let (runner, _) = Self::new()?;
-        callback(runner.temp_dir.clone())?;
-        Ok(())
+        let output = callback(runner.temp_dir.clone())?;
+        Ok(output)
     }
     fn new() -> anyhow::Result<(Self, Receiver<AppMessage>)> {
         const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";

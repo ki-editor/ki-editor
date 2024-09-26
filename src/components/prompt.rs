@@ -91,7 +91,7 @@ impl Prompt {
                 [
                     Dispatch::ToEditor(DispatchEditor::SetSelectionMode(
                         super::editor::IfCurrentNotFound::LookForward,
-                        SelectionMode::LineTrimmed,
+                        SelectionMode::Line,
                     )),
                     Dispatch::ToEditor(DispatchEditor::MoveSelection(
                         super::editor::Movement::Last,

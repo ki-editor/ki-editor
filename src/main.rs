@@ -19,10 +19,14 @@ mod lsp;
 mod position;
 
 mod app;
+#[cfg(test)]
+mod generate_recipes;
 pub(crate) mod history;
 mod non_empty_extensions;
 mod osc52;
 mod quickfix_list;
+#[cfg(test)]
+mod recipes;
 mod rectangle;
 mod screen;
 mod selection;
@@ -41,14 +45,14 @@ pub(crate) mod ui_tree;
 pub(crate) mod undo_tree;
 mod utils;
 
-use std::sync::{Arc, Mutex};
+use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
 use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
-use app::App;
+use app::{App, StatusLineComponent};
 
 use crate::app::AppMessage;
 
@@ -68,10 +72,18 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
-        Arc::new(Mutex::new(Crossterm::default())),
+        Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,
+        [
+            StatusLineComponent::CurrentWorkingDirectory,
+            StatusLineComponent::GitBranch,
+            StatusLineComponent::Mode,
+            StatusLineComponent::SelectionMode,
+            StatusLineComponent::LastDispatch,
+        ]
+        .to_vec(),
     )?;
     app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
 

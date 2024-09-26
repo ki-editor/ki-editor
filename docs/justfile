@@ -1,0 +1,15 @@
+default:
+    @just build
+    
+start:
+    npm run start
+    
+install:
+    npm install
+    
+typecheck: install
+    npm run typecheck
+
+build: typecheck
+    npm run build
+    

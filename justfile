@@ -1,5 +1,10 @@
 default:
-    @just tree-sitter-quickfix fmt-check build clippy test
+    @just tree-sitter-quickfix 
+    @just fmt-check 
+    @just build 
+    @just clippy 
+    @just test 
+    @just doc
     
 install:
     cargo install --locked --path .
@@ -22,25 +27,31 @@ clippy:
 clippy-fix:
 	cargo clippy --workspace --tests --fix --allow-staged
 
-test:
+test testname="":
     @echo "Running cargo test..."
     git config --get --global user.name  || git config --global user.name  Tester 
     git config --get --global user.email || git config --global user.email tester@gmail.com
-    cargo test --workspace
+    cargo test --workspace -- --nocapture -- {{testname}}
     
 tree-sitter-quickfix:
     just -f tree_sitter_quickfix/justfile
+
+doc:
+    just -f docs/justfile
+
+doc-serve:
+	cd docs && just start
 
 codecov:
 	cargo tarpaulin --out html
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' -- cargo test --workspace  -- --nocapture -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' --ignore 'docs/assets/recipes.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests
-
-doc-serve:
-	mdbook serve --open docs/
 	
+
+generate-recipes:
+	just test "generate_recipes"
