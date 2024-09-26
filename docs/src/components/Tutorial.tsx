@@ -1,5 +1,3 @@
-import { FitAddon } from "@xterm/addon-fit";
-
 import { useEffect, useMemo, useState } from "react";
 import { useXTerm, UseXTermProps } from "react-xtermjs";
 import * as recipesData from "../../assets/recipes.json";
@@ -52,27 +50,14 @@ const Recipe = (props: { recipe: Recipe }) => {
   );
 
   const { instance, ref } = useXTerm(xtermOptions);
-  const fitAddon = new FitAddon();
   const [stepIndex, setStepIndex] = useState(0);
-  useEffect(() => {
-    // Load the fit addon
-    instance?.loadAddon(fitAddon);
-
-    const handleResize = () => fitAddon.fit();
-
-    // Handle resize event
-    window.addEventListener("resize", handleResize);
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [ref, instance]);
   useEffect(() => {
     const step = props.recipe.steps[stepIndex];
     instance?.write(step.term_output);
   }, [ref, instance, stepIndex]);
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gap: 16, justifySelf: "start" }}>
       <h2>{props.recipe.description}</h2>
       <div
         ref={ref}
