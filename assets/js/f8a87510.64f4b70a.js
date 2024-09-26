@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocu=self.webpackChunkdocu||[]).push([[4861],{2787:a=>{a.exports=JSON.parse('{"authors":[{"name":"Wong Jia Hau","title":"Software Engineer","url":"https://github.com/wongjiahau","page":{"permalink":"/ki-editor/blog/authors/wongjiahau"},"socials":{"github":"https://github.com/wongjiahau"},"key":"wongjiahau","count":0}]}')}}]);

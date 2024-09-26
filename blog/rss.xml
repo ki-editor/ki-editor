@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/">
     <channel>
         <title>Ki Editor Blog</title>
-        <link>https://ki-editor.github.io/blog</link>
+        <link>https://ki-editor.github.io/ki-editor/blog</link>
         <description>Ki Editor Blog</description>
         <lastBuildDate>Fri, 20 Sep 2024 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
@@ -10,8 +10,8 @@
         <language>en</language>
         <item>
             <title><![CDATA[Documentation Migration]]></title>
-            <link>https://ki-editor.github.io/blog/documentation-migration</link>
-            <guid>https://ki-editor.github.io/blog/documentation-migration</guid>
+            <link>https://ki-editor.github.io/ki-editor/blog/documentation-migration</link>
+            <guid>https://ki-editor.github.io/ki-editor/blog/documentation-migration</guid>
             <pubDate>Fri, 20 Sep 2024 00:00:00 GMT</pubDate>
             <description><![CDATA[Ki's documentation has migrated from Rust MD Book to Docusaurus to incorporate interactive tutorials.]]></description>
             <content:encoded><![CDATA[<p>Ki's documentation has migrated from Rust MD Book to Docusaurus to incorporate interactive tutorials.</p>]]></content:encoded>
