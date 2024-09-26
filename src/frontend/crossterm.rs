@@ -1,8 +1,7 @@
 use crate::{components::component::Cursor, screen::Screen};
-use std::any::Any;
-use std::io::{self, Write};
+use std::io::{self};
 
-use super::Frontend;
+use super::{Frontend, MyWriter};
 
 pub(crate) struct Crossterm {
     stdout: Box<dyn MyWriter>,
@@ -10,104 +9,17 @@ pub(crate) struct Crossterm {
     previous_screen: Screen,
 }
 
-impl Crossterm {
-    #[cfg(test)]
-    pub(crate) fn string_content(&self) -> Option<String> {
-        self.stdout
-            .as_any()
-            .downcast_ref::<StringWriter>()
-            .map(|writer| writer.get_string())
-    }
-}
-
-trait MyWriter: Write + Any {
-    #[cfg(test)]
-    fn as_any(&self) -> &dyn Any;
-}
-
-#[cfg(test)]
-impl MyWriter for StringWriter {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-#[cfg(test)]
-impl MyWriter for DummyWriter {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
 impl MyWriter for std::io::Stdout {
     #[cfg(test)]
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&self) -> &dyn std::any::Any {
         self
     }
 }
 
-#[cfg(test)]
-struct StringWriter {
-    buffer: Vec<u8>,
-}
-
-#[cfg(test)]
-impl StringWriter {
-    fn new() -> Self {
-        StringWriter { buffer: Vec::new() }
-    }
-
-    fn get_string(&self) -> String {
-        String::from_utf8(self.buffer.clone()).unwrap_or_default()
-    }
-}
-
-#[cfg(test)]
-impl Write for StringWriter {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buffer.extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-struct DummyWriter;
-
-#[cfg(test)]
-impl Write for DummyWriter {
-    fn write(&mut self, _: &[u8]) -> io::Result<usize> {
-        Ok(0)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum StdoutKind {
-    #[cfg(test)]
-    Dummy,
-    #[cfg(test)]
-    String,
-    Io,
-}
-
 impl Crossterm {
-    pub(crate) fn new(stdout_kind: StdoutKind) -> anyhow::Result<Crossterm> {
-        let output: Box<dyn MyWriter> = match stdout_kind {
-            #[cfg(test)]
-            StdoutKind::String => Box::new(StringWriter::new()),
-            StdoutKind::Io => Box::new(io::stdout()),
-            #[cfg(test)]
-            StdoutKind::Dummy => Box::new(DummyWriter),
-        };
+    pub(crate) fn new() -> anyhow::Result<Crossterm> {
         Ok(Crossterm {
-            stdout: output,
+            stdout: Box::new(io::stdout()),
             previous_screen: Screen::default(),
         })
     }
@@ -117,10 +29,6 @@ use crossterm::{
     cursor::{Hide, MoveTo, SetCursorStyle, Show},
     event::{DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture},
     execute, queue,
-    style::{
-        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-        SetUnderlineColor,
-    },
     terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
@@ -153,7 +61,7 @@ impl Frontend for Crossterm {
     }
 
     fn enable_raw_mode(&mut self) -> anyhow::Result<()> {
-        crossterm::terminal::enable_raw_mode()?;
+        crossterm::terminal::enable_raw_mode()?; // This should be the issue
         Ok(())
     }
 
@@ -185,58 +93,15 @@ impl Frontend for Crossterm {
         Ok(())
     }
 
-    fn render_screen(&mut self, mut screen: Screen) -> anyhow::Result<()> {
-        let cells = {
-            // Only perform diff if the dimension is the same
-            let diff = if self.previous_screen.dimension() == screen.dimension() {
-                screen.diff(&mut self.previous_screen)
-            } else {
-                self.clear_screen()?;
-                screen.get_positioned_cells()
-            };
-            self.previous_screen = screen;
-
-            diff
-        };
-        for cell in cells {
-            queue!(
-                self.stdout,
-                MoveTo(cell.position.column as u16, cell.position.line as u16),
-                SetAttribute(if cell.cell.is_bold {
-                    Attribute::Bold
-                } else {
-                    Attribute::NoBold
-                }),
-                SetUnderlineColor(
-                    cell.cell
-                        .line
-                        .map(|line| line.color.into())
-                        .unwrap_or(Color::Reset),
-                ),
-                SetAttribute(
-                    cell.cell
-                        .line
-                        .map(|line| match line.style {
-                            crate::grid::CellLineStyle::Undercurl => Attribute::Undercurled,
-                            crate::grid::CellLineStyle::Underline => Attribute::Underlined,
-                        })
-                        .unwrap_or(Attribute::NoUnderline),
-                ),
-                SetBackgroundColor(cell.cell.background_color.into()),
-                SetForegroundColor(cell.cell.foreground_color.into()),
-                Print(reveal(&cell.cell.symbol)),
-                SetAttribute(Attribute::Reset),
-            )?;
-        }
-        Ok(())
+    fn writer(&mut self) -> &mut Box<dyn MyWriter> {
+        &mut self.stdout
     }
-}
 
-/// Convert invisible character to visible character
-fn reveal(s: &str) -> String {
-    match s {
-        "\n" => " ".to_string(),
-        "\t" => " ".to_string(),
-        _ => s.into(),
+    fn previous_screen(&mut self) -> Screen {
+        std::mem::take(&mut self.previous_screen)
+    }
+
+    fn set_previous_screen(&mut self, previous_screen: Screen) {
+        self.previous_screen = previous_screen
     }
 }

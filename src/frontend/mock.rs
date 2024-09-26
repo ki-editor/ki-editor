@@ -1,9 +1,13 @@
 #! #[cfg(test)]
 
 use crate::{components::component::Cursor, screen::Screen};
-#[derive(Clone, Default)]
+
+use super::{MyWriter, StringWriter};
+
 pub(crate) struct MockFrontend {
-    screen: Option<Screen>,
+    /// Used for diffing to reduce unnecessary re-painting.
+    previous_screen: Screen,
+    writer: Box<dyn MyWriter>,
 }
 
 const WIDTH: u16 = 80;
@@ -12,6 +16,15 @@ const DIMENSION: crate::app::Dimension = crate::app::Dimension {
     width: WIDTH,
     height: HEIGHT,
 };
+
+impl MockFrontend {
+    pub(crate) fn new(writer: Box<dyn MyWriter>) -> Self {
+        Self {
+            previous_screen: Default::default(),
+            writer,
+        }
+    }
+}
 
 impl super::Frontend for MockFrontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<crate::app::Dimension> {
@@ -54,10 +67,25 @@ impl super::Frontend for MockFrontend {
         Ok(())
     }
 
-    fn render_screen(&mut self, grid: Screen) -> anyhow::Result<()> {
-        self.screen = Some(grid);
-        Ok(())
+    fn previous_screen(&mut self) -> Screen {
+        std::mem::take(&mut self.previous_screen)
+    }
+
+    fn set_previous_screen(&mut self, previous_screen: Screen) {
+        self.previous_screen = previous_screen
+    }
+
+    fn writer(&mut self) -> &mut Box<dyn MyWriter> {
+        &mut self.writer
     }
 }
 
-impl MockFrontend {}
+#[cfg(test)]
+impl MockFrontend {
+    pub(crate) fn string_content(&self) -> Option<String> {
+        self.writer
+            .as_any()
+            .downcast_ref::<StringWriter>()
+            .map(|writer| writer.get_string())
+    }
+}

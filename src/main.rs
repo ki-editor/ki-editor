@@ -48,7 +48,7 @@ mod utils;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
-use frontend::crossterm::{Crossterm, StdoutKind};
+use frontend::crossterm::Crossterm;
 use log::LevelFilter;
 use shared::canonicalized_path::CanonicalizedPath;
 
@@ -72,7 +72,7 @@ pub(crate) fn run(config: RunConfig) -> anyhow::Result<()> {
     let (sender, receiver) = std::sync::mpsc::channel();
     let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
     let mut app = App::from_channel(
-        Rc::new(Mutex::new(Crossterm::new(StdoutKind::Io)?)),
+        Rc::new(Mutex::new(Crossterm::new()?)),
         config.working_directory.unwrap_or(".".try_into()?),
         sender,
         receiver,

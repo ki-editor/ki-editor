@@ -31,7 +31,7 @@ use crate::{
         suggestive_editor::{DispatchSuggestiveEditor, Info, SuggestiveEditorFilter},
     },
     context::{GlobalMode, LocalSearchConfigMode},
-    frontend::crossterm::{Crossterm, StdoutKind},
+    frontend::{mock::MockFrontend, MyWriter, NullWriter, StringWriter},
     grid::StyleKey,
     integration_test::TestRunner,
     list::grep::RegexConfig,
@@ -117,12 +117,12 @@ fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
 }
 impl ExpectKind {
-    fn run(&self, app: &mut App<Crossterm>) {
+    fn run(&self, app: &mut App<MockFrontend>) {
         log(self);
         let (result, context) = self.get_result(app).unwrap();
         assert!(result, "{context}",)
     }
-    fn get_result(&self, app: &mut App<Crossterm>) -> anyhow::Result<(bool, String)> {
+    fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
         let context = app.context();
         fn contextualize<T: PartialEq + std::fmt::Debug>(a: T, b: T) -> (bool, String) {
             (a == b, format!("\n{a:?}\n == \n{b:?}\n",))
@@ -391,7 +391,7 @@ impl State {
 
 pub(crate) fn execute_test(callback: impl Fn(State) -> Box<[Step]>) -> anyhow::Result<()> {
     execute_test_helper(
-        StdoutKind::Dummy,
+        || Box::new(NullWriter),
         false,
         [StatusLineComponent::LastDispatch].to_vec(),
         callback,
@@ -403,7 +403,7 @@ pub(crate) fn execute_recipe(
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
     execute_test_helper(
-        StdoutKind::String,
+        || Box::new(StringWriter::new()),
         true,
         [
             StatusLineComponent::Mode,
@@ -416,12 +416,12 @@ pub(crate) fn execute_recipe(
 }
 
 fn execute_test_helper(
-    stdout_kind: StdoutKind,
+    writer: fn() -> Box<dyn MyWriter>,
     render: bool,
     status_line_components: Vec<StatusLineComponent>,
     callback: impl Fn(State) -> Box<[Step]>,
 ) -> anyhow::Result<Option<String>> {
-    run_test(stdout_kind, status_line_components, |mut app, temp_dir| {
+    run_test(writer, status_line_components, |mut app, temp_dir| {
         let steps = {
             callback(State {
                 main_rs: temp_dir.join("src/main.rs").unwrap(),
@@ -475,12 +475,12 @@ fn execute_test_helper(
 }
 
 fn run_test(
-    stdout_kind: StdoutKind,
+    writer: fn() -> Box<dyn MyWriter>,
     status_line_components: Vec<StatusLineComponent>,
-    callback: impl Fn(App<Crossterm>, CanonicalizedPath) -> anyhow::Result<()>,
+    callback: impl Fn(App<MockFrontend>, CanonicalizedPath) -> anyhow::Result<()>,
 ) -> anyhow::Result<Option<String>> {
     TestRunner::run(move |temp_dir| {
-        let frontend = Rc::new(Mutex::new(Crossterm::new(stdout_kind)?));
+        let frontend = Rc::new(Mutex::new(MockFrontend::new(writer())));
 
         let mut app = App::new(
             frontend.clone(),
