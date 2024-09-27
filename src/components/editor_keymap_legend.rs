@@ -132,11 +132,6 @@ impl Editor {
             title: "Selection mode".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "b",
-                    "Between".to_string(),
-                    Dispatch::ShowKeymapLegend(self.between_mode_keymap_legend_config()),
-                ),
-                Keymap::new(
                     "e",
                     "Line".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
@@ -261,8 +256,12 @@ impl Editor {
                 ),
                 Keymap::new(
                     "o",
-                    "Open (after selection)".to_string(),
-                    Dispatch::ToEditor(Open(Direction::End)),
+                    "Open (after selection) / Swap direction (Extended)".to_string(),
+                    Dispatch::ToEditor(if self.selection_set.is_extended() {
+                        SwapExtensionDirection
+                    } else {
+                        Open(Direction::End)
+                    }),
                 ),
                 Keymap::new(
                     "O",
@@ -286,8 +285,8 @@ impl Editor {
                 ),
                 Keymap::new(
                     "v",
-                    "Toggle Visual Mode".to_string(),
-                    Dispatch::ToEditor(ToggleVisualMode),
+                    "Enter V Mode".to_string(),
+                    Dispatch::ToEditor(EnterVMode),
                 ),
                 Keymap::new("V", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
                 Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
@@ -649,6 +648,76 @@ impl Editor {
                 .cloned()
                 .collect_vec(),
         )
+    }
+    pub(crate) fn visual_mode_initialized_keymaps(&self) -> Keymaps {
+        Keymaps::new(
+            &self
+                .visual_mode_initialized_keymap_legend_config()
+                .keymaps()
+                .into_iter()
+                .cloned()
+                .collect_vec(),
+        )
+    }
+    fn visual_mode_initialized_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Visual Mode Initialized".to_string(),
+            body: KeymapLegendBody::MultipleSections {
+                sections: [
+                    KeymapLegendSection {
+                        title: "Select".to_string(),
+                        keymaps: Keymaps::new(&[
+                            Keymap::new(
+                                "a",
+                                "Around".to_string(),
+                                Dispatch::ShowKeymapLegend(
+                                    self.select_surround_keymap_legend_config(SurroundKind::Around),
+                                ),
+                            ),
+                            Keymap::new(
+                                "i",
+                                "Inside".to_string(),
+                                Dispatch::ShowKeymapLegend(
+                                    self.select_surround_keymap_legend_config(SurroundKind::Inside),
+                                ),
+                            ),
+                        ]),
+                    },
+                    KeymapLegendSection {
+                        title: "Action".to_string(),
+                        keymaps: Keymaps::new(&[
+                            Keymap::new(
+                                "c",
+                                "Change Surround".to_string(),
+                                Dispatch::ShowKeymapLegend(
+                                    self.change_surround_from_keymap_legend_config(),
+                                ),
+                            ),
+                            Keymap::new(
+                                "d",
+                                "Delete Surround".to_string(),
+                                Dispatch::ShowKeymapLegend(
+                                    self.delete_surround_keymap_legend_config(),
+                                ),
+                            ),
+                            Keymap::new(
+                                "s",
+                                "Surround".to_string(),
+                                Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
+                            ),
+                        ]),
+                    },
+                    KeymapLegendSection {
+                        title: "Surround".to_string(),
+                        keymaps: generate_enclosures_keymaps(|enclosure| {
+                            let (open, close) = enclosure.open_close_symbols_str();
+                            Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
+                        }),
+                    },
+                ]
+                .to_vec(),
+            },
+        }
     }
     pub(crate) fn handle_normal_mode(
         &mut self,
@@ -1069,63 +1138,6 @@ impl Editor {
         }
     }
 
-    pub(crate) fn between_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        KeymapLegendConfig {
-            title: "Between".to_string(),
-
-            body: KeymapLegendBody::MultipleSections {
-                sections: [
-                    KeymapLegendSection {
-                        title: "Select".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "a",
-                                "Around".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.select_surround_keymap_legend_config(SurroundKind::Around),
-                                ),
-                            ),
-                            Keymap::new(
-                                "i",
-                                "Inside".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.select_surround_keymap_legend_config(SurroundKind::Inside),
-                                ),
-                            ),
-                        ]),
-                    },
-                    KeymapLegendSection {
-                        title: "Action".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "c",
-                                "Change Surround".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.change_surround_from_keymap_legend_config(),
-                                ),
-                            ),
-                            Keymap::new(
-                                "d",
-                                "Delete Surround".to_string(),
-                                Dispatch::ShowKeymapLegend(
-                                    self.delete_surround_keymap_legend_config(),
-                                ),
-                            ),
-                        ]),
-                    },
-                    KeymapLegendSection {
-                        title: "Surround".to_string(),
-                        keymaps: generate_enclosures_keymaps(|enclosure| {
-                            let (open, close) = enclosure.open_close_symbols_str();
-                            Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
-                        }),
-                    },
-                ]
-                .to_vec(),
-            },
-        }
-    }
-
     pub(crate) fn select_surround_keymap_legend_config(
         &self,
         kind: SurroundKind,
@@ -1151,6 +1163,19 @@ impl Editor {
             body: KeymapLegendBody::SingleSection {
                 keymaps: generate_enclosures_keymaps(|enclosure| {
                     Dispatch::ToEditor(DeleteSurround(enclosure))
+                }),
+            },
+        }
+    }
+
+    pub(crate) fn surround_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Surround".to_string(),
+
+            body: KeymapLegendBody::SingleSection {
+                keymaps: generate_enclosures_keymaps(|enclosure| {
+                    let (open, close) = enclosure.open_close_symbols_str();
+                    Dispatch::ToEditor(Surround(open.to_string(), close.to_string()))
                 }),
             },
         }
