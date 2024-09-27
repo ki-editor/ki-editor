@@ -57,44 +57,22 @@ const Recipe = (props: { recipe: Recipe }) => {
   }, [ref, instance, stepIndex]);
 
   return (
-    <div style={{ display: "grid", gap: 16, justifySelf: "start" }}>
-      <h2>{props.recipe.description}</h2>
-      <div
-        ref={ref}
-        style={{ justifySelf: "start", border: "1px solid black" }}
-      />
+    <div
+      style={{
+        display: "grid",
+        gap: 16,
+        justifySelf: "start",
+        overflow: "hidden",
+      }}
+    >
       <div
         style={{
           display: "grid",
-          justifyContent: "start",
-          alignContent: "start",
-          justifyItems: "center",
           gridAutoFlow: "column",
-          gap: 8,
-          gridTemplateColumns: "auto 1fr",
+          alignItems: "center",
         }}
       >
-        <div
-          style={{
-            display: "grid",
-            gap: 2,
-            gridAutoFlow: "column",
-            justifySelf: "start",
-          }}
-        >
-          {props.recipe.steps.map((step, index) => (
-            <button
-              onClick={() => setStepIndex(index)}
-              className={[
-                "kbc-button",
-                index === stepIndex ? "active" : undefined,
-              ].join(" ")}
-              style={{ fontFamily: "monospace" }}
-            >
-              {step.key}
-            </button>
-          ))}
-        </div>
+        <h2>{props.recipe.description}</h2>
         <div
           style={{
             display: "grid",
@@ -119,6 +97,43 @@ const Recipe = (props: { recipe: Recipe }) => {
           >
             ›
           </button>
+        </div>
+      </div>
+      <div
+        ref={ref}
+        style={{ justifySelf: "start", border: "1px solid black" }}
+      />
+      <div
+        style={{
+          display: "grid",
+          justifyContent: "start",
+          alignContent: "start",
+          justifyItems: "center",
+          gap: 8,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gap: 2,
+            gridAutoFlow: "column",
+            justifySelf: "start",
+            overflowX: "auto",
+            width: "100%",
+          }}
+        >
+          {props.recipe.steps.map((step, index) => (
+            <button
+              onClick={() => setStepIndex(index)}
+              className={[
+                "kbc-button",
+                index === stepIndex ? "active" : undefined,
+              ].join(" ")}
+              style={{ fontFamily: "monospace" }}
+            >
+              {step.key}
+            </button>
+          ))}
         </div>
       </div>
     </div>

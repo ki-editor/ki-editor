@@ -13,7 +13,7 @@ Keybindings:
 | `s`        | Open search prompt             |
 | `c`        | Search using current selection |
 | `p`        | Search using previous search   |
-| `,`        | Configure search               |
+| `'`        | Configure search               |
 
 By default, the search prompt searches using Literal mode.
 

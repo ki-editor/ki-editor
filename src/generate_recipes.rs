@@ -1,24 +1,26 @@
 use itertools::Itertools;
 use my_proc_macros::key;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 // TODO:
 // 1. Emoji not rendering properly
 // 2. keymap legend should be shown as vertical-split, not horizontal
-// 3. Search mode description too long
 
 use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
     let recipes_output = recipes::recipes()
-        .into_iter()
+        .into_par_iter()
         .map(|recipe| -> anyhow::Result<RecipeOutput> {
             let path = format!("docs/assets/{}/", recipe.description);
             std::fs::create_dir_all(path.clone())?;
             let accum_events = create_nested_vectors(recipe.events);
             let accum_events_len = accum_events.len();
             let width = 60;
-            let height = recipe.content.lines().count() + 3;
+            let height = recipe
+                .terminal_height
+                .unwrap_or(recipe.content.lines().count() + 3);
             let steps = accum_events
                 .into_iter()
                 .enumerate()
@@ -133,6 +135,7 @@ pub(crate) struct Recipe {
     pub(crate) prepare_events: &'static [event::KeyEvent],
     pub(crate) events: &'static [event::KeyEvent],
     pub(crate) expectations: &'static [ExpectKind],
+    pub(crate) terminal_height: Option<usize>,
 }
 #[derive(serde::Serialize)]
 pub(crate) struct StepOutput {

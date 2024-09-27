@@ -296,6 +296,14 @@ impl Editor {
                     Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
                 ),
                 Keymap::new(
+                    "'",
+                    "Configure Search".to_string(),
+                    Dispatch::ShowSearchConfig {
+                        scope: Scope::Local,
+                        if_current_not_found: IfCurrentNotFound::LookForward,
+                    },
+                ),
+                Keymap::new(
                     "|",
                     "Pipe to shell".to_string(),
                     Dispatch::OpenPipeToShellPrompt,
@@ -895,7 +903,7 @@ impl Editor {
                 keymaps: Keymaps::new(
                     &[
                         Keymap::new(
-                            ",",
+                            "'",
                             "Configure Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 scope,
