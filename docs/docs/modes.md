@@ -4,10 +4,11 @@ sidebar_position: 5
 
 # Modes
 
-In Ki, there are two major modes:
+In Ki, there are 3 major modes:
 
 1. Insert mode
 2. Normal mode (default)
+3. V mode
 
 ## Insert Mode
 

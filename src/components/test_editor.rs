@@ -59,12 +59,11 @@ fn toggle_visual_mode() -> anyhow::Result<()> {
                 "fn f(){ let x = S(a); let y = S(b); }".to_string(),
             )),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn f("])),
-            // Toggle the second time should inverse the initial_range
-            Editor(ToggleVisualMode),
+            Editor(SwapExtensionDirection),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["f("])),
             Editor(Reset),
@@ -261,7 +260,7 @@ fn test_delete_extended_selection() -> anyhow::Result<()> {
                 Editor(SetContent("who lives in a pineapple".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(MoveSelection(Next)),
-                Editor(ToggleVisualMode),
+                Editor(EnableSelectionExtension),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["lives in"])),
                 Editor(Delete(direction.clone())),
@@ -282,7 +281,7 @@ fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
             Editor(SetContent("who lives in".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Next)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["lives in"])),
             Editor(Delete(Direction::End)),
@@ -299,7 +298,7 @@ fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("who lives in".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["who lives"])),
             Editor(Delete(Direction::Start)),
@@ -1055,7 +1054,7 @@ fn highlight_kill() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["fn main"])),
             Editor(Delete(Direction::End)),
@@ -1111,7 +1110,7 @@ fn highlight_change() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world yo".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["hello world"])),
             Editor(Change),
@@ -1265,7 +1264,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
             })),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Next)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
             }),
@@ -1902,14 +1901,13 @@ fn omit() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-/// We should rethink how surrond should work, because now angular brackets was taken
 fn surround() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { x.y() }".to_string())),
             Editor(MatchLiteral("x.y()".to_string())),
-            Editor(Surround("(".to_string(), ")".to_string())),
+            App(HandleKeyEvents(keys!("v s (").to_vec())),
             Editor(SetContent("fn main() { (x.y()) }".to_string())),
         ])
     })
@@ -2030,7 +2028,7 @@ fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
             Editor(SetContent("hello world hey".to_string())),
             Editor(MatchLiteral("world".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-            Editor(ToggleVisualMode),
+            Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["world hey"])),
             Editor(EnterInsertMode(Direction::Start)),
@@ -2160,10 +2158,7 @@ fn select_surround_inside() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            Editor(SelectSurround {
-                enclosure: crate::surround::EnclosureKind::Parentheses,
-                kind: SurroundKind::Inside,
-            }),
+            App(HandleKeyEvents(keys!("v i (").to_vec())),
             Expect(CurrentSelectedTexts(&["world"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2177,10 +2172,7 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("(hello (world))".to_string())),
             Editor(MatchLiteral("rl".to_string())),
-            Editor(SelectSurround {
-                enclosure: crate::surround::EnclosureKind::Parentheses,
-                kind: SurroundKind::Around,
-            }),
+            App(HandleKeyEvents(keys!("v a (").to_vec())),
             Expect(CurrentSelectedTexts(&["(world)"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
         ])
@@ -2190,53 +2182,44 @@ fn select_surround_around() -> Result<(), anyhow::Error> {
 #[test]
 fn select_surround_inside_same_symbols() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("hello 'world'".to_string())),
-                Editor(MatchLiteral("rl".to_string())),
-                Editor(DeleteSurround(crate::surround::EnclosureKind::SingleQuotes)),
-                Expect(CurrentSelectedTexts(&["world"])),
-                Expect(CurrentSelectionMode(SelectionMode::Custom)),
-            ])
-        }
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello 'world'".to_string())),
+            Editor(MatchLiteral("rl".to_string())),
+            Editor(DeleteSurround(crate::surround::EnclosureKind::SingleQuotes)),
+            Expect(CurrentSelectedTexts(&["world"])),
+            Expect(CurrentSelectionMode(SelectionMode::Custom)),
+        ])
     })
 }
 
 #[test]
 fn delete_surround() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("(hello (world))".to_string())),
-                Editor(MatchLiteral("rl".to_string())),
-                Editor(DeleteSurround(crate::surround::EnclosureKind::Parentheses)),
-                Expect(CurrentSelectedTexts(&["world"])),
-                Expect(CurrentSelectionMode(SelectionMode::Custom)),
-                Expect(CurrentComponentContent("(hello world)")),
-            ])
-        }
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("(hello (world))".to_string())),
+            Editor(MatchLiteral("rl".to_string())),
+            App(HandleKeyEvents(keys!("v d (").to_vec())),
+            Expect(CurrentSelectedTexts(&["world"])),
+            Expect(CurrentSelectionMode(SelectionMode::Custom)),
+            Expect(CurrentComponentContent("(hello world)")),
+        ])
     })
 }
 
 #[test]
 fn change_surround() -> Result<(), anyhow::Error> {
     execute_test(|s| {
-        {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("(hello (world))".to_string())),
-                Editor(MatchLiteral("rl".to_string())),
-                Editor(ChangeSurround {
-                    from: crate::surround::EnclosureKind::Parentheses,
-                    to: crate::surround::EnclosureKind::CurlyBraces,
-                }),
-                Expect(CurrentSelectedTexts(&["{world}"])),
-                Expect(CurrentSelectionMode(SelectionMode::Custom)),
-                Expect(CurrentComponentContent("(hello {world})")),
-            ])
-        }
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("(hello (world))".to_string())),
+            Editor(MatchLiteral("rl".to_string())),
+            App(HandleKeyEvents(keys!("v c ( {").to_vec())),
+            Expect(CurrentSelectedTexts(&["{world}"])),
+            Expect(CurrentSelectionMode(SelectionMode::Custom)),
+            Expect(CurrentComponentContent("(hello {world})")),
+        ])
     })
 }
 
@@ -2533,7 +2516,7 @@ fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                Editor(ToggleVisualMode),
+                Editor(EnableSelectionExtension),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["who lives"])),
                 Editor(Copy {

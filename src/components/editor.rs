@@ -54,6 +54,7 @@ pub(crate) enum Mode {
     Exchange,
     UndoTree,
     Replace,
+    V,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -63,121 +64,8 @@ pub(crate) struct Jump {
 }
 const WINDOW_TITLE_HEIGHT: usize = 1;
 
-impl Component for Editor {
-    fn id(&self) -> ComponentId {
-        self.id
-    }
-
-    fn editor(&self) -> &Editor {
-        self
-    }
-
-    fn editor_mut(&mut self) -> &mut Editor {
-        self
-    }
-
-    fn set_content(&mut self, str: &str) -> Result<(), anyhow::Error> {
-        self.update_buffer(str);
-        self.clamp()
-    }
-
-    fn title(&self, context: &Context) -> String {
-        let title = self.title.clone();
-        title
-            .or_else(|| {
-                let path = self.buffer().path()?;
-                let current_working_directory = context.current_working_directory();
-                let string = path
-                    .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display_absolute());
-                let icon = path.icon();
-                Some(format!(" {} {}", icon, string))
-            })
-            .unwrap_or_else(|| "[No title]".to_string())
-    }
-
-    fn set_title(&mut self, title: String) {
-        self.title = Some(title);
-    }
-
-    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
-        self.insert(&content)
-    }
-
-    fn get_cursor_position(&self) -> anyhow::Result<Position> {
-        self.buffer
-            .borrow()
-            .char_to_position(self.get_cursor_char_index())
-    }
-
-    fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.rectangle = rectangle;
-        self.recalculate_scroll_offset();
-    }
-
-    fn rectangle(&self) -> &Rectangle {
-        &self.rectangle
-    }
-
-    fn handle_key_event(
-        &mut self,
-        context: &Context,
-        event: event::KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
-        self.handle_key_event(context, event)
-    }
-
-    fn handle_mouse_event(
-        &mut self,
-        mouse_event: crossterm::event::MouseEvent,
-    ) -> anyhow::Result<Dispatches> {
-        const SCROLL_HEIGHT: usize = 1;
-        match mouse_event.kind {
-            MouseEventKind::ScrollUp => {
-                self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
-                Ok(Default::default())
-            }
-            MouseEventKind::ScrollDown => {
-                self.apply_scroll(Direction::End, SCROLL_HEIGHT);
-                Ok(Default::default())
-            }
-            MouseEventKind::Down(MouseButton::Left) => Ok(Default::default()),
-            _ => Ok(Default::default()),
-        }
-    }
-
-    #[cfg(test)]
-    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Dispatches> {
-        let context = Context::default();
-        Ok(events
-            .iter()
-            .map(|event| -> anyhow::Result<_> {
-                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-            .into())
-    }
-
-    fn handle_event(
-        &mut self,
-        context: &Context,
-        event: event::event::Event,
-    ) -> anyhow::Result<Dispatches> {
-        match event {
-            event::event::Event::Key(event) => self.handle_key_event(context, event),
-            event::event::Event::Paste(content) => self.paste_text(
-                Direction::End,
-                CopiedTexts::new(NonEmpty::singleton(content)),
-            ),
-            event::event::Event::Mouse(event) => self.handle_mouse_event(event),
-            _ => Ok(Default::default()),
-        }
-    }
-
-    fn handle_dispatch_editor(
+impl Editor {
+    fn handle_dispatch_editor_no_save_last_dispatch(
         &mut self,
         context: &mut Context,
         dispatch: DispatchEditor,
@@ -205,9 +93,10 @@ impl Component for Editor {
                 cut,
                 use_system_clipboard,
             } => return self.replace_with_copied_text(context, cut, use_system_clipboard, 0),
-            SelectAll => return Ok(self.select_all()),
+            SelectAll => return self.select_all(context),
             SetContent(content) => self.set_content(&content)?,
-            ToggleVisualMode => self.toggle_visual_mode(),
+            EnableSelectionExtension => self.enable_selection_extension(),
+            EnterVMode => self.enter_v_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
             Delete(direction) => return self.delete(direction),
@@ -337,8 +226,137 @@ impl Component for Editor {
             Indent => return self.indent(),
             Dedent => return self.dedent(),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
+            SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
+            Grouped {
+                name: _,
+                dispatches,
+            } => return self.handle_dispatch_editors(context, dispatches),
         }
         Ok(Default::default())
+    }
+}
+
+impl Component for Editor {
+    fn id(&self) -> ComponentId {
+        self.id
+    }
+
+    fn editor(&self) -> &Editor {
+        self
+    }
+
+    fn editor_mut(&mut self) -> &mut Editor {
+        self
+    }
+
+    fn set_content(&mut self, str: &str) -> Result<(), anyhow::Error> {
+        self.update_buffer(str);
+        self.clamp()
+    }
+
+    fn title(&self, context: &Context) -> String {
+        let title = self.title.clone();
+        title
+            .or_else(|| {
+                let path = self.buffer().path()?;
+                let current_working_directory = context.current_working_directory();
+                let string = path
+                    .display_relative_to(current_working_directory)
+                    .unwrap_or_else(|_| path.display_absolute());
+                let icon = path.icon();
+                Some(format!(" {} {}", icon, string))
+            })
+            .unwrap_or_else(|| "[No title]".to_string())
+    }
+
+    fn set_title(&mut self, title: String) {
+        self.title = Some(title);
+    }
+
+    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
+        self.insert(&content)
+    }
+
+    fn get_cursor_position(&self) -> anyhow::Result<Position> {
+        self.buffer
+            .borrow()
+            .char_to_position(self.get_cursor_char_index())
+    }
+
+    fn set_rectangle(&mut self, rectangle: Rectangle) {
+        self.rectangle = rectangle;
+        self.recalculate_scroll_offset();
+    }
+
+    fn rectangle(&self) -> &Rectangle {
+        &self.rectangle
+    }
+
+    fn handle_key_event(
+        &mut self,
+        context: &Context,
+        event: event::KeyEvent,
+    ) -> anyhow::Result<Dispatches> {
+        self.handle_key_event(context, event)
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        mouse_event: crossterm::event::MouseEvent,
+    ) -> anyhow::Result<Dispatches> {
+        const SCROLL_HEIGHT: usize = 1;
+        match mouse_event.kind {
+            MouseEventKind::ScrollUp => {
+                self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
+                Ok(Default::default())
+            }
+            MouseEventKind::ScrollDown => {
+                self.apply_scroll(Direction::End, SCROLL_HEIGHT);
+                Ok(Default::default())
+            }
+            MouseEventKind::Down(MouseButton::Left) => Ok(Default::default()),
+            _ => Ok(Default::default()),
+        }
+    }
+
+    #[cfg(test)]
+    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Dispatches> {
+        let context = Context::default();
+        Ok(events
+            .iter()
+            .map(|event| -> anyhow::Result<_> {
+                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .into())
+    }
+
+    fn handle_event(
+        &mut self,
+        context: &Context,
+        event: event::event::Event,
+    ) -> anyhow::Result<Dispatches> {
+        match event {
+            event::event::Event::Key(event) => self.handle_key_event(context, event),
+            event::event::Event::Paste(content) => self.paste_text(
+                Direction::End,
+                CopiedTexts::new(NonEmpty::singleton(content)),
+            ),
+            event::event::Event::Mouse(event) => self.handle_mouse_event(event),
+            _ => Ok(Default::default()),
+        }
+    }
+
+    fn handle_dispatch_editor(
+        &mut self,
+        context: &mut Context,
+        dispatch: DispatchEditor,
+    ) -> anyhow::Result<Dispatches> {
+        self.last_dispatch = Some(dispatch.clone());
+        self.handle_dispatch_editor_no_save_last_dispatch(context, dispatch)
     }
 }
 
@@ -1114,8 +1132,12 @@ impl Editor {
             .to_char_index(&self.cursor_direction)
     }
 
-    pub(crate) fn toggle_visual_mode(&mut self) {
-        self.selection_set.toggle_visual_mode();
+    pub(crate) fn enter_v_mode(&mut self) {
+        self.mode = Mode::V
+    }
+
+    pub(crate) fn enable_selection_extension(&mut self) {
+        self.selection_set.enable_selection_extension();
     }
 
     pub(crate) fn handle_key_event(
@@ -1138,6 +1160,7 @@ impl Editor {
                         Mode::Exchange => self.handle_normal_mode(context, key_event),
                         Mode::UndoTree => self.handle_normal_mode(context, key_event),
                         Mode::Replace => self.handle_normal_mode(context, key_event),
+                        Mode::V => self.handle_v_mode(context, key_event),
                     }
                 }
             }
@@ -2035,7 +2058,12 @@ impl Editor {
     }
 
     pub(crate) fn display_mode(&self) -> String {
-        match &self.mode {
+        let prefix = if self.selection_set.is_extended() {
+            "+"
+        } else {
+            ""
+        };
+        let core = match &self.mode {
             Mode::Normal => "MOVE",
             Mode::Insert => "INSERT",
             Mode::MultiCursor => "MULTI CURSOR",
@@ -2043,8 +2071,10 @@ impl Editor {
             Mode::Exchange => "EXCHANGE",
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
+            Mode::V => "V",
         }
-        .to_string()
+        .to_string();
+        format!("{prefix}{core}")
     }
 
     pub(crate) fn display_last_dispatch(&self) -> Option<String> {
@@ -2198,14 +2228,19 @@ impl Editor {
         .into())
     }
 
-    pub(crate) fn select_all(&mut self) -> Dispatches {
-        [
-            Dispatch::ToEditor(MoveSelection(Movement::First)),
-            Dispatch::ToEditor(ToggleVisualMode),
-            Dispatch::ToEditor(MoveSelection(Movement::Last)),
-        ]
-        .to_vec()
-        .into()
+    pub(crate) fn select_all(&mut self, context: &mut Context) -> anyhow::Result<Dispatches> {
+        self.handle_dispatch_editor(
+            context,
+            Grouped {
+                name: "Select All".to_string(),
+                dispatches: [
+                    MoveSelection(Movement::First),
+                    EnableSelectionExtension,
+                    MoveSelection(Movement::Last),
+                ]
+                .to_vec(),
+            },
+        )
     }
 
     fn move_selection_with_selection_mode_without_global_mode(
@@ -2789,6 +2824,39 @@ impl Editor {
     fn cycle_primary_selection(&mut self, direction: Direction) {
         self.selection_set.cycle_primary_selection(direction)
     }
+
+    fn handle_v_mode(
+        &mut self,
+        context: &Context,
+        key_event: KeyEvent,
+    ) -> Result<Dispatches, anyhow::Error> {
+        self.mode = Mode::Normal;
+        if let Some(keymap) = self.visual_mode_initialized_keymaps().get(&key_event) {
+            Ok([keymap.dispatch()].to_vec().into())
+        } else {
+            self.enable_selection_extension();
+            self.handle_normal_mode(context, key_event)
+        }
+    }
+
+    fn handle_dispatch_editors(
+        &mut self,
+        context: &mut Context,
+        dispatch_editors: Vec<DispatchEditor>,
+    ) -> Result<Dispatches, anyhow::Error> {
+        Ok(Dispatches::new(
+            dispatch_editors
+                .into_iter()
+                .map(|dispatch_editor| {
+                    self.handle_dispatch_editor_no_save_last_dispatch(context, dispatch_editor)
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .map(|dispatches| dispatches.into_vec())
+                .flatten()
+                .collect(),
+        ))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2833,7 +2901,8 @@ pub(crate) enum DispatchEditor {
     SetDecorations(Vec<Decoration>),
     #[cfg(test)]
     SetRectangle(Rectangle),
-    ToggleVisualMode,
+    EnableSelectionExtension,
+    EnterVMode,
     Change,
     ChangeCut {
         use_system_clipboard: bool,
@@ -2912,6 +2981,11 @@ pub(crate) enum DispatchEditor {
     ShowCurrentTreeSitterNodeSexp,
     Indent,
     Dedent,
+    SwapExtensionDirection,
+    Grouped {
+        name: String,
+        dispatches: Vec<DispatchEditor>,
+    },
 }
 
 impl std::fmt::Display for DispatchEditor {
@@ -2968,7 +3042,7 @@ impl std::fmt::Display for DispatchEditor {
                 "Set Decorations [{:?}]",
                 decorations.iter().map(|d| d.style_key())
             ),
-            ToggleVisualMode => write!(f, "Toggle Visual Mode"),
+            EnableSelectionExtension => write!(f, "Toggle Visual Mode"),
             Change => write!(f, "Change"),
             EnterUndoTreeMode => write!(f, "Enter Undo Tree Mode"),
             EnterInsertMode(direction) => write!(f, "{}", direction.format_action("Insert")),
@@ -3064,6 +3138,9 @@ impl std::fmt::Display for DispatchEditor {
             ShowCurrentTreeSitterNodeSexp => write!(f, "Show Current Tree Sitter Node Sexp"),
             Indent => write!(f, "Indent"),
             Dedent => write!(f, "Dedent"),
+            EnterVMode => write!(f, "Enter V Mode"),
+            Grouped { name, .. } => write!(f, "{}", name),
+            SwapExtensionDirection => write!(f, "Swap Extension Direction"),
             #[cfg(test)]
             _ => write!(f, ""),
         }

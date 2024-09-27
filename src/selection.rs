@@ -357,11 +357,15 @@ impl SelectionSet {
     }
     #[cfg(test)]
     pub(crate) fn escape_highlight_mode(&mut self) {
-        self.apply_mut(|selection| selection.escape_highlight_mode());
+        self.apply_mut(|selection| selection.disable_extension());
     }
 
-    pub(crate) fn toggle_visual_mode(&mut self) {
-        self.apply_mut(|selection| selection.toggle_visual_mode());
+    pub(crate) fn enable_selection_extension(&mut self) {
+        self.apply_mut(|selection| selection.enable_selection_extension());
+    }
+
+    pub(crate) fn swap_initial_range_direction(&mut self) {
+        self.apply_mut(|selection| selection.swap_initial_range_direction());
     }
 
     pub(crate) fn clamp(&self, max_char_index: CharIndex) -> anyhow::Result<SelectionSet> {
@@ -501,6 +505,10 @@ impl SelectionSet {
                 self.cursor_index = index;
             }
         }
+    }
+
+    pub(crate) fn is_extended(&self) -> bool {
+        self.primary_selection().initial_range.is_some()
     }
 }
 
@@ -726,20 +734,20 @@ impl Selection {
         selection_mode.apply_movement(params, *direction)
     }
     #[cfg(test)]
-    pub(crate) fn escape_highlight_mode(&mut self) {
+    pub(crate) fn disable_extension(&mut self) {
         log::info!("escape highlight mode");
         self.initial_range = None
     }
 
-    pub(crate) fn toggle_visual_mode(&mut self) {
-        match self.initial_range.take() {
-            None => {
-                self.enable_extension();
-            }
-            // If highlight mode is enabled, inverse the selection
-            Some(initial_range) => {
-                self.initial_range = Some(std::mem::replace(&mut self.range, initial_range));
-            }
+    pub(crate) fn enable_selection_extension(&mut self) {
+        if self.initial_range.is_none() {
+            self.enable_extension();
+        }
+    }
+
+    pub(crate) fn swap_initial_range_direction(&mut self) {
+        if let Some(initial_range) = self.initial_range.take() {
+            self.initial_range = Some(std::mem::replace(&mut self.range, initial_range));
         }
     }
 
