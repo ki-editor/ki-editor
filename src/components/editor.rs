@@ -2852,8 +2852,7 @@ impl Editor {
                 })
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
-                .map(|dispatches| dispatches.into_vec())
-                .flatten()
+                .flat_map(|dispatches| dispatches.into_vec())
                 .collect(),
         ))
     }
