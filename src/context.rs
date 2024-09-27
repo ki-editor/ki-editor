@@ -319,27 +319,15 @@ impl Default for LocalSearchConfigMode {
 impl RegexConfig {
     fn display(&self) -> String {
         format!(
-            "{}{}",
+            "{}{}{}",
             if self.escaped { "Literal" } else { "Regex" },
-            parenthesize(
-                [
-                    self.case_sensitive.then_some("Case-sensitive".to_string()),
-                    self.match_whole_word
-                        .then_some("Match whole word".to_string()),
-                ]
-                .into_iter()
-                .flatten()
-                .collect_vec(),
-            ),
+            self.case_sensitive
+                .then_some(" A=a".to_string())
+                .unwrap_or_default(),
+            self.match_whole_word
+                .then_some(" [Ab]".to_string())
+                .unwrap_or_default(),
         )
-    }
-}
-
-fn parenthesize(values: Vec<String>) -> String {
-    if values.is_empty() {
-        "".to_string()
-    } else {
-        format!("({})", values.join(", "))
     }
 }
 

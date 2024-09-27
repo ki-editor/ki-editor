@@ -1607,7 +1607,7 @@ impl<T: Frontend> App<T> {
                     Dispatch::UpdateLocalSearchConfig {
                         update,
                         scope,
-                        show_config_after_enter: true,
+                        show_config_after_enter: scope == Scope::Global,
                         if_current_not_found: IfCurrentNotFound::LookForward,
                     },
                 )
