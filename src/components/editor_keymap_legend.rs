@@ -573,11 +573,6 @@ impl Editor {
                     Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
                 ),
                 Keymap::new(
-                    "@", // TODO: rebind to better keymap, this is a random keymap
-                    "Help (Normal mode)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
-                ),
-                Keymap::new(
                     "esc",
                     "Remain only this window".to_string(),
                     Dispatch::RemainOnlyCurrentComponent,
@@ -882,6 +877,11 @@ impl Editor {
                                 "x",
                                 "Tree-sitter node S-expression".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
+                            ),
+                            Keymap::new(
+                                "?",
+                                "Help".to_string(),
+                                Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
                             ),
                         ]),
                     }))
