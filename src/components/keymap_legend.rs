@@ -134,20 +134,17 @@ pub(crate) struct KeymapLegendSection {
     pub(crate) keymaps: Keymaps,
 }
 
-impl KeymapLegendSection {
-    fn display(&self, width: usize) -> String {
-        format!("{}:\n{}", self.title, self.keymaps.display(2, width))
-    }
-}
-
 impl KeymapLegendBody {
     fn display(&self, width: usize) -> String {
         match self {
             KeymapLegendBody::SingleSection { keymaps } => keymaps.display(0, width),
-            KeymapLegendBody::MultipleSections { sections } => sections
-                .iter()
-                .map(|section| section.display(width))
-                .join("\n\n"),
+            KeymapLegendBody::MultipleSections { sections } => Keymaps(
+                sections
+                    .iter()
+                    .flat_map(|section| section.keymaps.0.clone())
+                    .collect_vec(),
+            )
+            .display(0, width),
         }
     }
 

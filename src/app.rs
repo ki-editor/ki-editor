@@ -796,7 +796,7 @@ impl<T: Frontend> App<T> {
     fn open_rename_prompt(&mut self, current_name: Option<String>) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: "Rename".to_string(),
+                title: "Rename Symbol".to_string(),
                 on_enter: DispatchPrompt::RenameSymbol,
                 items: vec![],
                 enter_selects_first_matching_item: false,
