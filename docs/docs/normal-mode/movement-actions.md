@@ -108,10 +108,10 @@ However, that's inefficient, and that can be shortened by:
 
 1. Select `hello`
 1. Set selection mode to [Word](./selection-modes/regex-based.md#word)
-1. [Copy](./actions/index.md#copy)
-1. [Enable selection extension](./actions/index.md#extend)
+1. [Copy](./actions/clipboard-related-actions.md#copy)
+1. [Enable selection extension](../v-mode#extending-selection)
 1. Move to `world` (by pressing `l`)
-1. [Replace](./actions/index.md#replace)
+1. [Replace](./actions/clipboard-related-actions.md#replace)
 
 And seeing that Steps 3 to 6 is a common chore, the Replace mode is actually a shortcut for that.
 
@@ -129,4 +129,4 @@ only executes the [Up](./core-movements.md#updown) movement.
 [^1]: This is a temporary assignment, will be changed in the future.
 
 [1]: ./selection-modes/syntax-node-based.md#syntax-node
-[2]: ./core-movements.md#nextprevious
+[2]: ./core-movements.md#previousnext

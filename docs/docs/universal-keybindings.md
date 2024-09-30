@@ -44,7 +44,7 @@ Note: when the current window is closed, all of its children will be unmounted (
 Keybinding: `ctrl+v`  
 Memory aid: same as Windows or macOS
 
-Although there's already a [Paste](./normal-mode/actions/index.md#paste) action
+Although there's already a [Paste](./normal-mode/actions/clipboard-related-actions.md#paste) action
 in Normal mode, `ctrl+v` is more efficient sometimes than hopping between
 Insert mode and Normal mode for minuscule changes.
 

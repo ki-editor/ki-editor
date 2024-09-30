@@ -80,7 +80,7 @@ Keybindings:
 - `c`: Change
 
 This deletes the current selected text, and enter [Insert mode
-](../../modes.md#insert).
+](../../insert-mode/index.md).
 
 ## Replace with previous/next copied text
 

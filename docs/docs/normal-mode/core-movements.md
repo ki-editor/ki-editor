@@ -11,7 +11,6 @@ There are 9 movements in total:
 
 1. [Previous/Next](#previousnext)
 1. [Up/Down](#updown)
-1. [Down](#down)
 1. [First/Last](#firstlast)
 1. [Jump](#jump)
 1. [Parent Line](#parent-line)
