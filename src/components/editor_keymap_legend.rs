@@ -195,8 +195,8 @@ impl Editor {
                 ),
                 Keymap::new(
                     "W",
-                    "Word (Long)".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                    "Sub Word".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 ),
                 Keymap::new(
                     "z",
@@ -456,12 +456,12 @@ impl Editor {
                             ),
                             Keymap::new(
                                 "ctrl+w",
-                                "Delete long word backward".to_string(),
+                                "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
                             Keymap::new(
                                 "alt+backspace",
-                                "Delete word backward".to_string(),
+                                "Delete sub word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
                         ]),

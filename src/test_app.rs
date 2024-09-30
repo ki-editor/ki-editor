@@ -1011,10 +1011,10 @@ fn global_bookmarks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(ToggleBookmark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(ToggleBookmark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Bookmark,
@@ -1967,7 +1967,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2014,7 +2014,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
