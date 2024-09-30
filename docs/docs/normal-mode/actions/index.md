@@ -8,12 +8,12 @@
 ## Select Parent / Extend Selection
 
 Keybinding: `t`  
-Reason: "t" stands for Top
+Memory aid: "t" stands for Top
 
 ## Select First Child / Shrink Selection
 
 Keybinding: `b`  
-Reason: "b" stands for Bottom
+Memory aid: "b" stands for Bottom
 
 ## Enter [insert mode](../../insert-mode/index.md)
 
