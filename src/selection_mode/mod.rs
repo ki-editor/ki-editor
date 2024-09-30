@@ -198,7 +198,6 @@ pub trait SelectionMode {
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
-            #[cfg(test)]
             Movement::FirstChild => self.first_child(params),
         }
     }

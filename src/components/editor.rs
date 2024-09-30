@@ -6,7 +6,7 @@ use crate::{
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
-    selection_mode,
+    selection_mode::{self},
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
@@ -231,8 +231,81 @@ impl Editor {
                 name: _,
                 dispatches,
             } => return self.handle_dispatch_editors(context, dispatches),
+            SelectParent => return self.select_parent_or_first_child(true),
+            SelectFirstChild => return self.select_parent_or_first_child(false),
         }
         Ok(Default::default())
+    }
+
+    fn select_parent_or_first_child(&mut self, parent: bool) -> Result<Dispatches, anyhow::Error> {
+        if self.selection_set.mode == SelectionMode::SyntaxNode {
+            self.select(
+                SelectionMode::SyntaxNode,
+                if parent {
+                    Movement::Parent
+                } else {
+                    Movement::FirstChild
+                },
+            )
+        } else {
+            // select nearest node
+            let edit_transaction = EditTransaction::from_action_groups({
+                let buffer = self.buffer();
+                self.selection_set
+                    .map(|selection| -> anyhow::Result<_> {
+                        let current_range = selection.extended_range();
+                        let byte_range = self
+                            .buffer()
+                            .char_index_range_to_byte_range(current_range)?;
+                        let nearest_byte_range = self.buffer().tree().and_then(|tree| {
+                            let root_node_id = tree.root_node().id();
+                            tree_sitter_traversal::traverse(
+                                tree.walk(),
+                                tree_sitter_traversal::Order::Pre,
+                            )
+                            .filter(|node| {
+                                node.id() != root_node_id
+                                    && node.byte_range() != byte_range
+                                    && if parent {
+                                        node.byte_range().start <= byte_range.start
+                                            && node.byte_range().end >= byte_range.end
+                                    } else {
+                                        node.byte_range().start >= byte_range.start
+                                            && node.byte_range().end <= byte_range.end
+                                    }
+                            })
+                            .sorted_by_key(|node| {
+                                (
+                                    byte_range.start.abs_diff(node.byte_range().start),
+                                    byte_range.end.abs_diff(node.byte_range().end),
+                                    // If their diff is the same, then sort by the the node's byte range
+                                    node.byte_range().start,
+                                    node.byte_range().end,
+                                )
+                            })
+                            .next()
+                            .map(|node| node.byte_range())
+                        });
+                        let select_range = buffer.byte_range_to_char_index_range(
+                            &nearest_byte_range.unwrap_or(byte_range),
+                        )?;
+                        Ok(ActionGroup::new(
+                            [Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range(select_range)
+                                    .set_initial_range(None),
+                            )]
+                            .to_vec(),
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect()
+            });
+            self.selection_set.mode = SelectionMode::SyntaxNode;
+            self.apply_edit_transaction(edit_transaction)
+        }
     }
 }
 
@@ -504,7 +577,6 @@ pub(crate) enum Movement {
     Jump(CharIndexRange),
     ToParentLine,
     Parent,
-    #[cfg(test)]
     FirstChild,
 }
 
@@ -2985,6 +3057,8 @@ pub(crate) enum DispatchEditor {
         name: String,
         dispatches: Vec<DispatchEditor>,
     },
+    SelectParent,
+    SelectFirstChild,
 }
 
 impl std::fmt::Display for DispatchEditor {
@@ -3074,7 +3148,6 @@ impl std::fmt::Display for DispatchEditor {
                 Movement::Jump(_) => write!(f, "Jump to Line"),
                 Movement::ToParentLine => write!(f, "Select Parent Line"),
                 Movement::Parent => write!(f, "Select Parent"),
-                #[cfg(test)]
                 Movement::FirstChild => write!(f, "Select First Child"),
             },
             Backspace => write!(f, "Backspace"),
@@ -3140,6 +3213,8 @@ impl std::fmt::Display for DispatchEditor {
             EnterVMode => write!(f, "Enter V Mode"),
             Grouped { name, .. } => write!(f, "{}", name),
             SwapExtensionDirection => write!(f, "Swap Extension Direction"),
+            SelectParent => write!(f, "Select Parent"),
+            SelectFirstChild => write!(f, "Select First Child"),
             #[cfg(test)]
             _ => write!(f, ""),
         }

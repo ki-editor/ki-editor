@@ -57,7 +57,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             content: "<x><y>foo</y><div/></x>".trim(),
             file_extension: "xml",
             prepare_events: keys!("z l l l"),
-            events: keys!("s j x l"),
+            events: keys!("s b x l"),
             expectations: &[
                 CurrentSelectedTexts(&["<y>foo</y>"]),
                 CurrentComponentContent("<x><div/><y>foo</y></x>"),
@@ -71,6 +71,24 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             prepare_events: &[],
             events: keys!("s f { b"),
             expectations: &[CurrentSelectedTexts(&["{\"y\": {}}"])],
+            terminal_height: None,
+        },
+        Recipe {
+            description: "Expand selection / Select Parent",
+            content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
+            file_extension: "json",
+            prepare_events: keys!("z l l"),
+            events: keys!("t t t t"),
+            expectations: &[CurrentSelectedTexts(&["[{\"x\": 123}, true, {\"y\": {}}]"])],
+            terminal_height: None,
+        },
+        Recipe {
+            description: "Shrink selection / Select First-Child",
+            content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
+            file_extension: "json",
+            prepare_events: keys!("s"),
+            events: keys!("b b b b"),
+            expectations: &[CurrentSelectedTexts(&["x"])],
             terminal_height: None,
         },
         Recipe {

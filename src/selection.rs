@@ -521,9 +521,12 @@ pub(crate) enum SelectionMode {
     Line,
     Column,
     Custom,
-    Find { search: Search },
+    Find {
+        search: Search,
+    },
 
     // Syntax-tree
+    #[cfg(test)]
     Token,
     SyntaxNode,
     SyntaxNodeFine,
@@ -535,7 +538,9 @@ pub(crate) enum SelectionMode {
     GitHunk(crate::git::DiffMode),
 
     // Local quickfix
-    LocalQuickfix { title: String },
+    LocalQuickfix {
+        title: String,
+    },
 
     // Bookmark
     Bookmark,
@@ -556,6 +561,7 @@ impl SelectionMode {
             SelectionMode::LineFull => "FULL LINE".to_string(),
             SelectionMode::Column => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
+            #[cfg(test)]
             SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
@@ -612,6 +618,7 @@ impl SelectionMode {
                     Box::new(selection_mode::CaseAgnostic::new(search.search.clone()))
                 }
             },
+            #[cfg(test)]
             SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::SyntaxNode => Box::new(selection_mode::SyntaxNode { coarse: true }),
             SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
@@ -630,6 +637,10 @@ impl SelectionMode {
     }
 
     pub(crate) fn is_contiguous(&self) -> bool {
+        #[cfg(test)]
+        if matches!(self, SelectionMode::Token) {
+            return true;
+        }
         matches!(
             self,
             SelectionMode::Word
@@ -637,7 +648,6 @@ impl SelectionMode {
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Column
-                | SelectionMode::Token
                 | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine
         )

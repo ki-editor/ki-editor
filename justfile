@@ -22,7 +22,8 @@ build:
 
 clippy:
     @echo "Running cargo clippy..."
-    cargo clippy --workspace --tests -- -D warnings
+    cargo clippy --workspace -- -D warnings
+    cargo clippy --tests -- -D warnings
     
 clippy-fix:
 	cargo clippy --workspace --tests --fix --allow-staged
