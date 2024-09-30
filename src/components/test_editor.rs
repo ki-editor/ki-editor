@@ -188,7 +188,7 @@ fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(ToggleBookmark),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
@@ -258,7 +258,7 @@ fn test_delete_extended_selection() -> anyhow::Result<()> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("who lives in a pineapple".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 Editor(MoveSelection(Next)),
                 Editor(EnableSelectionExtension),
                 Editor(MoveSelection(Next)),
@@ -279,7 +279,7 @@ fn test_delete_extended_selection_is_last_selection() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("who lives in".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
@@ -297,7 +297,7 @@ fn test_delete_extended_selection_is_first_selection() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("who lives in".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["who lives"])),
@@ -314,7 +314,7 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("who lives in a pineapple".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(SelectAll),
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("")),
@@ -361,7 +361,7 @@ fn test_pipe_to_shell_1() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("snake_case".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(PipeToShell {
                 command: "tr '_' ' '".to_string(),
             }),
@@ -486,13 +486,13 @@ fn update_bookmark_position() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spim".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Editor(ToggleBookmark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
@@ -505,7 +505,7 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(Change),
             Expect(CurrentComponentContent("bar ")),
             Editor(EnterNormalMode),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Expect(CurrentSelectedTexts(&["bar"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
             // Expect the "spim" bookmark is removed
@@ -1025,7 +1025,7 @@ fn insert_mode_start() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Insert("hello".to_string())),
             Expect(CurrentComponentContent("hellofn main() {}")),
@@ -1039,7 +1039,7 @@ fn insert_mode_end() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(EnterInsertMode(Direction::End)),
             Editor(Insert("hello".to_string())),
             Expect(CurrentComponentContent("fnhello main() {}")),
@@ -1109,7 +1109,7 @@ fn highlight_change() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world yo".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["hello world"])),
@@ -1184,7 +1184,7 @@ fn jump() -> anyhow::Result<()> {
             // In jump mode, the first stage labels each selection using their starting character,
             // On subsequent stages, the labels are random alphabets
             Expect(JumpChars(&[])),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(ShowJumps {
                 use_current_selection_mode: false,
             }),
@@ -1262,7 +1262,7 @@ fn highlight_and_jump() -> anyhow::Result<()> {
                 width: 100,
                 height: 1,
             })),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(EnableSelectionExtension),
             Editor(ShowJumps {
@@ -1293,7 +1293,7 @@ fn jump_all_selection_start_with_same_char() -> anyhow::Result<()> {
             Editor(ShowJumps {
                 use_current_selection_mode: false,
             }),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             // Expect the jump to NOT be the first character of each word
             // Since, the first character of each selection are the same, which is 'w'
             Expect(JumpChars(&['a', 'b', 'c', 'd'])),
@@ -1319,7 +1319,7 @@ fn switch_view_alignment() -> anyhow::Result<()> {
                 width: 100,
                 height: 4,
             })),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["c"])),
@@ -1771,13 +1771,13 @@ fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spim".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
             Editor(ToggleBookmark),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
             Expect(CurrentSelectedTexts(&["spim"])),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Previous)),
             // Kill "foo"
@@ -1840,7 +1840,7 @@ fn omit() -> Result<(), anyhow::Error> {
                 Editor(SetContent(input.to_string())),
                 Editor(SetSelectionMode(
                     IfCurrentNotFound::LookForward,
-                    SelectionMode::Word,
+                    SelectionMode::SubWord,
                 )),
                 Editor(FilterPush(Filter::new(kind, target, mechanism.clone()))),
                 Editor(CursorAddToAllSelections),
@@ -1958,7 +1958,7 @@ fn delete_backward() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world yo".to_string())),
             Editor(MatchLiteral("world".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Expect(CurrentSelectedTexts(&["world"])),
             Editor(Delete(Direction::Start)),
             Expect(CurrentSelectedTexts(&["hello"])),
@@ -2027,7 +2027,7 @@ fn entering_insert_mode_from_visual_mode() -> anyhow::Result<()> {
             App(OpenFile(s.main_rs())),
             Editor(SetContent("hello world hey".to_string())),
             Editor(MatchLiteral("world".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(EnableSelectionExtension),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["world hey"])),
@@ -2334,7 +2334,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: false,
@@ -2406,7 +2406,7 @@ fn multi_cursor_insert() -> Result<(), anyhow::Error> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("hello world".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 Editor(EnterMultiCursorMode),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["hello", "world"])),
@@ -2461,7 +2461,7 @@ Editor(MatchLiteral(amos.foo())),
                 Editor(MatchLiteral("Editor".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 App(HandleKeyEvents(keys!("? ( enter").to_vec())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(MoveSelection(Previous)),
                 Expect(CurrentSelectedTexts(&["to_string"])),
             ])
@@ -2476,7 +2476,7 @@ fn selection_set_history_updates_upon_edit() -> Result<(), anyhow::Error> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("foo bar spam".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, WordLong)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(MoveSelection(Last)),
                 Expect(CurrentSelectedTexts(&["spam"])),
                 Editor(MoveSelection(Previous)),
@@ -2515,7 +2515,7 @@ fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("who lives in a".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 Editor(EnableSelectionExtension),
                 Editor(MoveSelection(Next)),
                 Expect(CurrentSelectedTexts(&["who lives"])),
@@ -2544,10 +2544,10 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("who lives in a".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 Editor(ToggleBookmark),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 Expect(CurrentSelectedTexts(&["who"])),
                 Editor(MoveSelection(Last)),
                 Expect(CurrentSelectedTexts(&["a"])),
@@ -2649,7 +2649,7 @@ fn cycle_primary_selection_forward() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentPrimarySelection("foo")),
             Editor(CyclePrimarySelection(Direction::End)),
@@ -2668,7 +2668,7 @@ fn cycle_primary_selection_backward() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentPrimarySelection("foo")),
             Editor(CyclePrimarySelection(Direction::Start)),
@@ -2687,7 +2687,7 @@ fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Last)),
             Expect(CurrentPrimarySelection("spam")),
             Editor(EnterMultiCursorMode),
