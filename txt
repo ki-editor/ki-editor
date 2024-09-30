@@ -1,0 +1,8 @@
+LSP     | c → Code Actions      h → Hover           
+        | r → Rename Symbol
+Pick    | b → Buffers           f → Files           s → Symbols      
+        | t → Theme
+Git     | g → Status (Current)  G → Status (Main)
+Cursor  | a → Add All Matches   o → Keep Primary
+File    | e → Show in Explorer
+Misc    | z → Undo Tree         x → TS Node S-expression

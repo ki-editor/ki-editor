@@ -6,7 +6,7 @@ use crate::{
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
-    selection_mode::{self, SyntaxNode},
+    selection_mode::{self},
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
