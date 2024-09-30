@@ -32,6 +32,16 @@ impl Editor {
             title: "Movements (Core)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
+                    "t",
+                    "Top (Parent)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::SelectParent),
+                ),
+                Keymap::new(
+                    "b",
+                    "Bottom (First-child)".to_string(),
+                    Dispatch::ToEditor(DispatchEditor::SelectFirstChild),
+                ),
+                Keymap::new(
                     "h",
                     "Higher (Previous)".to_string(),
                     Dispatch::ToEditor(MoveSelection(Movement::Previous)),
@@ -176,16 +186,11 @@ impl Editor {
                         SyntaxNodeFine,
                     )),
                 ),
-                Keymap::new(
-                    "t",
-                    "Token".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-                ),
                 Keymap::new("U", "Redo".to_string(), Dispatch::ToEditor(Redo)),
                 Keymap::new("u", "Undo".to_string(), Dispatch::ToEditor(Undo)),
                 Keymap::new(
                     "w",
-                    "Word (Short)".to_string(),
+                    "Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 ),
                 Keymap::new(

@@ -7,7 +7,6 @@ use super::{ByteRange, SelectionMode, TopNode};
 pub(crate) struct SyntaxNode {
     /// If this is true:
     /// - anonymous siblings node will be skipped
-    /// - parent must be `TopNode`
     /// - current takes `TopNode`
     pub coarse: bool,
 }
@@ -65,20 +64,6 @@ impl SelectionMode for SyntaxNode {
         } else {
             self.current_default_impl(params, if_current_not_found)
         }
-    }
-    fn up(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let result = self.parent(params)?;
-        Ok(result.map(|result| result.selection))
-    }
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let result = self.first_child(params)?;
-        Ok(result.map(|result| result.selection))
     }
     fn parent(
         &self,

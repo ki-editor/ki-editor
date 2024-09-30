@@ -5,6 +5,16 @@
 1. When "selection" is mentioned, you should read it as "selection(s)", because
    these actions work with multiple cursors.
 
+## Select Parent / Extend Selection
+
+Keybinding: `t`  
+Reason: "t" stands for Top
+
+## Select First Child / Shrink Selection
+
+Keybinding: `b`  
+Reason: "b" stands for Bottom
+
 ## Enter [insert mode](../../insert-mode/index.md)
 
 Keybindings:
