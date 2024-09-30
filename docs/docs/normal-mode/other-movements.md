@@ -22,7 +22,7 @@ For example, if the current selection is `hello world`, then the cursor sits on 
 
 The anchor serves as a visual aid, making it easier to recognize when the selection range has been modified.
 
-This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/syntax-node-based.md#syntax-node-fine), where occasionally, the start of a selection remains the same while the end of it changes.
+This is especially necessary when using selection modes such as [Fine Syntax Node](./selection-modes/syntax-node-based.md#fine-syntax-node), where occasionally, the start of a selection remains the same while the end of it changes.
 
 Usefulness of `%`:
 

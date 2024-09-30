@@ -60,7 +60,7 @@ Search terms can be separated by space, which means AND, and their order is unim
 
 For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and also `stubbornly_wild`.
 
-Because [every component is a buffer/editor](../core-concepts.md#every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
+Because [every component is a buffer/editor](../core-concepts.md#2-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
 ## Multi-cursor
 
