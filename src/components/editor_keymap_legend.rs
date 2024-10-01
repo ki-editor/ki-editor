@@ -161,14 +161,9 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "n",
-                    "Last non-contiguous selection mode - Forward".to_string(),
+                    ";",
+                    "Last non-contiguous selection mode".to_string(),
                     Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookForward),
-                ),
-                Keymap::new(
-                    "N",
-                    "Last non-contiguous selection mode - Backward".to_string(),
-                    Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookBackward),
                 ),
                 Keymap::new(
                     "s",
@@ -204,21 +199,21 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
                 ),
                 Keymap::new(
-                    "[",
-                    "Find (Local) - Backward".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                        context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookBackward,
-                    )),
-                ),
-                Keymap::new(
-                    "]",
+                    "n",
                     "Find (Local) - Forward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
                         Scope::Local,
                         IfCurrentNotFound::LookForward,
+                    )),
+                ),
+                Keymap::new(
+                    "N",
+                    "Find (Local) - Backward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookBackward,
                     )),
                 ),
             ]),
@@ -590,7 +585,7 @@ impl Editor {
         KeymapLegendSection {
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    ";",
+                    "~",
                     "Replace".to_string(),
                     Dispatch::ToEditor(EnterReplaceMode),
                 ),
