@@ -280,7 +280,7 @@ hello_world
             content: "fo ba fo ba".trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w n c l"),
+            events: keys!("w n l"),
             expectations: &[CurrentSelectedTexts(&["fo"])],
             terminal_height: Some(7),
         },
@@ -298,7 +298,7 @@ foo
             .trim(),
             file_extension: "js",
             prepare_events: &[],
-            events: keys!("s n c l"),
+            events: keys!("s n l"),
             expectations: &[CurrentSelectedTexts(&["foo\n  .bar()"])],
             terminal_height: Some(14),
         },
@@ -385,7 +385,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w n c q l l esc a x"),
+            events: keys!("w n q l l esc a x"),
             expectations: &[CurrentComponentContent(
                 "foox bar spam
 spam foox bar
@@ -405,7 +405,7 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w n c space a a x"),
+            events: keys!("w n space a a x"),
             expectations: &[CurrentComponentContent(
                 "foox bar spam
 spam foox bar

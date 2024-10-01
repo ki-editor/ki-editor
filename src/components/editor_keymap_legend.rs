@@ -199,21 +199,21 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
                 ),
                 Keymap::new(
-                    "n",
-                    "Find (Local) - Forward".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                        context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookForward,
-                    )),
-                ),
-                Keymap::new(
-                    "N",
+                    "[",
                     "Find (Local) - Backward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
                         Scope::Local,
                         IfCurrentNotFound::LookBackward,
+                    )),
+                ),
+                Keymap::new(
+                    "]",
+                    "Find (Local) - Forward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookForward,
                     )),
                 ),
             ]),
@@ -222,111 +222,121 @@ impl Editor {
     pub(crate) fn keymap_actions(&self) -> KeymapLegendSection {
         KeymapLegendSection {
             title: "Action".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    "i",
-                    "Insert (before selection)".to_string(),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                ),
-                Keymap::new(
-                    "a",
-                    "Insert (after selection)".to_string(),
-                    Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                ),
-                Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
-                Keymap::new(
-                    "d",
-                    "Delete (until next selection)".to_string(),
-                    Dispatch::ToEditor(Delete(Direction::End)),
-                ),
-                Keymap::new(
-                    "D",
-                    "Delete (until previous selection)".to_string(),
-                    Dispatch::ToEditor(Delete(Direction::Start)),
-                ),
-                Keymap::new(
-                    "^",
-                    "Raise".to_string(),
-                    Dispatch::ToEditor(Replace(Parent)),
-                ),
-                Keymap::new(
-                    "m",
-                    "Mark (Toggle)".to_string(),
-                    Dispatch::ToEditor(ToggleBookmark),
-                ),
-                Keymap::new(
-                    "o",
-                    "Open (after selection) / Swap direction (Extended)".to_string(),
-                    Dispatch::ToEditor(if self.selection_set.is_extended() {
-                        SwapExtensionDirection
-                    } else {
-                        Open(Direction::End)
-                    }),
-                ),
-                Keymap::new(
-                    "O",
-                    "Open (before selection)".to_string(),
-                    Dispatch::ToEditor(Open(Direction::Start)),
-                ),
-                Keymap::new(
-                    "ctrl+r",
-                    "Replace with pattern".to_string(),
-                    Dispatch::ToEditor(ReplaceWithPattern),
-                ),
-                Keymap::new(
-                    "ctrl+p",
-                    "Replace (with previous copied text)".to_string(),
-                    Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
-                ),
-                Keymap::new(
-                    "ctrl+n",
-                    "Replace (with next copied text)".to_string(),
-                    Dispatch::ToEditor(ReplaceWithNextCopiedText),
-                ),
-                Keymap::new(
-                    "v",
-                    "Enter V Mode".to_string(),
-                    Dispatch::ToEditor(EnterVMode),
-                ),
-                Keymap::new("V", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
-                Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
-                Keymap::new(
-                    "!",
-                    "Transform".to_string(),
-                    Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
-                ),
-                Keymap::new(
-                    "'",
-                    "Configure Search".to_string(),
-                    Dispatch::ShowSearchConfig {
-                        scope: Scope::Local,
-                        if_current_not_found: IfCurrentNotFound::LookForward,
-                    },
-                ),
-                Keymap::new(
-                    "|",
-                    "Pipe to shell".to_string(),
-                    Dispatch::OpenPipeToShellPrompt,
-                ),
-                Keymap::new(
-                    "/",
-                    "Search Forward".to_string(),
-                    Dispatch::OpenSearchPrompt {
-                        scope: Scope::Local,
-                        if_current_not_found: IfCurrentNotFound::LookForward,
-                    },
-                ),
-                Keymap::new(
-                    "?",
-                    "Search Backward".to_string(),
-                    Dispatch::OpenSearchPrompt {
-                        scope: Scope::Local,
-                        if_current_not_found: IfCurrentNotFound::LookBackward,
-                    },
-                ),
-                Keymap::new(">", "Indent".to_string(), Dispatch::ToEditor(Indent)),
-                Keymap::new("<", "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
-            ]),
+            keymaps: Keymaps::new(
+                &[
+                    Keymap::new(
+                        "i",
+                        "Insert (before selection)".to_string(),
+                        Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                    ),
+                    Keymap::new(
+                        "a",
+                        "Insert (after selection)".to_string(),
+                        Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                    ),
+                    Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
+                    Keymap::new(
+                        "d",
+                        "Delete (until next selection)".to_string(),
+                        Dispatch::ToEditor(Delete(Direction::End)),
+                    ),
+                    Keymap::new(
+                        "D",
+                        "Delete (until previous selection)".to_string(),
+                        Dispatch::ToEditor(Delete(Direction::Start)),
+                    ),
+                    Keymap::new(
+                        "^",
+                        "Raise".to_string(),
+                        Dispatch::ToEditor(Replace(Parent)),
+                    ),
+                    Keymap::new(
+                        "m",
+                        "Mark (Toggle)".to_string(),
+                        Dispatch::ToEditor(ToggleBookmark),
+                    ),
+                    Keymap::new(
+                        "o",
+                        "Open (after selection) / Swap direction (Extended)".to_string(),
+                        Dispatch::ToEditor(if self.selection_set.is_extended() {
+                            SwapExtensionDirection
+                        } else {
+                            Open(Direction::End)
+                        }),
+                    ),
+                    Keymap::new(
+                        "O",
+                        "Open (before selection)".to_string(),
+                        Dispatch::ToEditor(Open(Direction::Start)),
+                    ),
+                    Keymap::new(
+                        "ctrl+r",
+                        "Replace with pattern".to_string(),
+                        Dispatch::ToEditor(ReplaceWithPattern),
+                    ),
+                    Keymap::new(
+                        "ctrl+p",
+                        "Replace (with previous copied text)".to_string(),
+                        Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
+                    ),
+                    Keymap::new(
+                        "ctrl+n",
+                        "Replace (with next copied text)".to_string(),
+                        Dispatch::ToEditor(ReplaceWithNextCopiedText),
+                    ),
+                    Keymap::new(
+                        "v",
+                        "Enter V Mode".to_string(),
+                        Dispatch::ToEditor(EnterVMode),
+                    ),
+                    Keymap::new("V", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
+                    Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
+                    Keymap::new(
+                        "!",
+                        "Transform".to_string(),
+                        Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
+                    ),
+                    Keymap::new(
+                        "'",
+                        "Configure Search".to_string(),
+                        Dispatch::ShowSearchConfig {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookForward,
+                        },
+                    ),
+                    Keymap::new(
+                        "|",
+                        "Pipe to shell".to_string(),
+                        Dispatch::OpenPipeToShellPrompt,
+                    ),
+                    Keymap::new(
+                        "/",
+                        "Search Forward".to_string(),
+                        Dispatch::OpenSearchPrompt {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookForward,
+                        },
+                    ),
+                    Keymap::new(
+                        "?",
+                        "Search Backward".to_string(),
+                        Dispatch::OpenSearchPrompt {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookBackward,
+                        },
+                    ),
+                    Keymap::new(">", "Indent".to_string(), Dispatch::ToEditor(Indent)),
+                    Keymap::new("<", "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
+                ]
+                .into_iter()
+                .chain(
+                    self.search_current_selection_keymap(
+                        Scope::Local,
+                        IfCurrentNotFound::LookForward,
+                    ),
+                )
+                .collect_vec(),
+            ),
         }
     }
 
@@ -890,6 +900,28 @@ impl Editor {
         }
     }
 
+    fn search_current_selection_keymap(
+        &self,
+        scope: Scope,
+        if_current_not_found: IfCurrentNotFound,
+    ) -> Option<Keymap> {
+        self.buffer()
+            .slice(&self.selection_set.primary_selection().extended_range())
+            .map(|search| {
+                Keymap::new(
+                    "n",
+                    "Search current selection".to_string(),
+                    Dispatch::UpdateLocalSearchConfig {
+                        scope,
+                        if_current_not_found,
+                        update: crate::app::LocalSearchConfigUpdate::Search(search.to_string()),
+                        show_config_after_enter: false,
+                    },
+                )
+            })
+            .ok()
+    }
+
     pub(crate) fn find_keymap_legend_config(
         &self,
         context: &Context,
@@ -920,24 +952,7 @@ impl Editor {
                         ),
                     ]
                     .into_iter()
-                    .chain(
-                        self.buffer()
-                            .slice(&self.selection_set.primary_selection().extended_range())
-                            .map(|search| {
-                                Keymap::new(
-                                    "c",
-                                    "Current selection".to_string(),
-                                    Dispatch::UpdateLocalSearchConfig {
-                                        scope,
-                                        if_current_not_found,
-                                        update: crate::app::LocalSearchConfigUpdate::Search(
-                                            search.to_string(),
-                                        ),
-                                        show_config_after_enter: false,
-                                    },
-                                )
-                            }),
-                    )
+                    .chain(self.search_current_selection_keymap(scope, if_current_not_found))
                     .chain(config.last_search().map(|search| {
                         Keymap::new(
                             "p",
@@ -1088,7 +1103,7 @@ impl Editor {
             Scope::Local => Some(KeymapLegendSection {
                 title: "Local only".to_string(),
                 keymaps: Keymaps::new(
-                    &[("n", "Natural Number", r"\d+")]
+                    &[("0", "Natural Number", r"\d+")]
                         .into_iter()
                         .map(|(key, description, regex)| {
                             let search = Search {
