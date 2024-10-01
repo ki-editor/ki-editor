@@ -32,16 +32,6 @@ impl Editor {
             title: "Movements (Core)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "t",
-                    "Top (Parent)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::SelectParent),
-                ),
-                Keymap::new(
-                    "b",
-                    "Bottom (First-child)".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::SelectFirstChild),
-                ),
-                Keymap::new(
                     "h",
                     "Higher (Previous)".to_string(),
                     Dispatch::ToEditor(MoveSelection(Movement::Previous)),
@@ -181,6 +171,24 @@ impl Editor {
                         SyntaxNodeFine,
                     )),
                 ),
+                Keymap::new(
+                    "t",
+                    "Find (Local) - Forward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookForward,
+                    )),
+                ),
+                Keymap::new(
+                    "T",
+                    "Find (Local) - Backward".to_string(),
+                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
+                        context,
+                        Scope::Local,
+                        IfCurrentNotFound::LookBackward,
+                    )),
+                ),
                 Keymap::new("U", "Redo".to_string(), Dispatch::ToEditor(Redo)),
                 Keymap::new("u", "Undo".to_string(), Dispatch::ToEditor(Undo)),
                 Keymap::new(
@@ -197,24 +205,6 @@ impl Editor {
                     "z",
                     "Column".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
-                ),
-                Keymap::new(
-                    "[",
-                    "Find (Local) - Backward".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                        context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookBackward,
-                    )),
-                ),
-                Keymap::new(
-                    "]",
-                    "Find (Local) - Forward".to_string(),
-                    Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
-                        context,
-                        Scope::Local,
-                        IfCurrentNotFound::LookForward,
-                    )),
                 ),
             ]),
         }

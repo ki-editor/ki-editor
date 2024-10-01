@@ -35,9 +35,10 @@ Memory aid:
 
 In most selection modes, up/down moves the selections upwards/downwards, except for the following selection modes:
 
-| Selection Mode | Up                                | Down                          |
-| -------------- | --------------------------------- | ----------------------------- |
-| Quickfix       | Go to first item of previous file | Go to first item of next file |
+| Selection Mode | Up                                | Down                            |
+| -------------- | --------------------------------- | ------------------------------- |
+| Syntax Node    | Expand selection to parent        | Shrink selection to first child |
+| Quickfix       | Go to first item of previous file | Go to first item of next file   |
 
 ## First/Last
 
