@@ -192,14 +192,14 @@ impl Editor {
                 Keymap::new("U", "Redo".to_string(), Dispatch::ToEditor(Redo)),
                 Keymap::new("u", "Undo".to_string(), Dispatch::ToEditor(Undo)),
                 Keymap::new(
+                    "b",
+                    "Sub Word".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
+                ),
+                Keymap::new(
                     "w",
                     "Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
-                ),
-                Keymap::new(
-                    "W",
-                    "Sub Word".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 ),
                 Keymap::new(
                     "z",

@@ -6,7 +6,7 @@ impl WordLong {
     pub(crate) fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
         super::Regex::from_config(
             buffer,
-            r"((\w|-)+)|([^a-zA-Z\d\s])",
+            r"\w(\w|-)+",
             crate::list::grep::RegexConfig {
                 escaped: false,
                 case_sensitive: false,
@@ -37,14 +37,7 @@ mod test_word_long {
                 (21..31, "PascalCase"),
                 (32..43, "UPPER_SNAKE"),
                 (44..54, "kebab-case"),
-                (55..56, "-"),
-                (56..57, ">"),
-                (57..58, "("),
-                (58..59, ")"),
                 (60..63, "123"),
-                (64..65, "<"),
-                (65..66, "_"),
-                (66..67, ">"),
             ],
         );
     }
