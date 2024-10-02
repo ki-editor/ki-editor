@@ -414,6 +414,15 @@ foox bar spam",
             )],
             terminal_height: None,
         },
+        Recipe {
+            description: "Move the first two elements to the last",
+            content: "[{\"a\": b}, \"c\", [], {}]".trim(),
+            file_extension: "json",
+            prepare_events: keys!("z l"),
+            events: keys!("s v l y d . p"),
+            expectations: &[CurrentComponentContent("[[], {}, {\"a\": b}, \"c\"]")],
+            terminal_height: None,
+        },
     ]
     .to_vec()
 }
