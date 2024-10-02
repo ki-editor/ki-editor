@@ -38,8 +38,6 @@ Keybinding: `w`
 
 Like [Word](#word), but it treats each word as a sequence of alphanumeric characters (including `-` and `_`).
 
-Also, it skips punctuations as it is designed to allow economic and efficient movements.
-
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 
 ## Column
