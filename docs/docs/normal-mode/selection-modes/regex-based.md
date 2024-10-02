@@ -20,11 +20,11 @@ Keybinding: `E`
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## Word
+## Sub Word
 
-Keybinding: `w`
+Keybinding: `b`
 
-This selects short words, even if these words are not separated by spaces.
+This selects sub words, even if these words are not separated by spaces.
 
 For example, `myOatPepperBanana` consists of 4 short words, namely: `my`, `Oat`, `Pepper` and `Banana`.
 
@@ -32,9 +32,9 @@ This is useful for renaming identifiers, especially if we only want to change a 
 
 It is also useful when we want to modify the content of a literal string because the [Token](./syntax-node-based.md#token) selection mode skips every word in a literal string.
 
-## Word (Long)
+## Word
 
-Keybinding: `W`
+Keybinding: `w`
 
 Like [Word](#word), but it treats each word as a sequence of alphanumeric characters (including `-` and `_`).
 

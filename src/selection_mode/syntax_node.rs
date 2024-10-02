@@ -65,6 +65,20 @@ impl SelectionMode for SyntaxNode {
             self.current_default_impl(params, if_current_not_found)
         }
     }
+    fn up(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let result = self.parent(params)?;
+        Ok(result.map(|result| result.selection))
+    }
+    fn down(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let result = self.first_child(params)?;
+        Ok(result.map(|result| result.selection))
+    }
     fn parent(
         &self,
         params: super::SelectionModeParams,
