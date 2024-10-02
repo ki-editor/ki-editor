@@ -432,6 +432,17 @@ foox bar spam",
             expectations: &[CurrentComponentContent("I am Ki")],
             terminal_height: None,
         },
+        Recipe {
+            description: "Swap distant expressions using jump",
+            content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
+            file_extension: "js",
+            prepare_events: &[],
+            events: keys!("/ x enter s x f ' a"),
+            expectations: &[CurrentComponentContent(
+                "if(condition) { 'hello world' } else { x(bar(baz)) }",
+            )],
+            terminal_height: Some(7),
+        },
     ]
     .to_vec()
 }
