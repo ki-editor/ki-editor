@@ -7,6 +7,22 @@ pub struct ProcessCommand {
     args: Vec<String>,
 }
 
+pub enum SpawnCommandResult {
+    CommandNotFound { command_name: String },
+    Spawned(anyhow::Result<std::process::Child>),
+}
+
+impl SpawnCommandResult {
+    pub fn into_result(self) -> anyhow::Result<std::process::Child> {
+        match self {
+            SpawnCommandResult::CommandNotFound { command_name } => {
+                Err(anyhow::anyhow!("Command '{command_name}' is not found"))
+            }
+            SpawnCommandResult::Spawned(result) => result,
+        }
+    }
+}
+
 impl ProcessCommand {
     pub fn new(command: &str, args: &[&str]) -> Self {
         Self {
@@ -15,26 +31,34 @@ impl ProcessCommand {
         }
     }
 
-    pub fn spawn(&self) -> anyhow::Result<std::process::Child> {
+    pub fn spawn(&self) -> SpawnCommandResult {
         log::info!("ProcessCommand::spawn {:?} {:?}", self.command, self.args);
-        // TODO: handle command spawning failure
-        std::process::Command::new(&self.command)
-            .args(&self.args)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to spawn the command: {:?} with error: {:?}",
-                    self,
-                    e
-                )
-            })
+        if which::which(&self.command).is_err() {
+            log::info!("ProcessCommand::spawn: Failed to locate {:?}", self.command);
+            SpawnCommandResult::CommandNotFound {
+                command_name: self.command.clone(),
+            }
+        } else {
+            SpawnCommandResult::Spawned(
+                std::process::Command::new(&self.command)
+                    .args(&self.args)
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .map_err(|e| {
+                        anyhow::anyhow!(
+                            "Failed to spawn the command: {:?} with error: {:?}",
+                            self,
+                            e
+                        )
+                    }),
+            )
+        }
     }
 
     pub fn run_with_input(&self, input: &str) -> anyhow::Result<String> {
-        let mut child = self.spawn()?;
+        let mut child = self.spawn().into_result()?;
 
         if let Some(mut stdin) = child.stdin.take() {
             stdin
