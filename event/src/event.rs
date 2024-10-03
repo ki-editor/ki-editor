@@ -46,6 +46,54 @@ impl KeyEvent {
             self.code, self.modifiers
         )
     }
+
+    pub fn display(&self) -> String {
+        use crossterm::event::KeyCode;
+        let key_code = match self.code {
+            KeyCode::Char(' ') => String::from("space"),
+            KeyCode::Char(c) => c.to_string(),
+            KeyCode::Backspace => String::from("backspace"),
+            KeyCode::Enter => String::from("enter"),
+            KeyCode::Left => String::from("left"),
+            KeyCode::Right => String::from("right"),
+            KeyCode::Up => String::from("up"),
+            KeyCode::Down => String::from("down"),
+            KeyCode::Home => String::from("home"),
+            KeyCode::End => String::from("end"),
+            KeyCode::PageUp => String::from("pageup"),
+            KeyCode::PageDown => String::from("pagedown"),
+            KeyCode::Tab => String::from("tab"),
+            KeyCode::BackTab => String::from("backtab"),
+            KeyCode::Delete => String::from("delete"),
+            KeyCode::Insert => String::from("insert"),
+            KeyCode::F(n) => format!("F{}", n),
+            KeyCode::Null => String::from("Null"),
+            KeyCode::Esc => String::from("esc"),
+            // Add more cases as needed
+            _ => String::from("Unknown"),
+        };
+        use convert_case::{Case, Casing};
+        let modifier = if self.modifiers != KeyModifiers::None {
+            Some(
+                format!("{:?}", self.modifiers)
+                    .to_case(Case::Lower)
+                    .split(" ")
+                    .collect::<Vec<_>>()
+                    .join("+")
+                    .to_string(),
+            )
+        } else {
+            None
+        };
+        format!(
+            "{}{key_code}",
+            if let Some(modifier) = modifier {
+                format!("{modifier}+")
+            } else {
+                "".to_string()
+            }
+        )
+    }
 }
 
 impl From<crossterm::event::KeyEvent> for KeyEvent {

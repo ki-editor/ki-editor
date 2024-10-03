@@ -200,6 +200,26 @@ Why?
             similar_vim_combos: &["d d", "d j"],
         },
         Recipe {
+            description: "Insert at the beginning of line",
+            content: "  hat is that?",
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("e i W"),
+            expectations: &[CurrentComponentContent("  What is that?")],
+            terminal_height: None,
+            similar_vim_combos: &["I"],
+        },
+        Recipe {
+            description: "Insert at the end of line",
+            content: "  What is that",
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("e a ?"),
+            expectations: &[CurrentComponentContent("  What is that?")],
+            terminal_height: None,
+            similar_vim_combos: &["A"],
+        },
+        Recipe {
             description: "Word movement",
             content: "hello-world camelCase snake_case",
             file_extension: "md",
@@ -575,6 +595,30 @@ foox bar spam",
             expectations: &[],
             terminal_height: None,
             similar_vim_combos: &[": w enter"],
+        },
+        Recipe {
+            description: "Switch view alignment",
+            content: "
+Who lives in a pineapple under the sea?
+
+
+Absorbent and yellow and porous is he?
+
+
+If nautical nonsense be something you wish?
+
+
+And drop on the deck and flop like a fish? 
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: keys!("/ i f enter e"),
+            events: keys!("ctrl+l ctrl+l ctrl+l"),
+            expectations: &[CurrentSelectedTexts(&[
+                "If nautical nonsense be something you wish?",
+            ])],
+            terminal_height: Some(8),
+            similar_vim_combos: &["z t", "z z", "z b"],
         },
     ]
     .to_vec()

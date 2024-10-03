@@ -72,7 +72,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                     Ok(StepOutput {
                         key: events
                             .last()
-                            .map(|event| key_event_to_string(event.code))
+                            .map(|event| event.display())
                             .unwrap_or(" ".to_string()),
                         description: "".to_string(),
                         term_output: result.unwrap(),
@@ -99,33 +99,6 @@ fn generate_recipes() -> anyhow::Result<()> {
     file.write_all(json.as_bytes())?;
 
     Ok(())
-}
-
-use crossterm::event::KeyCode;
-fn key_event_to_string(key_code: KeyCode) -> String {
-    match key_code {
-        KeyCode::Char(' ') => String::from("space"),
-        KeyCode::Char(c) => c.to_string(),
-        KeyCode::Backspace => String::from("backspace"),
-        KeyCode::Enter => String::from("enter"),
-        KeyCode::Left => String::from("left"),
-        KeyCode::Right => String::from("right"),
-        KeyCode::Up => String::from("up"),
-        KeyCode::Down => String::from("down"),
-        KeyCode::Home => String::from("home"),
-        KeyCode::End => String::from("end"),
-        KeyCode::PageUp => String::from("pageup"),
-        KeyCode::PageDown => String::from("pagedown"),
-        KeyCode::Tab => String::from("tab"),
-        KeyCode::BackTab => String::from("backtab"),
-        KeyCode::Delete => String::from("delete"),
-        KeyCode::Insert => String::from("insert"),
-        KeyCode::F(n) => format!("F{}", n),
-        KeyCode::Null => String::from("Null"),
-        KeyCode::Esc => String::from("esc"),
-        // Add more cases as needed
-        _ => String::from("Unknown"),
-    }
 }
 
 #[derive(Clone)]
