@@ -85,6 +85,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                 steps,
                 terminal_height: height,
                 terminal_width: width as usize,
+                similar_vim_combos: recipe.similar_vim_combos,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -136,6 +137,7 @@ pub(crate) struct Recipe {
     pub(crate) events: &'static [event::KeyEvent],
     pub(crate) expectations: &'static [ExpectKind],
     pub(crate) terminal_height: Option<usize>,
+    pub(crate) similar_vim_combos: &'static [&'static str],
 }
 #[derive(serde::Serialize)]
 pub(crate) struct StepOutput {
@@ -150,6 +152,7 @@ pub(crate) struct RecipeOutput {
     pub(crate) steps: Vec<StepOutput>,
     pub(crate) terminal_height: usize,
     pub(crate) terminal_width: usize,
+    pub(crate) similar_vim_combos: &'static [&'static str],
 }
 
 #[derive(serde::Serialize)]

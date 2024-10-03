@@ -56,3 +56,6 @@ watch-clippy:
 
 generate-recipes:
 	just test "generate_recipes"
+	
+watch-generate-recipes:
+	just watch-test "generate_recipes"

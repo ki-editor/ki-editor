@@ -12,6 +12,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("s"),
             expectations: &[CurrentSelectedTexts(&["fn main() {}"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Select a syntax node (Python)",
@@ -21,6 +22,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("s"),
             expectations: &[CurrentSelectedTexts(&["def main():\n\tpass"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Select a syntax node (JSON)",
@@ -30,6 +32,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("s"),
             expectations: &[CurrentSelectedTexts(&["{\"x\": 123}"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Move to sibling node",
@@ -39,6 +42,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("s l l h h"),
             expectations: &[CurrentSelectedTexts(&["{\"x\": 123}"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Swap sibling node",
@@ -51,6 +55,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
                 CurrentComponentContent("[true, {\"y\": {}}, {\"x\": 123}]"),
             ],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Swap sibling node",
@@ -63,6 +68,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
                 CurrentComponentContent("<x><div/><y>foo</y></x>"),
             ],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Jump to a syntax node",
@@ -72,6 +78,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("s f { b"),
             expectations: &[CurrentSelectedTexts(&["{\"y\": {}}"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Expand selection / Select Parent",
@@ -81,6 +88,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("S k k k k"),
             expectations: &[CurrentSelectedTexts(&["[{\"x\": 123}, true, {\"y\": {}}]"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Shrink selection / Select First-Child",
@@ -90,6 +98,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("s j j j j"),
             expectations: &[CurrentSelectedTexts(&["x"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Jump to a word",
@@ -99,6 +108,7 @@ pub(crate) fn recipes() -> Vec<Recipe> {
             events: keys!("w f t"),
             expectations: &[CurrentSelectedTexts(&["true"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Select a line",
@@ -112,6 +122,67 @@ That, is the question.
             events: keys!("e"),
             expectations: &[CurrentSelectedTexts(&["To be, or not to be?"])],
             terminal_height: None,
+            similar_vim_combos: &["V"],
+        },
+        Recipe {
+            description: "Duplicate current line",
+            content: "
+To be, or not to be?
+That, is the question.
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("e y p"),
+            expectations: &[CurrentComponentContent(
+                "To be, or not to be?
+To be, or not to be?
+That, is the question.",
+            )],
+            terminal_height: None,
+            similar_vim_combos: &["y y p"],
+        },
+        Recipe {
+            description: "Go to first and last line",
+            content: "
+To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles
+And by opposing end them. To die—to sleep,
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("e . ,"),
+            expectations: &[CurrentSelectedTexts(&[
+                "To be, or not to be, that is the question:",
+            ])],
+            terminal_height: None,
+            similar_vim_combos: &["g g", "G"],
+        },
+        Recipe {
+            description: "Select every line",
+            content: "
+To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles
+And by opposing end them. To die—to sleep,
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("e V"),
+            expectations: &[CurrentSelectedTexts(&[
+                "To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles
+And by opposing end them. To die—to sleep,",
+            ])],
+            terminal_height: None,
+            similar_vim_combos: &["g g V G"],
         },
         Recipe {
             description: "Delete lines",
@@ -126,15 +197,17 @@ Why?
             events: keys!("e d d"),
             expectations: &[CurrentSelectedTexts(&["Why?"])],
             terminal_height: None,
+            similar_vim_combos: &["d d", "d j"],
         },
         Recipe {
-            description: "Word movement (skips symbols)",
+            description: "Word movement",
             content: "hello-world camelCase snake_case",
             file_extension: "md",
             prepare_events: &[],
             events: keys!("w l l"),
             expectations: &[CurrentSelectedTexts(&["snake_case"])],
             terminal_height: None,
+            similar_vim_combos: &["w", "e", "b"],
         },
         Recipe {
             description: "Sub words movement",
@@ -148,6 +221,7 @@ hello_world
             events: keys!("b j l k h"),
             expectations: &[CurrentSelectedTexts(&["camel"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Delete sub words (forward)",
@@ -157,6 +231,7 @@ hello_world
             events: keys!("b d d"),
             expectations: &[CurrentSelectedTexts(&["snake_"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Delete sub words (backward)",
@@ -166,6 +241,7 @@ hello_world
             events: keys!("b . D D"),
             expectations: &[CurrentSelectedTexts(&["Case"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Undo & Redo",
@@ -175,6 +251,7 @@ hello_world
             events: keys!("b d u U"),
             expectations: &[CurrentComponentContent("Case")],
             terminal_height: None,
+            similar_vim_combos: &["u", "ctrl+r"],
         },
         Recipe {
             description: "Surround",
@@ -184,6 +261,7 @@ hello_world
             events: keys!("e v s ("),
             expectations: &[CurrentComponentContent("(hello world)")],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Delete Surround",
@@ -193,6 +271,7 @@ hello_world
             events: keys!("v d ("),
             expectations: &[CurrentComponentContent("hello world")],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Change Surround",
@@ -202,6 +281,7 @@ hello_world
             events: keys!("v c ( {"),
             expectations: &[CurrentComponentContent("{hello world}")],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Select Inside Enclosures",
@@ -211,6 +291,7 @@ hello_world
             events: keys!("v i ("),
             expectations: &[CurrentSelectedTexts(&["hello world"])],
             terminal_height: None,
+            similar_vim_combos: &["v i ("],
         },
         Recipe {
             description: "Select Around Enclosures",
@@ -220,6 +301,7 @@ hello_world
             events: keys!("v a ("),
             expectations: &[CurrentSelectedTexts(&["(hello world)"])],
             terminal_height: None,
+            similar_vim_combos: &["v a ("],
         },
         Recipe {
             description: "Extend selection (Word)",
@@ -229,6 +311,7 @@ hello_world
             events: keys!("w v l l h"),
             expectations: &[CurrentSelectedTexts(&["foo bar"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Extend selection (Syntax Node)",
@@ -238,6 +321,7 @@ hello_world
             events: keys!("s v l l h"),
             expectations: &[CurrentSelectedTexts(&["{\"x\": 123}, true"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Extend selection (Switch Direction)",
@@ -247,6 +331,7 @@ hello_world
             events: keys!("w l l v l o h o l"),
             expectations: &[CurrentSelectedTexts(&["bar spam baz tim"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Default Search (literal, no escaping needed)",
@@ -256,6 +341,7 @@ hello_world
             events: keys!("/ ( x ) enter l h"),
             expectations: &[CurrentSelectedTexts(&["(x)"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search (literal, match whole word)",
@@ -265,6 +351,7 @@ hello_world
             events: keys!("/ f o enter ' w l h"),
             expectations: &[CurrentSelectedTexts(&["fo"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search (literal, case-sensitive)",
@@ -274,6 +361,7 @@ hello_world
             events: keys!("/ F o enter ' i l h"),
             expectations: &[CurrentSelectedTexts(&["Fo"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search current selection",
@@ -283,6 +371,7 @@ hello_world
             events: keys!("w n l"),
             expectations: &[CurrentSelectedTexts(&["fo"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search current selection (works for multiple lines too)",
@@ -301,6 +390,7 @@ foo
             events: keys!("s n l"),
             expectations: &[CurrentSelectedTexts(&["foo\n  .bar()"])],
             terminal_height: Some(14),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search (regex)",
@@ -310,6 +400,7 @@ foo
             events: keys!("/ backslash ( . * backslash ) enter ' x"),
             expectations: &[CurrentSelectedTexts(&["(foo ba)"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search (case agnostic)",
@@ -319,6 +410,7 @@ foo
             events: keys!("/ f o space b a enter ' c l"),
             expectations: &[CurrentSelectedTexts(&["fo-ba"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search (AST Grep)",
@@ -328,6 +420,7 @@ foo
             events: keys!("/ f ( $ X ) enter ' a"),
             expectations: &[CurrentSelectedTexts(&["f(1+1)"])],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search & Replace Multi-cursor",
@@ -337,6 +430,7 @@ foo
             events: keys!("/ f o enter q l esc ' r b a enter ctrl+c ctrl+r"),
             expectations: &[CurrentComponentContent("ba x ba x fo")],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search & Replace All (regex)",
@@ -346,6 +440,7 @@ foo
             events: keys!("/ ( backslash d ) enter ' x ' r ( $ 1 ) enter R"),
             expectations: &[CurrentComponentContent("(1) x (2)")],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search & Replace All (case agnostic)",
@@ -355,6 +450,7 @@ foo
             events: keys!("/ f o space b a enter ' c ' r k a _ t o enter R"),
             expectations: &[CurrentComponentContent("kaTo x ka_to x ka to x ka-to")],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Search & Replace All (AST Grep)",
@@ -364,6 +460,7 @@ foo
             events: keys!("/ f ( $ X ) enter ' a ' r ( $ X ) . z enter R"),
             expectations: &[CurrentComponentContent("(1+1).z; (x).z; ('f()').z")],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Repeat last non-contigous selection mode",
@@ -373,6 +470,7 @@ foo
             events: keys!("/ f o enter z d ;"),
             expectations: &[CurrentSelectedTexts(&["fo"])],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Multi-cursor: add using movement",
@@ -393,6 +491,7 @@ bar spam foox
 foo bar spam",
             )],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Multi-cursor: Select all matches",
@@ -413,6 +512,7 @@ bar spam foox
 foox bar spam",
             )],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Move the first two elements to the last",
@@ -422,6 +522,7 @@ foox bar spam",
             events: keys!("s v l y d . p"),
             expectations: &[CurrentComponentContent("[[], {}, {\"a\": b}, \"c\"]")],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Change the first two word",
@@ -431,17 +532,49 @@ foox bar spam",
             events: keys!("w d c I esc"),
             expectations: &[CurrentComponentContent("I am Ki")],
             terminal_height: None,
+            similar_vim_combos: &[],
         },
         Recipe {
             description: "Swap distant expressions using jump",
             content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
             file_extension: "js",
-            prepare_events: &[],
-            events: keys!("/ x enter s x f ' a"),
+            prepare_events: keys!("/ x enter"),
+            events: keys!("s x f ' a"),
             expectations: &[CurrentComponentContent(
                 "if(condition) { 'hello world' } else { x(bar(baz)) }",
             )],
             terminal_height: Some(7),
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Replace parent node with current node",
+            content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
+            file_extension: "js",
+            prepare_events: keys!("/ x enter"),
+            events: keys!("s y k k r"),
+            expectations: &[CurrentComponentContent("x(bar(baz))")],
+            terminal_height: Some(7),
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Remove all sibling nodes except the current node",
+            content: "[foo(), {xar: 'spam'}, baz + baz]".trim(),
+            file_extension: "js",
+            prepare_events: keys!("/ { enter"),
+            events: keys!("s y V r"),
+            expectations: &[CurrentComponentContent("[{xar: 'spam'}]")],
+            terminal_height: Some(7),
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Save",
+            content: "hello world".trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("enter"),
+            expectations: &[],
+            terminal_height: None,
+            similar_vim_combos: &[": w enter"],
         },
     ]
     .to_vec()

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import useBaseUrl from "@docusaurus/useBaseUrl";
+
 import { useXTerm, UseXTermProps } from "react-xtermjs";
 import * as recipesData from "../../assets/recipes.json";
 import * as z from "zod";
@@ -14,6 +16,7 @@ const recipeSchema = z.object({
   ),
   terminal_height: z.number(),
   terminal_width: z.number(),
+  similar_vim_combos: z.array(z.string()),
 });
 
 type Recipe = z.infer<typeof recipeSchema>;
@@ -72,7 +75,36 @@ const Recipe = (props: { recipe: Recipe }) => {
           alignItems: "center",
         }}
       >
-        <h2>{props.recipe.description}</h2>
+        <div style={{ display: "grid" }}>
+          <h2>{props.recipe.description}</h2>
+          <div
+            style={{
+              display: "grid",
+              gridAutoFlow: "column",
+              gap: 8,
+              justifyContent: "start",
+            }}
+          >
+            {props.recipe.similar_vim_combos.map((combo, index) => (
+              <div
+                key={index}
+                style={{
+                  display: "grid",
+                  gridAutoFlow: "column",
+                  gap: 4,
+                  justifyContent: "start",
+                  alignItems: "center",
+                }}
+              >
+                <img
+                  style={{ height: 24 }}
+                  src={useBaseUrl("/img/vim-icon.svg")}
+                />
+                <code style={{ padding: "0 8px" }}>{combo}</code>
+              </div>
+            ))}
+          </div>
+        </div>
         <div
           style={{
             display: "grid",
