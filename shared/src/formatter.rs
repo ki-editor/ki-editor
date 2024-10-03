@@ -23,7 +23,7 @@ impl Formatter {
         // pass in the content using stdin,
         // get the output from the stdout
 
-        let mut child = self.process_command.spawn()?;
+        let mut child = self.process_command.spawn().into_result()?;
 
         let stdin = child.stdin.as_mut().ok_or_else(|| {
             anyhow::anyhow!(
