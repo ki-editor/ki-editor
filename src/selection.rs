@@ -542,8 +542,8 @@ pub(crate) enum SelectionMode {
         title: String,
     },
 
-    // Bookmark
-    Bookmark,
+    // Mark
+    Mark,
     LineFull,
 }
 impl SelectionMode {
@@ -575,7 +575,7 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => {
                 format!("GIT HUNK ({})", diff_mode.display()).to_string()
             }
-            SelectionMode::Bookmark => "BOOKMARK".to_string(),
+            SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
         }
     }
@@ -628,7 +628,7 @@ impl SelectionMode {
             SelectionMode::GitHunk(diff_mode) => {
                 Box::new(selection_mode::GitHunk::new(diff_mode, buffer)?)
             }
-            SelectionMode::Bookmark => Box::new(selection_mode::Bookmark),
+            SelectionMode::Mark => Box::new(selection_mode::Mark),
             SelectionMode::EmptyLine => Box::new(selection_mode::Regex::new(buffer, r"(?m)^\s*$")?),
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))

@@ -59,7 +59,7 @@ pub fn vscode_dark() -> Theme {
             border: Style::new()
                 .background_color(hex!("#1E1E1E"))
                 .foreground_color(hex!("#858585")),
-            bookmark: Style::new().background_color(hex!("#ffcc00")),
+            mark: Style::new().background_color(hex!("#ffcc00")),
             possible_selection_background: hex!("#5C3521"),
             keymap_hint: Style::new().underline(hex!("#af00db")),
             keymap_key: Style::new().bold().foreground_color(hex!("#af00db")),

@@ -581,7 +581,7 @@ pub(crate) enum StyleKey {
     DiagnosticsError,
     DiagnosticsWarning,
     DiagnosticsInformation,
-    UiBookmark,
+    UiMark,
     UiPossibleSelection,
 
     DiagnosticsDefault,

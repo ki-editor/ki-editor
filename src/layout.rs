@@ -480,12 +480,12 @@ impl Layout {
                             ))
                         })
                         .collect_vec(),
-                    QuickfixListSource::Bookmark => buffer
-                        .bookmarks()
+                    QuickfixListSource::Mark => buffer
+                        .marks()
                         .into_iter()
-                        .filter_map(|bookmark| {
+                        .filter_map(|mark| {
                             let position_range =
-                                buffer.char_index_range_to_position_range(bookmark).ok()?;
+                                buffer.char_index_range_to_position_range(mark).ok()?;
                             Some(QuickfixListItem::new(
                                 Location {
                                     path: buffer.path()?,

@@ -76,6 +76,7 @@ pub(crate) struct App<T: Frontend> {
     /// Used for navigating between opened files
     file_path_history: History<CanonicalizedPath>,
     status_line_components: Vec<StatusLineComponent>,
+    last_action_description: Option<String>,
 }
 
 const GLOBAL_TITLE_BAR_HEIGHT: u16 = 1;
@@ -137,6 +138,7 @@ impl<T: Frontend> App<T> {
             file_path_history: History::new(),
 
             status_line_components,
+            last_action_description: None,
         };
         Ok(app)
     }
@@ -318,11 +320,7 @@ impl<T: Frontend> App<T> {
                                 .editor()
                                 .display_selection_mode(),
                         ),
-                        StatusLineComponent::LastDispatch => self
-                            .current_component()
-                            .borrow()
-                            .editor()
-                            .display_last_dispatch(),
+                        StatusLineComponent::LastDispatch => self.last_action_description.clone(),
                     })
                     .join(" │ ")
             });
@@ -739,6 +737,9 @@ impl<T: Frontend> App<T> {
                 .set_last_non_contiguous_selection_mode(selection_mode),
             Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found) => {
                 self.use_last_non_contiguous_selection_mode(if_current_not_found)?
+            }
+            Dispatch::SetLastActionDescription(description) => {
+                self.last_action_description = Some(description)
             }
         }
         Ok(())
@@ -1203,9 +1204,9 @@ impl<T: Frontend> App<T> {
                 self.context
                     .set_quickfix_list_source(QuickfixListSource::Custom);
             }
-            QuickfixListType::Bookmark => {
+            QuickfixListType::Mark => {
                 self.context
-                    .set_quickfix_list_source(QuickfixListSource::Bookmark);
+                    .set_quickfix_list_source(QuickfixListSource::Mark);
             }
         }
         match context.scope {
@@ -2333,6 +2334,7 @@ pub(crate) enum Dispatch {
     OpenPipeToShellPrompt,
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
+    SetLastActionDescription(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -229,7 +229,7 @@ impl Ord for Location {
 pub(crate) enum QuickfixListType {
     Diagnostic(DiagnosticSeverityRange),
     Items(Vec<QuickfixListItem>),
-    Bookmark,
+    Mark,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]

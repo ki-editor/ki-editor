@@ -64,13 +64,127 @@ pub(crate) struct Jump {
 }
 const WINDOW_TITLE_HEIGHT: usize = 1;
 
-impl Editor {
-    fn handle_dispatch_editor_no_save_last_dispatch(
+impl Editor {}
+
+impl Component for Editor {
+    fn id(&self) -> ComponentId {
+        self.id
+    }
+
+    fn editor(&self) -> &Editor {
+        self
+    }
+
+    fn editor_mut(&mut self) -> &mut Editor {
+        self
+    }
+
+    fn set_content(&mut self, str: &str) -> Result<(), anyhow::Error> {
+        self.update_buffer(str);
+        self.clamp()
+    }
+
+    fn title(&self, context: &Context) -> String {
+        let title = self.title.clone();
+        title
+            .or_else(|| {
+                let path = self.buffer().path()?;
+                let current_working_directory = context.current_working_directory();
+                let string = path
+                    .display_relative_to(current_working_directory)
+                    .unwrap_or_else(|_| path.display_absolute());
+                let icon = path.icon();
+                Some(format!(" {} {}", icon, string))
+            })
+            .unwrap_or_else(|| "[No title]".to_string())
+    }
+
+    fn set_title(&mut self, title: String) {
+        self.title = Some(title);
+    }
+
+    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
+        self.insert(&content)
+    }
+
+    fn get_cursor_position(&self) -> anyhow::Result<Position> {
+        self.buffer
+            .borrow()
+            .char_to_position(self.get_cursor_char_index())
+    }
+
+    fn set_rectangle(&mut self, rectangle: Rectangle) {
+        self.rectangle = rectangle;
+        self.recalculate_scroll_offset();
+    }
+
+    fn rectangle(&self) -> &Rectangle {
+        &self.rectangle
+    }
+
+    fn handle_key_event(
+        &mut self,
+        context: &Context,
+        event: event::KeyEvent,
+    ) -> anyhow::Result<Dispatches> {
+        self.handle_key_event(context, event)
+    }
+
+    fn handle_mouse_event(
+        &mut self,
+        mouse_event: crossterm::event::MouseEvent,
+    ) -> anyhow::Result<Dispatches> {
+        const SCROLL_HEIGHT: usize = 1;
+        match mouse_event.kind {
+            MouseEventKind::ScrollUp => {
+                self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
+                Ok(Default::default())
+            }
+            MouseEventKind::ScrollDown => {
+                self.apply_scroll(Direction::End, SCROLL_HEIGHT);
+                Ok(Default::default())
+            }
+            MouseEventKind::Down(MouseButton::Left) => Ok(Default::default()),
+            _ => Ok(Default::default()),
+        }
+    }
+
+    #[cfg(test)]
+    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Dispatches> {
+        let context = Context::default();
+        Ok(events
+            .iter()
+            .map(|event| -> anyhow::Result<_> {
+                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .into())
+    }
+
+    fn handle_event(
+        &mut self,
+        context: &Context,
+        event: event::event::Event,
+    ) -> anyhow::Result<Dispatches> {
+        match event {
+            event::event::Event::Key(event) => self.handle_key_event(context, event),
+            event::event::Event::Paste(content) => self.paste_text(
+                Direction::End,
+                CopiedTexts::new(NonEmpty::singleton(content)),
+            ),
+            event::event::Event::Mouse(event) => self.handle_mouse_event(event),
+            _ => Ok(Default::default()),
+        }
+    }
+
+    fn handle_dispatch_editor(
         &mut self,
         context: &mut Context,
         dispatch: DispatchEditor,
     ) -> anyhow::Result<Dispatches> {
-        self.last_dispatch = Some(dispatch.clone());
         match dispatch {
             #[cfg(test)]
             AlignViewTop => self.align_cursor_to_top(),
@@ -103,7 +217,7 @@ impl Editor {
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
-            ToggleBookmark => self.toggle_bookmarks(),
+            ToggleMark => self.toggle_marks(),
             EnterNormalMode => self.enter_normal_mode()?,
             FilterPush(filter) => return Ok(self.filters_push(context, filter)),
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
@@ -227,136 +341,8 @@ impl Editor {
             Dedent => return self.dedent(),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
-            Grouped {
-                name: _,
-                dispatches,
-            } => return self.handle_dispatch_editors(context, dispatches),
         }
         Ok(Default::default())
-    }
-}
-
-impl Component for Editor {
-    fn id(&self) -> ComponentId {
-        self.id
-    }
-
-    fn editor(&self) -> &Editor {
-        self
-    }
-
-    fn editor_mut(&mut self) -> &mut Editor {
-        self
-    }
-
-    fn set_content(&mut self, str: &str) -> Result<(), anyhow::Error> {
-        self.update_buffer(str);
-        self.clamp()
-    }
-
-    fn title(&self, context: &Context) -> String {
-        let title = self.title.clone();
-        title
-            .or_else(|| {
-                let path = self.buffer().path()?;
-                let current_working_directory = context.current_working_directory();
-                let string = path
-                    .display_relative_to(current_working_directory)
-                    .unwrap_or_else(|_| path.display_absolute());
-                let icon = path.icon();
-                Some(format!(" {} {}", icon, string))
-            })
-            .unwrap_or_else(|| "[No title]".to_string())
-    }
-
-    fn set_title(&mut self, title: String) {
-        self.title = Some(title);
-    }
-
-    fn handle_paste_event(&mut self, content: String) -> anyhow::Result<Dispatches> {
-        self.insert(&content)
-    }
-
-    fn get_cursor_position(&self) -> anyhow::Result<Position> {
-        self.buffer
-            .borrow()
-            .char_to_position(self.get_cursor_char_index())
-    }
-
-    fn set_rectangle(&mut self, rectangle: Rectangle) {
-        self.rectangle = rectangle;
-        self.recalculate_scroll_offset();
-    }
-
-    fn rectangle(&self) -> &Rectangle {
-        &self.rectangle
-    }
-
-    fn handle_key_event(
-        &mut self,
-        context: &Context,
-        event: event::KeyEvent,
-    ) -> anyhow::Result<Dispatches> {
-        self.handle_key_event(context, event)
-    }
-
-    fn handle_mouse_event(
-        &mut self,
-        mouse_event: crossterm::event::MouseEvent,
-    ) -> anyhow::Result<Dispatches> {
-        const SCROLL_HEIGHT: usize = 1;
-        match mouse_event.kind {
-            MouseEventKind::ScrollUp => {
-                self.apply_scroll(Direction::Start, SCROLL_HEIGHT);
-                Ok(Default::default())
-            }
-            MouseEventKind::ScrollDown => {
-                self.apply_scroll(Direction::End, SCROLL_HEIGHT);
-                Ok(Default::default())
-            }
-            MouseEventKind::Down(MouseButton::Left) => Ok(Default::default()),
-            _ => Ok(Default::default()),
-        }
-    }
-
-    #[cfg(test)]
-    fn handle_events(&mut self, events: &[event::KeyEvent]) -> anyhow::Result<Dispatches> {
-        let context = Context::default();
-        Ok(events
-            .iter()
-            .map(|event| -> anyhow::Result<_> {
-                Ok(self.handle_key_event(&context, event.clone())?.into_vec())
-            })
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-            .into())
-    }
-
-    fn handle_event(
-        &mut self,
-        context: &Context,
-        event: event::event::Event,
-    ) -> anyhow::Result<Dispatches> {
-        match event {
-            event::event::Event::Key(event) => self.handle_key_event(context, event),
-            event::event::Event::Paste(content) => self.paste_text(
-                Direction::End,
-                CopiedTexts::new(NonEmpty::singleton(content)),
-            ),
-            event::event::Event::Mouse(event) => self.handle_mouse_event(event),
-            _ => Ok(Default::default()),
-        }
-    }
-
-    fn handle_dispatch_editor(
-        &mut self,
-        context: &mut Context,
-        dispatch: DispatchEditor,
-    ) -> anyhow::Result<Dispatches> {
-        self.last_dispatch = Some(dispatch.clone());
-        self.handle_dispatch_editor_no_save_last_dispatch(context, dispatch)
     }
 }
 
@@ -369,7 +355,6 @@ impl Clone for Editor {
             cursor_direction: self.cursor_direction.clone(),
             scroll_offset: self.scroll_offset,
             rectangle: self.rectangle.clone(),
-            last_dispatch: None,
             buffer: self.buffer.clone(),
             title: self.title.clone(),
             id: self.id,
@@ -393,8 +378,6 @@ pub(crate) struct Editor {
     /// 2 means the first line to be rendered on the screen if the 3rd line of the text.
     scroll_offset: u16,
     rectangle: Rectangle,
-    last_dispatch: Option<DispatchEditor>,
-
     buffer: Rc<RefCell<Buffer>>,
     title: Option<String>,
     id: ComponentId,
@@ -549,7 +532,6 @@ impl Editor {
             cursor_direction: Direction::Start,
             scroll_offset: 0,
             rectangle: Rectangle::default(),
-            last_dispatch: None,
             buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
             title: None,
             id: ComponentId::new(),
@@ -567,7 +549,6 @@ impl Editor {
             cursor_direction: Direction::Start,
             scroll_offset: 0,
             rectangle: Rectangle::default(),
-            last_dispatch: None,
             buffer,
             title: None,
             id: ComponentId::new(),
@@ -1345,11 +1326,11 @@ impl Editor {
         }
     }
 
-    pub(crate) fn toggle_bookmarks(&mut self) {
+    pub(crate) fn toggle_marks(&mut self) {
         let selections = self
             .selection_set
             .map(|selection| selection.extended_range());
-        self.buffer_mut().save_bookmarks(selections.into())
+        self.buffer_mut().save_marks(selections.into())
     }
 
     pub(crate) fn path(&self) -> Option<CanonicalizedPath> {
@@ -2077,12 +2058,6 @@ impl Editor {
         format!("{prefix}{core}")
     }
 
-    pub(crate) fn display_last_dispatch(&self) -> Option<String> {
-        self.last_dispatch
-            .as_ref()
-            .map(|dispatch| dispatch.to_string())
-    }
-
     pub(crate) fn display_selection_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
         let filters = self
@@ -2229,17 +2204,14 @@ impl Editor {
     }
 
     pub(crate) fn select_all(&mut self, context: &mut Context) -> anyhow::Result<Dispatches> {
-        self.handle_dispatch_editor(
+        self.handle_dispatch_editors(
             context,
-            Grouped {
-                name: "Select All".to_string(),
-                dispatches: [
-                    MoveSelection(Movement::First),
-                    EnableSelectionExtension,
-                    MoveSelection(Movement::Last),
-                ]
-                .to_vec(),
-            },
+            [
+                (MoveSelection(Movement::First)),
+                (EnableSelectionExtension),
+                (MoveSelection(Movement::Last)),
+            ]
+            .to_vec(),
         )
     }
 
@@ -2832,7 +2804,7 @@ impl Editor {
     ) -> Result<Dispatches, anyhow::Error> {
         self.mode = Mode::Normal;
         if let Some(keymap) = self.visual_mode_initialized_keymaps().get(&key_event) {
-            Ok([keymap.dispatch()].to_vec().into())
+            Ok(keymap.get_dispatches())
         } else {
             self.enable_selection_extension();
             self.handle_normal_mode(context, key_event)
@@ -2847,9 +2819,7 @@ impl Editor {
         Ok(Dispatches::new(
             dispatch_editors
                 .into_iter()
-                .map(|dispatch_editor| {
-                    self.handle_dispatch_editor_no_save_last_dispatch(context, dispatch_editor)
-                })
+                .map(|dispatch_editor| self.handle_dispatch_editor(context, dispatch_editor))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_iter()
                 .flat_map(|dispatches| dispatches.into_vec())
@@ -2926,7 +2896,7 @@ pub(crate) enum DispatchEditor {
         kind: SurroundKind,
     },
     Open(Direction),
-    ToggleBookmark,
+    ToggleMark,
     EnterNormalMode,
     EnterExchangeMode,
     EnterReplaceMode,
@@ -2981,169 +2951,6 @@ pub(crate) enum DispatchEditor {
     Indent,
     Dedent,
     SwapExtensionDirection,
-    Grouped {
-        name: String,
-        dispatches: Vec<DispatchEditor>,
-    },
-}
-
-impl std::fmt::Display for DispatchEditor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Surround(open, close) => write!(f, "Surround {open}{close}",),
-            ShowJumps { .. } => write!(f, "Show Jumps"),
-            ScrollPageDown => write!(f, "Scroll Down"),
-            ScrollPageUp => write!(f, "Scroll Up"),
-            Transform(transformation) => write!(f, "{transformation}"),
-            SetSelectionMode(_, selection_mode) => {
-                write!(f, "Select {}", selection_mode.display())
-            }
-            MoveSelection(movement) => write!(
-                f,
-                "{}",
-                convert_case::Casing::to_case(
-                    &format!("{:?}", movement),
-                    convert_case::Case::Title
-                )
-            ),
-            Save => write!(f, "Save"),
-            FindOneChar(not_found) => match not_found {
-                IfCurrentNotFound::LookForward => write!(f, "Find One Char Forward"),
-                IfCurrentNotFound::LookBackward => write!(f, "Find One Char Backward"),
-            },
-            SwitchViewAlignment => write!(f, "Switch View Alignment"),
-            Copy {
-                use_system_clipboard,
-            } => write!(
-                f,
-                "{}",
-                if *use_system_clipboard {
-                    "Copy (System Clipboard)"
-                } else {
-                    "Copy"
-                }
-            ),
-            ChangeCut {
-                use_system_clipboard,
-            } => write!(f, "{}", {
-                if *use_system_clipboard {
-                    "Cut Change (System Clipboard)"
-                } else {
-                    "Cut Change"
-                }
-            }),
-            GoBack => write!(f, "Go Back"),
-            GoForward => write!(f, "Go Forward"),
-            SelectAll => write!(f, "Select All"),
-            SetContent(content) => write!(f, "Set Content ({content})"),
-            SetDecorations(decorations) => write!(
-                f,
-                "Set Decorations [{:?}]",
-                decorations.iter().map(|d| d.style_key())
-            ),
-            EnableSelectionExtension => write!(f, "Toggle Visual Mode"),
-            Change => write!(f, "Change"),
-            EnterUndoTreeMode => write!(f, "Enter Undo Tree Mode"),
-            EnterInsertMode(direction) => write!(f, "{}", direction.format_action("Insert")),
-            ReplaceWithCopiedText {
-                cut,
-                use_system_clipboard,
-            } => {
-                if *cut {
-                    if *use_system_clipboard {
-                        write!(f, "Cut With Copied Text (System Clipboard)")
-                    } else {
-                        write!(f, "Cut With Copied Text")
-                    }
-                } else if *use_system_clipboard {
-                    write!(f, "Replace With Copied Text (System Clipboard)")
-                } else {
-                    write!(f, "Replace With Copied Text")
-                }
-            }
-            ReplaceWithPattern => write!(f, "Replace With Pattern"),
-            SelectLine(movement) => match movement {
-                Movement::Next => write!(f, "Select Next Line"),
-                Movement::Previous => write!(f, "Select Previous Line"),
-                Movement::Last => write!(f, "Select Last Line"),
-                Movement::Current(_) => write!(f, "Select Current Line"),
-                Movement::Up => write!(f, "Select Line Up"),
-                Movement::Down => write!(f, "Select Line Down"),
-                Movement::First => write!(f, "Select First Line"),
-                Movement::Index(line) => write!(f, "Select Line {line}"),
-                Movement::Jump(_) => write!(f, "Jump to Line"),
-                Movement::ToParentLine => write!(f, "Select Parent Line"),
-                Movement::Parent => write!(f, "Select Parent"),
-                #[cfg(test)]
-                Movement::FirstChild => write!(f, "Select First Child"),
-            },
-            Backspace => write!(f, "Backspace"),
-            Delete(direction) => write!(f, "{}", direction.format_action("Delete")),
-            Insert(content) => write!(f, "Insert ({content})"),
-            MoveToLineStart => write!(f, "Move To Line Start"),
-            MoveToLineEnd => write!(f, "Move To Line End"),
-            SelectSurround { enclosure, kind } => {
-                write!(f, "Select {kind} Surrounding {enclosure}")
-            }
-            Open(direction) => write!(f, "{}", direction.format_action("Open")),
-            ToggleBookmark => write!(f, "Toggle Bookmark"),
-            EnterNormalMode => write!(f, "Enter Normal Mode"),
-            EnterExchangeMode => write!(f, "Enter Exchange Mode"),
-            EnterReplaceMode => write!(f, "Enter Replace Mode"),
-            EnterMultiCursorMode => write!(f, "Enter Multi Cursor Mode"),
-            FilterPush(_) => write!(f, "Filter Push"),
-            FilterClear => write!(f, "Filter Clear"),
-            CursorAddToAllSelections => write!(f, "Select All Matches"),
-            CyclePrimarySelection(direction) => {
-                write!(f, "{}", direction.format_action("Cycle Primary Selection"))
-            }
-            CursorKeepPrimaryOnly => write!(f, "Cursor Keep Primary Only"),
-            ReplacePattern { config: _ } => write!(f, "Replace Pattern"),
-            Undo => write!(f, "Undo"),
-            Redo => write!(f, "Redo"),
-            KillLine(direction) => write!(f, "{}", direction.format_action("Kill Line")),
-            DeleteWordBackward { .. } => write!(f, "Delete Word Backward"),
-            ReplaceCurrentSelectionWith(content) => {
-                write!(f, "Replace Current Selection With ({content})")
-            }
-            TryReplaceCurrentLongWord(content) => {
-                write!(f, "Try Replace Current Long Word ({content})")
-            }
-            SelectLineAt(line) => write!(f, "Select Line {line}"),
-            ShowKeymapLegendNormalMode => write!(f, "Show Keymap Legend Normal Mode"),
-            ShowKeymapLegendInsertMode => write!(f, "Show Keymap Legend Insert Mode"),
-            Paste {
-                direction,
-                use_system_clipboard,
-            } => {
-                if *use_system_clipboard {
-                    write!(f, "{}", direction.format_action("Paste (System Clipboard)"))
-                } else {
-                    write!(f, "{}", direction.format_action("Paste"))
-                }
-            }
-            SwapCursorWithAnchor => write!(f, "Swap Cursor With Anchor"),
-            MoveCharacterBack => write!(f, "Move Character Back"),
-            MoveCharacterForward => write!(f, "Move Character Forward"),
-            ShowKeymapLegendHelp => write!(f, "Show Keymap Legend Help"),
-            DeleteSurround(enclosure) => write!(f, "Delete Surrounding {enclosure}"),
-            ChangeSurround { from, to } => write!(f, "Change Surrounding {from} to {to}"),
-            Replace(_) => write!(f, "Replace"),
-            ApplyPositionalEdits(_) => write!(f, "Apply Positional Edits"),
-            ReplaceWithPreviousCopiedText => write!(f, "Replace With Previous Copied Text"),
-            ReplaceWithNextCopiedText => write!(f, "Replace With Next Copied Text"),
-            MoveToLastChar => write!(f, "Move To Last Char"),
-            PipeToShell { .. } => write!(f, "Pipe To Shell"),
-            ShowCurrentTreeSitterNodeSexp => write!(f, "Show Current Tree Sitter Node Sexp"),
-            Indent => write!(f, "Indent"),
-            Dedent => write!(f, "Dedent"),
-            EnterVMode => write!(f, "Enter V Mode"),
-            Grouped { name, .. } => write!(f, "{}", name),
-            SwapExtensionDirection => write!(f, "Swap Extension Direction"),
-            #[cfg(test)]
-            _ => write!(f, ""),
-        }
-    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

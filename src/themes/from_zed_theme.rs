@@ -145,7 +145,7 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
                     border: Style::new()
                         .foreground_color(from_some_hex(theme.style.border).unwrap_or(text_color))
                         .background_color(background),
-                    bookmark: Style::new()
+                    mark: Style::new()
                         .set_some_background_color(from_some_hex(theme.style.conflict_background)),
                     possible_selection_background: from_some_hex(
                         theme.style.search_match_background,

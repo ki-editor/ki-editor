@@ -183,22 +183,22 @@ fn delete_should_not_kill_if_not_possible_2() -> anyhow::Result<()> {
 }
 
 #[test]
-fn toggle_untoggle_bookmark() -> anyhow::Result<()> {
+fn toggle_untoggle_mark() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
-            Editor(ToggleBookmark),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            Editor(ToggleMark),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo", "spam"])),
             Editor(CursorKeepPrimaryOnly),
             Expect(CurrentSelectedTexts(&["spam"])),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             Editor(MoveSelection(Current(IfCurrentNotFound::LookForward))),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&["foo"])),
@@ -481,7 +481,7 @@ fn multi_exchange_sibling() -> anyhow::Result<()> {
 }
 
 #[test]
-fn update_bookmark_position() -> anyhow::Result<()> {
+fn update_mark_position() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -489,8 +489,8 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
-            Editor(ToggleBookmark),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            Editor(ToggleMark),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Previous)),
@@ -498,8 +498,8 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             // Kill "foo"
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("bar spim")),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
-            // Expect bookmark position is updated, and still selects "spim"
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
+            // Expect mark position is updated, and still selects "spim"
             Expect(CurrentSelectedTexts(&["spim"])),
             // Remove "spim"
             Editor(Change),
@@ -507,8 +507,8 @@ fn update_bookmark_position() -> anyhow::Result<()> {
             Editor(EnterNormalMode),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Expect(CurrentSelectedTexts(&["bar"])),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
-            // Expect the "spim" bookmark is removed
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
+            // Expect the "spim" mark is removed
             // By the fact that "bar" is still selected
             Expect(CurrentSelectedTexts(&["bar"])),
         ])
@@ -1339,11 +1339,11 @@ fn switch_view_alignment() -> anyhow::Result<()> {
 #[test]
 fn get_grid_parent_line() -> anyhow::Result<()> {
     let parent_lines_background = hex!("#badbad");
-    let bookmark_background_color = hex!("#cebceb");
+    let mark_background_color = hex!("#cebceb");
     let theme = {
         let mut theme = Theme::default();
         theme.ui.parent_lines_background = parent_lines_background;
-        theme.ui.bookmark = Style::default().background_color(bookmark_background_color);
+        theme.ui.mark = Style::default().background_color(mark_background_color);
         theme
     };
     let width = 20;
@@ -1390,7 +1390,7 @@ fn main() {
             )),
             // Bookmart "z"
             Editor(MatchLiteral("z".to_string())),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             // Expect the parent lines of the current selections are highlighted with parent_lines_background,
             // regardless of whether the parent lines are inbound or outbound
             ExpectMulti(
@@ -1422,9 +1422,9 @@ fn main() {
                     })
                     .collect(),
             ),
-            // Bookmark the "fn" token
+            // Mark the "fn" token
             Editor(MatchLiteral("fn".to_string())),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             // Go to "print()" and skip the first 3 lines for rendering
             Editor(MatchLiteral("print()".to_string())),
             Editor(SetScrollOffset(3)),
@@ -1439,28 +1439,28 @@ fn main() {
 7│    █rint()"
                     .trim(),
             )),
-            // Expect the bookmarks of outbound parent lines are rendered properly
+            // Expect the marks of outbound parent lines are rendered properly
             // In this case, the outbound parent line is "fn main() {"
             ExpectMulti(
                 [2, 3]
                     .into_iter()
                     .map(|column_index| {
-                        GridCellBackground(1, column_index as usize, bookmark_background_color)
+                        GridCellBackground(1, column_index as usize, mark_background_color)
                     })
                     .collect(),
             ),
-            // Expect the bookmarks of inbound lines are rendered properly
-            // In this case, we want to check that the bookmark on "z" is rendered
-            Expect(GridCellBackground(5, 10, bookmark_background_color)),
+            // Expect the marks of inbound lines are rendered properly
+            // In this case, we want to check that the mark on "z" is rendered
+            Expect(GridCellBackground(5, 10, mark_background_color)),
             // Expect no cells of the line `let y = 2` is not decorated with
-            // `bookmark_background_color`
+            // `mark_background_color`
             ExpectMulti(
                 (0..12)
                     .map(|column_index| {
                         Not(Box::new(GridCellBackground(
                             2,
                             column_index,
-                            bookmark_background_color,
+                            mark_background_color,
                         )))
                     })
                     .collect(),
@@ -1717,10 +1717,10 @@ fn main() { // too long
             ),
             // Expect decorations overrides syntax highlighting
             Editor(MatchLiteral("fn".to_string())),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             // Move cursor to next line, so that "fn" is not selected,
             //  so that we can test the style applied to "fn" ,
-            // otherwise the style of primary selection anchors will override the bookmark style
+            // otherwise the style of primary selection anchors will override the mark style
             Editor(MatchLiteral("let".to_string())),
             Expect(EditorGrid(
                 "
@@ -1734,9 +1734,7 @@ fn main() { // too long
             ExpectMulti(
                 [Position::new(1, 2), Position::new(1, 3)]
                     .into_iter()
-                    .map(|position| {
-                        ExpectKind::GridCellStyleKey(position, Some(StyleKey::UiBookmark))
-                    })
+                    .map(|position| ExpectKind::GridCellStyleKey(position, Some(StyleKey::UiMark)))
                     .collect(),
             ),
         ])
@@ -1766,7 +1764,7 @@ fn empty_content_should_have_one_line() -> anyhow::Result<()> {
 }
 
 #[test]
-fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
+fn update_mark_position_with_undo_and_redo() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -1774,8 +1772,8 @@ fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Next)),
-            Editor(ToggleBookmark),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            Editor(ToggleMark),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
             Editor(MoveSelection(Previous)),
@@ -1783,24 +1781,24 @@ fn update_bookmark_position_with_undo_and_redo() -> anyhow::Result<()> {
             // Kill "foo"
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("bar spim")),
-            // Expect bookmark position is updated (still selects "spim")
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            // Expect mark position is updated (still selects "spim")
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(Undo),
             Expect(CurrentComponentContent("foo bar spim")),
-            // Expect bookmark position is updated (still selects "spim")
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            // Expect mark position is updated (still selects "spim")
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
             Editor(Redo),
-            // Expect bookmark position is updated (still selects "spim")
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            // Expect mark position is updated (still selects "spim")
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["spim"])),
         ])
     })
 }
 
 #[test]
-fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Result<()> {
+fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result<()> {
     let input = "// foo bar spim\n    fn foo() {}\n";
 
     execute_test(|s| {
@@ -1809,15 +1807,15 @@ fn saving_should_not_destroy_bookmark_if_selections_not_modified() -> anyhow::Re
             Editor(SetContent(input.to_string())),
             Editor(SetLanguage(shared::language::from_extension("rs").unwrap())),
             Editor(MatchLiteral("bar".to_string())),
-            Editor(ToggleBookmark),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            Editor(ToggleMark),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Editor(Save),
             // Expect the content is formatted (second line dedented)
             Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
             Expect(CurrentSelectedTexts(&["b"])),
-            // Expect the bookmark on "bar" is not destroyed
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+            // Expect the mark on "bar" is not destroyed
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
             Expect(CurrentSelectedTexts(&["bar"])),
         ])
     })
@@ -2429,15 +2427,15 @@ fn movement_current_look_forward_backward() -> Result<(), anyhow::Error> {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("hello world is good".to_string())),
                 Editor(MatchLiteral("hello".to_string())),
-                Editor(ToggleBookmark),
+                Editor(ToggleMark),
                 Editor(MatchLiteral("good".to_string())),
-                Editor(ToggleBookmark),
+                Editor(ToggleMark),
                 Editor(MatchLiteral("world".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Expect(CurrentSelectedTexts(&["good"])),
                 Editor(MatchLiteral("world".to_string())),
                 Expect(CurrentSelectedTexts(&["world"])),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookBackward, Bookmark)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookBackward, Mark)),
                 Expect(CurrentSelectedTexts(&["hello"])),
             ])
         }
@@ -2545,8 +2543,8 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("who lives in a".to_string())),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
-                Editor(ToggleBookmark),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Bookmark)),
+                Editor(ToggleMark),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 Expect(CurrentSelectedTexts(&["who"])),
                 Editor(MoveSelection(Last)),
@@ -2555,7 +2553,7 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
                     IfCurrentNotFound::LookForward,
                 )),
                 Expect(CurrentSelectedTexts(&["who"])),
-                Expect(CurrentSelectionMode(Bookmark)),
+                Expect(CurrentSelectionMode(Mark)),
             ])
         }
     })

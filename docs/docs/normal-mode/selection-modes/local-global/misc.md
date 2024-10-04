@@ -19,7 +19,7 @@ This is useful when you want to navigate to your recent changes, but forgot wher
 
 Keybinding: `m`
 
-Marks or bookmarks is a powerful feature that allows you to jump to files that contain marks (which can be toggled).
+Mark is a powerful feature that allows you to jump to files that contain marks (which can be toggled).
 
 It also allows you to exchange two sections of the same file.
 

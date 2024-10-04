@@ -65,15 +65,12 @@ impl Editor {
                 source: Source::StyleKey(UiPossibleSelection),
             });
 
-        let bookmarks = buffer
-            .bookmarks()
-            .into_iter()
-            .map(|bookmark| HighlightSpan {
-                set_symbol: None,
-                is_cursor: false,
-                source: Source::StyleKey(UiBookmark),
-                range: HighlightSpanRange::CharIndexRange(bookmark),
-            });
+        let marks = buffer.marks().into_iter().map(|mark| HighlightSpan {
+            set_symbol: None,
+            is_cursor: false,
+            source: Source::StyleKey(UiMark),
+            range: HighlightSpanRange::CharIndexRange(mark),
+        });
         let secondary_selections = &editor.selection_set.secondary_selections();
         let primary_selection = HighlightSpan {
             set_symbol: None,
@@ -286,7 +283,7 @@ impl Editor {
             .chain(secondary_selection)
             .chain(primary_selection_anchors)
             .chain(seconday_selection_anchors)
-            .chain(bookmarks)
+            .chain(marks)
             .chain(diagnostics)
             .chain(jumps)
             .chain(primary_selection_secondary_cursor)

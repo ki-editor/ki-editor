@@ -39,7 +39,7 @@ pub(crate) struct QuickfixListState {
 
 pub(crate) enum QuickfixListSource {
     Diagnostic(DiagnosticSeverityRange),
-    Bookmark,
+    Mark,
     Custom,
 }
 

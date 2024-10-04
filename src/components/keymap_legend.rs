@@ -263,8 +263,9 @@ impl Keymap {
         }
     }
 
-    pub(crate) fn dispatch(&self) -> Dispatch {
-        self.dispatch.clone()
+    pub(crate) fn get_dispatches(&self) -> Dispatches {
+        Dispatches::one(self.dispatch.clone())
+            .append(Dispatch::SetLastActionDescription(self.description.clone()))
     }
 
     pub(crate) fn event(&self) -> &KeyEvent {
@@ -341,11 +342,7 @@ impl Component for KeymapLegend {
                         .iter()
                         .find(|keymap| &keymap.event == key_event)
                     {
-                        Ok([close_current_window]
-                            .into_iter()
-                            .chain(vec![keymap.dispatch.clone()])
-                            .collect_vec()
-                            .into())
+                        Ok(Dispatches::one(close_current_window).chain(keymap.get_dispatches()))
                     } else {
                         Ok(vec![].into())
                     }
@@ -434,7 +431,7 @@ mod test_keymap_legend {
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(&[Keymap::new(
                     "s",
-                    "test".to_string(),
+                    "fifafofum".to_string(),
                     Dispatch::Custom("Spongebob".to_string()),
                 )]),
             },
@@ -446,7 +443,8 @@ mod test_keymap_legend {
             dispatches,
             Dispatches::new(vec![
                 Dispatch::CloseCurrentWindowAndFocusParent,
-                Dispatch::Custom("Spongebob".to_string())
+                Dispatch::Custom("Spongebob".to_string()),
+                SetLastActionDescription("fifafofum".to_string())
             ])
         )
     }

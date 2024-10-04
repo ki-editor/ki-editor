@@ -48,7 +48,7 @@ impl HunkStyles {
 impl Theme {
     pub(crate) fn get_style(&self, source: &StyleKey) -> Style {
         match source {
-            StyleKey::UiBookmark => self.ui.bookmark,
+            StyleKey::UiMark => self.ui.mark,
             StyleKey::UiPrimarySelection => {
                 Style::new().background_color(self.ui.primary_selection_background)
             }
@@ -139,7 +139,7 @@ pub(crate) struct UiStyles {
     pub(crate) secondary_selection_secondary_cursor: Style,
     pub(crate) line_number: Style,
     pub(crate) border: Style,
-    pub(crate) bookmark: Style,
+    pub(crate) mark: Style,
     pub(crate) keymap_key: Style,
     pub(crate) keymap_arrow: Style,
     pub(crate) keymap_hint: Style,

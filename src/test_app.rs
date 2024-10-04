@@ -1007,17 +1007,17 @@ fn first () {
 }
 
 #[test]
-fn global_bookmarks() -> Result<(), anyhow::Error> {
+fn global_marks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             App(OpenFile(s.foo_rs())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
-            Editor(ToggleBookmark),
+            Editor(ToggleMark),
             App(SetQuickfixList(
-                crate::quickfix_list::QuickfixListType::Bookmark,
+                crate::quickfix_list::QuickfixListType::Mark,
             )),
             Expect(Quickfixes(Box::new([
                 QuickfixListItem::new(

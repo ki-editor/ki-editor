@@ -34,7 +34,7 @@ pub(crate) struct Buffer {
     language: Option<Language>,
     path: Option<CanonicalizedPath>,
     highlighted_spans: HighlighedSpans,
-    bookmarks: Vec<CharIndexRange>,
+    marks: Vec<CharIndexRange>,
     diagnostics: Vec<Diagnostic>,
     quickfix_list_items: Vec<QuickfixListItem>,
     decorations: Vec<Decoration>,
@@ -66,7 +66,7 @@ impl Buffer {
             },
             path: None,
             highlighted_spans: HighlighedSpans::default(),
-            bookmarks: Vec::new(),
+            marks: Vec::new(),
             decorations: Vec::new(),
             undo_tree: UndoTree::new(),
             diagnostics: Vec::new(),
@@ -102,14 +102,14 @@ impl Buffer {
         decorations.clone_into(&mut self.decorations)
     }
 
-    pub(crate) fn save_bookmarks(&mut self, new_ranges: Vec<CharIndexRange>) {
-        let old_ranges = std::mem::take(&mut self.bookmarks)
+    pub(crate) fn save_marks(&mut self, new_ranges: Vec<CharIndexRange>) {
+        let old_ranges = std::mem::take(&mut self.marks)
             .into_iter()
             .collect::<HashSet<_>>();
         let new_ranges = new_ranges.into_iter().collect::<HashSet<_>>();
         // We take the symmetric difference between the old ranges and the new ranges
-        // so that user can unmark existing bookmark
-        self.bookmarks = new_ranges
+        // so that user can unmark existing mark
+        self.marks = new_ranges
             .symmetric_difference(&old_ranges)
             .cloned()
             .collect_vec();
@@ -446,7 +446,7 @@ impl Buffer {
             .unwrap_or_else(|| current_selection_set.clone());
         let current_buffer_state = BufferState {
             selection_set: current_selection_set,
-            bookmarks: self.bookmarks.clone(),
+            marks: self.marks.clone(),
         };
 
         edit_transaction
@@ -456,7 +456,7 @@ impl Buffer {
 
         let new_buffer_state = BufferState {
             selection_set: new_selection_set.clone(),
-            bookmarks: self.bookmarks.clone(),
+            marks: self.marks.clone(),
         };
 
         self.add_undo_patch(current_buffer_state, new_buffer_state.clone(), &before);
@@ -498,9 +498,9 @@ impl Buffer {
             .collect_vec();
 
         // Update all the non-positional spans
-        self.bookmarks = std::mem::take(&mut self.bookmarks)
+        self.marks = std::mem::take(&mut self.marks)
             .into_iter()
-            .filter_map(|bookmark| bookmark.apply_edit(edit))
+            .filter_map(|mark| mark.apply_edit(edit))
             .collect();
         self.diagnostics = std::mem::take(&mut self.diagnostics)
             .into_iter()
@@ -563,10 +563,10 @@ impl Buffer {
 
         if let Some(BufferState {
             selection_set,
-            bookmarks,
+            marks,
         }) = state
         {
-            self.bookmarks = bookmarks;
+            self.marks = marks;
 
             Ok(Some(selection_set))
         } else {
@@ -724,8 +724,8 @@ impl Buffer {
         Ok(ByteRange::new(start..end))
     }
 
-    pub(crate) fn bookmarks(&self) -> Vec<CharIndexRange> {
-        self.bookmarks.clone()
+    pub(crate) fn marks(&self) -> Vec<CharIndexRange> {
+        self.marks.clone()
     }
 
     pub(crate) fn byte_to_position(&self, byte_index: usize) -> anyhow::Result<Position> {
@@ -1343,7 +1343,7 @@ pub(crate) struct Patch {
 #[derive(Clone)]
 pub(crate) struct BufferState {
     pub(crate) selection_set: SelectionSet,
-    pub(crate) bookmarks: Vec<CharIndexRange>,
+    pub(crate) marks: Vec<CharIndexRange>,
 }
 
 impl std::fmt::Display for Patch {
