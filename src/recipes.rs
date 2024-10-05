@@ -620,6 +620,23 @@ And drop on the deck and flop like a fish?
             terminal_height: Some(8),
             similar_vim_combos: &["z t", "z z", "z b"],
         },
+        Recipe {
+            description: "Replace cut",
+            content: "
+foo(bar, 1 + 1, spam)
+3 * 10
+"
+            .trim(),
+            file_extension: "js",
+            prepare_events: &[],
+            events: keys!("s y l R j l j l r"),
+            expectations: &[CurrentComponentContent(
+                "foo(bar, 1 + 1, spam)
+foo(bar, 3 * 10, spam)",
+            )],
+            terminal_height: None,
+            similar_vim_combos: &["p"],
+        },
     ]
     .to_vec()
 }
