@@ -47,6 +47,9 @@ impl Screen {
                             .iter()
                             .flat_map(|border| border.to_positioned_cells(self.border_style)),
                     )
+                    // Cells should be sorted reversed by column, so that multi-width character
+                    // will not be overridden by blank character in terminal rendering
+                    .sorted_by_key(|cell| (cell.position.line, -(cell.position.column as isize)))
                     .collect(),
             );
             self.get_positioned_cells()
