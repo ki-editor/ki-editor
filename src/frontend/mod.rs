@@ -16,6 +16,7 @@ use ::crossterm::{
         SetUnderlineColor,
     },
 };
+use itertools::Itertools;
 
 pub(crate) trait Frontend {
     fn get_terminal_dimension(&self) -> anyhow::Result<Dimension>;
@@ -45,6 +46,17 @@ pub(crate) trait Frontend {
 
             diff
         };
+
+        debug_assert_eq!(
+            cells,
+            cells
+                .clone()
+                .into_iter()
+                .sorted_by_key(|cell| (cell.position.line, -(cell.position.column as isize)))
+                .collect_vec(),
+            "Cells should be sorted in reverse order by column to ensure proper rendering of
+ multi-width characters in terminal displays"
+        );
         for cell in cells {
             queue!(
                 self.writer(),

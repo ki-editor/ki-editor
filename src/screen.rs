@@ -47,6 +47,9 @@ impl Screen {
                             .iter()
                             .flat_map(|border| border.to_positioned_cells(self.border_style)),
                     )
+                    // Cells should be sorted reversed by column, so that multi-width character
+                    // will not be overridden by blank character in terminal rendering
+                    .sorted_by_key(|cell| (cell.position.line, -(cell.position.column as isize)))
                     .collect(),
             );
             self.get_positioned_cells()
@@ -179,24 +182,25 @@ mod test_screen {
             Default::default(),
         );
         let actual = new.diff(&mut old);
-        let expected = vec![
-            PositionedCell {
-                position: Position { line: 0, column: 0 },
-                cell: Cell::from_char('b'),
-            },
+        let expected = [
             PositionedCell {
                 position: Position { line: 0, column: 1 },
                 cell: Cell::from_char('c'),
             },
             PositionedCell {
-                position: Position { line: 1, column: 0 },
-                cell: Cell::from_char(' '),
+                position: Position { line: 0, column: 0 },
+                cell: Cell::from_char('b'),
             },
             PositionedCell {
                 position: Position { line: 1, column: 1 },
                 cell: Cell::from_char(' '),
             },
-        ];
+            PositionedCell {
+                position: Position { line: 1, column: 0 },
+                cell: Cell::from_char(' '),
+            },
+        ]
+        .to_vec();
         assert_eq!(actual, expected);
     }
 }
