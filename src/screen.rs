@@ -182,24 +182,25 @@ mod test_screen {
             Default::default(),
         );
         let actual = new.diff(&mut old);
-        let expected = vec![
-            PositionedCell {
-                position: Position { line: 0, column: 0 },
-                cell: Cell::from_char('b'),
-            },
+        let expected = [
             PositionedCell {
                 position: Position { line: 0, column: 1 },
                 cell: Cell::from_char('c'),
             },
             PositionedCell {
-                position: Position { line: 1, column: 0 },
-                cell: Cell::from_char(' '),
+                position: Position { line: 0, column: 0 },
+                cell: Cell::from_char('b'),
             },
             PositionedCell {
                 position: Position { line: 1, column: 1 },
                 cell: Cell::from_char(' '),
             },
-        ];
+            PositionedCell {
+                position: Position { line: 1, column: 0 },
+                cell: Cell::from_char(' '),
+            },
+        ]
+        .to_vec();
         assert_eq!(actual, expected);
     }
 }
