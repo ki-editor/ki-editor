@@ -147,11 +147,6 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    ";",
-                    "Select last non-contiguous selection mode".to_string(),
-                    Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookForward),
-                ),
-                Keymap::new(
                     "s",
                     "Select Syntax Node".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
@@ -165,6 +160,20 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
                         SyntaxNodeFine,
+                    )),
+                ),
+                Keymap::new(
+                    "t",
+                    Direction::End.format_action("Till"),
+                    Dispatch::ToEditor(DispatchEditor::EnterTillMode(
+                        IfCurrentNotFound::LookForward,
+                    )),
+                ),
+                Keymap::new(
+                    "T",
+                    Direction::Start.format_action("Till"),
+                    Dispatch::ToEditor(DispatchEditor::EnterTillMode(
+                        IfCurrentNotFound::LookBackward,
                     )),
                 ),
                 Keymap::new(
@@ -194,6 +203,11 @@ impl Editor {
                         Scope::Local,
                         IfCurrentNotFound::LookForward,
                     )),
+                ),
+                Keymap::new(
+                    ";",
+                    "Select last non-contiguous selection mode".to_string(),
+                    Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookForward),
                 ),
             ]),
         }

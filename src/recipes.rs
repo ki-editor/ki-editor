@@ -701,6 +701,26 @@ spam baz
             terminal_height: None,
             similar_vim_combos: &[],
         },
+        Recipe {
+            description: "Till one character (forward)",
+            content: "foo(bar,spam,xox() + 1)".trim(),
+            file_extension: "md",
+            prepare_events: keys!("/ x enter"),
+            events: keys!("v t ) l"),
+            expectations: &[CurrentSelectedTexts(&["xox() + 1"])],
+            terminal_height: None,
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Till one character (backward)",
+            content: "foo(bar,spam, xox() + 1)".trim(),
+            file_extension: "md",
+            prepare_events: keys!("/ x enter"),
+            events: keys!("v T , h"),
+            expectations: &[CurrentSelectedTexts(&["spam, x"])],
+            terminal_height: None,
+            similar_vim_combos: &[],
+        },
     ]
     .to_vec()
 }

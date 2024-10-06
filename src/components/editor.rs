@@ -51,6 +51,7 @@ pub(crate) enum Mode {
     Insert,
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
+    TillOneChar(IfCurrentNotFound),
     Exchange,
     UndoTree,
     Replace,
@@ -63,8 +64,6 @@ pub(crate) struct Jump {
     pub(crate) selection: Selection,
 }
 const WINDOW_TITLE_HEIGHT: usize = 1;
-
-impl Editor {}
 
 impl Component for Editor {
     fn id(&self) -> ComponentId {
@@ -342,6 +341,9 @@ impl Component for Editor {
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
+            EnterTillMode(if_current_not_found) => {
+                self.mode = Mode::TillOneChar(if_current_not_found)
+            }
         }
         Ok(Default::default())
     }
@@ -472,6 +474,14 @@ impl Direction {
 pub(crate) enum IfCurrentNotFound {
     LookForward,
     LookBackward,
+}
+impl IfCurrentNotFound {
+    fn to_direction(&self) -> Direction {
+        match self {
+            IfCurrentNotFound::LookForward => Direction::End,
+            IfCurrentNotFound::LookBackward => Direction::Start,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1138,6 +1148,9 @@ impl Editor {
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar(if_current_not_found) => {
                             self.handle_find_one_char_mode(*if_current_not_found, key_event)
+                        }
+                        Mode::TillOneChar(if_current_not_found) => {
+                            self.handle_till_one_char_mode(*if_current_not_found, key_event)
                         }
                         Mode::Exchange => self.handle_normal_mode(context, key_event),
                         Mode::UndoTree => self.handle_normal_mode(context, key_event),
@@ -2054,6 +2067,7 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
             Mode::V => "V",
+            Mode::TillOneChar(_) => "TILL",
         }
         .to_string();
         format!("{prefix}{core}")
@@ -2132,6 +2146,51 @@ impl Editor {
                                 match_whole_word: false,
                             }),
                         },
+                    },
+                )
+            }
+            KeyCode::Esc => {
+                self.mode = Mode::Normal;
+                Ok(Default::default())
+            }
+            _ => Ok(Default::default()),
+        }
+    }
+
+    fn handle_till_one_char_mode(
+        &mut self,
+        if_current_not_found: IfCurrentNotFound,
+        key_event: KeyEvent,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let direction = if_current_not_found.to_direction();
+        match key_event.code {
+            KeyCode::Char(c) => {
+                self.mode = Mode::Normal;
+                self.set_selection_mode(
+                    if_current_not_found,
+                    SelectionMode::Till {
+                        character: c,
+                        direction,
+                    },
+                )
+            }
+            KeyCode::Enter => {
+                self.mode = Mode::Normal;
+                self.set_selection_mode(
+                    if_current_not_found,
+                    SelectionMode::Till {
+                        character: '\n',
+                        direction,
+                    },
+                )
+            }
+            KeyCode::Tab => {
+                self.mode = Mode::Normal;
+                self.set_selection_mode(
+                    if_current_not_found,
+                    SelectionMode::Till {
+                        character: '\t',
+                        direction,
                     },
                 )
             }
@@ -2969,6 +3028,7 @@ pub(crate) enum DispatchEditor {
     Dedent,
     SwapExtensionDirection,
     CollapseSelection(Direction),
+    EnterTillMode(IfCurrentNotFound),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
