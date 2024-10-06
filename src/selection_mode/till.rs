@@ -1,6 +1,3 @@
-use itertools::Itertools;
-use num::ToPrimitive;
-
 use crate::components::editor::Direction;
 
 use super::{ByteRange, SelectionMode};

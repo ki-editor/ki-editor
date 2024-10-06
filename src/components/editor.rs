@@ -476,7 +476,7 @@ pub(crate) enum IfCurrentNotFound {
     LookBackward,
 }
 impl IfCurrentNotFound {
-    fn to_direction(&self) -> Direction {
+    fn to_direction(self) -> Direction {
         match self {
             IfCurrentNotFound::LookForward => Direction::End,
             IfCurrentNotFound::LookBackward => Direction::Start,
