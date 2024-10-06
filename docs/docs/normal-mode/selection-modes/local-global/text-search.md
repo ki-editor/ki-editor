@@ -8,12 +8,12 @@ This is one of the most useful selection modes.
 
 Keybindings:
 
-| Keybinding | Meaning                        |
-| ---------- | ------------------------------ |
-| `s`        | Open search prompt             |
-| `c`        | Search using current selection |
-| `p`        | Search using previous search   |
-| `'`        | Configure search               |
+| Keybinding | Meaning                      |
+| ---------- | ---------------------------- |
+| `/`        | Open search prompt           |
+| `*`        | Search current selection     |
+| `p`        | Search using previous search |
+| `'`        | Configure search             |
 
 By default, the search prompt searches using Literal mode.
 

@@ -909,7 +909,7 @@ impl Editor {
             .slice(&self.selection_set.primary_selection().extended_range())
             .map(|search| {
                 Keymap::new(
-                    "n",
+                    "*",
                     "Search current selection".to_string(),
                     Dispatch::UpdateLocalSearchConfig {
                         scope,
@@ -943,7 +943,7 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            "s",
+                            "/",
                             "Search".to_string(),
                             Dispatch::OpenSearchPrompt {
                                 scope,
