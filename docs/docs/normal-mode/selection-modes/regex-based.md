@@ -42,7 +42,10 @@ Like [Word](#word), but it treats each word as a sequence of alphanumeric charac
 
 ## Column
 
-Keybinding: `z`
+Keybindings:
+
+- `^`: Collapse selection (start)
+- `$`: Collapse selection (end)
 
 In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#previousnext) means left/right, and so on.
 

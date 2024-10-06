@@ -178,11 +178,6 @@ impl Editor {
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 ),
                 Keymap::new(
-                    "z",
-                    "Select Column".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
-                ),
-                Keymap::new(
                     "[",
                     "(Local) - Backward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
@@ -230,7 +225,7 @@ impl Editor {
                         Dispatch::ToEditor(Delete(Direction::Start)),
                     ),
                     Keymap::new(
-                        "^",
+                        "K",
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Parent)),
                     ),
@@ -296,6 +291,16 @@ impl Editor {
                             scope: Scope::Local,
                             if_current_not_found: IfCurrentNotFound::LookForward,
                         },
+                    ),
+                    Keymap::new(
+                        "^",
+                        Direction::Start.format_action("Collapse selection"),
+                        Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::Start)),
+                    ),
+                    Keymap::new(
+                        "$",
+                        Direction::End.format_action("Collapse selection"),
+                        Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
                     ),
                     Keymap::new(
                         "|",

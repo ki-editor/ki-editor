@@ -101,7 +101,7 @@ For example:
 
 ## Raise
 
-Keybinding: `^`
+Keybinding: `K`
 
 This is one of my favorite actions, it only works for [syntax node](../selection-modes/syntax-node-based.md#syntax-node) selection modes.
 
@@ -122,7 +122,7 @@ fn main() {
 ```
 
 Assuming the current selection is `println!("hello")` and the current selection
-mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), pressing `^` results in the following:
+mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), pressing `K` results in the following:
 
 ```rs
 fn main() {

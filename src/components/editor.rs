@@ -341,6 +341,7 @@ impl Component for Editor {
             Dedent => return self.dedent(),
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
+            CollapseSelection(direction) => return self.collapse_selection(context, direction),
         }
         Ok(Default::default())
     }
@@ -2826,6 +2827,22 @@ impl Editor {
                 .collect(),
         ))
     }
+
+    fn collapse_selection(
+        &mut self,
+        context: &mut Context,
+        direction: Direction,
+    ) -> anyhow::Result<Dispatches> {
+        let set_column_selection_mode =
+            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Column);
+        match direction {
+            Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
+            Direction::End => self.handle_dispatch_editors(
+                context,
+                [SwapCursorWithAnchor, set_column_selection_mode].to_vec(),
+            ),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -2951,6 +2968,7 @@ pub(crate) enum DispatchEditor {
     Indent,
     Dedent,
     SwapExtensionDirection,
+    CollapseSelection(Direction),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
