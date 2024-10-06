@@ -8,8 +8,8 @@ To return back to normal mode from one of these movement-action modes, press `es
 
 ## 1. Exchange
 
-Keybinding: `x`  
-Memory aid: e**x**change
+Keybinding: `z`  
+Memory aid: z stands for Zamiana, which means Exchange or Swap in Polish
 
 In the Exchange submode, every core movement means:
 

@@ -400,6 +400,22 @@ impl Editor {
                     }),
                 ),
                 Keymap::new(
+                    "x",
+                    Direction::End.format_action(&format!("{}{}", "Delete Cut", extra)),
+                    Dispatch::ToEditor(DeleteCut {
+                        direction: Direction::End,
+                        use_system_clipboard,
+                    }),
+                ),
+                Keymap::new(
+                    "X",
+                    Direction::Start.format_action(&format!("{}{}", "Delete Cut", extra)),
+                    Dispatch::ToEditor(DeleteCut {
+                        direction: Direction::Start,
+                        use_system_clipboard,
+                    }),
+                ),
+                Keymap::new(
                     "y",
                     format!("{}{}", "Yank (Copy)", extra),
                     Dispatch::ToEditor(Copy {
@@ -619,7 +635,7 @@ impl Editor {
                     Dispatch::ToEditor(EnterMultiCursorMode),
                 ),
                 Keymap::new(
-                    "x",
+                    "z",
                     "Enter Exchange mode".to_string(),
                     Dispatch::ToEditor(EnterExchangeMode),
                 ),

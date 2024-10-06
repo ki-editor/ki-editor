@@ -212,7 +212,11 @@ impl Component for Editor {
             EnterVMode => self.enter_v_mode(),
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
-            Delete(direction) => return self.delete(direction),
+            Delete(direction) => return self.delete(direction, None),
+            DeleteCut {
+                direction,
+                use_system_clipboard,
+            } => return self.delete(direction, Some(use_system_clipboard)),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -758,7 +762,16 @@ impl Editor {
         )
     }
 
-    pub(crate) fn delete(&mut self, direction: Direction) -> anyhow::Result<Dispatches> {
+    pub(crate) fn delete(
+        &mut self,
+        direction: Direction,
+        use_system_clipboard: Option<bool>,
+    ) -> anyhow::Result<Dispatches> {
+        let copy_dispatches = if let Some(use_system_clipboard) = use_system_clipboard {
+            self.copy(use_system_clipboard)?
+        } else {
+            Default::default()
+        };
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -843,7 +856,7 @@ impl Editor {
                 .collect()
         });
         let dispatches = self.apply_edit_transaction(edit_transaction)?;
-        Ok(dispatches)
+        Ok(copy_dispatches.chain(dispatches))
     }
 
     pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
@@ -2962,6 +2975,10 @@ pub(crate) enum DispatchEditor {
     SelectLine(Movement),
     Backspace,
     Delete(Direction),
+    DeleteCut {
+        direction: Direction,
+        use_system_clipboard: bool,
+    },
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,
