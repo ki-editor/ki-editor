@@ -1,8 +1,4 @@
-use std::{
-    path::PathBuf,
-    sync::mpsc::{channel, Receiver},
-    time::UNIX_EPOCH,
-};
+use std::sync::mpsc::{channel, Receiver};
 
 use crate::app::AppMessage;
 use shared::canonicalized_path::CanonicalizedPath;
@@ -16,13 +12,6 @@ impl Drop for TestRunner {
         self.temp_dir.remove_dir_all().unwrap();
     }
 }
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-static COUNTER: AtomicUsize = AtomicUsize::new(0);
-
-fn increment_counter() -> usize {
-    COUNTER.fetch_add(1, Ordering::SeqCst)
-}
 
 impl TestRunner {
     pub(crate) fn run(
@@ -35,20 +24,7 @@ impl TestRunner {
     fn new() -> anyhow::Result<(Self, Receiver<AppMessage>)> {
         const MOCK_REPO_PATH: &str = "tests/mock_repos/rust1";
 
-        // Copy the mock repo to a temporary directory using the current date
-        // Why don't we use the `tempfile` crate? Because LSP doesn't work inside a the system temporary directory
-        let epoch_time = std::time::SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-
-        let _random_number = rand::random::<u8>();
-        let temp_dir = format!(
-            "../temp_dir/{}_{}",
-            epoch_time.as_secs(),
-            increment_counter()
-        );
-
-        let path: PathBuf = temp_dir.into();
+        let path = tempfile::tempdir()?.into_path();
         std::fs::create_dir_all(path.clone())?;
 
         let options = fs_extra::dir::CopyOptions::new();
