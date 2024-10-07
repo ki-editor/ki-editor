@@ -49,7 +49,6 @@ pub(crate) enum PromptHistoryKey {
     Symbol,
     Command,
     OpenFile,
-    Omit,
     FilterGlob(GlobalSearchFilterGlob),
     Replacement(Scope),
     CodeAction,

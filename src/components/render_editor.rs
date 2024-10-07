@@ -425,7 +425,7 @@ impl Editor {
         selection: &Selection,
     ) -> anyhow::Result<Vec<ByteRange>> {
         let object = self.get_selection_mode_trait_object(selection, true)?;
-        if self.selection_set.mode.is_contiguous() && self.selection_set.filters.is_empty() {
+        if self.selection_set.mode.is_contiguous() {
             return Ok(Vec::new());
         }
 
@@ -435,7 +435,6 @@ impl Editor {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
-                filters: &self.selection_set.filters,
             },
             [line_range].to_vec(),
         )

@@ -43,7 +43,7 @@ use crate::{
         editor::{Direction, IfCurrentNotFound, Jump, Movement},
         suggestive_editor::Info,
     },
-    selection::{Filters, Selection},
+    selection::Selection,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -84,10 +84,6 @@ impl ByteRange {
     pub(crate) fn range(&self) -> &Range<usize> {
         &self.range
     }
-
-    pub(crate) fn info(&self) -> &Option<Info> {
-        &self.info
-    }
 }
 
 impl PartialOrd for ByteRange {
@@ -110,7 +106,6 @@ pub(crate) struct SelectionModeParams<'a> {
     pub(crate) buffer: &'a Buffer,
     pub(crate) current_selection: &'a Selection,
     pub(crate) cursor_direction: &'a Direction,
-    pub(crate) filters: &'a Filters,
 }
 #[derive(Debug, Clone)]
 pub(crate) struct ApplyMovementResult {
@@ -140,13 +135,8 @@ pub trait SelectionMode {
         &'a self,
         params: SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
-        let SelectionModeParams {
-            buffer, filters, ..
-        } = params;
-
         Ok(Box::new(
             self.iter(params)?
-                .filter_map(|item| filters.retain(buffer, item))
                 .group_by(|item| item.range.clone())
                 .into_iter()
                 .map(|(range, items)| {
@@ -218,7 +208,6 @@ pub trait SelectionMode {
             buffer,
             current_selection,
             cursor_direction,
-            filters,
         } = params;
         let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
         Ok(buffer
@@ -237,7 +226,6 @@ pub trait SelectionMode {
                         buffer,
                         cursor_direction,
                         current_selection: &current_selection.clone().set_range(char_index_range),
-                        filters,
                     },
                     IfCurrentNotFound::LookForward,
                 )
@@ -508,7 +496,6 @@ pub trait SelectionMode {
                 buffer,
                 current_selection: &current_selection,
                 cursor_direction: &Direction::default(),
-                filters: &Filters::default(),
             })
             .unwrap()
             .flat_map(|range| -> anyhow::Result<_> {
@@ -536,7 +523,7 @@ mod test_selection_mode {
             editor::{Direction, IfCurrentNotFound, Movement},
             suggestive_editor::Info,
         },
-        selection::{CharIndex, Filters, Selection},
+        selection::{CharIndex, Selection},
         selection_mode::LineTrimmed,
     };
 
@@ -569,7 +556,6 @@ mod test_selection_mode {
                 end: CharIndex(current_selection_byte_range.end),
             }),
             cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
         };
         let actual = Dummy
             .apply_movement(params, movement)
@@ -653,7 +639,6 @@ mod test_selection_mode {
                     "Spongebob".to_string(),
                 ))),
             cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
         };
         struct Dummy;
         impl SelectionMode for Dummy {
@@ -707,7 +692,6 @@ mod test_selection_mode {
                     end: CharIndex(6),
                 })),
             cursor_direction: &Direction::default(),
-            filters: &Filters::default(),
         };
         let actual = Dummy
             .apply_movement(params, Movement::Next)
@@ -744,7 +728,6 @@ fn f() {
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &Direction::default(),
-                    filters: &Filters::default(),
                 })
                 .unwrap()
                 .unwrap();

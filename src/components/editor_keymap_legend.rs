@@ -6,13 +6,13 @@ use event::KeyEvent;
 use itertools::Itertools;
 
 use crate::{
-    app::{Dispatch, Dispatches, FilePickerKind, MakeFilterMechanism, Scope},
+    app::{Dispatch, Dispatches, FilePickerKind, Scope},
     components::{editor::Movement, keymap_legend::KeymapLegendSection},
     context::{Context, LocalSearchConfigMode, Search},
     git::DiffMode,
     list::grep::RegexConfig,
     quickfix_list::{DiagnosticSeverityRange, QuickfixListType},
-    selection::{FilterKind, FilterTarget, SelectionMode},
+    selection::SelectionMode,
     surround::EnclosureKind,
     transformation::Transformation,
 };
@@ -616,11 +616,6 @@ impl Editor {
                     ":",
                     "Open command prompt".to_string(),
                     Dispatch::OpenCommandPrompt,
-                ),
-                Keymap::new(
-                    "&", // TODO: rebind to better keymap, this is a random keymap
-                    "Omit selection".to_string(),
-                    Dispatch::ShowKeymapLegend(self.omit_mode_keymap_legend_config()),
                 ),
                 Keymap::new(
                     "esc",
@@ -1274,85 +1269,6 @@ impl Editor {
                         to: enclosure,
                     })
                 }),
-            },
-        }
-    }
-
-    pub(crate) fn omit_mode_keymap_legend_config(&self) -> KeymapLegendConfig {
-        let filter_mechanism_keymaps = |kind: FilterKind, target: FilterTarget| -> Dispatch {
-            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: format!("Omit: {:?} {:?} matching", kind, target),
-
-                body: KeymapLegendBody::SingleSection {
-                    keymaps: Keymaps::new(
-                        [
-                            Keymap::new(
-                                "l",
-                                "Literal".to_string(),
-                                Dispatch::OpenOmitPrompt {
-                                    kind,
-                                    target,
-                                    make_mechanism: MakeFilterMechanism::Literal,
-                                },
-                            ),
-                            Keymap::new(
-                                "r",
-                                "Regex".to_string(),
-                                Dispatch::OpenOmitPrompt {
-                                    kind,
-                                    target,
-                                    make_mechanism: MakeFilterMechanism::Regex,
-                                },
-                            ),
-                        ]
-                        .as_ref(),
-                    ),
-                },
-            })
-        };
-        let filter_target_keymaps = |kind: FilterKind| -> Dispatch {
-            Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                title: format!("Omit: {:?}", kind),
-
-                body: KeymapLegendBody::SingleSection {
-                    keymaps: Keymaps::new(
-                        [
-                            Keymap::new(
-                                "c",
-                                "Content".to_string(),
-                                filter_mechanism_keymaps(kind, FilterTarget::Content),
-                            ),
-                            Keymap::new(
-                                "i",
-                                "Info".to_string(),
-                                filter_mechanism_keymaps(kind, FilterTarget::Info),
-                            ),
-                        ]
-                        .as_ref(),
-                    ),
-                },
-            })
-        };
-        KeymapLegendConfig {
-            title: "Omit".to_string(),
-
-            body: KeymapLegendBody::SingleSection {
-                keymaps: Keymaps::new(
-                    [
-                        Keymap::new("c", "Clear".to_string(), Dispatch::ToEditor(FilterClear)),
-                        Keymap::new(
-                            "k",
-                            "keep".to_string(),
-                            filter_target_keymaps(FilterKind::Keep),
-                        ),
-                        Keymap::new(
-                            "r",
-                            "remove".to_string(),
-                            filter_target_keymaps(FilterKind::Remove),
-                        ),
-                    ]
-                    .as_ref(),
-                ),
             },
         }
     }

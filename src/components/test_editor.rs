@@ -20,7 +20,7 @@ use crate::{
     components::editor::{Direction, Mode, ViewAlignment},
     grid::StyleKey,
     position::Position,
-    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
+    selection::SelectionMode,
     themes::Theme,
 };
 
@@ -1819,83 +1819,6 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
             Expect(CurrentSelectedTexts(&["bar"])),
         ])
     })
-}
-
-#[test]
-fn omit() -> Result<(), anyhow::Error> {
-    fn run_test(
-        (input, kind, target, mechanism, expected_output): (
-            &str,
-            FilterKind,
-            FilterTarget,
-            FilterMechanism,
-            &'static [&'static str],
-        ),
-    ) -> anyhow::Result<()> {
-        execute_test(|s| {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent(input.to_string())),
-                Editor(SetSelectionMode(
-                    IfCurrentNotFound::LookForward,
-                    SelectionMode::SubWord,
-                )),
-                Editor(FilterPush(Filter::new(kind, target, mechanism.clone()))),
-                Editor(CursorAddToAllSelections),
-                Expect(CurrentSelectedTexts(expected_output)),
-                Editor(FilterClear),
-                Editor(CursorKeepPrimaryOnly),
-                Editor(CursorAddToAllSelections),
-                Expect(Not(Box::new(CurrentSelectedTexts(expected_output)))),
-            ])
-        })
-    }
-    use regex::Regex as R;
-    use FilterKind::*;
-    use FilterMechanism::*;
-    use FilterTarget::*;
-    let cases: &[(&str, FilterKind, FilterTarget, FilterMechanism, &[&str])] = &[
-        (
-            "foo bar spam",
-            Keep,
-            Content,
-            Literal("a".to_string()),
-            &["bar", "spam"],
-        ),
-        (
-            "foo bar spam",
-            Keep,
-            Content,
-            Literal("a".to_string()),
-            &["bar", "spam"],
-        ),
-        (
-            "foo bar spam",
-            Remove,
-            Content,
-            Literal("a".to_string()),
-            &["foo"],
-        ),
-        (
-            "hello wehello",
-            Keep,
-            Content,
-            Regex(R::new(r"^he")?),
-            &["hello"],
-        ),
-        (
-            "hello wehello",
-            Remove,
-            Content,
-            Regex(R::new(r"^he")?),
-            &["wehello"],
-        ),
-    ];
-    for case in cases.iter().cloned() {
-        run_test(case)?;
-    }
-
-    Ok(())
 }
 
 #[test]

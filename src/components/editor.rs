@@ -5,7 +5,6 @@ use crate::{
     clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
-    selection::Filter,
     selection_mode::{self, regex::get_regex},
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
@@ -222,9 +221,7 @@ impl Component for Editor {
             MatchLiteral(literal) => return self.match_literal(&literal),
             ToggleMark => self.toggle_marks(),
             EnterNormalMode => self.enter_normal_mode()?,
-            FilterPush(filter) => return Ok(self.filters_push(context, filter)),
             CursorAddToAllSelections => self.add_cursor_to_all_selections()?,
-            FilterClear => return Ok(self.filters_clear()),
             CursorKeepPrimaryOnly => self.cursor_keep_primary_only(),
             EnterExchangeMode => self.enter_exchange_mode(),
             ReplacePattern { config } => {
@@ -726,12 +723,7 @@ impl Editor {
         } else {
             SelectionMode::SubWord
         }
-        .to_selection_mode_trait_object(
-            &self.buffer(),
-            selection,
-            &self.cursor_direction,
-            &self.selection_set.filters,
-        )
+        .to_selection_mode_trait_object(&self.buffer(), selection, &self.cursor_direction)
     }
 
     fn jump_from_selection(
@@ -752,7 +744,6 @@ impl Editor {
                 buffer: &self.buffer(),
                 current_selection: selection,
                 cursor_direction: &self.cursor_direction,
-                filters: &self.selection_set.filters,
             },
             chars,
             line_ranges,
@@ -801,7 +792,6 @@ impl Editor {
                             &self.selection_set.mode,
                             &direction.to_movement(),
                             &self.cursor_direction,
-                            &self.selection_set.filters,
                         )
                         .ok()
                         .flatten()
@@ -1483,7 +1473,6 @@ impl Editor {
             selection_mode,
             direction,
             &self.cursor_direction,
-            &self.selection_set.filters,
         )?
         .unwrap_or_else(|| current_selection.clone().into())
         .selection;
@@ -1548,7 +1537,6 @@ impl Editor {
                 selection_mode,
                 direction,
                 &self.cursor_direction,
-                &self.selection_set.filters,
             )?
             .unwrap_or_else(|| next_selection.clone().into())
             .selection;
@@ -1723,7 +1711,6 @@ impl Editor {
                             },
                             &movement,
                             &self.cursor_direction,
-                            &self.selection_set.filters,
                         )
                         .map(|option| option.unwrap_or_else(|| current_selection.clone().into()))
                     };
@@ -1865,7 +1852,6 @@ impl Editor {
                         &self.selection_set.mode,
                         &movement,
                         &self.cursor_direction,
-                        &self.selection_set.filters,
                     )
                     .ok()??
                     .selection;
@@ -2095,14 +2081,8 @@ impl Editor {
 
     pub(crate) fn display_selection_mode(&self) -> String {
         let selection_mode = self.selection_set.mode.display();
-        let filters = self
-            .selection_set
-            .filters
-            .display()
-            .map(|display| format!("({})", display))
-            .unwrap_or_default();
         let cursor_count = self.selection_set.len();
-        let result = format!("{}{} x {}", selection_mode, filters, cursor_count);
+        let result = format!("{} x {}", selection_mode, cursor_count);
         if self.jumps.is_some() {
             format!("{} (JUMP)", result)
         } else {
@@ -2380,14 +2360,6 @@ impl Editor {
         Ok(())
     }
 
-    fn filters_push(&mut self, _context: &Context, filter: Filter) -> Dispatches {
-        let selection_set = self.selection_set.clone().filter_push(filter);
-        self.update_selection_set(selection_set, true)
-            .append(Dispatch::ToEditor(MoveSelection(Movement::Current(
-                IfCurrentNotFound::LookForward,
-            ))))
-    }
-
     pub(crate) fn apply_dispatches(
         &mut self,
         context: &mut Context,
@@ -2398,11 +2370,6 @@ impl Editor {
             result.extend(self.handle_dispatch_editor(context, dispatch)?.into_vec());
         }
         Ok(result.into())
-    }
-
-    fn filters_clear(&mut self) -> Dispatches {
-        let selection_set = self.selection_set.clone().filter_clear();
-        self.update_selection_set(selection_set, true)
     }
 
     fn enter_exchange_mode(&mut self) {
@@ -3042,8 +3009,6 @@ pub(crate) enum DispatchEditor {
     EnterExchangeMode,
     EnterReplaceMode,
     EnterMultiCursorMode,
-    FilterPush(Filter),
-    FilterClear,
     CursorAddToAllSelections,
     CyclePrimarySelection(Direction),
     CursorKeepPrimaryOnly,

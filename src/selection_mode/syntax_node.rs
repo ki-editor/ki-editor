@@ -132,7 +132,7 @@ fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tree_s
 mod test_syntax_node {
     use crate::{
         buffer::Buffer,
-        selection::{CharIndex, Filters, Selection},
+        selection::{CharIndex, Selection},
         selection_mode::SelectionModeParams,
     };
 
@@ -193,7 +193,6 @@ mod test_syntax_node {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
-            filters: &Filters::default(),
         });
 
         let parent_range = selection.unwrap().unwrap().selection.range();
@@ -218,7 +217,6 @@ mod test_syntax_node {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
-                filters: &Filters::default(),
             });
 
             let child_range = selection.unwrap().unwrap().selection.range();
@@ -249,7 +247,6 @@ fn main() {
                     buffer: &buffer,
                     current_selection: &Selection::new(range),
                     cursor_direction: &crate::components::editor::Direction::Start,
-                    filters: &Filters::default(),
                 },
                 IfCurrentNotFound::LookForward,
             );
