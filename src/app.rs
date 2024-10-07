@@ -741,6 +741,9 @@ impl<T: Frontend> App<T> {
             Dispatch::SetLastActionDescription(description) => {
                 self.last_action_description = Some(description)
             }
+            Dispatch::OpenFilterSelectionsPrompt { keep } => {
+                self.open_filter_selections_prompt(keep)?
+            }
         }
         Ok(())
     }
@@ -2113,6 +2116,27 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn open_filter_selections_prompt(&mut self, keep: bool) -> anyhow::Result<()> {
+        let config = self.context.get_local_search_config(Scope::Local);
+        let mode = config.mode;
+        self.open_prompt(
+            PromptConfig {
+                title: format!(
+                    "{} selections matching search ({})",
+                    if keep { "Keep" } else { "Remove" },
+                    mode.display()
+                ),
+                on_enter: DispatchPrompt::FilterSelectionMatchingSearch { keep },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+            },
+            PromptHistoryKey::FilterSelectionsMatchingSearch { keep },
+            None,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2335,6 +2359,9 @@ pub(crate) enum Dispatch {
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
     SetLastActionDescription(String),
+    OpenFilterSelectionsPrompt {
+        keep: bool,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2467,6 +2494,9 @@ pub(crate) enum DispatchPrompt {
     #[cfg(test)]
     SetContent,
     PipeToShell,
+    FilterSelectionMatchingSearch {
+        keep: bool,
+    },
 }
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
@@ -2577,6 +2607,12 @@ impl DispatchPrompt {
                     command: text.to_string(),
                 },
             ))),
+            DispatchPrompt::FilterSelectionMatchingSearch { keep } => Ok(Dispatches::one(
+                Dispatch::ToEditor(DispatchEditor::FilterSelectionMatchingSearch {
+                    keep,
+                    search: text.to_string(),
+                }),
+            )),
         }
     }
 }

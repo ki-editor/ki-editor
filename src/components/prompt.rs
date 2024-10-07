@@ -57,6 +57,9 @@ pub(crate) enum PromptHistoryKey {
     Null,
     Theme,
     PipeToShell,
+    FilterSelectionsMatchingSearch {
+        keep: bool,
+    },
 }
 
 impl Prompt {

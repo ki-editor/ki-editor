@@ -1,12 +1,12 @@
 use crate::{
-    app::{Dispatches, RequestParams},
+    app::{Dispatches, RequestParams, Scope},
     buffer::Line,
     char_index_range::CharIndexRange,
     clipboard::CopiedTexts,
     context::{Context, GlobalMode, LocalSearchConfigMode, Search},
     lsp::{completion::CompletionItemEdit, process::ResponseContext},
     selection::Filter,
-    selection_mode::{self},
+    selection_mode::{self, regex::get_regex},
     surround::EnclosureKind,
     transformation::{MyRegex, Transformation},
 };
@@ -15,7 +15,7 @@ use nonempty::NonEmpty;
 use shared::canonicalized_path::CanonicalizedPath;
 use std::{
     cell::{Ref, RefCell, RefMut},
-    ops::Range,
+    ops::{Not, Range},
     rc::Rc,
 };
 
@@ -347,6 +347,13 @@ impl Component for Editor {
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
             EnterTillMode(if_current_not_found) => {
                 self.mode = Mode::TillOneChar(if_current_not_found)
+            }
+            FilterSelectionMatchingSearch { keep, search } => {
+                return Ok(self.filter_selection_matching_search(
+                    context.get_local_search_config(Scope::Local),
+                    search,
+                    keep,
+                ))
             }
         }
         Ok(Default::default())
@@ -2915,6 +2922,47 @@ impl Editor {
             ),
         }
     }
+
+    fn filter_selection_matching_search(
+        &mut self,
+        local_search_config: &crate::context::LocalSearchConfig,
+        search: String,
+        keep: bool,
+    ) -> Dispatches {
+        let selections = self.selection_set.selections();
+        let filtered = selections
+            .iter()
+            .filter_map(|selection| -> Option<_> {
+                let range = selection.extended_range();
+                let haystack = self.buffer().slice(&range).unwrap_or_default().to_string();
+                let is_match = match local_search_config.mode {
+                    LocalSearchConfigMode::Regex(regex_config) => {
+                        get_regex(&search, regex_config).ok()?.is_match(&haystack)
+                    }
+                    LocalSearchConfigMode::AstGrep => false,
+                    LocalSearchConfigMode::CaseAgnostic => {
+                        selection_mode::CaseAgnostic::new(search.clone())
+                            .find_all(&haystack)
+                            .is_empty()
+                            .not()
+                    }
+                };
+                if keep && is_match || !keep && !is_match {
+                    Some(selection.clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        let selections = match filtered.split_first() {
+            Some((head, tail)) => NonEmpty {
+                head: head.clone(),
+                tail: tail.to_vec(),
+            },
+            None => selections.clone(),
+        };
+        self.update_selection_set(self.selection_set.clone().set_selections(selections), true)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3046,6 +3094,10 @@ pub(crate) enum DispatchEditor {
     SwapExtensionDirection,
     CollapseSelection(Direction),
     EnterTillMode(IfCurrentNotFound),
+    FilterSelectionMatchingSearch {
+        search: String,
+        keep: bool,
+    },
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

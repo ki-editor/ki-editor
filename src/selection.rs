@@ -510,6 +510,10 @@ impl SelectionSet {
     pub(crate) fn is_extended(&self) -> bool {
         self.primary_selection().initial_range.is_some()
     }
+
+    pub(crate) fn selections(&self) -> &NonEmpty<Selection> {
+        &self.selections
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

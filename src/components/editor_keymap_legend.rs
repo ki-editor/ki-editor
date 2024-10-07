@@ -239,9 +239,19 @@ impl Editor {
                         Dispatch::ToEditor(Delete(Direction::Start)),
                     ),
                     Keymap::new(
-                        "K",
+                        "up",
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Parent)),
+                    ),
+                    Keymap::new(
+                        "K",
+                        "Keep selections matching search".to_string(),
+                        Dispatch::OpenFilterSelectionsPrompt { keep: true },
+                    ),
+                    Keymap::new(
+                        "alt+k",
+                        "Romeve selections matching search".to_string(),
+                        Dispatch::OpenFilterSelectionsPrompt { keep: false },
                     ),
                     Keymap::new(
                         "m",
