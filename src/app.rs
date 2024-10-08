@@ -31,7 +31,7 @@ use crate::{
     position::Position,
     quickfix_list::{Location, QuickfixList, QuickfixListItem, QuickfixListType},
     screen::{Screen, Window},
-    selection::{Filter, FilterKind, FilterMechanism, FilterTarget, SelectionMode},
+    selection::SelectionMode,
     syntax_highlight::{HighlighedSpans, SyntaxHighlightRequest},
     ui_tree::{ComponentKind, KindedComponent},
 };
@@ -645,12 +645,6 @@ impl<T: Frontend> App<T> {
             Dispatch::TerminalDimensionChanged(dimension) => self.resize(dimension),
             #[cfg(test)]
             Dispatch::SetGlobalTitle(title) => self.set_global_title(title),
-            Dispatch::OpenOmitPrompt {
-                kind,
-                target,
-                make_mechanism,
-            } => self.open_omit_prompt(kind, target, make_mechanism)?,
-
             Dispatch::LspExecuteCommand { command } => {
                 if let Some(params) = self.get_request_params() {
                     self.lsp_manager.send_message(
@@ -740,6 +734,9 @@ impl<T: Frontend> App<T> {
             }
             Dispatch::SetLastActionDescription(description) => {
                 self.last_action_description = Some(description)
+            }
+            Dispatch::OpenFilterSelectionsPrompt { keep } => {
+                self.open_filter_selections_prompt(keep)?
             }
         }
         Ok(())
@@ -1503,33 +1500,6 @@ impl<T: Frontend> App<T> {
         self.context.set_mode(mode);
     }
 
-    fn open_omit_prompt(
-        &mut self,
-        kind: FilterKind,
-        target: FilterTarget,
-        make_mechanism: MakeFilterMechanism,
-    ) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: format!(
-                    "Omit: {:?} selection by {:?} matching {:?}",
-                    kind, target, make_mechanism
-                ),
-                on_enter: DispatchPrompt::PushFilter {
-                    kind,
-                    target,
-                    make_mechanism,
-                },
-                items: Vec::new(),
-                enter_selects_first_matching_item: false,
-                leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::Omit,
-            None,
-        )
-    }
-
     #[cfg(test)]
     pub(crate) fn context(&self) -> &Context {
         &self.context
@@ -2113,6 +2083,27 @@ impl<T: Frontend> App<T> {
         }
         Ok(())
     }
+
+    fn open_filter_selections_prompt(&mut self, keep: bool) -> anyhow::Result<()> {
+        let config = self.context.get_local_search_config(Scope::Local);
+        let mode = config.mode;
+        self.open_prompt(
+            PromptConfig {
+                title: format!(
+                    "{} selections matching search ({})",
+                    if keep { "Keep" } else { "Remove" },
+                    mode.display()
+                ),
+                on_enter: DispatchPrompt::FilterSelectionMatchingSearch { keep },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: true,
+                fire_dispatches_on_change: None,
+            },
+            PromptHistoryKey::FilterSelectionsMatchingSearch { keep },
+            None,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2269,11 +2260,6 @@ pub(crate) enum Dispatch {
     TerminalDimensionChanged(Dimension),
     #[cfg(test)]
     SetGlobalTitle(String),
-    OpenOmitPrompt {
-        kind: FilterKind,
-        target: FilterTarget,
-        make_mechanism: MakeFilterMechanism,
-    },
     LspExecuteCommand {
         command: crate::lsp::code_action::Command,
     },
@@ -2335,6 +2321,9 @@ pub(crate) enum Dispatch {
     SetLastNonContiguousSelectionMode(Either<SelectionMode, GlobalMode>),
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
     SetLastActionDescription(String),
+    OpenFilterSelectionsPrompt {
+        keep: bool,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -2423,18 +2412,7 @@ pub(crate) enum AppMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum MakeFilterMechanism {
-    Literal,
-    Regex,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum DispatchPrompt {
-    PushFilter {
-        kind: FilterKind,
-        target: FilterTarget,
-        make_mechanism: MakeFilterMechanism,
-    },
     GlobalSearchConfigSetGlob {
         filter_glob: GlobalSearchFilterGlob,
         if_current_not_found: IfCurrentNotFound,
@@ -2467,26 +2445,13 @@ pub(crate) enum DispatchPrompt {
     #[cfg(test)]
     SetContent,
     PipeToShell,
+    FilterSelectionMatchingSearch {
+        keep: bool,
+    },
 }
 impl DispatchPrompt {
     pub(crate) fn to_dispatches(&self, text: &str) -> anyhow::Result<Dispatches> {
         match self.clone() {
-            DispatchPrompt::PushFilter {
-                kind,
-                target,
-                make_mechanism: mechanism,
-            } => {
-                let mechanism = match mechanism {
-                    MakeFilterMechanism::Literal => FilterMechanism::Literal(text.to_string()),
-                    MakeFilterMechanism::Regex => FilterMechanism::Regex(regex::Regex::new(text)?),
-                };
-                Ok(Dispatches::new(
-                    [Dispatch::ToEditor(FilterPush(Filter::new(
-                        kind, target, mechanism,
-                    )))]
-                    .to_vec(),
-                ))
-            }
             DispatchPrompt::GlobalSearchConfigSetGlob {
                 filter_glob,
                 if_current_not_found,
@@ -2577,6 +2542,12 @@ impl DispatchPrompt {
                     command: text.to_string(),
                 },
             ))),
+            DispatchPrompt::FilterSelectionMatchingSearch { keep } => Ok(Dispatches::one(
+                Dispatch::ToEditor(DispatchEditor::FilterSelectionMatchingSearch {
+                    keep,
+                    search: text.to_string(),
+                }),
+            )),
         }
     }
 }

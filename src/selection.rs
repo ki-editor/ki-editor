@@ -22,135 +22,7 @@ pub(crate) struct SelectionSet {
     cursor_index: usize,
     selections: NonEmpty<Selection>,
     pub(crate) mode: SelectionMode,
-    /// TODO: filters should be stored globally, not at SelectionSet
-    pub(crate) filters: Filters,
 }
-
-/// Filters is a stack.
-/// Operations on filter:
-/// 1. Push new filter
-/// 2. Pop latest filter
-/// 3. Clear all filters
-#[derive(Clone, Default, Debug, PartialEq, Eq)]
-pub(crate) struct Filters(Vec<Filter>);
-impl Filters {
-    /// Returns `Some(item)` if it satisfy this `Filters`.
-    pub(crate) fn retain(
-        &self,
-        buffer: &Buffer,
-        item: selection_mode::ByteRange,
-    ) -> Option<selection_mode::ByteRange> {
-        self.0
-            .iter()
-            .try_fold(item, |item, filter| filter.retain(buffer, item))
-    }
-
-    fn push(self, filter: Filter) -> Filters {
-        let mut result = self.0;
-        result.push(filter);
-        Filters(result)
-    }
-
-    pub(crate) fn display(&self) -> Option<String> {
-        if self.0.is_empty() {
-            None
-        } else {
-            Some(self.0.iter().map(|filter| filter.display()).join(", "))
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Filter {
-    kind: FilterKind,
-    mechanism: FilterMechanism,
-    target: FilterTarget,
-}
-impl Filter {
-    pub(crate) fn retain(
-        &self,
-        buffer: &Buffer,
-        item: selection_mode::ByteRange,
-    ) -> Option<selection_mode::ByteRange> {
-        let target = match self.target {
-            FilterTarget::Content => buffer
-                .slice(&buffer.byte_range_to_char_index_range(item.range()).ok()?)
-                .ok()
-                .map(|rope| rope.to_string()),
-            FilterTarget::Info => item.info().as_ref().map(|info| info.content().clone()),
-        }?;
-        let matched: bool = match &self.mechanism {
-            FilterMechanism::Literal(literal) => {
-                target.to_lowercase().contains(&literal.to_lowercase())
-            }
-            FilterMechanism::Regex(regex) => regex.is_match(&target),
-        };
-        match self.kind {
-            FilterKind::Keep => matched,
-            FilterKind::Remove => !matched,
-        }
-        .then_some(item)
-    }
-
-    pub(crate) fn new(kind: FilterKind, target: FilterTarget, mechanism: FilterMechanism) -> Self {
-        Self {
-            kind,
-            target,
-            mechanism,
-        }
-    }
-
-    fn display(&self) -> String {
-        let target = format!("{:?}", self.target);
-        let kind = match self.kind {
-            FilterKind::Keep => "⊇",
-            FilterKind::Remove => "⊈",
-        };
-        let mechanism = match &self.mechanism {
-            FilterMechanism::Literal(literal) => format!("\"{}\"", literal),
-            FilterMechanism::Regex(regex) => format!("/{}/", regex),
-        };
-        format!("{}{}{}", target, kind, mechanism)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum FilterTarget {
-    Info,
-    Content,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
-pub(crate) enum FilterKind {
-    Keep,
-    Remove,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum FilterMechanism {
-    Literal(String),
-    Regex(regex::Regex),
-    // AstGrep(ast_grep_core::Pattern),
-    // TreeSitterKind(String),
-}
-
-impl PartialEq for FilterMechanism {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (FilterMechanism::Literal(x), FilterMechanism::Literal(y)) => x == y,
-            (FilterMechanism::Regex(a), FilterMechanism::Regex(b)) => {
-                a.to_string() == b.to_string()
-            }
-            _ => false,
-        }
-    }
-}
-
-impl Eq for FilterMechanism {}
 
 impl Default for SelectionSet {
     fn default() -> Self {
@@ -158,7 +30,6 @@ impl Default for SelectionSet {
             cursor_index: 0,
             selections: NonEmpty::singleton(Selection::default()),
             mode: SelectionMode::Line,
-            filters: Filters::default(),
         }
     }
 }
@@ -201,7 +72,6 @@ impl SelectionSet {
                 .map(|selection| f(&selection))
                 .try_collect()?,
             mode,
-            filters: self.filters.clone(),
         })
     }
 
@@ -239,14 +109,7 @@ impl SelectionSet {
     ) -> anyhow::Result<Option<SelectionSet>> {
         let Some(selections) = self
             .map(|selection| {
-                Selection::get_selection_(
-                    buffer,
-                    selection,
-                    mode,
-                    direction,
-                    cursor_direction,
-                    &self.filters,
-                )
+                Selection::get_selection_(buffer, selection, mode, direction, cursor_direction)
             })
             .try_collect()?
             .try_collect()
@@ -258,7 +121,6 @@ impl SelectionSet {
             cursor_index: self.cursor_index,
             mode: selections.head.mode.clone().unwrap_or_else(|| mode.clone()),
             selections: selections.clone().map(|selection| selection.selection),
-            filters: self.filters.clone(),
         }))
     }
 
@@ -279,7 +141,6 @@ impl SelectionSet {
             &self.mode,
             direction,
             cursor_direction,
-            &self.filters,
         )? {
             let new_selection = new_selection.selection;
 
@@ -317,12 +178,7 @@ impl SelectionSet {
             .map(|selection| {
                 let object = self
                     .mode
-                    .to_selection_mode_trait_object(
-                        buffer,
-                        selection,
-                        cursor_direction,
-                        &self.filters,
-                    )
+                    .to_selection_mode_trait_object(buffer, selection, cursor_direction)
                     .ok()?;
 
                 let iter = object
@@ -330,7 +186,6 @@ impl SelectionSet {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
-                        filters: &self.filters,
                     })
                     .ok()?;
                 let result = iter
@@ -376,28 +231,6 @@ impl SelectionSet {
 
     pub(crate) fn len(&self) -> usize {
         self.selections.len()
-    }
-
-    pub(crate) fn filter_push(self, filter: Filter) -> SelectionSet {
-        let SelectionSet {
-            selections,
-            mode,
-            filters,
-            cursor_index,
-        } = self;
-        Self {
-            cursor_index,
-            selections,
-            mode,
-            filters: filters.push(filter),
-        }
-    }
-
-    pub(crate) fn filter_clear(self) -> Self {
-        Self {
-            filters: Filters::default(),
-            ..self
-        }
     }
 
     pub(crate) fn unset_initial_range(&mut self) {
@@ -510,6 +343,10 @@ impl SelectionSet {
     pub(crate) fn is_extended(&self) -> bool {
         self.primary_selection().initial_range.is_some()
     }
+
+    pub(crate) fn selections(&self) -> &NonEmpty<Selection> {
+        &self.selections
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -593,13 +430,11 @@ impl SelectionMode {
         buffer: &Buffer,
         current_selection: &Selection,
         cursor_direction: &Direction,
-        filters: &Filters,
     ) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
         let params = SelectionModeParams {
             buffer,
             current_selection,
             cursor_direction,
-            filters,
         };
         Ok(match self {
             SelectionMode::SubWord => Box::new(selection_mode::WordShort::as_regex(buffer)?),
@@ -741,20 +576,14 @@ impl Selection {
         mode: &SelectionMode,
         direction: &Movement,
         cursor_direction: &Direction,
-        filters: &Filters,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let selection_mode = mode.to_selection_mode_trait_object(
-            buffer,
-            current_selection,
-            cursor_direction,
-            filters,
-        )?;
+        let selection_mode =
+            mode.to_selection_mode_trait_object(buffer, current_selection, cursor_direction)?;
 
         let params = SelectionModeParams {
             buffer,
             current_selection,
             cursor_direction,
-            filters,
         };
 
         selection_mode.apply_movement(params, *direction)

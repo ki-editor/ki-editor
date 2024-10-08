@@ -648,6 +648,30 @@ foo(bar, 3 * 10, spam)",
             similar_vim_combos: &["p"],
         },
         Recipe {
+            description: "Invert nesting (JSX)",
+            content: "<Parent><Child><Grandson/></Child></Parent>".trim(),
+            file_extension: "js",
+            prepare_events: keys!("s j l j l"),
+            events: keys!("y k R k R j l r"),
+            expectations: &[CurrentComponentContent(
+                "<Child><Parent><Grandson/></Parent></Child>",
+            )],
+            terminal_height: None,
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Invert nesting (Function Call)",
+            content: "foo(bar(yo, spam(baz), baz), bomb)".trim(),
+            file_extension: "js",
+            prepare_events: keys!("/ s enter s"),
+            events: keys!("y k k R k k R j l j l r"),
+            expectations: &[CurrentComponentContent(
+                "bar(yo, foo(spam(baz), bomb), baz)",
+            )],
+            terminal_height: None,
+            similar_vim_combos: &[],
+        },
+        Recipe {
             description: "Collapse selection (End)",
             content: "foo bar spam".trim(),
             file_extension: "js",
@@ -728,6 +752,51 @@ spam baz
             prepare_events: keys!("/ x enter"),
             events: keys!("v T , h"),
             expectations: &[CurrentSelectedTexts(&["spam, x"])],
+            terminal_height: None,
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Keep selections matching search",
+            content: "
+enum Foo {
+   Bar(baz),
+   /// Spam is good
+   Spam { what: String }
+   /// Fifa means filifala
+   Fifa
+}
+"
+            .trim(),
+            file_extension: "rs",
+            prepare_events: keys!("/ b enter"),
+            events: keys!("s space a K / / enter"),
+            expectations: &[CurrentSelectedTexts(&[
+                "/// Spam is good\n",
+                "/// Fifa means filifala\n",
+            ])],
+            terminal_height: None,
+            similar_vim_combos: &[],
+        },
+        Recipe {
+            description: "Remove selections matching search",
+            content: "
+enum Foo {
+   Bar(baz),
+   /// Spam is good
+   Spam { what: String }
+   /// Fifa means filifala
+   Fifa
+}
+"
+            .trim(),
+            file_extension: "rs",
+            prepare_events: keys!("/ b enter"),
+            events: keys!("s space a alt+k / / enter"),
+            expectations: &[CurrentSelectedTexts(&[
+                "Bar(baz)",
+                "Spam { what: String }",
+                "Fifa",
+            ])],
             terminal_height: None,
             similar_vim_combos: &[],
         },

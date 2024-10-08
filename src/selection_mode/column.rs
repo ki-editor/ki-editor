@@ -98,10 +98,7 @@ impl Column {
 
 #[cfg(test)]
 mod test_column {
-    use crate::{
-        buffer::Buffer,
-        selection::{Filters, Selection},
-    };
+    use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
 
@@ -152,7 +149,6 @@ gam
                     buffer: &buffer,
                     current_selection: &Selection::new((start..start + 1).into()),
                     cursor_direction: &crate::components::editor::Direction::Start,
-                    filters: &Filters::default(),
                 },
             )
             .unwrap()

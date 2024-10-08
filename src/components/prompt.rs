@@ -49,7 +49,6 @@ pub(crate) enum PromptHistoryKey {
     Symbol,
     Command,
     OpenFile,
-    Omit,
     FilterGlob(GlobalSearchFilterGlob),
     Replacement(Scope),
     CodeAction,
@@ -57,6 +56,9 @@ pub(crate) enum PromptHistoryKey {
     Null,
     Theme,
     PipeToShell,
+    FilterSelectionsMatchingSearch {
+        keep: bool,
+    },
 }
 
 impl Prompt {
