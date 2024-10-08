@@ -177,3 +177,21 @@ Notes:
 
 1. Undo/redo works for multi-cursors as well
 2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
+
+## Filter selections matching search
+
+Keybindings:
+
+- `K`: Keep selections matching search
+- `alt+k`: Remove selections matching search
+
+This is useful when you have multiple selections but you wish to only keep or
+remove selections matching search.
+
+For example, if you want to select only the public functions of a class, you
+can first select all methods of the class, then use this feature to keep only
+the public functions.
+
+The search configuration is based on the local search configuration. So for
+example, if you want to match using regex, you should change the local search
+mode to regex using ' x.
