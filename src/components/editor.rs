@@ -465,8 +465,8 @@ impl Direction {
 
     fn to_movement(&self) -> Movement {
         match self {
-            Direction::Start => Movement::Previous,
-            Direction::End => Movement::Next,
+            Direction::Start => Movement::RealPrevious,
+            Direction::End => Movement::RealNext,
         }
     }
 
@@ -494,8 +494,12 @@ impl IfCurrentNotFound {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
+    /// TODO: Should be renamed as left
     Next,
+    /// TODO: Should be renamed as right
     Previous,
+    RealNext,
+    RealPrevious,
     Last,
     Current(IfCurrentNotFound),
     Up,
@@ -506,7 +510,6 @@ pub(crate) enum Movement {
     Jump(CharIndexRange),
     ToParentLine,
     Parent,
-    #[cfg(test)]
     FirstChild,
 }
 

@@ -69,15 +69,25 @@ impl SelectionMode for SyntaxNode {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let result = self.parent(params)?;
-        Ok(result.map(|result| result.selection))
+        TopNode.up(params)
     }
     fn down(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let result = self.first_child(params)?;
-        Ok(result.map(|result| result.selection))
+        TopNode.down(params)
+    }
+    fn previous(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        TopNode.previous(params)
+    }
+    fn next(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        TopNode.next(params)
     }
     fn parent(
         &self,
@@ -120,7 +130,11 @@ impl SyntaxNode {
     }
 }
 
-fn get_node(node: tree_sitter::Node, go_up: bool, coarse: bool) -> Option<tree_sitter::Node> {
+pub(crate) fn get_node(
+    node: tree_sitter::Node,
+    go_up: bool,
+    coarse: bool,
+) -> Option<tree_sitter::Node> {
     match (go_up, coarse) {
         (true, _) => node.parent(),
         (false, true) => node.named_child(0),

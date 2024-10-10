@@ -33,12 +33,12 @@ impl Editor {
             keymaps: Keymaps::new(&[
                 Keymap::new(
                     "h",
-                    "Previous".to_string(),
+                    "Left".to_string(),
                     Dispatch::ToEditor(MoveSelection(Movement::Previous)),
                 ),
                 Keymap::new(
                     "l",
-                    "Next".to_string(),
+                    "Right".to_string(),
                     Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new("k", "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
@@ -46,6 +46,26 @@ impl Editor {
                     "j",
                     "Down".to_string(),
                     Dispatch::ToEditor(MoveSelection(Down)),
+                ),
+                Keymap::new(
+                    "n",
+                    "Next".to_string(),
+                    Dispatch::ToEditor(MoveSelection(RealNext)),
+                ),
+                Keymap::new(
+                    "b",
+                    "Previous".to_string(),
+                    Dispatch::ToEditor(MoveSelection(RealPrevious)),
+                ),
+                Keymap::new(
+                    "x",
+                    "Expand (Parent)".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Parent)),
+                ),
+                Keymap::new(
+                    "z",
+                    "Shrink (First-child)".to_string(),
+                    Dispatch::ToEditor(MoveSelection(FirstChild)),
                 ),
                 Keymap::new(
                     ",",
@@ -177,7 +197,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "b",
+                    "W",
                     "Select Sub Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
                 ),
@@ -410,22 +430,6 @@ impl Editor {
                     }),
                 ),
                 Keymap::new(
-                    "x",
-                    Direction::End.format_action(&format!("{}{}", "Delete Cut", extra)),
-                    Dispatch::ToEditor(DeleteCut {
-                        direction: Direction::End,
-                        use_system_clipboard,
-                    }),
-                ),
-                Keymap::new(
-                    "X",
-                    Direction::Start.format_action(&format!("{}{}", "Delete Cut", extra)),
-                    Dispatch::ToEditor(DeleteCut {
-                        direction: Direction::Start,
-                        use_system_clipboard,
-                    }),
-                ),
-                Keymap::new(
                     "y",
                     format!("{}{}", "Yank (Copy)", extra),
                     Dispatch::ToEditor(Copy {
@@ -640,7 +644,7 @@ impl Editor {
                     Dispatch::ToEditor(EnterMultiCursorMode),
                 ),
                 Keymap::new(
-                    "z",
+                    "t",
                     "Enter Exchange mode".to_string(),
                     Dispatch::ToEditor(EnterExchangeMode),
                 ),

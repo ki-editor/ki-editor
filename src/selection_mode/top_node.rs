@@ -1,6 +1,8 @@
 use crate::components::editor::IfCurrentNotFound;
 
-use super::{ByteRange, SelectionMode, Token};
+use super::{
+    syntax_node::get_node, ApplyMovementResult, ByteRange, SelectionMode, SyntaxNode, Token,
+};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
@@ -33,14 +35,91 @@ impl SelectionMode for TopNode {
                 .into_iter(),
         ))
     }
+    fn last(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        SyntaxNode { coarse: true }.last(params)
+    }
 
+    fn first(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        SyntaxNode { coarse: true }.first(params)
+    }
+
+    fn parent(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params.clone(), true)
+    }
     fn first_child(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
-        Ok(Token
-            .current(params, IfCurrentNotFound::LookForward)?
-            .map(crate::selection_mode::ApplyMovementResult::from_selection))
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params, false)
+    }
+    fn real_next(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        Ok(node.next_named_sibling().and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
+    fn real_previous(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        Ok(node.prev_named_sibling().and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
+}
+impl TopNode {
+    fn select_vertical(
+        &self,
+        params: super::SelectionModeParams,
+        go_up: bool,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        let Some(mut node) = params
+            .buffer
+            .get_current_node(params.current_selection, false)?
+        else {
+            return Ok(None);
+        };
+        while let Some(some_node) = get_node(node, go_up, true) {
+            // This is necessary because sometimes the parent node can have the same range as
+            // the current node
+            if some_node.range() != node.range() {
+                return Ok(Some(ApplyMovementResult::from_selection(
+                    ByteRange::new(some_node.byte_range())
+                        .to_selection(params.buffer, params.current_selection)?,
+                )));
+            }
+            node = some_node;
+        }
+        Ok(None)
     }
 }
 

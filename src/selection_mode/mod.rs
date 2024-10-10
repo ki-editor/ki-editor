@@ -190,8 +190,9 @@ pub trait SelectionMode {
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
-            #[cfg(test)]
             Movement::FirstChild => self.first_child(params),
+            Movement::RealNext => convert(self.real_next(params)),
+            Movement::RealPrevious => convert(self.real_previous(params)),
         }
     }
 
@@ -201,6 +202,14 @@ pub trait SelectionMode {
 
     fn first_child(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         Ok(None)
+    }
+
+    fn real_next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.next(params)
+    }
+
+    fn real_previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.previous(params)
     }
 
     fn to_parent_line(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
