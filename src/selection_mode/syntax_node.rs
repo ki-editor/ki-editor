@@ -137,7 +137,7 @@ pub(crate) fn get_node(
 ) -> Option<tree_sitter::Node> {
     match (go_up, coarse) {
         (true, _) => node.parent(),
-        (false, true) => node.named_child(0),
+        (false, true) => node.child(0),
         (false, false) => node.child(0),
     }
 }
