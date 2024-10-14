@@ -1877,7 +1877,11 @@ impl Editor {
                         } else {
                             Movement::Next
                         }),
-                        get_in_between_gap(Movement::Previous),
+                        get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
+                            Movement::RealPrevious
+                        } else {
+                            Movement::Previous
+                        }),
                     ) {
                         (None, None) => Default::default(),
                         (None, Some(gap)) | (Some(gap), None) => gap,
