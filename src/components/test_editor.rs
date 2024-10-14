@@ -466,15 +466,15 @@ fn multi_exchange_sibling() -> anyhow::Result<()> {
                 "fn g(x:a,y:b){}",
             ])),
             Editor(MoveSelection(FirstChild)),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(RealNext)),
             Editor(MoveSelection(FirstChild)),
             Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(EnterExchangeMode),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(RealNext)),
             Expect(CurrentComponentContent("fn f(y:b,x:a){} fn g(y:b,x:a){}")),
             Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
-            Editor(MoveSelection(Previous)),
+            Editor(MoveSelection(RealPrevious)),
             Expect(CurrentComponentContent("fn f(x:a,y:b){} fn g(x:a,y:b){}")),
         ])
     })
@@ -542,9 +542,9 @@ fn exchange_sibling() -> anyhow::Result<()> {
             Editor(MatchLiteral("x: usize".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(EnterExchangeMode),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(RealNext)),
             Expect(CurrentComponentContent("fn main(y: Vec<A>, x: usize) {}")),
-            Editor(MoveSelection(Previous)),
+            Editor(MoveSelection(RealPrevious)),
             Expect(CurrentComponentContent("fn main(x: usize, y: Vec<A>) {}")),
         ])
     })
@@ -560,9 +560,9 @@ fn exchange_sibling_2() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["use a;"])),
             Editor(EnterExchangeMode),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(RealNext)),
             Expect(CurrentComponentContent("use b;\nuse a;\nuse c;")),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(RealNext)),
             Expect(CurrentComponentContent("use b;\nuse c;\nuse a;")),
         ])
     })

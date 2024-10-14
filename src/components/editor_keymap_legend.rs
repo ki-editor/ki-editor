@@ -50,20 +50,20 @@ impl Editor {
                 Keymap::new(
                     "n",
                     "Next".to_string(),
-                    Dispatch::ToEditor(MoveSelection(RealNext)),
+                    Dispatch::ToEditor(DispatchEditor::NextSelection),
                 ),
                 Keymap::new(
-                    "b",
+                    "N",
                     "Previous".to_string(),
-                    Dispatch::ToEditor(MoveSelection(RealPrevious)),
+                    Dispatch::ToEditor(DispatchEditor::PreviousSelection),
                 ),
                 Keymap::new(
-                    "x",
+                    "t",
                     "Expand (Parent)".to_string(),
                     Dispatch::ToEditor(MoveSelection(Parent)),
                 ),
                 Keymap::new(
-                    "z",
+                    "b",
                     "Shrink (First-child)".to_string(),
                     Dispatch::ToEditor(MoveSelection(FirstChild)),
                 ),
@@ -205,6 +205,11 @@ impl Editor {
                     "w",
                     "Select Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                ),
+                Keymap::new(
+                    "z",
+                    "Select Character".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
                 ),
                 Keymap::new(
                     "[",
@@ -644,7 +649,7 @@ impl Editor {
                     Dispatch::ToEditor(EnterMultiCursorMode),
                 ),
                 Keymap::new(
-                    "t",
+                    "x",
                     "Enter Exchange mode".to_string(),
                     Dispatch::ToEditor(EnterExchangeMode),
                 ),
