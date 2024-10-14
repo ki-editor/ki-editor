@@ -352,8 +352,6 @@ impl Component for Editor {
                     keep,
                 ))
             }
-            PreviousSelection => return self.previous_selection(context),
-            NextSelection => return self.next_selection(context),
         }
         Ok(Default::default())
     }
@@ -2939,41 +2937,6 @@ impl Editor {
         };
         self.update_selection_set(self.selection_set.clone().set_selections(selections), true)
     }
-
-    fn previous_selection(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        self.next_or_previous_selection(context, Direction::Start)
-    }
-
-    fn next_selection(&mut self, context: &Context) -> Result<Dispatches, anyhow::Error> {
-        self.next_or_previous_selection(context, Direction::End)
-    }
-
-    fn next_or_previous_selection(
-        &mut self,
-        context: &Context,
-        direction: Direction,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let movement = match direction {
-            Direction::Start => Movement::RealPrevious,
-            Direction::End => Movement::RealNext,
-        };
-        let selection_mode = if self.selection_set.mode.is_syntax_node() {
-            self.selection_set.mode.clone()
-        } else if let Some(Either::Left(selection_mode)) =
-            context.last_non_contiguous_selection_mode()
-        {
-            selection_mode.clone()
-        } else {
-            return Ok(Default::default());
-        };
-        let dispatches = self.move_selection_with_selection_mode_without_global_mode(
-            movement,
-            selection_mode.clone(),
-        )?;
-
-        self.selection_set.mode = selection_mode;
-        Ok(dispatches)
-    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3107,8 +3070,6 @@ pub(crate) enum DispatchEditor {
         search: String,
         keep: bool,
     },
-    PreviousSelection,
-    NextSelection,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

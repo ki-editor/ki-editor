@@ -50,12 +50,12 @@ impl Editor {
                 Keymap::new(
                     "n",
                     "Next".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::NextSelection),
+                    Dispatch::ToEditor(MoveSelection(RealNext)),
                 ),
                 Keymap::new(
                     "N",
                     "Previous".to_string(),
-                    Dispatch::ToEditor(DispatchEditor::PreviousSelection),
+                    Dispatch::ToEditor(MoveSelection(RealPrevious)),
                 ),
                 Keymap::new(
                     "t",
@@ -264,7 +264,7 @@ impl Editor {
                         Dispatch::ToEditor(Delete(Direction::Start)),
                     ),
                     Keymap::new(
-                        "up",
+                        "T",
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Parent)),
                     ),
