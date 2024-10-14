@@ -724,7 +724,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
             Editor(MoveSelection(Movement::FirstChild)),
-            Editor(MoveSelection(Movement::Next)),
+            Editor(MoveSelection(Movement::RealNext)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
             Editor(ChangeCut {
                 use_system_clipboard: false,

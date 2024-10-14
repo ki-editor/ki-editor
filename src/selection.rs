@@ -182,7 +182,7 @@ impl SelectionSet {
                     .ok()?;
 
                 let iter = object
-                    .iter_filtered(SelectionModeParams {
+                    .all_selections(SelectionModeParams {
                         buffer,
                         current_selection: selection,
                         cursor_direction,

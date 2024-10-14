@@ -183,20 +183,6 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "t",
-                    Direction::End.format_action("Till"),
-                    Dispatch::ToEditor(DispatchEditor::EnterTillMode(
-                        IfCurrentNotFound::LookForward,
-                    )),
-                ),
-                Keymap::new(
-                    "T",
-                    Direction::Start.format_action("Till"),
-                    Dispatch::ToEditor(DispatchEditor::EnterTillMode(
-                        IfCurrentNotFound::LookBackward,
-                    )),
-                ),
-                Keymap::new(
                     "W",
                     "Select Sub Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),

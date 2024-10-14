@@ -35,6 +35,12 @@ impl SelectionMode for TopNode {
                 .into_iter(),
         ))
     }
+    fn all_selections<'a>(
+        &'a self,
+        params: super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        SyntaxNode { coarse: true }.iter_filtered(params)
+    }
     fn last(
         &self,
         params: super::SelectionModeParams,
@@ -53,13 +59,13 @@ impl SelectionMode for TopNode {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params.clone(), true)
+        SyntaxNode { coarse: true }.select_vertical(params.clone(), true)
     }
     fn first_child(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, false)
+        SyntaxNode { coarse: true }.select_vertical(params, false)
     }
     fn real_next(
         &self,

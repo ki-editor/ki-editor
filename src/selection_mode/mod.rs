@@ -163,6 +163,13 @@ pub trait SelectionMode {
         ))
     }
 
+    fn all_selections<'a>(
+        &'a self,
+        params: SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        self.iter_filtered(params)
+    }
+
     fn apply_movement(
         &self,
         params: SelectionModeParams,
