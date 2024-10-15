@@ -361,11 +361,6 @@ pub(crate) enum SelectionMode {
     Find {
         search: Search,
     },
-    Till {
-        character: char,
-        direction: Direction,
-    },
-
     // Syntax-tree
     #[cfg(test)]
     Token,
@@ -418,10 +413,6 @@ impl SelectionMode {
             }
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Till {
-                character,
-                direction,
-            } => format!("{} {character:?}", direction.format_action("TILL")),
         }
     }
 
@@ -476,14 +467,6 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
-            SelectionMode::Till {
-                character,
-                direction,
-            } => Box::new(selection_mode::Till::from_config(
-                buffer,
-                *character,
-                direction.clone(),
-            )),
         })
     }
 

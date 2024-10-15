@@ -1,8 +1,4 @@
-use crate::components::editor::IfCurrentNotFound;
-
-use super::{
-    syntax_node::get_node, ApplyMovementResult, ByteRange, SelectionMode, SyntaxNode, Token,
-};
+use super::{ApplyMovementResult, ByteRange, SelectionMode, SyntaxNode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
@@ -102,33 +98,6 @@ impl SelectionMode for TopNode {
         }))
     }
 }
-impl TopNode {
-    fn select_vertical(
-        &self,
-        params: super::SelectionModeParams,
-        go_up: bool,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        let Some(mut node) = params
-            .buffer
-            .get_current_node(params.current_selection, false)?
-        else {
-            return Ok(None);
-        };
-        while let Some(some_node) = get_node(node, go_up, true) {
-            // This is necessary because sometimes the parent node can have the same range as
-            // the current node
-            if some_node.range() != node.range() {
-                return Ok(Some(ApplyMovementResult::from_selection(
-                    ByteRange::new(some_node.byte_range())
-                        .to_selection(params.buffer, params.current_selection)?,
-                )));
-            }
-            node = some_node;
-        }
-        Ok(None)
-    }
-}
-
 #[cfg(test)]
 mod test_top_node {
     use crate::{buffer::Buffer, selection::Selection};

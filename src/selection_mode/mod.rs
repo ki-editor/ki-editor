@@ -5,6 +5,7 @@ pub(crate) mod custom;
 pub(crate) mod diagnostic;
 pub(crate) mod git_hunk;
 pub(crate) mod mark;
+#[cfg(test)]
 pub(crate) mod token;
 
 pub(crate) mod line_full;
@@ -12,7 +13,6 @@ pub(crate) mod line_trimmed;
 pub(crate) mod local_quickfix;
 pub(crate) mod regex;
 pub(crate) mod syntax_node;
-mod till;
 pub(crate) mod top_node;
 pub(crate) mod word_long;
 pub(crate) mod word_short;
@@ -30,7 +30,7 @@ pub(crate) use local_quickfix::LocalQuickfix;
 pub(crate) use mark::Mark;
 use std::ops::Range;
 pub(crate) use syntax_node::SyntaxNode;
-pub(crate) use till::Till;
+#[cfg(test)]
 pub(crate) use token::Token;
 pub(crate) use top_node::TopNode;
 pub(crate) use word_long::WordLong;

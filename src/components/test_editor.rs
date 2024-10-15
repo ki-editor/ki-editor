@@ -736,6 +736,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(EnterNormalMode),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["b:B"])),
             Editor(Open(Direction::End)),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B, d:D){}".trim())),
