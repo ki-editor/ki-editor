@@ -10,8 +10,11 @@ use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
-    let recipes_output = recipes::recipes()
+    let recipes = recipes::recipes();
+    let contains_only_recipes = recipes.iter().any(|recipe| recipe.only);
+    let recipes_output = recipes
         .into_par_iter()
+        .filter(|recipe| !contains_only_recipes || recipe.only)
         .map(|recipe| -> anyhow::Result<RecipeOutput> {
             let path = format!("docs/assets/{}/", recipe.description);
             std::fs::create_dir_all(path.clone())?;
@@ -25,6 +28,10 @@ fn generate_recipes() -> anyhow::Result<()> {
                 .into_iter()
                 .enumerate()
                 .map(|(index, events)| -> anyhow::Result<StepOutput> {
+                    println!(
+                        "------- \n\n\tRunning: {} \n\n----------",
+                        recipe.description
+                    );
                     let result = execute_recipe(|s| {
                         let temp_path = s
                             .temp_dir()
@@ -111,6 +118,7 @@ pub(crate) struct Recipe {
     pub(crate) expectations: &'static [ExpectKind],
     pub(crate) terminal_height: Option<usize>,
     pub(crate) similar_vim_combos: &'static [&'static str],
+    pub(crate) only: bool,
 }
 #[derive(serde::Serialize)]
 pub(crate) struct StepOutput {

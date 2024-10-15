@@ -1519,9 +1519,7 @@ impl Editor {
                         .iter()
                         .all(|next_node| match (current_node, next_node) {
                             (Some(current_node), Some(next_node)) => {
-                                current_node.kind_id() == next_node.kind_id()
-                                    && current_node.byte_range().len()
-                                        == next_node.byte_range().len()
+                                current_node.byte_range().len() == next_node.byte_range().len()
                             }
                             (_, _) => true,
                         })
