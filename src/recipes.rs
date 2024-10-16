@@ -1,8 +1,230 @@
 use my_proc_macros::keys;
 
-use crate::{generate_recipes::Recipe, test_app::*};
+use crate::{
+    generate_recipes::{Recipe, RecipeGroup},
+    test_app::*,
+};
 
-pub(crate) fn recipes() -> Vec<Recipe> {
+pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
+    [
+        RecipeGroup {
+            filename: "showcase",
+            recipes: [
+                Recipe {
+                    description: "Remove all println statements",
+                    content: r#"
+pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
+    println!("_args = {:?}", {
+        let result = _args.collect::<Vec<_>>();
+        result
+    });
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let syntax_highlighter_sender = syntax_highlight::start_thread(sender.clone());
+    let mut app = App::from_channel(
+        Arc::new(Mutex::new(Crossterm::default())),
+        CanonicalizedPath::try_from(".")?;
+        sender,
+        receiver,
+    )?;
+
+    println!(
+        "syntax_highlighter_sender = {:?}",
+        syntax_highlighter_sender
+    );
+
+    app.set_syntax_highlight_request_sender(syntax_highlighter_sender);
+    let sender = app.sender();
+
+    let crossterm_join_handle = std::thread::spawn(move || loop {
+        if crossterm::event::read()
+            .map_err(|error| anyhow::anyhow!("{:?}", error))
+            .and_then(|event| Ok(sender.send(AppMessage::Event(event.into()))?))
+            .is_err()
+        {
+            println!("Something went wrong");
+            break;
+        }
+    });
+
+    app.run(path)
+        .map_err(|error| anyhow::anyhow!("screen.run {:?}", error))?;
+
+    println!("Good bye!");
+}
+"#
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("/ p r i n t enter space a s d"),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Sorting TODO list based on completion",
+                    content: r#"
+# Fake To-Do List
+
+- [x] Buy groceries
+- [x] Finish the report for work
+- [ ] Call the plumber
+- [x] Go to the gym
+- [ ] Schedule a dentist appointment
+- [x] Pay the bills
+- [ ] Plan a weekend getaway
+- [x] Read a new book
+  - [x] Chapter 1
+  - [x] Chapter 2
+  - [x] Chapter 3
+- [ ] Organize the closet
+- [ ] Watch a movie
+  - [ ] Action film
+  - [ ] Comedy
+  - [x] Documentary
+- [x] Write documentation
+"#
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!(
+                        "' x / ^ - space backslash [ space backslash ] enter space a s y d e . p a backspace"
+                    ),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Swapping body of if-else",
+                    content: r#"
+impl<C> Iterator for PostorderTraverse<C>
+    if c.goto_next_sibling() {
+        // If we successfully go to a sibling of this node, we want to go back down
+        // the tree on the next iteration
+        self.retracing = false;
+    } else {
+        // If we weren't already retracing, we are now; travel upwards until we can
+        // go to the next sibling or reach the root again
+        self.retracing = true;
+        if !c.goto_parent() {
+            // We've reached the root again, and our iteration is done
+            self.cursor = None;
+        }
+    }
+
+    Some(node)
+}
+"#
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!(
+                        "/ { enter s x f { b"
+                    ),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Wrap/unwrap the value of each key with Some in a struct",
+                    content: r#"
+pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
+    Self {
+        yx: SelectionSet {
+            primary: Selection::default(),
+            secondary: vec![],
+            mode: SelectionMode::Custom,
+            filters: Filters::default(),
+        },
+        jumps: None,
+        mode: Mode::Normal,
+        cursor_direction: Direction::Start,
+        scroll_offset: 0,
+        rectangle: Rectangle::default(),
+        buffer: Rc::new(RefCell::new(Buffer::new(language, text))),
+        title: None,
+        id: ComponentId::new(),
+        current_view_alignment: None,
+        regex_highlight_rules: Vec::new(),
+        selection_set_history: History::new(),
+    }
+}
+"#
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!(
+                        "/ y x enter s space a b n v s ( i S o m e esc s b n n T space o"
+                    ),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Case-agnostic search and replace",
+                    content: r#"
+pub(crate) fn select(
+    &mut self,
+    selection_mode: SelectionMode,
+    movement: Movement,
+) -> anyhow::Result<Dispatches> {
+    // There are a few selection modes where Current make sense.
+    let direction = if self.selection_set.mode != selection_mode {
+        Movement::Current
+    } else {
+        movement
+    };
+
+    if let Some(selection_set) = self.get_selection_set(&selection_mode, direction)? {
+        Ok(self.update_selection_set(selection_set, true))
+    } else {
+        Ok(Default::default())
+    }
+}
+
+fn jump_characters() -> Vec<char> {
+    ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
+}
+
+pub(crate) fn get_selection_mode_trait_object(
+    &self,
+    selection: &Selection,
+) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+    self.selection_set.mode.to_selection_mode_trait_object(
+        &self.buffer(),
+        selection,
+        &self.cursor_direction,
+        &self.selection_set.filters,
+    )
+}
+"#
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!(
+                        "' c / s e l e c t i o n space m o d e enter ' r f o o space b a r enter ctrl+c space a ctrl+r space o"
+                    ),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "recipes",
+            recipes: recipes(),
+        },
+    ]
+    .to_vec()
+}
+
+fn recipes() -> Vec<Recipe> {
     [
         Recipe {
             description: "Select a syntax node (Rust)",
@@ -263,7 +485,7 @@ hello_world
             only: false,
         },
         Recipe {
-            description: "Delete sub words (forward)",
+            description: "Delete subwords (forward)",
             content: "camelCase snake_case".trim(),
             file_extension: "md",
             prepare_events: &[],
@@ -274,7 +496,7 @@ hello_world
             only: false,
         },
         Recipe {
-            description: "Delete sub words (backward)",
+            description: "Delete subwords (backward)",
             content: "camelCase snake_case".trim(),
             file_extension: "md",
             prepare_events: &[],
@@ -615,11 +837,11 @@ foox bar spam",
             only: false,
         },
         Recipe {
-            description: "Replace parent node with current node",
+            description: "Raise / Replace parent node with current node",
             content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
             file_extension: "js",
             prepare_events: keys!("/ x enter"),
-            events: keys!("s y t t r"),
+            events: keys!("s T r"),
             expectations: &[CurrentComponentContent("x(bar(baz))")],
             terminal_height: Some(7),
             similar_vim_combos: &[],

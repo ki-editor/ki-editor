@@ -184,8 +184,8 @@ impl Editor {
                 ),
                 Keymap::new(
                     "W",
-                    "Select Sub Word".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
+                    "Select Subword".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
                 ),
                 Keymap::new(
                     "w",
@@ -503,7 +503,7 @@ impl Editor {
                             ),
                             Keymap::new(
                                 "alt+backspace",
-                                "Delete sub word backward".to_string(),
+                                "Delete subword backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
                         ]),

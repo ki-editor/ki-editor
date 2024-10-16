@@ -1011,10 +1011,10 @@ fn global_marks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(ToggleMark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SubWord)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,

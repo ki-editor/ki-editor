@@ -129,4 +129,4 @@ only executes the [Up](./core-movements.md#updown) movement.
 [^1]: This is a temporary assignment, will be changed in the future.
 
 [1]: ./selection-modes/syntax-node-based.md#syntax-node
-[2]: ./core-movements.md#previousnext
+[2]: ./core-movements.md#leftright

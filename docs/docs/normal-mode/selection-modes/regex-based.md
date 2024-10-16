@@ -20,11 +20,11 @@ Keybinding: `E`
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
-## Sub Word
+## Subword
 
-Keybinding: `b`
+Keybinding: `W`
 
-This selects sub words, even if these words are not separated by spaces.
+This selects subwords, even if these words are not separated by spaces.
 
 For example, `myOatPepperBanana` consists of 4 short words, namely: `my`, `Oat`, `Pepper` and `Banana`.
 
@@ -47,30 +47,6 @@ Keybindings:
 - `^`: Collapse selection (start)
 - `$`: Collapse selection (end)
 
-In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#previousnext) means left/right, and so on.
+In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#leftright) means left/right, and so on.
 
 [First/Last](./../core-movements.md#firstlast) means the first/last column of the current line.
-
-## Till
-
-The "Till" command moves the cursor to the position just before a specified
-character on the current line. This feature is similar to Vim's `t` command
-but works across multiple lines.
-
-Keybindings:
-
-- `t`: Till forward (move cursor forward to just before the next occurrence of a character)
-- `T`: Till backward (move cursor backward to just after the previous occurrence of a character)
-
-Usage:
-
-1. Press `t` (forward) or `T` (backward).
-2. Type the character you want to move to.
-3. The cursor will move to the position immediately before the specified character.
-
-Examples:
-
-Given the line: `The quick brown fox jumps over the lazy dog`
-
-- With the cursor at the start, pressing `t f` will move the cursor to just before the 'f' in "fox".
-- With the cursor at the end, pressing `T o` will move the cursor to just after the 'o' in "dog".

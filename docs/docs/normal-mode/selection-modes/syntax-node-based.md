@@ -7,14 +7,6 @@ sidebar_position: 2
 The following selection modes are based on the syntax node of the file, which are
 powered by [Tree-sitter](https://github.com/tree-sitter).
 
-## Token
-
-Keybinding: `t`
-
-Token as in parser terminology, which represents the basic atoms of a syntax node.
-
-It is useful for example, to select the name of the current variable (or identifier to be more general).
-
 ## Syntax Node
 
 This is one of my favourite selection mode, as it enable structural editing.
@@ -28,13 +20,13 @@ There are two Syntax Node selection modes:
 
 Keybinding: `s`
 
-| Movement                                           | Meaning                          |
-| -------------------------------------------------- | -------------------------------- |
-| [Previous/Next](../core-movements.md#previousnext) | Previous/Next named sibling node |
-| Up                                                 | Parent node                      |
-| Down                                               | First named child node           |
-| Current                                            | Largest node                     |
-| Jump                                               | Jump to largest node             |
+| Movement                                        | Meaning                          |
+| ----------------------------------------------- | -------------------------------- |
+| [Previous/Next](../core-movements.md#leftright) | Previous/Next named sibling node |
+| Up                                              | Parent node                      |
+| Down                                            | First named child node           |
+| Current                                         | Largest node                     |
+| Jump                                            | Jump to largest node             |
 
 ### Largest Node
 
@@ -70,13 +62,13 @@ See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-an
 Keybinding: `S`  
 Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-to-press key.
 
-| Movement                                           | Meaning                                          |
-| -------------------------------------------------- | ------------------------------------------------ |
-| [Previous/Next](../core-movements.md#previousnext) | Previous/Next sibling node                       |
-| Up                                                 | Parent node                                      |
-| Down                                               | First child                                      |
-| Current                                            | Smallest node that matches the current selection |
-| Jump                                               | Jump to smallest node                            |
+| Movement                                        | Meaning                                          |
+| ----------------------------------------------- | ------------------------------------------------ |
+| [Previous/Next](../core-movements.md#leftright) | Previous/Next sibling node                       |
+| Up                                              | Parent node                                      |
+| Down                                            | First child                                      |
+| Current                                         | Smallest node that matches the current selection |
+| Jump                                            | Jump to smallest node                            |
 
 Fine Syntax Node is useful when you start to expand the selection starting from the current token.
 

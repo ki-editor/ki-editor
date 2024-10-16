@@ -48,7 +48,7 @@ codecov:
     
 
 watch-test testname:
-	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' --ignore 'docs/assets/recipes.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
+	RUST_BACKTRACE=1 cargo watch --ignore 'tests/mock_repos/*' --ignore 'docs/static/*.json' -- cargo test --workspace  -- --nocapture -- {{testname}}
 	
 watch-clippy:
 	RUST_BACKTRACE=1 cargo watch -- cargo clippy --workspace --tests

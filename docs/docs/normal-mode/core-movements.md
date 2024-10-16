@@ -9,7 +9,7 @@ every [selection modes](./selection-modes/index.md).
 
 There are 9 movements in total:
 
-1. [Previous/Next](#previousnext)
+1. [Left/Right](#leftright)
 1. [Up/Down](#updown)
 1. [First/Last](#firstlast)
 1. [Jump](#jump)
@@ -17,28 +17,35 @@ There are 9 movements in total:
 1. [To Index](#to-index)
 1. [Current](#current)
 
-## Previous/Next
+## Left/Right
 
 Keybinding: `h`/`l`  
 Memory aid:
 
-- h stands for higher, which means previous.
-- l stands for lower, which means next.
+- h stands for higher, which means "move to the selection on the left".
+- l stands for lower, which means "move to the selection on the right".
 
 ## Up/Down
 
 Keybinding: `k`/`j`  
 Memory aid:
 
-- k means king, which means up.
-- j means jack, which means down.
+- k means king, which means "move to the nearest selection above the current line".
+- j means jack, which means "move to the nearest selection below the current line".
 
-In most selection modes, up/down moves the selections upwards/downwards, except for the following selection modes:
+## Next/Previous
 
-| Selection Mode | Up                                | Down                            |
-| -------------- | --------------------------------- | ------------------------------- |
-| Syntax Node    | Expand selection to parent        | Shrink selection to first child |
-| Quickfix       | Go to first item of previous file | Go to first item of next file   |
+Keybinding: `n`/`N`
+
+These movemest similar to the 4 movements above, however, they are not restricted to vertical or horizontal movements.
+They are assigned special meaning in different selection modes.
+
+| Selection Mode   | Meaning                                   |
+| ---------------- | ----------------------------------------- |
+| Syntax Node      | Next/Previous named sibling               |
+| Quickfix         | To first item of next/previous file       |
+| Word & Subword   | Next/Previous word skipping symbols (TBD) |
+| Line & Full Line | Next/Previous empty line (TBD)            |
 
 ## First/Last
 
@@ -47,11 +54,13 @@ Memory aid:
 
 - `,`/`.` looks like `<`/`>` on the keyboard
 
-Recommended selection modes:
-
-1. Line
-1. Column
-1. Search
+| Selection Mode   | Meaning                                       |
+| ---------------- | --------------------------------------------- |
+| Syntax Node      | First/Last named sibling                      |
+| Quickfix         | First/Last item                               |
+| Subword          | First/Last subword in the current word (TBD)  |
+| Word             | First/Last word in the current sentence (TBD) |
+| Line & Full Line | First/Last line of the current file           |
 
 ## Jump
 

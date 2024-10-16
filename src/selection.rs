@@ -353,7 +353,7 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     EmptyLine,
-    SubWord,
+    Subword,
     Word,
     Line,
     Column,
@@ -390,7 +390,7 @@ impl SelectionMode {
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::SubWord => "SUB WORD".to_string(),
+            SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::Line => "LINE".to_string(),
@@ -428,7 +428,7 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::SubWord => Box::new(selection_mode::WordShort::as_regex(buffer)?),
+            SelectionMode::Subword => Box::new(selection_mode::WordShort::as_regex(buffer)?),
             SelectionMode::Word => Box::new(selection_mode::WordLong::as_regex(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
@@ -477,7 +477,7 @@ impl SelectionMode {
         }
         matches!(
             self,
-            SelectionMode::SubWord
+            SelectionMode::Subword
                 | SelectionMode::Word
                 | SelectionMode::Line
                 | SelectionMode::LineFull
