@@ -20,13 +20,13 @@ There are two Syntax Node selection modes:
 
 Keybinding: `s`
 
-| Movement                                        | Meaning                          |
-| ----------------------------------------------- | -------------------------------- |
-| [Previous/Next](../core-movements.md#leftright) | Previous/Next named sibling node |
-| Up                                              | Parent node                      |
-| Down                                            | First named child node           |
-| Current                                         | Largest node                     |
-| Jump                                            | Jump to largest node             |
+| Movement                                           | Meaning                              |
+| -------------------------------------------------- | ------------------------------------ |
+| [Next/Preivous](../core-movements.md#nextprevious) | Next/Previous **named** sibling node |
+| Expand                                             | Parent node                          |
+| Shrink                                             | First **named** child                |
+| Current                                            | Select the largest node              |
+| Jump                                               | Jump to largest node                 |
 
 ### Largest Node
 
@@ -62,13 +62,13 @@ See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-an
 Keybinding: `S`  
 Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-to-press key.
 
-| Movement                                        | Meaning                                          |
-| ----------------------------------------------- | ------------------------------------------------ |
-| [Previous/Next](../core-movements.md#leftright) | Previous/Next sibling node                       |
-| Up                                              | Parent node                                      |
-| Down                                            | First child                                      |
-| Current                                         | Smallest node that matches the current selection |
-| Jump                                            | Jump to smallest node                            |
+| Movement                                           | Meaning                                          |
+| -------------------------------------------------- | ------------------------------------------------ |
+| [Next/Preivous](../core-movements.md#nextprevious) | Next/Previous sibling node                       |
+| Expand                                             | Parent node                                      |
+| Shrink                                             | First child                                      |
+| Current                                            | Smallest node that matches the current selection |
+| Jump                                               | Jump to smallest node                            |
 
 Fine Syntax Node is useful when you start to expand the selection starting from the current token.
 
@@ -78,8 +78,8 @@ Suppose we have the following Javascript expression, and the current selection i
 hello.world().foo().bar().spam().wise();
 ```
 
-If we press `s`, the whole expression will be selected[^1], and we will need to press `j` several times to shrink the selection down to `hello.world()`.
+If we press `s`, the whole expression will be selected[^1], and we will need to press `b` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `S` instead, the selection will remain as `hello`, and pressing `k` multiple times will get us to `hello.world()`.
+However, if we use `S` instead, the selection will remain as `hello`, and pressing `t` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)

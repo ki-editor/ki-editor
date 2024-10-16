@@ -7,11 +7,12 @@ sidebar_position: 2
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
-There are 9 movements in total:
+There are 13 movements in total:
 
 1. [Left/Right](#leftright)
 1. [Up/Down](#updown)
 1. [First/Last](#firstlast)
+1. [Expand/Shrink](#expandshrink)
 1. [Jump](#jump)
 1. [Parent Line](#parent-line)
 1. [To Index](#to-index)
@@ -50,9 +51,7 @@ They are assigned special meaning in different selection modes.
 ## First/Last
 
 Keybinding: `,`/`.`  
-Memory aid:
-
-- `,`/`.` looks like `<`/`>` on the keyboard
+Memory aid: `,`/`.` looks like `<`/`>` on the keyboard
 
 | Selection Mode   | Meaning                                       |
 | ---------------- | --------------------------------------------- |
@@ -61,6 +60,16 @@ Memory aid:
 | Subword          | First/Last subword in the current word (TBD)  |
 | Word             | First/Last word in the current sentence (TBD) |
 | Line & Full Line | First/Last line of the current file           |
+
+## Expand/Shrink
+
+Keybinding: `t`/`b`  
+Memory aid: t stands for Top (implying expand), while b Bottom (implying shrink)
+
+| Selection Mode        | Meaning                                           |
+| --------------------- | ------------------------------------------------- |
+| Syntax Node           | Parent/First-child                                |
+| Other selection modes | Expand selection to nearest brackets/quotes (TBD) |
 
 ## Jump
 

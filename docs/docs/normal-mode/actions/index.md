@@ -101,7 +101,7 @@ For example:
 
 ## Raise
 
-Keybinding: `K`
+Keybinding: `T`
 
 This is one of my favorite actions, it only works for [syntax node](../selection-modes/syntax-node-based.md#syntax-node) selection modes.
 

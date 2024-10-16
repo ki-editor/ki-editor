@@ -8,8 +8,8 @@ To return back to normal mode from one of these movement-action modes, press `es
 
 ## 1. Exchange
 
-Keybinding: `z`  
-Memory aid: z stands for Zamiana, which means Exchange or Swap in Polish
+Keybinding: `x`  
+Memory aid: e**x**change
 
 In the Exchange submode, every core movement means:
 
@@ -80,9 +80,7 @@ Suppose:
 
 ... then executing [Next][2] adds a new cursor to the second `hello`.
 
-## 3. Replace
-
-Keybinding: `;` [^2]
+## 3. Replace (to be removed)
 
 In the Replace submode, every core movement means:
 
@@ -125,8 +123,6 @@ The rigorous readers might have noticed the similarity of the Replace submode
 with the [Raise](./actions/index.md#raise) action, that is in fact the case,
 under the hood, Raise is but a specialized version of the Replace mode which
 only executes the [Up](./core-movements.md#updown) movement.
-
-[^1]: This is a temporary assignment, will be changed in the future.
 
 [1]: ./selection-modes/syntax-node-based.md#syntax-node
 [2]: ./core-movements.md#leftright

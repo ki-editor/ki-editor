@@ -44,9 +44,9 @@ Like [Word](#word), but it treats each word as a sequence of alphanumeric charac
 
 Keybindings:
 
-- `^`: Collapse selection (start)
+- `z`: Collapse selection (start)
 - `$`: Collapse selection (end)
 
-In this selection mode, the movements behave like the usual editor, where [Previous/Next](./../core-movements.md#leftright) means left/right, and so on.
+In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#leftright) means left/right, and so on.
 
 [First/Last](./../core-movements.md#firstlast) means the first/last column of the current line.
