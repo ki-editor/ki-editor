@@ -34,12 +34,12 @@ impl Editor {
                 Keymap::new(
                     "h",
                     "Left".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Movement::Previous)),
+                    Dispatch::ToEditor(MoveSelection(Movement::Left)),
                 ),
                 Keymap::new(
                     "l",
                     "Right".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Next)),
+                    Dispatch::ToEditor(MoveSelection(Right)),
                 ),
                 Keymap::new("k", "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
                 Keymap::new(
@@ -50,12 +50,12 @@ impl Editor {
                 Keymap::new(
                     "n",
                     "Next".to_string(),
-                    Dispatch::ToEditor(MoveSelection(RealNext)),
+                    Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new(
                     "N",
                     "Previous".to_string(),
-                    Dispatch::ToEditor(MoveSelection(RealPrevious)),
+                    Dispatch::ToEditor(MoveSelection(Previous)),
                 ),
                 Keymap::new(
                     "t",

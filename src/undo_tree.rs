@@ -60,8 +60,8 @@ impl<T: Applicable> UndoTree<T> {
         movement: Movement,
     ) -> anyhow::Result<Option<T::Output>> {
         match movement {
-            Movement::Next => self.redo(target),
-            Movement::Previous => self.undo(target),
+            Movement::Right => self.redo(target),
+            Movement::Left => self.undo(target),
             Movement::Last => Err(anyhow::anyhow!(
                 "UndoTree: moving to Last is not supported yet",
             )),
@@ -94,10 +94,10 @@ impl<T: Applicable> UndoTree<T> {
             Movement::FirstChild => Err(anyhow::anyhow!(
                 "UndoTree: moving to FirstChild is not supported yet",
             )),
-            Movement::RealNext => Err(anyhow::anyhow!(
+            Movement::Next => Err(anyhow::anyhow!(
                 "UndoTree: moving to RealNext is not supported yet",
             )),
-            Movement::RealPrevious => Err(anyhow::anyhow!(
+            Movement::Previous => Err(anyhow::anyhow!(
                 "UndoTree: moving to RealPrevious is not supported yet",
             )),
         }

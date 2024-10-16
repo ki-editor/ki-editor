@@ -181,9 +181,9 @@ pub trait SelectionMode {
             Ok(result?.map(|result| result.into()))
         }
         match movement {
-            Movement::Next => convert(self.next(params)),
+            Movement::Right => convert(self.next(params)),
 
-            Movement::Previous => convert(self.previous(params)),
+            Movement::Left => convert(self.previous(params)),
             Movement::Last => convert(self.last(params)),
             Movement::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
@@ -198,8 +198,8 @@ pub trait SelectionMode {
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
             Movement::FirstChild => self.first_child(params),
-            Movement::RealNext => convert(self.real_next(params)),
-            Movement::RealPrevious => convert(self.real_previous(params)),
+            Movement::Next => convert(self.real_next(params)),
+            Movement::Previous => convert(self.real_previous(params)),
         }
     }
 
@@ -589,18 +589,18 @@ mod test_selection_mode {
 
     #[test]
     fn previous() {
-        test(Movement::Previous, 1..6, 0..6);
-        test(Movement::Previous, 2..5, 1..6);
-        test(Movement::Previous, 3..5, 3..4);
-        test(Movement::Previous, 3..4, 2..5);
+        test(Movement::Left, 1..6, 0..6);
+        test(Movement::Left, 2..5, 1..6);
+        test(Movement::Left, 3..5, 3..4);
+        test(Movement::Left, 3..4, 2..5);
     }
 
     #[test]
     fn next() {
-        test(Movement::Next, 0..6, 1..6);
-        test(Movement::Next, 1..6, 2..5);
-        test(Movement::Next, 2..5, 3..4);
-        test(Movement::Next, 3..4, 3..5);
+        test(Movement::Right, 0..6, 1..6);
+        test(Movement::Right, 1..6, 2..5);
+        test(Movement::Right, 2..5, 3..4);
+        test(Movement::Right, 3..4, 3..5);
     }
 
     #[test]
@@ -710,7 +710,7 @@ mod test_selection_mode {
             cursor_direction: &Direction::default(),
         };
         let actual = Dummy
-            .apply_movement(params, Movement::Next)
+            .apply_movement(params, Movement::Right)
             .unwrap()
             .unwrap()
             .selection

@@ -457,8 +457,8 @@ impl Direction {
 
     fn to_movement(&self) -> Movement {
         match self {
-            Direction::Start => Movement::RealPrevious,
-            Direction::End => Movement::RealNext,
+            Direction::Start => Movement::Previous,
+            Direction::End => Movement::Next,
         }
     }
 
@@ -477,12 +477,10 @@ pub(crate) enum IfCurrentNotFound {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
-    /// TODO: Should be renamed as left
+    Right,
+    Left,
     Next,
-    /// TODO: Should be renamed as right
     Previous,
-    RealNext,
-    RealPrevious,
     Last,
     Current(IfCurrentNotFound),
     Up,
@@ -1085,12 +1083,12 @@ impl Editor {
     }
 
     pub(crate) fn undo(&mut self) -> anyhow::Result<Dispatches> {
-        let result = self.navigate_undo_tree(Movement::Previous)?;
+        let result = self.navigate_undo_tree(Movement::Left)?;
         Ok(result)
     }
 
     pub(crate) fn redo(&mut self) -> anyhow::Result<Dispatches> {
-        self.navigate_undo_tree(Movement::Next)
+        self.navigate_undo_tree(Movement::Right)
     }
 
     pub(crate) fn swap_cursor_with_anchor(&mut self) {
@@ -1700,7 +1698,7 @@ impl Editor {
                     if current_word.extended_range().start <= start {
                         current_word
                     } else {
-                        get_word(Movement::Previous)?.selection
+                        get_word(Movement::Left)?.selection
                     }
                 };
 
@@ -1851,14 +1849,14 @@ impl Editor {
                 } else {
                     match (
                         get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
-                            Movement::RealNext
-                        } else {
                             Movement::Next
+                        } else {
+                            Movement::Right
                         }),
                         get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
-                            Movement::RealPrevious
-                        } else {
                             Movement::Previous
+                        } else {
+                            Movement::Left
                         }),
                     ) {
                         (None, None) => Default::default(),
