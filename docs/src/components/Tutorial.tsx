@@ -42,9 +42,7 @@ export const Tutorial = (props: { filename: string }) => {
 
 async function loadRecipes(url: string) {
   const response = await fetch(url);
-  console.log(response);
   const recipesData = await response.json();
-  console.log(recipesData);
   return z.array(recipeSchema).parse(recipesData.recipes_output);
 }
 
