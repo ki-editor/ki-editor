@@ -63,7 +63,7 @@ impl SelectionMode for TopNode {
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         SyntaxNode { coarse: true }.select_vertical(params, false)
     }
-    fn real_next(
+    fn next(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
@@ -80,7 +80,7 @@ impl SelectionMode for TopNode {
                 .ok()
         }))
     }
-    fn real_previous(
+    fn previous(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {

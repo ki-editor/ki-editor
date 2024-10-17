@@ -8,12 +8,14 @@ pub(crate) mod mark;
 #[cfg(test)]
 pub(crate) mod token;
 
+#[cfg(test)]
+pub(crate) mod top_node;
+
 pub(crate) mod line_full;
 pub(crate) mod line_trimmed;
 pub(crate) mod local_quickfix;
 pub(crate) mod regex;
 pub(crate) mod syntax_node;
-pub(crate) mod top_node;
 pub(crate) mod word_long;
 pub(crate) mod word_short;
 pub(crate) use self::regex::Regex;
@@ -32,6 +34,7 @@ use std::ops::Range;
 pub(crate) use syntax_node::SyntaxNode;
 #[cfg(test)]
 pub(crate) use token::Token;
+#[cfg(test)]
 pub(crate) use top_node::TopNode;
 pub(crate) use word_long::WordLong;
 pub(crate) use word_short::WordShort;
@@ -181,9 +184,9 @@ pub trait SelectionMode {
             Ok(result?.map(|result| result.into()))
         }
         match movement {
-            Movement::Right => convert(self.next(params)),
+            Movement::Right => convert(self.right(params)),
 
-            Movement::Left => convert(self.previous(params)),
+            Movement::Left => convert(self.left(params)),
             Movement::Last => convert(self.last(params)),
             Movement::Current(if_current_not_found) => {
                 convert(self.current(params, if_current_not_found))
@@ -198,8 +201,8 @@ pub trait SelectionMode {
             Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Parent => self.parent(params),
             Movement::FirstChild => self.first_child(params),
-            Movement::Next => convert(self.real_next(params)),
-            Movement::Previous => convert(self.real_previous(params)),
+            Movement::Next => convert(self.next(params)),
+            Movement::Previous => convert(self.previous(params)),
         }
     }
 
@@ -211,12 +214,12 @@ pub trait SelectionMode {
         Ok(None)
     }
 
-    fn real_next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.next(params)
+    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right(params)
     }
 
-    fn real_previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        self.previous(params)
+    fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left(params)
     }
 
     fn to_parent_line(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
@@ -365,18 +368,6 @@ pub trait SelectionMode {
         Ok(jumps)
     }
 
-    fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        Ok(self
-            .iter_filtered(params.clone())?
-            .sorted()
-            .last()
-            .and_then(|range| {
-                range
-                    .to_selection(params.buffer, params.current_selection)
-                    .ok()
-            }))
-    }
-
     fn to_index(
         &self,
         params: SelectionModeParams,
@@ -391,7 +382,8 @@ pub trait SelectionMode {
             Err(anyhow::anyhow!("Invalid index"))
         }
     }
-    fn next(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+
+    fn right(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
@@ -404,8 +396,7 @@ pub trait SelectionMode {
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
-
-    fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+    fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
         let byte_range = buffer.char_index_range_to_byte_range(current_selection.range())?;
@@ -421,11 +412,25 @@ pub trait SelectionMode {
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
 
+    /// This uses `all_selections` instead of `iter_filtered`.
     fn first(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         Ok(self
-            .iter_filtered(params.clone())?
+            .all_selections(params.clone())?
             .sorted()
             .next()
+            .and_then(|range| {
+                range
+                    .to_selection(params.buffer, params.current_selection)
+                    .ok()
+            }))
+    }
+
+    /// This uses `all_selections` instead of `iter_filtered`.
+    fn last(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        Ok(self
+            .all_selections(params.clone())?
+            .sorted()
+            .last()
             .and_then(|range| {
                 range
                     .to_selection(params.buffer, params.current_selection)
@@ -479,8 +484,8 @@ pub trait SelectionMode {
         // If no intersecting match found, look in the reversed direction
         else {
             let result = match if_current_not_found {
-                IfCurrentNotFound::LookForward => self.next(params.clone()),
-                IfCurrentNotFound::LookBackward => self.previous(params.clone()),
+                IfCurrentNotFound::LookForward => self.right(params.clone()),
+                IfCurrentNotFound::LookBackward => self.left(params.clone()),
             }?;
             if let Some(result) = result {
                 Ok(Some(result))
@@ -488,8 +493,8 @@ pub trait SelectionMode {
                 // Look in another direction if matching selection is not found in the
                 // preferred direction
                 match if_current_not_found {
-                    IfCurrentNotFound::LookForward => self.previous(params),
-                    IfCurrentNotFound::LookBackward => self.next(params),
+                    IfCurrentNotFound::LookForward => self.left(params),
+                    IfCurrentNotFound::LookBackward => self.right(params),
                 }
             }
         }
@@ -508,7 +513,7 @@ pub trait SelectionMode {
             .collect_vec();
 
         let actual = self
-            .iter(SelectionModeParams {
+            .all_selections(SelectionModeParams {
                 buffer,
                 current_selection: &current_selection,
                 cursor_direction: &Direction::default(),

@@ -102,14 +102,14 @@ fn generate_recipes() -> anyhow::Result<()> {
             let json = serde_json::to_string(&RecipesOutput { recipes_output })?;
 
             use std::io::Write;
+            let path = format!("docs/static/recipes/{}.json", recipe_group.filename);
 
-            let mut file = std::fs::File::create(format!(
-                "docs/static/recipes/{}.json",
-                recipe_group.filename
-            ))?;
+            if !std::path::Path::new(&path).exists() {
+                std::fs::create_dir_all(path.clone())?;
+            }
 
             // Write the JSON to the file
-            file.write_all(json.as_bytes())?;
+            std::fs::File::create(path)?.write_all(json.as_bytes())?;
 
             Ok(())
         })

@@ -1,8 +1,8 @@
 use itertools::Itertools;
 
-use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovementResult};
+use crate::selection_mode::{ApplyMovementResult, IfCurrentNotFound};
 
-use super::{ByteRange, SelectionMode, TopNode};
+use super::{ByteRange, SelectionMode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -12,21 +12,93 @@ pub(crate) struct SyntaxNode {
 }
 
 impl SelectionMode for SyntaxNode {
-    fn jumps(
-        &self,
-        params: super::SelectionModeParams,
-        chars: Vec<char>,
-        line_number_ranges: Vec<std::ops::Range<usize>>,
-    ) -> anyhow::Result<Vec<crate::components::editor::Jump>> {
-        // Why do we use TopNode.jumps?
-        // Because I realize I only use TopNode for jumping, and I never use jump in SyntaxNode
-        // With this decision, TopNode selection mode can be removed from user-space, and we get one more keymap space
-        TopNode.jumps(params, chars, line_number_ranges)
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
+        let buffer = params.buffer;
+        let tree = buffer.tree().ok_or(anyhow::anyhow!(
+            "SyntaxNode::iter: cannot find Treesitter language"
+        ))?;
+        let root_node_id = tree.root_node().id();
+        Ok(Box::new(
+            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Pre)
+                .filter(|node| node.id() != root_node_id)
+                .group_by(|node| node.byte_range().start)
+                .into_iter()
+                .map(|(_, group)| {
+                    ByteRange::new(
+                        group
+                            .into_iter()
+                            .max_by_key(|node| node.byte_range().end)
+                            .unwrap()
+                            .byte_range(),
+                    )
+                })
+                .collect_vec()
+                .into_iter(),
+        ))
+    }
+    fn parent(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params.clone(), true)
+    }
+    fn first_child(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+        self.select_vertical(params, false)
+    }
+    fn next(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        let node = if self.coarse {
+            node.next_named_sibling()
+        } else {
+            node.next_sibling()
+        };
+        Ok(node.and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
+    fn previous(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        let node = if self.coarse {
+            node.prev_named_sibling()
+        } else {
+            node.prev_sibling()
+        };
+        Ok(node.and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
+    fn all_selections<'a>(
+        &'a self,
+        params: super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let buffer = params.buffer;
         let current_selection = params.current_selection;
         let node = buffer
@@ -54,52 +126,21 @@ impl SelectionMode for SyntaxNode {
             Ok(Box::new(std::iter::empty()))
         }
     }
-    fn current(
-        &self,
-        params: super::SelectionModeParams,
-        if_current_not_found: IfCurrentNotFound,
+    fn current<'a>(
+        &'a self,
+        params: super::SelectionModeParams<'a>,
+        _: IfCurrentNotFound,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        if self.coarse {
-            super::TopNode.current(params, if_current_not_found)
-        } else {
-            self.current_default_impl(params, if_current_not_found)
-        }
-    }
-    fn up(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TopNode.up(params)
-    }
-    fn down(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TopNode.down(params)
-    }
-    fn previous(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TopNode.previous(params)
-    }
-    fn next(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        TopNode.next(params)
-    }
-    fn parent(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params.clone(), true)
-    }
-    fn first_child(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        self.select_vertical(params, false)
+        let node = params
+            .buffer
+            .get_current_node(params.current_selection, self.coarse)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::current: Cannot find Treesitter language"
+            ))?;
+        Ok(Some(
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)?,
+        ))
     }
 }
 
@@ -146,6 +187,7 @@ pub(crate) fn get_node(
 mod test_syntax_node {
     use crate::{
         buffer::Buffer,
+        components::editor::IfCurrentNotFound,
         selection::{CharIndex, Selection},
         selection_mode::SelectionModeParams,
     };

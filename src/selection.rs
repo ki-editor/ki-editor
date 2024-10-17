@@ -454,7 +454,7 @@ impl SelectionMode {
             },
             #[cfg(test)]
             SelectionMode::Token => Box::new(selection_mode::Token),
-            SelectionMode::SyntaxNode => Box::new(selection_mode::TopNode),
+            SelectionMode::SyntaxNode => Box::new(selection_mode::SyntaxNode { coarse: true }),
             SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
             SelectionMode::Diagnostic(severity) => {
                 Box::new(selection_mode::Diagnostic::new(*severity, params))

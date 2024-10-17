@@ -69,6 +69,7 @@ Memory aid: t stands for Top (implying expand), while b Bottom (implying shrink)
 | Selection Mode        | Meaning                                           |
 | --------------------- | ------------------------------------------------- |
 | Syntax Node           | Parent/First-child                                |
+| Line                  | Select whole file                                 |
 | Other selection modes | Expand selection to nearest brackets/quotes (TBD) |
 
 ## Jump
