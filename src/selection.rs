@@ -429,7 +429,7 @@ impl SelectionMode {
         };
         Ok(match self {
             SelectionMode::Subword => Box::new(selection_mode::WordShort::as_regex(buffer)?),
-            SelectionMode::Word => Box::new(selection_mode::WordLong::as_regex(buffer)?),
+            SelectionMode::Word => Box::new(selection_mode::WordLong::new(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Column => {

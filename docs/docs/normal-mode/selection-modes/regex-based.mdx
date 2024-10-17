@@ -1,6 +1,7 @@
 ---
 sidebar_position: 3
 ---
+import {TutorialFallback} from '@site/src/components/TutorialFallback'; 
 
 # Regex-based
 
@@ -35,6 +36,8 @@ This is useful for renaming identifiers, especially if we only want to change a 
 Keybinding: `w`
 
 Like [Word](#word), but it treats each word as a sequence of alphanumeric characters (including `-` and `_`).
+
+<TutorialFallback filename="word"/>
 
 [^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
 

@@ -29,6 +29,42 @@ string.
             .to_vec(),
         },
         RecipeGroup {
+            filename: "word",
+            recipes: [
+                Recipe {
+                    description: "Word: up/down/left/right movement",
+                    content: "
+camelCase ,  kebab-case 
+snake_case + PascalCase
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w l l j h h k"),
+                    expectations: &[CurrentSelectedTexts(&["camelCase"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Word: next/previous movement (skip symbols)",
+                    content: "
+camelCase , kebab-case 
+snake_case + PascalCase
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w n n n N N N"),
+                    expectations: &[CurrentSelectedTexts(&["camelCase"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },

@@ -1,18 +1,43 @@
 use crate::buffer::Buffer;
 
-pub struct WordLong;
+use super::{ByteRange, SelectionMode};
+
+pub struct WordLong {
+    normal_regex: super::Regex,
+    symbol_skipping_regex: super::Regex,
+}
 
 impl WordLong {
-    pub(crate) fn as_regex(buffer: &Buffer) -> anyhow::Result<super::Regex> {
-        super::Regex::from_config(
-            buffer,
-            r"((\w|-)+)|([^a-zA-Z\d\s])",
-            crate::list::grep::RegexConfig {
-                escaped: false,
-                case_sensitive: false,
-                match_whole_word: false,
-            },
-        )
+    pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
+        let config = crate::list::grep::RegexConfig {
+            escaped: false,
+            case_sensitive: false,
+            match_whole_word: false,
+        };
+        Ok(Self {
+            normal_regex: super::Regex::from_config(buffer, r"((\w|-)+)|([^a-zA-Z\d\s])", config)?,
+            symbol_skipping_regex: super::Regex::from_config(buffer, r"(\w|-)+", config)?,
+        })
+    }
+}
+impl SelectionMode for WordLong {
+    fn iter<'a>(
+        &'a self,
+        params: super::SelectionModeParams<'a>,
+    ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
+        self.normal_regex.iter(params)
+    }
+    fn next(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.symbol_skipping_regex.next(params)
+    }
+    fn previous(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.symbol_skipping_regex.previous(params)
     }
 }
 
@@ -28,7 +53,7 @@ mod test_word_long {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        WordLong::as_regex(&buffer).unwrap().assert_all_selections(
+        WordLong::new(&buffer).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
