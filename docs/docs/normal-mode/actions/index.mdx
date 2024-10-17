@@ -1,3 +1,5 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback'; 
+
 # Actions
 
 ## Notes for reading
@@ -119,6 +121,7 @@ fn main() {
   }
 }
 
+
 ```
 
 Assuming the current selection is `println!("hello")` and the current selection
@@ -136,13 +139,21 @@ Notes:
 - Raise should never cause syntax error (if it does that's a bug)
 - Raise preserve the node type of the current node
 
+## Join
+
+Keybinding: `J`
+
+Joins multiple lines within the current selection(s) into a single line.
+
+
+<TutorialFallback filename="join"/>
+
 ## Transform
 
 Keybinding: `!`
 
 Transformative actions are nested under here, such as (non-exhaustive):
 
-- `j`: Join (Joins current selection into a single line)
 - `w`: Wrap (Wrap current selection into multiple lines)
 - `l`: Convert to `lower case`
 - `s`: Convert to `snake_case`

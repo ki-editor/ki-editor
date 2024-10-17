@@ -75,7 +75,7 @@ For example, searching `hello world` in this mode matches (non-exhaustive):
 
 etc.
 
-This is most powerful when used with [Replace with Pattern](../../actions/index.md#replace-with-pattern).
+This is most powerful when used with [Replace with Pattern](../../actions/index.mdx#replace-with-pattern).
 
 ## Options
 
@@ -114,4 +114,4 @@ Keybindings:
 
 This is a global action that replaces all matches with the replacement pattern[^1].
 
-[^1]: See more at [Replace with Pattern](../../actions/index.md#replace-with-pattern)
+[^1]: See more at [Replace with Pattern](../../actions/index.mdx#replace-with-pattern)

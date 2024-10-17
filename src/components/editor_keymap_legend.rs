@@ -250,6 +250,11 @@ impl Editor {
                         Dispatch::ToEditor(Delete(Direction::Start)),
                     ),
                     Keymap::new(
+                        "J",
+                        "Join".to_string(),
+                        Dispatch::ToEditor(Transform(Transformation::Join)),
+                    ),
+                    Keymap::new(
                         "T",
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Expand)),
@@ -808,18 +813,11 @@ impl Editor {
                     },
                     KeymapLegendSection {
                         title: "Other".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "j",
-                                "Join".to_string(),
-                                Dispatch::ToEditor(Transform(Transformation::Join)),
-                            ),
-                            Keymap::new(
-                                "w",
-                                "Wrap".to_string(),
-                                Dispatch::ToEditor(Transform(Transformation::Wrap)),
-                            ),
-                        ]),
+                        keymaps: Keymaps::new(&[Keymap::new(
+                            "w",
+                            "Wrap".to_string(),
+                            Dispatch::ToEditor(Transform(Transformation::Wrap)),
+                        )]),
                     },
                 ]
                 .to_vec(),

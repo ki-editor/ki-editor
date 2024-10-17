@@ -7,7 +7,37 @@ use crate::{
 
 pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
+        showcase(),
         RecipeGroup {
+            filename: "join",
+            recipes: [Recipe {
+                description: "Example",
+                content: "
+This is 
+a multiple line
+string.
+"
+                .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("e v j j J"),
+                expectations: &[CurrentSelectedTexts(&["This is a multiple line string."])],
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "recipes",
+            recipes: recipes(),
+        },
+    ]
+    .to_vec()
+}
+
+fn showcase() -> RecipeGroup {
+    RecipeGroup {
             filename: "showcase",
             recipes: [
                 Recipe {
@@ -215,13 +245,7 @@ pub(crate) fn get_selection_mode_trait_object(
                 },
             ]
             .to_vec(),
-        },
-        RecipeGroup {
-            filename: "recipes",
-            recipes: recipes(),
-        },
-    ]
-    .to_vec()
+        }
 }
 
 fn recipes() -> Vec<Recipe> {

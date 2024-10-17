@@ -100,7 +100,7 @@ and wish to turn it to:
 "hello";
 ```
 
-In this case, you can select `world`, [Change](./actions/index.md#change) it, and press `backspace` 5 times.
+In this case, you can select `world`, [Change](./actions/index.mdx#change) it, and press `backspace` 5 times.
 
 However, that's inefficient, and that can be shortened by:
 
@@ -120,7 +120,7 @@ Here's how it works using the Replace mode (starting from step 3):
 5. Press `esc` to return to Normal mode
 
 The rigorous readers might have noticed the similarity of the Replace submode
-with the [Raise](./actions/index.md#raise) action, that is in fact the case,
+with the [Raise](./actions/index.mdx#raise) action, that is in fact the case,
 under the hood, Raise is but a specialized version of the Replace mode which
 only executes the [Up](./core-movements.md#updown) movement.
 

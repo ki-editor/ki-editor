@@ -76,7 +76,7 @@ hello(x, y, z);
 
 Keybindings: `C`
 
-This is similar to [Change](./index.md#change), but it copies the deleted text into the system clipboard.  
+This is similar to [Change](./index.mdx#change), but it copies the deleted text into the system clipboard.  
 Like `ctrl+x` in Windows and `cmd+x` in macOS.
 
 ## Replace
