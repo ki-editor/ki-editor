@@ -199,8 +199,8 @@ pub trait SelectionMode {
             Movement::Up => convert(self.up(params)),
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
-            Movement::Parent => self.parent(params),
-            Movement::FirstChild => self.first_child(params),
+            Movement::Expand => self.parent(params),
+            Movement::Shrink => self.first_child(params),
             Movement::Next => convert(self.next(params)),
             Movement::Previous => convert(self.previous(params)),
         }

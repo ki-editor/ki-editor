@@ -59,13 +59,13 @@ impl Editor {
                 ),
                 Keymap::new(
                     "t",
-                    "Expand (Parent)".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Parent)),
+                    "Expand".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Expand)),
                 ),
                 Keymap::new(
                     "b",
-                    "Shrink (First-child)".to_string(),
-                    Dispatch::ToEditor(MoveSelection(FirstChild)),
+                    "Shrink".to_string(),
+                    Dispatch::ToEditor(MoveSelection(Shrink)),
                 ),
                 Keymap::new(
                     ",",
@@ -252,7 +252,7 @@ impl Editor {
                     Keymap::new(
                         "T",
                         "Raise".to_string(),
-                        Dispatch::ToEditor(Replace(Parent)),
+                        Dispatch::ToEditor(Replace(Expand)),
                     ),
                     Keymap::new(
                         "K",

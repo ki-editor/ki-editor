@@ -44,7 +44,7 @@ fn raise_bottom_node() -> anyhow::Result<()> {
                 IfCurrentNotFound::LookForward,
                 SelectionMode::Token,
             )),
-            Editor(Replace(Parent)),
+            Editor(Replace(Expand)),
             Expect(CurrentComponentContent("fn main() { x }")),
         ])
     })
@@ -465,9 +465,9 @@ fn multi_exchange_sibling() -> anyhow::Result<()> {
                 "fn f(x:a,y:b){}",
                 "fn g(x:a,y:b){}",
             ])),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Editor(MoveSelection(Next)),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Expect(CurrentSelectedTexts(&["x:a", "x:a"])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(EnterExchangeMode),
@@ -592,9 +592,9 @@ fn raise() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { let x = a.b(c()); }".to_string())),
             Editor(MatchLiteral("c()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Replace(Parent)),
+            Editor(Replace(Expand)),
             Expect(CurrentComponentContent("fn main() { let x = c(); }")),
-            Editor(Replace(Parent)),
+            Editor(Replace(Expand)),
             Expect(CurrentComponentContent("fn main() { c() }")),
         ])
     })
@@ -612,7 +612,7 @@ fn raise_preserve_current_node_structure() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { Some((a).b()) }".to_string())),
             Editor(MatchLiteral("(a).b()".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Replace(Parent)),
+            Editor(Replace(Expand)),
             Expect(CurrentComponentContent("fn main() { (a).b() }")),
         ])
     })
@@ -629,14 +629,14 @@ fn multi_raise() -> anyhow::Result<()> {
             Editor(MatchLiteral("let x = S(a);".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(CursorAddToAllSelections),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Editor(MoveSelection(Next)),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Editor(MoveSelection(Next)),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Editor(MoveSelection(Next)),
             Expect(CurrentSelectedTexts(&["a", "b"])),
-            Editor(Replace(Parent)),
+            Editor(Replace(Expand)),
             Expect(CurrentComponentContent("fn f(){ let x = a; let y = b; }")),
             Editor(Undo),
             Expect(CurrentComponentContent(
@@ -1076,9 +1076,9 @@ fn multicursor_add_all() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["fn a(j:J){}"])),
             Editor(CursorAddToAllSelections),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Editor(MoveSelection(Right)),
-            Editor(MoveSelection(FirstChild)),
+            Editor(MoveSelection(Shrink)),
             Expect(CurrentSelectedTexts(&["j:J", "k:K", "m:M"])),
             Editor(CursorAddToAllSelections),
             Expect(CurrentSelectedTexts(&[

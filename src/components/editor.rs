@@ -490,8 +490,8 @@ pub(crate) enum Movement {
     Index(usize),
     Jump(CharIndexRange),
     ToParentLine,
-    Parent,
-    FirstChild,
+    Expand,
+    Shrink,
 }
 
 impl Editor {
