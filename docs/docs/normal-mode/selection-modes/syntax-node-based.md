@@ -7,14 +7,6 @@ sidebar_position: 2
 The following selection modes are based on the syntax node of the file, which are
 powered by [Tree-sitter](https://github.com/tree-sitter).
 
-## Token
-
-Keybinding: `t`
-
-Token as in parser terminology, which represents the basic atoms of a syntax node.
-
-It is useful for example, to select the name of the current variable (or identifier to be more general).
-
 ## Syntax Node
 
 This is one of my favourite selection mode, as it enable structural editing.
@@ -28,13 +20,13 @@ There are two Syntax Node selection modes:
 
 Keybinding: `s`
 
-| Movement                                           | Meaning                          |
-| -------------------------------------------------- | -------------------------------- |
-| [Previous/Next](../core-movements.md#previousnext) | Previous/Next named sibling node |
-| Up                                                 | Parent node                      |
-| Down                                               | First named child node           |
-| Current                                            | Largest node                     |
-| Jump                                               | Jump to largest node             |
+| Movement                                           | Meaning                              |
+| -------------------------------------------------- | ------------------------------------ |
+| [Next/Preivous](../core-movements.md#nextprevious) | Next/Previous **named** sibling node |
+| Expand                                             | Parent node                          |
+| Shrink                                             | First **named** child                |
+| Current                                            | Select the largest node              |
+| Jump                                               | Jump to largest node                 |
 
 ### Largest Node
 
@@ -72,9 +64,9 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 
 | Movement                                           | Meaning                                          |
 | -------------------------------------------------- | ------------------------------------------------ |
-| [Previous/Next](../core-movements.md#previousnext) | Previous/Next sibling node                       |
-| Up                                                 | Parent node                                      |
-| Down                                               | First child                                      |
+| [Next/Preivous](../core-movements.md#nextprevious) | Next/Previous sibling node                       |
+| Expand                                             | Parent node                                      |
+| Shrink                                             | First child                                      |
 | Current                                            | Smallest node that matches the current selection |
 | Jump                                               | Jump to smallest node                            |
 
@@ -86,8 +78,8 @@ Suppose we have the following Javascript expression, and the current selection i
 hello.world().foo().bar().spam().wise();
 ```
 
-If we press `s`, the whole expression will be selected[^1], and we will need to press `j` several times to shrink the selection down to `hello.world()`.
+If we press `s`, the whole expression will be selected[^1], and we will need to press `b` several times to shrink the selection down to `hello.world()`.
 
-However, if we use `S` instead, the selection will remain as `hello`, and pressing `k` multiple times will get us to `hello.world()`.
+However, if we use `S` instead, the selection will remain as `hello`, and pressing `t` multiple times will get us to `hello.world()`.
 
 [^1]: See [Largest Node](#largest-node)

@@ -4,6 +4,9 @@
 # Production
 /build
 
+# Generated recipes
+/static/recipes/*.json
+
 # Generated files
 .docusaurus
 .cache-loader

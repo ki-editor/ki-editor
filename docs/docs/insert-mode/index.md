@@ -46,6 +46,6 @@ Implemented keybindings [^1]:
 | `ctrl+k`        | Kill line forward        |
 | `ctrl+u`        | Kill line backward       |
 | `ctrl+w`        | Delete word backward     |
-| `alt+backspace` | Delete sub word backward |
+| `alt+backspace` | Delete subword backward |
 
 [^1]: Not every unimplemented keybinding is incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!

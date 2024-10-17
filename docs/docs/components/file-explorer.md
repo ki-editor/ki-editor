@@ -52,4 +52,4 @@ Because the File Explorer is just a YAML file, the following actions are free[^1
 [1]: ../normal-mode/core-movements.md#parent-line
 [2]: ../normal-mode/core-movements.md#firstlast
 [3]: ../normal-mode/selection-modes/syntax-node-based.md#syntax-node
-[4]: ../normal-mode/core-movements.md#previousnext
+[4]: ../normal-mode/core-movements.md#leftright

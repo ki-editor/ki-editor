@@ -7,51 +7,70 @@ sidebar_position: 2
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
-There are 9 movements in total:
+There are 13 movements in total:
 
-1. [Previous/Next](#previousnext)
+1. [Left/Right](#leftright)
 1. [Up/Down](#updown)
 1. [First/Last](#firstlast)
+1. [Expand/Shrink](#expandshrink)
 1. [Jump](#jump)
 1. [Parent Line](#parent-line)
 1. [To Index](#to-index)
 1. [Current](#current)
 
-## Previous/Next
+## Left/Right
 
 Keybinding: `h`/`l`  
 Memory aid:
 
-- h stands for higher, which means previous.
-- l stands for lower, which means next.
+- h stands for higher, which means "move to the selection on the left".
+- l stands for lower, which means "move to the selection on the right".
 
 ## Up/Down
 
 Keybinding: `k`/`j`  
 Memory aid:
 
-- k means king, which means up.
-- j means jack, which means down.
+- k means king, which means "move to the nearest selection above the current line".
+- j means jack, which means "move to the nearest selection below the current line".
 
-In most selection modes, up/down moves the selections upwards/downwards, except for the following selection modes:
+## Next/Previous
 
-| Selection Mode | Up                                | Down                            |
-| -------------- | --------------------------------- | ------------------------------- |
-| Syntax Node    | Expand selection to parent        | Shrink selection to first child |
-| Quickfix       | Go to first item of previous file | Go to first item of next file   |
+Keybinding: `n`/`N`
+
+These movemest similar to the 4 movements above, however, they are not restricted to vertical or horizontal movements.
+They are assigned special meaning in different selection modes.
+
+| Selection Mode   | Meaning                                   |
+| ---------------- | ----------------------------------------- |
+| Syntax Node      | Next/Previous named sibling               |
+| Quickfix         | To first item of next/previous file       |
+| Word & Subword   | Next/Previous word skipping symbols (TBD) |
+| Line & Full Line | Next/Previous empty line (TBD)            |
 
 ## First/Last
 
 Keybinding: `,`/`.`  
-Memory aid:
+Memory aid: `,`/`.` looks like `<`/`>` on the keyboard
 
-- `,`/`.` looks like `<`/`>` on the keyboard
+| Selection Mode   | Meaning                                       |
+| ---------------- | --------------------------------------------- |
+| Syntax Node      | First/Last named sibling                      |
+| Quickfix         | First/Last item                               |
+| Subword          | First/Last subword in the current word (TBD)  |
+| Word             | First/Last word in the current sentence (TBD) |
+| Line & Full Line | First/Last line of the current file           |
 
-Recommended selection modes:
+## Expand/Shrink
 
-1. Line
-1. Column
-1. Search
+Keybinding: `t`/`b`  
+Memory aid: t stands for Top (implying expand), while b Bottom (implying shrink)
+
+| Selection Mode        | Meaning                                           |
+| --------------------- | ------------------------------------------------- |
+| Syntax Node           | Parent/First-child                                |
+| Line                  | Select whole file                                 |
+| Other selection modes | Expand selection to nearest brackets/quotes (TBD) |
 
 ## Jump
 

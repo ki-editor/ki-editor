@@ -804,7 +804,7 @@ mod test_suggestive_editor {
                 // Expect the completion dropdown to not be opened,
                 // since the editor is not in insert mode
                 Expect(CompletionDropdownIsOpen(false)),
-                Editor(MoveSelection(crate::components::editor::Movement::Next)),
+                Editor(MoveSelection(crate::components::editor::Movement::Right)),
                 Expect(CompletionDropdownIsOpen(false)),
             ])
         })

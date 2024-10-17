@@ -2073,8 +2073,8 @@ impl<T: Frontend> App<T> {
                     [
                         Dispatch::SetGlobalMode(Some(global_mode.clone())),
                         Dispatch::ToEditor(MoveSelection(match if_current_not_found {
-                            IfCurrentNotFound::LookForward => Movement::Next,
-                            IfCurrentNotFound::LookBackward => Movement::Previous,
+                            IfCurrentNotFound::LookForward => Movement::Right,
+                            IfCurrentNotFound::LookBackward => Movement::Left,
                         })),
                     ]
                     .to_vec(),

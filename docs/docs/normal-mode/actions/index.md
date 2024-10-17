@@ -63,16 +63,6 @@ Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-n
 hello(y);
 ```
 
-## Delete Cut
-
-Keybindings:
-
-- `x`: Delete cut until next selection
-- `X`: Delete cut until previous selection
-
-This is a shortcut for `y d` or `y D`, it behaves like Delete, except that the
-deleted content will be copied into the clipboard.
-
 ## Change
 
 Keybindings:
@@ -111,7 +101,7 @@ For example:
 
 ## Raise
 
-Keybinding: `K`
+Keybinding: `T`
 
 This is one of my favorite actions, it only works for [syntax node](../selection-modes/syntax-node-based.md#syntax-node) selection modes.
 

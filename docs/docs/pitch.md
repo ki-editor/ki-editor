@@ -44,22 +44,18 @@ Notice how `comma` is added automatically.
 
 ### 2.3 Swap
 
-To swap an AST node, press `s`, then `x` (Exchange mode)`, and press `l`(Next) or `h` (Previous).
-
-![swap-node](https://github.com/user-attachments/assets/14d314c3-4d15-4f48-bda2-3efa33b4725b)
+To swap an AST node, press `s`, then `x` (Exchange mode), and press `n` (Next) or `N` (Previous).
 
 ## 3. First-class syntactic navigation
 
 To navigate the syntax tree, press `s`, then press any of the following keys:
 
-- `h` (Previous sibling)
-- `l` (Next sibling)
+- `N` (Previous sibling)
+- `n` (Next sibling)
 - `,` (First sibling)
 - `.` (Last sibling)
-- `j` (First child)
-- `k` (Parent)
-
-![node-navigation](https://github.com/user-attachments/assets/549f225c-835e-4c3e-a69f-eca053f987eb)
+- `b` (First child)
+- `t` (Parent)
 
 ## 4. Multi-cursor
 

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import useBaseUrl from "@docusaurus/useBaseUrl";
 
 import { useXTerm, UseXTermProps } from "react-xtermjs";
-import * as recipesData from "../../assets/recipes.json";
 import * as z from "zod";
 
 const recipeSchema = z.object({
@@ -21,11 +20,12 @@ const recipeSchema = z.object({
 
 type Recipe = z.infer<typeof recipeSchema>;
 
-export const Tutorial = () => {
-  const recipes = useMemo(
-    () => z.array(recipeSchema).parse(recipesData.recipes_output),
-    []
-  );
+export const Tutorial = (props: { filename: string }) => {
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const url = useBaseUrl(`/recipes/${props.filename}.json`);
+  useEffect(() => {
+    loadRecipes(url).then((recipes) => setRecipes(recipes ?? []));
+  }, []);
   return (
     <div style={{ display: "grid", gap: 64 }}>
       <link
@@ -39,6 +39,12 @@ export const Tutorial = () => {
     </div>
   );
 };
+
+async function loadRecipes(url: string) {
+  const response = await fetch(url);
+  const recipesData = await response.json();
+  return z.array(recipeSchema).parse(recipesData.recipes_output);
+}
 
 const Recipe = (props: { recipe: Recipe }) => {
   const xtermOptions: UseXTermProps = useMemo(

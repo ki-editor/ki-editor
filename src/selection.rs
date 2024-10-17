@@ -182,7 +182,7 @@ impl SelectionSet {
                     .ok()?;
 
                 let iter = object
-                    .iter_filtered(SelectionModeParams {
+                    .all_selections(SelectionModeParams {
                         buffer,
                         current_selection: selection,
                         cursor_direction,
@@ -353,7 +353,7 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     EmptyLine,
-    SubWord,
+    Subword,
     Word,
     Line,
     Column,
@@ -361,11 +361,6 @@ pub(crate) enum SelectionMode {
     Find {
         search: Search,
     },
-    Till {
-        character: char,
-        direction: Direction,
-    },
-
     // Syntax-tree
     #[cfg(test)]
     Token,
@@ -395,7 +390,7 @@ impl SelectionMode {
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::SubWord => "SUB WORD".to_string(),
+            SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::Line => "LINE".to_string(),
@@ -418,10 +413,6 @@ impl SelectionMode {
             }
             SelectionMode::Mark => "MARK".to_string(),
             SelectionMode::LocalQuickfix { title } => title.to_string(),
-            SelectionMode::Till {
-                character,
-                direction,
-            } => format!("{} {character:?}", direction.format_action("TILL")),
         }
     }
 
@@ -437,7 +428,7 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::SubWord => Box::new(selection_mode::WordShort::as_regex(buffer)?),
+            SelectionMode::Subword => Box::new(selection_mode::WordShort::as_regex(buffer)?),
             SelectionMode::Word => Box::new(selection_mode::WordLong::as_regex(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
@@ -476,14 +467,6 @@ impl SelectionMode {
             SelectionMode::LocalQuickfix { .. } => {
                 Box::new(selection_mode::LocalQuickfix::new(params))
             }
-            SelectionMode::Till {
-                character,
-                direction,
-            } => Box::new(selection_mode::Till::from_config(
-                buffer,
-                *character,
-                direction.clone(),
-            )),
         })
     }
 
@@ -494,13 +477,20 @@ impl SelectionMode {
         }
         matches!(
             self,
-            SelectionMode::SubWord
+            SelectionMode::Subword
                 | SelectionMode::Word
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Column
                 | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine
+        )
+    }
+
+    pub(crate) fn is_syntax_node(&self) -> bool {
+        matches!(
+            self,
+            SelectionMode::SyntaxNode | SelectionMode::SyntaxNodeFine
         )
     }
 }

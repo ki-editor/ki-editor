@@ -50,7 +50,6 @@ pub(crate) enum Mode {
     Insert,
     MultiCursor,
     FindOneChar(IfCurrentNotFound),
-    TillOneChar(IfCurrentNotFound),
     Exchange,
     UndoTree,
     Replace,
@@ -212,10 +211,6 @@ impl Component for Editor {
             EnterUndoTreeMode => return Ok(self.enter_undo_tree_mode()),
             EnterInsertMode(direction) => return self.enter_insert_mode(direction),
             Delete(direction) => return self.delete(direction, None),
-            DeleteCut {
-                direction,
-                use_system_clipboard,
-            } => return self.delete(direction, Some(use_system_clipboard)),
             Insert(string) => return self.insert(&string),
             #[cfg(test)]
             MatchLiteral(literal) => return self.match_literal(&literal),
@@ -342,9 +337,6 @@ impl Component for Editor {
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
-            EnterTillMode(if_current_not_found) => {
-                self.mode = Mode::TillOneChar(if_current_not_found)
-            }
             FilterSelectionMatchingSearch { keep, search } => {
                 return Ok(self.filter_selection_matching_search(
                     context.get_local_search_config(Scope::Local),
@@ -483,17 +475,10 @@ pub(crate) enum IfCurrentNotFound {
     LookForward,
     LookBackward,
 }
-impl IfCurrentNotFound {
-    fn to_direction(self) -> Direction {
-        match self {
-            IfCurrentNotFound::LookForward => Direction::End,
-            IfCurrentNotFound::LookBackward => Direction::Start,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Movement {
+    Right,
+    Left,
     Next,
     Previous,
     Last,
@@ -505,9 +490,8 @@ pub(crate) enum Movement {
     Index(usize),
     Jump(CharIndexRange),
     ToParentLine,
-    Parent,
-    #[cfg(test)]
-    FirstChild,
+    Expand,
+    Shrink,
 }
 
 impl Editor {
@@ -721,7 +705,7 @@ impl Editor {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::SubWord
+            SelectionMode::Subword
         }
         .to_selection_mode_trait_object(&self.buffer(), selection, &self.cursor_direction)
     }
@@ -1099,12 +1083,12 @@ impl Editor {
     }
 
     pub(crate) fn undo(&mut self) -> anyhow::Result<Dispatches> {
-        let result = self.navigate_undo_tree(Movement::Previous)?;
+        let result = self.navigate_undo_tree(Movement::Left)?;
         Ok(result)
     }
 
     pub(crate) fn redo(&mut self) -> anyhow::Result<Dispatches> {
-        self.navigate_undo_tree(Movement::Next)
+        self.navigate_undo_tree(Movement::Right)
     }
 
     pub(crate) fn swap_cursor_with_anchor(&mut self) {
@@ -1158,9 +1142,6 @@ impl Editor {
                         Mode::MultiCursor => self.handle_multi_cursor_mode(context, key_event),
                         Mode::FindOneChar(if_current_not_found) => {
                             self.handle_find_one_char_mode(*if_current_not_found, key_event)
-                        }
-                        Mode::TillOneChar(if_current_not_found) => {
-                            self.handle_till_one_char_mode(*if_current_not_found, key_event)
                         }
                         Mode::Exchange => self.handle_normal_mode(context, key_event),
                         Mode::UndoTree => self.handle_normal_mode(context, key_event),
@@ -1516,9 +1497,7 @@ impl Editor {
                         .iter()
                         .all(|next_node| match (current_node, next_node) {
                             (Some(current_node), Some(next_node)) => {
-                                current_node.kind_id() == next_node.kind_id()
-                                    && current_node.byte_range().len()
-                                        == next_node.byte_range().len()
+                                current_node.byte_range().len() == next_node.byte_range().len()
                             }
                             (_, _) => true,
                         })
@@ -1705,7 +1684,7 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::SubWord
+                                SelectionMode::Subword
                             } else {
                                 SelectionMode::Word
                             },
@@ -1719,7 +1698,7 @@ impl Editor {
                     if current_word.extended_range().start <= start {
                         current_word
                     } else {
-                        get_word(Movement::Previous)?.selection
+                        get_word(Movement::Left)?.selection
                     }
                 };
 
@@ -1869,8 +1848,16 @@ impl Editor {
                     Rope::from_str("")
                 } else {
                     match (
-                        get_in_between_gap(Movement::Next),
-                        get_in_between_gap(Movement::Previous),
+                        get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
+                            Movement::Next
+                        } else {
+                            Movement::Right
+                        }),
+                        get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
+                            Movement::Previous
+                        } else {
+                            Movement::Left
+                        }),
                     ) {
                         (None, None) => Default::default(),
                         (None, Some(gap)) | (Some(gap), None) => gap,
@@ -2073,7 +2060,6 @@ impl Editor {
             Mode::UndoTree => "UNDO TREE",
             Mode::Replace => "REPLACE",
             Mode::V => "V",
-            Mode::TillOneChar(_) => "TILL",
         }
         .to_string();
         format!("{prefix}{core}")
@@ -2146,51 +2132,6 @@ impl Editor {
                                 match_whole_word: false,
                             }),
                         },
-                    },
-                )
-            }
-            KeyCode::Esc => {
-                self.mode = Mode::Normal;
-                Ok(Default::default())
-            }
-            _ => Ok(Default::default()),
-        }
-    }
-
-    fn handle_till_one_char_mode(
-        &mut self,
-        if_current_not_found: IfCurrentNotFound,
-        key_event: KeyEvent,
-    ) -> Result<Dispatches, anyhow::Error> {
-        let direction = if_current_not_found.to_direction();
-        match key_event.code {
-            KeyCode::Char(c) => {
-                self.mode = Mode::Normal;
-                self.set_selection_mode(
-                    if_current_not_found,
-                    SelectionMode::Till {
-                        character: c,
-                        direction,
-                    },
-                )
-            }
-            KeyCode::Enter => {
-                self.mode = Mode::Normal;
-                self.set_selection_mode(
-                    if_current_not_found,
-                    SelectionMode::Till {
-                        character: '\n',
-                        direction,
-                    },
-                )
-            }
-            KeyCode::Tab => {
-                self.mode = Mode::Normal;
-                self.set_selection_mode(
-                    if_current_not_found,
-                    SelectionMode::Till {
-                        character: '\t',
-                        direction,
                     },
                 )
             }
@@ -2990,10 +2931,6 @@ pub(crate) enum DispatchEditor {
     SelectLine(Movement),
     Backspace,
     Delete(Direction),
-    DeleteCut {
-        direction: Direction,
-        use_system_clipboard: bool,
-    },
     Insert(String),
     MoveToLineStart,
     MoveToLineEnd,
@@ -3058,7 +2995,6 @@ pub(crate) enum DispatchEditor {
     Dedent,
     SwapExtensionDirection,
     CollapseSelection(Direction),
-    EnterTillMode(IfCurrentNotFound),
     FilterSelectionMatchingSearch {
         search: String,
         keep: bool,

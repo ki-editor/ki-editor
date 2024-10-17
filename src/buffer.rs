@@ -1169,7 +1169,7 @@ fn f(
 
                 // Undo the buffer
                 buffer
-                    .undo_tree_apply_movement(crate::components::editor::Movement::Previous)
+                    .undo_tree_apply_movement(crate::components::editor::Movement::Left)
                     .unwrap();
 
                 let content = buffer.rope.to_string();
