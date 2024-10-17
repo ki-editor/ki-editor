@@ -4,7 +4,6 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 // TODO:
 // 1. Emoji not rendering properly
-// 2. keymap legend should be shown as vertical-split, not horizontal
 
 use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 
@@ -103,10 +102,6 @@ fn generate_recipes() -> anyhow::Result<()> {
 
             use std::io::Write;
             let path = format!("docs/static/recipes/{}.json", recipe_group.filename);
-
-            if !std::path::Path::new(&path).exists() {
-                std::fs::create_dir_all(path.clone())?;
-            }
 
             // Write the JSON to the file
             std::fs::File::create(path)?.write_all(json.as_bytes())?;
