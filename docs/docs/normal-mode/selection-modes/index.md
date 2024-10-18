@@ -9,7 +9,7 @@ Selection modes [^1] dictates how [core movements](../core-movements.md) works.
 There are roughly 3 categories of selection modes (not clear-cut):
 
 1. [Syntax tree-based](./syntax-node-based.md)
-2. [Regex-based](./regex-based.md)
+2. [Regex-based](./regex-based.mdx)
 3. [Local/Global](./local-global/index.md)
 
 [^1]: For Vim users, selection mode means text objects.

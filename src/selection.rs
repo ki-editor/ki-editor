@@ -428,8 +428,8 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Subword => Box::new(selection_mode::WordShort::as_regex(buffer)?),
-            SelectionMode::Word => Box::new(selection_mode::WordLong::as_regex(buffer)?),
+            SelectionMode::Subword => Box::new(selection_mode::Subword::new(buffer)?),
+            SelectionMode::Word => Box::new(selection_mode::Word::new(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Column => {

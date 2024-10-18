@@ -15,9 +15,9 @@ pub(crate) mod line_full;
 pub(crate) mod line_trimmed;
 pub(crate) mod local_quickfix;
 pub(crate) mod regex;
+pub(crate) mod subword;
 pub(crate) mod syntax_node;
-pub(crate) mod word_long;
-pub(crate) mod word_short;
+pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
 pub(crate) use case_agnostic::CaseAgnostic;
@@ -31,13 +31,13 @@ pub(crate) use line_trimmed::LineTrimmed;
 pub(crate) use local_quickfix::LocalQuickfix;
 pub(crate) use mark::Mark;
 use std::ops::Range;
+pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
 #[cfg(test)]
 pub(crate) use token::Token;
 #[cfg(test)]
 pub(crate) use top_node::TopNode;
-pub(crate) use word_long::WordLong;
-pub(crate) use word_short::WordShort;
+pub(crate) use word::Word;
 
 use crate::{
     buffer::Buffer,
@@ -203,6 +203,8 @@ pub trait SelectionMode {
             Movement::Shrink => self.first_child(params),
             Movement::Next => convert(self.next(params)),
             Movement::Previous => convert(self.previous(params)),
+            Movement::DeleteBackward => convert(self.delete_backward(params)),
+            Movement::DeleteForward => convert(self.delete_forward(params)),
         }
     }
 
@@ -396,6 +398,7 @@ pub trait SelectionMode {
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
+
     fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
@@ -410,6 +413,13 @@ pub trait SelectionMode {
                     || (range.range.start == byte_range.start && range.range.end < byte_range.end)
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
+    }
+    fn delete_forward(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right(params)
+    }
+
+    fn delete_backward(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left(params)
     }
 
     /// This uses `all_selections` instead of `iter_filtered`.

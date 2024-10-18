@@ -142,6 +142,18 @@ impl SelectionMode for SyntaxNode {
                 .to_selection(params.buffer, params.current_selection)?,
         ))
     }
+    fn delete_forward(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.next(params)
+    }
+    fn delete_backward(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.previous(params)
+    }
 }
 
 impl SyntaxNode {

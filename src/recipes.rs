@@ -29,6 +29,77 @@ string.
             .to_vec(),
         },
         RecipeGroup {
+            filename: "subword",
+            recipes: [
+                Recipe {
+                    description: "Subword: up/down/left/right movement",
+                    content: "
+camelCase 88 kebab-case 
+snake_case 99 PascalCase
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("W l l l l l j h h h h h k"),
+                    expectations: &[CurrentSelectedTexts(&["camel"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+                Recipe {
+                    description: "Subword: next/previous movement (skip symbols)",
+                    content: "
+camelCase , kebab-case snake_case
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("W n n n n n N N N N N"),
+                    expectations: &[CurrentSelectedTexts(&["camel"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "word",
+            recipes: [
+                Recipe {
+                    description: "Word: up/down/left/right movement",
+                    content: "
+camelCase ,  kebab-case 
+snake_case + PascalCase
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w l l j h h k"),
+                    expectations: &[CurrentSelectedTexts(&["camelCase"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Word: next/previous movement (skip symbols)",
+                    content: "
+camelCase , kebab-case 
+snake_case + PascalCase
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w n n n N N N"),
+                    expectations: &[CurrentSelectedTexts(&["camelCase"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },

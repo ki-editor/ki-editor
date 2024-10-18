@@ -455,13 +455,6 @@ impl Direction {
         Direction::Start
     }
 
-    fn to_movement(&self) -> Movement {
-        match self {
-            Direction::Start => Movement::Previous,
-            Direction::End => Movement::Next,
-        }
-    }
-
     pub(crate) fn format_action(&self, action: &str) -> String {
         match self {
             Direction::Start => format!("◁ {action}"),
@@ -492,6 +485,8 @@ pub(crate) enum Movement {
     ToParentLine,
     Expand,
     Shrink,
+    DeleteBackward,
+    DeleteForward,
 }
 
 impl Editor {
@@ -770,11 +765,15 @@ impl Editor {
                         // will not be found
                         let start_selection =
                             &selection.clone().collapsed_to_anchor_range(direction);
+                        let movement = match direction {
+                            Direction::Start => Movement::DeleteBackward,
+                            Direction::End => Movement::DeleteForward,
+                        };
                         Selection::get_selection_(
                             &buffer,
                             start_selection,
                             &self.selection_set.mode,
-                            &direction.to_movement(),
+                            &movement,
                             &self.cursor_direction,
                         )
                         .ok()
