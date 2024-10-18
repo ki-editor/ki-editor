@@ -10,11 +10,16 @@ use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
     let recipe_groups = recipes::recipe_groups();
+    let contains_only_recipes = recipe_groups
+        .iter()
+        .any(|group| group.recipes.iter().any(|recipe| recipe.only));
     recipe_groups
         .into_par_iter()
+        .filter(|recipe_group| {
+            !contains_only_recipes || recipe_group.recipes.iter().any(|recipe| recipe.only)
+        })
         .map(|recipe_group| -> anyhow::Result<_> {
             let recipes = recipe_group.recipes;
-            let contains_only_recipes = recipes.iter().any(|recipe| recipe.only);
             let recipes_output = recipes
                 .into_par_iter()
                 .filter(|recipe| !contains_only_recipes || recipe.only)

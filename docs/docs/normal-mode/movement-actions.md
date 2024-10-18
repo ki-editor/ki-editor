@@ -105,7 +105,7 @@ In this case, you can select `world`, [Change](./actions/index.mdx#change) it, a
 However, that's inefficient, and that can be shortened by:
 
 1. Select `hello`
-1. Set selection mode to [Word](./selection-modes/regex-based.md#word)
+1. Set selection mode to [Word](./selection-modes/regex-based.mdx#word)
 1. [Copy](./actions/clipboard-related-actions.md#copy)
 1. [Enable selection extension](../v-mode#extending-selection)
 1. Move to `world` (by pressing `l`)

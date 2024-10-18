@@ -15,9 +15,9 @@ pub(crate) mod line_full;
 pub(crate) mod line_trimmed;
 pub(crate) mod local_quickfix;
 pub(crate) mod regex;
+pub(crate) mod subword;
 pub(crate) mod syntax_node;
-pub(crate) mod word_long;
-pub(crate) mod word_short;
+pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
 pub(crate) use case_agnostic::CaseAgnostic;
@@ -31,13 +31,13 @@ pub(crate) use line_trimmed::LineTrimmed;
 pub(crate) use local_quickfix::LocalQuickfix;
 pub(crate) use mark::Mark;
 use std::ops::Range;
+pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
 #[cfg(test)]
 pub(crate) use token::Token;
 #[cfg(test)]
 pub(crate) use top_node::TopNode;
-pub(crate) use word_long::WordLong;
-pub(crate) use word_short::WordShort;
+pub(crate) use word::Word;
 
 use crate::{
     buffer::Buffer,

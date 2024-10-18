@@ -2,12 +2,12 @@ use crate::buffer::Buffer;
 
 use super::{ByteRange, SelectionMode};
 
-pub struct WordLong {
+pub struct Word {
     normal_regex: super::Regex,
     symbol_skipping_regex: super::Regex,
 }
 
-impl WordLong {
+impl Word {
     pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
         let config = crate::list::grep::RegexConfig {
             escaped: false,
@@ -20,7 +20,7 @@ impl WordLong {
         })
     }
 }
-impl SelectionMode for WordLong {
+impl SelectionMode for Word {
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
@@ -42,7 +42,7 @@ impl SelectionMode for WordLong {
 }
 
 #[cfg(test)]
-mod test_word_long {
+mod test_word {
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     use super::*;
@@ -53,7 +53,7 @@ mod test_word_long {
             None,
             "snake_case camelCase PascalCase UPPER_SNAKE kebab-case ->() 123 <_>",
         );
-        WordLong::new(&buffer).unwrap().assert_all_selections(
+        Word::new(&buffer).unwrap().assert_all_selections(
             &buffer,
             Selection::default(),
             &[
