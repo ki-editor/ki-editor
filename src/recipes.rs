@@ -34,13 +34,13 @@ string.
                 Recipe {
                     description: "Subword: up/down/left/right movement",
                     content: "
-camelCase kebab-case 
-snake_case PascalCase
+camelCase 88 kebab-case 
+snake_case 99 PascalCase
 "
                     .trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("W l l l l j h h h h k"),
+                    events: keys!("W l l l l l j h h h h h k"),
                     expectations: &[CurrentSelectedTexts(&["camel"])],
                     terminal_height: None,
                     similar_vim_combos: &[],

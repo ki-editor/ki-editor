@@ -21,7 +21,7 @@ impl Subword {
             )?,
             symbol_skipping_regex: super::Regex::from_config(
                 buffer,
-                r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*)))",
+                r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*)))|[0-9]+",
                 crate::list::grep::RegexConfig {
                     escaped: false,
                     case_sensitive: true,

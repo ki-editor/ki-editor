@@ -203,6 +203,8 @@ pub trait SelectionMode {
             Movement::Shrink => self.first_child(params),
             Movement::Next => convert(self.next(params)),
             Movement::Previous => convert(self.previous(params)),
+            Movement::DeleteBackward => convert(self.delete_backward(params)),
+            Movement::DeleteForward => convert(self.delete_forward(params)),
         }
     }
 
@@ -396,6 +398,7 @@ pub trait SelectionMode {
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
     }
+
     fn left(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection.clone();
         let buffer = params.buffer;
@@ -410,6 +413,13 @@ pub trait SelectionMode {
                     || (range.range.start == byte_range.start && range.range.end < byte_range.end)
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
+    }
+    fn delete_forward(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.right(params)
+    }
+
+    fn delete_backward(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
+        self.left(params)
     }
 
     /// This uses `all_selections` instead of `iter_filtered`.
