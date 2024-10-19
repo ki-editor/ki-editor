@@ -104,6 +104,8 @@ quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 tree-sitter-rust = "0.21.2"
 indoc = "2.0.4"
+is_ci = "1.2.0"
+
 
 [profile.release]
 debug = true

@@ -44,7 +44,7 @@ snake_case 99 PascalCase
                     expectations: &[CurrentSelectedTexts(&["camel"])],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Subword: next/previous movement (skip symbols)",
@@ -58,7 +58,7 @@ camelCase , kebab-case snake_case
                     expectations: &[CurrentSelectedTexts(&["camel"])],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
             ]
             .to_vec(),
@@ -312,7 +312,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: false,
+                    only: true,
                 },
             ]
             .to_vec(),

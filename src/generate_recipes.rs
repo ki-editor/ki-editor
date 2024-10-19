@@ -10,9 +10,14 @@ use crate::{position::Position, recipes, rectangle::Rectangle, test_app::*};
 #[test]
 fn generate_recipes() -> anyhow::Result<()> {
     let recipe_groups = recipes::recipe_groups();
-    let contains_only_recipes = recipe_groups
-        .iter()
-        .any(|group| group.recipes.iter().any(|recipe| recipe.only));
+    let contains_only_recipes = recipe_groups.iter().any(|group| {
+        group.recipes.iter().any(|recipe| {
+            if is_ci::cached() && recipe.only {
+                panic!("Recipe \"{}\" is 'only'-ed!", recipe.description)
+            }
+            recipe.only
+        })
+    });
     recipe_groups
         .into_par_iter()
         .filter(|recipe_group| {
