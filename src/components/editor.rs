@@ -858,7 +858,7 @@ impl Editor {
                                     .take_while(|c| c.is_whitespace() && c != &'\n')
                                     .join("")
                             })
-                            .unwrap_or_else(|| "".to_string())
+                            .unwrap_or_default()
                             .as_str();
 
                     let range_start = cursor + indent.chars().count();
