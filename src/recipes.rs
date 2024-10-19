@@ -312,7 +312,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
             ]
             .to_vec(),
