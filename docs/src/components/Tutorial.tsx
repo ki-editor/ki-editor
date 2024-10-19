@@ -22,7 +22,17 @@ type Recipe = z.infer<typeof recipeSchema>;
 
 export const Tutorial = (props: { filename: string }) => {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [error, setError] = useState<Error | null>(null);
   const url = useBaseUrl(`/recipes/${props.filename}.json`);
+  async function loadRecipes(url: string) {
+    try {
+      const response = await fetch(url);
+      const recipesData = await response.json();
+      return z.array(recipeSchema).parse(recipesData.recipes_output);
+    } catch (error) {
+      setError(error);
+    }
+  }
   useEffect(() => {
     loadRecipes(url).then((recipes) => setRecipes(recipes ?? []));
   }, []);
@@ -36,15 +46,10 @@ export const Tutorial = (props: { filename: string }) => {
       {recipes.map((recipe, index) => (
         <Recipe key={index} recipe={recipe} />
       ))}
+      {error && <div style={{ color: "red" }}>{error.message}</div>}
     </div>
   );
 };
-
-async function loadRecipes(url: string) {
-  const response = await fetch(url);
-  const recipesData = await response.json();
-  return z.array(recipeSchema).parse(recipesData.recipes_output);
-}
 
 const Recipe = (props: { recipe: Recipe }) => {
   const xtermOptions: UseXTermProps = useMemo(
