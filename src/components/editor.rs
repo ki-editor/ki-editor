@@ -344,6 +344,7 @@ impl Component for Editor {
                     keep,
                 ))
             }
+            EnterNewline => return self.enter_newline(),
         }
         Ok(Default::default())
     }
@@ -837,6 +838,51 @@ impl Editor {
         });
         let dispatches = self.apply_edit_transaction(edit_transaction)?;
         Ok(copy_dispatches.chain(dispatches))
+    }
+
+    fn enter_newline(&mut self) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let cursor = selection.extended_range().start;
+                    let current_line_index = buffer.char_to_line(cursor)?;
+
+                    let current_line = buffer.get_line_by_line_index(current_line_index);
+
+                    let indent = "\n".to_string()
+                        + current_line
+                            .map(|line| {
+                                line.to_string()
+                                    .chars()
+                                    .take_while(|c| c.is_whitespace() && c != &'\n')
+                                    .join("")
+                            })
+                            .unwrap_or_default()
+                            .as_str();
+
+                    let range_start = cursor + indent.chars().count();
+                    Ok(ActionGroup::new(
+                        [
+                            Action::Edit(Edit {
+                                range: (cursor..cursor).into(),
+                                new: indent.into(),
+                            }),
+                            Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range((range_start..range_start).into())
+                                    .set_initial_range(None),
+                            ),
+                        ]
+                        .to_vec(),
+                    ))
+                })
+                .into_iter()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction)
     }
 
     pub(crate) fn copy(&mut self, use_system_clipboard: bool) -> anyhow::Result<Dispatches> {
@@ -2760,14 +2806,6 @@ impl Editor {
 
     #[cfg(test)]
     pub(crate) fn primary_selection(&self) -> anyhow::Result<String> {
-        println!(
-            "Editor::primary_selection range = {:?}",
-            &self
-                .editor()
-                .selection_set
-                .primary_selection()
-                .extended_range()
-        );
         Ok(self
             .buffer()
             .slice(
@@ -2998,6 +3036,7 @@ pub(crate) enum DispatchEditor {
         search: String,
         keep: bool,
     },
+    EnterNewline,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

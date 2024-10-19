@@ -2626,3 +2626,27 @@ fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn insert_mode_enter_auto_indent() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+foo bar
+  spam
+  hey"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("spam".to_string())),
+            Editor(EnterInsertMode(Direction::End)),
+            App(HandleKeyEvents(keys!("enter enter").to_vec())),
+            Editor(Insert("baz".to_string())),
+            Expect(CurrentComponentContent(
+                "foo bar\n  spam\n  \n  baz\n  hey".trim(),
+            )),
+        ])
+    })
+}

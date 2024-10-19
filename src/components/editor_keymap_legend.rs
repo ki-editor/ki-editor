@@ -539,7 +539,7 @@ impl Editor {
                             Keymap::new(
                                 "enter",
                                 "Enter new line".to_string(),
-                                Dispatch::ToEditor(Insert("\n".to_string())),
+                                Dispatch::ToEditor(EnterNewline),
                             ),
                             Keymap::new(
                                 "tab",
