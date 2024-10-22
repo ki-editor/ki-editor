@@ -1,8 +1,8 @@
 use itertools::Itertools;
 
-use crate::selection_mode::{ApplyMovementResult, IfCurrentNotFound};
+use crate::selection_mode::ApplyMovementResult;
 
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, SelectionMode, Token, TopNode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -16,28 +16,11 @@ impl SelectionMode for SyntaxNode {
         &'a self,
         params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
-        let buffer = params.buffer;
-        let tree = buffer.tree().ok_or(anyhow::anyhow!(
-            "SyntaxNode::iter: cannot find Treesitter language"
-        ))?;
-        let root_node_id = tree.root_node().id();
-        Ok(Box::new(
-            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Pre)
-                .filter(|node| node.id() != root_node_id)
-                .group_by(|node| node.byte_range().start)
-                .into_iter()
-                .map(|(_, group)| {
-                    ByteRange::new(
-                        group
-                            .into_iter()
-                            .max_by_key(|node| node.byte_range().end)
-                            .unwrap()
-                            .byte_range(),
-                    )
-                })
-                .collect_vec()
-                .into_iter(),
-        ))
+        if self.coarse {
+            TopNode.iter(params)
+        } else {
+            Token.iter(params)
+        }
     }
     fn parent(
         &self,
@@ -125,22 +108,6 @@ impl SelectionMode for SyntaxNode {
         } else {
             Ok(Box::new(std::iter::empty()))
         }
-    }
-    fn current<'a>(
-        &'a self,
-        params: super::SelectionModeParams<'a>,
-        _: IfCurrentNotFound,
-    ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        let node = params
-            .buffer
-            .get_current_node(params.current_selection, self.coarse)?
-            .ok_or(anyhow::anyhow!(
-                "SyntaxNode::current: Cannot find Treesitter language"
-            ))?;
-        Ok(Some(
-            ByteRange::new(node.byte_range())
-                .to_selection(params.buffer, params.current_selection)?,
-        ))
     }
     fn delete_forward(
         &self,
@@ -297,7 +264,7 @@ mod test_syntax_node {
     }
 
     #[test]
-    fn current() {
+    fn current_prioritize_same_line() {
         fn test(coarse: bool, expected_selection: &str) {
             let buffer = Buffer::new(
                 Some(tree_sitter_rust::language()),
@@ -308,8 +275,8 @@ fn main() {
                 .trim(),
             );
 
-            let range = (CharIndex(14)..CharIndex(17)).into();
-            assert_eq!(buffer.slice(&range).unwrap(), "let");
+            let range = (CharIndex(13)..CharIndex(17)).into();
+            assert_eq!(buffer.slice(&range).unwrap(), " let");
             let selection = SyntaxNode { coarse }.current(
                 SelectionModeParams {
                     buffer: &buffer,

@@ -71,6 +71,14 @@ impl CharIndexRange {
     pub(crate) fn contains(&self, char_index: &CharIndex) -> bool {
         &self.start <= char_index && char_index <= &self.end
     }
+
+    pub(crate) fn trimmed(&self, buffer: &crate::buffer::Buffer) -> anyhow::Result<Self> {
+        let text = buffer.slice(self)?.to_string();
+        let leading_whitespace_count = text.chars().take_while(|c| c.is_whitespace()).count();
+        let trailing_whitespace_count =
+            text.chars().rev().take_while(|c| c.is_whitespace()).count();
+        Ok((self.start + leading_whitespace_count..self.end - trailing_whitespace_count).into())
+    }
 }
 
 pub(crate) struct CharIndexRangeIter {

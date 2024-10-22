@@ -5,10 +5,8 @@ pub(crate) mod custom;
 pub(crate) mod diagnostic;
 pub(crate) mod git_hunk;
 pub(crate) mod mark;
-#[cfg(test)]
 pub(crate) mod token;
 
-#[cfg(test)]
 pub(crate) mod top_node;
 
 pub(crate) mod line_full;
@@ -33,9 +31,7 @@ pub(crate) use mark::Mark;
 use std::ops::Range;
 pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
-#[cfg(test)]
 pub(crate) use token::Token;
-#[cfg(test)]
 pub(crate) use top_node::TopNode;
 pub(crate) use word::Word;
 
@@ -463,8 +459,11 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection;
         let buffer = params.buffer;
+        let trimmed_current_selection = current_selection.trimmed(buffer)?;
+
         if let Some((_, best_intersecting_match)) = {
-            let cursor_char_index = current_selection.to_char_index(params.cursor_direction);
+            let cursor_char_index =
+                trimmed_current_selection.to_char_index(params.cursor_direction);
             let cursor_line = buffer.char_to_line(cursor_char_index)?;
             let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
             self.iter_filtered(params.clone())?
@@ -491,7 +490,7 @@ pub trait SelectionMode {
                 best_intersecting_match.to_selection(buffer, current_selection)?,
             ))
         }
-        // If no intersecting match found, look in the reversed direction
+        // If no intersecting match found, look in the given direction
         else {
             let result = match if_current_not_found {
                 IfCurrentNotFound::LookForward => self.right(params.clone()),
@@ -638,7 +637,7 @@ mod test_selection_mode {
         test(
             Movement::Current(IfCurrentNotFound::LookForward),
             5..6,
-            1..6,
+            3..5,
         );
         test(
             Movement::Current(IfCurrentNotFound::LookForward),
