@@ -117,19 +117,17 @@ mod test_process_command {
 
     #[test]
     fn failed_command_includes_exit_code_and_stderr() {
-        let err = ProcessCommand::new("python", &["-c", "yo"])
+        let err = ProcessCommand::new("bash", &["-c", "yo"])
             .run_with_input("hello")
             .unwrap_err();
         assert_eq!(
             err.to_string(),
             "
-Command failed with exit code: 1
+Command failed with exit code: 127
 
 STDERR =
 
-Traceback (most recent call last):
-  File \"<string>\", line 1, in <module>
-NameError: name 'yo' is not defined
+bash: yo: command not found
 
 
 STDOUT =
