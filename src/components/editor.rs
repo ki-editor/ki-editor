@@ -750,6 +750,9 @@ impl Editor {
         } else {
             Default::default()
         };
+        if self.selection_set.mode == SelectionMode::Line && direction == Direction::End {
+            return self.delete_line_forward(copy_dispatches);
+        }
         let edit_transaction = EditTransaction::from_action_groups({
             let buffer = self.buffer();
             self.selection_set
@@ -2907,6 +2910,56 @@ impl Editor {
             None => selections.clone(),
         };
         self.update_selection_set(self.selection_set.clone().set_selections(selections), true)
+    }
+
+    fn delete_line_forward(
+        &mut self,
+        copy_dispatches: Dispatches,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let line_range =
+                        buffer.char_index_range_to_line_range(selection.extended_range())?;
+
+                    let delete_range = buffer.line_range_to_full_char_index_range(line_range)?;
+
+                    let select_range = Selection::get_selection_(
+                        &buffer,
+                        &selection.clone().collapsed_to_anchor_range(&Direction::End),
+                        &self.selection_set.mode,
+                        &Movement::Next,
+                        &self.cursor_direction,
+                    )?
+                    .map(|result| result.selection.range())
+                    .unwrap_or_else(|| selection.range());
+
+                    Ok([
+                        ActionGroup::new(
+                            [Action::Edit(Edit {
+                                range: delete_range,
+                                new: Rope::new(),
+                            })]
+                            .to_vec(),
+                        ),
+                        ActionGroup::new(
+                            [Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range(select_range)
+                                    .set_initial_range(None),
+                            )]
+                            .to_vec(),
+                        ),
+                    ])
+                })
+                .into_iter()
+                .flatten()
+                .flatten()
+                .collect()
+        });
+        Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction)?))
     }
 }
 
