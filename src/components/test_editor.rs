@@ -2650,3 +2650,52 @@ foo bar
         ])
     })
 }
+
+#[test]
+fn delete_line_should_not_dedent_next_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+foo bar
+  spam
+  hey"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("  spam\n  hey")),
+            Expect(CurrentSelectedTexts(&["spam"])),
+            Editor(Undo),
+            Expect(CurrentSelectedTexts(&["foo bar"])),
+        ])
+    })
+}
+
+#[test]
+fn delete_multiple_lines_should_not_dedent_next_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+foo bar
+  spam
+  hey"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(EnterVMode),
+            App(HandleKeyEvent(key!("j"))),
+            Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentComponentContent("  hey")),
+            Expect(CurrentSelectedTexts(&["hey"])),
+            Editor(Undo),
+            Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
+        ])
+    })
+}
