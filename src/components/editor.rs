@@ -2478,6 +2478,7 @@ impl Editor {
                             &buffer.content(),
                             enclosure,
                             cursor_char_index,
+                            false,
                         )
                     {
                         let offset = match kind {
@@ -2519,6 +2520,7 @@ impl Editor {
                             &buffer.content(),
                             from,
                             cursor_char_index,
+                            true,
                         )
                     {
                         let open_range = (open_index..open_index + 1).into();

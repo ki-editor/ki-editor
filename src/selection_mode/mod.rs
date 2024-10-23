@@ -39,10 +39,11 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        editor::{Direction, IfCurrentNotFound, Jump, Movement},
+        editor::{Direction, IfCurrentNotFound, Jump, Movement, SurroundKind},
         suggestive_editor::Info,
     },
-    selection::Selection,
+    selection::{CharIndex, Selection},
+    surround::EnclosureKind,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -195,8 +196,8 @@ pub trait SelectionMode {
             Movement::Up => convert(self.up(params)),
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
-            Movement::Expand => self.parent(params),
-            Movement::Shrink => self.first_child(params),
+            Movement::Expand => self.expand(params),
+            Movement::Shrink => self.shrink(params),
             Movement::Next => convert(self.next(params)),
             Movement::Previous => convert(self.previous(params)),
             Movement::DeleteBackward => convert(self.delete_backward(params)),
@@ -204,11 +205,93 @@ pub trait SelectionMode {
         }
     }
 
-    fn parent(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(None)
+    fn expand(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+        let buffer = params.buffer;
+        let selection = params.current_selection;
+        let cursor_char_index = selection.get_anchor(&params.cursor_direction);
+        let range = params.current_selection.extended_range();
+        let start = range.end;
+        println!("Range = {range:?}");
+        let enclosure_kinds = {
+            use EnclosureKind::*;
+            [
+                Parentheses,
+                CurlyBraces,
+                SquareBrackets,
+                DoubleQuotes,
+                SingleQuotes,
+                Backticks,
+            ]
+        };
+        let (index, enclosure) = {
+            let slice_range = (start..CharIndex(params.buffer.len_chars())).into();
+            println!("slice_range = {slice_range:?}");
+            let after = params.buffer.slice(&slice_range)?;
+            println!("params.buffer.content = {:?}", params.buffer.content());
+            println!(
+                "start = {start:?} SelectionMode::expand after = {:?}",
+                after.to_string()
+            );
+
+            // This stack is for handling nested enclosures
+            let mut open_symbols_stack = Vec::new();
+            let Some(nearest_enclosure) =
+                after
+                    .to_string()
+                    .chars()
+                    .enumerate()
+                    .find_map(|(index, char)| {
+                        if let Some(kind) = enclosure_kinds
+                            .iter()
+                            .find(|kind| kind.open_symbol() == char)
+                        {
+                            open_symbols_stack.push(kind);
+                        } else if let Some((index, kind)) = enclosure_kinds
+                            .iter()
+                            .find(|kind| kind.close_symbol() == char)
+                            .map(|kind| (index, kind))
+                        {
+                            if open_symbols_stack.last() == Some(&kind) {
+                                open_symbols_stack.pop();
+                            } else {
+                                return Some((index, kind));
+                            }
+                        }
+                        None
+                    })
+            else {
+                return Ok(None);
+            };
+            println!("nearest_enclosure = {:?}", nearest_enclosure);
+            nearest_enclosure
+        };
+        if let Some((open_index, close_index)) = crate::surround::get_surrounding_indices(
+            &buffer.content(),
+            enclosure.clone(),
+            cursor_char_index,
+            false,
+        ) {
+            println!("open_index={open_index:?}, close_index={close_index:?}");
+            let kind = if start + index == range.end {
+                SurroundKind::Around
+            } else {
+                SurroundKind::Inside
+            };
+
+            let offset = match kind {
+                SurroundKind::Inside => 1,
+                SurroundKind::Around => 0,
+            };
+            let range = ((open_index + offset)..(close_index + 1 - offset)).into();
+            Ok(Some(ApplyMovementResult::from_selection(
+                selection.clone().set_range(range),
+            )))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn first_child(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn shrink(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         Ok(None)
     }
 

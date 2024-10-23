@@ -9,6 +9,21 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
     [
         showcase(),
         RecipeGroup {
+            filename: "expand",
+            recipes: [Recipe {
+                description: "Expand to nearest brackets/quotes",
+                content: "hello '{World Foo} bar'".trim(),
+                file_extension: "md",
+                prepare_events: keys!("w n"),
+                events: keys!("t t t t"),
+                expectations: &[CurrentSelectedTexts(&["'{World Foo} bar'"])],
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: true,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "join",
             recipes: [Recipe {
                 description: "Example",

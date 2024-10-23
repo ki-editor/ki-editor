@@ -4,7 +4,7 @@ use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovement
 pub(crate) struct LineFull;
 
 impl SelectionMode for LineFull {
-    fn first_child(
+    fn shrink(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {

@@ -2133,7 +2133,7 @@ fn delete_surround() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-fn change_surround() -> Result<(), anyhow::Error> {
+fn change_surround_selection_not_on_enclosure() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2143,6 +2143,19 @@ fn change_surround() -> Result<(), anyhow::Error> {
             Expect(CurrentSelectedTexts(&["{world}"])),
             Expect(CurrentSelectionMode(SelectionMode::Custom)),
             Expect(CurrentComponentContent("(hello {world})")),
+        ])
+    })
+}
+
+#[test]
+fn change_surround_selection_on_enclosure() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("(hello)".to_string())),
+            Editor(MatchLiteral("(hello)".to_string())),
+            App(HandleKeyEvents(keys!("v c ( {").to_vec())),
+            Expect(CurrentSelectedTexts(&["{hello}"])),
         ])
     })
 }
@@ -2696,6 +2709,51 @@ foo bar
             Expect(CurrentSelectedTexts(&["hey"])),
             Editor(Undo),
             Expect(CurrentSelectedTexts(&["foo bar\n  spam"])),
+        ])
+    })
+}
+
+#[test]
+fn expand_to_nearest_bracket_quote_1_inside() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello (world yo)".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["world yo"])),
+        ])
+    })
+}
+
+#[test]
+fn expand_to_nearest_bracket_quote_2_around() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello ((world_yo))".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["world_yo"])),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["(world_yo)"])),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["((world_yo))"])),
+        ])
+    })
+}
+
+#[test]
+fn expand_to_nearest_bracket_quote_3_nested_brackets() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("{hello (world yo)}".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["hello (world yo)"])),
         ])
     })
 }

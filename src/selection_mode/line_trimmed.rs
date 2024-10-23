@@ -4,7 +4,7 @@ use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovement
 pub(crate) struct LineTrimmed;
 
 impl SelectionMode for LineTrimmed {
-    fn parent(
+    fn expand(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
