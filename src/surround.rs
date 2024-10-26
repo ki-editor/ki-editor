@@ -39,7 +39,6 @@ pub(crate) fn get_surrounding_indices(
         return None;
     }
     let chars = content.chars().collect_vec();
-    println!("chars = {chars:?}");
     let (open, close) = kind.open_close_symbols();
     let open_index = {
         let index = if include_cursor_position {
@@ -48,8 +47,6 @@ pub(crate) fn get_surrounding_indices(
             cursor_char_index
         }
         .0;
-        println!("The orignal index is = {cursor_char_index:?}, index is {index:?}");
-
         let mut count = 0;
         let Some(open_index) =
             chars[0..index]
@@ -57,7 +54,6 @@ pub(crate) fn get_surrounding_indices(
                 .enumerate()
                 .rev()
                 .find(|(index, char)| {
-                    println!("(index, char) = {:?}", (index, char));
                     if *char == &close && open != close {
                         count += 1
                     } else if *char == &open {
@@ -72,7 +68,6 @@ pub(crate) fn get_surrounding_indices(
         else {
             return None;
         };
-        println!("The new open_index is {open_index:?}");
         CharIndex(open_index.0)
     };
     let close_index = {
@@ -97,7 +92,6 @@ pub(crate) fn get_surrounding_indices(
             return None;
         };
         let close_index = close_index.0 + start_index;
-        println!("The new close_index is {close_index:?}");
         CharIndex(close_index)
     };
     return Some((open_index, close_index));
@@ -105,7 +99,6 @@ pub(crate) fn get_surrounding_indices(
         let (left, right) = chars.split_at(cursor_char_index.0);
         (left.to_vec(), right.to_vec())
     };
-    println!("left={left:?} right={right:?} cursor_char_index={cursor_char_index:?}");
     fn get_index<I>(iter: I, encounter: Option<char>, target: char) -> Option<usize>
     where
         I: std::iter::Iterator<Item = (usize, char)>,
@@ -133,8 +126,6 @@ pub(crate) fn get_surrounding_indices(
         let encounter = if open == close { None } else { Some(close) };
         cursor_char_index - (get_index(left.into_iter().rev().enumerate(), encounter, open)? + 1)
     };
-    println!("open_index = {open_index:?}");
-
     let close_index = if include_cursor_position
         && content.chars().nth(cursor_char_index.0) == Some(close)
     {
@@ -194,6 +185,10 @@ impl EnclosureKind {
             EnclosureKind::SingleQuotes => "Single Quotes",
             EnclosureKind::Backticks => "Backticks",
         }
+    }
+
+    pub(crate) const fn is_both_end_same(&self) -> bool {
+        self.open_symbol() == self.close_symbol()
     }
 }
 

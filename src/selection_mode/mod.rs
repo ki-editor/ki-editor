@@ -210,8 +210,7 @@ pub trait SelectionMode {
         let selection = params.current_selection;
         let cursor_char_index = selection.get_anchor(&params.cursor_direction);
         let range = params.current_selection.extended_range();
-        let start = range.end;
-        println!("Range = {range:?}");
+        let start = range.start;
         let enclosure_kinds = {
             use EnclosureKind::*;
             [
@@ -223,32 +222,31 @@ pub trait SelectionMode {
                 Backticks,
             ]
         };
+        let positioned_chars =
+            position_pair::create_position_pairs(&buffer.content().chars().collect_vec());
         let (index, enclosure) = {
-            let slice_range = (start..CharIndex(params.buffer.len_chars())).into();
-            println!("slice_range = {slice_range:?}");
-            let after = params.buffer.slice(&slice_range)?;
-            println!("params.buffer.content = {:?}", params.buffer.content());
-            println!(
-                "start = {start:?} SelectionMode::expand after = {:?}",
-                after.to_string()
-            );
-
+            let slice_range = start.0..params.buffer.len_chars();
+            let after = &positioned_chars[slice_range];
             // This stack is for handling nested enclosures
             let mut open_symbols_stack = Vec::new();
             let Some(nearest_enclosure) =
                 after
-                    .to_string()
-                    .chars()
+                    .into_iter()
                     .enumerate()
-                    .find_map(|(index, char)| {
-                        if let Some(kind) = enclosure_kinds
-                            .iter()
-                            .find(|kind| kind.open_symbol() == char)
-                        {
+                    .find_map(|(index, (char, position))| {
+                        // println!("{char} {position:?}");
+                        if let Some(kind) = enclosure_kinds.iter().find(|kind| {
+                            (!kind.is_both_end_same() || position == &position_pair::Position::Odd)
+                                && &kind.open_symbol() == char
+                        }) {
                             open_symbols_stack.push(kind);
                         } else if let Some((index, kind)) = enclosure_kinds
                             .iter()
-                            .find(|kind| kind.close_symbol() == char)
+                            .find(|kind| {
+                                &kind.close_symbol() == char
+                                    && (!kind.is_both_end_same()
+                                        || position == &position_pair::Position::Even)
+                            })
                             .map(|kind| (index, kind))
                         {
                             if open_symbols_stack.last() == Some(&kind) {
@@ -262,21 +260,22 @@ pub trait SelectionMode {
             else {
                 return Ok(None);
             };
-            println!("nearest_enclosure = {:?}", nearest_enclosure);
             nearest_enclosure
         };
+        // println!("enclosre = {enclosure:?}");
         if let Some((open_index, close_index)) = crate::surround::get_surrounding_indices(
             &buffer.content(),
             enclosure.clone(),
             cursor_char_index,
             false,
         ) {
-            println!("open_index={open_index:?}, close_index={close_index:?}");
-            let kind = if start + index == range.end {
+            // println!("open_index = {open_index:?} close_index = {close_index:?} range = {range:?}");
+            let kind = if open_index + 1 == range.start && close_index == range.end {
                 SurroundKind::Around
             } else {
                 SurroundKind::Inside
             };
+            // println!("kind = {kind:?}");
 
             let offset = match kind {
                 SurroundKind::Inside => 1,
@@ -852,5 +851,62 @@ fn f() {
         test(4, "fn g() {");
 
         test(1, "fn f() {");
+    }
+}
+
+mod position_pair {
+    #[derive(Debug, PartialEq)]
+    pub(crate) enum Position {
+        Odd,
+        Even,
+    }
+
+    pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<(char, Position)> {
+        let mut char_positions: Vec<(char, Position)> = Vec::new();
+        let mut char_counts: std::collections::HashMap<char, usize> =
+            std::collections::HashMap::new();
+
+        for &c in chars {
+            let count = char_counts.entry(c).or_insert(0);
+            *count += 1;
+            let position = if *count % 2 == 0 {
+                Position::Even
+            } else {
+                Position::Odd
+            };
+            char_positions.push((c, position));
+        }
+
+        char_positions
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn test_position_pairs() {
+            let input = vec!['a', 'b', 'a', 'c', 'b', 'a'];
+            let expected = vec![
+                ('a', Position::Odd),
+                ('b', Position::Odd),
+                ('a', Position::Even),
+                ('c', Position::Odd),
+                ('b', Position::Even),
+                ('a', Position::Odd),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_single_chars() {
+            let input = vec!['x', 'y', 'z'];
+            let expected = vec![
+                ('x', Position::Odd),
+                ('y', Position::Odd),
+                ('z', Position::Odd),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
     }
 }

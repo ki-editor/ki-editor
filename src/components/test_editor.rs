@@ -2728,6 +2728,20 @@ fn expand_to_nearest_bracket_quote_1_inside() -> anyhow::Result<()> {
 }
 
 #[test]
+fn expand_to_nearest_bracket_quote_1_inside_2() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello (world yo)".to_string())),
+            Editor(MatchLiteral("yo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["world yo"])),
+        ])
+    })
+}
+
+#[test]
 fn expand_to_nearest_bracket_quote_2_around() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -2754,6 +2768,42 @@ fn expand_to_nearest_bracket_quote_3_nested_brackets() -> anyhow::Result<()> {
             Editor(MoveSelection(Next)),
             Editor(MoveSelection(Expand)),
             Expect(CurrentSelectedTexts(&["hello (world yo)"])),
+        ])
+    })
+}
+
+#[test]
+fn expand_to_nearest_bracket_quote_4_brackets_and_quotes() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello '{World Foo} bar'".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["World Foo"])),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["{World Foo}"])),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["{World Foo} bar"])),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["'{World Foo} bar'"])),
+        ])
+    })
+}
+
+#[test]
+/// Quotes expansion must be between an odd-position quote with an even-position quote
+/// never the other way around
+fn expand_to_nearest_bracket_quote_5() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("'hello world' (foo bar 'spam baz')".to_string())),
+            Editor(MatchLiteral("foo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["foo bar 'spam baz'"])),
         ])
     })
 }
