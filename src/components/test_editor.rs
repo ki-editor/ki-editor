@@ -2807,3 +2807,19 @@ fn expand_to_nearest_bracket_quote_5() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn expand_to_nearest_bracket_quote_with_escaped_quotes() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                r#"result1.query.contains("\"require\" @keyword.import")"#.to_string(),
+            )),
+            Editor(MatchLiteral("require".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&[r#"\"require\" @keyword.import"#])),
+        ])
+    })
+}

@@ -208,7 +208,6 @@ pub trait SelectionMode {
     fn expand(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         let buffer = params.buffer;
         let selection = params.current_selection;
-        let cursor_char_index = selection.get_anchor(&params.cursor_direction);
         let range = params.current_selection.extended_range();
         let start = range.start;
         let enclosure_kinds = {
@@ -224,12 +223,12 @@ pub trait SelectionMode {
         };
         let positioned_chars =
             position_pair::create_position_pairs(&buffer.content().chars().collect_vec());
-        let (index, enclosure) = {
+        let (close_index, enclosure_kind) = {
             let slice_range = start.0..params.buffer.len_chars();
             let after = &positioned_chars[slice_range];
             // This stack is for handling nested enclosures
             let mut open_symbols_stack = Vec::new();
-            let Some(nearest_enclosure) =
+            let Some((close_index, enclosure_kind)) =
                 after
                     .into_iter()
                     .enumerate()
@@ -260,34 +259,59 @@ pub trait SelectionMode {
             else {
                 return Ok(None);
             };
-            nearest_enclosure
+            (close_index + start.0, enclosure_kind)
+        };
+        let open_index = {
+            let slice_range = 0..start.0;
+            let before = &positioned_chars[slice_range];
+            // This stack is for handling nested enclosures
+            let mut close_symbols_stack = Vec::new();
+            let Some(open_index) = before
+                .into_iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, (char, position))| {
+                    // println!("{char} {position:?}");
+                    if (!enclosure_kind.is_both_end_same()
+                        || position == &position_pair::Position::Even)
+                        && &enclosure_kind.close_symbol() == char
+                    {
+                        close_symbols_stack.push(enclosure_kind);
+                    } else if &enclosure_kind.open_symbol() == char
+                        && (!enclosure_kind.is_both_end_same()
+                            || position == &position_pair::Position::Odd)
+                    {
+                        if close_symbols_stack.last() == Some(&enclosure_kind) {
+                            close_symbols_stack.pop();
+                        } else {
+                            return Some((index, enclosure_kind));
+                        }
+                    }
+                    None
+                })
+                .map(|(index, _)| index)
+            else {
+                return Ok(None);
+            };
+            open_index
         };
         // println!("enclosre = {enclosure:?}");
-        if let Some((open_index, close_index)) = crate::surround::get_surrounding_indices(
-            &buffer.content(),
-            enclosure.clone(),
-            cursor_char_index,
-            false,
-        ) {
-            // println!("open_index = {open_index:?} close_index = {close_index:?} range = {range:?}");
-            let kind = if open_index + 1 == range.start && close_index == range.end {
-                SurroundKind::Around
-            } else {
-                SurroundKind::Inside
-            };
-            // println!("kind = {kind:?}");
-
-            let offset = match kind {
-                SurroundKind::Inside => 1,
-                SurroundKind::Around => 0,
-            };
-            let range = ((open_index + offset)..(close_index + 1 - offset)).into();
-            Ok(Some(ApplyMovementResult::from_selection(
-                selection.clone().set_range(range),
-            )))
+        // println!("open_index = {open_index:?} close_index = {close_index:?} range = {range:?}");
+        let kind = if open_index + 1 == range.start.0 && close_index == range.end.0 {
+            SurroundKind::Around
         } else {
-            Ok(None)
-        }
+            SurroundKind::Inside
+        };
+        // println!("kind = {kind:?}");
+
+        let offset = match kind {
+            SurroundKind::Inside => 1,
+            SurroundKind::Around => 0,
+        };
+        let range = (CharIndex(open_index + offset)..CharIndex(close_index + 1 - offset)).into();
+        Ok(Some(ApplyMovementResult::from_selection(
+            selection.clone().set_range(range),
+        )))
     }
 
     fn shrink(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -859,6 +883,7 @@ mod position_pair {
     pub(crate) enum Position {
         Odd,
         Even,
+        Escaped,
     }
 
     pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<(char, Position)> {
@@ -866,13 +891,18 @@ mod position_pair {
         let mut char_counts: std::collections::HashMap<char, usize> =
             std::collections::HashMap::new();
 
-        for &c in chars {
+        for i in 0..chars.len() {
+            let c = chars[i];
             let count = char_counts.entry(c).or_insert(0);
-            *count += 1;
-            let position = if *count % 2 == 0 {
-                Position::Even
+            let position = if (c == '\'' || c == '"' || c == '`') && i > 0 && chars[i - 1] == '\\' {
+                Position::Escaped
             } else {
-                Position::Odd
+                *count += 1;
+                if *count % 2 == 0 {
+                    Position::Even
+                } else {
+                    Position::Odd
+                }
             };
             char_positions.push((c, position));
         }
@@ -905,6 +935,42 @@ mod position_pair {
                 ('x', Position::Odd),
                 ('y', Position::Odd),
                 ('z', Position::Odd),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_escaped_single_quote() {
+            let input = vec!['\'', '\\', '\'', '\''];
+            let expected = vec![
+                ('\'', Position::Odd),
+                ('\\', Position::Odd),
+                ('\'', Position::Escaped),
+                ('\'', Position::Even),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_escaped_double_quote() {
+            let input = vec!['"', '\\', '"', '"'];
+            let expected = vec![
+                ('"', Position::Odd),
+                ('\\', Position::Odd),
+                ('"', Position::Escaped),
+                ('"', Position::Even),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_escaped_backtick() {
+            let input = vec!['`', '\\', '`', '`'];
+            let expected = vec![
+                ('`', Position::Odd),
+                ('\\', Position::Odd),
+                ('`', Position::Escaped),
+                ('`', Position::Even),
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }
