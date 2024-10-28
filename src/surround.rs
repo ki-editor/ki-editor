@@ -48,97 +48,41 @@ pub(crate) fn get_surrounding_indices(
         }
         .0;
         let mut count = 0;
-        let Some(open_index) =
-            chars[0..index]
-                .into_iter()
-                .enumerate()
-                .rev()
-                .find(|(index, char)| {
-                    if *char == &close && open != close {
-                        count += 1
-                    } else if *char == &open {
-                        if count > 0 {
-                            count -= 1
-                        } else {
-                            return true;
-                        }
-                    }
-                    return false;
-                })
-        else {
-            return None;
-        };
+        let open_index = chars[0..index].iter().enumerate().rev().find(|(_, char)| {
+            if *char == &close && open != close {
+                count += 1
+            } else if *char == &open {
+                if count > 0 {
+                    count -= 1
+                } else {
+                    return true;
+                }
+            }
+            false
+        })?;
         CharIndex(open_index.0)
     };
     let close_index = {
         let start_index = open_index.0 + 1;
         let mut count = 0;
-        let Some(close_index) = chars[start_index..]
-            .into_iter()
-            .enumerate()
-            .find(|(_, char)| {
-                if *char == &open && open != close {
-                    count += 1
-                } else if *char == &close {
-                    if count > 0 {
-                        count -= 1
-                    } else {
-                        return true;
-                    }
+        let close_index = chars[start_index..].iter().enumerate().find(|(_, char)| {
+            if *char == &open && open != close {
+                count += 1
+            } else if *char == &close {
+                if count > 0 {
+                    count -= 1
+                } else {
+                    return true;
                 }
-                return false;
-            })
-        else {
-            return None;
-        };
+            }
+            false
+        })?;
         let close_index = close_index.0 + start_index;
         CharIndex(close_index)
     };
-    return Some((open_index, close_index));
-    let (left, right) = {
-        let (left, right) = chars.split_at(cursor_char_index.0);
-        (left.to_vec(), right.to_vec())
-    };
-    fn get_index<I>(iter: I, encounter: Option<char>, target: char) -> Option<usize>
-    where
-        I: std::iter::Iterator<Item = (usize, char)>,
-    {
-        let mut count = 0;
-        for (index, c) in iter {
-            if Some(c) == encounter {
-                count += 1;
-            } else if c == target {
-                if count > 0 {
-                    count -= 1;
-                } else {
-                    return Some(index);
-                }
-            }
-        }
-        None
-    }
-
-    let open_index = if include_cursor_position
-        && content.chars().nth(cursor_char_index.0) == Some(open)
-    {
-        cursor_char_index
-    } else {
-        let encounter = if open == close { None } else { Some(close) };
-        cursor_char_index - (get_index(left.into_iter().rev().enumerate(), encounter, open)? + 1)
-    };
-    let close_index = if include_cursor_position
-        && content.chars().nth(cursor_char_index.0) == Some(close)
-    {
-        cursor_char_index
-    } else {
-        let encounter = if open == close { None } else { Some(open) };
-        cursor_char_index + (get_index(right.into_iter().enumerate().skip(1), encounter, close)?)
-    };
-
     debug_assert_eq!(content.chars().nth(open_index.0), Some(open));
 
     debug_assert_eq!(content.chars().nth(close_index.0), Some(close));
-
     Some((open_index, close_index))
 }
 

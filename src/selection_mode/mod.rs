@@ -28,6 +28,7 @@ pub(crate) use line_full::LineFull;
 pub(crate) use line_trimmed::LineTrimmed;
 pub(crate) use local_quickfix::LocalQuickfix;
 pub(crate) use mark::Mark;
+use position_pair::ParsedChar;
 use std::ops::Range;
 pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
@@ -209,9 +210,12 @@ pub trait SelectionMode {
         let buffer = params.buffer;
         let selection = params.current_selection;
         let range = params.current_selection.extended_range();
-        let start = range.start;
+        let range_start = params.current_selection.extended_range().start;
+        let range_end = params.current_selection.extended_range().end;
+        use position_pair::Position::*;
+        use EnclosureKind::*;
+        use SurroundKind::*;
         let enclosure_kinds = {
-            use EnclosureKind::*;
             [
                 Parentheses,
                 CurlyBraces,
@@ -223,64 +227,106 @@ pub trait SelectionMode {
         };
         let positioned_chars =
             position_pair::create_position_pairs(&buffer.content().chars().collect_vec());
-        let (close_index, enclosure_kind) = {
-            let slice_range = start.0..params.buffer.len_chars();
-            let after = &positioned_chars[slice_range];
-            // This stack is for handling nested enclosures
-            let mut open_symbols_stack = Vec::new();
-            let Some((close_index, enclosure_kind)) =
-                after
-                    .into_iter()
-                    .enumerate()
-                    .find_map(|(index, (char, position))| {
-                        // println!("{char} {position:?}");
-                        if let Some(kind) = enclosure_kinds.iter().find(|kind| {
-                            (!kind.is_both_end_same() || position == &position_pair::Position::Odd)
-                                && &kind.open_symbol() == char
-                        }) {
-                            open_symbols_stack.push(kind);
-                        } else if let Some((index, kind)) = enclosure_kinds
-                            .iter()
-                            .find(|kind| {
-                                &kind.close_symbol() == char
-                                    && (!kind.is_both_end_same()
-                                        || position == &position_pair::Position::Even)
-                            })
-                            .map(|kind| (index, kind))
-                        {
-                            if open_symbols_stack.last() == Some(&kind) {
-                                open_symbols_stack.pop();
-                            } else {
-                                return Some((index, kind));
-                            }
-                        }
-                        None
-                    })
-            else {
-                return Ok(None);
-            };
-            (close_index + start.0, enclosure_kind)
+        let (enclosure_kind, surround_kind, open_index, close_index) = match (
+            positioned_chars.get(range_start.0),
+            positioned_chars.get(range_end.0.saturating_sub(1)),
+        ) {
+            (Some(ParsedChar::Enclosure(Open, open_kind)), end) => match end {
+                Some(ParsedChar::Enclosure(Close, close_kind)) if open_kind == close_kind => {
+                    (None, None, None, None)
+                }
+                _ => {
+                    match (
+                        positioned_chars.get(range_start.0.saturating_sub(1)),
+                        positioned_chars.get(range_end.0),
+                    ) {
+                        (
+                            Some(ParsedChar::Enclosure(Open, open_kind)),
+                            Some(ParsedChar::Enclosure(Close, close_kind)),
+                        ) if open_kind == close_kind => (
+                            Some(open_kind),
+                            Some(Around),
+                            Some(range_start.0.saturating_sub(1)),
+                            Some(range_end.0),
+                        ),
+                        _ => (Some(open_kind), Some(Around), Some(range_start.0), None),
+                    }
+                }
+            },
+            (Some(ParsedChar::Enclosure(Close, kind)), _) => {
+                (Some(kind), Some(Around), None, Some(range_start.0))
+            }
+            _ => (None, None, None, None),
         };
-        let open_index = {
-            let slice_range = 0..start.0;
+        // println!( "The initial = {:?}", (enclosure_kind, &surround_kind, open_index, close_index) );
+        let (close_index, enclosure_kind) = match (close_index, enclosure_kind) {
+            (Some(close_index), Some(enclosure_kind)) => (close_index, enclosure_kind.clone()),
+            _ => {
+                let slice_range = range_start.0 + 1..params.buffer.len_chars();
+                let mut after = positioned_chars
+                    .iter()
+                    .enumerate()
+                    .skip(range_start.0 + if open_index.is_some() { 1 } else { 0 });
+                // This stack is for handling nested enclosures
+                let mut open_symbols_stack = Vec::new();
+                let (close_index, enclosure_kind) = {
+                    let Some((close_index, enclosure_kind)) =
+                        after.find_map(|(index, positioned_char)| {
+                            // println!("positioned_char = {positioned_char:?}");
+                            if let Some(kind) = enclosure_kinds
+                                .iter()
+                                .find(|kind| positioned_char.is_opening_of(*kind))
+                                .cloned()
+                            {
+                                open_symbols_stack.push(kind);
+                            } else if let Some(kind) = enclosure_kind
+                                .and_then(|kind| {
+                                    if positioned_char.is_closing_of(&kind) {
+                                        Some(kind)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .or_else(|| {
+                                    enclosure_kinds
+                                        .iter()
+                                        .find(|kind| positioned_char.is_closing_of(*kind))
+                                })
+                            {
+                                if open_symbols_stack.last() == Some(&kind) {
+                                    open_symbols_stack.pop();
+                                } else {
+                                    // println!( "Return close index -> index = {index} cursor = {} range.end = {}", range_start.0, range.end.0 );
+                                    return Some((index, kind.clone()));
+                                }
+                            }
+                            None
+                        })
+                    else {
+                        panic!();
+                        return Ok(None);
+                    };
+                    (close_index, enclosure_kind)
+                };
+                (close_index, enclosure_kind)
+            }
+        };
+        let open_index = if let Some(open_index) = open_index {
+            open_index
+        } else {
+            let slice_range = 0..range_start.0;
             let before = &positioned_chars[slice_range];
             // This stack is for handling nested enclosures
             let mut close_symbols_stack = Vec::new();
             let Some(open_index) = before
-                .into_iter()
+                .iter()
                 .enumerate()
                 .rev()
-                .find_map(|(index, (char, position))| {
+                .find_map(|(index, positioned_char)| {
                     // println!("{char} {position:?}");
-                    if (!enclosure_kind.is_both_end_same()
-                        || position == &position_pair::Position::Even)
-                        && &enclosure_kind.close_symbol() == char
-                    {
+                    if positioned_char.is_closing_of(&enclosure_kind) {
                         close_symbols_stack.push(enclosure_kind);
-                    } else if &enclosure_kind.open_symbol() == char
-                        && (!enclosure_kind.is_both_end_same()
-                            || position == &position_pair::Position::Odd)
-                    {
+                    } else if positioned_char.is_opening_of(&enclosure_kind) {
                         if close_symbols_stack.last() == Some(&enclosure_kind) {
                             close_symbols_stack.pop();
                         } else {
@@ -295,20 +341,24 @@ pub trait SelectionMode {
             };
             open_index
         };
-        // println!("enclosre = {enclosure:?}");
+        // println!("enclosre = {enclosure_kind:?}");
         // println!("open_index = {open_index:?} close_index = {close_index:?} range = {range:?}");
-        let kind = if open_index + 1 == range.start.0 && close_index == range.end.0 {
-            SurroundKind::Around
+        let surround_kind = if let Some(surround_kind) = surround_kind {
+            // println!("surround_kind is surround_kind = {surround_kind:?}");
+            surround_kind
+        } else if open_index + 1 == range.start.0 && close_index == range.end.0 {
+            Around
         } else {
-            SurroundKind::Inside
+            Inside
         };
-        // println!("kind = {kind:?}");
+        // println!("surroud_kind = {surround_kind:?}");
 
-        let offset = match kind {
-            SurroundKind::Inside => 1,
-            SurroundKind::Around => 0,
+        let offset = match surround_kind {
+            Inside => 1,
+            Around => 0,
         };
         let range = (CharIndex(open_index + offset)..CharIndex(close_index + 1 - offset)).into();
+        // println!("range = {range:?} offset = {offset}");
         Ok(Some(ApplyMovementResult::from_selection(
             selection.clone().set_range(range),
         )))
@@ -879,15 +929,47 @@ fn f() {
 }
 
 mod position_pair {
+    use crate::surround::EnclosureKind;
+
     #[derive(Debug, PartialEq)]
     pub(crate) enum Position {
-        Odd,
-        Even,
+        Open,
+        Close,
         Escaped,
     }
 
-    pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<(char, Position)> {
-        let mut char_positions: Vec<(char, Position)> = Vec::new();
+    #[derive(Debug, PartialEq)]
+    pub(crate) enum ParsedChar {
+        Enclosure(Position, EnclosureKind),
+        Other(char),
+    }
+
+    impl ParsedChar {
+        pub(crate) fn is_closing_of(
+            &self,
+            enclosure_kind: &crate::surround::EnclosureKind,
+        ) -> bool {
+            match self {
+                ParsedChar::Enclosure(Position::Close, kind) => kind == enclosure_kind,
+                _ => false,
+            }
+        }
+
+        pub(crate) fn is_opening_of(
+            &self,
+            enclosure_kind: &crate::surround::EnclosureKind,
+        ) -> bool {
+            match self {
+                ParsedChar::Enclosure(Position::Open, kind) => kind == enclosure_kind,
+                _ => false,
+            }
+        }
+    }
+
+    pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<ParsedChar> {
+        use EnclosureKind::*;
+        use Position::*;
+        let mut parsed_chars = Vec::new();
         let mut char_counts: std::collections::HashMap<char, usize> =
             std::collections::HashMap::new();
 
@@ -899,31 +981,46 @@ mod position_pair {
             } else {
                 *count += 1;
                 if *count % 2 == 0 {
-                    Position::Even
+                    Position::Close
                 } else {
-                    Position::Odd
+                    Position::Open
                 }
             };
-            char_positions.push((c, position));
+            let parsed_char = match c {
+                '\'' => ParsedChar::Enclosure(position, SingleQuotes),
+                '"' => ParsedChar::Enclosure(position, DoubleQuotes),
+                '`' => ParsedChar::Enclosure(position, Backticks),
+                '{' => ParsedChar::Enclosure(Open, CurlyBraces),
+                '}' => ParsedChar::Enclosure(Close, CurlyBraces),
+                '(' => ParsedChar::Enclosure(Open, Parentheses),
+                ')' => ParsedChar::Enclosure(Close, Parentheses),
+                '[' => ParsedChar::Enclosure(Open, SquareBrackets),
+                ']' => ParsedChar::Enclosure(Close, SquareBrackets),
+                other => ParsedChar::Other(other),
+            };
+            parsed_chars.push(parsed_char);
         }
 
-        char_positions
+        parsed_chars
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
+        use EnclosureKind::*;
+        use ParsedChar::*;
+        use Position::*;
 
         #[test]
         fn test_position_pairs() {
             let input = vec!['a', 'b', 'a', 'c', 'b', 'a'];
             let expected = vec![
-                ('a', Position::Odd),
-                ('b', Position::Odd),
-                ('a', Position::Even),
-                ('c', Position::Odd),
-                ('b', Position::Even),
-                ('a', Position::Odd),
+                Other('a'),
+                Other('b'),
+                Other('a'),
+                Other('c'),
+                Other('b'),
+                Other('a'),
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }
@@ -931,11 +1028,7 @@ mod position_pair {
         #[test]
         fn test_single_chars() {
             let input = vec!['x', 'y', 'z'];
-            let expected = vec![
-                ('x', Position::Odd),
-                ('y', Position::Odd),
-                ('z', Position::Odd),
-            ];
+            let expected = vec![Other('x'), Other('y'), Other('z')];
             assert_eq!(create_position_pairs(&input), expected);
         }
 
@@ -943,10 +1036,10 @@ mod position_pair {
         fn test_escaped_single_quote() {
             let input = vec!['\'', '\\', '\'', '\''];
             let expected = vec![
-                ('\'', Position::Odd),
-                ('\\', Position::Odd),
-                ('\'', Position::Escaped),
-                ('\'', Position::Even),
+                Enclosure(Open, SingleQuotes),
+                Other('\\'),
+                Enclosure(Escaped, SingleQuotes),
+                Enclosure(Close, SingleQuotes),
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }
@@ -955,10 +1048,10 @@ mod position_pair {
         fn test_escaped_double_quote() {
             let input = vec!['"', '\\', '"', '"'];
             let expected = vec![
-                ('"', Position::Odd),
-                ('\\', Position::Odd),
-                ('"', Position::Escaped),
-                ('"', Position::Even),
+                Enclosure(Open, DoubleQuotes),
+                Other('\\'),
+                Enclosure(Escaped, DoubleQuotes),
+                Enclosure(Close, DoubleQuotes),
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }
@@ -967,10 +1060,44 @@ mod position_pair {
         fn test_escaped_backtick() {
             let input = vec!['`', '\\', '`', '`'];
             let expected = vec![
-                ('`', Position::Odd),
-                ('\\', Position::Odd),
-                ('`', Position::Escaped),
-                ('`', Position::Even),
+                Enclosure(Open, Backticks),
+                Other('\\'),
+                Enclosure(Escaped, Backticks),
+                Enclosure(Close, Backticks),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_all_enclosure_types() {
+            let input = vec![
+                '{', '(', '[', // Opening brackets
+                '\'', '"', '`', // Opening quotes
+                'x', 'y', 'z', // Regular chars
+                '\\', '\'', '"', '`', // Escaped quotes
+                ']', ')', '}', // Closing brackets
+                '\'', '"', '`', // Closing quotes
+            ];
+            let expected = vec![
+                Enclosure(Open, CurlyBraces),
+                Enclosure(Open, Parentheses),
+                Enclosure(Open, SquareBrackets),
+                Enclosure(Open, SingleQuotes),
+                Enclosure(Open, DoubleQuotes),
+                Enclosure(Open, Backticks),
+                Other('x'),
+                Other('y'),
+                Other('z'),
+                Other('\\'),
+                Enclosure(Escaped, SingleQuotes),
+                Enclosure(Escaped, DoubleQuotes),
+                Enclosure(Escaped, Backticks),
+                Enclosure(Close, SquareBrackets),
+                Enclosure(Close, Parentheses),
+                Enclosure(Close, CurlyBraces),
+                Enclosure(Close, SingleQuotes),
+                Enclosure(Close, DoubleQuotes),
+                Enclosure(Close, Backticks),
             ];
             assert_eq!(create_position_pairs(&input), expected);
         }

@@ -2714,7 +2714,7 @@ foo bar
 }
 
 #[test]
-fn expand_to_nearest_bracket_quote_1_inside() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_1_inside() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2728,7 +2728,7 @@ fn expand_to_nearest_bracket_quote_1_inside() -> anyhow::Result<()> {
 }
 
 #[test]
-fn expand_to_nearest_bracket_quote_1_inside_2() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_1_inside_2() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2742,7 +2742,7 @@ fn expand_to_nearest_bracket_quote_1_inside_2() -> anyhow::Result<()> {
 }
 
 #[test]
-fn expand_to_nearest_bracket_quote_2_around() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_2_around() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2759,7 +2759,7 @@ fn expand_to_nearest_bracket_quote_2_around() -> anyhow::Result<()> {
 }
 
 #[test]
-fn expand_to_nearest_bracket_quote_3_nested_brackets() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_3_nested_brackets() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2773,7 +2773,7 @@ fn expand_to_nearest_bracket_quote_3_nested_brackets() -> anyhow::Result<()> {
 }
 
 #[test]
-fn expand_to_nearest_bracket_quote_4_brackets_and_quotes() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_4_brackets_and_quotes() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2795,7 +2795,7 @@ fn expand_to_nearest_bracket_quote_4_brackets_and_quotes() -> anyhow::Result<()>
 #[test]
 /// Quotes expansion must be between an odd-position quote with an even-position quote
 /// never the other way around
-fn expand_to_nearest_bracket_quote_5() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_5() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2809,7 +2809,7 @@ fn expand_to_nearest_bracket_quote_5() -> anyhow::Result<()> {
 }
 
 #[test]
-fn expand_to_nearest_bracket_quote_with_escaped_quotes() -> anyhow::Result<()> {
+fn expand_to_nearest_enclosure_6_with_escaped_quotes() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2820,6 +2820,34 @@ fn expand_to_nearest_bracket_quote_with_escaped_quotes() -> anyhow::Result<()> {
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Expand)),
             Expect(CurrentSelectedTexts(&[r#"\"require\" @keyword.import"#])),
+        ])
+    })
+}
+
+#[test]
+fn expand_to_nearest_enclosure_7_cursor_on_open_enclosure() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(r#"foo bar (hello world)"#.to_string())),
+            Editor(MatchLiteral("(".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["(hello world)"])),
+        ])
+    })
+}
+
+#[test]
+fn expand_to_nearest_enclosure_8_cursor_on_close_enclosure() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(r#"foo bar (hello world)"#.to_string())),
+            Editor(MatchLiteral(")".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Expand)),
+            Expect(CurrentSelectedTexts(&["(hello world)"])),
         ])
     })
 }

@@ -4,14 +4,6 @@ use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovement
 pub(crate) struct LineTrimmed;
 
 impl SelectionMode for LineTrimmed {
-    fn expand(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(LineFull
-            .current(params, IfCurrentNotFound::LookForward)?
-            .map(ApplyMovementResult::from_selection))
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
