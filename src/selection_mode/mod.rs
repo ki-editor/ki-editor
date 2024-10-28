@@ -1005,6 +1005,7 @@ mod position_pair {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use itertools::Itertools;
         use EnclosureKind::*;
         use ParsedChar::*;
         use Position::*;
@@ -1068,14 +1069,7 @@ mod position_pair {
 
         #[test]
         fn test_all_enclosure_types() {
-            let input = vec![
-                '{', '(', '[', // Opening brackets
-                '\'', '"', '`', // Opening quotes
-                'x', 'y', 'z', // Regular chars
-                '\\', '\'', '"', '`', // Escaped quotes
-                ']', ')', '}', // Closing brackets
-                '\'', '"', '`', // Closing quotes
-            ];
+            let input = r#"{(['"`xyz\'\"\`])}'"`"#.chars().collect_vec();
             let expected = vec![
                 Enclosure(Open, CurlyBraces),
                 Enclosure(Open, Parentheses),
@@ -1088,7 +1082,9 @@ mod position_pair {
                 Other('z'),
                 Other('\\'),
                 Enclosure(Escaped, SingleQuotes),
+                Other('\\'),
                 Enclosure(Escaped, DoubleQuotes),
+                Other('\\'),
                 Enclosure(Escaped, Backticks),
                 Enclosure(Close, SquareBrackets),
                 Enclosure(Close, Parentheses),

@@ -19,7 +19,7 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
                 expectations: &[CurrentSelectedTexts(&["'{World Foo} bar'"])],
                 terminal_height: None,
                 similar_vim_combos: &[],
-                only: true,
+                only: false,
             }]
             .to_vec(),
         },

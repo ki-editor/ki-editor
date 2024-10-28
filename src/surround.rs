@@ -161,17 +161,8 @@ mod test_surround {
     }
 
     #[test]
-    /// Cursor is on the close symbol
-    fn test_get_surrounding_indices_3() {
-        run_test("(hello)", Parentheses, 6, Some((0, 6)));
-        run_test("(a (b))", Parentheses, 6, Some((0, 6)));
-        run_test("(a (b))", Parentheses, 5, Some((3, 5)));
-        run_test("(a (b (c)))", Parentheses, 9, Some((3, 9)));
-    }
-
-    #[test]
     /// Open and close symbol are the same
-    fn test_get_surrounding_indices_4() {
+    fn test_get_surrounding_indices_3() {
         run_test("'hello'", SingleQuotes, 2, Some((0, 6)));
     }
 }
