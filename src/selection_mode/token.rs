@@ -20,7 +20,7 @@ impl SelectionMode for Token {
         ))
     }
 
-    fn parent(
+    fn expand(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {

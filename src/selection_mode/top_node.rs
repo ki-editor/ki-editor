@@ -34,7 +34,7 @@ impl SelectionMode for TopNode {
         ))
     }
 
-    fn first_child(
+    fn shrink(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {

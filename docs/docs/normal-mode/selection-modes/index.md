@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Selection Modes
 
-Selection modes [^1] dictates how [core movements](../core-movements.md) works.
+Selection modes [^1] dictates how [core movements](../core-movements.mdx) works.
 
 There are roughly 3 categories of selection modes (not clear-cut):
 

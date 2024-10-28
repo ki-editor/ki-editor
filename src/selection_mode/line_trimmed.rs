@@ -1,17 +1,8 @@
-use super::{LineFull, SelectionMode};
-use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovementResult};
+use super::SelectionMode;
 
 pub(crate) struct LineTrimmed;
 
 impl SelectionMode for LineTrimmed {
-    fn parent(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(LineFull
-            .current(params, IfCurrentNotFound::LookForward)?
-            .map(ApplyMovementResult::from_selection))
-    }
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,

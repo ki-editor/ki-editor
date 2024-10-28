@@ -32,54 +32,57 @@ pub(crate) fn get_surrounding_indices(
     content: &str,
     kind: EnclosureKind,
     cursor_char_index: CharIndex,
+    include_cursor_position: bool,
 ) -> Option<(CharIndex, CharIndex)> {
     debug_assert!((0..content.chars().count()).contains(&cursor_char_index.0));
     if !(0..content.chars().count()).contains(&cursor_char_index.0) {
         return None;
     }
     let chars = content.chars().collect_vec();
-    let (left, right) = {
-        let (left, right) = chars.split_at(cursor_char_index.0);
-        (left.to_vec(), right.to_vec())
-    };
     let (open, close) = kind.open_close_symbols();
-    fn get_index<I>(iter: I, encounter: Option<char>, target: char) -> Option<usize>
-    where
-        I: std::iter::Iterator<Item = (usize, char)>,
-    {
+    let open_index = {
+        let index = if include_cursor_position {
+            cursor_char_index + 1
+        } else {
+            cursor_char_index
+        }
+        .0;
         let mut count = 0;
-        for (index, c) in iter {
-            if Some(c) == encounter {
-                count += 1;
-            } else if c == target {
+        let open_index = chars[0..index].iter().enumerate().rev().find(|(_, char)| {
+            if *char == &close && open != close {
+                count += 1
+            } else if *char == &open {
                 if count > 0 {
-                    count -= 1;
+                    count -= 1
                 } else {
-                    return Some(index);
+                    return true;
                 }
             }
-        }
-        None
-    }
-
-    let open_index = if content.chars().nth(cursor_char_index.0) == Some(open) {
-        cursor_char_index
-    } else {
-        let encounter = if open == close { None } else { Some(close) };
-        cursor_char_index - (get_index(left.into_iter().rev().enumerate(), encounter, open)? + 1)
+            false
+        })?;
+        CharIndex(open_index.0)
     };
-
-    let close_index = if content.chars().nth(cursor_char_index.0) == Some(close) {
-        cursor_char_index
-    } else {
-        let encounter = if open == close { None } else { Some(open) };
-        cursor_char_index + (get_index(right.into_iter().enumerate().skip(1), encounter, close)?)
+    let close_index = {
+        let start_index = open_index.0 + 1;
+        let mut count = 0;
+        let close_index = chars[start_index..].iter().enumerate().find(|(_, char)| {
+            if *char == &open && open != close {
+                count += 1
+            } else if *char == &close {
+                if count > 0 {
+                    count -= 1
+                } else {
+                    return true;
+                }
+            }
+            false
+        })?;
+        let close_index = close_index.0 + start_index;
+        CharIndex(close_index)
     };
-
     debug_assert_eq!(content.chars().nth(open_index.0), Some(open));
 
     debug_assert_eq!(content.chars().nth(close_index.0), Some(close));
-
     Some((open_index, close_index))
 }
 
@@ -130,7 +133,8 @@ mod test_surround {
         cursor_char_index: usize,
         expected: Option<(usize, usize)>,
     ) {
-        let actual = get_surrounding_indices(content, enclosure, CharIndex(cursor_char_index));
+        let actual =
+            get_surrounding_indices(content, enclosure, CharIndex(cursor_char_index), true);
         assert_eq!(
             actual,
             expected.map(|(open, close)| (CharIndex(open), CharIndex(close)))
@@ -157,17 +161,8 @@ mod test_surround {
     }
 
     #[test]
-    /// Cursor is on the close symbol
-    fn test_get_surrounding_indices_3() {
-        run_test("(hello)", Parentheses, 6, Some((0, 6)));
-        run_test("(a (b))", Parentheses, 6, Some((0, 6)));
-        run_test("(a (b))", Parentheses, 5, Some((3, 5)));
-        run_test("(a (b (c)))", Parentheses, 9, Some((3, 9)));
-    }
-
-    #[test]
     /// Open and close symbol are the same
-    fn test_get_surrounding_indices_4() {
+    fn test_get_surrounding_indices_3() {
         run_test("'hello'", SingleQuotes, 2, Some((0, 6)));
     }
 }

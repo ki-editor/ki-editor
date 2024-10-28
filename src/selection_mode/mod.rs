@@ -28,6 +28,7 @@ pub(crate) use line_full::LineFull;
 pub(crate) use line_trimmed::LineTrimmed;
 pub(crate) use local_quickfix::LocalQuickfix;
 pub(crate) use mark::Mark;
+use position_pair::ParsedChar;
 use std::ops::Range;
 pub(crate) use subword::Subword;
 pub(crate) use syntax_node::SyntaxNode;
@@ -39,10 +40,11 @@ use crate::{
     buffer::Buffer,
     char_index_range::CharIndexRange,
     components::{
-        editor::{Direction, IfCurrentNotFound, Jump, Movement},
+        editor::{Direction, IfCurrentNotFound, Jump, Movement, SurroundKind},
         suggestive_editor::Info,
     },
-    selection::Selection,
+    selection::{CharIndex, Selection},
+    surround::EnclosureKind,
 };
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash)]
@@ -195,8 +197,8 @@ pub trait SelectionMode {
             Movement::Up => convert(self.up(params)),
             Movement::Down => convert(self.down(params)),
             Movement::ToParentLine => convert(self.to_parent_line(params)),
-            Movement::Expand => self.parent(params),
-            Movement::Shrink => self.first_child(params),
+            Movement::Expand => self.expand(params),
+            Movement::Shrink => self.shrink(params),
             Movement::Next => convert(self.next(params)),
             Movement::Previous => convert(self.previous(params)),
             Movement::DeleteBackward => convert(self.delete_backward(params)),
@@ -204,11 +206,163 @@ pub trait SelectionMode {
         }
     }
 
-    fn parent(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
-        Ok(None)
+    fn expand(&self, params: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+        let buffer = params.buffer;
+        let selection = params.current_selection;
+        let range = params.current_selection.extended_range();
+        let range_start = params.current_selection.extended_range().start;
+        let range_end = params.current_selection.extended_range().end;
+        use position_pair::Position::*;
+        use EnclosureKind::*;
+        use SurroundKind::*;
+        let enclosure_kinds = {
+            [
+                Parentheses,
+                CurlyBraces,
+                SquareBrackets,
+                DoubleQuotes,
+                SingleQuotes,
+                Backticks,
+            ]
+        };
+        let positioned_chars =
+            position_pair::create_position_pairs(&buffer.content().chars().collect_vec());
+        let (enclosure_kind, surround_kind, open_index, close_index) = match (
+            positioned_chars.get(range_start.0),
+            positioned_chars.get(range_end.0.saturating_sub(1)),
+        ) {
+            (Some(ParsedChar::Enclosure(Open, open_kind)), end) => match end {
+                Some(ParsedChar::Enclosure(Close, close_kind)) if open_kind == close_kind => {
+                    (None, None, None, None)
+                }
+                _ => {
+                    match (
+                        positioned_chars.get(range_start.0.saturating_sub(1)),
+                        positioned_chars.get(range_end.0),
+                    ) {
+                        (
+                            Some(ParsedChar::Enclosure(Open, open_kind)),
+                            Some(ParsedChar::Enclosure(Close, close_kind)),
+                        ) if open_kind == close_kind => (
+                            Some(open_kind),
+                            Some(Around),
+                            Some(range_start.0.saturating_sub(1)),
+                            Some(range_end.0),
+                        ),
+                        _ => (Some(open_kind), Some(Around), Some(range_start.0), None),
+                    }
+                }
+            },
+            (Some(ParsedChar::Enclosure(Close, kind)), _) => {
+                (Some(kind), Some(Around), None, Some(range_start.0))
+            }
+            _ => (None, None, None, None),
+        };
+        // println!( "The initial = {:?}", (enclosure_kind, &surround_kind, open_index, close_index) );
+        let (close_index, enclosure_kind) = match (close_index, enclosure_kind) {
+            (Some(close_index), Some(enclosure_kind)) => (close_index, *enclosure_kind),
+            _ => {
+                let mut after = positioned_chars
+                    .iter()
+                    .enumerate()
+                    .skip(range_start.0 + if open_index.is_some() { 1 } else { 0 });
+                // This stack is for handling nested enclosures
+                let mut open_symbols_stack = Vec::new();
+                let (close_index, enclosure_kind) = {
+                    let Some((close_index, enclosure_kind)) =
+                        after.find_map(|(index, positioned_char)| {
+                            // println!("positioned_char = {positioned_char:?}");
+                            if let Some(kind) = enclosure_kinds
+                                .iter()
+                                .find(|kind| positioned_char.is_opening_of(kind))
+                                .cloned()
+                            {
+                                open_symbols_stack.push(kind);
+                            } else if let Some(kind) = enclosure_kind
+                                .and_then(|kind| {
+                                    if positioned_char.is_closing_of(kind) {
+                                        Some(kind)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .or_else(|| {
+                                    enclosure_kinds
+                                        .iter()
+                                        .find(|kind| positioned_char.is_closing_of(kind))
+                                })
+                            {
+                                if open_symbols_stack.last() == Some(kind) {
+                                    open_symbols_stack.pop();
+                                } else {
+                                    // println!( "Return close index -> index = {index} cursor = {} range.end = {}", range_start.0, range.end.0 );
+                                    return Some((index, *kind));
+                                }
+                            }
+                            None
+                        })
+                    else {
+                        return Ok(None);
+                    };
+                    (close_index, enclosure_kind)
+                };
+                (close_index, enclosure_kind)
+            }
+        };
+        let open_index = if let Some(open_index) = open_index {
+            open_index
+        } else {
+            let slice_range = 0..range_start.0;
+            let before = &positioned_chars[slice_range];
+            // This stack is for handling nested enclosures
+            let mut close_symbols_stack = Vec::new();
+            let Some(open_index) = before
+                .iter()
+                .enumerate()
+                .rev()
+                .find_map(|(index, positioned_char)| {
+                    // println!("{char} {position:?}");
+                    if positioned_char.is_closing_of(&enclosure_kind) {
+                        close_symbols_stack.push(enclosure_kind);
+                    } else if positioned_char.is_opening_of(&enclosure_kind) {
+                        if close_symbols_stack.last() == Some(&enclosure_kind) {
+                            close_symbols_stack.pop();
+                        } else {
+                            return Some((index, enclosure_kind));
+                        }
+                    }
+                    None
+                })
+                .map(|(index, _)| index)
+            else {
+                return Ok(None);
+            };
+            open_index
+        };
+        // println!("enclosre = {enclosure_kind:?}");
+        // println!("open_index = {open_index:?} close_index = {close_index:?} range = {range:?}");
+        let surround_kind = if let Some(surround_kind) = surround_kind {
+            // println!("surround_kind is surround_kind = {surround_kind:?}");
+            surround_kind
+        } else if open_index + 1 == range.start.0 && close_index == range.end.0 {
+            Around
+        } else {
+            Inside
+        };
+        // println!("surroud_kind = {surround_kind:?}");
+
+        let offset = match surround_kind {
+            Inside => 1,
+            Around => 0,
+        };
+        let range = (CharIndex(open_index + offset)..CharIndex(close_index + 1 - offset)).into();
+        // println!("range = {range:?} offset = {offset}");
+        Ok(Some(ApplyMovementResult::from_selection(
+            selection.clone().set_range(range),
+        )))
     }
 
-    fn first_child(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
+    fn shrink(&self, _: SelectionModeParams) -> anyhow::Result<Option<ApplyMovementResult>> {
         Ok(None)
     }
 
@@ -769,5 +923,177 @@ fn f() {
         test(4, "fn g() {");
 
         test(1, "fn f() {");
+    }
+}
+
+mod position_pair {
+    use crate::surround::EnclosureKind;
+
+    #[derive(Debug, PartialEq)]
+    pub(crate) enum Position {
+        Open,
+        Close,
+        Escaped,
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub(crate) enum ParsedChar {
+        Enclosure(Position, EnclosureKind),
+        Other(char),
+    }
+
+    impl ParsedChar {
+        pub(crate) fn is_closing_of(
+            &self,
+            enclosure_kind: &crate::surround::EnclosureKind,
+        ) -> bool {
+            match self {
+                ParsedChar::Enclosure(Position::Close, kind) => kind == enclosure_kind,
+                _ => false,
+            }
+        }
+
+        pub(crate) fn is_opening_of(
+            &self,
+            enclosure_kind: &crate::surround::EnclosureKind,
+        ) -> bool {
+            match self {
+                ParsedChar::Enclosure(Position::Open, kind) => kind == enclosure_kind,
+                _ => false,
+            }
+        }
+    }
+
+    pub(crate) fn create_position_pairs(chars: &[char]) -> Vec<ParsedChar> {
+        use EnclosureKind::*;
+        use Position::*;
+        let mut parsed_chars = Vec::new();
+        let mut char_counts: std::collections::HashMap<char, usize> =
+            std::collections::HashMap::new();
+
+        for i in 0..chars.len() {
+            let c = chars[i];
+            let count = char_counts.entry(c).or_insert(0);
+            let position = if (c == '\'' || c == '"' || c == '`') && i > 0 && chars[i - 1] == '\\' {
+                Position::Escaped
+            } else {
+                *count += 1;
+                if *count % 2 == 0 {
+                    Position::Close
+                } else {
+                    Position::Open
+                }
+            };
+            let parsed_char = match c {
+                '\'' => ParsedChar::Enclosure(position, SingleQuotes),
+                '"' => ParsedChar::Enclosure(position, DoubleQuotes),
+                '`' => ParsedChar::Enclosure(position, Backticks),
+                '{' => ParsedChar::Enclosure(Open, CurlyBraces),
+                '}' => ParsedChar::Enclosure(Close, CurlyBraces),
+                '(' => ParsedChar::Enclosure(Open, Parentheses),
+                ')' => ParsedChar::Enclosure(Close, Parentheses),
+                '[' => ParsedChar::Enclosure(Open, SquareBrackets),
+                ']' => ParsedChar::Enclosure(Close, SquareBrackets),
+                other => ParsedChar::Other(other),
+            };
+            parsed_chars.push(parsed_char);
+        }
+
+        parsed_chars
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use itertools::Itertools;
+        use EnclosureKind::*;
+        use ParsedChar::*;
+        use Position::*;
+
+        #[test]
+        fn test_position_pairs() {
+            let input = vec!['a', 'b', 'a', 'c', 'b', 'a'];
+            let expected = vec![
+                Other('a'),
+                Other('b'),
+                Other('a'),
+                Other('c'),
+                Other('b'),
+                Other('a'),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_single_chars() {
+            let input = vec!['x', 'y', 'z'];
+            let expected = vec![Other('x'), Other('y'), Other('z')];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_escaped_single_quote() {
+            let input = vec!['\'', '\\', '\'', '\''];
+            let expected = vec![
+                Enclosure(Open, SingleQuotes),
+                Other('\\'),
+                Enclosure(Escaped, SingleQuotes),
+                Enclosure(Close, SingleQuotes),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_escaped_double_quote() {
+            let input = vec!['"', '\\', '"', '"'];
+            let expected = vec![
+                Enclosure(Open, DoubleQuotes),
+                Other('\\'),
+                Enclosure(Escaped, DoubleQuotes),
+                Enclosure(Close, DoubleQuotes),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_escaped_backtick() {
+            let input = vec!['`', '\\', '`', '`'];
+            let expected = vec![
+                Enclosure(Open, Backticks),
+                Other('\\'),
+                Enclosure(Escaped, Backticks),
+                Enclosure(Close, Backticks),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
+
+        #[test]
+        fn test_all_enclosure_types() {
+            let input = r#"{(['"`xyz\'\"\`])}'"`"#.chars().collect_vec();
+            let expected = vec![
+                Enclosure(Open, CurlyBraces),
+                Enclosure(Open, Parentheses),
+                Enclosure(Open, SquareBrackets),
+                Enclosure(Open, SingleQuotes),
+                Enclosure(Open, DoubleQuotes),
+                Enclosure(Open, Backticks),
+                Other('x'),
+                Other('y'),
+                Other('z'),
+                Other('\\'),
+                Enclosure(Escaped, SingleQuotes),
+                Other('\\'),
+                Enclosure(Escaped, DoubleQuotes),
+                Other('\\'),
+                Enclosure(Escaped, Backticks),
+                Enclosure(Close, SquareBrackets),
+                Enclosure(Close, Parentheses),
+                Enclosure(Close, CurlyBraces),
+                Enclosure(Close, SingleQuotes),
+                Enclosure(Close, DoubleQuotes),
+                Enclosure(Close, Backticks),
+            ];
+            assert_eq!(create_position_pairs(&input), expected);
+        }
     }
 }

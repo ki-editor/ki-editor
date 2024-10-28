@@ -22,13 +22,13 @@ impl SelectionMode for SyntaxNode {
             Token.iter(params)
         }
     }
-    fn parent(
+    fn expand(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params.clone(), true)
     }
-    fn first_child(
+    fn shrink(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
@@ -224,7 +224,7 @@ mod test_syntax_node {
 
         let child_text = buffer.slice(&child_range).unwrap();
         assert_eq!(child_text, "z");
-        let selection = SyntaxNode { coarse: false }.parent(SelectionModeParams {
+        let selection = SyntaxNode { coarse: false }.expand(SelectionModeParams {
             buffer: &buffer,
             current_selection: &Selection::new(child_range),
             cursor_direction: &crate::components::editor::Direction::Start,
@@ -248,7 +248,7 @@ mod test_syntax_node {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = SyntaxNode { coarse }.first_child(SelectionModeParams {
+            let selection = SyntaxNode { coarse }.shrink(SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,

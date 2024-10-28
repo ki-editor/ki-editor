@@ -1,6 +1,6 @@
 # Movement-action Submodes
 
-Movement-actions are actions that have to be used with [Core Movements](./core-movements.md) and [Selection Modes](./selection-modes/index.md).
+Movement-actions are actions that have to be used with [Core Movements](./core-movements.mdx) and [Selection Modes](./selection-modes/index.md).
 
 Movement-actions should be considered as the submodes of the Normal mode.
 
@@ -35,7 +35,7 @@ f(1 + 1, x);
 
 ### Tips
 
-Since exchange works with every core movement, it can be used with [Jump](./core-movements.md#jump) and [Syntax Node][1] to swap two distant expressions.
+Since exchange works with every core movement, it can be used with [Jump](./core-movements.mdx#jump) and [Syntax Node][1] to swap two distant expressions.
 
 For example, using the following Rust code:
 
@@ -122,7 +122,7 @@ Here's how it works using the Replace mode (starting from step 3):
 The rigorous readers might have noticed the similarity of the Replace submode
 with the [Raise](./actions/index.mdx#raise) action, that is in fact the case,
 under the hood, Raise is but a specialized version of the Replace mode which
-only executes the [Up](./core-movements.md#updown) movement.
+only executes the [Up](./core-movements.mdx#updown) movement.
 
 [1]: ./selection-modes/syntax-node-based.md#syntax-node
-[2]: ./core-movements.md#leftright
+[2]: ./core-movements.mdx#leftright
