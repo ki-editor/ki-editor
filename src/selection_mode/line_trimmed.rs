@@ -1,5 +1,4 @@
-use super::{LineFull, SelectionMode};
-use crate::{components::editor::IfCurrentNotFound, selection_mode::ApplyMovementResult};
+use super::SelectionMode;
 
 pub(crate) struct LineTrimmed;
 

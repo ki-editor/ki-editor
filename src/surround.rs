@@ -87,14 +87,6 @@ pub(crate) fn get_surrounding_indices(
 }
 
 impl EnclosureKind {
-    pub(crate) const fn open_symbol(&self) -> char {
-        self.open_close_symbols().0
-    }
-
-    pub(crate) const fn close_symbol(&self) -> char {
-        self.open_close_symbols().1
-    }
-
     pub(crate) const fn open_close_symbols(&self) -> (char, char) {
         match self {
             EnclosureKind::Parentheses => ('(', ')'),
@@ -129,10 +121,6 @@ impl EnclosureKind {
             EnclosureKind::SingleQuotes => "Single Quotes",
             EnclosureKind::Backticks => "Backticks",
         }
-    }
-
-    pub(crate) const fn is_both_end_same(&self) -> bool {
-        self.open_symbol() == self.close_symbol()
     }
 }
 

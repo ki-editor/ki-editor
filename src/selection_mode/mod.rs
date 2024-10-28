@@ -260,9 +260,8 @@ pub trait SelectionMode {
         };
         // println!( "The initial = {:?}", (enclosure_kind, &surround_kind, open_index, close_index) );
         let (close_index, enclosure_kind) = match (close_index, enclosure_kind) {
-            (Some(close_index), Some(enclosure_kind)) => (close_index, enclosure_kind.clone()),
+            (Some(close_index), Some(enclosure_kind)) => (close_index, *enclosure_kind),
             _ => {
-                let slice_range = range_start.0 + 1..params.buffer.len_chars();
                 let mut after = positioned_chars
                     .iter()
                     .enumerate()
@@ -275,13 +274,13 @@ pub trait SelectionMode {
                             // println!("positioned_char = {positioned_char:?}");
                             if let Some(kind) = enclosure_kinds
                                 .iter()
-                                .find(|kind| positioned_char.is_opening_of(*kind))
+                                .find(|kind| positioned_char.is_opening_of(kind))
                                 .cloned()
                             {
                                 open_symbols_stack.push(kind);
                             } else if let Some(kind) = enclosure_kind
                                 .and_then(|kind| {
-                                    if positioned_char.is_closing_of(&kind) {
+                                    if positioned_char.is_closing_of(kind) {
                                         Some(kind)
                                     } else {
                                         None
@@ -290,20 +289,19 @@ pub trait SelectionMode {
                                 .or_else(|| {
                                     enclosure_kinds
                                         .iter()
-                                        .find(|kind| positioned_char.is_closing_of(*kind))
+                                        .find(|kind| positioned_char.is_closing_of(kind))
                                 })
                             {
-                                if open_symbols_stack.last() == Some(&kind) {
+                                if open_symbols_stack.last() == Some(kind) {
                                     open_symbols_stack.pop();
                                 } else {
                                     // println!( "Return close index -> index = {index} cursor = {} range.end = {}", range_start.0, range.end.0 );
-                                    return Some((index, kind.clone()));
+                                    return Some((index, *kind));
                                 }
                             }
                             None
                         })
                     else {
-                        panic!();
                         return Ok(None);
                     };
                     (close_index, enclosure_kind)
