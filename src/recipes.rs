@@ -115,6 +115,79 @@ snake_case + PascalCase
             .to_vec(),
         },
         RecipeGroup {
+            filename: "raise",
+            recipes: [
+                Recipe {
+                    description: "Raise: Conditionals",
+                    content: "count > 0 ? x + 2 : y / z".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("/ x enter"),
+                    events: keys!("s T"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["x + 2"]),
+                        CurrentComponentContent("x + 2"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Raise: XML/JSX",
+                    content: "
+<GParent>
+    <Parent>
+        <Child x={y}/>
+        <Brother/>
+    </Parent>
+</GParent>"
+                        .trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("/ < c h i l d enter"),
+                    events: keys!("s T"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["<Child x={y}/>"]),
+                        CurrentComponentContent("<GParent>\n    <Child x={y}/>\n</GParent>"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Raise: lambdas",
+                    content: "
+app.post('/admin', () => { 
+    return router.route(foo, bar) 
+})"
+                    .trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("/ r o u t e r enter"),
+                    events: keys!("s T T"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["router.route(foo, bar)"]),
+                        CurrentComponentContent("app.post('/admin', () => router.route(foo, bar))"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Raise: JSON",
+                    content: r#"{"hello": {"world": [123], "foo": null}}"#.trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("/ 1 2 3 enter"),
+                    events: keys!("s T T"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["123"]),
+                        CurrentComponentContent(r#"{"hello": 123}"#),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },

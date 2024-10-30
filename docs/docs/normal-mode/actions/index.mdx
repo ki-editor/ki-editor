@@ -109,35 +109,10 @@ This is one of my favorite actions, it only works for [syntax node](../selection
 
 This replaces the parent node of the current node, with the current node.
 
-For example, with the following Rust code:
-
-```rs
-fn main() {
-  if x > 0 {
-    println!("hello")
-  }
-  else {
-    panic!();
-  }
-}
+<TutorialFallback filename="raise"/>
 
 
-```
-
-Assuming the current selection is `println!("hello")` and the current selection
-mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), pressing `K` results in the following:
-
-```rs
-fn main() {
-  println!("hello")
-}
-```
-
-Notes:
-
-- Raise works not only for if-else expressions, it works for any syntax node
-- Raise should never cause syntax error (if it does that's a bug)
-- Raise preserve the node type of the current node
+Note: Raise should never cause any syntax errors, if it does that's a bug.
 
 ## Join
 
