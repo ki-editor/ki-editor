@@ -1325,21 +1325,62 @@ impl Editor {
         if_current_not_found: IfCurrentNotFound,
         selection_mode: SelectionMode,
     ) -> anyhow::Result<Dispatches> {
-        self.move_selection_with_selection_mode_without_global_mode(
-            Movement::Current(if_current_not_found),
-            selection_mode.clone(),
-        )
-        .map(|dispatches| {
-            Dispatches::one(Dispatch::SetGlobalMode(None))
-                .chain(dispatches)
-                .append_some(if selection_mode.is_contiguous() {
-                    None
-                } else {
-                    Some(Dispatch::SetLastNonContiguousSelectionMode(Either::Left(
-                        selection_mode,
-                    )))
-                })
-        })
+        if self.mode == Mode::MultiCursor {
+            let selection_set = self.selection_set.clone().set_mode(selection_mode.clone());
+            let selection_set = if let Some(all_selections) =
+                selection_set.all_selections(&self.buffer.borrow(), &self.cursor_direction)?
+            {
+                let selection_set = {
+                    let selections = self
+                        .selection_set
+                        .map(|selection| {
+                            let range = selection.extended_range();
+                            all_selections
+                                .iter()
+                                .filter(|selection| {
+                                    range.is_supserset_of(&selection.extended_range())
+                                })
+                                .collect_vec()
+                        })
+                        .into_iter()
+                        .flatten()
+                        .collect_vec();
+                    if let Some((head, tail)) = selections.split_first() {
+                        selection_set.set_selections(NonEmpty {
+                            head: (**head).clone(),
+                            tail: tail
+                                .into_iter()
+                                .map(|selection| (**selection).clone())
+                                .collect(),
+                        })
+                    } else {
+                        selection_set
+                    }
+                };
+                selection_set
+            } else {
+                selection_set
+            };
+            Ok(self
+                .update_selection_set(selection_set, true)
+                .append(Dispatch::ToEditor(EnterNormalMode)))
+        } else {
+            self.move_selection_with_selection_mode_without_global_mode(
+                Movement::Current(if_current_not_found),
+                selection_mode.clone(),
+            )
+            .map(|dispatches| {
+                Dispatches::one(Dispatch::SetGlobalMode(None))
+                    .chain(dispatches)
+                    .append_some(if selection_mode.is_contiguous() {
+                        None
+                    } else {
+                        Some(Dispatch::SetLastNonContiguousSelectionMode(Either::Left(
+                            selection_mode,
+                        )))
+                    })
+            })
+        }
     }
 
     fn move_selection_with_selection_mode(

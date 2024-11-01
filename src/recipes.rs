@@ -188,6 +188,69 @@ app.post('/admin', () => {
             .to_vec(),
         },
         RecipeGroup {
+            filename: "split-selections",
+            recipes: [
+                Recipe {
+                    description: "Split selections by search",
+                    content: "
+fooz bar fooy
+bar foox foow
+foov foou bar
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("e v j q / f o o enter d"),
+                    expectations: &[
+                        CurrentComponentContent(
+                            "z bar y
+bar x w
+foov foou bar",
+                        ),
+                        CurrentSelectedTexts(&["z", "y", "x", "w"]),
+                    ],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Split selections by line",
+                    content: "
+fn foo() {
+   bar();
+   spam();
+   baz();
+}"
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("e j t q e"),
+                    expectations: &[CurrentSelectedTexts(&["bar();", "spam();", "baz();"])],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Nested spliting",
+                    content: "
+foo-da bar spam
+bar foo-baz foo-yo
+foo ha"
+                        .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("e v j q / f o o enter w q W alt+k - enter"),
+                    expectations: &[CurrentSelectedTexts(&[
+                        "foo", "da", "foo", "baz", "foo", "yo",
+                    ])],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },

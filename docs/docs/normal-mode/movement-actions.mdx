@@ -1,3 +1,5 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback'; 
+
 # Movement-action Submodes
 
 Movement-actions are actions that have to be used with [Core Movements](./core-movements.mdx) and [Selection Modes](./selection-modes/index.md).
@@ -62,6 +64,8 @@ else {
 Keybinding: `q`  
 Reason: `q` is used to start recording a macro in Vim, but I realized 80% of the time what I need is multi-cursors, not a macro.
 
+
+### 2.1 Regarding Movements
 In the Multi-cursor submode, every core movement means:
 
 > Add cursor with \<movement\>
@@ -80,6 +84,13 @@ Suppose:
 
 ... then executing [Next][2] adds a new cursor to the second `hello`.
 
+### 2.2 Regarding Selection Mode Changes
+In the Multi-cursor submode, changing the selection mode means:
+
+> Split each selections by the new selection mode
+
+
+<TutorialFallback filename="split-selections"/>
 ## 3. Replace (to be removed)
 
 In the Replace submode, every core movement means:

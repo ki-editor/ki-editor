@@ -6,6 +6,7 @@ use crate::components::editor::DispatchEditor::*;
 use crate::components::editor::Movement::*;
 
 use crate::context::LocalSearchConfigMode;
+use crate::context::Search;
 use crate::list::grep::RegexConfig;
 use crate::lsp::process::LspNotification;
 use crate::quickfix_list::Location;
@@ -2848,6 +2849,42 @@ fn expand_to_nearest_enclosure_8_cursor_on_close_enclosure() -> anyhow::Result<(
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Expand)),
             Expect(CurrentSelectedTexts(&["(hello world)"])),
+        ])
+    })
+}
+
+#[test]
+fn split_selections() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fooz bar fooy
+bar foox foow
+foov foou bar
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["fooz bar fooy", "bar foox foow"])),
+            Editor(MatchLiteral("foo".to_string())),
+            Expect(CurrentSelectionMode(SelectionMode::Find {
+                search: Search {
+                    mode: LocalSearchConfigMode::Regex(RegexConfig {
+                        escaped: true,
+                        case_sensitive: false,
+                        match_whole_word: false,
+                    }),
+                    search: "foo".to_string(),
+                },
+            })),
+            Expect(CurrentMode(Mode::Normal)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["fooz", "fooy", "foox", "foow"])),
         ])
     })
 }
