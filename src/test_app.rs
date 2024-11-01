@@ -1221,9 +1221,9 @@ fn global_search_replace_ast_grep() -> Result<(), anyhow::Error> {
 }
 
 #[test]
-fn global_search_replace_case_agnostic() -> Result<(), anyhow::Error> {
+fn global_search_replace_naming_convention_agnostic() -> Result<(), anyhow::Error> {
     test_global_search_replace(TestGlobalSearchReplaceArgs {
-        mode: LocalSearchConfigMode::CaseAgnostic,
+        mode: LocalSearchConfigMode::NamingConventionAgnostic,
         main_content: "HelloWorld, this is good",
         foo_content: "im-lisp (hello-world and say 'HELLO_WORLD')",
         search: "hello world",

@@ -9,8 +9,8 @@ use crate::{buffer::Buffer, quickfix_list::Location, selection_mode::ByteRange};
 
 pub(crate) mod ast_grep;
 
-pub(crate) mod case_agnostic;
 pub(crate) mod grep;
+pub(crate) mod naming_convention_agnostic;
 
 pub(crate) struct WalkBuilderConfig {
     pub(crate) root: PathBuf,

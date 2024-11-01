@@ -1,4 +1,4 @@
-use crate::{quickfix_list::Location, selection_mode::CaseAgnostic};
+use crate::{quickfix_list::Location, selection_mode::NamingConventionAgnostic};
 
 use super::WalkBuilderConfig;
 
@@ -10,7 +10,7 @@ pub(crate) fn run(
         false,
         Box::new(move |buffer| {
             let pattern = pattern.clone();
-            Ok(CaseAgnostic::new(pattern)
+            Ok(NamingConventionAgnostic::new(pattern)
                 .find_all(&buffer.content())
                 .into_iter()
                 .map(|(range, _)| range)

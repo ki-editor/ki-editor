@@ -1,4 +1,4 @@
-import {TutorialFallback} from '@site/src/components/TutorialFallback'; 
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Actions
 
@@ -90,16 +90,18 @@ This is useful when you want to retrieve earlier copies.
 Keybinding: `ctrl+r`
 
 This replaces the current selection using the search pattern and replacement
-pattern specified in the [Text Search Configurator](../selection-modes/local-global/text-search.md#configurator).
+pattern specified in the [Text Search Configuration](../selection-modes/local-global/text-search.md#configuration).
 
 For example:
 
-| Mode          | Selected text | Search   | Replacement | Result  |
-| ------------- | ------------- | -------- | ----------- | ------- |
-| Literal       | `f`           | `f`      | `g`         | `g(x)`  |
-| Regex         | `"yo"`        | `"(.*)"` | `[$1]`      | `[yo]`  |
-| AST Grep      | `f(x)`        | `f($Z)`  | `$Z(f)`     | `x(f)`  |
-| Case Agnostic | `a_bu`        | `a bu`   | `to li`     | `to_li` |
+| Mode                       | Selected text | Search   | Replacement | Result  |
+| -------------------------- | ------------- | -------- | ----------- | ------- |
+| Literal                    | `f`           | `f`      | `g`         | `g(x)`  |
+| Regex                      | `"yo"`        | `"(.*)"` | `[$1]`      | `[yo]`  |
+| AST Grep                   | `f(x)`        | `f($Z)`  | `$Z(f)`     | `x(f)`  |
+| Naming Convention Agnostic | `a_bu`        | `a bu`   | `to li`     | `to_li` |
+
+<TutorialFallback filename="replace-with-pattern"/>
 
 ## Raise
 
@@ -111,7 +113,6 @@ This replaces the parent node of the current node, with the current node.
 
 <TutorialFallback filename="raise"/>
 
-
 Note: Raise should never cause any syntax errors, if it does that's a bug.
 
 ## Join
@@ -119,7 +120,6 @@ Note: Raise should never cause any syntax errors, if it does that's a bug.
 Keybinding: `J`
 
 Joins multiple lines within the current selection(s) into a single line.
-
 
 <TutorialFallback filename="join"/>
 
@@ -153,3 +153,14 @@ Notes:
 
 1. Undo/redo works for multi-cursors as well
 2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
+
+## Filter matching selections
+
+Keybindings:
+
+- `K`: Keep matching selections
+- `alt+k`: Remove matching selections
+
+This is only used when there's more than 1 selection/cursor, and you want to remove some selections.
+
+<TutorialFallback filename="filter-matching-selections"/>

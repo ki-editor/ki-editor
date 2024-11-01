@@ -2,11 +2,11 @@ use itertools::Itertools;
 
 use super::{ByteRange, SelectionMode};
 
-pub(crate) struct CaseAgnostic {
+pub(crate) struct NamingConventionAgnostic {
     pattern: String,
 }
 
-impl CaseAgnostic {
+impl NamingConventionAgnostic {
     pub(crate) fn replace(input: &str, _: &str, replace_pattern: &str) -> anyhow::Result<String> {
         let case = Self::cases()
             .into_iter()
@@ -65,7 +65,7 @@ impl CaseAgnostic {
     }
 }
 
-impl SelectionMode for CaseAgnostic {
+impl SelectionMode for NamingConventionAgnostic {
     fn iter<'a>(
         &'a self,
         params: super::SelectionModeParams<'a>,
@@ -78,7 +78,7 @@ impl SelectionMode for CaseAgnostic {
 }
 
 #[cfg(test)]
-mod test_case_agnostic {
+mod test_naming_convention_agnostic {
     use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
@@ -89,7 +89,7 @@ mod test_case_agnostic {
             None,
             "AliBu aliBu ali-bu ali_bu Ali Bu ALI BU ali bu ALI-BU ALI_BU Ali-Bu",
         );
-        let selection_mode = CaseAgnostic::new("ali bu".to_string());
+        let selection_mode = NamingConventionAgnostic::new("ali bu".to_string());
         selection_mode.assert_all_selections(
             &buffer,
             Selection::default(),
