@@ -1348,10 +1348,7 @@ impl Editor {
                     if let Some((head, tail)) = selections.split_first() {
                         selection_set.set_selections(NonEmpty {
                             head: (**head).clone(),
-                            tail: tail
-                                .into_iter()
-                                .map(|selection| (**selection).clone())
-                                .collect(),
+                            tail: tail.iter().map(|selection| (**selection).clone()).collect(),
                         })
                     } else {
                         selection_set
