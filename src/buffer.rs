@@ -1,7 +1,7 @@
 use crate::history::History;
 use crate::lsp::diagnostic::Diagnostic;
 use crate::quickfix_list::QuickfixListItem;
-use crate::selection_mode::case_agnostic::CaseAgnostic;
+use crate::selection_mode::naming_convention_agnostic::NamingConventionAgnostic;
 use crate::{
     char_index_range::CharIndexRange,
     components::{editor::Movement, suggestive_editor::Decoration},
@@ -854,9 +854,9 @@ impl Buffer {
     ) -> anyhow::Result<(bool, SelectionSet)> {
         let before = self.rope.to_string();
         let edit_transaction = match config.mode {
-            LocalSearchConfigMode::CaseAgnostic => {
-                let replaced =
-                    CaseAgnostic::new(config.search()).replace_all(&before, config.replacement());
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                let replaced = NamingConventionAgnostic::new(config.search())
+                    .replace_all(&before, config.replacement());
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::Regex(regex_config) => {

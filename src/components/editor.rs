@@ -2661,8 +2661,8 @@ impl Editor {
                     replacement: config.replacement(),
                 })
             }
-            LocalSearchConfigMode::CaseAgnostic => {
-                self.transform_selection(Transformation::CaseAgnosticReplace {
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                self.transform_selection(Transformation::NamingConventionAgnosticReplace {
                     search: config.search(),
                     replacement: config.replacement(),
                 })
@@ -2928,8 +2928,8 @@ impl Editor {
                         get_regex(&search, regex_config).ok()?.is_match(&haystack)
                     }
                     LocalSearchConfigMode::AstGrep => false,
-                    LocalSearchConfigMode::CaseAgnostic => {
-                        selection_mode::CaseAgnostic::new(search.clone())
+                    LocalSearchConfigMode::NamingConventionAgnostic => {
+                        selection_mode::NamingConventionAgnostic::new(search.clone())
                             .find_all(&haystack)
                             .is_empty()
                             .not()

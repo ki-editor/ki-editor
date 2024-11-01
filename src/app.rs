@@ -1282,8 +1282,8 @@ impl<T: Frontend> App<T> {
             LocalSearchConfigMode::AstGrep => {
                 list::ast_grep::run(config.search().clone(), walk_builder_config)
             }
-            LocalSearchConfigMode::CaseAgnostic => {
-                list::case_agnostic::run(config.search().clone(), walk_builder_config)
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                list::naming_convention_agnostic::run(config.search().clone(), walk_builder_config)
             }
         }?;
         self.set_quickfix_list_type(
@@ -1594,7 +1594,7 @@ impl<T: Frontend> App<T> {
         let regex = match local_search_config.mode {
             LocalSearchConfigMode::Regex(regex) => Some(regex),
             LocalSearchConfigMode::AstGrep => None,
-            LocalSearchConfigMode::CaseAgnostic => None,
+            LocalSearchConfigMode::NamingConventionAgnostic => None,
         };
         self.show_keymap_legend(KeymapLegendConfig {
             title: format!("Configure Search ({:?})", scope),
@@ -1605,7 +1605,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(
                             &[
                                 Keymap::new(
-                                    "s",
+                                    "/",
                                     format!("Search = {}", local_search_config.search()),
                                     Dispatch::OpenUpdateSearchPrompt {
                                         scope,
@@ -1672,10 +1672,11 @@ impl<T: Frontend> App<T> {
                                 local_search_config.mode == LocalSearchConfigMode::AstGrep,
                             ),
                             update_mode_keymap(
-                                "c",
-                                "Case Agnostic".to_string(),
-                                LocalSearchConfigMode::CaseAgnostic,
-                                local_search_config.mode == LocalSearchConfigMode::CaseAgnostic,
+                                "n",
+                                "Naming Convention Agnostic".to_string(),
+                                LocalSearchConfigMode::NamingConventionAgnostic,
+                                local_search_config.mode
+                                    == LocalSearchConfigMode::NamingConventionAgnostic,
                             ),
                             update_mode_keymap(
                                 "l",
@@ -1705,7 +1706,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(
                             &[
                                 update_mode_keymap(
-                                    "i",
+                                    "c",
                                     "Case-sensitive".to_string(),
                                     LocalSearchConfigMode::Regex(RegexConfig {
                                         case_sensitive: !regex.case_sensitive,
@@ -1721,6 +1722,26 @@ impl<T: Frontend> App<T> {
                                         ..regex
                                     }),
                                     regex.match_whole_word,
+                                ),
+                                update_mode_keymap(
+                                    "f",
+                                    "Flexible".to_string(),
+                                    LocalSearchConfigMode::Regex(RegexConfig {
+                                        match_whole_word: false,
+                                        case_sensitive: false,
+                                        ..regex
+                                    }),
+                                    !regex.match_whole_word && !regex.case_sensitive,
+                                ),
+                                update_mode_keymap(
+                                    "s",
+                                    "Strict".to_string(),
+                                    LocalSearchConfigMode::Regex(RegexConfig {
+                                        match_whole_word: true,
+                                        case_sensitive: true,
+                                        ..regex
+                                    }),
+                                    regex.match_whole_word && regex.case_sensitive,
                                 ),
                             ]
                             .into_iter()

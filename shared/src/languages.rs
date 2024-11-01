@@ -234,7 +234,7 @@ const fn nix() -> Language {
 const fn markdown() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("markdown")),
-        extensions: &["md"],
+        extensions: &["md", "mdx"],
         lsp_command: Some(LspCommand {
             command: Command("marksman", &["server"]),
             ..LspCommand::default()

@@ -251,6 +251,235 @@ foo ha"
             .to_vec(),
         },
         RecipeGroup {
+            filename: "literal-search",
+            recipes: [Recipe {
+                description: "Example",
+                content: "foo bar (xo) baz (XO)".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("/ ( x o ) enter l h"),
+                expectations: &[CurrentSelectedTexts(&["(xo)"])],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "match-whole-word",
+            recipes: [Recipe {
+                description: "Example",
+                content: "fobar fo spamfo fo".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("/ f o enter ' w l h"),
+                expectations: &[CurrentSelectedTexts(&["fo"])],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "case-sensitive",
+            recipes: [Recipe {
+                description: "Example",
+                content: "fo Fo fo Fo".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("/ F o enter ' c l h"),
+                expectations: &[CurrentSelectedTexts(&["Fo"])],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "regex",
+            recipes: [Recipe {
+                description: "Example",
+                content: "a (foo ba) bar".trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("/ backslash ( . * backslash ) enter ' x"),
+                expectations: &[CurrentSelectedTexts(&["(foo ba)"])],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "naming-convention-agnostic",
+            recipes: [Recipe {
+                description: "Example",
+                content: "foBa x fo_ba x fo ba x fo-ba".trim(),
+                file_extension: "js",
+                prepare_events: &[],
+                events: keys!("/ f o space b a enter ' n l"),
+                expectations: &[CurrentSelectedTexts(&["fo-ba"])],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "ast-grep",
+            recipes: [Recipe {
+                description: "Example",
+                content: "f(1+1); f(x); f('f()')".trim(),
+                file_extension: "js",
+                prepare_events: &[],
+                events: keys!("/ f ( $ X ) enter ' a"),
+                expectations: &[CurrentSelectedTexts(&["f(1+1)"])],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "search-current-selection",
+            recipes: [
+                Recipe {
+                    description: "Example 1",
+                    content: "fo ba fo ba".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w * l"),
+                    expectations: &[CurrentSelectedTexts(&["fo"])],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Example 2: works for multiple lines too",
+                    content: "
+foo
+  .bar()
+  
+spam()
+
+foo
+  .bar()
+"
+                    .trim(),
+                    file_extension: "js",
+                    prepare_events: &[],
+                    events: keys!("s * l"),
+                    expectations: &[CurrentSelectedTexts(&["foo\n  .bar()"])],
+                    terminal_height: Some(14),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "replace-with-pattern",
+            recipes: [
+                Recipe {
+                    description: "Naming convention-agnostic search and replace",
+                    content: r#"
+pub(crate) fn select(
+    &mut self,
+    selection_mode: SelectionMode,
+    movement: Movement,
+) -> anyhow::Result<Dispatches> {
+    // There are a few selection modes where Current make sense.
+    let direction = if self.selection_set.mode != selection_mode {
+        Movement::Current
+    } else {
+        movement
+    };
+
+    if let Some(selection_set) = self.get_selection_set(&selection_mode, direction)? {
+        Ok(self.update_selection_set(selection_set, true))
+    } else {
+        Ok(Default::default())
+    }
+}
+
+fn jump_characters() -> Vec<char> {
+    ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
+}
+
+pub(crate) fn get_selection_mode_trait_object(
+    &self,
+    selection: &Selection,
+) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
+    self.selection_set.mode.to_selection_mode_trait_object(
+        &self.buffer(),
+        selection,
+        &self.cursor_direction,
+        &self.selection_set.filters,
+    )
+}
+"#,
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!("' n / s e l e c t i o n space m o d e enter ' r f o o space b a r enter ctrl+c space a ctrl+r space o"),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+                Recipe {
+                    description: "Search & Replace Multi-cursor",
+                    content: "fo x fo x fo".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("/ f o enter q l esc ' r b a enter ctrl+c ctrl+r"),
+                    expectations: &[CurrentComponentContent("ba x ba x fo")],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "replace-all",
+            recipes: [
+                Recipe {
+                    description: "Example 1: Regex",
+                    content: "1 x 2".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("/ ( backslash d ) enter ' x ' r ( $ 1 ) enter R"),
+                    expectations: &[CurrentComponentContent("(1) x (2)")],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+                Recipe {
+                    description: "Example 2: Naming convention-Agnostic",
+                    content: "foBa x fo_ba x fo ba x fo-ba".trim(),
+                    file_extension: "js",
+                    prepare_events: &[],
+                    events: keys!("/ f o space b a enter ' n ' r k a _ t o enter R"),
+                    expectations: &[CurrentComponentContent("kaTo x ka_to x ka to x ka-to")],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+                Recipe {
+                    description: "Example 3: AST Grep",
+                    content: "f(1+1); f(x); f('f()')".trim(),
+                    file_extension: "js",
+                    prepare_events: &[],
+                    events: keys!("/ f ( $ X ) enter ' a ' r ( $ X ) . z enter R"),
+                    expectations: &[CurrentComponentContent("(1+1).z; (x).z; ('f()').z")],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: true,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "recipes",
             recipes: recipes(),
         },
@@ -410,55 +639,6 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     prepare_events: &[],
                     events: keys!(
                         "/ y x enter s space a b n v s ( i S o m e esc s b n n T space o"
-                    ),
-                    expectations: &[],
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
-                    description: "Case-agnostic search and replace",
-                    content: r#"
-pub(crate) fn select(
-    &mut self,
-    selection_mode: SelectionMode,
-    movement: Movement,
-) -> anyhow::Result<Dispatches> {
-    // There are a few selection modes where Current make sense.
-    let direction = if self.selection_set.mode != selection_mode {
-        Movement::Current
-    } else {
-        movement
-    };
-
-    if let Some(selection_set) = self.get_selection_set(&selection_mode, direction)? {
-        Ok(self.update_selection_set(selection_set, true))
-    } else {
-        Ok(Default::default())
-    }
-}
-
-fn jump_characters() -> Vec<char> {
-    ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
-}
-
-pub(crate) fn get_selection_mode_trait_object(
-    &self,
-    selection: &Selection,
-) -> anyhow::Result<Box<dyn selection_mode::SelectionMode>> {
-    self.selection_set.mode.to_selection_mode_trait_object(
-        &self.buffer(),
-        selection,
-        &self.cursor_direction,
-        &self.selection_set.filters,
-    )
-}
-"#
-                    .trim(),
-                    file_extension: "rs",
-                    prepare_events: &[],
-                    events: keys!(
-                        "' c / s e l e c t i o n space m o d e enter ' r f o o space b a r enter ctrl+c space a ctrl+r space o"
                     ),
                     expectations: &[],
                     terminal_height: None,
@@ -848,147 +1028,6 @@ hello_world
             events: keys!("w l l v l o h o l"),
             expectations: &[CurrentSelectedTexts(&["bar spam baz tim"])],
             terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Default Search (literal, no escaping needed)",
-            content: "foo bar (x) baz (x)".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("/ ( x ) enter l h"),
-            expectations: &[CurrentSelectedTexts(&["(x)"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search (literal, match whole word)",
-            content: "fobar fo spamfo fo".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("/ f o enter ' w l h"),
-            expectations: &[CurrentSelectedTexts(&["fo"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search (literal, case-sensitive)",
-            content: "fo Fo fo Fo".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("/ F o enter ' i l h"),
-            expectations: &[CurrentSelectedTexts(&["Fo"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search current selection",
-            content: "fo ba fo ba".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("w * l"),
-            expectations: &[CurrentSelectedTexts(&["fo"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search current selection (works for multiple lines too)",
-            content: "
-foo
-  .bar()
-  
-spam()
-
-foo
-  .bar()
-"
-            .trim(),
-            file_extension: "js",
-            prepare_events: &[],
-            events: keys!("s * l"),
-            expectations: &[CurrentSelectedTexts(&["foo\n  .bar()"])],
-            terminal_height: Some(14),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search (regex)",
-            content: "a (foo ba) bar".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("/ backslash ( . * backslash ) enter ' x"),
-            expectations: &[CurrentSelectedTexts(&["(foo ba)"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search (case agnostic)",
-            content: "foBa x fo_ba x fo ba x fo-ba".trim(),
-            file_extension: "js",
-            prepare_events: &[],
-            events: keys!("/ f o space b a enter ' c l"),
-            expectations: &[CurrentSelectedTexts(&["fo-ba"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search (AST Grep)",
-            content: "f(1+1); f(x); f('f()')".trim(),
-            file_extension: "js",
-            prepare_events: &[],
-            events: keys!("/ f ( $ X ) enter ' a"),
-            expectations: &[CurrentSelectedTexts(&["f(1+1)"])],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search & Replace Multi-cursor",
-            content: "fo x fo x fo".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("/ f o enter q l esc ' r b a enter ctrl+c ctrl+r"),
-            expectations: &[CurrentComponentContent("ba x ba x fo")],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search & Replace All (regex)",
-            content: "1 x 2".trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("/ ( backslash d ) enter ' x ' r ( $ 1 ) enter R"),
-            expectations: &[CurrentComponentContent("(1) x (2)")],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search & Replace All (case agnostic)",
-            content: "foBa x fo_ba x fo ba x fo-ba".trim(),
-            file_extension: "js",
-            prepare_events: &[],
-            events: keys!("/ f o space b a enter ' c ' r k a _ t o enter R"),
-            expectations: &[CurrentComponentContent("kaTo x ka_to x ka to x ka-to")],
-            terminal_height: Some(7),
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Search & Replace All (AST Grep)",
-            content: "f(1+1); f(x); f('f()')".trim(),
-            file_extension: "js",
-            prepare_events: &[],
-            events: keys!("/ f ( $ X ) enter ' a ' r ( $ X ) . z enter R"),
-            expectations: &[CurrentComponentContent("(1+1).z; (x).z; ('f()').z")],
-            terminal_height: Some(7),
             similar_vim_combos: &[],
             only: false,
         },

@@ -2202,7 +2202,7 @@ fn replace_with_pattern() -> Result<(), anyhow::Error> {
         })
     }
     run_test(
-        LocalSearchConfigMode::CaseAgnostic,
+        LocalSearchConfigMode::NamingConventionAgnostic,
         "aBull aCow TheBull theBull",
         "TheBull",
         "the mummy",

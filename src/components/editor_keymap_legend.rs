@@ -1131,7 +1131,7 @@ impl Editor {
             Scope::Local => Some(KeymapLegendSection {
                 title: "Local only".to_string(),
                 keymaps: Keymaps::new(
-                    &[("0", "Natural Number", r"\d+")]
+                    &[("n", "Natural Number", r"\d+")]
                         .into_iter()
                         .map(|(key, description, regex)| {
                             let search = Search {

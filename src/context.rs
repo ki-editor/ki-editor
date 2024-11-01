@@ -297,7 +297,7 @@ impl GlobalSearchConfig {
 pub(crate) enum LocalSearchConfigMode {
     Regex(RegexConfig),
     AstGrep,
-    CaseAgnostic,
+    NamingConventionAgnostic,
 }
 impl LocalSearchConfigMode {
     pub(crate) fn display(&self) -> String {
@@ -305,7 +305,9 @@ impl LocalSearchConfigMode {
             LocalSearchConfigMode::Regex(regex) => regex.display(),
 
             LocalSearchConfigMode::AstGrep => "AST Grep".to_string(),
-            LocalSearchConfigMode::CaseAgnostic => "Case Agnostic".to_string(),
+            LocalSearchConfigMode::NamingConventionAgnostic => {
+                "Naming Convention Agnostic".to_string()
+            }
         }
     }
 }

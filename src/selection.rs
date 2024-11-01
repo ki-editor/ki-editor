@@ -460,9 +460,9 @@ impl SelectionMode {
                 LocalSearchConfigMode::AstGrep => {
                     Box::new(selection_mode::AstGrep::new(buffer, &search.search)?)
                 }
-                LocalSearchConfigMode::CaseAgnostic => {
-                    Box::new(selection_mode::CaseAgnostic::new(search.search.clone()))
-                }
+                LocalSearchConfigMode::NamingConventionAgnostic => Box::new(
+                    selection_mode::NamingConventionAgnostic::new(search.search.clone()),
+                ),
             },
             #[cfg(test)]
             SelectionMode::Token => Box::new(selection_mode::Token),

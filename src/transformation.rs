@@ -1,7 +1,9 @@
 use convert_case::Casing;
 use shared::process_command::ProcessCommand;
 
-use crate::{clipboard::CopiedTexts, selection_mode::CaseAgnostic, soft_wrap::soft_wrap};
+use crate::{
+    clipboard::CopiedTexts, selection_mode::NamingConventionAgnostic, soft_wrap::soft_wrap,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Transformation {
@@ -11,7 +13,7 @@ pub(crate) enum Transformation {
     PipeToShell { command: String },
     ReplaceWithCopiedText { copied_texts: CopiedTexts },
     RegexReplace { regex: MyRegex, replacement: String },
-    CaseAgnosticReplace { search: String, replacement: String },
+    NamingConventionAgnosticReplace { search: String, replacement: String },
 }
 
 impl std::fmt::Display for Transformation {
@@ -31,14 +33,17 @@ impl std::fmt::Display for Transformation {
             Transformation::RegexReplace { regex, replacement } => {
                 write!(
                     f,
-                    "Regex Replace /{}/ with /{replacement}/",
+                    "Regex: Replace /{}/ with /{replacement}/",
                     regex.0.as_str(),
                 )
             }
-            Transformation::CaseAgnosticReplace {
+            Transformation::NamingConventionAgnosticReplace {
                 search,
                 replacement,
-            } => write!(f, "Case-agnostic Replace `{search}` with `{replacement}`",),
+            } => write!(
+                f,
+                "Naming convention-Agnostic: Replace `{search}` with `{replacement}`",
+            ),
         }
     }
 }
@@ -72,10 +77,10 @@ impl Transformation {
             Transformation::RegexReplace { regex, replacement } => {
                 Ok(regex.0.replace(&string, replacement).to_string())
             }
-            Transformation::CaseAgnosticReplace {
+            Transformation::NamingConventionAgnosticReplace {
                 search,
                 replacement,
-            } => CaseAgnostic::replace(&string, search, replacement),
+            } => NamingConventionAgnostic::replace(&string, search, replacement),
         }
     }
 }
