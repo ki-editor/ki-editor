@@ -79,6 +79,10 @@ impl CharIndexRange {
             text.chars().rev().take_while(|c| c.is_whitespace()).count();
         Ok((self.start + leading_whitespace_count..self.end - trailing_whitespace_count).into())
     }
+
+    pub(crate) fn is_supserset_of(&self, other: &CharIndexRange) -> bool {
+        self.start <= other.start && other.end <= self.end
+    }
 }
 
 pub(crate) struct CharIndexRangeIter {

@@ -169,11 +169,11 @@ impl SelectionSet {
         Ok(())
     }
 
-    pub(crate) fn add_all(
-        &mut self,
+    pub(crate) fn all_selections(
+        &self,
         buffer: &Buffer,
         cursor_direction: &Direction,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<NonEmpty<Selection>>> {
         if let Some((head, tail)) = self
             .map(|selection| {
                 let object = self
@@ -198,14 +198,26 @@ impl SelectionSet {
             .into_iter()
             .flatten()
             .flatten()
+            .map(|selection| selection.set_initial_range(None))
             .unique_by(|selection| selection.extended_range())
             .collect_vec()
             .split_first()
         {
-            self.selections = NonEmpty {
+            Ok(Some(NonEmpty {
                 head: (*head).clone(),
                 tail: tail.to_vec(),
-            };
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+    pub(crate) fn add_all(
+        &mut self,
+        buffer: &Buffer,
+        cursor_direction: &Direction,
+    ) -> anyhow::Result<()> {
+        if let Some(selections) = self.all_selections(buffer, cursor_direction)? {
+            self.selections = selections;
             self.cursor_index = 0;
         };
         Ok(())
