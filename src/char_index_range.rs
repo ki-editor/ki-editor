@@ -74,10 +74,18 @@ impl CharIndexRange {
 
     pub(crate) fn trimmed(&self, buffer: &crate::buffer::Buffer) -> anyhow::Result<Self> {
         let text = buffer.slice(self)?.to_string();
-        let leading_whitespace_count = text.chars().take_while(|c| c.is_whitespace()).count();
-        let trailing_whitespace_count =
-            text.chars().rev().take_while(|c| c.is_whitespace()).count();
-        Ok((self.start + leading_whitespace_count..self.end - trailing_whitespace_count).into())
+
+        if text.chars().all(char::is_whitespace) {
+            Ok(*self)
+        } else {
+            let leading_whitespace_count = text.chars().take_while(|c| c.is_whitespace()).count();
+            let trailing_whitespace_count =
+                text.chars().rev().take_while(|c| c.is_whitespace()).count();
+            Ok(
+                (self.start + leading_whitespace_count..self.end - trailing_whitespace_count)
+                    .into(),
+            )
+        }
     }
 
     pub(crate) fn is_supserset_of(&self, other: &CharIndexRange) -> bool {
