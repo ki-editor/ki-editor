@@ -424,7 +424,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Search & Replace Multi-cursor",
@@ -435,7 +435,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[CurrentComponentContent("ba x ba x fo")],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
             ]
             .to_vec(),
@@ -452,7 +452,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[CurrentComponentContent("(1) x (2)")],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Example 2: Naming convention-Agnostic",
@@ -463,7 +463,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[CurrentComponentContent("kaTo x ka_to x ka to x ka-to")],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
                 Recipe {
                     description: "Example 3: AST Grep",
@@ -474,10 +474,61 @@ pub(crate) fn get_selection_mode_trait_object(
                     expectations: &[CurrentComponentContent("(1+1).z; (x).z; ('f()').z")],
                     terminal_height: Some(7),
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
             ]
             .to_vec(),
+        },
+        RecipeGroup {
+            filename: "filter-matching-selections",
+            recipes: [
+            Recipe {
+                description: "Keep matching selections",
+                content: "
+    enum Foo {
+       Bar(baz),
+       /// Spam is good
+       Spam { what: String }
+       /// Fifa means filifala
+       Fifa
+    }
+    "
+                .trim(),
+                file_extension: "rs",
+                prepare_events: keys!("/ b enter"),
+                events: keys!("s space a K / / enter"),
+                expectations: &[CurrentSelectedTexts(&[
+                    "/// Spam is good\n",
+                    "/// Fifa means filifala\n",
+                ])],
+                terminal_height: None,
+                similar_vim_combos: &[],
+                only: false,
+            },
+            Recipe {
+                    description: "Remove matching selections",
+                    content: "
+        enum Foo {
+           Bar(baz),
+           /// Spam is good
+           Spam { what: String }
+           /// Fifa means filifala
+           Fifa
+        }
+        "
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: keys!("/ b enter"),
+                    events: keys!("s space a alt+k / / enter"),
+                    expectations: &[CurrentSelectedTexts(&[
+                        "Bar(baz)",
+                        "Spam { what: String }",
+                        "Fifa",
+                    ])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }].to_vec(),
         },
         RecipeGroup {
             filename: "recipes",
@@ -1289,53 +1340,6 @@ spam baz
             prepare_events: &[],
             events: keys!("e y $ p"),
             expectations: &[CurrentComponentContent("foo barfoo bar")],
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Keep selections matching search",
-            content: "
-enum Foo {
-   Bar(baz),
-   /// Spam is good
-   Spam { what: String }
-   /// Fifa means filifala
-   Fifa
-}
-"
-            .trim(),
-            file_extension: "rs",
-            prepare_events: keys!("/ b enter"),
-            events: keys!("s space a K / / enter"),
-            expectations: &[CurrentSelectedTexts(&[
-                "/// Spam is good\n",
-                "/// Fifa means filifala\n",
-            ])],
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Remove selections matching search",
-            content: "
-enum Foo {
-   Bar(baz),
-   /// Spam is good
-   Spam { what: String }
-   /// Fifa means filifala
-   Fifa
-}
-"
-            .trim(),
-            file_extension: "rs",
-            prepare_events: keys!("/ b enter"),
-            events: keys!("s space a alt+k / / enter"),
-            expectations: &[CurrentSelectedTexts(&[
-                "Bar(baz)",
-                "Spam { what: String }",
-                "Fifa",
-            ])],
             terminal_height: None,
             similar_vim_combos: &[],
             only: false,

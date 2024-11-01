@@ -153,3 +153,14 @@ Notes:
 
 1. Undo/redo works for multi-cursors as well
 2. The current implementation is naive, it undoes/redoes character-by-character, instead of chunk-by-chunk, so it can be mildly frustrating
+
+## Filter matching selections
+
+Keybindings:
+
+- `K`: Keep matching selections
+- `alt+k`: Remove matching selections
+
+This is only used when there's more than 1 selection/cursor, and you want to remove some selections.
+
+<TutorialFallback filename="filter-matching-selections"/>
