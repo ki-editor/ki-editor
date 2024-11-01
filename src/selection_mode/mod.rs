@@ -791,7 +791,7 @@ mod test_selection_mode {
         test(
             Movement::Current(IfCurrentNotFound::LookForward),
             5..6,
-            3..5,
+            1..6,
         );
         test(
             Movement::Current(IfCurrentNotFound::LookForward),

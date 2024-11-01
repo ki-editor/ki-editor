@@ -2888,3 +2888,22 @@ foov foou bar
         ])
     })
 }
+
+#[test]
+fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("abc \n yo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&[" "])),
+            Editor(MoveSelection(Previous)),
+            Expect(CurrentSelectedTexts(&["c"])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[" "])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["abc "])),
+        ])
+    })
+}
