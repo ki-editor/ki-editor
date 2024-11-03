@@ -1,6 +1,5 @@
-use crate::buffer::Buffer;
-
 use super::{ByteRange, SelectionMode};
+use crate::buffer::Buffer;
 
 pub struct Subword {
     normal_regex: super::Regex,
@@ -12,7 +11,7 @@ impl Subword {
         Ok(Self {
             normal_regex: super::Regex::from_config(
                 buffer,
-                r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*)))|([^\w\s]|_)|[0-9]+",
+                r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[^\w\s]|_|[0-9]+",
                 crate::list::grep::RegexConfig {
                     escaped: false,
                     case_sensitive: true,
@@ -21,7 +20,7 @@ impl Subword {
             )?,
             symbol_skipping_regex: super::Regex::from_config(
                 buffer,
-                r"((([a-z]+)|(([A-Z]{2,})+)|([A-Z][a-z]*)))|[0-9]+",
+                r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[0-9]+",
                 crate::list::grep::RegexConfig {
                     escaped: false,
                     case_sensitive: true,
@@ -55,15 +54,14 @@ impl SelectionMode for Subword {
 
 #[cfg(test)]
 mod test_subword {
-    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
-
     use super::*;
+    use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
             None,
-            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_>",
+            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork",
         );
         Subword::new(&buffer).unwrap().assert_all_selections(
             &buffer,
@@ -87,6 +85,25 @@ mod test_subword {
                 (53..54, "<"),
                 (54..55, "_"),
                 (55..56, ">"),
+                (57..61, "HTTP"),
+                (61..68, "Network"),
+            ],
+        );
+    }
+
+    #[test]
+    fn case_2() {
+        let buffer = Buffer::new(None, "XMLParser JSONObject HTMLElement");
+        Subword::new(&buffer).unwrap().assert_all_selections(
+            &buffer,
+            Selection::default(),
+            &[
+                (0..3, "XML"),
+                (3..9, "Parser"),
+                (10..14, "JSON"),
+                (14..20, "Object"),
+                (21..25, "HTML"),
+                (25..32, "Element"),
             ],
         );
     }

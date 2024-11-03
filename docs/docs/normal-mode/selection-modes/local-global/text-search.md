@@ -57,7 +57,8 @@ of a capture group.
 
 Keybinding: `x`
 
-This is based on Rust-flavored regex.
+This is powered by the [Fancy Regex](https://github.com/fancy-regex/fancy-regex) engine,
+where features such as look-around and backtracking are supported.
 
 <TutorialFallback filename="regex"/>
 
