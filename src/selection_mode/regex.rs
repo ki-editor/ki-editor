@@ -3,11 +3,11 @@ use crate::{buffer::Buffer, list::grep::RegexConfig};
 use super::{ByteRange, SelectionMode};
 
 pub(crate) struct Regex {
-    regex: regex::Regex,
+    regex: fancy_regex::Regex,
     content: String,
 }
 
-pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<regex::Regex> {
+pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<fancy_regex::Regex> {
     let pattern = if config.escaped {
         regex::escape(pattern)
     } else {
@@ -24,7 +24,7 @@ pub(crate) fn get_regex(pattern: &str, config: RegexConfig) -> anyhow::Result<re
         format!("(?i){}", pattern)
     };
     let pattern = format!("(?m){}", pattern);
-    Ok(regex::Regex::new(&pattern)?)
+    Ok(fancy_regex::Regex::new(&pattern)?)
 }
 
 impl Regex {
@@ -62,8 +62,9 @@ impl SelectionMode for Regex {
         _params: super::SelectionModeParams<'a>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         let matches = self.regex.find_iter(&self.content);
-        Ok(Box::new(matches.map(move |matches| {
-            ByteRange::new(matches.start()..matches.end())
+        Ok(Box::new(matches.filter_map(move |matches| {
+            let matches = matches.ok()?;
+            Some(ByteRange::new(matches.start()..matches.end()))
         })))
     }
 }

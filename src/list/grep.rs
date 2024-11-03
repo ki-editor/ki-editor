@@ -1,7 +1,7 @@
 use grep_regex::RegexMatcher;
 use grep_searcher::{sinks, SearcherBuilder};
 
-use regex::Regex;
+use fancy_regex::Regex;
 
 use crate::{
     buffer::Buffer, context::LocalSearchConfig, quickfix_list::Location,
@@ -109,7 +109,7 @@ fn to_location(
     let locations = regex
         .find_iter(line)
         .flat_map(|match_| -> anyhow::Result<Location> {
-            let range = match_.range();
+            let range = match_?.range();
             let start = buffer.byte_to_position(range.start + start_byte)?;
             let end = buffer.byte_to_position(range.end + start_byte)?;
             Ok(Location {

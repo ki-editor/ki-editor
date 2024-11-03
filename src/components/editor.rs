@@ -2924,9 +2924,10 @@ impl Editor {
                 let range = selection.extended_range();
                 let haystack = self.buffer().slice(&range).unwrap_or_default().to_string();
                 let is_match = match local_search_config.mode {
-                    LocalSearchConfigMode::Regex(regex_config) => {
-                        get_regex(&search, regex_config).ok()?.is_match(&haystack)
-                    }
+                    LocalSearchConfigMode::Regex(regex_config) => get_regex(&search, regex_config)
+                        .ok()?
+                        .is_match(&haystack)
+                        .ok()?,
                     LocalSearchConfigMode::AstGrep => false,
                     LocalSearchConfigMode::NamingConventionAgnostic => {
                         selection_mode::NamingConventionAgnostic::new(search.clone())

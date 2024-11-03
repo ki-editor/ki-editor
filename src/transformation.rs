@@ -49,7 +49,7 @@ impl std::fmt::Display for Transformation {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct MyRegex(pub(crate) regex::Regex);
+pub(crate) struct MyRegex(pub(crate) fancy_regex::Regex);
 
 impl PartialEq for MyRegex {
     fn eq(&self, other: &Self) -> bool {

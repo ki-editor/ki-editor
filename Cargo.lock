@@ -821,6 +821,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
 
 [[package]]
+name = "fancy-regex"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e24cb5a94bcae1e5408b0effca5cd7172ea3c5755049c5f3af4cd283a165298"
+dependencies = [
+ "bit-set",
+ "regex-automata 0.4.5",
+ "regex-syntax 0.8.2",
+]
+
+[[package]]
 name = "fastrand"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1371,6 +1382,7 @@ dependencies = [
  "diffy",
  "dyn-clone",
  "event",
+ "fancy-regex",
  "fs_extra",
  "git2",
  "globset",
@@ -2486,6 +2498,7 @@ name = "shared"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fancy-regex",
  "grammar",
  "isahc",
  "log",
