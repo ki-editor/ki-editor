@@ -75,6 +75,18 @@ camelCase , kebab-case snake_case
                     similar_vim_combos: &[],
                     only: false,
                 },
+                Recipe {
+                    description: "Subword: first/last movement",
+                    content: "hello HTTPNetworkRequestMiddleware world"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("W l . ,"),
+                    expectations: &[CurrentSelectedTexts(&["HTTP"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
             ]
             .to_vec(),
         },
