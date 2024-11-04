@@ -1,8 +1,8 @@
 ---
 sidebar_position: 2
 ---
-import {TutorialFallback} from '@site/src/components/TutorialFallback'; 
 
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
 
 # Core Movements
 
@@ -43,12 +43,12 @@ Keybinding: `n`/`N`
 These movemest similar to the 4 movements above, however, they are not restricted to vertical or horizontal movements.
 They are assigned special meaning in different selection modes.
 
-| Selection Mode   | Meaning                                   |
-| ---------------- | ----------------------------------------- |
-| Syntax Node      | Next/Previous named sibling               |
-| Quickfix         | To first item of next/previous file       |
-| Word & Subword   | Next/Previous word skipping symbols (TBD) |
-| Line & Full Line | Next/Previous empty line (TBD)            |
+| Selection Mode   | Meaning                             |
+| ---------------- | ----------------------------------- |
+| Syntax Node      | Next/Previous named sibling         |
+| Quickfix         | To first item of next/previous file |
+| Word & Subword   | Next/Previous word skipping symbols |
+| Line & Full Line | Next/Previous empty line (TBD)      |
 
 ## First/Last
 
@@ -59,7 +59,7 @@ Memory aid: `,`/`.` looks like `<`/`>` on the keyboard
 | ---------------- | --------------------------------------------- |
 | Syntax Node      | First/Last named sibling                      |
 | Quickfix         | First/Last item                               |
-| Subword          | First/Last subword in the current word (TBD)  |
+| Subword          | First/Last subword in the current word        |
 | Word             | First/Last word in the current sentence (TBD) |
 | Line & Full Line | First/Last line of the current file           |
 
@@ -68,11 +68,11 @@ Memory aid: `,`/`.` looks like `<`/`>` on the keyboard
 Keybinding: `t`/`b`  
 Memory aid: t stands for Top (implying expand), while b Bottom (implying shrink)
 
-| Selection Mode        | Meaning                                           |
-| --------------------- | ------------------------------------------------- |
-| Syntax Node           | Parent/First-child                                |
-| Line                  | Select whole file                                 |
-| Other selection modes | Expand selection to nearest brackets/quotes       |
+| Selection Mode        | Meaning                                     |
+| --------------------- | ------------------------------------------- |
+| Syntax Node           | Parent/First-child                          |
+| Line                  | Select whole file                           |
+| Other selection modes | Expand selection to nearest brackets/quotes |
 
 <TutorialFallback filename="expand"/>
 

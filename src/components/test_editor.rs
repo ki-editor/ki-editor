@@ -315,7 +315,7 @@ fn test_delete_extended_selection_whole_file() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("who lives in a pineapple".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(SelectAll),
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("")),
@@ -2482,10 +2482,10 @@ fn last_contiguous_selection_mode() -> Result<(), anyhow::Error> {
             Box::new([
                 App(OpenFile(s.main_rs())),
                 Editor(SetContent("who lives in a".to_string())),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Editor(ToggleMark),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 Expect(CurrentSelectedTexts(&["who"])),
                 Editor(MoveSelection(Last)),
                 Expect(CurrentSelectedTexts(&["a"])),
@@ -2625,7 +2625,7 @@ fn cycle_primary_selection_should_based_on_range_order() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("foo bar spam".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(MoveSelection(Last)),
             Expect(CurrentPrimarySelection("spam")),
             Editor(EnterMultiCursorMode),
@@ -2904,6 +2904,23 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["abc "])),
+        ])
+    })
+}
+
+#[test]
+fn first_last_subword() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello HTTPNetworkRequest yo".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["HTTP"])),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["Request"])),
+            Editor(MoveSelection(First)),
+            Expect(CurrentSelectedTexts(&["HTTP"])),
         ])
     })
 }

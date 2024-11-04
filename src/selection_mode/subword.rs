@@ -1,4 +1,4 @@
-use super::{ByteRange, SelectionMode};
+use super::{ByteRange, SelectionMode, Word};
 use crate::buffer::Buffer;
 
 pub struct Subword {
@@ -6,12 +6,18 @@ pub struct Subword {
     symbol_skipping_regex: super::Regex,
 }
 
+const SUBWORD_REGEX: &str =
+    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[^\w\s]|_|[0-9]+";
+
+const SUBWORD_SYMBOL_SKIPPING_REGEX: &str =
+    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[0-9]+";
+
 impl Subword {
     pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
         Ok(Self {
             normal_regex: super::Regex::from_config(
                 buffer,
-                r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[^\w\s]|_|[0-9]+",
+                SUBWORD_REGEX,
                 crate::list::grep::RegexConfig {
                     escaped: false,
                     case_sensitive: true,
@@ -20,7 +26,7 @@ impl Subword {
             )?,
             symbol_skipping_regex: super::Regex::from_config(
                 buffer,
-                r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[0-9]+",
+                SUBWORD_SYMBOL_SKIPPING_REGEX,
                 crate::list::grep::RegexConfig {
                     escaped: false,
                     case_sensitive: true,
@@ -38,17 +44,33 @@ impl SelectionMode for Subword {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         self.normal_regex.iter(params)
     }
+
     fn next(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.symbol_skipping_regex.next(params)
     }
+
     fn previous(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.symbol_skipping_regex.previous(params)
+    }
+
+    fn first(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_subword(params, SelectionPosition::First)
+    }
+
+    fn last(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_subword(params, SelectionPosition::Last)
     }
 }
 
@@ -107,4 +129,34 @@ mod test_subword {
             ],
         );
     }
+}
+
+#[derive(Clone, Copy)]
+enum SelectionPosition {
+    First,
+    Last,
+}
+
+fn get_subword(
+    params: super::SelectionModeParams,
+    position: SelectionPosition,
+) -> anyhow::Result<Option<crate::selection::Selection>> {
+    if let Some(current_word) = Word::new(params.buffer)?.current(
+        params.clone(),
+        crate::components::editor::IfCurrentNotFound::LookForward,
+    )? {
+        let content = params.buffer.slice(&current_word.range())?.to_string();
+        let regex = fancy_regex::Regex::new(SUBWORD_REGEX)?;
+        let mut captures = regex.captures_iter(&content);
+        if let Some(match_) = match position {
+            SelectionPosition::First => captures.next(),
+            SelectionPosition::Last => captures.last(),
+        } {
+            let start = current_word.range().start;
+            if let Some(range) = match_?.get(0).map(|m| start + m.start()..start + m.end()) {
+                return Ok(Some(current_word.set_range(range.into())));
+            }
+        }
+    }
+    Ok(None)
 }
