@@ -44,6 +44,63 @@ string.
             .to_vec(),
         },
         RecipeGroup {
+            filename: "open",
+            recipes: [
+                Recipe {
+                    description: "Open: syntax node selection mode (parameter)",
+                    content: "def foo(bar: Bar, spam: Spam): pass",
+                    file_extension: "py",
+                    prepare_events: keys!("/ s p a m enter"),
+                    events: keys!("s o x esc O y"),
+                    expectations: &[CurrentComponentContent("def foo(bar: Bar, spam: Spam, y, x): pass")],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Open: syntax node selection mode (statements)",
+                    content: "
+function foo() {
+  let x = hello();
+  let y = hey()
+     .bar();
+}
+".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("/ l e t space y enter"),
+                    events: keys!("s o l e t space z"),
+                    expectations: &[CurrentComponentContent("function foo() {
+  let x = hello();
+  let y = hey()
+     .bar();
+  let z
+}")],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Open: non-syntax node selection mode",
+                    content: "
+fn foo() {
+    bar();
+}".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w o x esc O y"),
+                    expectations: &[CurrentComponentContent("fn foo() {
+    y
+    x
+    bar();
+}")],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "subword",
             recipes: [
                 Recipe {

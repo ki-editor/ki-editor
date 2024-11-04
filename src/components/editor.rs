@@ -1905,8 +1905,9 @@ impl Editor {
     /// This returns a vector of selections
     /// with a gap that is the maximum of previous-current gap and current-next gap.
     ///
-    /// Used for `Self::open` and `Self::paste`.
+    /// Used by `Self::paste`.
     fn get_selection_set_with_gap(&self, direction: &Direction) -> Vec<(Selection, Rope)> {
+        let selection_mode: SelectionMode = self.selection_set.mode.clone();
         self.selection_set
             .map(|selection| {
                 let buffer = self.buffer.borrow();
@@ -1914,7 +1915,7 @@ impl Editor {
                     let other = Selection::get_selection_(
                         &buffer,
                         selection,
-                        &self.selection_set.mode,
+                        &selection_mode,
                         &movement,
                         &self.cursor_direction,
                     )
@@ -1930,16 +1931,16 @@ impl Editor {
                         buffer.slice(&in_between_range.into()).ok()
                     }
                 };
-                let gap = if !self.selection_set.mode.is_contiguous() {
+                let gap = if !selection_mode.is_contiguous() {
                     Rope::from_str("")
                 } else {
                     match (
-                        get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
+                        get_in_between_gap(if selection_mode.is_syntax_node() {
                             Movement::Next
                         } else {
                             Movement::Right
                         }),
-                        get_in_between_gap(if self.selection_set.mode.is_syntax_node() {
+                        get_in_between_gap(if selection_mode.is_syntax_node() {
                             Movement::Previous
                         } else {
                             Movement::Left
@@ -1965,6 +1966,11 @@ impl Editor {
     }
 
     fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = if self.selection_set.mode.is_syntax_node() {
+            Dispatches::default()
+        } else {
+            self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line)?
+        };
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap(&direction)
                 .into_iter()
@@ -2001,9 +2007,10 @@ impl Editor {
                 .collect_vec(),
         );
 
-        Ok(self
-            .apply_edit_transaction(edit_transaction)?
-            .append(Dispatch::ToEditor(EnterInsertMode(direction))))
+        Ok(dispatches.chain(
+            self.apply_edit_transaction(edit_transaction)?
+                .append(Dispatch::ToEditor(EnterInsertMode(direction))),
+        ))
     }
 
     pub(crate) fn apply_positional_edits(

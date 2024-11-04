@@ -21,23 +21,12 @@ Keybindings:
 - `o`: Open after selection
 - `O`: Open before selection
 
-If the current selection mode is **not** [contiguous](../selection-modes/index.md#contiguity),
-then `o`/`O` inserts one space after/before the current
-selection.
+If the current selection mode is not Syntax Node,
+then `o`/`O` inserts a newline with the respective indent after/before the current line.
 
 Otherwise, it inserts a gap before/after the current selection, and enter Insert mode.
 
-For example, consider the following Javascript code:
-
-```js
-hello(x, y);
-```
-
-Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-node-based.md#syntax-node), and the current selection is `y`, pressing `o` results in the following (Note that `│` represents the cursor):
-
-```js
-hello(x, y, │);
-```
+<TutorialFallback filename="open"/>
 
 ## Delete
 
