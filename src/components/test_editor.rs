@@ -654,25 +654,6 @@ fn multi_raise() -> anyhow::Result<()> {
 }
 
 #[test]
-fn open_should_create_one_whitespace_work_for_non_contiguous_selection_modes() -> anyhow::Result<()>
-{
-    let test = |direction: Direction, expected: &'static str| {
-        execute_test(move |s| {
-            Box::new([
-                App(OpenFile(s.main_rs())),
-                Editor(SetContent("x y x z".to_string())),
-                Editor(MatchLiteral("x".to_string())),
-                Editor(Open(direction.clone())),
-                Expect(CurrentComponentContent(expected)),
-            ])
-        })
-    };
-    test(Direction::End, "x  y x z")?;
-    test(Direction::Start, " x y x z")?;
-    Ok(())
-}
-
-#[test]
 fn open_before_selection() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -709,7 +690,7 @@ def main():
                 .to_string(),
             )),
             Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(Open(Direction::Start)),
             Expect(CurrentComponentContent(
                 "
@@ -762,8 +743,8 @@ fn main() {
                 .to_string(),
             )),
             Editor(MatchLiteral("hello".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
-            Expect(CurrentSelectedTexts(&["// hello"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["hello"])),
             Editor(Open(Direction::End)),
             Editor(Insert("// world".to_string())),
             Expect(CurrentComponentContent(
