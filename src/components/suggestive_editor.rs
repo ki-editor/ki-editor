@@ -1,6 +1,7 @@
 use crate::app::{Dispatch, Dispatches};
-use crate::context::Context;
+use crate::context::{Context, GlobalMode};
 use crate::grid::StyleKey;
+use crate::selection::SelectionMode;
 use DispatchEditor::*;
 
 use crate::selection_range::SelectionRange;
@@ -14,7 +15,7 @@ use my_proc_macros::key;
 use std::{cell::RefCell, rc::Rc};
 
 use super::dropdown::{Dropdown, DropdownConfig};
-use super::editor::DispatchEditor;
+use super::editor::{DispatchEditor, IfCurrentNotFound};
 use super::keymap_legend::{Keymap, KeymapLegendSection, Keymaps};
 use super::{
     component::Component,
@@ -111,7 +112,19 @@ impl Component for SuggestiveEditor {
                     Dispatch::CloseEditorInfo,
                     Dispatch::ToEditor(EnterNormalMode),
                 ]
-                .to_vec()
+                .into_iter()
+                .chain(match (context.mode(), context.quickfix_list_state()) {
+                    (Some(GlobalMode::QuickfixListItem), Some(state)) => {
+                        Some(Dispatch::ToEditor(SetSelectionMode(
+                            IfCurrentNotFound::LookForward,
+                            SelectionMode::LocalQuickfix {
+                                title: state.title.clone(),
+                            },
+                        )))
+                    }
+                    _ => None,
+                })
+                .collect_vec()
                 .into(),
                 _ if self.editor.mode == Mode::Insert => {
                     vec![Dispatch::RequestCompletion, Dispatch::RequestSignatureHelp].into()

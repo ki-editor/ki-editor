@@ -61,11 +61,12 @@ pub(crate) struct QuickfixList {
 
 impl QuickfixList {
     pub(crate) fn new(
+        title: String,
         items: Vec<QuickfixListItem>,
         buffers: Vec<Rc<RefCell<Buffer>>>,
     ) -> QuickfixList {
         let mut dropdown = Dropdown::new(DropdownConfig {
-            title: "Quickfix".to_string(),
+            title: title.clone(),
         });
         // Merge items of same locations
         let items = items
@@ -295,8 +296,11 @@ mod test_quickfix_list {
             },
             info: None,
         };
-        let quickfix_list =
-            QuickfixList::new(vec![foo.clone(), bar.clone(), spam.clone()], Vec::new());
+        let quickfix_list = QuickfixList::new(
+            "".to_string(),
+            vec![foo.clone(), bar.clone(), spam.clone()],
+            Vec::new(),
+        );
         assert_eq!(quickfix_list.items(), vec![spam, foo, bar])
     }
 
@@ -320,7 +324,7 @@ mod test_quickfix_list {
         ]
         .to_vec();
 
-        let quickfix_list = QuickfixList::new(items, Vec::new());
+        let quickfix_list = QuickfixList::new("".to_string(), items, Vec::new());
 
         assert_eq!(
             quickfix_list.items(),

@@ -33,6 +33,7 @@ pub(crate) struct Context {
 }
 
 pub(crate) struct QuickfixListState {
+    pub(crate) title: String,
     pub(crate) source: QuickfixListSource,
     pub(crate) current_item_index: usize,
 }
@@ -206,8 +207,9 @@ impl Context {
         }
     }
 
-    pub(crate) fn set_quickfix_list_source(&mut self, source: QuickfixListSource) {
+    pub(crate) fn set_quickfix_list_source(&mut self, title: String, source: QuickfixListSource) {
         self.quickfix_list_state = Some(QuickfixListState {
+            title,
             source,
             current_item_index: 0,
         })
