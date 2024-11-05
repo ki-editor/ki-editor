@@ -1133,6 +1133,7 @@ impl<T: Frontend> App<T> {
     pub(crate) fn get_quickfix_list(&self) -> Option<QuickfixList> {
         self.context.quickfix_list_state().as_ref().map(|state| {
             QuickfixList::new(
+                state.title.clone(),
                 self.layout.get_quickfix_list_items(&state.source),
                 self.layout.buffers(),
             )
@@ -1179,8 +1180,10 @@ impl<T: Frontend> App<T> {
         self.context.set_mode(Some(GlobalMode::QuickfixListItem));
         match r#type {
             QuickfixListType::Diagnostic(severity_range) => {
-                self.context
-                    .set_quickfix_list_source(QuickfixListSource::Diagnostic(severity_range));
+                self.context.set_quickfix_list_source(
+                    title.clone(),
+                    QuickfixListSource::Diagnostic(severity_range),
+                );
             }
             QuickfixListType::Items(items) => {
                 self.layout.clear_quickfix_list_items();
@@ -1199,11 +1202,11 @@ impl<T: Frontend> App<T> {
                     })
                     .collect::<anyhow::Result<Vec<_>>>()?;
                 self.context
-                    .set_quickfix_list_source(QuickfixListSource::Custom);
+                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Custom);
             }
             QuickfixListType::Mark => {
                 self.context
-                    .set_quickfix_list_source(QuickfixListSource::Mark);
+                    .set_quickfix_list_source(title.clone(), QuickfixListSource::Mark);
             }
         }
         match context.scope {

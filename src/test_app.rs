@@ -110,6 +110,7 @@ pub(crate) enum ExpectKind {
     ComponentsOrder(Vec<ComponentKind>),
     CurrentComponentTitle(&'static str),
     CurrentSelectionMode(SelectionMode),
+    CurrentGlobalMode(Option<GlobalMode>),
     LspRequestSent(FromEditor),
     CurrentCopiedTextHistoryOffset(isize),
 }
@@ -355,6 +356,7 @@ impl ExpectKind {
                     .editor()
                     .primary_selection()?,
             ),
+            CurrentGlobalMode(expected) => contextualize(expected, &app.context().mode()),
         })
     }
 }
@@ -1035,6 +1037,62 @@ fn global_marks() -> Result<(), anyhow::Error> {
                     None,
                 ),
             ]))),
+        ])
+    })
+}
+
+#[test]
+fn esc_global_quickfix_mode() -> Result<(), anyhow::Error> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar foo bar".to_string())),
+            Editor(ToggleMark),
+            App(OpenFile(s.foo_rs())),
+            Editor(SetContent("foo bar foo bar".to_string())),
+            App(SaveAll),
+            App(UpdateLocalSearchConfig {
+                update: LocalSearchConfigUpdate::Search("bar".to_string()),
+                scope: Scope::Global,
+                show_config_after_enter: false,
+                if_current_not_found: IfCurrentNotFound::LookForward,
+            }),
+            Expect(CurrentGlobalMode(Some(GlobalMode::QuickfixListItem))),
+            Expect(Quickfixes(Box::new([
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: Position::new(0, 4)..Position::new(0, 7),
+                    },
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.foo_rs(),
+                        range: Position::new(0, 12)..Position::new(0, 15),
+                    },
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: Position::new(0, 4)..Position::new(0, 7),
+                    },
+                    None,
+                ),
+                QuickfixListItem::new(
+                    Location {
+                        path: s.main_rs(),
+                        range: Position::new(0, 12)..Position::new(0, 15),
+                    },
+                    None,
+                ),
+            ]))),
+            App(HandleKeyEvent(key!("esc"))),
+            Expect(CurrentGlobalMode(None)),
+            Expect(CurrentSelectionMode(LocalQuickfix {
+                title: "Global search".to_string(),
+            })),
         ])
     })
 }
