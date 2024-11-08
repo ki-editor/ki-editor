@@ -2905,3 +2905,43 @@ fn first_last_subword() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn exchange_till_last() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
+            )),
+            Editor(MatchLiteral("apple: T".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["apple: T"])),
+            Editor(EnterExchangeMode),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentComponentContent(
+                "fn main(foo: T, banana: T, coffee: T, apple: T) {}",
+            )),
+        ])
+    })
+}
+
+#[test]
+fn exchange_till_first() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
+            )),
+            Editor(MatchLiteral("banana: T".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["banana: T"])),
+            Editor(EnterExchangeMode),
+            Editor(MoveSelection(First)),
+            Expect(CurrentComponentContent(
+                "fn main(banana: T, foo: T, apple: T, coffee: T) {}",
+            )),
+        ])
+    })
+}

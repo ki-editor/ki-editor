@@ -1614,8 +1614,44 @@ impl Editor {
         }
     }
 
+    fn make_exchange_action_groups(
+        first_selection: &Selection,
+        first_selection_range: CharIndexRange,
+        first_selection_text: Rope,
+        second_selection_range: CharIndexRange,
+        second_selection_text: Rope,
+    ) -> Vec<ActionGroup> {
+        [
+            ActionGroup::new(
+                [Action::Edit(Edit {
+                    range: first_selection_range,
+                    new: second_selection_text.clone(),
+                })]
+                .to_vec(),
+            ),
+            ActionGroup::new(
+                [
+                    Action::Edit(Edit {
+                        range: second_selection_range,
+                        new: first_selection_text.clone(),
+                    }),
+                    Action::Select(
+                        first_selection.clone().set_range(
+                            (second_selection_range.start
+                                ..(second_selection_range.start
+                                    + first_selection_text.len_chars()))
+                                .into(),
+                        ),
+                    ),
+                ]
+                .to_vec(),
+            ),
+        ]
+        .to_vec()
+    }
+
     /// Replace the next selection with the current selection without
-    /// making the syntax node invalid
+    /// making the syntax node invalid.
     fn replace_faultlessly(
         &mut self,
         selection_mode: &SelectionMode,
@@ -1630,52 +1666,129 @@ impl Editor {
             let text_at_next_selection: Rope = buffer.slice(&next_selection.extended_range())?;
 
             Ok(EditTransaction::from_action_groups(
-                [
-                    ActionGroup::new(
-                        [Action::Edit(Edit {
-                            range: current_selection_range,
-                            new: text_at_next_selection.clone(),
-                        })]
-                        .to_vec(),
-                    ),
-                    ActionGroup::new(
-                        [
-                            Action::Edit(Edit {
-                                range: next_selection.extended_range(),
-                                new: text_at_current_selection.clone(),
-                            }),
-                            Action::Select(
-                                current_selection.clone().set_range(
-                                    (next_selection.extended_range().start
-                                        ..(next_selection.extended_range().start
-                                            + text_at_current_selection.len_chars()))
-                                        .into(),
-                                ),
-                            ),
-                        ]
-                        .to_vec(),
-                    ),
-                ]
-                .to_vec(),
+                Self::make_exchange_action_groups(
+                    current_selection,
+                    current_selection_range,
+                    text_at_current_selection,
+                    next_selection.extended_range(),
+                    text_at_next_selection,
+                ),
             ))
         };
 
-        let edit_transactions = self.selection_set.map(|selection| {
-            self.get_valid_selection(selection, selection_mode, &movement, get_edit_transaction)
-        });
+        let edit_transactions = self
+            .selection_set
+            .map(|selection| {
+                self.get_valid_selection(selection, selection_mode, &movement, get_edit_transaction)
+            })
+            .into_iter()
+            .filter_map(|transaction| transaction.ok())
+            .filter_map(|transaction| transaction.map_right(Some).right_or(None))
+            .collect_vec();
 
-        self.apply_edit_transaction(EditTransaction::merge(
-            edit_transactions
-                .into_iter()
-                .filter_map(|transaction| transaction.ok())
-                .filter_map(|transaction| transaction.map_right(Some).right_or(None))
-                .collect(),
-        ))
+        self.apply_edit_transaction(EditTransaction::merge(edit_transactions))
     }
 
     pub(crate) fn exchange(&mut self, movement: Movement) -> anyhow::Result<Dispatches> {
-        let mode = self.selection_set.mode.clone();
-        self.replace_faultlessly(&mode, movement)
+        match movement {
+            Movement::Last => self.exchange_till_last(),
+            Movement::First => self.exchange_till_first(),
+            _ => self.replace_faultlessly(&self.selection_set.mode.clone(), movement),
+        }
+    }
+
+    /// Exchanges the current selection with the text range from
+    /// the first occurrence until just before the current selection.
+    fn exchange_till_first(&mut self) -> anyhow::Result<Dispatches> {
+        let selection_mode = self.selection_set.mode.clone();
+        let edit_transaction = {
+            let buffer = self.buffer.borrow();
+            EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|current_selection| {
+                        // Select from the first until before current
+                        let selection_mode = selection_mode
+                            .to_selection_mode_trait_object(
+                                &buffer,
+                                current_selection,
+                                &self.cursor_direction,
+                            )
+                            .ok()?;
+
+                        let params = selection_mode::SelectionModeParams {
+                            buffer: &buffer,
+                            current_selection,
+                            cursor_direction: &self.cursor_direction,
+                        };
+                        let first = selection_mode.first(params.clone()).ok()??.range();
+                        // Find the before current selection
+                        let before_current = selection_mode.previous(params).ok()??.range();
+                        let first_range = current_selection.range();
+                        let second_range: CharIndexRange =
+                            (first.start()..before_current.end()).into();
+                        // Exchange the range with the last selection
+                        Some(Self::make_exchange_action_groups(
+                            current_selection,
+                            first_range,
+                            buffer.slice(&first_range).ok()?,
+                            second_range,
+                            buffer.slice(&second_range).ok()?,
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .collect(),
+            )
+        };
+        self.apply_edit_transaction(edit_transaction)
+    }
+
+    /// Exchanges the current selection with the text range from
+    /// just after the current selection until the last occurrence.    
+    fn exchange_till_last(&mut self) -> anyhow::Result<Dispatches> {
+        let selection_mode = self.selection_set.mode.clone();
+        let edit_transaction = {
+            let buffer = self.buffer.borrow();
+            EditTransaction::from_action_groups(
+                self.selection_set
+                    .map(|current_selection| {
+                        let selection_mode = selection_mode
+                            .to_selection_mode_trait_object(
+                                &buffer,
+                                current_selection,
+                                &self.cursor_direction,
+                            )
+                            .ok()?;
+                        let params = selection_mode::SelectionModeParams {
+                            buffer: &buffer,
+                            current_selection,
+                            cursor_direction: &self.cursor_direction,
+                        };
+
+                        // Select from the first until before current
+                        let last = selection_mode.last(params.clone()).ok()??.range();
+                        // Find the before current selection
+                        let after_current = selection_mode.next(params).ok()??.range();
+                        let first_range = current_selection.range();
+                        let second_range: CharIndexRange =
+                            (after_current.start()..last.end()).into();
+                        // Exchange the range with the last selection
+                        Some(Self::make_exchange_action_groups(
+                            current_selection,
+                            first_range,
+                            buffer.slice(&first_range).ok()?,
+                            second_range,
+                            buffer.slice(&second_range).ok()?,
+                        ))
+                    })
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .collect(),
+            )
+        };
+        self.apply_edit_transaction(edit_transaction)
     }
 
     pub(crate) fn add_cursor(&mut self, movement: &Movement) -> anyhow::Result<()> {
