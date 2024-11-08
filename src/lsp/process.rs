@@ -16,7 +16,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::app::AppMessage;
 use crate::utils::consolidate_errors;
@@ -267,13 +267,14 @@ impl LspServerProcess {
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
             server_capabilities: None,
-            app_message_sender,
+            app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
         };
 
         lsp_server_process.initialize()?;
 
-        let join_handle = std::thread::spawn(move || lsp_server_process.listen(receiver));
+        let join_handle =
+            std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
 
         Ok(Some(LspServerProcessChannel {
             language,
@@ -398,11 +399,18 @@ impl LspServerProcess {
         Ok(())
     }
 
-    pub(crate) fn listen(mut self, receiver: Receiver<LspServerProcessMessage>) -> JoinHandle<()> {
+    pub(crate) fn listen(
+        mut self,
+        receiver: Receiver<LspServerProcessMessage>,
+        app_message_sender: Sender<AppMessage>,
+    ) -> JoinHandle<()> {
+        let lsp_command = self.lsp_command();
         let mut stdout_reader = BufReader::new(self.stdout.take().unwrap());
         let mut stderr_reader = BufReader::new(self.stderr.take().unwrap());
         let sender = self.sender.clone();
         let handle = thread::spawn(move || {
+            let mut error_tracker = ErrorTracker::new();
+
             fn read_response(
                 reader: &mut BufReader<process::ChildStdout>,
                 sender: &Sender<LspServerProcessMessage>,
@@ -452,18 +460,31 @@ impl LspServerProcess {
                 Ok(())
             }
             loop {
-                if let Err(error) = read_response(&mut stdout_reader, &sender) {
-                    let mut stderr = String::new();
-                    // Reading the error from stderr is necessary
-                    // If not, subsequent read from stdout might result in infinite loop, due to
-                    // stdout keeps emitting empty lines only
-                    //
-                    // Note: this logic is only tested on Rust Analyzer
-                    let _ = stderr_reader.read_to_string(&mut stderr).map_err(|err| {
-                        log::error!("LspServerResponse::listen failed to read stderr = {err}")
-                    });
-                    log::info!("LspServerProcess::listen::read_response: {}", error);
-                    log::info!("LspServerProcess::listen: stderr = {}", stderr)
+                match read_response(&mut stdout_reader, &sender) {
+                    Ok(()) => error_tracker.handle_success(),
+                    Err(error) => {
+                        match error_tracker.handle_error(error, &mut stderr_reader, &sender) {
+                            false => {
+                                let error = format!(
+                                    "LspServerProcess::listen: Too many consecutive errors ({}).\n\nStopping LSP command:\n\n`{}`",
+                                    ErrorTracker::MAX_CONSECUTIVE_ERRORS,
+                                    lsp_command
+                                );
+                                app_message_sender
+                                    .send(AppMessage::LspNotification(LspNotification::Error(
+                                        error,
+                                    )))
+                                    .unwrap_or_else(|error| {
+                                        log::error!(
+                                            "[LspServerProcess] Error sending error to app: {:?}",
+                                            error
+                                        );
+                                    });
+                                break;
+                            }
+                            true => continue,
+                        }
+                    }
                 }
             }
         });
@@ -814,11 +835,7 @@ impl LspServerProcess {
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
                     "window/logMessage" => {
-                        let command = self
-                            .language
-                            .lsp_process_command()
-                            .map(|command| command.to_string())
-                            .unwrap_or_default();
+                        let command = self.lsp_command();
                         let params: <lsp_notification!("window/logMessage") as Notification>::Params =
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
                         let typ = match params.typ {
@@ -1377,6 +1394,13 @@ impl LspServerProcess {
             log::info!("LspServerProcess::handle_from_editor | error={:?}", error);
         });
     }
+
+    fn lsp_command(&self) -> String {
+        self.language
+            .lsp_process_command()
+            .map(|command| command.to_string())
+            .unwrap_or_default()
+    }
 }
 
 fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
@@ -1389,4 +1413,78 @@ fn path_buf_to_text_document_identifier(
     Ok(TextDocumentIdentifier {
         uri: path_buf_to_url(path)?,
     })
+}
+
+/// `ErrorTracker` is created for preventing infinite error loops in LSP communication.
+///
+/// This exists because some LSP servers can enter states where they continuously emit
+/// invalid data while keeping their pipe open.
+///
+/// It works by implementing a circuit breaker pattern - tracking consecutive errors
+/// and allowing recovery if errors stop for a configured timeout period. If errors
+/// continue beyond the maximum threshold, it breaks the connection to prevent resource waste.
+struct ErrorTracker {
+    consecutive_errors: u32,
+    last_error_time: Instant,
+    max_consecutive_errors: u32,
+    error_reset_timeout: Duration,
+}
+
+impl ErrorTracker {
+    const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+    const ERROR_RESET_TIMEOUT: Duration = Duration::from_secs(30);
+
+    fn new() -> Self {
+        Self {
+            consecutive_errors: 0,
+            last_error_time: Instant::now(),
+            max_consecutive_errors: Self::MAX_CONSECUTIVE_ERRORS,
+            error_reset_timeout: Self::ERROR_RESET_TIMEOUT,
+        }
+    }
+
+    /// Returns true if should continue, false if should break
+    fn handle_error(
+        &mut self,
+        error: anyhow::Error,
+        stderr_reader: &mut BufReader<process::ChildStderr>,
+        sender: &Sender<LspServerProcessMessage>,
+    ) -> bool {
+        let mut stderr = String::new();
+        let _ = stderr_reader
+            .read_to_string(&mut stderr)
+            .map_err(|err| log::error!("LspServerResponse::listen failed to read stderr = {err}"));
+
+        if self.last_error_time.elapsed() > self.error_reset_timeout {
+            self.consecutive_errors = 0;
+        }
+
+        self.consecutive_errors += 1;
+        self.last_error_time = Instant::now();
+
+        log::warn!(
+            "LspServerProcess::listen::read_response error (attempt {}/{}): {}",
+            self.consecutive_errors,
+            self.max_consecutive_errors,
+            error
+        );
+        log::warn!("LspServerProcess::listen: stderr = {}", stderr);
+
+        if self.consecutive_errors >= self.max_consecutive_errors {
+            // Send exit notification
+            let _ = sender.send(LspServerProcessMessage::FromLspServer(serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            })));
+            return false;
+        }
+
+        thread::sleep(Duration::from_millis(100));
+        true
+    }
+
+    fn handle_success(&mut self) {
+        self.consecutive_errors = 0;
+    }
 }
