@@ -44,6 +44,113 @@ string.
             .to_vec(),
         },
         RecipeGroup {
+            filename: "exchange",
+            recipes: [
+                Recipe {
+                    description: "Exchange sibling node",
+                    content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
+                    file_extension: "json",
+                    prepare_events: keys!("^ l"),
+                    events: keys!("s x n n"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["{\"x\": 123}"]),
+                        CurrentComponentContent("[true, {\"y\": {}}, {\"x\": 123}]"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Exchange sibling node",
+                    content: "<x><y>foo</y><div/></x>".trim(),
+                    file_extension: "xml",
+                    prepare_events: keys!("^ l l l"),
+                    events: keys!("s b x n"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["<y>foo</y>"]),
+                        CurrentComponentContent("<x><div/><y>foo</y></x>"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Exchange till the first",
+                    content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
+                    file_extension: "rs",
+                    prepare_events: keys!("/ s p a m enter"),
+                    events: keys!("s x ,"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["spam: S"]),
+                        CurrentComponentContent("fn main(spam: S, foo: F, bar: B, zap: Z) {}"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Exchange till the last",
+                    content: "fn main(foo: F, bar: B, spam: S, zap: Z) {}".trim(),
+                    file_extension: "rs",
+                    prepare_events: keys!("/ b a r enter"),
+                    events: keys!("s x ."),
+                    expectations: &[
+                        CurrentSelectedTexts(&["bar: B"]),
+                        CurrentComponentContent("fn main(foo: F, spam: S, zap: Z, bar: B) {}"),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Exchange distant expressions using jump",
+                    content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("/ x enter"),
+                    events: keys!("s x f ' a"),
+                    expectations: &[CurrentComponentContent(
+                        "if(condition) { 'hello world' } else { x(bar(baz)) }",
+                    )],
+                    terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Exchange body of if-else",
+                    content: r#"
+impl<C> Iterator for PostorderTraverse<C>
+    if c.goto_next_sibling() {
+        // If we successfully go to a sibling of this node, we want to go back down
+        // the tree on the next iteration
+        self.retracing = false;
+    } else {
+        // If we weren't already retracing, we are now; travel upwards until we can
+        // go to the next sibling or reach the root again
+        self.retracing = true;
+        if !c.goto_parent() {
+            // We've reached the root again, and our iteration is done
+            self.cursor = None;
+        }
+    }
+
+    Some(node)
+}
+"#
+                    .trim(),
+                    file_extension: "rs",
+                    prepare_events: &[],
+                    events: keys!(
+                        "/ { enter s x f { b"
+                    ),
+                    expectations: &[],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+           ]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "open",
             recipes: [
                 Recipe {
@@ -698,38 +805,6 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     only: false,
                 },
                 Recipe {
-                    description: "Swapping body of if-else",
-                    content: r#"
-impl<C> Iterator for PostorderTraverse<C>
-    if c.goto_next_sibling() {
-        // If we successfully go to a sibling of this node, we want to go back down
-        // the tree on the next iteration
-        self.retracing = false;
-    } else {
-        // If we weren't already retracing, we are now; travel upwards until we can
-        // go to the next sibling or reach the root again
-        self.retracing = true;
-        if !c.goto_parent() {
-            // We've reached the root again, and our iteration is done
-            self.cursor = None;
-        }
-    }
-
-    Some(node)
-}
-"#
-                    .trim(),
-                    file_extension: "rs",
-                    prepare_events: &[],
-                    events: keys!(
-                        "/ { enter s x f { b"
-                    ),
-                    expectations: &[],
-                    terminal_height: None,
-                    similar_vim_combos: &[],
-                    only: false,
-                },
-                Recipe {
                     description: "Wrap/unwrap the value of each key with Some in a struct",
                     content: r#"
 pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> Self {
@@ -812,34 +887,6 @@ fn recipes() -> Vec<Recipe> {
             prepare_events: keys!("^ l"),
             events: keys!("s n n N N"),
             expectations: &[CurrentSelectedTexts(&["{\"x\": 123}"])],
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Swap sibling node",
-            content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
-            file_extension: "json",
-            prepare_events: keys!("^ l"),
-            events: keys!("s x n n"),
-            expectations: &[
-                CurrentSelectedTexts(&["{\"x\": 123}"]),
-                CurrentComponentContent("[true, {\"y\": {}}, {\"x\": 123}]"),
-            ],
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Swap sibling node",
-            content: "<x><y>foo</y><div/></x>".trim(),
-            file_extension: "xml",
-            prepare_events: keys!("^ l l l"),
-            events: keys!("s b x n"),
-            expectations: &[
-                CurrentSelectedTexts(&["<y>foo</y>"]),
-                CurrentComponentContent("<x><div/><y>foo</y></x>"),
-            ],
             terminal_height: None,
             similar_vim_combos: &[],
             only: false,
@@ -1225,19 +1272,6 @@ foox bar spam",
             events: keys!("w d c I esc"),
             expectations: &[CurrentComponentContent("I am Ki")],
             terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Swap distant expressions using jump",
-            content: "if(condition) { x(bar(baz)) } else { 'hello world' }".trim(),
-            file_extension: "js",
-            prepare_events: keys!("/ x enter"),
-            events: keys!("s x f ' a"),
-            expectations: &[CurrentComponentContent(
-                "if(condition) { 'hello world' } else { x(bar(baz)) }",
-            )],
-            terminal_height: Some(7),
             similar_vim_combos: &[],
             only: false,
         },
