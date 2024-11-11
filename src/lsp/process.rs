@@ -16,7 +16,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{self};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::app::AppMessage;
 use crate::utils::consolidate_errors;
@@ -94,6 +94,7 @@ enum LspServerProcessMessage {
     FromEditor(FromEditor),
     /// Throttled message should be executed immediately
     Throttled(FromEditor),
+    Shutdown,
 }
 
 #[derive(Debug, NamedVariant, Clone, PartialEq)]
@@ -267,13 +268,14 @@ impl LspServerProcess {
             next_request_id: 0,
             pending_response_requests: HashMap::new(),
             server_capabilities: None,
-            app_message_sender,
+            app_message_sender: app_message_sender.clone(),
             sender: sender.clone(),
         };
 
         lsp_server_process.initialize()?;
 
-        let join_handle = std::thread::spawn(move || lsp_server_process.listen(receiver));
+        let join_handle =
+            std::thread::spawn(move || lsp_server_process.listen(receiver, app_message_sender));
 
         Ok(Some(LspServerProcessChannel {
             language,
@@ -398,112 +400,127 @@ impl LspServerProcess {
         Ok(())
     }
 
-    pub(crate) fn listen(mut self, receiver: Receiver<LspServerProcessMessage>) -> JoinHandle<()> {
-        let mut stdout_reader = BufReader::new(self.stdout.take().unwrap());
-        let mut stderr_reader = BufReader::new(self.stderr.take().unwrap());
+    /// Main orchestrator that starts two concurrent loops:
+    /// 1. Spawns a thread to continuously read from LSP server's stdout
+    /// 2. Processes incoming messages from both the stdout reader and editor
+    ///
+    /// Returns the stdout reader thread handle for cleanup
+    pub(crate) fn listen(
+        mut self,
+        receiver: Receiver<LspServerProcessMessage>,
+        app_message_sender: Sender<AppMessage>,
+    ) -> JoinHandle<()> {
+        let lsp_command = self.lsp_command();
+        let stdout_reader = BufReader::new(self.stdout.take().unwrap());
+        let stderr_reader = BufReader::new(self.stderr.take().unwrap());
         let sender = self.sender.clone();
-        let handle = thread::spawn(move || {
-            fn read_response(
-                reader: &mut BufReader<process::ChildStdout>,
-                sender: &Sender<LspServerProcessMessage>,
-            ) -> anyhow::Result<()> {
-                let mut line = String::new();
-                reader
-                    .read_line(&mut line)
-                    .with_context(|| "Failed to read Content-Length")?;
 
-                let content_length = line
-                    .split(':')
-                    .nth(1)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("Parsing Content-Length: Unable to split line.")
-                    })?
-                    .trim()
-                    .parse::<usize>()
-                    .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
+        // Start the stdout reader loop in its own thread
+        let stdout_handle = self.spawn_stdout_reader(
+            stdout_reader,
+            stderr_reader,
+            sender.clone(),
+            app_message_sender.clone(),
+            lsp_command,
+        );
 
-                // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
-                //
-                // ... this means that TWO '\r\n' sequences always immediately precede the content part of a message.
-                //
-                // That's why we have to read an empty line here again.
-                reader
-                    .read_line(&mut line)
-                    .with_context(|| "Failed to read content.")?;
+        // Start the message processor loop in the main thread
+        log::info!("[LspServerProcess] Listening for messages from LSP server");
+        self.process_messages(receiver);
+        log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
 
-                let mut buffer = vec![0; content_length];
-                reader
-                    .read_exact(&mut buffer)
-                    .with_context(|| "Failed to read buffer into vector.")?;
+        stdout_handle
+    }
 
-                let reply = String::from_utf8(buffer)
-                    .with_context(|| "Failed to convert content buffer into String.")?;
+    /// Runs a loop that reads raw LSP protocol messages from stdout
+    /// Handles error tracking/recovery and sends parsed messages to the message processor
+    /// Sends shutdown signal if too many errors occur
+    fn spawn_stdout_reader(
+        &self,
+        mut stdout_reader: BufReader<process::ChildStdout>,
+        mut stderr_reader: BufReader<process::ChildStderr>,
+        sender: Sender<LspServerProcessMessage>,
+        app_message_sender: Sender<AppMessage>,
+        lsp_command: String,
+    ) -> JoinHandle<()> {
+        thread::spawn(move || {
+            let mut error_tracker = ErrorTracker::new();
 
-                // Parse as generic JSON value
-                let reply: serde_json::Value = serde_json::from_str(&reply)
-                    .with_context(|| "Failed to convert content string into JSON value")?;
-
-                sender
-                    .send(LspServerProcessMessage::FromLspServer(reply))
-                    .unwrap_or_else(|error| {
-                        log::error!("[LspServerProcess] Error sending reply: {:?}", error);
-                    });
-
-                Ok(())
-            }
+            // The stdout reader loop
             loop {
-                if let Err(error) = read_response(&mut stdout_reader, &sender) {
-                    let mut stderr = String::new();
-                    // Reading the error from stderr is necessary
-                    // If not, subsequent read from stdout might result in infinite loop, due to
-                    // stdout keeps emitting empty lines only
-                    //
-                    // Note: this logic is only tested on Rust Analyzer
-                    let _ = stderr_reader.read_to_string(&mut stderr).map_err(|err| {
-                        log::error!("LspServerResponse::listen failed to read stderr = {err}")
-                    });
-                    log::info!("LspServerProcess::listen::read_response: {}", error);
-                    log::info!("LspServerProcess::listen: stderr = {}", stderr)
+                match Self::read_response(&mut stdout_reader, &sender) {
+                    Ok(()) => error_tracker.handle_success(),
+                    Err(error) => {
+                        if !error_tracker.handle_error(error, &mut stderr_reader, &sender) {
+                            let error = format!(
+                            "LspServerProcess::listen: Too many consecutive errors ({}).\n\nStopping LSP command:\n\n`{}`",
+                            ErrorTracker::MAX_CONSECUTIVE_ERRORS,
+                            lsp_command
+                        );
+                            app_message_sender
+                                .send(AppMessage::LspNotification(LspNotification::Error(error)))
+                                .unwrap_or_else(|error| {
+                                    log::error!(
+                                        "[LspServerProcess] Error sending error to app: {:?}",
+                                        error
+                                    );
+                                });
+                            sender
+                            .send(LspServerProcessMessage::Shutdown)
+                            .unwrap_or_else(|error| {
+                                log::error!(
+                                    "[LspServerProcess] Error sending Shutdown to the loop outside: {:?}",
+                                    error
+                                );
+                            });
+                            break;
+                        }
+                    }
                 }
             }
-        });
+        })
+    }
 
-        log::info!("[LspServerProcess] Listening for messages from LSP server");
-
+    /// Processes all incoming messages:
+    /// - LSP server responses (from stdout reader)
+    /// - Editor requests (e.g. completions, hover)
+    /// - Throttled requests (debounced editor actions)
+    ///
+    /// Breaks loop when shutdown message received
+    fn process_messages(&mut self, receiver: Receiver<LspServerProcessMessage>) {
+        // Set up event debouncing
         struct Event(FromEditor);
         impl PartialEq for Event {
             fn eq(&self, other: &Self) -> bool {
                 self.0.variant_name() == other.0.variant_name()
             }
         }
-        // Throttle request being sent to LSP server
-        // This is crucial for request such as 'textDocument/completion', 'completionItem/resolve' etc,
-        // which are being fired on every keypress
+
         let debounce = {
             let sender = self.sender.clone();
             EventDebouncer::new(Duration::from_millis(150), move |Event(from_editor)| {
                 sender
-                    .send(LspServerProcessMessage::Throttled(from_editor.clone()))
-                    .unwrap_or_else(|error| {
-                        log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
-                    })
+                .send(LspServerProcessMessage::Throttled(from_editor.clone()))
+                .unwrap_or_else(|error| {
+                    log::info!("LspServerProcess::listen::debounce | Error sending throttled message from_editor={from_editor:?}, error={error:?}");
+                })
             })
         };
+
+        // The message processor loop
         while let Ok(message) = receiver.recv() {
             match &message {
                 LspServerProcessMessage::FromLspServer(json_value) => {
                     self.handle_reply(json_value.clone())
-                        .unwrap_or_else(|error| {
-                            log::info!(
-                                "LspServerProcess::listen | Error handling reply from LSP server, json={:?}, error={:?}",
-                                json_value,
-                                error
-                            );
-                        });
+                    .unwrap_or_else(|error| {
+                        log::info!(
+                            "LspServerProcess::listen | Error handling reply from LSP server, json={:?}, error={:?}",
+                            json_value,
+                            error
+                        );
+                    });
                 }
                 LspServerProcessMessage::FromEditor(from_editor) => match from_editor.clone() {
-                    // We only want to throttle request sent from the editor to the LSP server
-                    // Also, we only want to throttle requests that are fired on every keypresses
                     FromEditor::CompletionItemResolve {
                         completion_item,
                         params,
@@ -511,17 +528,63 @@ impl LspServerProcess {
                         completion_item,
                         params,
                     })),
-                    // Other requests should not be throttled, and hanlded immediately
                     _ => self.handle_from_editor(from_editor),
                 },
                 LspServerProcessMessage::Throttled(from_editor) => {
                     self.handle_from_editor(from_editor)
                 }
+                LspServerProcessMessage::Shutdown => break,
             }
         }
+    }
 
-        log::info!("LspServerProcess::listen | Stopped listening for messages from LSP server");
-        handle
+    /// Handles low-level LSP protocol message parsing:
+    /// 1. Reads Content-Length header
+    /// 2. Reads message content
+    /// 3. Parses JSON
+    /// 4. Sends parsed message back via channel
+    fn read_response(
+        reader: &mut BufReader<process::ChildStdout>,
+        sender: &Sender<LspServerProcessMessage>,
+    ) -> anyhow::Result<()> {
+        let mut line = String::new();
+        reader
+            .read_line(&mut line)
+            .with_context(|| "Failed to read Content-Length")?;
+
+        let content_length = line
+            .split(':')
+            .nth(1)
+            .ok_or_else(|| anyhow::anyhow!("Parsing Content-Length: Unable to split line."))?
+            .trim()
+            .parse::<usize>()
+            .with_context(|| "Parsing Content-Length: Failed to parse number.")?;
+
+        // According to https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#headerPart
+        //
+        // ... this means that TWO '\r\n' sequences always immediately precede the content part of a message.
+        reader
+            .read_line(&mut line)
+            .with_context(|| "Failed to read content.")?;
+
+        let mut buffer = vec![0; content_length];
+        reader
+            .read_exact(&mut buffer)
+            .with_context(|| "Failed to read buffer into vector.")?;
+
+        let reply = String::from_utf8(buffer)
+            .with_context(|| "Failed to convert content buffer into String.")?;
+
+        let reply: serde_json::Value = serde_json::from_str(&reply)
+            .with_context(|| "Failed to convert content string into JSON value")?;
+
+        sender
+            .send(LspServerProcessMessage::FromLspServer(reply))
+            .unwrap_or_else(|error| {
+                log::error!("[LspServerProcess] Error sending reply: {:?}", error);
+            });
+
+        Ok(())
     }
 
     fn handle_reply(&mut self, reply: serde_json::Value) -> anyhow::Result<()> {
@@ -814,11 +877,7 @@ impl LspServerProcess {
                         self.send_reply(request.id, serde_json::Value::Null)?;
                     }
                     "window/logMessage" => {
-                        let command = self
-                            .language
-                            .lsp_process_command()
-                            .map(|command| command.to_string())
-                            .unwrap_or_default();
+                        let command = self.lsp_command();
                         let params: <lsp_notification!("window/logMessage") as Notification>::Params =
                             serde_json::from_value(request.params.ok_or_else(|| anyhow::anyhow!("Missing params"))?)?;
                         let typ = match params.typ {
@@ -1377,6 +1436,13 @@ impl LspServerProcess {
             log::info!("LspServerProcess::handle_from_editor | error={:?}", error);
         });
     }
+
+    fn lsp_command(&self) -> String {
+        self.language
+            .lsp_process_command()
+            .map(|command| command.to_string())
+            .unwrap_or_default()
+    }
 }
 
 fn path_buf_to_url(path: CanonicalizedPath) -> Result<Url, anyhow::Error> {
@@ -1389,4 +1455,141 @@ fn path_buf_to_text_document_identifier(
     Ok(TextDocumentIdentifier {
         uri: path_buf_to_url(path)?,
     })
+}
+
+/// `ErrorTracker` is created for preventing infinite error loops in LSP communication.
+///
+/// This exists because some LSP servers can enter states where they continuously emit
+/// invalid data while keeping their pipe open.
+///
+/// It works by implementing a circuit breaker pattern - tracking consecutive errors
+/// and allowing recovery if errors stop for a configured timeout period. If errors
+/// continue beyond the maximum threshold, it breaks the connection to prevent resource waste.
+struct ErrorTracker {
+    consecutive_errors: u32,
+    last_error_time: Instant,
+    max_consecutive_errors: u32,
+    error_reset_timeout: Duration,
+}
+
+impl ErrorTracker {
+    const MAX_CONSECUTIVE_ERRORS: u32 = 5;
+    const ERROR_RESET_TIMEOUT: Duration = Duration::from_secs(30);
+
+    fn new() -> Self {
+        Self {
+            consecutive_errors: 0,
+            last_error_time: Instant::now(),
+            max_consecutive_errors: Self::MAX_CONSECUTIVE_ERRORS,
+            error_reset_timeout: Self::ERROR_RESET_TIMEOUT,
+        }
+    }
+
+    /// Returns true if should continue, false if should break
+    fn handle_error(
+        &mut self,
+        error: anyhow::Error,
+        stderr_reader: &mut BufReader<process::ChildStderr>,
+        sender: &Sender<LspServerProcessMessage>,
+    ) -> bool {
+        let mut stderr = String::new();
+        let _ = stderr_reader
+            .read_to_string(&mut stderr)
+            .map_err(|err| log::error!("LspServerResponse::listen failed to read stderr = {err}"));
+
+        if self.last_error_time.elapsed() > self.error_reset_timeout {
+            self.consecutive_errors = 0;
+        }
+
+        self.consecutive_errors += 1;
+        self.last_error_time = Instant::now();
+
+        log::warn!(
+            "LspServerProcess::listen::read_response error (attempt {}/{}): {}",
+            self.consecutive_errors,
+            self.max_consecutive_errors,
+            error
+        );
+        log::warn!("LspServerProcess::listen: stderr = {}", stderr);
+
+        if self.consecutive_errors >= self.max_consecutive_errors {
+            // Send exit notification
+            let _ = sender.send(LspServerProcessMessage::FromLspServer(serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "exit",
+                "params": null
+            })));
+            return false;
+        }
+
+        thread::sleep(Duration::from_millis(100));
+        true
+    }
+
+    fn handle_success(&mut self) {
+        self.consecutive_errors = 0;
+    }
+}
+
+#[cfg(test)]
+mod test_lsp_server_process {
+    use super::*;
+    use std::process::Command;
+    use std::sync::mpsc;
+
+    #[test]
+    fn lsp_should_shutdown_after_too_many_consecutive_errors() -> anyhow::Result<()> {
+        let (app_sender, app_receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::channel();
+
+        // Create a process that will output invalid LSP data quickly
+        let mut process = Command::new("sh")
+            .args(["-c", "for i in {1..10}; do echo 'invalid data'; done"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+
+        let stdin = process.stdin.take().unwrap();
+        let stdout = process.stdout.take().unwrap();
+        let stderr = process.stderr.take().unwrap();
+
+        let lsp_process = LspServerProcess {
+            language: Language::default(),
+            stdin,
+            stdout: Some(stdout),
+            stderr: Some(stderr),
+            server_capabilities: None,
+            current_working_directory: std::env::current_dir()?.try_into()?,
+            next_request_id: 0,
+            pending_response_requests: HashMap::new(),
+            app_message_sender: app_sender.clone(),
+            sender,
+        };
+
+        // Start listening in a separate thread
+        let handle = lsp_process.listen(receiver, app_sender);
+
+        // Kill the process before checking for error
+        process.kill()?;
+        process.wait()?;
+
+        // We expect an error message after max consecutive errors
+        match app_receiver.recv_timeout(Duration::from_secs(1)) {
+            Ok(AppMessage::LspNotification(LspNotification::Error(msg))) => {
+                assert!(msg.contains("Too many consecutive errors"));
+            }
+            other => panic!("Expected error notification, got: {:?}", other),
+        }
+
+        // Verify the thread has actually finished by waiting a short time
+        // If join returns Ok, it means the thread completed (loop was escaped)
+        // If it's still running, join_timeout would return Err
+        thread::sleep(Duration::from_secs(1));
+        assert!(
+            handle.is_finished(),
+            "Listen loop didn't escape after max errors"
+        );
+        Ok(())
+    }
 }
