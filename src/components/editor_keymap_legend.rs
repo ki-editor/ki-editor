@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, SurroundKind,
+        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, SurroundKind,
     },
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
 };
@@ -259,24 +259,28 @@ impl Editor {
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Expand)),
                     ),
+                ]
+                .into_iter()
+                .chain(Some(if self.mode == Mode::MultiCursor {
                     Keymap::new(
-                        "K",
-                        "Keep selections matching search".to_string(),
-                        Dispatch::OpenFilterSelectionsPrompt { keep: true },
-                    ),
-                    Keymap::new(
-                        "alt+k",
-                        "Romeve selections matching search".to_string(),
-                        Dispatch::OpenFilterSelectionsPrompt { keep: false },
-                    ),
+                        "m",
+                        "Maintain selections matching search".to_string(),
+                        Dispatch::OpenFilterSelectionsPrompt { maintain: true },
+                    )
+                } else {
                     Keymap::new(
                         "m",
                         "Toggle Mark".to_string(),
                         Dispatch::ToEditor(ToggleMark),
-                    ),
-                ]
-                .into_iter()
-                .chain(Some(if self.selection_set.is_extended() {
+                    )
+                }))
+                .chain(Some(if self.mode == Mode::MultiCursor {
+                    Keymap::new(
+                        "o",
+                        "Keep primary cursor only".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
+                    )
+                } else if self.selection_set.is_extended() {
                     Keymap::new(
                         "o",
                         "Switch extended selection end".to_string(),
@@ -385,54 +389,66 @@ impl Editor {
         };
         KeymapLegendSection {
             title: "Clipboard-related actions".to_string(),
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    "C",
-                    format!("{}{}", "Change Cut", extra),
-                    Dispatch::ToEditor(ChangeCut {
-                        use_system_clipboard,
-                    }),
-                ),
-                Keymap::new(
-                    "p",
-                    format!("{}{}", Direction::End.format_action("Paste"), extra),
-                    Dispatch::ToEditor(Paste {
-                        direction: Direction::End,
-                        use_system_clipboard,
-                    }),
-                ),
-                Keymap::new(
-                    "P",
-                    format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                    Dispatch::ToEditor(Paste {
-                        direction: Direction::Start,
-                        use_system_clipboard,
-                    }),
-                ),
-                Keymap::new(
-                    "r",
-                    format!("{}{}", "Replace", extra),
-                    Dispatch::ToEditor(ReplaceWithCopiedText {
-                        use_system_clipboard,
-                        cut: false,
-                    }),
-                ),
-                Keymap::new(
-                    "R",
-                    format!("{}{}", "Replace Cut", extra),
-                    Dispatch::ToEditor(ReplaceWithCopiedText {
-                        use_system_clipboard,
-                        cut: true,
-                    }),
-                ),
-                Keymap::new(
-                    "y",
-                    format!("{}{}", "Yank (Copy)", extra),
-                    Dispatch::ToEditor(Copy {
-                        use_system_clipboard,
-                    }),
-                ),
-            ]),
+            keymaps: Keymaps::new(
+                &[
+                    Keymap::new(
+                        "C",
+                        format!("{}{}", "Change Cut", extra),
+                        Dispatch::ToEditor(ChangeCut {
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "p",
+                        format!("{}{}", Direction::End.format_action("Paste"), extra),
+                        Dispatch::ToEditor(Paste {
+                            direction: Direction::End,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "P",
+                        format!("{}{}", Direction::Start.format_action("Paste"), extra),
+                        Dispatch::ToEditor(Paste {
+                            direction: Direction::Start,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "R",
+                        format!("{}{}", "Replace Cut", extra),
+                        Dispatch::ToEditor(ReplaceWithCopiedText {
+                            use_system_clipboard,
+                            cut: true,
+                        }),
+                    ),
+                    Keymap::new(
+                        "y",
+                        format!("{}{}", "Yank (Copy)", extra),
+                        Dispatch::ToEditor(Copy {
+                            use_system_clipboard,
+                        }),
+                    ),
+                ]
+                .into_iter()
+                .chain(Some(if self.mode == Mode::MultiCursor {
+                    Keymap::new(
+                        "r",
+                        "Remove selections matching search".to_string(),
+                        Dispatch::OpenFilterSelectionsPrompt { maintain: false },
+                    )
+                } else {
+                    Keymap::new(
+                        "r",
+                        format!("{}{}", "Replace", extra),
+                        Dispatch::ToEditor(ReplaceWithCopiedText {
+                            use_system_clipboard,
+                            cut: false,
+                        }),
+                    )
+                }))
+                .collect_vec(),
+            ),
         }
     }
 
@@ -628,23 +644,35 @@ impl Editor {
 
     pub(crate) fn keymap_movement_actions(&self) -> KeymapLegendSection {
         KeymapLegendSection {
-            keymaps: Keymaps::new(&[
-                Keymap::new(
-                    "~",
-                    "Replace".to_string(),
-                    Dispatch::ToEditor(EnterReplaceMode),
-                ),
-                Keymap::new(
-                    "q",
-                    "Enter Multi-cursor mode".to_string(),
-                    Dispatch::ToEditor(EnterMultiCursorMode),
-                ),
-                Keymap::new(
-                    "x",
-                    "Enter Exchange mode".to_string(),
-                    Dispatch::ToEditor(EnterExchangeMode),
-                ),
-            ]),
+            keymaps: Keymaps::new(
+                &[
+                    Keymap::new(
+                        "~",
+                        "Replace".to_string(),
+                        Dispatch::ToEditor(EnterReplaceMode),
+                    ),
+                    Keymap::new(
+                        "x",
+                        "Enter Exchange mode".to_string(),
+                        Dispatch::ToEditor(EnterExchangeMode),
+                    ),
+                ]
+                .into_iter()
+                .chain(Some(if self.mode == Mode::MultiCursor {
+                    Keymap::new(
+                        "q",
+                        "Add cursor to all selections".to_string(),
+                        Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections),
+                    )
+                } else {
+                    Keymap::new(
+                        "q",
+                        "Enter Multi-cursor mode".to_string(),
+                        Dispatch::ToEditor(EnterMultiCursorMode),
+                    )
+                }))
+                .collect_vec(),
+            ),
             title: "Movement-action submodes".to_string(),
         }
     }
@@ -881,21 +909,6 @@ impl Editor {
                             .collect_vec(),
                         ),
                     }])
-                    .chain(Some(KeymapLegendSection {
-                        title: "Multi-cursor".to_string(),
-                        keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "a",
-                                "Add cursor to all selections".to_string(),
-                                Dispatch::ToEditor(DispatchEditor::CursorAddToAllSelections),
-                            ),
-                            Keymap::new(
-                                "o",
-                                "Keep only primary cursor".to_string(),
-                                Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
-                            ),
-                        ]),
-                    }))
                     .chain(Some(KeymapLegendSection {
                         title: "Misc".to_string(),
                         keymaps: Keymaps::new(&[

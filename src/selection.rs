@@ -124,12 +124,14 @@ impl SelectionSet {
         }))
     }
 
+    /// Returns `false` if no new selection is added
     pub(crate) fn add_selection(
         &mut self,
         buffer: &Buffer,
         direction: &Movement,
         cursor_direction: &Direction,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
+        let initial_selections_length = self.selections.len();
         let last_selection = &self
             .selections
             .get(self.cursor_index)
@@ -166,7 +168,7 @@ impl SelectionSet {
             }
         }
 
-        Ok(())
+        Ok(self.selections.len() > initial_selections_length)
     }
 
     pub(crate) fn all_selections(

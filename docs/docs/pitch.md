@@ -66,7 +66,7 @@ Delete unused imports:
 - `l` (add a cursor to the next selection)
 - `s` (set selection mode to Syntax Node)
 - `d` (delete)
-- `space o` (keep only the primary selection)
+- `q o` (keep only the primary selection)
 
 Again, notice how the commas are removed automatically.
 
