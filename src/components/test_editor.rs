@@ -2945,3 +2945,43 @@ fn exchange_till_first() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn add_cursor_till_first() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
+            )),
+            Editor(MatchLiteral("banana: T".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["banana: T"])),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(First)),
+            Expect(CurrentSelectedTexts(&["foo: T", "apple: T", "banana: T"])),
+        ])
+    })
+}
+
+#[test]
+fn add_cursor_till_last() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn main(foo: T, apple: T, banana: T, coffee: T) {}".to_string(),
+            )),
+            Editor(MatchLiteral("apple: T".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["apple: T"])),
+            Editor(EnterMultiCursorMode),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&[
+                "apple: T",
+                "banana: T",
+                "coffee: T",
+            ])),
+        ])
+    })
+}

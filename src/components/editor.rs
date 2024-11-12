@@ -337,12 +337,13 @@ impl Component for Editor {
             CyclePrimarySelection(direction) => self.cycle_primary_selection(direction),
             SwapExtensionDirection => self.selection_set.swap_initial_range_direction(),
             CollapseSelection(direction) => return self.collapse_selection(context, direction),
-            FilterSelectionMatchingSearch { keep, search } => {
+            FilterSelectionMatchingSearch { maintain, search } => {
+                self.mode = Mode::Normal;
                 return Ok(self.filter_selection_matching_search(
                     context.get_local_search_config(Scope::Local),
                     search,
-                    keep,
-                ))
+                    maintain,
+                ));
             }
             EnterNewline => return self.enter_newline(),
         }
@@ -1792,11 +1793,20 @@ impl Editor {
     }
 
     pub(crate) fn add_cursor(&mut self, movement: &Movement) -> anyhow::Result<()> {
-        self.selection_set.add_selection(
-            &self.buffer.borrow(),
-            movement,
-            &self.cursor_direction,
-        )?;
+        let mut add_selection = |movement: &Movement| {
+            self.selection_set.add_selection(
+                &self.buffer.borrow(),
+                movement,
+                &self.cursor_direction,
+            )
+        };
+        match movement {
+            Movement::First => while let Ok(true) = add_selection(&Movement::Previous) {},
+            Movement::Last => while let Ok(true) = add_selection(&Movement::Next) {},
+            other_movement => {
+                add_selection(other_movement)?;
+            }
+        };
         self.recalculate_scroll_offset();
         Ok(())
     }
@@ -3248,7 +3258,7 @@ pub(crate) enum DispatchEditor {
     CollapseSelection(Direction),
     FilterSelectionMatchingSearch {
         search: String,
-        keep: bool,
+        maintain: bool,
     },
     EnterNewline,
 }

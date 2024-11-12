@@ -735,8 +735,8 @@ impl<T: Frontend> App<T> {
             Dispatch::SetLastActionDescription(description) => {
                 self.last_action_description = Some(description)
             }
-            Dispatch::OpenFilterSelectionsPrompt { keep } => {
-                self.open_filter_selections_prompt(keep)?
+            Dispatch::OpenFilterSelectionsPrompt { maintain } => {
+                self.open_filter_selections_prompt(maintain)?
             }
         }
         Ok(())
@@ -2108,23 +2108,23 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
-    fn open_filter_selections_prompt(&mut self, keep: bool) -> anyhow::Result<()> {
+    fn open_filter_selections_prompt(&mut self, maintain: bool) -> anyhow::Result<()> {
         let config = self.context.get_local_search_config(Scope::Local);
         let mode = config.mode;
         self.open_prompt(
             PromptConfig {
                 title: format!(
                     "{} selections matching search ({})",
-                    if keep { "Keep" } else { "Remove" },
+                    if maintain { "Maintain" } else { "Remove" },
                     mode.display()
                 ),
-                on_enter: DispatchPrompt::FilterSelectionMatchingSearch { keep },
+                on_enter: DispatchPrompt::FilterSelectionMatchingSearch { maintain },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
                 leaves_current_line_empty: true,
                 fire_dispatches_on_change: None,
             },
-            PromptHistoryKey::FilterSelectionsMatchingSearch { keep },
+            PromptHistoryKey::FilterSelectionsMatchingSearch { maintain },
             None,
         )
     }
@@ -2346,7 +2346,7 @@ pub(crate) enum Dispatch {
     UseLastNonContiguousSelectionMode(IfCurrentNotFound),
     SetLastActionDescription(String),
     OpenFilterSelectionsPrompt {
-        keep: bool,
+        maintain: bool,
     },
 }
 
@@ -2470,7 +2470,7 @@ pub(crate) enum DispatchPrompt {
     SetContent,
     PipeToShell,
     FilterSelectionMatchingSearch {
-        keep: bool,
+        maintain: bool,
     },
 }
 impl DispatchPrompt {
@@ -2566,9 +2566,9 @@ impl DispatchPrompt {
                     command: text.to_string(),
                 },
             ))),
-            DispatchPrompt::FilterSelectionMatchingSearch { keep } => Ok(Dispatches::one(
+            DispatchPrompt::FilterSelectionMatchingSearch { maintain } => Ok(Dispatches::one(
                 Dispatch::ToEditor(DispatchEditor::FilterSelectionMatchingSearch {
-                    keep,
+                    maintain,
                     search: text.to_string(),
                 }),
             )),

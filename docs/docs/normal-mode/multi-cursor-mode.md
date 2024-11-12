@@ -5,32 +5,61 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 Keybinding: `q`  
 Reason: `q` is used to start recording a macro in Vim, but I realized 80% of the time what I need is multi-cursors, not a macro.
 
-### Movements
+Multi-cursor mode works through two main mechanisms: [Movement](./core-movements.mdx) and [Selection Mode](./selection-modes).
 
-In the Multi-cursor submode, every core movement means:
+Unlike other editors where there are specific keybindings for adding cursors in specific ways,
+Ki gives you the freedom to add cursors by either:
 
-> Add cursor with \<movement\>
+- Using Movement commands to place additional cursors
+- Changing the Selection Mode to split existing selections into multiple cursors
 
-Use the following text as an example:
+This flexibility allows you to:
 
-```txt
-hello ki, hello vim, hello helix
-```
+1. Add a cursor to the next word
+2. Add cursors until the last line
+3. Add a cursor to the previous diagnostic
+4. Add a cursor to an oddly specific place
+5. Add cursors to all lines within current selection(s)
 
-Suppose:
+These are just examples - the true power of multi-cursor mode comes from combining Movement and Selection Mode in creative ways. Unleash your imagination!
 
-- The current selection mode is [Find Literal "hello"](./selection-modes/local-global/text-search.md#1-literal)
-- The current selection is the first `hello`
-- The current submode is Multi-cursor
+## 1. Movements
 
-... then executing [Next][1] adds a new cursor to the second `hello`.
+In the Multi-cursor mode, every core movement means:
 
-### Selection Mode Changes
+> Add a cursor with \<movement\>
 
-In the Multi-cursor submode, changing the selection mode means:
+<TutorialFallback filename="add-cursor-with-movement"/>
 
-> Split each selections by the new selection mode
+## 2. Selection Mode Changes
+
+In the Multi-cursor mode, changing the selection mode means:
+
+> Split each selection by the new selection mode
 
 <TutorialFallback filename="split-selections"/>
 
 [1]: ./core-movements.mdx#leftright
+
+## 3. Filter selections
+
+Keybindings:
+
+- `m`: Maintain matching selections
+- `r`: Remove matching selections
+
+This is only used when there's more than 1 selection/cursor, and you want to remove some selections.
+
+<TutorialFallback filename="filter-matching-selections"/>
+
+## 4. Add to all matching selections
+
+Keybinding: `q`
+
+<TutorialFallback filename="add-cursor-to-all-matching-selections"/>
+
+## 5. Keep primary cursor only
+
+Keybinding: `o`
+
+<TutorialFallback filename="keep-primary-cursor-only"/>

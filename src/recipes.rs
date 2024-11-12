@@ -1,6 +1,7 @@
 use my_proc_macros::keys;
 
 use crate::{
+    components::editor::Mode,
     generate_recipes::{Recipe, RecipeGroup},
     test_app::*,
 };
@@ -415,11 +416,87 @@ foo ha"
                         .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("e v j q / f o o enter w q W alt+k - enter"),
+                    events: keys!("e v j q / f o o enter w q W q r - enter"),
                     expectations: &[CurrentSelectedTexts(&[
                         "foo", "da", "foo", "baz", "foo", "yo",
                     ])],
                     terminal_height: Some(7),
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "add-cursor-with-movement",
+            recipes: [
+                Recipe {
+                    description: "Add cursor to the next selections",
+                    content: "foo bar spam baz"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w q l l"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["foo", "bar", "spam"]),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Add cursor to the previous selections",
+                    content: "foo bar spam baz"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w . q h h"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["bar", "spam", "baz"]),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Add cursor to any places (with Jump)",
+                    content: "alpha beta gamma omega"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w q f g"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["alpha", "gamma"]),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Add cursor till the last selection",
+                    content: "alpha beta gamma omega zeta"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w l q ."),
+                    expectations: &[
+                        CurrentSelectedTexts(&["beta", "gamma", "omega", "zeta"]),
+                    ],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Add cursor till the first selection",
+                    content: "alpha beta gamma omega zeta"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: keys!("/ z enter"),
+                    events: keys!("w h q ,"),
+                    expectations: &[
+                        CurrentSelectedTexts(&["alpha","beta", "gamma", "omega"]),
+                    ],
+                    terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
                 },
@@ -596,7 +673,7 @@ pub(crate) fn get_selection_mode_trait_object(
 "#,
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("' n / s e l e c t i o n space m o d e enter ' r f o o space b a r enter ctrl+c space a ctrl+r space o"),
+                    events: keys!("' n / s e l e c t i o n space m o d e enter ' r f o o space b a r enter ctrl+c q q ctrl+r q o"),
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -659,7 +736,7 @@ pub(crate) fn get_selection_mode_trait_object(
             filename: "filter-matching-selections",
             recipes: [
             Recipe {
-                description: "Keep matching selections",
+                description: "Maintain matching selections",
                 content: "
     enum Foo {
        Bar(baz),
@@ -672,11 +749,14 @@ pub(crate) fn get_selection_mode_trait_object(
                 .trim(),
                 file_extension: "rs",
                 prepare_events: keys!("/ b enter"),
-                events: keys!("s space a K / / enter"),
-                expectations: &[CurrentSelectedTexts(&[
-                    "/// Spam is good\n",
-                    "/// Fifa means filifala\n",
-                ])],
+                events: keys!("s q q q m / / enter"),
+                expectations: &[
+                    CurrentSelectedTexts(&[
+                        "/// Spam is good\n",
+                        "/// Fifa means filifala\n",
+                    ]),
+                    CurrentMode(Mode::Normal)
+                ],
                 terminal_height: None,
                 similar_vim_combos: &[],
                 only: false,
@@ -695,7 +775,7 @@ pub(crate) fn get_selection_mode_trait_object(
                     .trim(),
                     file_extension: "rs",
                     prepare_events: keys!("/ b enter"),
-                    events: keys!("s space a alt+k / / enter"),
+                    events: keys!("s q q q r / / enter"),
                     expectations: &[CurrentSelectedTexts(&[
                         "Bar(baz)",
                         "Spam { what: String }",
@@ -704,7 +784,54 @@ pub(crate) fn get_selection_mode_trait_object(
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
-                }].to_vec(),
+            }].to_vec(),
+        },
+        RecipeGroup {
+            filename: "add-cursor-to-all-matching-selections",
+            recipes: [
+            Recipe {
+            description: "Example",
+            content: "
+foo bar spam
+spam foo bar
+bar spam foo
+foo bar spam
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("w * q q a x"),
+            expectations: &[CurrentComponentContent(
+                "foox bar spam
+spam foox bar
+bar spam foox
+foox bar spam",
+            )],
+            terminal_height: None,
+            similar_vim_combos: &[],
+            only: false,
+        }].to_vec(),
+        },
+        RecipeGroup {
+            filename: "keep-primary-cursor-only",
+            recipes: [
+            Recipe {
+            description: "Example",
+            content: "
+foo bar spam
+spam foo bar
+bar spam foo
+foo bar spam
+"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("w * q q q o"),
+            expectations: &[CurrentSelectedTexts(&["foo"])],
+            terminal_height: None,
+            similar_vim_combos: &[],
+            only: false,
+        }].to_vec(),
         },
         RecipeGroup {
             filename: "recipes",
@@ -764,7 +891,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     .trim(),
                     file_extension: "rs",
                     prepare_events: &[],
-                    events: keys!("/ p r i n t enter space a s d"),
+                    events: keys!("/ p r i n t enter q q s d"),
                     expectations: &[],
                     terminal_height: None,
                     similar_vim_combos: &[],
@@ -797,7 +924,7 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     file_extension: "md",
                     prepare_events: &[],
                     events: keys!(
-                        "' x / ^ - space backslash [ space backslash ] enter space a s y d e . p a backspace"
+                        "' x / ^ - space backslash [ space backslash ] enter q q s y d e . p a backspace"
                     ),
                     expectations: &[],
                     terminal_height: None,
@@ -833,7 +960,7 @@ pub(crate) fn from_text(language: Option<tree_sitter::Language>, text: &str) -> 
                     file_extension: "rs",
                     prepare_events: &[],
                     events: keys!(
-                        "/ y x enter s space a b n v s ( i S o m e esc s b n n T space o"
+                        "/ y x enter s q q b n v s ( i S o m e esc s b n n T q o"
                     ),
                     expectations: &[],
                     terminal_height: None,
@@ -1226,28 +1353,6 @@ foo bar spam
 spam foox bar
 bar spam foox
 foo bar spam",
-            )],
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
-        Recipe {
-            description: "Multi-cursor: Select all matches",
-            content: "
-foo bar spam
-spam foo bar
-bar spam foo
-foo bar spam
-"
-            .trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("w * space a a x"),
-            expectations: &[CurrentComponentContent(
-                "foox bar spam
-spam foox bar
-bar spam foox
-foox bar spam",
             )],
             terminal_height: None,
             similar_vim_combos: &[],

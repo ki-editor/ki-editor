@@ -62,17 +62,6 @@ For example, the search query `stb 'wild` matches `wild-serbian-bear-tiger` and 
 
 Because [every component is a buffer/editor](../core-concepts.md#2-every-component-is-a-buffereditor), fuzzy search logic is also used for filtering LSP completions.
 
-## Multi-cursor
-
-| Keybinding | Action                                                               |
-| ---------- | -------------------------------------------------------------------- |
-| `a`        | Add cursor to all selections in the current [selection mode][1] [^1] |
-| `o`        | Keeps **o**nly the primary selections                                |
-
-[1]: ./selection-modes/index.md
-
-[^1]: Especially useful when used with [Text Search](./selection-modes/local-global/text-search.md) or [Syntax Node](./selection-modes/syntax-node-based.md).
-
 ## Opening other components
 
 | Keybinding | Action                                   |
