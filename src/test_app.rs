@@ -746,7 +746,6 @@ fn multi_paste() -> anyhow::Result<()> {
                 use_system_clipboard: false,
                 copied_texts: CopiedTexts::one(".hello".to_owned()),
             }),
-            Expect(CurrentMode(Mode::Insert)),
             Editor(Paste {
                 direction: Direction::End,
                 use_system_clipboard: false,

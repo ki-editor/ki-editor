@@ -346,6 +346,7 @@ impl Component for Editor {
                 ));
             }
             EnterNewline => return self.enter_newline(),
+            DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
         }
         Ok(Default::default())
     }
@@ -2315,6 +2316,7 @@ impl Editor {
     }
 
     pub(crate) fn add_cursor_to_all_selections(&mut self) -> Result<(), anyhow::Error> {
+        self.mode = Mode::Normal;
         self.selection_set
             .add_all(&self.buffer.borrow(), &self.cursor_direction)?;
         self.recalculate_scroll_offset();
@@ -2322,6 +2324,7 @@ impl Editor {
     }
 
     pub(crate) fn cursor_keep_primary_only(&mut self) {
+        self.mode = Mode::Normal;
         self.selection_set.only();
     }
 
@@ -3132,6 +3135,10 @@ impl Editor {
         });
         Ok(copy_dispatches.chain(self.apply_edit_transaction(edit_transaction)?))
     }
+
+    fn delete_current_cursor(&mut self, direction: Direction) {
+        self.selection_set.delete_current_selection(direction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3261,6 +3268,7 @@ pub(crate) enum DispatchEditor {
         maintain: bool,
     },
     EnterNewline,
+    DeleteCurrentCursor(Direction),
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

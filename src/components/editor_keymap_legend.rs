@@ -240,16 +240,6 @@ impl Editor {
                     ),
                     Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
                     Keymap::new(
-                        "d",
-                        Direction::End.format_action("Delete"),
-                        Dispatch::ToEditor(Delete(Direction::End)),
-                    ),
-                    Keymap::new(
-                        "D",
-                        Direction::Start.format_action("Delete"),
-                        Dispatch::ToEditor(Delete(Direction::Start)),
-                    ),
-                    Keymap::new(
                         "J",
                         "Join".to_string(),
                         Dispatch::ToEditor(Transform(Transformation::Join)),
@@ -261,19 +251,45 @@ impl Editor {
                     ),
                 ]
                 .into_iter()
-                .chain(Some(if self.mode == Mode::MultiCursor {
-                    Keymap::new(
-                        "m",
-                        "Maintain selections matching search".to_string(),
-                        Dispatch::OpenFilterSelectionsPrompt { maintain: true },
-                    )
+                .chain(if self.mode == Mode::MultiCursor {
+                    [
+                        Keymap::new(
+                            "d",
+                            Direction::End.format_action("Delete primary cursor"),
+                            Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
+                        ),
+                        Keymap::new(
+                            "D",
+                            Direction::Start.format_action("Delete primary cursor"),
+                            Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
+                        ),
+                        Keymap::new(
+                            "m",
+                            "Maintain selections matching search".to_string(),
+                            Dispatch::OpenFilterSelectionsPrompt { maintain: true },
+                        ),
+                    ]
+                    .to_vec()
                 } else {
-                    Keymap::new(
-                        "m",
-                        "Toggle Mark".to_string(),
-                        Dispatch::ToEditor(ToggleMark),
-                    )
-                }))
+                    [
+                        Keymap::new(
+                            "d",
+                            Direction::End.format_action("Delete"),
+                            Dispatch::ToEditor(Delete(Direction::End)),
+                        ),
+                        Keymap::new(
+                            "D",
+                            Direction::Start.format_action("Delete"),
+                            Dispatch::ToEditor(Delete(Direction::Start)),
+                        ),
+                        Keymap::new(
+                            "m",
+                            "Toggle Mark".to_string(),
+                            Dispatch::ToEditor(ToggleMark),
+                        ),
+                    ]
+                    .to_vec()
+                })
                 .chain(Some(if self.mode == Mode::MultiCursor {
                     Keymap::new(
                         "o",

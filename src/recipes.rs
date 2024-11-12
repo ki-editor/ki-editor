@@ -800,13 +800,11 @@ foo bar spam
             .trim(),
             file_extension: "md",
             prepare_events: &[],
-            events: keys!("w * q q a x"),
-            expectations: &[CurrentComponentContent(
-                "foox bar spam
-spam foox bar
-bar spam foox
-foox bar spam",
-            )],
+            events: keys!("w * q q"),
+            expectations: &[
+                CurrentSelectedTexts(&["foo", "foo", "foo", "foo"]),
+                CurrentMode(Mode::Normal)
+            ],
             terminal_height: None,
             similar_vim_combos: &[],
             only: false,
@@ -827,10 +825,26 @@ foo bar spam
             file_extension: "md",
             prepare_events: &[],
             events: keys!("w * q q q o"),
-            expectations: &[CurrentSelectedTexts(&["foo"])],
+            expectations: &[CurrentSelectedTexts(&["foo"]), CurrentMode(Mode::Normal)],
             terminal_height: None,
             similar_vim_combos: &[],
             only: false,
+        }].to_vec(),
+        },
+        RecipeGroup {
+            filename: "delete-cursor",
+            recipes: [
+            Recipe {
+            description: "Example",
+            content: "foo bar spam baz cam zeta om"
+            .trim(),
+            file_extension: "md",
+            prepare_events: &[],
+            events: keys!("w q q ) ) ) q d d D D"),
+            expectations: &[CurrentSelectedTexts(&["foo", "bar", "om"])],
+            terminal_height: None,
+            similar_vim_combos: &[],
+            only: true,
         }].to_vec(),
         },
         RecipeGroup {

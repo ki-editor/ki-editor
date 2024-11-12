@@ -361,6 +361,31 @@ impl SelectionSet {
     pub(crate) fn selections(&self) -> &NonEmpty<Selection> {
         &self.selections
     }
+
+    pub(crate) fn delete_current_selection(&mut self, direction: Direction) {
+        let index = self.cursor_index;
+        match self
+            .selections
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| index != &self.cursor_index)
+            .map(|(_, selection)| selection.clone())
+            .collect_vec()
+            .split_first()
+        {
+            Some((head, tail)) => {
+                self.selections = NonEmpty {
+                    head: head.clone(),
+                    tail: tail.to_vec(),
+                }
+            }
+            _ => return,
+        }
+        self.cursor_index = match direction {
+            Direction::Start => index.saturating_sub(1),
+            Direction::End => index.min(self.selections.len() - 1),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
