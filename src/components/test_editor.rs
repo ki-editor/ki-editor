@@ -2985,3 +2985,59 @@ fn add_cursor_till_last() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn delete_cursor_forward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn main(foo: T, apple: T, coffee: T) {}".to_string(),
+            )),
+            Editor(MatchLiteral("apple: T".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["apple: T"])),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo: T", "apple: T", "coffee: T"])),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("apple: T")),
+            Editor(DeleteCurrentCursor(Direction::End)),
+            Expect(CurrentSelectedTexts(&["foo: T", "coffee: T"])),
+            Expect(CurrentPrimarySelection("coffee: T")),
+            Editor(DeleteCurrentCursor(Direction::End)),
+            Expect(CurrentSelectedTexts(&["foo: T"])),
+            Expect(CurrentPrimarySelection("foo: T")),
+            Editor(DeleteCurrentCursor(Direction::End)),
+            Expect(CurrentSelectedTexts(&["foo: T"])),
+            Expect(CurrentPrimarySelection("foo: T")),
+        ])
+    })
+}
+
+#[test]
+fn delete_cursor_backward() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "fn main(foo: T, apple: T, coffee: T) {}".to_string(),
+            )),
+            Editor(MatchLiteral("apple: T".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Expect(CurrentSelectedTexts(&["apple: T"])),
+            Editor(CursorAddToAllSelections),
+            Expect(CurrentSelectedTexts(&["foo: T", "apple: T", "coffee: T"])),
+            Editor(CyclePrimarySelection(Direction::End)),
+            Expect(CurrentPrimarySelection("apple: T")),
+            Editor(DeleteCurrentCursor(Direction::Start)),
+            Expect(CurrentSelectedTexts(&["foo: T", "coffee: T"])),
+            Expect(CurrentPrimarySelection("foo: T")),
+            Editor(DeleteCurrentCursor(Direction::Start)),
+            Expect(CurrentSelectedTexts(&["coffee: T"])),
+            Expect(CurrentPrimarySelection("coffee: T")),
+            Editor(DeleteCurrentCursor(Direction::Start)),
+            Expect(CurrentSelectedTexts(&["coffee: T"])),
+            Expect(CurrentPrimarySelection("coffee: T")),
+        ])
+    })
+}

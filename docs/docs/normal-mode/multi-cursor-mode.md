@@ -63,3 +63,12 @@ Keybinding: `q`
 Keybinding: `o`
 
 <TutorialFallback filename="keep-primary-cursor-only"/>
+
+## 6. Delete primary cursor
+
+Keybindings:
+
+- `d`: Delete primary cursor forward
+- `D`: Delete primary cursor backward
+
+<TutorialFallback filename="delete-cursor"/>
