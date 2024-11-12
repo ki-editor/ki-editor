@@ -844,7 +844,7 @@ foo bar spam
             expectations: &[CurrentSelectedTexts(&["foo", "bar", "om"])],
             terminal_height: None,
             similar_vim_combos: &[],
-            only: true,
+            only: false,
         }].to_vec(),
         },
         RecipeGroup {
