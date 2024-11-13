@@ -3041,3 +3041,18 @@ fn delete_cursor_backward() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn break_selection() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("hello world\n\tbar spam".to_string())),
+            Editor(MatchLiteral("spam".to_string())),
+            Editor(BreakSelection),
+            Editor(BreakSelection),
+            Expect(CurrentSelectedTexts(&["spam"])),
+            Expect(CurrentComponentContent("hello world\n\tbar\n\t\n\tspam")),
+        ])
+    })
+}

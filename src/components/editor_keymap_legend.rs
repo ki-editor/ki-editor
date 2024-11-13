@@ -244,6 +244,7 @@ impl Editor {
                         "Join".to_string(),
                         Dispatch::ToEditor(Transform(Transformation::Join)),
                     ),
+                    Keymap::new("K", "Break".to_string(), Dispatch::ToEditor(BreakSelection)),
                     Keymap::new(
                         "T",
                         "Raise".to_string(),

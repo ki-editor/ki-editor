@@ -347,6 +347,7 @@ impl Component for Editor {
             }
             EnterNewline => return self.enter_newline(),
             DeleteCurrentCursor(direction) => self.delete_current_cursor(direction),
+            BreakSelection => return self.break_selection(),
         }
         Ok(Default::default())
     }
@@ -3139,6 +3140,75 @@ impl Editor {
     fn delete_current_cursor(&mut self, direction: Direction) {
         self.selection_set.delete_current_selection(direction)
     }
+
+    fn break_selection(&mut self) -> anyhow::Result<Dispatches> {
+        let edit_transaction = EditTransaction::from_action_groups({
+            let buffer = self.buffer();
+            self.selection_set
+                .map(|selection| -> anyhow::Result<_> {
+                    let select_range = selection.extended_range();
+
+                    let line_index = buffer.char_to_line(select_range.start)?;
+                    let line_char_index = buffer.line_to_char(line_index)?;
+                    let indentation: String = {
+                        let line = buffer
+                            .get_line_by_line_index(line_index)
+                            .map(|slice| slice.to_string())
+                            .unwrap_or_default();
+                        line.chars().take_while(|c| c.is_whitespace()).collect()
+                    };
+                    let current = buffer
+                        .slice(&select_range)
+                        .map(|slice| slice.to_string())
+                        .unwrap_or_default();
+
+                    // The edit range should include the leading whitespaces of the current selection
+                    // if the current selection is not befored by purely whitespaces
+                    let edit_range = {
+                        let line_leading_content = buffer
+                            .slice(&(line_char_index..select_range.start).into())?
+                            .to_string();
+
+                        let leading_whitespaces_count = line_leading_content
+                            .chars()
+                            .rev()
+                            .take_while(|c| c.is_whitespace())
+                            .count();
+
+                        if leading_whitespaces_count < line_leading_content.chars().count() {
+                            ((select_range.start - leading_whitespaces_count)..select_range.end)
+                                .into()
+                        } else {
+                            select_range
+                        }
+                    };
+
+                    Ok([
+                        ActionGroup::new(
+                            [Action::Edit(Edit {
+                                range: edit_range,
+                                new: format!("\n{}{}", indentation, current).into(),
+                            })]
+                            .to_vec(),
+                        ),
+                        ActionGroup::new(
+                            [Action::Select(
+                                selection
+                                    .clone()
+                                    .set_range(select_range)
+                                    .set_initial_range(None),
+                            )]
+                            .to_vec(),
+                        ),
+                    ])
+                })
+                .into_iter()
+                .flatten()
+                .flatten()
+                .collect()
+        });
+        self.apply_edit_transaction(edit_transaction)
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug)]
@@ -3269,6 +3339,7 @@ pub(crate) enum DispatchEditor {
     },
     EnterNewline,
     DeleteCurrentCursor(Direction),
+    BreakSelection,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]

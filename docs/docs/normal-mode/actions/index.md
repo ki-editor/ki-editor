@@ -112,6 +112,16 @@ Joins multiple lines within the current selection(s) into a single line.
 
 <TutorialFallback filename="join"/>
 
+## Break
+
+Keybinding: `K`
+
+Break the current selection(s) to the next line, with the indentation of the current line.
+
+This is a shortcut of `i enter esc`.
+
+<TutorialFallback filename="break"/>
+
 ## Transform
 
 Keybinding: `!`

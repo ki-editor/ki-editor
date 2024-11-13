@@ -19,7 +19,7 @@ fn main() -> usize {
 }
 ```
 
-... you cannot just [Raise](./normal-mode/actions/index.mdx#raise) `123`, as that would do nothing since replacing the block with `123` introduces syntax error.
+... you cannot just [Raise](./normal-mode/actions/index.md#raise) `123`, as that would do nothing since replacing the block with `123` introduces syntax error.
 
 To make that work, surround `123` with curly brackets (by pressing `v s {` [^1]) before raising.
 
