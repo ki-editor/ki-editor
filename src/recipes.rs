@@ -61,7 +61,7 @@ def foo():
     spam = 2;")],
                 terminal_height: Some(7),
                 similar_vim_combos: &[],
-                only: true,
+                only: false,
             }]
             .to_vec(),
         },
