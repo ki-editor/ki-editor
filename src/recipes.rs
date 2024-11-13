@@ -45,6 +45,27 @@ string.
             .to_vec(),
         },
         RecipeGroup {
+            filename: "break",
+            recipes: [Recipe {
+                description: "Example",
+                content: "
+def foo():
+    bar = 1; spam = 2;"
+                .trim(),
+                file_extension: "md",
+                prepare_events: keys!("/ s p a m enter"),
+                events: keys!("K K"),
+                expectations: &[CurrentSelectedTexts(&["spam"]), CurrentComponentContent("def foo():
+    bar = 1;
+    
+    spam = 2;")],
+                terminal_height: Some(7),
+                similar_vim_combos: &[],
+                only: false,
+            }]
+            .to_vec(),
+        },
+        RecipeGroup {
             filename: "exchange",
             recipes: [
                 Recipe {
