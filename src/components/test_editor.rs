@@ -3056,3 +3056,17 @@ fn break_selection() -> anyhow::Result<()> {
         ])
     })
 }
+
+#[test]
+fn syntax_node_move_right_should_move_to_non_overlapping_node() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("fn main(a: A, b: B) {}".to_string())),
+            Editor(MatchLiteral("a: A".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
+            Editor(MoveSelection(Right)),
+            Expect(CurrentSelectedTexts(&[","])),
+        ])
+    })
+}

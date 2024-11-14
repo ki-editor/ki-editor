@@ -66,7 +66,7 @@ You only have to memorize the movement keybindings once, and then the selection 
 Once you've learned the Ki keybindings, it's tough to look back (at least for me).
 
 Note that the Ki keybindings cannot be simply implemented in Vim/Helix via key-
-remapping, due to the lack of the concept of [Selelection Mode][1], and implementing
+remapping, due to the lack of the concept of [Selection Mode][1], and implementing
 that requires major architectural changes in the core.
 
 [^4]: With [vim-unimpaired](https://github.com/tpope/vim-unimpaired).

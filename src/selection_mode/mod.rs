@@ -543,7 +543,7 @@ pub trait SelectionMode {
             .iter_filtered(params)?
             .sorted()
             .find(|range| {
-                range.range.start > byte_range.start
+                range.range.start >= byte_range.end
                     || (range.range.start == byte_range.start && range.range.end > byte_range.end)
             })
             .and_then(|range| range.to_selection(buffer, &current_selection).ok()))
@@ -721,7 +721,7 @@ mod test_selection_mode {
             _: super::SelectionModeParams<'a>,
         ) -> anyhow::Result<Box<dyn Iterator<Item = super::ByteRange> + 'a>> {
             Ok(Box::new(
-                [(0..6), (1..6), (2..5), (3..4), (3..5)]
+                [(0..6), (1..6), (2..5), (3..4), (3..5), (6..10)]
                     .into_iter()
                     .map(ByteRange::new),
             ))
@@ -765,10 +765,7 @@ mod test_selection_mode {
 
     #[test]
     fn next() {
-        test(Movement::Right, 0..6, 1..6);
-        test(Movement::Right, 1..6, 2..5);
-        test(Movement::Right, 2..5, 3..4);
-        test(Movement::Right, 3..4, 3..5);
+        test(Movement::Right, 0..6, 6..10);
     }
 
     #[test]
@@ -778,7 +775,7 @@ mod test_selection_mode {
 
     #[test]
     fn last() {
-        test(Movement::Last, 0..0, 3..5);
+        test(Movement::Last, 0..0, 6..10);
     }
 
     #[test]
@@ -883,7 +880,7 @@ mod test_selection_mode {
             .unwrap()
             .selection
             .range();
-        let expected: CharIndexRange = (CharIndex(3)..CharIndex(4)).into();
+        let expected: CharIndexRange = (CharIndex(6)..CharIndex(10)).into();
 
         assert_eq!(expected, actual);
     }
