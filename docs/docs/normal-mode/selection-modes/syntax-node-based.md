@@ -2,6 +2,8 @@
 sidebar_position: 2
 ---
 
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
 # Syntax Node-based
 
 The following selection modes are based on the syntax node of the file, which are
@@ -20,13 +22,14 @@ There are two Syntax Node selection modes:
 
 Keybinding: `s`
 
-| Movement                                           | Meaning                              |
-| -------------------------------------------------- | ------------------------------------ |
-| [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous **named** sibling node |
-| Expand                                             | Parent node                          |
-| Shrink                                             | First **named** child                |
-| Current                                            | Select the largest node              |
-| Jump                                               | Jump to largest node                 |
+| Movement                                            | Meaning                                                               |
+| --------------------------------------------------- | --------------------------------------------------------------------- |
+| [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous **named** sibling node                                  |
+| Expand                                              | Parent node                                                           |
+| Shrink                                              | First **named** child                                                 |
+| Current                                             | Select the largest node                                               |
+| Jump                                                | Jump to largest node                                                  |
+| Right                                               | Select the nearest non-overlapping largest node to the right or below |
 
 ### Largest Node
 
@@ -57,18 +60,22 @@ Previous/Next movement in Syntax Node.
 
 See more at [https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes](https://tree-sitter.github.io/tree-sitter/using-parsers#named-vs-anonymous-nodes).
 
+### Examples
+
+<TutorialFallback filename="syntax-node"/>
+
 ## Fine Syntax Node
 
 Keybinding: `S`  
 Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-to-press key.
 
-| Movement                                           | Meaning                                          |
-| -------------------------------------------------- | ------------------------------------------------ |
+| Movement                                            | Meaning                                          |
+| --------------------------------------------------- | ------------------------------------------------ |
 | [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous sibling node                       |
-| Expand                                             | Parent node                                      |
-| Shrink                                             | First child                                      |
-| Current                                            | Smallest node that matches the current selection |
-| Jump                                               | Jump to smallest node                            |
+| Expand                                              | Parent node                                      |
+| Shrink                                              | First child                                      |
+| Current                                             | Smallest node that matches the current selection |
+| Jump                                                | Jump to smallest node                            |
 
 Fine Syntax Node is useful when you start to expand the selection starting from the current token.
 
