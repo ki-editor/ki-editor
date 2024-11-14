@@ -861,7 +861,12 @@ impl Buffer {
             }
             LocalSearchConfigMode::Regex(regex_config) => {
                 let regex = regex_config.to_regex(&config.search())?;
-                let replaced = regex.replace_all(&before, config.replacement()).to_string();
+                let replaced = regex
+                    // We use `try_replacen` instead of `replace_all`
+                    // because the latter panics on very large file,
+                    // subsequently crashing Ki.
+                    .try_replacen(&before, 0, config.replacement())?
+                    .to_string();
                 self.get_edit_transaction(&replaced)?
             }
             LocalSearchConfigMode::AstGrep => {
