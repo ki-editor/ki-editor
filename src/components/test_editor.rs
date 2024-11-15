@@ -3070,3 +3070,22 @@ fn syntax_node_move_right_should_move_to_non_overlapping_node() -> anyhow::Resul
         ])
     })
 }
+
+#[test]
+fn word_first_last_move_bounds_within_alphanumeric_sentence() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("foo bar spam, yo na kor".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&["yo"])),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["kor"])),
+            Editor(MoveSelection(First)),
+            Expect(CurrentSelectedTexts(&["yo"])),
+        ])
+    })
+}

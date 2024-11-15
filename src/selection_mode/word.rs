@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::buffer::Buffer;
 
 use super::{ByteRange, SelectionMode};
@@ -39,6 +41,57 @@ impl SelectionMode for Word {
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.symbol_skipping_regex.previous(params)
     }
+    fn first(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let byte_range = buffer.char_index_range_to_byte_range(params.current_selection.range())?;
+        let current_selection = params.current_selection.clone();
+        Ok(self
+            .iter_filtered(params)?
+            .take_while(|range| range.range != byte_range)
+            .collect_vec()
+            .into_iter()
+            .rev()
+            .take_while(|range| is_alphanumeric_word(buffer, range))
+            .last()
+            .and_then(|range| {
+                Some(
+                    current_selection
+                        .set_range(buffer.byte_range_to_char_index_range(&range.range).ok()?),
+                )
+            }))
+    }
+    fn last(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let byte_range = buffer.char_index_range_to_byte_range(params.current_selection.range())?;
+        let current_selection = params.current_selection.clone();
+        Ok(self
+            .iter_filtered(params)?
+            .skip_while(|range| range.range != byte_range)
+            .take_while(|range| is_alphanumeric_word(buffer, range))
+            .last()
+            .and_then(|range| {
+                Some(
+                    current_selection
+                        .set_range(buffer.byte_range_to_char_index_range(&range.range).ok()?),
+                )
+            }))
+    }
+}
+
+fn is_alphanumeric_word(buffer: &Buffer, range: &ByteRange) -> bool {
+    let Ok(char_index_range) = buffer.byte_range_to_char_index_range(&range.range) else {
+        return false;
+    };
+    let Ok(content) = buffer.slice(&char_index_range) else {
+        return false;
+    };
+    content.chars().all(|c| c.is_alphanumeric())
 }
 
 #[cfg(test)]
