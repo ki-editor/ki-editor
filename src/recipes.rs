@@ -319,7 +319,7 @@ snake_case + PascalCase
                     expectations: &[CurrentSelectedTexts(&["The"])],
                     terminal_height: None,
                     similar_vim_combos: &[],
-                    only: true,
+                    only: false,
                 },
             ]
             .to_vec(),
