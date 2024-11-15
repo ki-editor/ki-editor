@@ -310,6 +310,17 @@ snake_case + PascalCase
                     similar_vim_combos: &[],
                     only: false,
                 },
+                Recipe {
+                    description: "Word: first/last movement (sentence boundary)",
+                    content: "The quick brown fox jumps! Over the lazy dog today...".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("w . n . , N ,"),
+                    expectations: &[CurrentSelectedTexts(&["The"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
             ]
             .to_vec(),
         },
