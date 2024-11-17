@@ -53,19 +53,9 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new(
-                    "N",
+                    "b",
                     "Previous".to_string(),
                     Dispatch::ToEditor(MoveSelection(Previous)),
-                ),
-                Keymap::new(
-                    "t",
-                    "Expand".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Expand)),
-                ),
-                Keymap::new(
-                    "b",
-                    "Shrink".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Shrink)),
                 ),
                 Keymap::new(
                     ",",
@@ -183,7 +173,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "W",
+                    "t",
                     "Select Subword".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
                 ),
