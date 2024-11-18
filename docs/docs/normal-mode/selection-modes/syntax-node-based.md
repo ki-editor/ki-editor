@@ -25,8 +25,8 @@ Keybinding: `s`
 | Movement                                            | Meaning                                                               |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
 | [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous **named** sibling node                                  |
-| Expand                                              | Parent node                                                           |
-| Shrink                                              | First **named** child                                                 |
+| Up                                                  | Parent node                                                           |
+| Down                                                | First **named** child                                                 |
 | Current                                             | Select the largest node                                               |
 | Jump                                                | Jump to largest node                                                  |
 | Right                                               | Select the nearest non-overlapping largest node to the right or below |
@@ -72,12 +72,12 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 | Movement                                            | Meaning                                          |
 | --------------------------------------------------- | ------------------------------------------------ |
 | [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous sibling node                       |
-| Expand                                              | Parent node                                      |
+| Up                                                  | Parent node                                      |
 | Shrink                                              | First child                                      |
 | Current                                             | Smallest node that matches the current selection |
 | Jump                                                | Jump to smallest node                            |
 
-Fine Syntax Node is useful when you start to expand the selection starting from the current token.
+Fine Syntax Node is useful when you start to expand the selection starting from the current smallest node.
 
 Suppose we have the following Javascript expression, and the current selection is `hello`, and we want to select `hello.world()`.
 

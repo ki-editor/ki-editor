@@ -53,19 +53,9 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new(
-                    "N",
+                    "b",
                     "Previous".to_string(),
                     Dispatch::ToEditor(MoveSelection(Previous)),
-                ),
-                Keymap::new(
-                    "t",
-                    "Expand".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Expand)),
-                ),
-                Keymap::new(
-                    "b",
-                    "Shrink".to_string(),
-                    Dispatch::ToEditor(MoveSelection(Shrink)),
                 ),
                 Keymap::new(
                     ",",
@@ -183,9 +173,9 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "W",
-                    "Select Subword".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+                    "t",
+                    "Select Token".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 ),
                 Keymap::new(
                     "w",
@@ -246,7 +236,7 @@ impl Editor {
                     ),
                     Keymap::new("K", "Break".to_string(), Dispatch::ToEditor(BreakSelection)),
                     Keymap::new(
-                        "T",
+                        "^",
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Expand)),
                     ),
@@ -352,11 +342,6 @@ impl Editor {
                             scope: Scope::Local,
                             if_current_not_found: IfCurrentNotFound::LookForward,
                         },
-                    ),
-                    Keymap::new(
-                        "^",
-                        Direction::Start.format_action("Collapse selection"),
-                        Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::Start)),
                     ),
                     Keymap::new(
                         "$",
@@ -536,12 +521,12 @@ impl Editor {
                             ),
                             Keymap::new(
                                 "ctrl+w",
-                                "Delete word backward".to_string(),
+                                "Delete token backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
                             Keymap::new(
                                 "alt+backspace",
-                                "Delete subword backward".to_string(),
+                                "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
                         ]),

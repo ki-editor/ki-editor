@@ -45,7 +45,7 @@ Implemented keybindings [^1]:
 | `ctrl+e`        | Move to line end         |
 | `ctrl+k`        | Kill line forward        |
 | `ctrl+u`        | Kill line backward       |
-| `ctrl+w`        | Delete word backward     |
-| `alt+backspace` | Delete subword backward |
+| `ctrl+w`        | Delete token backward    |
+| `alt+backspace` | Delete word backward     |
 
 [^1]: Not every unimplemented keybinding is incompatible/meaningless with/in Ki, but because I do not have time for them, so feel free to submit PR!

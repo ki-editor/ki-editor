@@ -19,7 +19,9 @@ pub fn from_zed_theme(url: &str) -> anyhow::Result<Vec<Theme>> {
             .unwrap_or_else(|| panic!("The url ({:?}) should contain file name.", url))
             .to_string_lossy(),
     )?;
-    let manifest: ZedThemeManiftest = serde_json::from_str(&json_str).unwrap();
+    let manifest: ZedThemeManiftest = serde_json5::from_str(&json_str).unwrap_or_else(|error| {
+        panic!("Cannot parse JSON downloaded from {url:?} due to:\n{error:#?}")
+    });
     Ok(manifest
         .themes
         .into_iter()

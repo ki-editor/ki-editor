@@ -1,4 +1,4 @@
-use itertools::Itertools;
+use itertools::{Either, Itertools};
 use my_proc_macros::key;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -25,89 +25,101 @@ fn generate_recipes() -> anyhow::Result<()> {
         })
         .map(|recipe_group| -> anyhow::Result<_> {
             let recipes = recipe_group.recipes;
-            let recipes_output = recipes
+            let (errors, recipes_output): (Vec<_>, Vec<_>) = recipes
                 .into_par_iter()
                 .filter(|recipe| !contains_only_recipes || recipe.only)
-                .map(|recipe| -> anyhow::Result<RecipeOutput> {
-                    let accum_events = create_nested_vectors(recipe.events);
-                    let accum_events_len = accum_events.len();
-                    let width = 60;
-                    let height = recipe
-                        .terminal_height
-                        .unwrap_or(recipe.content.lines().count() + 3);
-                    let steps = accum_events
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, events)| -> anyhow::Result<StepOutput> {
-                            println!(
-                                "------- \n\n\tRunning: {} \n\n----------",
-                                recipe.description
-                            );
-                            let result = execute_recipe(|s| {
-                                let temp_path = s
-                                    .temp_dir()
-                                    .to_path_buf()
-                                    .join(&format!("temp.{}", recipe.file_extension))
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string();
-                                [
-                                    App(TerminalDimensionChanged(crate::app::Dimension {
-                                        width,
-                                        height: height as u16,
-                                    })),
-                                    App(AddPath(temp_path.clone())),
-                                    AppLater(Box::new(move || {
-                                        OpenFile(temp_path.clone().try_into().unwrap())
-                                    })),
-                                    Editor(SetRectangle(Rectangle {
-                                        origin: Position::default(),
-                                        width,
-                                        height: height as u16,
-                                    })),
-                                    // Editor(ApplySyntaxHighlight),
-                                    App(HandleKeyEvent(key!("esc"))),
-                                    Editor(SetContent(recipe.content.to_string())),
-                                    Editor(SetLanguage(
-                                        shared::language::from_extension(recipe.file_extension)
-                                            .unwrap(),
-                                    )),
-                                ]
-                                .into_iter()
-                                .chain(Some(App(HandleKeyEvents(recipe.prepare_events.to_vec()))))
-                                .chain(Some(App(HandleKeyEvents(events.clone()))))
-                                .chain(
-                                    if index == accum_events_len - 1 {
-                                        recipe.expectations
-                                    } else {
-                                        Default::default()
-                                    }
-                                    .iter()
-                                    .map(|kind| Expect(kind.clone())),
-                                )
-                                .collect_vec()
-                                .into_boxed_slice()
-                            })?;
-                            Ok(StepOutput {
-                                key: events
-                                    .last()
-                                    .map(|event| event.display())
-                                    .unwrap_or(" ".to_string()),
-                                description: "".to_string(),
-                                term_output: result.unwrap(),
+                .map(|recipe| -> Result<RecipeOutput, String> {
+                    let run = || {
+                        let accum_events = create_nested_vectors(recipe.events);
+                        let accum_events_len = accum_events.len();
+                        let width = 60;
+                        let height = recipe
+                            .terminal_height
+                            .unwrap_or(recipe.content.lines().count() + 3);
+                        let steps = accum_events
+                            .into_iter()
+                            .enumerate()
+                            .map(|(index, events)| -> anyhow::Result<_> {
+                                println!(
+                                    "------- \n\n\tRunning: {} \n\n----------",
+                                    recipe.description
+                                );
+                                let result = execute_recipe(|s| {
+                                    let temp_path = s
+                                        .temp_dir()
+                                        .to_path_buf()
+                                        .join(&format!("temp.{}", recipe.file_extension))
+                                        .to_str()
+                                        .expect("Failed to create temp _path")
+                                        .to_string();
+                                    [
+                                        App(TerminalDimensionChanged(crate::app::Dimension {
+                                            width,
+                                            height: height as u16,
+                                        })),
+                                        App(AddPath(temp_path.clone())),
+                                        AppLater(Box::new(move || {
+                                            OpenFile(temp_path.clone().try_into().unwrap())
+                                        })),
+                                        Editor(SetRectangle(Rectangle {
+                                            origin: Position::default(),
+                                            width,
+                                            height: height as u16,
+                                        })),
+                                        // Editor(ApplySyntaxHighlight),
+                                        App(HandleKeyEvent(key!("esc"))),
+                                        Editor(SetContent(recipe.content.to_string())),
+                                        Editor(SetLanguage(
+                                            shared::language::from_extension(recipe.file_extension)
+                                                .unwrap(),
+                                        )),
+                                    ]
+                                    .into_iter()
+                                    .chain(Some(App(HandleKeyEvents(
+                                        recipe.prepare_events.to_vec(),
+                                    ))))
+                                    .chain(Some(App(HandleKeyEvents(events.clone()))))
+                                    .chain(
+                                        if index == accum_events_len - 1 {
+                                            recipe.expectations
+                                        } else {
+                                            Default::default()
+                                        }
+                                        .iter()
+                                        .map(|kind| Expect(kind.clone())),
+                                    )
+                                    .collect_vec()
+                                    .into_boxed_slice()
+                                })?;
+                                Ok(StepOutput {
+                                    key: events
+                                        .last()
+                                        .map(|event| event.display())
+                                        .unwrap_or(" ".to_string()),
+                                    description: "".to_string(),
+                                    term_output: result.unwrap(),
+                                })
                             })
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
+                            .collect::<Result<Vec<_>, _>>()?;
 
-                    Ok(RecipeOutput {
-                        description: recipe.description.to_string(),
-                        steps,
-                        terminal_height: height,
-                        terminal_width: width as usize,
-                        similar_vim_combos: recipe.similar_vim_combos,
-                    })
+                        Ok(RecipeOutput {
+                            description: recipe.description.to_string(),
+                            steps,
+                            terminal_height: height,
+                            terminal_width: width as usize,
+                            similar_vim_combos: recipe.similar_vim_combos,
+                        })
+                    };
+                    run().map_err(|err: anyhow::Error| format!("{} {err:#?}", recipe.description))
                 })
-                .collect::<Result<Vec<_>, _>>()?;
+                .partition_map(|result| match result {
+                    Ok(recipe_output) => Either::Right(recipe_output),
+                    Err(err) => Either::Left(err),
+                });
+            if !errors.is_empty() {
+                panic!("Run recipes errors = {errors:#?}");
+            }
+
             let json = serde_json::to_string(&RecipesOutput { recipes_output })?;
 
             use std::io::Write;

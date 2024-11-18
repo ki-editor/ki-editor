@@ -2,6 +2,8 @@
 sidebar_position: 7.5
 ---
 
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
 # V Mode
 
 This mode can be entered by pressing `v`, it is a short-lived mode where the next keypress
@@ -32,6 +34,8 @@ This is a group of actions that is related to "surround" or "enclosures".
 - `"` Double Quote
 - <code>`</code> Backtick
 
+<TutorialFallback filename="surround"/>
+
 ## Extending selection
 
 This is used for extending the current selection.
@@ -48,3 +52,5 @@ When selection extension is enabled:
 1. Every character between the two ranges, including the two ranges, is selected
 1. Selection-wise actions work on the extended range
 1. Press `ESC` to disable selection extension
+
+<TutorialFallback filename="extend"/>

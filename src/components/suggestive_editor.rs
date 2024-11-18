@@ -422,7 +422,7 @@ mod test_suggestive_editor {
     }
 
     #[test]
-    /// Should replace long word, not short word
+    /// Should replace token, not word
     fn completion_without_edit_3() -> Result<(), anyhow::Error> {
         execute_test(|s| {
             Box::new([

@@ -392,17 +392,13 @@ impl SelectionSet {
 pub(crate) enum SelectionMode {
     // Regex
     EmptyLine,
-    Subword,
     Word,
+    Token,
     Line,
     Column,
     Custom,
-    Find {
-        search: Search,
-    },
+    Find { search: Search },
     // Syntax-tree
-    #[cfg(test)]
-    Token,
     SyntaxNode,
     SyntaxNodeFine,
 
@@ -413,9 +409,7 @@ pub(crate) enum SelectionMode {
     GitHunk(crate::git::DiffMode),
 
     // Local quickfix
-    LocalQuickfix {
-        title: String,
-    },
+    LocalQuickfix { title: String },
 
     // Mark
     Mark,
@@ -429,15 +423,13 @@ impl SelectionMode {
 
     pub(crate) fn display(&self) -> String {
         match self {
-            SelectionMode::Subword => "SUBWORD".to_string(),
             SelectionMode::Word => "WORD".to_string(),
+            SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "FULL LINE".to_string(),
             SelectionMode::Column => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
-            #[cfg(test)]
-            SelectionMode::Token => "TOKEN".to_string(),
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
             SelectionMode::Find { search } => {
@@ -467,8 +459,8 @@ impl SelectionMode {
             cursor_direction,
         };
         Ok(match self {
-            SelectionMode::Subword => Box::new(selection_mode::Subword::new(buffer)?),
             SelectionMode::Word => Box::new(selection_mode::Word::new(buffer)?),
+            SelectionMode::Token => Box::new(selection_mode::Token::new(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
             SelectionMode::Column => {
@@ -491,8 +483,6 @@ impl SelectionMode {
                     selection_mode::NamingConventionAgnostic::new(search.search.clone()),
                 ),
             },
-            #[cfg(test)]
-            SelectionMode::Token => Box::new(selection_mode::Token),
             SelectionMode::SyntaxNode => Box::new(selection_mode::SyntaxNode { coarse: true }),
             SelectionMode::SyntaxNodeFine => Box::new(selection_mode::SyntaxNode { coarse: false }),
             SelectionMode::Diagnostic(severity) => {
@@ -516,8 +506,8 @@ impl SelectionMode {
         }
         matches!(
             self,
-            SelectionMode::Subword
-                | SelectionMode::Word
+            SelectionMode::Word
+                | SelectionMode::Token
                 | SelectionMode::Line
                 | SelectionMode::LineFull
                 | SelectionMode::Column

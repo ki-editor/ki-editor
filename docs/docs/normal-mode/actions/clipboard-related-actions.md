@@ -1,3 +1,5 @@
+import {TutorialFallback} from '@site/src/components/TutorialFallback';
+
 # Clipboard-related Actions
 
 The following actions are grouped separately on this page because they interact with the clipboard.
@@ -72,6 +74,8 @@ copied text is `z`, performing a `p` results in the following:
 hello(x, y, z);
 ```
 
+<TutorialFallback filename="paste"/>
+
 ## Change Cut
 
 Keybindings: `C`
@@ -87,3 +91,5 @@ Keybindings:
 - `R`: Replace (Cut), copies the replaced content into the clipboard
 
 This replaces the current selected text with the copied text.
+
+<TutorialFallback filename="replace-cut"/>

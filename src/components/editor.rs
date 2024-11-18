@@ -488,7 +488,6 @@ pub(crate) enum Movement {
     Jump(CharIndexRange),
     ToParentLine,
     Expand,
-    Shrink,
     DeleteBackward,
     DeleteForward,
 }
@@ -704,7 +703,7 @@ impl Editor {
         if use_current_selection_mode {
             self.selection_set.mode.clone()
         } else {
-            SelectionMode::Subword
+            SelectionMode::Word
         }
         .to_selection_mode_trait_object(&self.buffer(), selection, &self.cursor_direction)
     }
@@ -1895,9 +1894,9 @@ impl Editor {
                             &self.buffer(),
                             &current_selection.clone().set_range((start..start).into()),
                             &if short {
-                                SelectionMode::Subword
-                            } else {
                                 SelectionMode::Word
+                            } else {
+                                SelectionMode::Token
                             },
                             &movement,
                             &self.cursor_direction,

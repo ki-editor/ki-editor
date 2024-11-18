@@ -2,7 +2,7 @@ use itertools::Itertools;
 
 use crate::selection_mode::ApplyMovementResult;
 
-use super::{ByteRange, SelectionMode, Token, TopNode};
+use super::{ByteRange, SelectionMode, SyntaxToken, TopNode};
 
 pub(crate) struct SyntaxNode {
     /// If this is true:
@@ -19,7 +19,7 @@ impl SelectionMode for SyntaxNode {
         if self.coarse {
             TopNode.iter(params)
         } else {
-            Token.iter(params)
+            SyntaxToken.iter(params)
         }
     }
     fn expand(
@@ -28,11 +28,56 @@ impl SelectionMode for SyntaxNode {
     ) -> anyhow::Result<Option<ApplyMovementResult>> {
         self.select_vertical(params.clone(), true)
     }
-    fn shrink(
+    fn down(
         &self,
         params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<ApplyMovementResult>> {
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
         self.select_vertical(params, false)
+            .map(|result| result.map(|result| result.selection))
+    }
+
+    fn up(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        self.select_vertical(params, true)
+            .map(|result| result.map(|result| result.selection))
+    }
+    fn left(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        let node = node.prev_sibling();
+        Ok(node.and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
+    }
+    fn right(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        let buffer = params.buffer;
+        let current_selection = params.current_selection;
+        let node = buffer
+            .get_current_node(current_selection, false)?
+            .ok_or(anyhow::anyhow!(
+                "SyntaxNode::iter: Cannot find Treesitter language"
+            ))?;
+        let node = node.next_sibling();
+        Ok(node.and_then(|node| {
+            ByteRange::new(node.byte_range())
+                .to_selection(params.buffer, params.current_selection)
+                .ok()
+        }))
     }
     fn next(
         &self,
@@ -248,13 +293,13 @@ mod test_syntax_node {
 
             let parent_text = buffer.slice(&parent_range).unwrap();
             assert_eq!(parent_text, "{z}");
-            let selection = SyntaxNode { coarse }.shrink(SelectionModeParams {
+            let selection = SyntaxNode { coarse }.down(SelectionModeParams {
                 buffer: &buffer,
                 current_selection: &Selection::new(parent_range),
                 cursor_direction: &crate::components::editor::Direction::Start,
             });
 
-            let child_range = selection.unwrap().unwrap().selection.range();
+            let child_range = selection.unwrap().unwrap().range();
 
             let child_text = buffer.slice(&child_range).unwrap();
             assert_eq!(child_text, expected_child);
