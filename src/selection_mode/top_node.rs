@@ -1,6 +1,4 @@
-use crate::components::editor::IfCurrentNotFound;
-
-use super::{ByteRange, SelectionMode, Token};
+use super::{ByteRange, SelectionMode};
 use itertools::Itertools;
 
 pub(crate) struct TopNode;
@@ -32,15 +30,6 @@ impl SelectionMode for TopNode {
                 .collect_vec()
                 .into_iter(),
         ))
-    }
-
-    fn shrink(
-        &self,
-        params: super::SelectionModeParams,
-    ) -> anyhow::Result<Option<crate::selection_mode::ApplyMovementResult>> {
-        Ok(Token
-            .current(params, IfCurrentNotFound::LookForward)?
-            .map(crate::selection_mode::ApplyMovementResult::from_selection))
     }
 }
 

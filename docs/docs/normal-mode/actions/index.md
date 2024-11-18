@@ -54,6 +54,8 @@ Assuming the current selection mode is [Syntax Node](../selection-modes/syntax-n
 hello(y);
 ```
 
+<TutorialFallback filename="delete"/>
+
 ## Change
 
 Keybindings:
@@ -94,7 +96,7 @@ For example:
 
 ## Raise
 
-Keybinding: `T`
+Keybinding: `^`
 
 This is one of my favorite actions, it only works for [syntax node](../selection-modes/syntax-node-based.md#syntax-node) selection modes.
 

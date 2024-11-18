@@ -9,12 +9,11 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
-There are 13 movements in total:
+There are 10 movements in total:
 
 1. [Left/Right](#leftright)
 1. [Up/Down](#updown)
 1. [First/Last](#firstlast)
-1. [Expand/Shrink](#expandshrink)
 1. [Jump](#jump)
 1. [Parent Line](#parent-line)
 1. [To Index](#to-index)
@@ -38,7 +37,7 @@ Memory aid:
 
 ## Next/Previous
 
-Keybinding: `n`/`N`
+Keybinding: `n`/`b`
 
 These movemest similar to the 4 movements above, however, they are not restricted to vertical or horizontal movements.
 They are assigned special meaning in different selection modes.
@@ -47,7 +46,7 @@ They are assigned special meaning in different selection modes.
 | ---------------- | ----------------------------------- |
 | Syntax Node      | Next/Previous named sibling         |
 | Quickfix         | To first item of next/previous file |
-| Word & Subword   | Next/Previous word skipping symbols |
+| Token & Word     | Next/Previous unit skipping symbols |
 | Line & Full Line | Next/Previous empty line (TBD)      |
 
 ## First/Last
@@ -55,26 +54,13 @@ They are assigned special meaning in different selection modes.
 Keybinding: `,`/`.`  
 Memory aid: `,`/`.` looks like `<`/`>` on the keyboard
 
-| Selection Mode   | Meaning                                       |
-| ---------------- | --------------------------------------------- |
-| Syntax Node      | First/Last named sibling                      |
-| Quickfix         | First/Last item                               |
-| Subword          | First/Last subword in the current word        |
-| Word             | First/Last word in the current sentence (TBD) |
-| Line & Full Line | First/Last line of the current file           |
-
-## Expand/Shrink
-
-Keybinding: `t`/`b`  
-Memory aid: t stands for Top (implying expand), while b Bottom (implying shrink)
-
-| Selection Mode        | Meaning                                     |
-| --------------------- | ------------------------------------------- |
-| Syntax Node           | Parent/First-child                          |
-| Line                  | Select whole file                           |
-| Other selection modes | Expand selection to nearest brackets/quotes |
-
-<TutorialFallback filename="expand"/>
+| Selection Mode   | Meaning                                  |
+| ---------------- | ---------------------------------------- |
+| Syntax Node      | First/Last named sibling                 |
+| Quickfix         | First/Last item                          |
+| Word             | First/Last word in the current token     |
+| Token            | First/Last token in the current sentence |
+| Line & Full Line | First/Last line of the current file      |
 
 ## Jump
 

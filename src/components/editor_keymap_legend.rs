@@ -174,8 +174,8 @@ impl Editor {
                 ),
                 Keymap::new(
                     "t",
-                    "Select Subword".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+                    "Select Token".to_string(),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 ),
                 Keymap::new(
                     "w",
@@ -236,7 +236,7 @@ impl Editor {
                     ),
                     Keymap::new("K", "Break".to_string(), Dispatch::ToEditor(BreakSelection)),
                     Keymap::new(
-                        "T",
+                        "^",
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Expand)),
                     ),
@@ -342,11 +342,6 @@ impl Editor {
                             scope: Scope::Local,
                             if_current_not_found: IfCurrentNotFound::LookForward,
                         },
-                    ),
-                    Keymap::new(
-                        "^",
-                        Direction::Start.format_action("Collapse selection"),
-                        Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::Start)),
                     ),
                     Keymap::new(
                         "$",
@@ -526,12 +521,12 @@ impl Editor {
                             ),
                             Keymap::new(
                                 "ctrl+w",
-                                "Delete word backward".to_string(),
+                                "Delete token backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
                             Keymap::new(
                                 "alt+backspace",
-                                "Delete subword backward".to_string(),
+                                "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),
                         ]),

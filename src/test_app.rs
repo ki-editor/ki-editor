@@ -118,10 +118,14 @@ fn log<T: std::fmt::Debug>(s: T) {
     println!("===========\n{s:?}",);
 }
 impl ExpectKind {
-    fn run(&self, app: &mut App<MockFrontend>) {
+    fn run(&self, app: &mut App<MockFrontend>) -> anyhow::Result<()> {
         log(self);
         let (result, context) = self.get_result(app).unwrap();
-        assert!(result, "{context}",)
+        if result {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("{context}"))
+        }
     }
     fn get_result(&self, app: &mut App<MockFrontend>) -> anyhow::Result<(bool, String)> {
         let context = app.context();
@@ -447,8 +451,8 @@ fn execute_test_helper(
                     log(&dispatch);
                     app.handle_dispatch(dispatch.to_owned())?
                 }
-                Step::Expect(expect_kind) => expect_kind.run(&mut app),
-                ExpectLater(f) => f().run(&mut app),
+                Step::Expect(expect_kind) => expect_kind.run(&mut app)?,
+                ExpectLater(f) => f().run(&mut app)?,
                 Editor(dispatch) => {
                     log(dispatch);
                     app.handle_dispatch_editor(dispatch.to_owned())?
@@ -458,7 +462,7 @@ fn execute_test_helper(
                 }
                 ExpectMulti(expect_kinds) => {
                     for expect_kind in expect_kinds.iter() {
-                        expect_kind.run(&mut app)
+                        expect_kind.run(&mut app)?
                     }
                 }
                 SuggestiveEditor(dispatch) => {
@@ -725,7 +729,7 @@ fn multi_paste() -> anyhow::Result<()> {
             )),
             Expect(CurrentSelectedTexts(&["let x = S(spongebob_squarepants);"])),
             Editor(CursorAddToAllSelections),
-            Editor(MoveSelection(Movement::Shrink)),
+            Editor(MoveSelection(Movement::Down)),
             Editor(MoveSelection(Movement::Next)),
             Expect(CurrentSelectedTexts(&["S(spongebob_squarepants)", "S(b)"])),
             Editor(ChangeCut {
@@ -1012,10 +1016,10 @@ fn global_marks() -> Result<(), anyhow::Error> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleMark),
             App(OpenFile(s.foo_rs())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Subword)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
             Editor(ToggleMark),
             App(SetQuickfixList(
                 crate::quickfix_list::QuickfixListType::Mark,
@@ -2024,7 +2028,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
@@ -2071,7 +2075,7 @@ c1 c2 c3"
                 )),
                 Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 Editor(CursorAddToAllSelections),
-                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+                Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 Expect(CurrentSelectedTexts(&["a1", "b1", "c1"])),
                 Editor(Copy {
                     use_system_clipboard: true,
