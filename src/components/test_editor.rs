@@ -916,6 +916,40 @@ fn paste_after() -> anyhow::Result<()> {
 }
 
 #[test]
+fn paste_after_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+fn main() {
+    foo();
+    bar();
+}"
+                .trim()
+                .to_string(),
+            )),
+            Editor(MatchLiteral("bar();".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(Copy {
+                use_system_clipboard: false,
+            }),
+            Editor(Paste {
+                direction: Direction::End,
+                use_system_clipboard: false,
+            }),
+            Expect(CurrentComponentContent(
+                "fn main() {
+    foo();
+    bar();
+    bar();
+}",
+            )),
+        ])
+    })
+}
+
+#[test]
 fn smart_paste() -> anyhow::Result<()> {
     fn test(direction: Direction, expected_result: &'static str) -> Result<(), anyhow::Error> {
         execute_test(move |s| {
@@ -3086,6 +3120,30 @@ fn word_first_last_move_bounds_within_alphanumeric_sentence() -> anyhow::Result<
             Expect(CurrentSelectedTexts(&["kor"])),
             Editor(MoveSelection(First)),
             Expect(CurrentSelectedTexts(&["yo"])),
+        ])
+    })
+}
+
+#[test]
+fn delete_empty_lines() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+hello
+
+world
+
+yo"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(Delete(Direction::End)),
+            Expect(CurrentSelectedTexts(&["world"])),
         ])
     })
 }
