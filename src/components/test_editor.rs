@@ -3147,3 +3147,42 @@ yo"
         ])
     })
 }
+
+#[test]
+fn next_previous_line() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent(
+                "
+foo
+bar
+
+
+spam
+baz
+
+
+bomb
+bam
+"
+                .trim()
+                .to_string(),
+            )),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
+            Expect(CurrentSelectedTexts(&["foo"])),
+            Editor(MoveSelection(Next)),
+            Expect(CurrentSelectedTexts(&[""])),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["bar"])),
+            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Up)),
+            Expect(CurrentSelectedTexts(&["baz"])),
+            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(Previous)),
+            Editor(MoveSelection(Down)),
+            Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}

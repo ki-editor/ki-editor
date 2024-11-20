@@ -11,6 +11,33 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
         showcase(),
         syntax_node(),
         RecipeGroup {
+            filename: "jump",
+            recipes: [
+                Recipe {
+                    description: "Jump to a word",
+                    content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
+                    file_extension: "json",
+                    prepare_events: &[],
+                    events: keys!("w f t"),
+                    expectations: &[CurrentSelectedTexts(&["true"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Jump to a syntax node",
+                    content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
+                    file_extension: "json",
+                    prepare_events: &[],
+                    events: keys!("s f { b"),
+                    expectations: &[CurrentSelectedTexts(&["{\"y\": {}}"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "line",
             recipes: [
             Recipe {
@@ -46,6 +73,30 @@ And by opposing end them. To die—to sleep,
                 ])],
                 terminal_height: None,
                 similar_vim_combos: &["g g", "G"],
+                only: false,
+            },
+            Recipe {
+                description: "Go to empty lines",
+                content: "
+foo
+
+
+bar
+
+
+spam
+
+
+baz"
+                .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("e n n n b b"),
+                expectations: &[CurrentSelectedTexts(&[
+                    "",
+                ])],
+                terminal_height: None,
+                similar_vim_combos: &["{", "}"],
                 only: false,
             },
             Recipe {
@@ -1395,17 +1446,6 @@ fn syntax_node() -> RecipeGroup {
                 only: false,
             },
             Recipe {
-                description: "Jump to a syntax node",
-                content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
-                file_extension: "json",
-                prepare_events: &[],
-                events: keys!("s f { b"),
-                expectations: &[CurrentSelectedTexts(&["{\"y\": {}}"])],
-                terminal_height: None,
-                similar_vim_combos: &[],
-                only: false,
-            },
-            Recipe {
                 description: "Select Parent",
                 content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
                 file_extension: "json",
@@ -1446,17 +1486,6 @@ fn syntax_node() -> RecipeGroup {
 
 fn recipes() -> Vec<Recipe> {
     [
-        Recipe {
-            description: "Jump to a word",
-            content: "[{\"x\": 123}, true, {\"y\": {}}]".trim(),
-            file_extension: "json",
-            prepare_events: &[],
-            events: keys!("w f t"),
-            expectations: &[CurrentSelectedTexts(&["true"])],
-            terminal_height: None,
-            similar_vim_combos: &[],
-            only: false,
-        },
         Recipe {
             description: "Duplicate current line",
             content: "
