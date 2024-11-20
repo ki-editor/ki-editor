@@ -9,13 +9,12 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 Core Movements is one of the main concepts in Ki, because it is standardized for
 every [selection modes](./selection-modes/index.md).
 
-There are 10 movements in total:
+There are 9 movements in total:
 
 1. [Left/Right](#leftright)
 1. [Up/Down](#updown)
 1. [First/Last](#firstlast)
 1. [Jump](#jump)
-1. [Parent Line](#parent-line)
 1. [To Index](#to-index)
 1. [Current](#current)
 
@@ -88,18 +87,6 @@ Recommended selection modes:
 This movement can also work with the Exchange mode to swap two syntax expressions that are far apart.
 
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
-
-## Parent line
-
-Keybinding: `-`
-
-It moves the current selection to its nearest parent line.
-
-Parent lines are highlighted lines that represent the parent nodes of the current selection.
-
-This is useful for example when you are within the body of a function and you want to jump to the function name.
-
-This is also practical in the [File Explorer](../components/file-explorer.md) because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!
 
 ## To Index
 

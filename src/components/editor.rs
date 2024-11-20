@@ -486,7 +486,6 @@ pub(crate) enum Movement {
     /// 0-based
     Index(usize),
     Jump(CharIndexRange),
-    ToParentLine,
     Expand,
     DeleteBackward,
     DeleteForward,

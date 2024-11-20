@@ -75,11 +75,6 @@ impl Editor {
                     }),
                 ),
                 Keymap::new(
-                    "-",
-                    "Parent Line".to_string(),
-                    Dispatch::ToEditor(MoveSelection(ToParentLine)),
-                ),
-                Keymap::new(
                     "0",
                     "To Index (1-based)".to_string(),
                     Dispatch::OpenMoveToIndexPrompt,
