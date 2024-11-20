@@ -196,7 +196,6 @@ pub trait SelectionMode {
             ))),
             Movement::Up => convert(self.up(params)),
             Movement::Down => convert(self.down(params)),
-            Movement::ToParentLine => convert(self.to_parent_line(params)),
             Movement::Expand => self.expand(params),
             Movement::Next => convert(self.next(params)),
             Movement::Previous => convert(self.previous(params)),
@@ -367,37 +366,6 @@ pub trait SelectionMode {
 
     fn previous(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
         self.left(params)
-    }
-
-    fn to_parent_line(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
-        let SelectionModeParams {
-            buffer,
-            current_selection,
-            cursor_direction,
-        } = params;
-        let current_line = buffer.char_to_line(current_selection.extended_range().start)?;
-        Ok(buffer
-            .get_parent_lines(current_line)?
-            .into_iter()
-            .filter(|line| line.line < current_line)
-            .next_back()
-            .map(|line| {
-                let byte_range = buffer.line_to_byte_range(line.line)?;
-                let start =
-                    line_trimmed::trim_leading_spaces(byte_range.range.start, &line.content);
-                let char_index_range =
-                    buffer.byte_range_to_char_index_range(&(start..start + 1))?;
-                self.current(
-                    SelectionModeParams {
-                        buffer,
-                        cursor_direction,
-                        current_selection: &current_selection.clone().set_range(char_index_range),
-                    },
-                    IfCurrentNotFound::LookForward,
-                )
-            })
-            .transpose()?
-            .flatten())
     }
 
     fn up(&self, params: SelectionModeParams) -> anyhow::Result<Option<Selection>> {
@@ -703,7 +671,6 @@ mod test_selection_mode {
             suggestive_editor::Info,
         },
         selection::{CharIndex, Selection},
-        selection_mode::LineTrimmed,
     };
 
     use super::{ByteRange, SelectionMode, SelectionModeParams};
@@ -878,43 +845,6 @@ mod test_selection_mode {
         let expected: CharIndexRange = (CharIndex(6)..CharIndex(10)).into();
 
         assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn to_parent_line() {
-        let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
-            "
-fn f() {
-    fn g() {
-        let a = 1;
-        let b = 2;
-        let c = 3;
-        let d = 4;
-    }
-
-}"
-            .trim(),
-        );
-
-        let test = |selected_line: usize, expected: &str| {
-            let start = buffer.line_to_char(selected_line).unwrap();
-            let result = LineTrimmed
-                .to_parent_line(SelectionModeParams {
-                    buffer: &buffer,
-                    current_selection: &Selection::new((start..start + 1).into()),
-                    cursor_direction: &Direction::default(),
-                })
-                .unwrap()
-                .unwrap();
-
-            let actual = buffer.slice(&result.extended_range()).unwrap();
-            assert_eq!(actual, expected);
-        };
-
-        test(4, "fn g() {");
-
-        test(1, "fn f() {");
     }
 }
 

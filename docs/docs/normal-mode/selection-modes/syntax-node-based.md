@@ -24,7 +24,7 @@ Keybinding: `s`
 
 | Movement                                            | Meaning                                                               |
 | --------------------------------------------------- | --------------------------------------------------------------------- |
-| [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous **named** sibling node                                  |
+| [Next/Preivous](../core-movements.md#nextprevious) | Next/Previous **named** sibling node                                  |
 | Up                                                  | Parent node                                                           |
 | Down                                                | First **named** child                                                 |
 | Current                                             | Select the largest node                                               |
@@ -71,7 +71,7 @@ Reason: Coarse is more commonly used than Fine, thus Fine is assigned a harder-t
 
 | Movement                                            | Meaning                                          |
 | --------------------------------------------------- | ------------------------------------------------ |
-| [Next/Preivous](../core-movements.mdx#nextprevious) | Next/Previous sibling node                       |
+| [Next/Preivous](../core-movements.md#nextprevious) | Next/Previous sibling node                       |
 | Up                                                  | Parent node                                      |
 | Shrink                                              | First child                                      |
 | Current                                             | Smallest node that matches the current selection |

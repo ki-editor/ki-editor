@@ -11,6 +11,90 @@ pub(crate) fn recipe_groups() -> Vec<RecipeGroup> {
         showcase(),
         syntax_node(),
         RecipeGroup {
+            filename: "line",
+            recipes: [
+            Recipe {
+                description: "Select a line",
+                content: "
+To be, or not to be?
+That, is the question.
+"
+                .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("e"),
+                expectations: &[CurrentSelectedTexts(&["To be, or not to be?"])],
+                terminal_height: None,
+                similar_vim_combos: &["V"],
+                only: false,
+            },
+            Recipe {
+                description: "Go to first and last line",
+                content: "
+To be, or not to be, that is the question:
+Whether 'tis nobler in the mind to suffer
+The slings and arrows of outrageous fortune,
+Or to take arms against a sea of troubles
+And by opposing end them. To die—to sleep,
+"
+                .trim(),
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("e . ,"),
+                expectations: &[CurrentSelectedTexts(&[
+                    "To be, or not to be, that is the question:",
+                ])],
+                terminal_height: None,
+                similar_vim_combos: &["g g", "G"],
+                only: false,
+            },
+            Recipe {
+                description: "Insert at the beginning of line",
+                content: "  hat is that?",
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("e i W"),
+                expectations: &[CurrentComponentContent("  What is that?")],
+                terminal_height: None,
+                similar_vim_combos: &["I"],
+                only: false,
+            },
+            Recipe {
+                description: "Insert at the end of line",
+                content: "  What is that",
+                file_extension: "md",
+                prepare_events: &[],
+                events: keys!("e a ?"),
+                expectations: &[CurrentComponentContent("  What is that?")],
+                terminal_height: None,
+                similar_vim_combos: &["A"],
+                only: false,
+            },
+            Recipe {
+                description: "Go to parent line",
+                content: "
+- docs/:
+    - .gitignore
+    - book/:
+    - book.toml
+    - src/:
+        - SUMMARY.md
+        - components/:
+            - file-explorer.md
+            - index.md
+"
+                .trim(),
+                file_extension: "yaml",
+                prepare_events: keys!("/ i n d e x enter"),
+                events: keys!("e h h h"),
+                expectations: &[CurrentSelectedTexts(&["- docs/:"])],
+                terminal_height: Some(10),
+                similar_vim_combos: &[],
+                only: false,
+            }
+            ].to_vec(),
+        },
+        RecipeGroup {
             filename: "delete",
             recipes: [
                 Recipe {
@@ -47,6 +131,39 @@ Why?
                     prepare_events: &[],
                     events: keys!("t . D D"),
                     expectations: &[CurrentSelectedTexts(&["camelCase"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete forward: auto backward at the end",
+                    content: "foo bar spam".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("t . d d"),
+                    expectations: &[CurrentSelectedTexts(&["foo"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete backward: auto backward at the beginning",
+                    content: "foo bar spam".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("t D D"),
+                    expectations: &[CurrentSelectedTexts(&["spam"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Delete sibling nodes",
+                    content: "[{foo: bar}, spam, 1 + 1]".trim(),
+                    file_extension: "js",
+                    prepare_events: keys!("w l"),
+                    events: keys!("s d d"),
+                    expectations: &[CurrentSelectedTexts(&["1 + 1"]), CurrentComponentContent("[1 + 1]")],
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
@@ -1319,21 +1436,6 @@ fn recipes() -> Vec<Recipe> {
             only: false,
         },
         Recipe {
-            description: "Select a line",
-            content: "
-To be, or not to be?
-That, is the question.
-"
-            .trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("e"),
-            expectations: &[CurrentSelectedTexts(&["To be, or not to be?"])],
-            terminal_height: None,
-            similar_vim_combos: &["V"],
-            only: false,
-        },
-        Recipe {
             description: "Duplicate current line",
             content: "
 To be, or not to be?
@@ -1350,26 +1452,6 @@ That, is the question.",
             )],
             terminal_height: None,
             similar_vim_combos: &["y y p"],
-            only: false,
-        },
-        Recipe {
-            description: "Go to first and last line",
-            content: "
-To be, or not to be, that is the question:
-Whether 'tis nobler in the mind to suffer
-The slings and arrows of outrageous fortune,
-Or to take arms against a sea of troubles
-And by opposing end them. To die—to sleep,
-"
-            .trim(),
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("e . ,"),
-            expectations: &[CurrentSelectedTexts(&[
-                "To be, or not to be, that is the question:",
-            ])],
-            terminal_height: None,
-            similar_vim_combos: &["g g", "G"],
             only: false,
         },
         Recipe {
@@ -1394,28 +1476,6 @@ And by opposing end them. To die—to sleep,",
             ])],
             terminal_height: None,
             similar_vim_combos: &["g g V G"],
-            only: false,
-        },
-        Recipe {
-            description: "Insert at the beginning of line",
-            content: "  hat is that?",
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("e i W"),
-            expectations: &[CurrentComponentContent("  What is that?")],
-            terminal_height: None,
-            similar_vim_combos: &["I"],
-            only: false,
-        },
-        Recipe {
-            description: "Insert at the end of line",
-            content: "  What is that",
-            file_extension: "md",
-            prepare_events: &[],
-            events: keys!("e a ?"),
-            expectations: &[CurrentComponentContent("  What is that?")],
-            terminal_height: None,
-            similar_vim_combos: &["A"],
             only: false,
         },
         Recipe {

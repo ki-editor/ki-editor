@@ -5,7 +5,7 @@ import {TutorialFallback} from '@site/src/components/TutorialFallback';
 Keybinding: `q`  
 Reason: `q` is used to start recording a macro in Vim, but I realized 80% of the time what I need is multi-cursors, not a macro.
 
-Multi-cursor mode works through two main mechanisms: [Movement](./core-movements.mdx) and [Selection Mode](./selection-modes).
+Multi-cursor mode works through two main mechanisms: [Movement](./core-movements.md) and [Selection Mode](./selection-modes).
 
 Unlike other editors where there are specific keybindings for adding cursors in specific ways,
 Ki gives you the freedom to add cursors by either:
@@ -39,7 +39,7 @@ In the Multi-cursor mode, changing the selection mode means:
 
 <TutorialFallback filename="split-selections"/>
 
-[1]: ./core-movements.mdx#leftright
+[1]: ./core-movements.md#leftright
 
 ## 3. Filter selections
 
