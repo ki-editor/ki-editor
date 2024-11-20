@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.5.2">
 <title data-rh="true">Regex-based | Ki Editor</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://ki-editor.github.io/ki-editor/img/tree-seal-script.svg"><meta data-rh="true" name="twitter:image" content="https://ki-editor.github.io/ki-editor/img/tree-seal-script.svg"><meta data-rh="true" property="og:url" content="https://ki-editor.github.io/ki-editor/docs/normal-mode/selection-modes/regex-based"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Regex-based | Ki Editor"><meta data-rh="true" name="description" content="Line"><meta data-rh="true" property="og:description" content="Line"><link data-rh="true" rel="icon" href="/ki-editor/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://ki-editor.github.io/ki-editor/docs/normal-mode/selection-modes/regex-based"><link data-rh="true" rel="alternate" href="https://ki-editor.github.io/ki-editor/docs/normal-mode/selection-modes/regex-based" hreflang="en"><link data-rh="true" rel="alternate" href="https://ki-editor.github.io/ki-editor/docs/normal-mode/selection-modes/regex-based" hreflang="x-default"><link rel="alternate" type="application/rss+xml" href="/ki-editor/blog/rss.xml" title="Ki Editor RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/ki-editor/blog/atom.xml" title="Ki Editor Atom Feed"><link rel="stylesheet" href="/ki-editor/assets/css/styles.0b35b4ef.css">
-<script src="/ki-editor/assets/js/runtime~main.31b9bdd1.js" defer="defer"></script>
+<script src="/ki-editor/assets/js/runtime~main.4041d495.js" defer="defer"></script>
 <script src="/ki-editor/assets/js/main.eb1b2fdb.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -15,7 +15,7 @@
 <p>In this selection mode, the selection is trimmed, which means that the leading
 and trailing spaces of each line are not selected.</p>
 <p>This is usually used in conjunction with <code>i</code>/<code>a</code> to immediately enter insert mode at the first/last non-whitespace symbol of the current line.</p>
-<p><code>h</code> moves the nearest parent line.</p>
+<table><thead><tr><th>Movement</th><th>Meaning</th></tr></thead><tbody><tr><td>Up/Down</td><td>Move to line above/below</td></tr><tr><td>Previous/Next</td><td>Move to the nearest empty line below/above</td></tr><tr><td>First/Last</td><td>Move to the first/last line of the current file</td></tr><tr><td>Left</td><td>Move to the parent line</td></tr></tbody></table>
 <p>Parent lines are highlighted lines that represent the parent nodes of the current selection.</p>
 <p>This is useful for example when you are within the body of a function and you want to jump to the function name.</p>
 <p>This is also practical in the <a href="/ki-editor/docs/components/file-explorer">File Explorer</a> because the file explorer is rendered using YAML, so going to Parent Line means going to the parent folder!</p>
