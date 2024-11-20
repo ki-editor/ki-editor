@@ -46,7 +46,7 @@ They are assigned special meaning in different selection modes.
 | Syntax Node      | Next/Previous named sibling         |
 | Quickfix         | To first item of next/previous file |
 | Token & Word     | Next/Previous unit skipping symbols |
-| Line & Full Line | Next/Previous empty line (TBD)      |
+| Line & Full Line | Next/Previous empty line            |
 
 ## First/Last
 
@@ -87,6 +87,8 @@ Recommended selection modes:
 This movement can also work with the Exchange mode to swap two syntax expressions that are far apart.
 
 [^1]: hop.nvim, leap.nvim, lightspeed.nvim etc.
+
+<TutorialFallback filename="jump"/>
 
 ## To Index
 

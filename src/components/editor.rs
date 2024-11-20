@@ -3094,7 +3094,7 @@ impl Editor {
                         &buffer,
                         &selection.clone().collapsed_to_anchor_range(&Direction::End),
                         &self.selection_set.mode,
-                        &Movement::Next,
+                        &Movement::Down,
                         &self.cursor_direction,
                     )?
                     .map(|result| result.selection.range())
