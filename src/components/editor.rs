@@ -2058,16 +2058,8 @@ impl Editor {
                     Rope::from_str("")
                 } else {
                     match (
-                        get_in_between_gap(if selection_mode.is_syntax_node() {
-                            Movement::Next
-                        } else {
-                            Movement::Right
-                        }),
-                        get_in_between_gap(if selection_mode.is_syntax_node() {
-                            Movement::Previous
-                        } else {
-                            Movement::Left
-                        }),
+                        get_in_between_gap(selection_mode.paste_after_movement()),
+                        get_in_between_gap(selection_mode.paste_before_movement()),
                     ) {
                         (None, None) => Default::default(),
                         (None, Some(gap)) | (Some(gap), None) => gap,

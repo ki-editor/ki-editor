@@ -522,6 +522,26 @@ impl SelectionMode {
             SelectionMode::SyntaxNode | SelectionMode::SyntaxNodeFine
         )
     }
+
+    pub(crate) fn paste_before_movement(&self) -> Movement {
+        match self {
+            SelectionMode::Line => Movement::Up,
+            SelectionMode::LineFull => Movement::Up,
+            SelectionMode::SyntaxNodeFine => Movement::Previous,
+            SelectionMode::SyntaxNode => Movement::Previous,
+            _ => Movement::Left,
+        }
+    }
+
+    pub(crate) fn paste_after_movement(&self) -> Movement {
+        match self {
+            SelectionMode::Line => Movement::Down,
+            SelectionMode::LineFull => Movement::Down,
+            SelectionMode::SyntaxNodeFine => Movement::Next,
+            SelectionMode::SyntaxNode => Movement::Next,
+            _ => Movement::Right,
+        }
+    }
 }
 
 impl From<Selection> for ApplyMovementResult {
