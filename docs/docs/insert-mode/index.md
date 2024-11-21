@@ -15,9 +15,8 @@ The following keybindings only work when the completion dropdown is opened.
 | ---------------- | ---------------- |
 | `ctrl+n`         | Next item        |
 | `ctrl+p`         | Previous item    |
-| `ctrl+space`[^1] | Use current item |
+| `tab`            | Use current item |
 
-[^1]: Why not `enter` or `tab`? Because often times, you actually wanted to insert a newline or a tab, so you press `esc` to close the dropdown menu, but by doing so you've also escaped the Insert mode, and that is infuriating.
 
 ## GNU Readline Keybindings
 

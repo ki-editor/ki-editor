@@ -85,7 +85,7 @@ impl Component for SuggestiveEditor {
                     self.completion_dropdown.previous_item();
                     return Ok(self.render_completion_dropdown(false));
                 }
-                key!("ctrl+space") => {
+                key!("tab") => {
                     let current_item = self.completion_dropdown.current_item();
                     if let Some(completion) = current_item {
                         self.completion_dropdown.set_items(Vec::new());
@@ -393,7 +393,7 @@ mod test_suggestive_editor {
                 // Expect the dropdown items to be filtered
                 Expect(CompletionDropdownIsOpen(true)),
                 Expect(CompletionDropdownContent(" Patrick")),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 // Expect the buffer to contain the selected item
                 Expect(CurrentComponentContent("Patrick")),
                 Expect(CompletionDropdownIsOpen(false)),
@@ -415,7 +415,7 @@ mod test_suggestive_editor {
                 // Type in '.',,
                 App(HandleKeyEvents(keys!("a .").to_vec())),
                 Expect(CurrentComponentContent("a.")),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("a.Patrick")),
             ])
         })
@@ -441,7 +441,7 @@ mod test_suggestive_editor {
                 // Type in 'aBigCat'
                 Editor(Insert("aBigCat".to_string())),
                 Expect(EditorCursorPosition(Position::new(0, 7))),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("aBigCatDog")),
             ])
         })
@@ -468,7 +468,7 @@ mod test_suggestive_editor {
                 Editor(EnterInsertMode(Direction::End)),
                 // Type in 'aBigCat',,
                 Editor(Insert("aBigCat".to_string())),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("(aBigCatDog)")),
             ])
         })
@@ -495,7 +495,7 @@ mod test_suggestive_editor {
                 })),
                 Editor(EnterInsertMode(Direction::End)),
                 Editor(Insert(" aBig".to_string())),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("hello harimau")),
             ])
         })
@@ -545,7 +545,7 @@ mod test_suggestive_editor {
                     })),
                     Editor(EnterInsertMode(Direction::End)),
                     Editor(Insert(" aBig".to_string())),
-                    App(HandleKeyEvent(key!("ctrl+space"))),
+                    App(HandleKeyEvent(key!("tab"))),
                     Expect(CurrentComponentContent("import 'cats';hello! aBigCat")),
                 ])
             })
@@ -591,7 +591,7 @@ mod test_suggestive_editor {
                     CompletionItem::from_label("abanana".to_string())
                         .set_insert_text(Some("apisang".to_string())),
                 )),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("hello apisang")),
             ])
         })
@@ -669,7 +669,7 @@ mod test_suggestive_editor {
                     .map(|item| item.into())
                     .collect(),
                 })),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 Expect(CurrentComponentContent("Spongebob")),
                 App(HandleKeyEvents(keys!("e n d").to_vec())),
                 Expect(CurrentComponentContent("Spongebobend")),
@@ -851,7 +851,7 @@ mod test_suggestive_editor {
                 })),
                 App(HandleKeyEvent(key!("s"))),
                 Expect(CompletionDropdownContent("💥 Spongebob")),
-                App(HandleKeyEvent(key!("ctrl+space"))),
+                App(HandleKeyEvent(key!("tab"))),
                 // Expect the content of the buffer to be applied with the new edit,
                 // resulting in 'Spongebob', and does not contain emoji
                 Expect(CurrentComponentContent("Spongebob")),
