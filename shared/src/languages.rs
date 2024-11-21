@@ -2,6 +2,7 @@ use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 
 pub const LANGUAGES: &[&Language] = &[
     &bash(),
+    &c(),
     &common_lisp(),
     &css(),
     &csv(),
@@ -46,6 +47,26 @@ const fn bash() -> Language {
         }),
         formatter_command: Some(Command("shfmt", &[".sh", ".bash"])),
         ..Language::new()
+    }
+}
+
+const fn c() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: None,
+        lsp_command: Some(LspCommand {
+            command: Command("clangd", &[]),
+            ..LspCommand::default()
+        }),
+        extensions: &["c"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "c",
+            url: "https://github.com/tree-sitter/tree-sitter-c",
+            commit: "master",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
     }
 }
 
