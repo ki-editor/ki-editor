@@ -26,6 +26,7 @@ pub const LANGUAGES: &[&Language] = &[
     &xml(),
     &yaml(),
     &zig(),
+    &golang(),
 ];
 
 const fn bash() -> Language {
@@ -462,6 +463,26 @@ const fn zig() -> Language {
             commit: "master",
         }),
         formatter_command: Some(Command("zig", &["fmt", "--stdin"])),
+        highlight_query: None,
+    }
+}
+
+const fn golang() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("go")),
+        extensions: &["go"],
+        lsp_command: Some(LspCommand {
+            command: Command("gopls", &[]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "go",
+            url: "https://github.com/tree-sitter/tree-sitter-go",
+            subpath: None,
+            commit: "master",
+        }),
+        formatter_command: Some(Command("gofmt", &[])),
         highlight_query: None,
     }
 }
