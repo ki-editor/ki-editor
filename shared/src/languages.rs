@@ -183,7 +183,7 @@ const fn javascript(jsx: bool) -> Language {
         } else {
             "javascript"
         })),
-        extensions: if jsx { &["jsx"] } else { &["js"] },
+        extensions: if jsx { &["jsx"] } else { &["js", "mjs", "cjs"] },
         lsp_command: Some(LspCommand {
             command: Command("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
@@ -418,7 +418,7 @@ const fn typescript(tsx: bool) -> Language {
             "typescriptreact",
             "typescript",
         ))),
-        extensions: choice(tsx, &["tsx"], &["ts"]),
+        extensions: choice(tsx, &["tsx"], &["ts", "mts", "cts"]),
         lsp_command: Some(LspCommand {
             command: Command("typescript-language-server", &["--stdio"]),
             ..LspCommand::default()
