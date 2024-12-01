@@ -147,7 +147,7 @@ impl Component for Prompt {
                 Ok(Dispatches::one(Dispatch::CloseCurrentWindow)
                     .chain(self.fire_dispatches_on_change.clone().unwrap_or_default()))
             }
-            key!("ctrl+space") => {
+            key!("tab") => {
                 if self.editor.completion_dropdown_opened() {
                     if let Some(item) = self.editor.completion_dropdown_current_item() {
                         self.editor.set_content(&item.display())?;
@@ -395,7 +395,7 @@ mod test_prompt {
                         fire_dispatches_on_change: None,
                     },
                 }),
-                App(HandleKeyEvents(keys!("f o o _ b ctrl+space").to_vec())),
+                App(HandleKeyEvents(keys!("f o o _ b tab").to_vec())),
                 Expect(CurrentComponentContent("foo_bar")),
                 Expect(EditorCursorPosition(Position { line: 0, column: 7 })),
             ])
