@@ -1329,7 +1329,26 @@ pub(crate) fn run(path: Option<CanonicalizedPath>) -> anyhow::Result<()> {
                     events: keys!(
                         "' x / ^ - space backslash [ space backslash ] enter q q s y d e . p a backspace"
                     ),
-                    expectations: &[],
+                    expectations: &[CurrentComponentContent(r#"# Fake To-Do List
+
+- [x] Buy groceries
+- [x] Finish the report for work
+- [x] Go to the gym
+- [x] Pay the bills
+- [x] Read a new book
+  - [x] Chapter 1
+  - [x] Chapter 2
+  - [x] Chapter 3
+- [x] Write documentation
+- [ ] Call the plumber
+- [ ] Schedule a dentist appointment
+- [ ] Plan a weekend getaway
+- [ ] Organize the closet
+- [ ] Watch a movie
+  - [ ] Action film
+  - [ ] Comedy
+  - [x] Documentary"#
+                    )],
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
