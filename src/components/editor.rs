@@ -1099,6 +1099,8 @@ impl Editor {
 
         self.recalculate_scroll_offset();
 
+        self.clamp()?;
+
         Ok(self.get_document_did_change_dispatch())
     }
 
