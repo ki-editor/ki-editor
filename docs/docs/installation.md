@@ -9,20 +9,30 @@
 rustup default 1.80.0
 ```
 
-3. Clone the project:
+3. Install openssl's development package
+
+```
+# Ubuntu
+sudo apt install libssl-dev
+
+# Fedora
+sudo dnf install openssl-devel
+```
+
+4. Clone the project:
 
 ```sh
 git clone https://github.com/ki-editor/ki-editor.git
 ```
 
-4. Run installation:
+5. Run installation:
 
 ```sh
 cd ki-editor
 cargo install --locked --path .
 ```
 
-5. The `ki` binary should be installed.
+6. The `ki` binary should be installed.
 
 ## Use nix flake [^1]
 
