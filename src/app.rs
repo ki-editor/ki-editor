@@ -2,16 +2,11 @@ use crate::{
     buffer::Buffer,
     clipboard::CopiedTexts,
     components::{
-        component::{Component, ComponentId, GetGridResult},
-        dropdown::{DropdownItem, DropdownRender},
-        editor::{DispatchEditor, Editor, IfCurrentNotFound, Movement},
-        keymap_legend::{
+        component::{Component, ComponentId, GetGridResult}, dropdown::{DropdownItem, DropdownRender}, editor::{DispatchEditor, Editor, IfCurrentNotFound, Movement}, file_explorer::FileExplorer, keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
-        },
-        prompt::{Prompt, PromptConfig, PromptHistoryKey},
-        suggestive_editor::{
+        }, prompt::{Prompt, PromptConfig, PromptHistoryKey}, suggestive_editor::{
             DispatchSuggestiveEditor, Info, SuggestiveEditor, SuggestiveEditorFilter,
-        },
+        }
     },
     context::{Context, GlobalMode, LocalSearchConfigMode, QuickfixListSource, Search},
     frontend::Frontend,
@@ -163,7 +158,11 @@ impl<T: Frontend> App<T> {
         }
 
         if let Some(entry_path) = entry_path {
-            self.open_file(&entry_path, OpenFileOption::Focus)?;
+            if entry_path.as_ref().is_dir() {
+                self.layout.open_file_explorer();
+            } else {
+                self.open_file(&entry_path, OpenFileOption::Focus)?;
+            }
         }
 
         self.render()?;
