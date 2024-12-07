@@ -184,6 +184,13 @@ impl<T: Frontend> App<T> {
                 } => self
                     .update_highlighted_spans(component_id, highlighted_spans)
                     .map(|_| false),
+                AppMessage::NotifyError(error) => {
+                    self.show_global_info(Info::new(
+                        "App Error".to_string(),
+                        format!("{error:#?}"),
+                    ));
+                    Ok(false)
+                }
             }
             .unwrap_or_else(|e| {
                 self.show_global_info(Info::new("ERROR".to_string(), e.to_string()));
@@ -2433,6 +2440,7 @@ pub(crate) enum AppMessage {
         component_id: ComponentId,
         highlighted_spans: HighlighedSpans,
     },
+    NotifyError(std::io::Error),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
