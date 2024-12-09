@@ -74,6 +74,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 if !path.exists() {
                     std::fs::write(path, "")?;
                 }
+
                 crate::run(crate::RunConfig {
                     entry_path: Some(args.path.try_into()?),
                     ..Default::default()
