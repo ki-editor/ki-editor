@@ -717,16 +717,7 @@ impl Selection {
         };
         self.set_range(range).set_initial_range(None)
     }
-
-    pub(crate) fn trimmed(&self, buffer: &Buffer) -> anyhow::Result<Self> {
-        Ok(self
-            .clone()
-            .set_range(self.extended_range().trimmed(buffer)?))
-    }
 }
-
-// TODO: this works, but the result is not satisfactory,
-// we will leave this function here as a reference
 
 impl Add<usize> for Selection {
     type Output = Selection;
