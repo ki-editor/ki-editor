@@ -256,6 +256,17 @@ Why?
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
+                },
+                Recipe {
+                    description: "Extend selection (Change selection mode)",
+                    content: "fooBar helloWorldSpamSpam tada".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("t v l w l"),
+                    expectations: &[CurrentSelectedTexts(&["fooBar helloWorld"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
                 }
             ].to_vec(),
         },

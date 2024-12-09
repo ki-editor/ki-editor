@@ -3186,3 +3186,20 @@ bam
         ])
     })
 }
+
+#[test]
+fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("helloWorld fooBar".trim().to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Expect(CurrentSelectedTexts(&["helloWorld"])),
+            Editor(EnterVMode),
+            App(HandleKeyEvent(key!("l"))),
+            Expect(CurrentSelectedTexts(&["helloWorld fooBar"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["helloWorld foo"])),
+        ])
+    })
+}
