@@ -180,7 +180,7 @@ impl Editor {
                 Keymap::new(
                     "z",
                     "Select Character".to_string(),
-                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+                    Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
                 ),
                 Keymap::new(
                     "[",
