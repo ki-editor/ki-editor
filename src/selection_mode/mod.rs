@@ -1,5 +1,5 @@
 pub(crate) mod ast_grep;
-pub(crate) mod column;
+pub(crate) mod character;
 pub(crate) mod custom;
 pub(crate) mod diagnostic;
 pub(crate) mod git_hunk;
@@ -18,7 +18,7 @@ pub(crate) mod token;
 pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
-pub(crate) use column::Column;
+pub(crate) use character::Character;
 pub(crate) use custom::Custom;
 pub(crate) use diagnostic::Diagnostic;
 pub(crate) use git_hunk::GitHunk;
