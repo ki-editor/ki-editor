@@ -170,6 +170,7 @@ impl Component for Editor {
             event::event::Event::Key(event) => self.handle_key_event(context, event),
             event::event::Event::Paste(content) => self.paste_text(
                 Direction::End,
+                false,
                 CopiedTexts::new(NonEmpty::singleton(content)),
             ),
             event::event::Event::Mouse(event) => self.handle_mouse_event(event),
@@ -290,8 +291,9 @@ impl Component for Editor {
             EnterReplaceMode => self.enter_replace_mode(),
             Paste {
                 direction,
+                use_smart_gap: with_smart_gap,
                 use_system_clipboard,
-            } => return self.paste(direction, context, use_system_clipboard),
+            } => return self.paste(direction, context, with_smart_gap, use_system_clipboard),
             SwapCursorWithAnchor => self.swap_cursor_with_anchor(),
             SetDecorations(decorations) => self.buffer_mut().set_decorations(&decorations),
             MoveCharacterBack => self.selection_set.move_left(&self.cursor_direction),
@@ -300,7 +302,7 @@ impl Component for Editor {
                 self.selection_set
                     .move_right(&self.cursor_direction, len_chars)
             }
-            Open(direction) => return self.open(direction),
+            Open(direction, open_mode) => return self.open(direction, open_mode),
             TryReplaceCurrentLongWord(replacement) => {
                 return self.try_replace_current_long_word(replacement)
             }
@@ -982,6 +984,7 @@ impl Editor {
     fn paste_text(
         &mut self,
         direction: Direction,
+        with_smart_gap: bool,
         copied_texts: CopiedTexts,
     ) -> anyhow::Result<Dispatches> {
         let edit_transaction = EditTransaction::from_action_groups({
@@ -989,6 +992,7 @@ impl Editor {
                 .into_iter()
                 .enumerate()
                 .map(|(index, (selection, gap))| {
+                    let gap = if with_smart_gap { gap } else { Rope::new() };
                     let current_range = selection.extended_range();
                     let insertion_range_start = match direction {
                         Direction::Start => current_range.start,
@@ -1048,12 +1052,13 @@ impl Editor {
         &mut self,
         direction: Direction,
         context: &Context,
+        with_smart_gap: bool,
         use_system_clipboard: bool,
     ) -> anyhow::Result<Dispatches> {
         let Some(copied_texts) = context.get_clipboard_content(use_system_clipboard, 0)? else {
             return Ok(Default::default());
         };
-        self.paste_text(direction, copied_texts)
+        self.paste_text(direction, with_smart_gap, copied_texts)
     }
 
     /// If `cut` if true, the replaced text will override the clipboard.  
@@ -2082,21 +2087,21 @@ impl Editor {
             .collect_vec()
     }
 
-    fn open(&mut self, direction: Direction) -> Result<Dispatches, anyhow::Error> {
-        let dispatches = if self.selection_set.mode.is_syntax_node() {
-            Dispatches::default()
-        } else {
-            self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line)?
+    fn open(
+        &mut self,
+        direction: Direction,
+        open_mode: OpenMode,
+    ) -> Result<Dispatches, anyhow::Error> {
+        let dispatches = match open_mode {
+            OpenMode::Line => {
+                self.set_selection_mode(IfCurrentNotFound::LookForward, SelectionMode::Line)?
+            }
+            OpenMode::CurrentSelectionMode => Dispatches::default(),
         };
         let edit_transaction = EditTransaction::from_action_groups(
             self.get_selection_set_with_gap(&direction)
                 .into_iter()
                 .map(|(selection, gap)| {
-                    let gap = if gap.len_chars() == 0 {
-                        Rope::from_str(" ")
-                    } else {
-                        gap
-                    };
                     let gap_len = gap.len_chars();
                     ActionGroup::new(
                         [
@@ -3270,7 +3275,7 @@ pub(crate) enum DispatchEditor {
         enclosure: EnclosureKind,
         kind: SurroundKind,
     },
-    Open(Direction),
+    Open(Direction, OpenMode),
     ToggleMark,
     EnterNormalMode,
     EnterExchangeMode,
@@ -3301,6 +3306,7 @@ pub(crate) enum DispatchEditor {
     ShowKeymapLegendInsertMode,
     Paste {
         direction: Direction,
+        use_smart_gap: bool,
         use_system_clipboard: bool,
     },
     SwapCursorWithAnchor,
@@ -3351,3 +3357,9 @@ impl std::fmt::Display for SurroundKind {
 
 const INDENT_CHAR: char = ' ';
 const INDENT_WIDTH: usize = 4;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OpenMode {
+    Line,
+    CurrentSelectionMode,
+}

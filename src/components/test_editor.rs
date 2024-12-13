@@ -31,6 +31,7 @@ use my_proc_macros::{hex, key, keys};
 use SelectionMode::*;
 
 use super::editor::IfCurrentNotFound;
+use super::editor::OpenMode;
 use super::editor::SurroundKind;
 
 #[test]
@@ -661,14 +662,14 @@ fn open_before_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open(Direction::Start)),
+            Editor(Open(Direction::Start, OpenMode::CurrentSelectionMode)),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, b:B){}".trim())),
             Editor(EnterNormalMode),
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open(Direction::Start)),
+            Editor(Open(Direction::Start, OpenMode::CurrentSelectionMode)),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(c:C, a:A, d:D, b:B){}".trim())),
         ])
@@ -691,7 +692,7 @@ def main():
             )),
             Editor(MatchLiteral("hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(Open(Direction::Start)),
+            Editor(Open(Direction::Start, OpenMode::CurrentSelectionMode)),
             Expect(CurrentComponentContent(
                 "
 def main():
@@ -713,7 +714,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(SetContent("fn x(a:A, b:B){}".trim().to_string())),
             Editor(MatchLiteral("a:A".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
-            Editor(Open(Direction::End)),
+            Editor(Open(Direction::End, OpenMode::CurrentSelectionMode)),
             Expect(CurrentMode(Mode::Insert)),
             Editor(Insert("c:C".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B){}".trim())),
@@ -721,7 +722,7 @@ fn open_after_selection() -> anyhow::Result<()> {
             Editor(MatchLiteral("b:B".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Expect(CurrentSelectedTexts(&["b:B"])),
-            Editor(Open(Direction::End)),
+            Editor(Open(Direction::End, OpenMode::CurrentSelectionMode)),
             Editor(Insert("d:D".to_string())),
             Expect(CurrentComponentContent("fn x(a:A, c:C, b:B, d:D){}".trim())),
         ])
@@ -745,7 +746,7 @@ fn main() {
             Editor(MatchLiteral("hello".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
             Expect(CurrentSelectedTexts(&["hello"])),
-            Editor(Open(Direction::End)),
+            Editor(Open(Direction::End, OpenMode::CurrentSelectionMode)),
             Editor(Insert("// world".to_string())),
             Expect(CurrentComponentContent(
                 "
@@ -862,6 +863,7 @@ fn paste_in_insert_mode_1() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent("foo barhaha spam")),
@@ -885,6 +887,7 @@ fn paste_in_insert_mode_2() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::End)),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent("fn main(a:Aa:A,b:B){}")),
@@ -907,6 +910,7 @@ fn paste_after() -> anyhow::Result<()> {
             Editor(MatchLiteral("bar".to_string())),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent("foo barhaha spam")),
@@ -936,6 +940,7 @@ fn main() {
             }),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent(
@@ -965,6 +970,7 @@ fn smart_paste() -> anyhow::Result<()> {
                 Expect(CurrentSelectedTexts(&["a:A"])),
                 Editor(Paste {
                     direction: direction.clone(),
+                    use_smart_gap: true,
                     use_system_clipboard: false,
                 }),
                 Expect(CurrentComponentContent(expected_result)),
@@ -989,6 +995,7 @@ fn paste_before() -> anyhow::Result<()> {
             Editor(MatchLiteral("bar".to_string())),
             Editor(Paste {
                 direction: Direction::Start,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent("foo hahabar spam")),
@@ -2048,6 +2055,7 @@ fn undo_till_empty_should_not_crash_in_insert_mode() -> anyhow::Result<()> {
             Editor(EnterInsertMode(Direction::Start)),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent("foo")),
@@ -2304,6 +2312,7 @@ c1 c2 c3"
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
                 Editor(Paste {
                     direction: Direction::End,
+                    use_smart_gap: true,
                     use_system_clipboard: false,
                 }),
                 Editor(ReplaceWithPreviousCopiedText),
@@ -2477,6 +2486,7 @@ fn yank_paste_extended_selection() -> Result<(), anyhow::Error> {
                 }),
                 Editor(Paste {
                     direction: Direction::End,
+                    use_smart_gap: true,
                     use_system_clipboard: false,
                 }),
                 Expect(CurrentComponentContent("who lives who lives in a")),

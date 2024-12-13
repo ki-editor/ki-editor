@@ -19,7 +19,8 @@ use crate::{
 
 use super::{
     editor::{
-        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, SurroundKind,
+        Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, OpenMode,
+        SurroundKind,
     },
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
 };
@@ -53,7 +54,7 @@ impl Editor {
                     Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new(
-                    "b",
+                    "p",
                     "Previous".to_string(),
                     Dispatch::ToEditor(MoveSelection(Previous)),
                 ),
@@ -216,12 +217,7 @@ impl Editor {
                     Keymap::new(
                         "i",
                         Direction::Start.format_action("Insert"),
-                        Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                    ),
-                    Keymap::new(
-                        "a",
-                        Direction::End.format_action("Insert"),
-                        Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                        Dispatch::ShowKeymapLegend(self.insert_keymap_legend_config()),
                     ),
                     Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
                     Keymap::new(
@@ -291,16 +287,11 @@ impl Editor {
                 } else {
                     Keymap::new(
                         "o",
-                        Direction::End.format_action("Open"),
-                        Dispatch::ToEditor(Open(Direction::End)),
+                        "Swap cursor with anchor".to_string(),
+                        Dispatch::ToEditor(SwapCursorWithAnchor),
                     )
                 }))
                 .chain([
-                    Keymap::new(
-                        "O",
-                        Direction::Start.format_action("Open"),
-                        Dispatch::ToEditor(Open(Direction::Start)),
-                    ),
                     Keymap::new("u", "Undo".to_string(), Dispatch::ToEditor(Undo)),
                     Keymap::new("U", "Redo".to_string(), Dispatch::ToEditor(Redo)),
                     Keymap::new(
@@ -378,6 +369,116 @@ impl Editor {
         }
     }
 
+    fn insert_keymap_legend_config(&self) -> KeymapLegendConfig {
+        KeymapLegendConfig {
+            title: "Insert".to_string(),
+            body: KeymapLegendBody::SingleSection {
+                keymaps: Keymaps::new(&[
+                    Keymap::new(
+                        "h",
+                        Direction::Start.format_action("Insert"),
+                        Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                    ),
+                    Keymap::new(
+                        "l",
+                        Direction::End.format_action("Insert"),
+                        Dispatch::ToEditor(EnterInsertMode(Direction::End)),
+                    ),
+                    Keymap::new(
+                        "k",
+                        "Open new line above".to_string(),
+                        Dispatch::ToEditor(Open(Direction::Start, OpenMode::Line)),
+                    ),
+                    Keymap::new(
+                        "j",
+                        "Open new line below".to_string(),
+                        Dispatch::ToEditor(Open(Direction::End, OpenMode::Line)),
+                    ),
+                    Keymap::new(
+                        "p",
+                        Direction::Start.format_action("Open"),
+                        Dispatch::ToEditor(Open(Direction::Start, OpenMode::CurrentSelectionMode)),
+                    ),
+                    Keymap::new(
+                        "n",
+                        Direction::End.format_action("Open"),
+                        Dispatch::ToEditor(Open(Direction::End, OpenMode::CurrentSelectionMode)),
+                    ),
+                ]),
+            },
+        }
+    }
+
+    fn keymap_replace(&self, use_system_clipboard: bool) -> KeymapLegendSection {
+        KeymapLegendSection {
+            title: format!(
+                "Replace{}",
+                if use_system_clipboard {
+                    " (use system clipboard)"
+                } else {
+                    ""
+                }
+            ),
+            keymaps: Keymaps::new(
+                &[
+                    Keymap::new(
+                        "h",
+                        Direction::Start.format_action("Paste"),
+                        Dispatch::ToEditor(Paste {
+                            direction: Direction::Start,
+                            use_smart_gap: false,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "l",
+                        Direction::End.format_action("Paste"),
+                        Dispatch::ToEditor(Paste {
+                            direction: Direction::End,
+                            use_smart_gap: false,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "p",
+                        Direction::Start.format_action("Paste (with smart gap)"),
+                        Dispatch::ToEditor(Paste {
+                            direction: Direction::Start,
+                            use_smart_gap: true,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "n",
+                        Direction::End.format_action("Paste (with smart gap)"),
+                        Dispatch::ToEditor(Paste {
+                            direction: Direction::End,
+                            use_smart_gap: true,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "r",
+                        Direction::End.format_action("Replace"),
+                        Dispatch::ToEditor(ReplaceWithCopiedText {
+                            cut: false,
+                            use_system_clipboard,
+                        }),
+                    ),
+                    Keymap::new(
+                        "x",
+                        Direction::End.format_action("Replace Cut"),
+                        Dispatch::ToEditor(ReplaceWithCopiedText {
+                            cut: true,
+                            use_system_clipboard,
+                        }),
+                    ),
+                ]
+                .to_vec(),
+            ),
+        }
+    }
+
     fn keymap_clipboard_related_actions(&self, use_system_clipboard: bool) -> KeymapLegendSection {
         let extra = if use_system_clipboard {
             " (system clipboard)"
@@ -396,34 +497,37 @@ impl Editor {
                         }),
                     ),
                     Keymap::new(
-                        "p",
-                        format!("{}{}", Direction::End.format_action("Paste"), extra),
-                        Dispatch::ToEditor(Paste {
-                            direction: Direction::End,
-                            use_system_clipboard,
-                        }),
-                    ),
-                    Keymap::new(
-                        "P",
-                        format!("{}{}", Direction::Start.format_action("Paste"), extra),
-                        Dispatch::ToEditor(Paste {
-                            direction: Direction::Start,
-                            use_system_clipboard,
+                        "r",
+                        "Replace/Paste".to_string(),
+                        Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                            title: "Replace".to_string(),
+                            body: KeymapLegendBody::SingleSection {
+                                keymaps: self.keymap_replace(false).keymaps,
+                            },
                         }),
                     ),
                     Keymap::new(
                         "R",
-                        format!("{}{}", "Replace Cut", extra),
-                        Dispatch::ToEditor(ReplaceWithCopiedText {
-                            use_system_clipboard,
-                            cut: true,
+                        "Replace/Paste (use system clipboard)".to_string(),
+                        Dispatch::ShowKeymapLegend(KeymapLegendConfig {
+                            title: "Replace (use system clipboard)".to_string(),
+                            body: KeymapLegendBody::SingleSection {
+                                keymaps: self.keymap_replace(true).keymaps,
+                            },
                         }),
                     ),
                     Keymap::new(
                         "y",
                         format!("{}{}", "Yank (Copy)", extra),
                         Dispatch::ToEditor(Copy {
-                            use_system_clipboard,
+                            use_system_clipboard: false,
+                        }),
+                    ),
+                    Keymap::new(
+                        "Y",
+                        format!("{}{}", "Yank (Copy, use system clipboard)", extra),
+                        Dispatch::ToEditor(Copy {
+                            use_system_clipboard: true,
                         }),
                     ),
                 ]
@@ -436,7 +540,7 @@ impl Editor {
                     )
                 } else {
                     Keymap::new(
-                        "r",
+                        "_",
                         format!("{}{}", "Replace", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -469,6 +573,7 @@ impl Editor {
                     "Paste".to_string(),
                     Dispatch::ToEditor(Paste {
                         direction: Direction::End,
+                        use_smart_gap: false,
                         use_system_clipboard: false,
                     }),
                 ),
@@ -614,16 +719,6 @@ impl Editor {
                     "space",
                     "Search (List)".to_string(),
                     Dispatch::ShowKeymapLegend(self.space_keymap_legend_config(context)),
-                ),
-                Keymap::new(
-                    "\\",
-                    "Clipboard-related actions (use system clipboard)".to_string(),
-                    Dispatch::ShowKeymapLegend(KeymapLegendConfig {
-                        title: "Clipboard-related actions (use system clipboard)".to_string(),
-                        body: KeymapLegendBody::SingleSection {
-                            keymaps: self.keymap_clipboard_related_actions(true).keymaps,
-                        },
-                    }),
                 ),
                 Keymap::new(
                     ":",

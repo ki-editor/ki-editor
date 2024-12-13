@@ -739,6 +739,7 @@ fn multi_paste() -> anyhow::Result<()> {
             Editor(Insert("Some(".to_owned())),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Editor(Insert(")".to_owned())),
@@ -752,6 +753,7 @@ fn multi_paste() -> anyhow::Result<()> {
             }),
             Editor(Paste {
                 direction: Direction::End,
+                use_smart_gap: true,
                 use_system_clipboard: false,
             }),
             Expect(CurrentComponentContent(
@@ -2038,6 +2040,7 @@ c1 c2 c3"
                 Expect(CurrentSelectedTexts(&["a3", "b3", "c3"])),
                 Editor(Paste {
                     direction: Direction::End,
+                    use_smart_gap: true,
                     use_system_clipboard: true,
                 }),
                 Expect(CurrentSelectedTexts(&[
