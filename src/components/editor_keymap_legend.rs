@@ -217,7 +217,12 @@ impl Editor {
                     Keymap::new(
                         "i",
                         Direction::Start.format_action("Insert"),
-                        Dispatch::ShowKeymapLegend(self.insert_keymap_legend_config()),
+                        Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
+                    ),
+                    Keymap::new(
+                        "a",
+                        Direction::End.format_action("Insert"),
+                        Dispatch::ToEditor(EnterInsertMode(Direction::End)),
                     ),
                     Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
                     Keymap::new(
@@ -287,8 +292,8 @@ impl Editor {
                 } else {
                     Keymap::new(
                         "o",
-                        "Swap cursor with anchor".to_string(),
-                        Dispatch::ToEditor(SwapCursorWithAnchor),
+                        "Open".to_string(),
+                        Dispatch::ShowKeymapLegend(self.open_keymap_legend_config()),
                     )
                 }))
                 .chain([
@@ -369,21 +374,11 @@ impl Editor {
         }
     }
 
-    fn insert_keymap_legend_config(&self) -> KeymapLegendConfig {
+    fn open_keymap_legend_config(&self) -> KeymapLegendConfig {
         KeymapLegendConfig {
-            title: "Insert".to_string(),
+            title: "Open".to_string(),
             body: KeymapLegendBody::SingleSection {
                 keymaps: Keymaps::new(&[
-                    Keymap::new(
-                        "h",
-                        Direction::Start.format_action("Insert"),
-                        Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
-                    ),
-                    Keymap::new(
-                        "l",
-                        Direction::End.format_action("Insert"),
-                        Dispatch::ToEditor(EnterInsertMode(Direction::End)),
-                    ),
                     Keymap::new(
                         "k",
                         "Open new line above".to_string(),
