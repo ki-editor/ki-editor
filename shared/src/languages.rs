@@ -8,6 +8,7 @@ pub const LANGUAGES: &[&Language] = &[
     &csv(),
     &dockerfile(),
     &graphql(),
+    &hare(),
     &html(),
     &javascript(true),
     &javascript(false),
@@ -152,6 +153,19 @@ const fn graphql() -> Language {
         lsp_command: Some(LspCommand {
             command: Command("graphql-lsp", &["server", "-m", "stream"]),
             initialization_options: Some(r#"{ "graphql-config.load.legacy": true }"#),
+        }),
+        ..Language::new()
+    }
+}
+
+const fn hare() -> Language {
+    Language {
+        extensions: &["ha"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "hare",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-hare",
+            commit: "master",
+            subpath: None,
         }),
         ..Language::new()
     }
