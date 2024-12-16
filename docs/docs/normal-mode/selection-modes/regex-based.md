@@ -36,6 +36,16 @@ Keybinding: `E`
 
 Same as [Line](#line), however, leading whitespaces are selected, and trailing whitespaces, including newline characters are also selected.
 
+## Token
+
+Keybinding: `t`
+
+Like [Word](#word), but it treats each unit as a sequence of alphanumeric characters (including `-` and `_`).
+
+<TutorialFallback filename="token"/>
+
+[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
+
 ## Word
 
 Keybinding: `w`
@@ -48,17 +58,7 @@ This is useful for renaming identifiers, especially if we only want to change a 
 
 <TutorialFallback filename="word"/>
 
-## Token
-
-Keybinding: `t`
-
-Like [Word](#word), but it treats each unit as a sequence of alphanumeric characters (including `-` and `_`).
-
-<TutorialFallback filename="token"/>
-
-[^1]: This is possible because even Prompt is an editor, so the Word mode also works there. See [Core Concepts](../../core-concepts.md#2-every-component-is-a-buffereditor)
-
-## Column
+## Character
 
 Keybindings:
 
@@ -67,4 +67,6 @@ Keybindings:
 
 In this selection mode, the movements behave like the usual editor, where [Left/Right](./../core-movements.md#leftright) means left/right, and so on.
 
-[First/Last](./../core-movements.md#firstlast) means the first/last column of the current line.
+[First/Last](./../core-movements.md#firstlast) means the first/last character of the current word.
+
+<TutorialFallback filename="char"/>

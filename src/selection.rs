@@ -395,7 +395,7 @@ pub(crate) enum SelectionMode {
     Word,
     Token,
     Line,
-    Column,
+    Character,
     Custom,
     Find { search: Search },
     // Syntax-tree
@@ -428,7 +428,7 @@ impl SelectionMode {
             SelectionMode::EmptyLine => "EMPTY LINE".to_string(),
             SelectionMode::Line => "LINE".to_string(),
             SelectionMode::LineFull => "FULL LINE".to_string(),
-            SelectionMode::Column => "COLUMN".to_string(),
+            SelectionMode::Character => "COLUMN".to_string(),
             SelectionMode::Custom => "CUSTOM".to_string(),
             SelectionMode::SyntaxNode => "SYNTAX NODE".to_string(),
             SelectionMode::SyntaxNodeFine => "FINE SYNTAX NODE".to_string(),
@@ -463,11 +463,11 @@ impl SelectionMode {
             SelectionMode::Token => Box::new(selection_mode::Token::new(buffer)?),
             SelectionMode::Line => Box::new(selection_mode::LineTrimmed),
             SelectionMode::LineFull => Box::new(selection_mode::LineFull),
-            SelectionMode::Column => {
+            SelectionMode::Character => {
                 let current_column = buffer
                     .char_to_position(current_selection.to_char_index(cursor_direction))?
                     .column;
-                Box::new(selection_mode::Column::new(current_column))
+                Box::new(selection_mode::Character::new(current_column))
             }
             SelectionMode::Custom => {
                 Box::new(selection_mode::Custom::new(current_selection.clone()))
@@ -510,7 +510,7 @@ impl SelectionMode {
                 | SelectionMode::Token
                 | SelectionMode::Line
                 | SelectionMode::LineFull
-                | SelectionMode::Column
+                | SelectionMode::Character
                 | SelectionMode::SyntaxNode
                 | SelectionMode::SyntaxNodeFine
         )
@@ -717,16 +717,7 @@ impl Selection {
         };
         self.set_range(range).set_initial_range(None)
     }
-
-    pub(crate) fn trimmed(&self, buffer: &Buffer) -> anyhow::Result<Self> {
-        Ok(self
-            .clone()
-            .set_range(self.extended_range().trimmed(buffer)?))
-    }
 }
-
-// TODO: this works, but the result is not satisfactory,
-// we will leave this function here as a reference
 
 impl Add<usize> for Selection {
     type Output = Selection;

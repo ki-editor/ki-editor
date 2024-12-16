@@ -97,7 +97,7 @@ fn delete_should_kill_if_possible_2() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() {}".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(Delete(Direction::End)),
             Expect(CurrentComponentContent("n main() {}")),
             Expect(CurrentSelectedTexts(&["n"])),
@@ -577,7 +577,7 @@ fn select_character() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["f"])),
             Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&["n"])),
@@ -814,7 +814,7 @@ fn exchange_character() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fn main() { let x = 1; }".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(EnterExchangeMode),
             Editor(MoveSelection(Right)),
             Expect(CurrentComponentContent("nf main() { let x = 1; }")),
@@ -1831,7 +1831,7 @@ fn saving_should_not_destroy_mark_if_selections_not_modified() -> anyhow::Result
             Editor(Save),
             // Expect the content is formatted (second line dedented)
             Expect(CurrentComponentContent("// foo bar spim\nfn foo() {}\n")),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["b"])),
             // Expect the mark on "bar" is not destroyed
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Mark)),
@@ -1861,7 +1861,7 @@ fn swap_cursor_with_anchor() -> anyhow::Result<()> {
             Editor(SetContent("fn main() { x.y() }  // hello ".to_string())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, SyntaxNode)),
             Editor(SwapCursorWithAnchor),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["}"])),
             // Expect cursor direction is reset to `Start` if selection mode is changed
             Expect(CurrentCursorDirection(Direction::Start)),
@@ -2064,7 +2064,7 @@ fn selection_set_history() -> Result<(), anyhow::Error> {
             App(OpenFile(s.main_rs())),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["m"])),
             App(ToEditor(GoBack)),
             Expect(CurrentSelectedTexts(&["mod foo;"])),
@@ -2561,7 +2561,7 @@ fn test_dedent_in_column_mode() -> anyhow::Result<()> {
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("fom".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Expect(CurrentSelectedTexts(&["f"])),
             Editor(Indent),
             Expect(CurrentComponentContent("    fom")),
@@ -2910,12 +2910,13 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
         Box::new([
             App(OpenFile(s.main_rs())),
             Editor(SetContent("abc \n yo".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Column)),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
             Editor(MoveSelection(Last)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(MoveSelection(Previous)),
             Expect(CurrentSelectedTexts(&["c"])),
-            Editor(MoveSelection(Next)),
+            Editor(MoveSelection(Right)),
             Expect(CurrentSelectedTexts(&[" "])),
             Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
             Expect(CurrentSelectedTexts(&["abc "])),
@@ -2924,7 +2925,23 @@ fn select_current_line_when_cursor_is_at_last_space_of_current_line() -> anyhow:
 }
 
 #[test]
-fn first_last_subword() -> anyhow::Result<()> {
+fn first_last_char() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("babyHelloCamp".to_string())),
+            Editor(MatchLiteral("Hello".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["o"])),
+            Editor(MoveSelection(First)),
+            Expect(CurrentSelectedTexts(&["H"])),
+        ])
+    })
+}
+
+#[test]
+fn first_last_word() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
             App(OpenFile(s.main_rs())),
@@ -2936,6 +2953,22 @@ fn first_last_subword() -> anyhow::Result<()> {
             Expect(CurrentSelectedTexts(&["Request"])),
             Editor(MoveSelection(First)),
             Expect(CurrentSelectedTexts(&["HTTP"])),
+        ])
+    })
+}
+
+#[test]
+fn first_last_token() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("who lives in\na pineapple".to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Editor(MoveSelection(Last)),
+            Expect(CurrentSelectedTexts(&["in"])),
+            Editor(MoveSelection(Down)),
+            Editor(MoveSelection(First)),
+            Expect(CurrentSelectedTexts(&["a"])),
         ])
     })
 }
@@ -3106,25 +3139,6 @@ fn syntax_node_move_right_should_move_to_non_overlapping_node() -> anyhow::Resul
 }
 
 #[test]
-fn word_first_last_move_bounds_within_alphanumeric_sentence() -> anyhow::Result<()> {
-    execute_test(|s| {
-        Box::new([
-            App(OpenFile(s.main_rs())),
-            Editor(SetContent("foo bar spam, yo na kor".to_string())),
-            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
-            Editor(MoveSelection(Last)),
-            Expect(CurrentSelectedTexts(&["spam"])),
-            Editor(MoveSelection(Next)),
-            Expect(CurrentSelectedTexts(&["yo"])),
-            Editor(MoveSelection(Last)),
-            Expect(CurrentSelectedTexts(&["kor"])),
-            Editor(MoveSelection(First)),
-            Expect(CurrentSelectedTexts(&["yo"])),
-        ])
-    })
-}
-
-#[test]
 fn delete_empty_lines() -> anyhow::Result<()> {
     execute_test(|s| {
         Box::new([
@@ -3183,6 +3197,23 @@ bam
             Editor(MoveSelection(Previous)),
             Editor(MoveSelection(Down)),
             Expect(CurrentSelectedTexts(&["spam"])),
+        ])
+    })
+}
+
+#[test]
+fn visual_select_anchor_change_selection_mode() -> anyhow::Result<()> {
+    execute_test(|s| {
+        Box::new([
+            App(OpenFile(s.main_rs())),
+            Editor(SetContent("helloWorld fooBar".trim().to_string())),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
+            Expect(CurrentSelectedTexts(&["helloWorld"])),
+            Editor(EnterVMode),
+            App(HandleKeyEvent(key!("l"))),
+            Expect(CurrentSelectedTexts(&["helloWorld fooBar"])),
+            Editor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
+            Expect(CurrentSelectedTexts(&["helloWorld foo"])),
         ])
     })
 }

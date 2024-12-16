@@ -102,7 +102,6 @@ When `0` is pressed, you will be prompted to key in a numerical index (where 1 r
 Recommended selection modes:
 
 1. Line (For going to a specific line number)
-1. Column (For going to a specific column number)
 
 ## Current
 

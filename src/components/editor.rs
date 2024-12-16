@@ -3027,7 +3027,7 @@ impl Editor {
         direction: Direction,
     ) -> anyhow::Result<Dispatches> {
         let set_column_selection_mode =
-            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Column);
+            SetSelectionMode(IfCurrentNotFound::LookForward, SelectionMode::Character);
         match direction {
             Direction::Start => self.handle_dispatch_editor(context, set_column_selection_mode),
             Direction::End => self.handle_dispatch_editors(

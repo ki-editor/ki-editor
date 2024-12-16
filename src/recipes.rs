@@ -256,6 +256,17 @@ Why?
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,
+                },
+                Recipe {
+                    description: "Extend selection (Change selection mode)",
+                    content: "fooBar helloWorldSpamSpam tada".trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("t v l w l"),
+                    expectations: &[CurrentSelectedTexts(&["fooBar helloWorld"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
                 }
             ].to_vec(),
         },
@@ -667,12 +678,44 @@ snake_case + PascalCase
                     only: false,
                 },
                 Recipe {
-                    description: "Token: first/last movement (sentence boundary)",
-                    content: "The quick brown fox jumps! Over the lazy dog today...".trim(),
+                    description: "Token: first/last movement (line boundary)",
+                    content: "The quick brown fox jumps\nOver the lazy dog today...".trim(),
                     file_extension: "md",
                     prepare_events: &[],
-                    events: keys!("t . n . , b ,"),
-                    expectations: &[CurrentSelectedTexts(&["The"])],
+                    events: keys!("t . j , k ."),
+                    expectations: &[CurrentSelectedTexts(&["jumps"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+            ]
+            .to_vec(),
+        },
+        RecipeGroup {
+            filename: "Char",
+            recipes: [
+                Recipe {
+                    description: "Char: up/down/left/right movement",
+                    content: "
+camel 
+snake
+"
+                    .trim(),
+                    file_extension: "md",
+                    prepare_events: &[],
+                    events: keys!("z l l j h h k"),
+                    expectations: &[CurrentSelectedTexts(&["c"])],
+                    terminal_height: None,
+                    similar_vim_combos: &[],
+                    only: false,
+                },
+                Recipe {
+                    description: "Char: first/last movement (first/last char of current word)",
+                    content: "campHelloDun".trim(),
+                    file_extension: "md",
+                    prepare_events: keys!("/ h e l l o enter"),
+                    events: keys!("z . ,"),
+                    expectations: &[CurrentSelectedTexts(&["H"])],
                     terminal_height: None,
                     similar_vim_combos: &[],
                     only: false,

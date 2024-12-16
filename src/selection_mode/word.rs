@@ -63,14 +63,14 @@ impl SelectionMode for Word {
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_subword(params, SelectionPosition::First)
+        get_word(params, SelectionPosition::First)
     }
 
     fn last(
         &self,
         params: super::SelectionModeParams,
     ) -> anyhow::Result<Option<crate::selection::Selection>> {
-        get_subword(params, SelectionPosition::Last)
+        get_word(params, SelectionPosition::Last)
     }
 }
 
@@ -132,12 +132,12 @@ mod test_subword {
 }
 
 #[derive(Clone, Copy)]
-enum SelectionPosition {
+pub(crate) enum SelectionPosition {
     First,
     Last,
 }
 
-fn get_subword(
+fn get_word(
     params: super::SelectionModeParams,
     position: SelectionPosition,
 ) -> anyhow::Result<Option<crate::selection::Selection>> {

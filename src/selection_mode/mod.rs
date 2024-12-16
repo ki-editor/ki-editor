@@ -1,5 +1,5 @@
 pub(crate) mod ast_grep;
-pub(crate) mod column;
+pub(crate) mod character;
 pub(crate) mod custom;
 pub(crate) mod diagnostic;
 pub(crate) mod git_hunk;
@@ -18,7 +18,7 @@ pub(crate) mod token;
 pub(crate) mod word;
 pub(crate) use self::regex::Regex;
 pub(crate) use ast_grep::AstGrep;
-pub(crate) use column::Column;
+pub(crate) use character::Character;
 pub(crate) use custom::Custom;
 pub(crate) use diagnostic::Diagnostic;
 pub(crate) use git_hunk::GitHunk;
@@ -576,13 +576,15 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Option<Selection>> {
         let current_selection = params.current_selection;
         let buffer = params.buffer;
-        let trimmed_current_selection = current_selection.trimmed(buffer)?;
+        let range = current_selection.range().trimmed(buffer)?;
 
         if let Some((_, best_intersecting_match)) = {
-            let cursor_char_index =
-                trimmed_current_selection.to_char_index(params.cursor_direction);
-            let cursor_line = buffer.char_to_line(cursor_char_index)?;
-            let cursor_byte = buffer.char_to_byte(cursor_char_index)?;
+            let char_index = match params.cursor_direction {
+                Direction::Start => range.start,
+                Direction::End => range.end - 1,
+            };
+            let cursor_line = buffer.char_to_line(char_index)?;
+            let cursor_byte = buffer.char_to_byte(char_index)?;
             self.iter_filtered(params.clone())?
                 .filter_map(|byte_range| {
                     // Get intersecting matches

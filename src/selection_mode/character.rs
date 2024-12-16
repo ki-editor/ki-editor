@@ -2,19 +2,19 @@ use ropey::Rope;
 
 use crate::selection::Selection;
 
-use super::{ByteRange, SelectionMode, SelectionModeParams};
+use super::{word::SelectionPosition, ByteRange, SelectionMode, SelectionModeParams, Word};
 
-pub(crate) struct Column {
+pub(crate) struct Character {
     current_column: usize,
 }
 
-impl Column {
+impl Character {
     pub(crate) fn new(current_column: usize) -> Self {
         Self { current_column }
     }
 }
 
-impl SelectionMode for Column {
+impl SelectionMode for Character {
     fn iter<'a>(
         &'a self,
         SelectionModeParams {
@@ -50,6 +50,20 @@ impl SelectionMode for Column {
     ) -> Result<std::option::Option<Selection>, anyhow::Error> {
         self.move_vertically(false, params)
     }
+
+    fn first(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_char(params, SelectionPosition::First)
+    }
+
+    fn last(
+        &self,
+        params: super::SelectionModeParams,
+    ) -> anyhow::Result<Option<crate::selection::Selection>> {
+        get_char(params, SelectionPosition::Last)
+    }
 }
 
 fn line_len_without_new_line(current_line: &ropey::Rope) -> usize {
@@ -67,7 +81,7 @@ fn line_len_without_new_line(current_line: &ropey::Rope) -> usize {
     }
 }
 
-impl Column {
+impl Character {
     fn move_vertically(
         &self,
         go_up: bool,
@@ -96,8 +110,30 @@ impl Column {
     }
 }
 
+fn get_char(
+    params: super::SelectionModeParams,
+    position: SelectionPosition,
+) -> anyhow::Result<Option<crate::selection::Selection>> {
+    if let Some(current_word) = Word::new(params.buffer)?.current(
+        params.clone(),
+        crate::components::editor::IfCurrentNotFound::LookForward,
+    )? {
+        let start = match position {
+            SelectionPosition::First => current_word.range().start,
+            SelectionPosition::Last => current_word.range().end - 1,
+        };
+        return Ok(Some(
+            params
+                .current_selection
+                .clone()
+                .set_range((start..start + 1).into()),
+        ));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
-mod test_column {
+mod test_character {
     use crate::{buffer::Buffer, selection::Selection};
 
     use super::*;
@@ -108,7 +144,7 @@ mod test_column {
 
         // First line
         let selection = Selection::default();
-        Column::new(0).assert_all_selections(
+        Character::new(0).assert_all_selections(
             &buffer,
             selection,
             &[(0..1, "f"), (1..2, "o"), (2..3, "o")],
@@ -117,7 +153,7 @@ mod test_column {
         // Second line
         let char_index = buffer.line_to_char(1)?;
         let selection = Selection::default().set_range((char_index..char_index).into());
-        Column::new(0).assert_all_selections(
+        Character::new(0).assert_all_selections(
             &buffer,
             selection,
             &[(4..5, "s"), (5..6, "p"), (6..7, "a"), (7..8, "m")],
@@ -141,8 +177,12 @@ gam
 
         let test = |selected_line: usize, move_up: bool, expected: &str| {
             let start = buffer.line_to_char(selected_line).unwrap();
-            let selection_mode = Column::new(4);
-            let method = if move_up { Column::up } else { Column::down };
+            let selection_mode = Character::new(4);
+            let method = if move_up {
+                Character::up
+            } else {
+                Character::down
+            };
             let result = method(
                 &selection_mode,
                 crate::selection_mode::SelectionModeParams {
