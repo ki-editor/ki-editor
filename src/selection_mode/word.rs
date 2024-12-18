@@ -7,10 +7,10 @@ pub struct Word {
 }
 
 const SUBWORD_REGEX: &str =
-    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[^\w\s]|_|[0-9]+";
+    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[^\w\s]|_|[0-9]+";
 
 const SUBWORD_SYMBOL_SKIPPING_REGEX: &str =
-    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z][a-z]+|[A-Z]{2,}|[a-z]+|[0-9]+";
+    r"[A-Z]{2,}(?=[A-Z][a-z])|[A-Z]{2,}|[A-Z][a-z]+|[A-Z]|[a-z]+|[0-9]+";
 
 impl Word {
     pub(crate) fn new(buffer: &Buffer) -> anyhow::Result<Self> {
@@ -75,7 +75,7 @@ impl SelectionMode for Word {
 }
 
 #[cfg(test)]
-mod test_subword {
+mod test_word {
     use super::*;
     use crate::{buffer::Buffer, selection::Selection, selection_mode::SelectionMode};
 
@@ -83,7 +83,7 @@ mod test_subword {
     fn case_1() {
         let buffer = Buffer::new(
             None,
-            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork",
+            "snake_case camelCase PascalCase UPPER_SNAKE ->() 123 <_> HTTPNetwork X",
         );
         Word::new(&buffer).unwrap().assert_all_selections(
             &buffer,
@@ -109,6 +109,7 @@ mod test_subword {
                 (55..56, ">"),
                 (57..61, "HTTP"),
                 (61..68, "Network"),
+                (69..70, "X"),
             ],
         );
     }
