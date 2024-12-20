@@ -153,7 +153,7 @@ const fn gleam() -> Language {
         formatter_command: Some(Command("gleam", &["format", "--stdin"])),
         lsp_command: Some(LspCommand {
             command: Command("gleam", &["lsp"]),
-            initialization_options: None,
+            ..LspCommand::default()
         }),
         ..Language::new()
     }
