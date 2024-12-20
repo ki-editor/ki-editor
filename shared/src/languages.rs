@@ -7,6 +7,7 @@ pub const LANGUAGES: &[&Language] = &[
     &css(),
     &csv(),
     &dockerfile(),
+    &gleam(),
     &graphql(),
     &hare(),
     &html(),
@@ -136,6 +137,25 @@ const fn dockerfile() -> Language {
             commit: "main",
             subpath: None,
         }),
+    }
+}
+
+const fn gleam() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("gleam")),
+        extensions: &["gleam"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gleam",
+            url: "https://github.com/gleam-lang/tree-sitter-gleam",
+            commit: "main",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("gleam", &["format", "--stdin"])),
+        lsp_command: Some(LspCommand {
+            command: Command("gleam", &["lsp"]),
+            initialization_options: None,
+        }),
+        ..Language::new()
     }
 }
 
