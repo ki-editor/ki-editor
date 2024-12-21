@@ -68,7 +68,7 @@ const fn c() -> Language {
             subpath: None,
         }),
         highlight_query: None,
-        formatter_command: None,
+        formatter_command: Some(Command("clang-format", &[])),
     }
 }
 
@@ -105,7 +105,7 @@ const fn cpp() -> Language {
             subpath: None,
         }),
         highlight_query: None,
-        formatter_command: None,
+        formatter_command: Some(Command("clang-format", &[])),
     }
 }
 
