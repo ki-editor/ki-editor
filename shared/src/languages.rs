@@ -3,6 +3,7 @@ use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 pub const LANGUAGES: &[&Language] = &[
     &bash(),
     &c(),
+    &cpp(),
     &common_lisp(),
     &css(),
     &csv(),
@@ -54,12 +55,12 @@ const fn bash() -> Language {
 const fn c() -> Language {
     Language {
         file_names: &[],
-        lsp_language_id: None,
+        lsp_language_id: Some(LanguageId::new("c")),
         lsp_command: Some(LspCommand {
             command: Command("clangd", &[]),
             ..LspCommand::default()
         }),
-        extensions: &["c"],
+        extensions: &["c", "h"],
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "c",
             url: "https://github.com/tree-sitter/tree-sitter-c",
@@ -80,6 +81,26 @@ const fn common_lisp() -> Language {
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "commonlisp",
             url: "https://github.com/theHamsta/tree-sitter-commonlisp",
+            commit: "master",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: None,
+    }
+}
+
+const fn cpp() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("cpp")),
+        lsp_command: Some(LspCommand {
+            command: Command("clangd", &[]),
+            ..LspCommand::default()
+        }),
+        extensions: &["cpp", "hpp"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "cpp",
+            url: "https://github.com/tree-sitter/tree-sitter-cpp",
             commit: "master",
             subpath: None,
         }),
