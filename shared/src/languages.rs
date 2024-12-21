@@ -7,6 +7,10 @@ pub const LANGUAGES: &[&Language] = &[
     &css(),
     &csv(),
     &dockerfile(),
+    &gitattributes(),
+    &gitcommit(),
+    &gitconfig(),
+    &gitignore(),
     &graphql(),
     &hare(),
     &html(),
@@ -153,6 +157,57 @@ const fn graphql() -> Language {
         lsp_command: Some(LspCommand {
             command: Command("graphql-lsp", &["server", "-m", "stream"]),
             initialization_options: Some(r#"{ "graphql-config.load.legacy": true }"#),
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitattributes() -> Language {
+    Language {
+        file_names: &[".gitattributes"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gitattributes",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-gitattributes",
+            commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+const fn gitcommit() -> Language {
+    Language {
+        file_names: &["COMMIT_EDITMSG"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gitcommit",
+            url: "https://github.com/gbprod/tree-sitter-gitcommit",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitconfig() -> Language {
+    Language {
+        file_names: &[".gitconfig"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "git_config",
+            url: "https://github.com/the-mikedavis/tree-sitter-git-config",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitignore() -> Language {
+    Language {
+        file_names: &[".gitignore"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gitignore",
+            url: "https://github.com/shunsambongi/tree-sitter-gitignore",
+            commit: "main",
+            subpath: None,
         }),
         ..Language::new()
     }
