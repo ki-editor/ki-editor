@@ -93,7 +93,8 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        vscode_light().clone()
+        themes().unwrap().iter().find(|theme| theme.name == "Rosé Pine").unwrap().clone()
+        //vscode_light().clone()
     }
 }
 
