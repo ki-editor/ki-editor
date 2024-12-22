@@ -22,6 +22,7 @@ use super::{
         Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, SurroundKind,
     },
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
+    editor_keymap_config::*,
 };
 
 use DispatchEditor::*;
@@ -32,50 +33,50 @@ impl Editor {
             title: "Movements (Core)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "h",
+                    MOVEMENT_CORE_LEFT,
                     "Left".to_string(),
                     Dispatch::ToEditor(MoveSelection(Movement::Left)),
                 ),
                 Keymap::new(
-                    "l",
+                    MOVEMENT_CORE_RIGHT,
                     "Right".to_string(),
                     Dispatch::ToEditor(MoveSelection(Right)),
                 ),
-                Keymap::new("k", "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
+                Keymap::new(MOVEMENT_CORE_UP, "Up".to_string(), Dispatch::ToEditor(MoveSelection(Up))),
                 Keymap::new(
-                    "j",
+                    MOVEMENT_CORE_DOWN,
                     "Down".to_string(),
                     Dispatch::ToEditor(MoveSelection(Down)),
                 ),
                 Keymap::new(
-                    "n",
+                    MOVEMENT_CORE_NEXT,
                     "Next".to_string(),
                     Dispatch::ToEditor(MoveSelection(Next)),
                 ),
                 Keymap::new(
-                    "b",
+                    MOVEMENT_CORE_PREV,
                     "Previous".to_string(),
                     Dispatch::ToEditor(MoveSelection(Previous)),
                 ),
                 Keymap::new(
-                    ",",
+                    MOVEMENT_CORE_FIRST,
                     "First".to_string(),
                     Dispatch::ToEditor(MoveSelection(Movement::First)),
                 ),
                 Keymap::new(
-                    ".",
+                    MOVEMENT_CORE_LAST,
                     "Last".to_string(),
                     Dispatch::ToEditor(MoveSelection(Movement::Last)),
                 ),
                 Keymap::new(
-                    "f",
+                    MOVEMENT_CORE_JUMP,
                     "Jump".to_string(),
                     Dispatch::ToEditor(DispatchEditor::ShowJumps {
                         use_current_selection_mode: true,
                     }),
                 ),
                 Keymap::new(
-                    "0",
+                    MOVEMENT_CORE_TO_INDEX,
                     "To Index (1-based)".to_string(),
                     Dispatch::OpenMoveToIndexPrompt,
                 ),
@@ -88,42 +89,42 @@ impl Editor {
             title: "Movements (Other)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "%",
+                    MOVEMENT_OTHER_SWAP,
                     "Swap cursor with anchor".to_string(),
                     Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
                 ),
                 Keymap::new(
-                    "(",
+                    MOVEMENT_OTHER_CYCLE_START,
                     Direction::Start.format_action("Cycle primary selection"),
                     Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
                 ),
                 Keymap::new(
-                    ")",
+                    MOVEMENT_OTHER_CYCLE_END,
                     Direction::End.format_action("Cycle primary selection"),
                     Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
                 ),
                 Keymap::new(
-                    "ctrl+d",
+                    MOVEMENT_OTHER_SCROLL_DOWN,
                     "Scroll down".to_string(),
                     Dispatch::ToEditor(ScrollPageDown),
                 ),
                 Keymap::new(
-                    "ctrl+u",
+                    MOVEMENT_OTHER_SCROLL_UP,
                     "Scroll up".to_string(),
                     Dispatch::ToEditor(ScrollPageUp),
                 ),
-                Keymap::new("ctrl+o", "Go back".to_string(), Dispatch::ToEditor(GoBack)),
+                Keymap::new(MOVEMENT_OTHER_GO_BACK, "Go back".to_string(), Dispatch::ToEditor(GoBack)),
                 Keymap::new(
-                    "tab",
+                    MOVEMENT_OTHER_GO_FORWARD,
                     "Go forward".to_string(),
                     Dispatch::ToEditor(GoForward),
                 ),
                 Keymap::new(
-                    "{",
+                    MOVEMENT_OTHER_GO_TO_PREVIOUS_FILE,
                     "Go to previous file".to_string(),
                     Dispatch::GoToPreviousFile,
                 ),
-                Keymap::new("}", "Go to next file".to_string(), Dispatch::GoToNextFile),
+                Keymap::new(MOVEMENT_OTHER_GO_TO_NEXT_FILE, "Go to next file".to_string(), Dispatch::GoToNextFile),
             ]),
         }
     }
@@ -133,17 +134,17 @@ impl Editor {
             title: "Selection mode".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "e",
+                    SELECTION_MODE_LINE,
                     "Select Line".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Line)),
                 ),
                 Keymap::new(
-                    "E",
+                    SELECTION_MODE_FULL_LINE,
                     "Select Full Line".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, LineFull)),
                 ),
                 Keymap::new(
-                    "g",
+                    SELECTION_MODE_FIND_GLOBAL,
                     "Find (Global)".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
@@ -152,7 +153,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "s",
+                    SELECTION_MODE_SYNTAX,
                     "Select Syntax Node".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
@@ -160,7 +161,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "S",
+                    SELECTION_MODE_FINE_SYNTAX,
                     "Select Fine Syntax Node".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(
                         IfCurrentNotFound::LookForward,
@@ -168,22 +169,22 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "t",
+                    SELECTION_MODE_TOKEN,
                     "Select Token".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Token)),
                 ),
                 Keymap::new(
-                    "w",
+                    SELECTION_MODE_WORD,
                     "Select Word".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Word)),
                 ),
                 Keymap::new(
-                    "z",
+                    SELECTION_MODE_CHARACTER,
                     "Select Character".to_string(),
                     Dispatch::ToEditor(SetSelectionMode(IfCurrentNotFound::LookForward, Character)),
                 ),
                 Keymap::new(
-                    "[",
+                    SELECTION_MODE_FIND_LOCAL_BACKWARD,
                     "(Local) - Backward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
@@ -192,7 +193,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    "]",
+                    SELECTION_MODE_FIND_LOCAL_FORWARD,
                     "Find (Local) - Forward".to_string(),
                     Dispatch::ShowKeymapLegend(self.find_keymap_legend_config(
                         context,
@@ -201,7 +202,7 @@ impl Editor {
                     )),
                 ),
                 Keymap::new(
-                    ";",
+                    SELECTION_MODE_LAST_CONTIGUOUS,
                     "Select last non-contiguous selection mode".to_string(),
                     Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookForward),
                 ),
@@ -214,24 +215,24 @@ impl Editor {
             keymaps: Keymaps::new(
                 &[
                     Keymap::new(
-                        "i",
+                        ACTION_INSERT_START,
                         Direction::Start.format_action("Insert"),
                         Dispatch::ToEditor(EnterInsertMode(Direction::Start)),
                     ),
                     Keymap::new(
-                        "a",
+                        ACTION_INSERT_END,
                         Direction::End.format_action("Insert"),
                         Dispatch::ToEditor(EnterInsertMode(Direction::End)),
                     ),
-                    Keymap::new("c", "Change".to_string(), Dispatch::ToEditor(Change)),
+                    Keymap::new(ACTION_CHANGE, "Change".to_string(), Dispatch::ToEditor(Change)),
                     Keymap::new(
-                        "J",
+                        ACTION_JOIN,
                         "Join".to_string(),
                         Dispatch::ToEditor(Transform(Transformation::Join)),
                     ),
-                    Keymap::new("K", "Break".to_string(), Dispatch::ToEditor(BreakSelection)),
+                    Keymap::new(ACTION_BREAK, "Break".to_string(), Dispatch::ToEditor(BreakSelection)),
                     Keymap::new(
-                        "^",
+                        ACTION_RAISE,
                         "Raise".to_string(),
                         Dispatch::ToEditor(Replace(Expand)),
                     ),
@@ -240,17 +241,17 @@ impl Editor {
                 .chain(if self.mode == Mode::MultiCursor {
                     [
                         Keymap::new(
-                            "d",
+                            ACTION_MC_DELETE_PRIMARY_CURSOR_END,
                             Direction::End.format_action("Delete primary cursor"),
                             Dispatch::ToEditor(DeleteCurrentCursor(Direction::End)),
                         ),
                         Keymap::new(
-                            "D",
+                            ACTION_MC_DELETE_PRIMARY_CURSOR_START,
                             Direction::Start.format_action("Delete primary cursor"),
                             Dispatch::ToEditor(DeleteCurrentCursor(Direction::Start)),
                         ),
                         Keymap::new(
-                            "m",
+                            ACTION_MC_MAINTAIN_SELECTIONS,
                             "Maintain selections matching search".to_string(),
                             Dispatch::OpenFilterSelectionsPrompt { maintain: true },
                         ),
@@ -259,17 +260,17 @@ impl Editor {
                 } else {
                     [
                         Keymap::new(
-                            "d",
+                            ACTION_DELETE_END,
                             Direction::End.format_action("Delete"),
                             Dispatch::ToEditor(Delete(Direction::End)),
                         ),
                         Keymap::new(
-                            "D",
+                            ACTION_DELETE_START,
                             Direction::Start.format_action("Delete"),
                             Dispatch::ToEditor(Delete(Direction::Start)),
                         ),
                         Keymap::new(
-                            "m",
+                            ACTION_TOGGLE_MARK,
                             "Toggle Mark".to_string(),
                             Dispatch::ToEditor(ToggleMark),
                         ),
@@ -278,60 +279,60 @@ impl Editor {
                 })
                 .chain(Some(if self.mode == Mode::MultiCursor {
                     Keymap::new(
-                        "o",
+                        ACTION_MC_KEEP_ONLY_PRIMARY_CURSOR,
                         "Keep primary cursor only".to_string(),
                         Dispatch::ToEditor(DispatchEditor::CursorKeepPrimaryOnly),
                     )
                 } else if self.selection_set.is_extended() {
                     Keymap::new(
-                        "o",
+                        ACTION_SWITCH_EXTENDED_SELECTION_END,
                         "Switch extended selection end".to_string(),
                         Dispatch::ToEditor(SwapExtensionDirection),
                     )
                 } else {
                     Keymap::new(
-                        "o",
+                        ACTION_OPEN_END,
                         Direction::End.format_action("Open"),
                         Dispatch::ToEditor(Open(Direction::End)),
                     )
                 }))
                 .chain([
                     Keymap::new(
-                        "O",
+                        ACTION_OPEN_START,
                         Direction::Start.format_action("Open"),
                         Dispatch::ToEditor(Open(Direction::Start)),
                     ),
-                    Keymap::new("u", "Undo".to_string(), Dispatch::ToEditor(Undo)),
-                    Keymap::new("U", "Redo".to_string(), Dispatch::ToEditor(Redo)),
+                    Keymap::new(ACTION_UNDO,"Undo".to_string(), Dispatch::ToEditor(Undo)),
+                    Keymap::new(ACTION_REDO, "Redo".to_string(), Dispatch::ToEditor(Redo)),
                     Keymap::new(
-                        "ctrl+r",
+                        ACTION_REPLACE_WITH_PATTERN,
                         "Replace with pattern".to_string(),
                         Dispatch::ToEditor(ReplaceWithPattern),
                     ),
                     Keymap::new(
-                        "ctrl+p",
+                        ACTION_REPLACE_WITH_PREVIOUS_COPIED_TEXT,
                         "Replace (with previous copied text)".to_string(),
                         Dispatch::ToEditor(ReplaceWithPreviousCopiedText),
                     ),
                     Keymap::new(
-                        "ctrl+n",
+                        ACTION_REPLACE_WITH_NEXT_COPIED_TEXT,
                         "Replace (with next copied text)".to_string(),
                         Dispatch::ToEditor(ReplaceWithNextCopiedText),
                     ),
                     Keymap::new(
-                        "v",
+                        ACTION_ENTER_V_MODE,
                         "Enter V Mode".to_string(),
                         Dispatch::ToEditor(EnterVMode),
                     ),
-                    Keymap::new("V", "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
-                    Keymap::new("enter", "Save".to_string(), Dispatch::ToEditor(Save)),
+                    Keymap::new(ACTION_SELECT_ALL, "Select all".to_string(), Dispatch::ToEditor(SelectAll)),
+                    Keymap::new(ACTION_SAVE, "Save".to_string(), Dispatch::ToEditor(Save)),
                     Keymap::new(
-                        "!",
+                        ACTION_TRANSFORM,
                         "Transform".to_string(),
                         Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
                     ),
                     Keymap::new(
-                        "'",
+                        ACTION_CONFIGURE_SEARCH,
                         "Configure Search".to_string(),
                         Dispatch::ShowSearchConfig {
                             scope: Scope::Local,
@@ -339,17 +340,17 @@ impl Editor {
                         },
                     ),
                     Keymap::new(
-                        "$",
+                        ACTION_COLLAPSE_SELECTION,
                         Direction::End.format_action("Collapse selection"),
                         Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
                     ),
                     Keymap::new(
-                        "|",
+                        ACTION_PIPE,
                         "Pipe to shell".to_string(),
                         Dispatch::OpenPipeToShellPrompt,
                     ),
                     Keymap::new(
-                        "/",
+                        ACTION_SEARCH_FORWARD,
                         Direction::End.format_action("Search"),
                         Dispatch::OpenSearchPrompt {
                             scope: Scope::Local,
@@ -357,15 +358,15 @@ impl Editor {
                         },
                     ),
                     Keymap::new(
-                        "?",
+                        ACTION_SEARCH_BACKWARD,
                         Direction::Start.format_action("Search"),
                         Dispatch::OpenSearchPrompt {
                             scope: Scope::Local,
                             if_current_not_found: IfCurrentNotFound::LookBackward,
                         },
                     ),
-                    Keymap::new(">", "Indent".to_string(), Dispatch::ToEditor(Indent)),
-                    Keymap::new("<", "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
+                    Keymap::new(ACTION_INDENT, "Indent".to_string(), Dispatch::ToEditor(Indent)),
+                    Keymap::new(ACTION_DEDENT, "Dedent".to_string(), Dispatch::ToEditor(Dedent)),
                 ])
                 .chain(
                     self.search_current_selection_keymap(
@@ -389,14 +390,14 @@ impl Editor {
             keymaps: Keymaps::new(
                 &[
                     Keymap::new(
-                        "C",
+                        CLIPBOARD_CHANGE_CUT,
                         format!("{}{}", "Change Cut", extra),
                         Dispatch::ToEditor(ChangeCut {
                             use_system_clipboard,
                         }),
                     ),
                     Keymap::new(
-                        "p",
+                        CLIPBOARD_PASTE_END,
                         format!("{}{}", Direction::End.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::End,
@@ -404,7 +405,7 @@ impl Editor {
                         }),
                     ),
                     Keymap::new(
-                        "P",
+                        CLIPBOARD_PASTE_START,
                         format!("{}{}", Direction::Start.format_action("Paste"), extra),
                         Dispatch::ToEditor(Paste {
                             direction: Direction::Start,
@@ -412,7 +413,7 @@ impl Editor {
                         }),
                     ),
                     Keymap::new(
-                        "R",
+                        CLIPBOARD_REPLACE_CUT,
                         format!("{}{}", "Replace Cut", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -420,7 +421,7 @@ impl Editor {
                         }),
                     ),
                     Keymap::new(
-                        "y",
+                        CLIPBOARD_YANK,
                         format!("{}{}", "Yank (Copy)", extra),
                         Dispatch::ToEditor(Copy {
                             use_system_clipboard,
@@ -430,13 +431,13 @@ impl Editor {
                 .into_iter()
                 .chain(Some(if self.mode == Mode::MultiCursor {
                     Keymap::new(
-                        "r",
+                        CLIPBOARD_MC_REMOVE_MATCHING_SEARCH,
                         "Remove selections matching search".to_string(),
                         Dispatch::OpenFilterSelectionsPrompt { maintain: false },
                     )
                 } else {
                     Keymap::new(
-                        "r",
+                        CLIPBOARD_REPLACE_WITH_COPIED_TEXT,
                         format!("{}{}", "Replace", extra),
                         Dispatch::ToEditor(ReplaceWithCopiedText {
                             use_system_clipboard,
@@ -454,18 +455,18 @@ impl Editor {
             title: "Universal keymaps (works in every mode)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    "ctrl+c",
+                    UNIVERSAL_CLOSE_WINDOW,
                     "Close current window".to_string(),
                     Dispatch::CloseCurrentWindow,
                 ),
                 Keymap::new(
-                    "ctrl+l",
+                    UNIVERSAL_SWITCH_VIEW_ALIGNMENT,
                     "Switch view alignment".to_string(),
                     Dispatch::ToEditor(SwitchViewAlignment),
                 ),
-                Keymap::new("ctrl+s", "Switch window".to_string(), Dispatch::OtherWindow),
+                Keymap::new(UNIVERSAL_SWITCH_WINDOW, "Switch window".to_string(), Dispatch::OtherWindow),
                 Keymap::new(
-                    "ctrl+v",
+                    UNIVERSAL_PASTE,
                     "Paste".to_string(),
                     Dispatch::ToEditor(Paste {
                         direction: Direction::End,
