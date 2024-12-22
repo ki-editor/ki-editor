@@ -650,7 +650,7 @@ impl Editor {
                         Dispatch::ToEditor(EnterReplaceMode),
                     ),
                     Keymap::new(
-                        "x",
+                        MOVEMENT_EXCHANGE_MODE,
                         "Enter Exchange mode".to_string(),
                         Dispatch::ToEditor(EnterExchangeMode),
                     ),
@@ -664,7 +664,7 @@ impl Editor {
                     )
                 } else {
                     Keymap::new(
-                        "q",
+                        MOVEMENT_MC_ENTER,
                         "Enter Multi-cursor mode".to_string(),
                         Dispatch::ToEditor(EnterMultiCursorMode),
                     )

@@ -5,7 +5,7 @@ pub const MOVEMENT_CORE_RIGHT: &str = "l";
 pub const MOVEMENT_CORE_UP: &str = "k";
 pub const MOVEMENT_CORE_DOWN: &str = "j";
 pub const MOVEMENT_CORE_NEXT: &str = "n";
-pub const MOVEMENT_CORE_PREV: &str = "p";
+pub const MOVEMENT_CORE_PREV: &str = "b";
 pub const MOVEMENT_CORE_FIRST: &str = ",";
 pub const MOVEMENT_CORE_LAST: &str = ".";
 pub const MOVEMENT_CORE_JUMP: &str = "f";
@@ -20,6 +20,8 @@ pub const MOVEMENT_OTHER_GO_BACK: &str = "ctrl+o";
 pub const MOVEMENT_OTHER_GO_FORWARD: &str = "tab";
 pub const MOVEMENT_OTHER_GO_TO_PREVIOUS_FILE: &str = "{";
 pub const MOVEMENT_OTHER_GO_TO_NEXT_FILE: &str = "}";
+pub const MOVEMENT_MC_ENTER: &str = "q";
+pub const MOVEMENT_EXCHANGE_MODE: &str = "x";
 
 pub const SELECTION_MODE_LINE: &str = "e";
 pub const SELECTION_MODE_FULL_LINE: &str = "E";
