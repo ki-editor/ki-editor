@@ -14,6 +14,7 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript(false),
     &just(),
     &json(),
+    &lua(),
     &nix(),
     &markdown(),
     &python(),
@@ -244,6 +245,25 @@ const fn just() -> Language {
         }),
         highlight_query: None,
         formatter_command: None,
+    }
+}
+
+const fn lua() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("lua")),
+        extensions: &["lua"],
+        lsp_command: Some(LspCommand {
+            command: Command("lua-language-server", &[]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "lua",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-lua",
+            commit: "main",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("stylua", &["-"])),
+        ..Language::new()
     }
 }
 
