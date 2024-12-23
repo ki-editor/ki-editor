@@ -75,11 +75,16 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                     std::fs::write(path, "")?;
                 }
 
-                let path = Some(args.path.try_into()?);
+                let path: Option<CanonicalizedPath> = Some(args.path.try_into()?);
+                let working_directory = match path.clone() {
+                    Some(value) if value.is_dir() => Some(value),
+                    Some(value) => value.parent()?,
+                    _ => Default::default(),
+                };
 
                 crate::run(crate::RunConfig {
-                    entry_path: path.clone(),
-                    working_directory: path,
+                    entry_path: path,
+                    working_directory,
                 })
             }
             Commands::Log => {
