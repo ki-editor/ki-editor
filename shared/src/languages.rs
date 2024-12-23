@@ -8,6 +8,7 @@ pub const LANGUAGES: &[&Language] = &[
     &csv(),
     &dockerfile(),
     &elixir(),
+    &gleam(),
     &graphql(),
     &hare(),
     &heex(),
@@ -16,6 +17,7 @@ pub const LANGUAGES: &[&Language] = &[
     &javascript(false),
     &just(),
     &json(),
+    &lua(),
     &nix(),
     &markdown(),
     &python(),
@@ -160,6 +162,25 @@ const fn elixir() -> Language {
     }
 }
 
+const fn gleam() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("gleam")),
+        extensions: &["gleam"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gleam",
+            url: "https://github.com/gleam-lang/tree-sitter-gleam",
+            commit: "main",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("gleam", &["format", "--stdin"])),
+        lsp_command: Some(LspCommand {
+            command: Command("gleam", &["lsp"]),
+            ..LspCommand::default()
+        }),
+        ..Language::new()
+    }
+}
+
 const fn graphql() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("graphql")),
@@ -287,6 +308,25 @@ const fn just() -> Language {
         }),
         highlight_query: None,
         formatter_command: None,
+    }
+}
+
+const fn lua() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("lua")),
+        extensions: &["lua"],
+        lsp_command: Some(LspCommand {
+            command: Command("lua-language-server", &[]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "lua",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-lua",
+            commit: "main",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("stylua", &["-"])),
+        ..Language::new()
     }
 }
 
