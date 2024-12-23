@@ -206,7 +206,10 @@ const fn heex() -> Language {
             command: Command("elixir-ls", &[]),
             initialization_options: None,
         }),
-        formatter_command: Some(Command("mix", &["format", "--stdin-filename", "file.heex", "-"])),
+        formatter_command: Some(Command(
+            "mix",
+            &["format", "--stdin-filename", "file.heex", "-"],
+        )),
         ..Language::new()
     }
 }
