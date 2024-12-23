@@ -8,9 +8,11 @@ pub const LANGUAGES: &[&Language] = &[
     &css(),
     &csv(),
     &dockerfile(),
+    &elixir(),
     &gleam(),
     &graphql(),
     &hare(),
+    &heex(),
     &html(),
     &javascript(true),
     &javascript(false),
@@ -162,6 +164,25 @@ const fn dockerfile() -> Language {
     }
 }
 
+const fn elixir() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("elixir")),
+        extensions: &["ex", "exs"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "elixir",
+            url: "https://github.com/elixir-lang/tree-sitter-elixir",
+            commit: "main",
+            subpath: None,
+        }),
+        lsp_command: Some(LspCommand {
+            command: Command("elixir-ls", &[]),
+            initialization_options: None,
+        }),
+        formatter_command: Some(Command("mix", &["format", "-"])),
+        ..Language::new()
+    }
+}
+
 const fn gleam() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("gleam")),
@@ -209,6 +230,28 @@ const fn hare() -> Language {
             commit: "master",
             subpath: None,
         }),
+        ..Language::new()
+    }
+}
+
+const fn heex() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("heex")),
+        extensions: &["heex"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "heex",
+            url: "https://github.com/phoenixframework/tree-sitter-heex",
+            commit: "main",
+            subpath: None,
+        }),
+        lsp_command: Some(LspCommand {
+            command: Command("elixir-ls", &[]),
+            initialization_options: None,
+        }),
+        formatter_command: Some(Command(
+            "mix",
+            &["format", "--stdin-filename", "file.heex", "-"],
+        )),
         ..Language::new()
     }
 }
