@@ -188,6 +188,7 @@ const fn gitattributes() -> Language {
         ..Language::new()
     }
 }
+
 const fn gitcommit() -> Language {
     Language {
         file_names: &["COMMIT_EDITMSG"],
