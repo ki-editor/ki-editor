@@ -19,13 +19,10 @@ fn collect_document_symbols(
 ) -> Result<(), anyhow::Error> {
     symbols.push(document_symbol.clone().try_into()?);
 
-    match document_symbol.clone().children {
-        Some(children) => {
-            for child in children {
-                collect_document_symbols(&child, symbols)?;
-            }
+    if let Some(children) = document_symbol.clone().children {
+        for child in children {
+            collect_document_symbols(&child, symbols)?;
         }
-        None => (),
     };
 
     Ok(())
@@ -73,8 +70,8 @@ impl TryFrom<lsp_types::DocumentSymbol> for Symbol {
 
     fn try_from(value: lsp_types::DocumentSymbol) -> Result<Self, Self::Error> {
         let name = value.name;
-        let start_position = value.range.start.try_into()?;
-        let end_position = value.range.end.try_into()?;
+        let start_position = value.range.start.into();
+        let end_position = value.range.end.into();
         Ok(Self {
             name,
             kind: value.kind,
