@@ -15,24 +15,17 @@ impl TryFrom<DocumentSymbolResponse> for Symbols {
     type Error = anyhow::Error;
 
     fn try_from(value: DocumentSymbolResponse) -> Result<Self, Self::Error> {
-        match value {
-            DocumentSymbolResponse::Flat(symbols) => {
-                let symbols = symbols
-                    .into_iter()
-                    .map(|symbol| symbol.try_into())
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                Ok(Self { symbols })
-            }
-            DocumentSymbolResponse::Nested(symbols) => {
-                let symbols = symbols
-                    .into_iter()
-                    .map(|symbol| symbol.try_into())
-                    .collect::<Result<Vec<_>, _>>()?;
-
-                Ok(Self { symbols })
-            }
-        }
+        let symbols = match value {
+            DocumentSymbolResponse::Flat(flat_symbols) => flat_symbols
+                .into_iter()
+                .map(|symbol| symbol.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+            DocumentSymbolResponse::Nested(nested_symbols) => nested_symbols
+                .into_iter()
+                .map(|symbol| symbol.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+        Ok(Self { symbols })
     }
 }
 
