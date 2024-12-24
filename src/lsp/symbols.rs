@@ -16,12 +16,15 @@ pub(crate) struct Symbols {
 fn collect_document_symbols(
     document_symbol: &lsp_types::DocumentSymbol,
     symbols: &mut Vec<Symbol>,
+    parent_name: Option<String>,
 ) -> Result<(), anyhow::Error> {
-    symbols.push(document_symbol.clone().try_into()?);
+    let mut symbol: Symbol = document_symbol.clone().try_into()?;
+    symbol.container_name = parent_name.clone(); // Set the container_name
+    symbols.push(symbol);
 
     if let Some(children) = document_symbol.clone().children {
         for child in children {
-            collect_document_symbols(&child, symbols)?;
+            collect_document_symbols(&child, symbols, Some(document_symbol.name.clone()))?;
         }
     };
 
@@ -41,10 +44,19 @@ impl TryFrom<DocumentSymbolResponse> for Symbols {
             }
             DocumentSymbolResponse::Nested(nested_symbols) => {
                 for symbol in nested_symbols {
-                    collect_document_symbols(&symbol, &mut symbols)?;
+                    collect_document_symbols(&symbol, &mut symbols, None)?;
                 }
             }
         }
+
+        symbols.sort_by(|a, b| {
+            a.file_path
+                .cmp(&b.file_path)
+                .then_with(|| a.range.start.cmp(&b.range.start))
+        });
+
+        log::info!("symbols: {:#?}", symbols);
+
         Ok(Self { symbols })
     }
 }
