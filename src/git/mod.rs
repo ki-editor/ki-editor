@@ -1,5 +1,6 @@
 pub(crate) mod hunk;
 
+use anyhow::bail;
 use rayon::prelude::*;
 
 use git2::Repository;
@@ -18,10 +19,13 @@ impl TryFrom<&CanonicalizedPath> for GitRepo {
     type Error = anyhow::Error;
 
     fn try_from(value: &CanonicalizedPath) -> Result<Self, Self::Error> {
-        Ok(GitRepo {
-            repo: Repository::open(value)?,
-            path: value.clone(),
-        })
+        let repo = Repository::discover(value)?;
+        let path = match repo.path().parent() {
+            Some(parent_path) => parent_path.try_into()?,
+            None => bail!("cannot find parent path for {}", repo.path().display()),
+        };
+
+        Ok(GitRepo { repo, path })
     }
 }
 
