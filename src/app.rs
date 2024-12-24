@@ -1167,7 +1167,13 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        let component = self.open_file(path, OpenFileOption::Focus)?;
+        let open_path = if *path == "/".try_into()? {
+            self.current_component().borrow().path().unwrap().clone()
+        } else {
+            path.clone()
+        };
+
+        let component = self.open_file(&open_path, OpenFileOption::Focus)?;
         let dispatches = component
             .borrow_mut()
             .editor_mut()

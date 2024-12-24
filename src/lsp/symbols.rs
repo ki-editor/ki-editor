@@ -21,10 +21,16 @@ impl TryFrom<DocumentSymbolResponse> for Symbols {
                     .into_iter()
                     .map(|symbol| symbol.try_into())
                     .collect::<Result<Vec<_>, _>>()?;
+
                 Ok(Self { symbols })
             }
-            DocumentSymbolResponse::Nested(_nested) => {
-                todo!()
+            DocumentSymbolResponse::Nested(symbols) => {
+                let symbols = symbols
+                    .into_iter()
+                    .map(|symbol| symbol.try_into())
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Ok(Self { symbols })
             }
         }
     }
@@ -41,6 +47,26 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
             kind: value.kind,
             location,
             container_name: value.container_name,
+        })
+    }
+}
+
+impl TryFrom<lsp_types::DocumentSymbol> for Symbol {
+    type Error = anyhow::Error;
+
+    fn try_from(value: lsp_types::DocumentSymbol) -> Result<Self, Self::Error> {
+        let name = value.name;
+        let start_position = value.range.start.try_into()?;
+        let end_position = value.range.end.try_into()?;
+        let location = Location {
+            path: "/".try_into()?,
+            range: start_position..end_position,
+        };
+        Ok(Self {
+            name,
+            kind: value.kind,
+            location,
+            container_name: None,
         })
     }
 }
