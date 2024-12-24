@@ -93,7 +93,29 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        vscode_light().clone()
+        let theme_name =
+            std::env::var("KI_EDITOR_THEME").unwrap_or_else(|_| "VS Code (Light)".to_string());
+        let mut available_themes = themes().unwrap();
+        available_themes.sort_by(|a, b| a.name.cmp(&b.name));
+        available_themes
+            .iter()
+            .find(|theme| theme.name == theme_name)
+            .unwrap_or_else(|| {
+                let theme_names: Vec<String> = available_themes
+                    .iter()
+                    .map(|theme| format!("  * {}", theme.name))
+                    .collect();
+                let themes_list = theme_names.join("\n");
+                panic!(
+                    "
+{} theme was not found. Please update your KI_EDITOR_THEME environment variable.
+
+Available themes are:
+{}",
+                    theme_name, themes_list
+                );
+            })
+            .clone()
     }
 }
 
