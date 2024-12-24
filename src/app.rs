@@ -1171,12 +1171,7 @@ impl<T: Frontend> App<T> {
     }
 
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
-        let component = if *path == "/".try_into()? {
-            self.current_component()
-        } else {
-            self.open_file(path, OpenFileOption::Focus)?
-        };
-
+        let component = self.open_file(path, OpenFileOption::Focus)?;
         let dispatches = component
             .borrow_mut()
             .editor_mut()
@@ -2549,27 +2544,16 @@ impl DispatchPrompt {
                 // so that we don't have to do this,
                 // i.e. we can just return the symbol directly,
                 // instead of having to find it again.
-                if let Some(symbol) = symbols
+                let dispatches: Dispatches = match symbols
                     .symbols
                     .iter()
                     .find(|symbol| text == symbol.display())
                 {
-                    let dispatches = match symbol.file_path.clone() {
-                        Some(file_path) => {
-                            let location = Location {
-                                path: file_path,
-                                range: symbol.range.clone(),
-                            };
-                            Dispatches::one(Dispatch::GotoLocation(location.to_owned()))
-                        }
-                        None => Dispatches::one(Dispatch::GoToCurrentComponentRange(
-                            symbol.range.clone(),
-                        )),
-                    };
-                    Ok(dispatches)
-                } else {
-                    Ok(Dispatches::new(vec![]))
-                }
+                    Some(symbol) => Dispatches::from(symbol.clone()),
+                    None => Dispatches::new(vec![]),
+                };
+
+                Ok(dispatches)
             }
             DispatchPrompt::RunCommand => Ok(Dispatches::new(
                 [Dispatch::RunCommand(text.to_string())]

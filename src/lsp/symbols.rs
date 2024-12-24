@@ -36,7 +36,7 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
 
     fn try_from(value: lsp_types::SymbolInformation) -> Result<Self, Self::Error> {
         let name = value.name;
-        let location: Location = value.location.try_into()?;
+        let location = Location::try_from(value.location)?;
         Ok(Self {
             name,
             kind: value.kind,
