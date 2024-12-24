@@ -42,6 +42,7 @@ use shared::{canonicalized_path::CanonicalizedPath, language::Language};
 use std::{
     any::TypeId,
     cell::RefCell,
+    ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -613,6 +614,9 @@ impl<T: Frontend> App<T> {
             Dispatch::RemainOnlyCurrentComponent => self.layout.remain_only_current_component(),
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
+            Dispatch::GoToCurrentComponentRange(range) => {
+                self.go_to_current_component_range(&range)?
+            }
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
             Dispatch::RunCommand(command) => self.run_command(command)?,
             Dispatch::QuitAll => self.quit_all()?,
@@ -1169,6 +1173,18 @@ impl<T: Frontend> App<T> {
     fn go_to_location(&mut self, Location { path, range }: &Location) -> Result<(), anyhow::Error> {
         let component = self.open_file(path, OpenFileOption::Focus)?;
         let dispatches = component
+            .borrow_mut()
+            .editor_mut()
+            .set_position_range(range.clone())?;
+        self.handle_dispatches(dispatches)
+    }
+
+    fn go_to_current_component_range(
+        &mut self,
+        range: &Range<Position>,
+    ) -> Result<(), anyhow::Error> {
+        let dispatches = self
+            .current_component()
             .borrow_mut()
             .editor_mut()
             .set_position_range(range.clone())?;
@@ -2256,6 +2272,7 @@ pub(crate) enum Dispatch {
     ToEditor(DispatchEditor),
     RequestDocumentSymbols,
     GotoLocation(Location),
+    GoToCurrentComponentRange(Range<Position>),
     OpenMoveToIndexPrompt,
     RunCommand(String),
     QuitAll,
@@ -2527,17 +2544,16 @@ impl DispatchPrompt {
                 // so that we don't have to do this,
                 // i.e. we can just return the symbol directly,
                 // instead of having to find it again.
-                if let Some(symbol) = symbols
+                let dispatches: Dispatches = match symbols
                     .symbols
                     .iter()
                     .find(|symbol| text == symbol.display())
                 {
-                    Ok(Dispatches::new(vec![Dispatch::GotoLocation(
-                        symbol.location.clone(),
-                    )]))
-                } else {
-                    Ok(Dispatches::new(vec![]))
-                }
+                    Some(symbol) => Dispatches::from(symbol.clone()),
+                    None => Dispatches::new(vec![]),
+                };
+
+                Ok(dispatches)
             }
             DispatchPrompt::RunCommand => Ok(Dispatches::new(
                 [Dispatch::RunCommand(text.to_string())]
