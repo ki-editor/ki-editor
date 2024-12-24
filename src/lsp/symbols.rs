@@ -13,20 +13,41 @@ pub(crate) struct Symbols {
     pub(crate) symbols: Vec<Symbol>,
 }
 
+fn collect_document_symbols(
+    document_symbol: &lsp_types::DocumentSymbol,
+    symbols: &mut Vec<Symbol>,
+) -> Result<(), anyhow::Error> {
+    symbols.push(document_symbol.clone().try_into()?);
+
+    match document_symbol.clone().children {
+        Some(children) => {
+            for child in children {
+                collect_document_symbols(&child, symbols)?;
+            }
+        }
+        None => (),
+    };
+
+    Ok(())
+}
+
 impl TryFrom<DocumentSymbolResponse> for Symbols {
     type Error = anyhow::Error;
 
     fn try_from(value: DocumentSymbolResponse) -> Result<Self, Self::Error> {
-        let symbols = match value {
-            DocumentSymbolResponse::Flat(flat_symbols) => flat_symbols
-                .into_iter()
-                .map(|symbol| symbol.try_into())
-                .collect::<Result<Vec<_>, _>>()?,
-            DocumentSymbolResponse::Nested(nested_symbols) => nested_symbols
-                .into_iter()
-                .map(|symbol| symbol.try_into())
-                .collect::<Result<Vec<_>, _>>()?,
-        };
+        let mut symbols = Vec::new();
+        match value {
+            DocumentSymbolResponse::Flat(flat_symbols) => {
+                for symbol in flat_symbols {
+                    symbols.push(symbol.try_into()?);
+                }
+            }
+            DocumentSymbolResponse::Nested(nested_symbols) => {
+                for symbol in nested_symbols {
+                    collect_document_symbols(&symbol, &mut symbols)?;
+                }
+            }
+        }
         Ok(Self { symbols })
     }
 }
