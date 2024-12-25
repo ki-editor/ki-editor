@@ -1,12 +1,10 @@
 use crate::{
     app::{Dispatch, Dispatches},
     components::dropdown::DropdownItem,
-    position::Position,
     quickfix_list::Location,
 };
 use lsp_types::{DocumentSymbolResponse, SymbolKind};
 use shared::{canonicalized_path::CanonicalizedPath, icons::get_icon_config};
-use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Symbols {
@@ -17,34 +15,36 @@ fn collect_document_symbols(
     document_symbol: &lsp_types::DocumentSymbol,
     symbols: &mut Vec<Symbol>,
     parent_name: Option<String>,
+    path: &CanonicalizedPath,
 ) -> Result<(), anyhow::Error> {
-    let mut symbol: Symbol = document_symbol.clone().try_into()?;
+    let mut symbol = Symbol::try_from_document_symbol(document_symbol.clone(), path.clone())?;
     symbol.container_name = parent_name.clone(); // Set the container_name
     symbols.push(symbol);
 
     if let Some(children) = document_symbol.clone().children {
         for child in children {
-            collect_document_symbols(&child, symbols, Some(document_symbol.name.clone()))?;
+            collect_document_symbols(&child, symbols, Some(document_symbol.name.clone()), path)?;
         }
     };
 
     Ok(())
 }
 
-impl TryFrom<DocumentSymbolResponse> for Symbols {
-    type Error = anyhow::Error;
-
-    fn try_from(value: DocumentSymbolResponse) -> Result<Self, Self::Error> {
+impl Symbols {
+    pub(crate) fn try_from_document_symbol_response(
+        value: DocumentSymbolResponse,
+        path: CanonicalizedPath,
+    ) -> anyhow::Result<Self> {
         let mut symbols = Vec::new();
         match value {
             DocumentSymbolResponse::Flat(flat_symbols) => {
                 for symbol in flat_symbols {
-                    symbols.push(symbol.try_into()?);
+                    symbols.push(Symbol::try_from_symbol_information(symbol)?);
                 }
             }
             DocumentSymbolResponse::Nested(nested_symbols) => {
                 for symbol in nested_symbols {
-                    collect_document_symbols(&symbol, &mut symbols, None)?;
+                    collect_document_symbols(&symbol, &mut symbols, None, &path)?;
                 }
             }
         }
@@ -53,34 +53,32 @@ impl TryFrom<DocumentSymbolResponse> for Symbols {
     }
 }
 
-impl TryFrom<lsp_types::SymbolInformation> for Symbol {
-    type Error = anyhow::Error;
-
-    fn try_from(value: lsp_types::SymbolInformation) -> Result<Self, Self::Error> {
+impl Symbol {
+    fn try_from_symbol_information(value: lsp_types::SymbolInformation) -> anyhow::Result<Self> {
         let name = value.name;
         let location = Location::try_from(value.location)?;
         Ok(Self {
             name,
             kind: value.kind,
-            file_path: Some(location.path),
-            range: location.range,
+            location,
             container_name: value.container_name,
         })
     }
-}
 
-impl TryFrom<lsp_types::DocumentSymbol> for Symbol {
-    type Error = anyhow::Error;
-
-    fn try_from(value: lsp_types::DocumentSymbol) -> Result<Self, Self::Error> {
+    fn try_from_document_symbol(
+        value: lsp_types::DocumentSymbol,
+        path: CanonicalizedPath,
+    ) -> anyhow::Result<Self> {
         let name = value.name;
         let start_position = value.range.start.into();
         let end_position = value.range.end.into();
         Ok(Self {
             name,
             kind: value.kind,
-            file_path: None,
-            range: start_position..end_position,
+            location: Location {
+                path,
+                range: start_position..end_position,
+            },
             container_name: None,
         })
     }
@@ -90,8 +88,7 @@ impl TryFrom<lsp_types::DocumentSymbol> for Symbol {
 pub(crate) struct Symbol {
     pub(crate) name: String,
     pub(crate) kind: SymbolKind,
-    pub(crate) file_path: Option<CanonicalizedPath>,
-    pub(crate) range: Range<Position>,
+    pub(crate) location: Location,
     pub(crate) container_name: Option<String>,
 }
 impl Symbol {
@@ -105,23 +102,6 @@ impl Symbol {
     }
 }
 
-impl From<Symbol> for Dispatches {
-    fn from(symbol: Symbol) -> Self {
-        let range = symbol.range.clone();
-
-        match symbol.file_path.clone() {
-            Some(file_path) => {
-                let location = Location {
-                    path: file_path,
-                    range,
-                };
-                Dispatches::one(Dispatch::GotoLocation(location.to_owned()))
-            }
-            None => Dispatches::one(Dispatch::GoToCurrentComponentRange(range)),
-        }
-    }
-}
-
 impl From<Symbol> for DropdownItem {
     fn from(symbol: Symbol) -> Self {
         DropdownItem::new(symbol.display())
@@ -131,6 +111,8 @@ impl From<Symbol> for DropdownItem {
                     .clone()
                     .unwrap_or("[TOP LEVEL]".to_string()),
             ))
-            .set_dispatches(symbol.into())
+            .set_dispatches(Dispatches::one(Dispatch::GotoLocation(
+                symbol.location.to_owned(),
+            )))
     }
 }
