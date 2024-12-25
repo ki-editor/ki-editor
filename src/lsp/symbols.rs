@@ -56,7 +56,7 @@ impl Symbols {
 impl Symbol {
     fn try_from_symbol_information(value: lsp_types::SymbolInformation) -> anyhow::Result<Self> {
         let name = value.name;
-        let location = Location::try_from(value.location)?;
+        let location = value.location.try_into()?;
         Ok(Self {
             name,
             kind: value.kind,
