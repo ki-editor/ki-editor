@@ -17,21 +17,22 @@ impl Symbols {
         parent_name: Option<String>,
         path: &CanonicalizedPath,
     ) -> Result<Vec<Symbol>, anyhow::Error> {
-        let mut symbols = Vec::new();
-        let mut symbol = Symbol::try_from_document_symbol(document_symbol.clone(), path.clone())?;
-        symbol.container_name = parent_name.clone(); // Set the container_name
-        symbols.push(symbol);
+        let root_symbol = Symbol::try_from_document_symbol(
+            document_symbol.clone(),
+            parent_name.clone(),
+            path.clone(),
+        )?;
 
-        if let Some(children) = document_symbol.clone().children {
-            for child in children {
-                let mut child_symbols = Self::collect_document_symbols(
-                    &child,
-                    Some(document_symbol.name.clone()),
-                    path,
-                )?;
-                symbols.append(&mut child_symbols);
-            }
-        };
+        let symbols = document_symbol
+            .children
+            .iter()
+            .flatten()
+            .flat_map(|child| {
+                Self::collect_document_symbols(child, Some(document_symbol.name.clone()), path)
+                    .unwrap_or_default()
+            })
+            .chain(std::iter::once(root_symbol))
+            .collect();
 
         Ok(symbols)
     }
@@ -40,25 +41,21 @@ impl Symbols {
         value: DocumentSymbolResponse,
         path: CanonicalizedPath,
     ) -> anyhow::Result<Self> {
-        match value {
-            DocumentSymbolResponse::Flat(symbols) => {
-                let symbols = symbols
-                    .into_iter()
-                    .map(|symbol| symbol.try_into())
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(Self { symbols })
-            }
-            DocumentSymbolResponse::Nested(symbols) => {
-                let mut collected_symbols = Vec::new();
-                for symbol in symbols {
-                    let mut child_symbols = Self::collect_document_symbols(&symbol, None, &path)?;
-                    collected_symbols.append(&mut child_symbols);
-                }
-                Ok(Self {
-                    symbols: collected_symbols,
-                })
-            }
-        }
+        let symbols = match value {
+            DocumentSymbolResponse::Flat(flat_symbols) => flat_symbols
+                .into_iter()
+                .map(|symbol| symbol.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+            DocumentSymbolResponse::Nested(nested_symbols) => nested_symbols
+                .into_iter()
+                .map(|symbol| Self::collect_document_symbols(&symbol, None, &path))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .collect(),
+        };
+
+        Ok(Self { symbols })
     }
 }
 
@@ -66,12 +63,10 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
     type Error = anyhow::Error;
 
     fn try_from(value: lsp_types::SymbolInformation) -> Result<Self, Self::Error> {
-        let name = value.name;
-        let location = value.location.try_into()?;
         Ok(Self {
-            name,
+            name: value.name,
             kind: value.kind,
-            location,
+            location: value.location.try_into()?,
             container_name: value.container_name,
         })
     }
@@ -80,19 +75,19 @@ impl TryFrom<lsp_types::SymbolInformation> for Symbol {
 impl Symbol {
     fn try_from_document_symbol(
         value: lsp_types::DocumentSymbol,
+        container_name: Option<String>,
         path: CanonicalizedPath,
     ) -> anyhow::Result<Self> {
-        let name = value.name;
         let start_position = value.range.start.into();
         let end_position = value.range.end.into();
         Ok(Self {
-            name,
+            name: value.name,
             kind: value.kind,
             location: Location {
                 path,
                 range: start_position..end_position,
             },
-            container_name: None,
+            container_name,
         })
     }
 }
