@@ -13,21 +13,23 @@ pub(crate) struct Symbols {
 
 fn collect_document_symbols(
     document_symbol: &lsp_types::DocumentSymbol,
-    symbols: &mut Vec<Symbol>,
     parent_name: Option<String>,
     path: &CanonicalizedPath,
-) -> Result<(), anyhow::Error> {
+) -> Result<Vec<Symbol>, anyhow::Error> {
+    let mut symbols = Vec::new();
     let mut symbol = Symbol::try_from_document_symbol(document_symbol.clone(), path.clone())?;
     symbol.container_name = parent_name.clone(); // Set the container_name
     symbols.push(symbol);
 
     if let Some(children) = document_symbol.clone().children {
         for child in children {
-            collect_document_symbols(&child, symbols, Some(document_symbol.name.clone()), path)?;
+            let mut child_symbols =
+                collect_document_symbols(&child, Some(document_symbol.name.clone()), path)?;
+            symbols.append(&mut child_symbols);
         }
     };
 
-    Ok(())
+    Ok(symbols)
 }
 
 impl Symbols {
@@ -35,26 +37,31 @@ impl Symbols {
         value: DocumentSymbolResponse,
         path: CanonicalizedPath,
     ) -> anyhow::Result<Self> {
-        let mut symbols = Vec::new();
         match value {
-            DocumentSymbolResponse::Flat(flat_symbols) => {
-                for symbol in flat_symbols {
-                    symbols.push(Symbol::try_from_symbol_information(symbol)?);
-                }
+            DocumentSymbolResponse::Flat(symbols) => {
+                let symbols = symbols
+                    .into_iter()
+                    .map(|symbol| symbol.try_into())
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Self { symbols })
             }
-            DocumentSymbolResponse::Nested(nested_symbols) => {
-                for symbol in nested_symbols {
-                    collect_document_symbols(&symbol, &mut symbols, None, &path)?;
+            DocumentSymbolResponse::Nested(symbols) => {
+                let mut collected_symbols = Vec::new();
+                for symbol in symbols {
+                    let mut child_symbols = collect_document_symbols(&symbol, None, &path)?;
+                    collected_symbols.append(&mut child_symbols);
                 }
+                Ok(Self {
+                    symbols: collected_symbols,
+                })
             }
         }
-
-        Ok(Self { symbols })
     }
 }
+impl TryFrom<lsp_types::SymbolInformation> for Symbol {
+    type Error = anyhow::Error;
 
-impl Symbol {
-    fn try_from_symbol_information(value: lsp_types::SymbolInformation) -> anyhow::Result<Self> {
+    fn try_from(value: lsp_types::SymbolInformation) -> Result<Self, Self::Error> {
         let name = value.name;
         let location = value.location.try_into()?;
         Ok(Self {
@@ -64,7 +71,9 @@ impl Symbol {
             container_name: value.container_name,
         })
     }
+}
 
+impl Symbol {
     fn try_from_document_symbol(
         value: lsp_types::DocumentSymbol,
         path: CanonicalizedPath,
