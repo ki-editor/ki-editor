@@ -49,14 +49,6 @@ impl TryFrom<DocumentSymbolResponse> for Symbols {
             }
         }
 
-        symbols.sort_by(|a, b| {
-            a.file_path
-                .cmp(&b.file_path)
-                .then_with(|| a.range.start.cmp(&b.range.start))
-        });
-
-        log::info!("symbols: {:#?}", symbols);
-
         Ok(Self { symbols })
     }
 }
