@@ -93,13 +93,14 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        let theme_name =
-            std::env::var("KI_EDITOR_THEME").unwrap_or_else(|_| "VS Code (Light)".to_string());
+        let desired_theme_name = std::env::var("KI_EDITOR_THEME")
+            .unwrap_or_else(|_| "VS Code (Light)".to_string())
+            .to_lowercase();
         let mut available_themes = themes().unwrap();
         available_themes.sort_by(|a, b| a.name.cmp(&b.name));
         available_themes
             .iter()
-            .find(|theme| theme.name == theme_name)
+            .find(|theme| theme.name.to_lowercase() == desired_theme_name)
             .unwrap_or_else(|| {
                 let theme_names: Vec<String> = available_themes
                     .iter()
@@ -112,7 +113,7 @@ impl Default for Theme {
 
 Available themes are:
 {}",
-                    theme_name, themes_list
+                    desired_theme_name, themes_list
                 );
             })
             .clone()
