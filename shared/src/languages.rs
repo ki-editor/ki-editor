@@ -3,17 +3,28 @@ use super::language::{Command, GrammarConfig, Language, LanguageId, LspCommand};
 pub const LANGUAGES: &[&Language] = &[
     &bash(),
     &c(),
+    &cpp(),
     &common_lisp(),
     &css(),
     &csv(),
+    &diff(),
     &dockerfile(),
+    &elixir(),
+    &gitattributes(),
+    &gitcommit(),
+    &gitconfig(),
+    &gitignore(),
+    &gitrebase(),
+    &gleam(),
     &graphql(),
     &hare(),
+    &heex(),
     &html(),
     &javascript(true),
     &javascript(false),
     &just(),
     &json(),
+    &lua(),
     &nix(),
     &markdown(),
     &python(),
@@ -54,12 +65,12 @@ const fn bash() -> Language {
 const fn c() -> Language {
     Language {
         file_names: &[],
-        lsp_language_id: None,
+        lsp_language_id: Some(LanguageId::new("c")),
         lsp_command: Some(LspCommand {
             command: Command("clangd", &[]),
             ..LspCommand::default()
         }),
-        extensions: &["c"],
+        extensions: &["c", "h"],
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "c",
             url: "https://github.com/tree-sitter/tree-sitter-c",
@@ -67,7 +78,7 @@ const fn c() -> Language {
             subpath: None,
         }),
         highlight_query: None,
-        formatter_command: None,
+        formatter_command: Some(Command("clang-format", &[])),
     }
 }
 
@@ -88,6 +99,26 @@ const fn common_lisp() -> Language {
     }
 }
 
+const fn cpp() -> Language {
+    Language {
+        file_names: &[],
+        lsp_language_id: Some(LanguageId::new("cpp")),
+        lsp_command: Some(LspCommand {
+            command: Command("clangd", &[]),
+            ..LspCommand::default()
+        }),
+        extensions: &["cpp", "hpp"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "cpp",
+            url: "https://github.com/tree-sitter/tree-sitter-cpp",
+            commit: "master",
+            subpath: None,
+        }),
+        highlight_query: None,
+        formatter_command: Some(Command("clang-format", &[])),
+    }
+}
+
 const fn csv() -> Language {
     Language {
         file_names: &[],
@@ -102,6 +133,19 @@ const fn csv() -> Language {
             commit: "main",
             subpath: None,
         }),
+    }
+}
+
+const fn diff() -> Language {
+    Language {
+        extensions: &["diff"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "diff",
+            url: "https://github.com/the-mikedavis/tree-sitter-diff",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
     }
 }
 
@@ -139,6 +183,44 @@ const fn dockerfile() -> Language {
     }
 }
 
+const fn elixir() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("elixir")),
+        extensions: &["ex", "exs"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "elixir",
+            url: "https://github.com/elixir-lang/tree-sitter-elixir",
+            commit: "main",
+            subpath: None,
+        }),
+        lsp_command: Some(LspCommand {
+            command: Command("elixir-ls", &[]),
+            initialization_options: None,
+        }),
+        formatter_command: Some(Command("mix", &["format", "-"])),
+        ..Language::new()
+    }
+}
+
+const fn gleam() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("gleam")),
+        extensions: &["gleam"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gleam",
+            url: "https://github.com/gleam-lang/tree-sitter-gleam",
+            commit: "main",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("gleam", &["format", "--stdin"])),
+        lsp_command: Some(LspCommand {
+            command: Command("gleam", &["lsp"]),
+            ..LspCommand::default()
+        }),
+        ..Language::new()
+    }
+}
+
 const fn graphql() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("graphql")),
@@ -158,6 +240,71 @@ const fn graphql() -> Language {
     }
 }
 
+const fn gitattributes() -> Language {
+    Language {
+        file_names: &[".gitattributes"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gitattributes",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-gitattributes",
+            commit: "master",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitcommit() -> Language {
+    Language {
+        file_names: &["COMMIT_EDITMSG"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gitcommit",
+            url: "https://github.com/gbprod/tree-sitter-gitcommit",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitconfig() -> Language {
+    Language {
+        file_names: &[".gitconfig"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "git_config",
+            url: "https://github.com/the-mikedavis/tree-sitter-git-config",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitignore() -> Language {
+    Language {
+        file_names: &[".gitignore"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "gitignore",
+            url: "https://github.com/shunsambongi/tree-sitter-gitignore",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
+const fn gitrebase() -> Language {
+    Language {
+        file_names: &["git-rebase-todo"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "git_rebase",
+            url: "https://github.com/the-mikedavis/tree-sitter-git-rebase",
+            commit: "main",
+            subpath: None,
+        }),
+        ..Language::new()
+    }
+}
+
 const fn hare() -> Language {
     Language {
         extensions: &["ha"],
@@ -167,6 +314,28 @@ const fn hare() -> Language {
             commit: "master",
             subpath: None,
         }),
+        ..Language::new()
+    }
+}
+
+const fn heex() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("heex")),
+        extensions: &["heex"],
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "heex",
+            url: "https://github.com/phoenixframework/tree-sitter-heex",
+            commit: "main",
+            subpath: None,
+        }),
+        lsp_command: Some(LspCommand {
+            command: Command("elixir-ls", &[]),
+            initialization_options: None,
+        }),
+        formatter_command: Some(Command(
+            "mix",
+            &["format", "--stdin-filename", "file.heex", "-"],
+        )),
         ..Language::new()
     }
 }
@@ -244,6 +413,25 @@ const fn just() -> Language {
         }),
         highlight_query: None,
         formatter_command: None,
+    }
+}
+
+const fn lua() -> Language {
+    Language {
+        lsp_language_id: Some(LanguageId::new("lua")),
+        extensions: &["lua"],
+        lsp_command: Some(LspCommand {
+            command: Command("lua-language-server", &[]),
+            ..LspCommand::default()
+        }),
+        tree_sitter_grammar_config: Some(GrammarConfig {
+            id: "lua",
+            url: "https://github.com/tree-sitter-grammars/tree-sitter-lua",
+            commit: "main",
+            subpath: None,
+        }),
+        formatter_command: Some(Command("stylua", &["-"])),
+        ..Language::new()
     }
 }
 
