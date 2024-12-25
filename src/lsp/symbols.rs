@@ -11,28 +11,31 @@ pub(crate) struct Symbols {
     pub(crate) symbols: Vec<Symbol>,
 }
 
-fn collect_document_symbols(
-    document_symbol: &lsp_types::DocumentSymbol,
-    parent_name: Option<String>,
-    path: &CanonicalizedPath,
-) -> Result<Vec<Symbol>, anyhow::Error> {
-    let mut symbols = Vec::new();
-    let mut symbol = Symbol::try_from_document_symbol(document_symbol.clone(), path.clone())?;
-    symbol.container_name = parent_name.clone(); // Set the container_name
-    symbols.push(symbol);
-
-    if let Some(children) = document_symbol.clone().children {
-        for child in children {
-            let mut child_symbols =
-                collect_document_symbols(&child, Some(document_symbol.name.clone()), path)?;
-            symbols.append(&mut child_symbols);
-        }
-    };
-
-    Ok(symbols)
-}
-
 impl Symbols {
+    fn collect_document_symbols(
+        document_symbol: &lsp_types::DocumentSymbol,
+        parent_name: Option<String>,
+        path: &CanonicalizedPath,
+    ) -> Result<Vec<Symbol>, anyhow::Error> {
+        let mut symbols = Vec::new();
+        let mut symbol = Symbol::try_from_document_symbol(document_symbol.clone(), path.clone())?;
+        symbol.container_name = parent_name.clone(); // Set the container_name
+        symbols.push(symbol);
+
+        if let Some(children) = document_symbol.clone().children {
+            for child in children {
+                let mut child_symbols = Self::collect_document_symbols(
+                    &child,
+                    Some(document_symbol.name.clone()),
+                    path,
+                )?;
+                symbols.append(&mut child_symbols);
+            }
+        };
+
+        Ok(symbols)
+    }
+
     pub(crate) fn try_from_document_symbol_response(
         value: DocumentSymbolResponse,
         path: CanonicalizedPath,
@@ -48,7 +51,7 @@ impl Symbols {
             DocumentSymbolResponse::Nested(symbols) => {
                 let mut collected_symbols = Vec::new();
                 for symbol in symbols {
-                    let mut child_symbols = collect_document_symbols(&symbol, None, &path)?;
+                    let mut child_symbols = Self::collect_document_symbols(&symbol, None, &path)?;
                     collected_symbols.append(&mut child_symbols);
                 }
                 Ok(Self {
@@ -58,6 +61,7 @@ impl Symbols {
         }
     }
 }
+
 impl TryFrom<lsp_types::SymbolInformation> for Symbol {
     type Error = anyhow::Error;
 
