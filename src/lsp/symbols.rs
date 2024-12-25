@@ -104,15 +104,11 @@ impl Symbol {
 
 impl From<Symbol> for DropdownItem {
     fn from(symbol: Symbol) -> Self {
+        let dispatches = Dispatches::one(Dispatch::GotoLocation(symbol.location.to_owned()));
         DropdownItem::new(symbol.display())
             .set_group(Some(
-                symbol
-                    .container_name
-                    .clone()
-                    .unwrap_or("[TOP LEVEL]".to_string()),
+                symbol.container_name.unwrap_or("[TOP LEVEL]".to_string()),
             ))
-            .set_dispatches(Dispatches::one(Dispatch::GotoLocation(
-                symbol.location.to_owned(),
-            )))
+            .set_dispatches(dispatches)
     }
 }
