@@ -2527,18 +2527,17 @@ impl DispatchPrompt {
                 // so that we don't have to do this,
                 // i.e. we can just return the symbol directly,
                 // instead of having to find it again.
-                let dispatches: Dispatches = match symbols
+                if let Some(symbol) = symbols
                     .symbols
                     .iter()
                     .find(|symbol| text == symbol.display())
                 {
-                    Some(symbol) => {
-                        Dispatches::one(Dispatch::GotoLocation(symbol.location.to_owned()))
-                    }
-                    None => Dispatches::new(vec![]),
-                };
-
-                Ok(dispatches)
+                    Ok(Dispatches::new(vec![Dispatch::GotoLocation(
+                        symbol.location.clone(),
+                    )]))
+                } else {
+                    Ok(Dispatches::new(vec![]))
+                }
             }
             DispatchPrompt::RunCommand => Ok(Dispatches::new(
                 [Dispatch::RunCommand(text.to_string())]
