@@ -28,8 +28,15 @@ impl Symbols {
             .iter()
             .flatten()
             .flat_map(|child| {
-                Self::collect_document_symbols(child, Some(document_symbol.name.clone()), path)
-                    .unwrap_or_default()
+                let parent_name = format!(
+                    "{}{}",
+                    parent_name
+                        .as_ref()
+                        .map(|name| format!("{name} ▶ ",))
+                        .unwrap_or_default(),
+                    document_symbol.name.clone()
+                );
+                Self::collect_document_symbols(child, Some(parent_name), path).unwrap_or_default()
             })
             .chain(std::iter::once(root_symbol))
             .collect();
