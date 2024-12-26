@@ -1293,13 +1293,6 @@ impl<T: Frontend> App<T> {
         self.sender.clone()
     }
 
-    //fn run_command(&mut self, command: String) -> anyhow::Result<()> {
-        //let dispatch = crate::command::find(&command)
-            //.map(|cmd| cmd.dispatch())
-            //.ok_or_else(|| anyhow::anyhow!("Unknown command: {}", command))?;
-        //self.handle_dispatch(dispatch)
-    //}
-
     fn save_quit_all(&mut self) -> anyhow::Result<()> {
         self.save_all()?;
         self.quit_all()?;
