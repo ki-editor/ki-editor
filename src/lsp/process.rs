@@ -54,6 +54,7 @@ type RequestId = u64;
 struct PendingResponseRequest {
     method: String,
     context: ResponseContext,
+    path: Option<CanonicalizedPath>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -288,6 +289,7 @@ impl LspServerProcess {
     fn initialize(&mut self) -> anyhow::Result<()> {
         self.send_request::<lsp_request!("initialize")>(
             ResponseContext::default(),
+            None,
             InitializeParams {
                 process_id: None,
                 root_uri: Some(Url::parse(&format!(
@@ -629,6 +631,7 @@ impl LspServerProcess {
                 let PendingResponseRequest {
                     method,
                     context: response_context,
+                    path,
                 } = pending_response_request;
 
                 match method.as_str() {
@@ -811,11 +814,13 @@ impl LspServerProcess {
                             serde_json::from_value(response)?;
 
                         if let Some(payload) = payload {
-                            self.app_message_sender
-                                .send(AppMessage::LspNotification(LspNotification::Symbols(
-                                    payload.try_into()?,
-                                )))
-                                .unwrap();
+                            if let Some(path) = path {
+                                self.app_message_sender
+                                    .send(AppMessage::LspNotification(LspNotification::Symbols(
+                                        Symbols::try_from_document_symbol_response(payload, path)?,
+                                    )))
+                                    .unwrap();
+                            }
                         }
                     }
                     "completionItem/resolve" => {
@@ -914,7 +919,7 @@ impl LspServerProcess {
     }
 
     pub(crate) fn shutdown(&mut self) -> anyhow::Result<()> {
-        self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), ())?;
+        self.send_request::<lsp_request!("shutdown")>(ResponseContext::default(), None, ())?;
         Ok(())
     }
 
@@ -974,6 +979,7 @@ impl LspServerProcess {
     fn send_request<R: Request>(
         &mut self,
         context: ResponseContext,
+        path: Option<CanonicalizedPath>,
         params: R::Params,
     ) -> anyhow::Result<()>
     where
@@ -999,6 +1005,7 @@ impl LspServerProcess {
             PendingResponseRequest {
                 context,
                 method: R::METHOD.to_string(),
+                path,
             },
         );
 
@@ -1089,6 +1096,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/completion")>(
             context,
+            Some(path.clone()),
             CompletionParams {
                 text_document_position: TextDocumentPositionParams {
                     position: position.into(),
@@ -1119,6 +1127,7 @@ impl LspServerProcess {
         };
         self.send_request::<lsp_request!("textDocument/hover")>(
             context,
+            Some(path.clone()),
             HoverParams {
                 text_document_position_params: TextDocumentPositionParams {
                     position: position.into(),
@@ -1144,6 +1153,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/definition")>(
             context,
+            Some(path.clone()),
             GotoDefinitionParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1169,6 +1179,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/references")>(
             context,
+            Some(path.clone()),
             ReferenceParams {
                 context: ReferenceContext {
                     include_declaration,
@@ -1189,6 +1200,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/declaration")>(
             params.context,
+            Some(params.path.clone()),
             GotoDeclarationParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1206,6 +1218,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/implementation")>(
             params.context,
+            Some(params.path.clone()),
             GotoImplementationParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1226,6 +1239,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/typeDefinition")>(
             params.context,
+            Some(params.path.clone()),
             GotoTypeDefinitionParams {
                 partial_result_params: Default::default(),
                 text_document_position_params: TextDocumentPositionParams {
@@ -1243,6 +1257,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/prepareRename")>(
             params.context,
+            Some(params.path.clone()),
             TextDocumentPositionParams {
                 position: params.position.into(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
@@ -1260,6 +1275,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/rename")>(
             params.context,
+            Some(params.path.clone()),
             RenameParams {
                 new_name,
                 text_document_position: TextDocumentPositionParams {
@@ -1281,6 +1297,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/codeAction")>(
             params.context,
+            Some(params.path.clone()),
             CodeActionParams {
                 context: CodeActionContext {
                     diagnostics,
@@ -1307,6 +1324,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/signatureHelp")>(
             params.context,
+            Some(params.path.clone()),
             SignatureHelpParams {
                 context: None,
                 text_document_position_params: TextDocumentPositionParams {
@@ -1327,6 +1345,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("textDocument/documentSymbol")>(
             params.context,
+            Some(params.path.clone()),
             DocumentSymbolParams {
                 partial_result_params: Default::default(),
                 text_document: path_buf_to_text_document_identifier(params.path)?,
@@ -1345,6 +1364,7 @@ impl LspServerProcess {
         }
         self.send_request::<lsp_request!("workspace/executeCommand")>(
             params.context,
+            Some(params.path.clone()),
             ExecuteCommandParams {
                 command: command.command(),
                 arguments: command.arguments(),
@@ -1368,7 +1388,11 @@ impl LspServerProcess {
         }) {
             return Ok(());
         }
-        self.send_request::<lsp_request!("completionItem/resolve")>(params.context, completion_item)
+        self.send_request::<lsp_request!("completionItem/resolve")>(
+            params.context,
+            Some(params.path),
+            completion_item,
+        )
     }
 
     fn handle_from_editor(&mut self, from_editor: &FromEditor) {
