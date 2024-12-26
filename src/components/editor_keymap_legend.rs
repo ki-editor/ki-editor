@@ -963,12 +963,27 @@ impl Editor {
                                 "Tree-sitter node S-expr".to_string(),
                                 Dispatch::ToEditor(DispatchEditor::ShowCurrentTreeSitterNodeSexp),
                             ),
-                            Keymap::new(
-                                "?",
-                                "Help".to_string(),
-                                Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
-                            ),
                         ]),
+                    }))
+                    .chain(Some(KeymapLegendSection {
+                        title: "File/Quitting".to_string(),
+                        keymaps: Keymaps::new(&[
+                            Keymap::new("w", "Write All".to_string(), Dispatch::SaveAll),
+                            Keymap::new(
+                                "q",
+                                "Write All and Quit".to_string(),
+                                Dispatch::SaveQuitAll,
+                            ),
+                            Keymap::new("Q", "Quit WITHOUT saving".to_string(), Dispatch::QuitAll),
+                        ]),
+                    }))
+                    .chain(Some(KeymapLegendSection {
+                        title: "Help".to_string(),
+                        keymaps: Keymaps::new(&[Keymap::new(
+                            "?",
+                            "Help".to_string(),
+                            Dispatch::ToEditor(DispatchEditor::ShowKeymapLegendHelp),
+                        )]),
                     }))
                     .collect(),
             },
