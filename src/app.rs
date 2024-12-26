@@ -614,9 +614,7 @@ impl<T: Frontend> App<T> {
             Dispatch::ToEditor(dispatch_editor) => self.handle_dispatch_editor(dispatch_editor)?,
             Dispatch::GotoLocation(location) => self.go_to_location(&location)?,
             Dispatch::OpenMoveToIndexPrompt => self.open_move_to_index_prompt()?,
-            Dispatch::RunCommand(command) => self.run_command(command)?,
             Dispatch::QuitAll => self.quit_all()?,
-            Dispatch::OpenCommandPrompt => self.open_command_prompt()?,
             Dispatch::SaveQuitAll => self.save_quit_all()?,
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
@@ -881,24 +879,6 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: None,
             },
             PromptHistoryKey::Symbol,
-            None,
-        )
-    }
-
-    fn open_command_prompt(&mut self) -> anyhow::Result<()> {
-        self.open_prompt(
-            PromptConfig {
-                title: "Command".to_string(),
-                on_enter: DispatchPrompt::RunCommand,
-                items: crate::command::COMMANDS
-                    .iter()
-                    .flat_map(|command| command.to_dropdown_items())
-                    .collect(),
-                enter_selects_first_matching_item: true,
-                leaves_current_line_empty: true,
-                fire_dispatches_on_change: None,
-            },
-            PromptHistoryKey::Command,
             None,
         )
     }
@@ -1313,12 +1293,12 @@ impl<T: Frontend> App<T> {
         self.sender.clone()
     }
 
-    fn run_command(&mut self, command: String) -> anyhow::Result<()> {
-        let dispatch = crate::command::find(&command)
-            .map(|cmd| cmd.dispatch())
-            .ok_or_else(|| anyhow::anyhow!("Unknown command: {}", command))?;
-        self.handle_dispatch(dispatch)
-    }
+    //fn run_command(&mut self, command: String) -> anyhow::Result<()> {
+        //let dispatch = crate::command::find(&command)
+            //.map(|cmd| cmd.dispatch())
+            //.ok_or_else(|| anyhow::anyhow!("Unknown command: {}", command))?;
+        //self.handle_dispatch(dispatch)
+    //}
 
     fn save_quit_all(&mut self) -> anyhow::Result<()> {
         self.save_all()?;
@@ -2257,9 +2237,7 @@ pub(crate) enum Dispatch {
     RequestDocumentSymbols,
     GotoLocation(Location),
     OpenMoveToIndexPrompt,
-    RunCommand(String),
     QuitAll,
-    OpenCommandPrompt,
     SaveQuitAll,
     RevealInExplorer(CanonicalizedPath),
     OpenYesNoPrompt(YesNoPrompt),
@@ -2462,7 +2440,6 @@ pub(crate) enum DispatchPrompt {
     SelectSymbol {
         symbols: Symbols,
     },
-    RunCommand,
     OpenFile {
         working_directory: CanonicalizedPath,
     },
@@ -2539,11 +2516,6 @@ impl DispatchPrompt {
                     Ok(Dispatches::new(vec![]))
                 }
             }
-            DispatchPrompt::RunCommand => Ok(Dispatches::new(
-                [Dispatch::RunCommand(text.to_string())]
-                    .into_iter()
-                    .collect(),
-            )),
             DispatchPrompt::OpenFile { working_directory } => {
                 let path = working_directory.join(text)?;
                 Ok(Dispatches::new(vec![Dispatch::OpenFile(path)]))
