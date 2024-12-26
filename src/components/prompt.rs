@@ -47,7 +47,6 @@ pub(crate) enum PromptHistoryKey {
     AddPath,
     MovePath,
     Symbol,
-    Command,
     OpenFile,
     FilterGlob(GlobalSearchFilterGlob),
     Replacement(Scope),

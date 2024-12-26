@@ -4,7 +4,6 @@ mod git;
 pub(crate) mod char_index_range;
 mod cli;
 mod clipboard;
-pub(crate) mod command;
 mod components;
 mod context;
 mod edit;

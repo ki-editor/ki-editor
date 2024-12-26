@@ -663,11 +663,6 @@ impl Editor {
                     }),
                 ),
                 Keymap::new(
-                    ACTION_COMMAND_MODE,
-                    "Open command prompt".to_string(),
-                    Dispatch::OpenCommandPrompt,
-                ),
-                Keymap::new(
                     "esc",
                     "Remain only this window".to_string(),
                     Dispatch::RemainOnlyCurrentComponent,

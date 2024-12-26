@@ -103,7 +103,6 @@ pub const ACTION_MC_KEEP_ONLY_PRIMARY_CURSOR: &str = "e";
 pub const CLIPBOARD_MC_REMOVE_MATCHING_SEARCH: &str = "E";
 
 // Other
-pub const ACTION_COMMAND_MODE: &str = "-";
 pub const ACTION_SAVE: &str = "enter";
 pub const MOVEMENT_CORE_TO_INDEX: &str = "0";
 pub const MOVEMENT_OTHER_CYCLE_START: &str = "(";
