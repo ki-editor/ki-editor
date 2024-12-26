@@ -4,7 +4,7 @@ use crate::{
     components::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
-        editor::{DispatchEditor, Editor, IfCurrentNotFound, Movement},
+        editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
@@ -726,6 +726,7 @@ impl<T: Frontend> App<T> {
             Dispatch::OtherWindow => self.layout.cycle_window(),
             Dispatch::GoToPreviousFile => self.go_to_previous_file()?,
             Dispatch::GoToNextFile => self.go_to_next_file()?,
+            Dispatch::CycleBuffer(direction) => self.cycle_buffer(direction)?,
             Dispatch::PushPromptHistory { key, line } => self.push_history_prompt(key, line),
             Dispatch::OpenThemePrompt => self.open_theme_prompt()?,
             Dispatch::SetLastNonContiguousSelectionMode(selection_mode) => self
@@ -1816,6 +1817,23 @@ impl<T: Frontend> App<T> {
         Ok(())
     }
 
+    fn cycle_buffer(&mut self, direction: Direction) -> anyhow::Result<()> {
+        if let Some(current_file_path) = self.current_component().borrow().path() {
+            let files = self.layout.get_opened_files();
+            if let Some(current_index) = files.iter().position(|p| p == &current_file_path) {
+                let next_index = match direction {
+                    Direction::Start if current_index == 0 => files.len() - 1,
+                    Direction::Start => current_index - 1,
+                    Direction::End if current_index == files.len() - 1 => 0,
+                    Direction::End => current_index + 1,
+                };
+
+                self.open_file(&files[next_index], OpenFileOption::Focus)?;
+            }
+        }
+        Ok(())
+    }
+
     #[cfg(test)]
     pub(crate) fn get_current_component_content(&self) -> String {
         self.current_component().borrow().editor().content()
@@ -2310,6 +2328,7 @@ pub(crate) enum Dispatch {
     CloseEditorInfo,
     GoToPreviousFile,
     GoToNextFile,
+    CycleBuffer(Direction),
     PushPromptHistory {
         key: PromptHistoryKey,
         line: String,
