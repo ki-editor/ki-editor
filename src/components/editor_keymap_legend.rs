@@ -931,21 +931,13 @@ impl Editor {
                     .chain(Some(KeymapLegendSection {
                         title: "File/Quitting".to_string(),
                         keymaps: Keymaps::new(&[
-                            Keymap::new(
-                                "w",
-                                "Write All".to_string(),
-                                Dispatch::RunCommand("write-all".to_string()),
-                            ),
+                            Keymap::new("w", "Write All".to_string(), Dispatch::SaveAll),
                             Keymap::new(
                                 "q",
                                 "Write All and Quit".to_string(),
-                                Dispatch::RunCommand("write-quit-all".to_string()),
+                                Dispatch::SaveQuitAll,
                             ),
-                            Keymap::new(
-                                "Q",
-                                "Quit WITHOUT saving".to_string(),
-                                Dispatch::RunCommand("quit-all".to_string()),
-                            ),
+                            Keymap::new("Q", "Quit WITHOUT saving".to_string(), Dispatch::QuitAll),
                         ]),
                     }))
                     .chain(Some(KeymapLegendSection {
