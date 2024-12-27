@@ -8,7 +8,7 @@ pub(crate) fn parse_env<T: Clone>(
         return default;
     };
     choices
-        .into_iter()
+        .iter()
         .find(|choice| to_string(choice).to_uppercase() == user_value.to_uppercase())
         .unwrap_or_else(|| {
             let choice_names: Vec<String> = choices
