@@ -1373,13 +1373,10 @@ impl<T: Frontend> App<T> {
         self.layout.refresh_file_explorer(&self.working_directory)?;
         let to = to.try_into()?;
         self.reveal_path_in_explorer(&to)?;
-        // self.lsp_manager.send_message(
-        // from.clone(),
-        // FromEditor::WorkspaceDidRenameFiles {
-        // old: from.clone(),
-        // new: to,
-        // },
-        // )?;
+        self.lsp_manager.send_message(
+            from.clone(),
+            FromEditor::WorkspaceDidCreateFiles { file_path: to },
+        )?;
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
