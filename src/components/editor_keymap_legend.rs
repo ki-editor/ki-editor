@@ -109,12 +109,12 @@ impl Editor {
                     Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
                 ),
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&SCRLU),
+                    KEYBOARD_LAYOUT.get_key(&SCRLD),
                     "Scroll down".to_string(),
                     Dispatch::ToEditor(ScrollPageDown),
                 ),
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&SCRLD),
+                    KEYBOARD_LAYOUT.get_key(&SCRLU),
                     "Scroll up".to_string(),
                     Dispatch::ToEditor(ScrollPageUp),
                 ),
@@ -510,22 +510,22 @@ impl Editor {
             title: "Universal keymaps (works in every mode)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    UNIVERSAL_CLOSE_WINDOW,
+                    KEYBOARD_LAYOUT.get_key(&WCLSE),
                     "Close current window".to_string(),
                     Dispatch::CloseCurrentWindow,
                 ),
                 Keymap::new(
-                    UNIVERSAL_SWITCH_VIEW_ALIGNMENT,
+                    KEYBOARD_LAYOUT.get_key(&SVIEW),
                     "Switch view alignment".to_string(),
                     Dispatch::ToEditor(SwitchViewAlignment),
                 ),
                 Keymap::new(
-                    UNIVERSAL_SWITCH_WINDOW,
+                    KEYBOARD_LAYOUT.get_key(&WSWTH),
                     "Switch window".to_string(),
                     Dispatch::OtherWindow,
                 ),
                 Keymap::new(
-                    UNIVERSAL_PASTE,
+                    KEYBOARD_LAYOUT.get_key(&UPSTE),
                     "Paste".to_string(),
                     Dispatch::ToEditor(Paste {
                         direction: Direction::End,

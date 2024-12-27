@@ -141,15 +141,15 @@ pub const KEYMAP_SHIFTED: [[Meaning; 10]; 3] = [
     ],
 ];
 
-pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
+pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, RPLCP, SCRLU, RPLCN, _____,
+        _____, _____, _____, _____, _____, /****/ _____, RPLCP, SCRLU, RPLCN, SVIEW,
     ],
     [
-        _____, _____, _____, _____, _____, /****/ _____, _____, SCRLD, _____, _____,
+        _____, _____, _____, WCLSE, _____, /****/ _____, _____, SCRLD, _____, _____,
     ],
     [
-        _____, _____, _____, _____, PRPLC, /****/ _____, _____, _____, _____, _____,
+        UNDO_, _____, _____, UPSTE, PRPLC, /****/ _____, _____, WSWTH, _____, _____,
     ],
 ];
 
@@ -171,9 +171,9 @@ static QWERTY_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
     )
 });
 
-static QWERTY_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
+static QWERTY_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
     HashMap::from_iter(
-        KEYMAP_CONTROL
+        KEYMAP_NORMAL_CONTROL
             .into_iter()
             .flatten()
             .zip(QWERTY_CONTROL.into_iter().flatten()),
@@ -198,9 +198,9 @@ static DVORAK_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
     )
 });
 
-static DVORAK_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
+static DVORAK_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
     HashMap::from_iter(
-        KEYMAP_CONTROL
+        KEYMAP_NORMAL_CONTROL
             .into_iter()
             .flatten()
             .zip(DVORAK_CONTROL.into_iter().flatten()),
@@ -225,9 +225,9 @@ static COLEMAK_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
     )
 });
 
-static COLEMAK_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
+static COLEMAK_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
     HashMap::from_iter(
-        KEYMAP_CONTROL
+        KEYMAP_NORMAL_CONTROL
             .into_iter()
             .flatten()
             .zip(COLEMAK_CONTROL.into_iter().flatten()),
@@ -264,17 +264,17 @@ impl KeyboardLayout {
             KeyboardLayout::QWERTY => (
                 &QWERTY_NORMAL_KEYS,
                 &QWERTY_SHIFTED_KEYS,
-                &QWERTY_CONTROL_KEYS,
+                &QWERTY_NORMAL_CONTROL_KEYS,
             ),
             KeyboardLayout::DVORAK => (
                 &DVORAK_NORMAL_KEYS,
                 &DVORAK_SHIFTED_KEYS,
-                &DVORAK_CONTROL_KEYS,
+                &DVORAK_NORMAL_CONTROL_KEYS,
             ),
             KeyboardLayout::COLEMAK => (
                 &COLEMAK_NORMAL_KEYS,
                 &COLEMAK_SHIFTED_KEYS,
-                &COLEMAK_CONTROL_KEYS,
+                &COLEMAK_NORMAL_CONTROL_KEYS,
             ),
         };
         normal
@@ -287,17 +287,20 @@ impl KeyboardLayout {
 }
 
 /// Postfix N = Next, Postfix P = Previous
-/// X means Swap or Cut
+/// X means Swap/Cut
+/// Prefix W means Window
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Meaning {
     /// Empty, not assigned
     _____,
     TOIDX,
     INDNT,
+    UPSTE,
     DEDNT,
     OPENP,
     OPENN,
     JOIN_,
+    SVIEW,
     LINEF,
     BUFFN,
     BUFFP,
@@ -308,6 +311,8 @@ pub enum Meaning {
     FINDP,
     GBACK,
     GFORW,
+    WCLSE,
+    WSWTH,
     FINDN,
     BREAK,
     CRSRP,
