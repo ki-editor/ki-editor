@@ -6,6 +6,8 @@ use shared::canonicalized_path::CanonicalizedPath;
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+    #[command(flatten)]
+    edit: EditArgs,
 }
 
 #[derive(Subcommand)]
@@ -20,14 +22,16 @@ enum Commands {
     },
     /// Edit the file of the given path, creates a new file at the path
     /// if not exist
+    #[command(hide = true)]
     Edit(EditArgs),
     /// Prints the log file path
     Log,
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
 }
-#[derive(Args)]
+#[derive(Args, Default)]
 struct EditArgs {
+    #[arg(default_value = "")]
     path: String,
 }
 #[derive(Args)]
@@ -46,6 +50,25 @@ enum HighlightQuery {
     Clean,
     /// Prints the cache path
     CachePath,
+}
+
+fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
+    let path = std::path::PathBuf::from(args.path.clone());
+    if !path.exists() {
+        std::fs::write(path, "")?;
+    }
+
+    let path: Option<CanonicalizedPath> = Some(args.path.try_into()?);
+    let working_directory = match path.clone() {
+        Some(value) if value.is_dir() => Some(value),
+        Some(value) => value.parent()?,
+        _ => Default::default(),
+    };
+
+    crate::run(crate::RunConfig {
+        entry_path: path,
+        working_directory,
+    })
 }
 
 pub(crate) fn cli() -> anyhow::Result<()> {
@@ -69,24 +92,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 };
                 Ok(())
             }
-            Commands::Edit(args) => {
-                let path = std::path::PathBuf::from(args.path.clone());
-                if !path.exists() {
-                    std::fs::write(path, "")?;
-                }
-
-                let path: Option<CanonicalizedPath> = Some(args.path.try_into()?);
-                let working_directory = match path.clone() {
-                    Some(value) if value.is_dir() => Some(value),
-                    Some(value) => value.parent()?,
-                    _ => Default::default(),
-                };
-
-                crate::run(crate::RunConfig {
-                    entry_path: path,
-                    working_directory,
-                })
-            }
+            Commands::Edit(args) => run_edit_command(args),
             Commands::Log => {
                 println!(
                     "{}",
@@ -99,7 +105,9 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 ..Default::default()
             }),
         }
-    } else {
+    } else if cli.edit.path == "" {
         crate::run(Default::default())
+    } else {
+        run_edit_command(cli.edit)
     }
 }
