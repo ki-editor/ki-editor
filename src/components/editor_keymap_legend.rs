@@ -21,7 +21,7 @@ use super::{
     editor::{
         Direction, DispatchEditor, Editor, HandleEventResult, IfCurrentNotFound, Mode, SurroundKind,
     },
-    editor_keymap_qwerty_positional::*,
+    editor_keymap::*,
     keymap_legend::{Keymap, KeymapLegendBody, KeymapLegendConfig, Keymaps},
 };
 

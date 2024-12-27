@@ -3,4 +3,3 @@
 tree_sitter_quickfix/build/
 tree_sitter_quickfix/node_modules/
 docs/assets/recipes.json
-src/components/editor_keymap_config.rs
