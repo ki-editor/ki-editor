@@ -619,12 +619,14 @@ impl<T: Frontend> App<T> {
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
             Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
+            Dispatch::OpenCopyFilePrompt(path) => self.open_copy_file_prompt(path)?,
             Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
             Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
             }
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
+            Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
             Dispatch::RefreshFileExplorer => {
                 self.layout.refresh_file_explorer(&self.working_directory)?
@@ -860,6 +862,21 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: None,
             },
             PromptHistoryKey::MovePath,
+            Some(path.display_absolute()),
+        )
+    }
+
+    fn open_copy_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                title: "Copy path".to_string(),
+                on_enter: DispatchPrompt::CopyFile { from: path.clone() },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
+            },
+            PromptHistoryKey::CopyFile,
             Some(path.display_absolute()),
         )
     }
@@ -1345,6 +1362,24 @@ impl<T: Frontend> App<T> {
                 new: to,
             },
         )?;
+        self.layout.remove_suggestive_editor(&from);
+        Ok(())
+    }
+
+    fn copy_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+        use std::fs;
+        self.add_path_parent(&to)?;
+        fs::copy(from.clone(), to.clone())?;
+        self.layout.refresh_file_explorer(&self.working_directory)?;
+        let to = to.try_into()?;
+        self.reveal_path_in_explorer(&to)?;
+        // self.lsp_manager.send_message(
+        // from.clone(),
+        // FromEditor::WorkspaceDidRenameFiles {
+        // old: from.clone(),
+        // new: to,
+        // },
+        // )?;
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
@@ -2253,10 +2288,15 @@ pub(crate) enum Dispatch {
     RevealInExplorer(CanonicalizedPath),
     OpenYesNoPrompt(YesNoPrompt),
     OpenMoveFilePrompt(CanonicalizedPath),
+    OpenCopyFilePrompt(CanonicalizedPath),
     OpenAddPathPrompt(CanonicalizedPath),
     DeletePath(CanonicalizedPath),
     Null,
     MoveFile {
+        from: CanonicalizedPath,
+        to: PathBuf,
+    },
+    CopyFile {
         from: CanonicalizedPath,
         to: PathBuf,
     },
@@ -2446,6 +2486,9 @@ pub(crate) enum DispatchPrompt {
     MovePath {
         from: CanonicalizedPath,
     },
+    CopyFile {
+        from: CanonicalizedPath,
+    },
     Null,
     // TODO: remove the following variants
     // Because the following action already embeds dispatches
@@ -2506,6 +2549,13 @@ impl DispatchPrompt {
             }
             DispatchPrompt::MovePath { from } => Ok(Dispatches::new(
                 [Dispatch::MoveFile {
+                    from,
+                    to: text.into(),
+                }]
+                .to_vec(),
+            )),
+            DispatchPrompt::CopyFile { from } => Ok(Dispatches::new(
+                [Dispatch::CopyFile {
                     from,
                     to: text.into(),
                 }]
