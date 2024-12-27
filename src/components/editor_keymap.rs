@@ -1,16 +1,16 @@
-pub const QWERTY_NORMAL: [[&'static str; 10]; 3] = [
+pub const QWERTY_NORMAL: [[&str; 10]; 3] = [
     ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
     ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
     ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
 ];
 
-pub const QWERTY_SHIFTED: [[&'static str; 10]; 3] = [
+pub const QWERTY_SHIFTED: [[&str; 10]; 3] = [
     ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
     ["A", "S", "D", "F", "G", "H", "J", "K", "L", ":"],
     ["Z", "X", "C", "V", "B", "N", "M", "<", ">", "?"],
 ];
 
-pub const QWERTY_CONTROL: [[&'static str; 10]; 3] = [
+pub const QWERTY_CONTROL: [[&str; 10]; 3] = [
     [
         "ctrl+q", "ctrl+w", "ctrl+e", "ctrl+r", "ctrl+t", "ctrl+y", "ctrl+u", "ctrl+i", "ctrl+o",
         "ctrl+p",
@@ -27,19 +27,19 @@ pub const QWERTY_CONTROL: [[&'static str; 10]; 3] = [
 
 // -- DVORAK --
 
-pub const DVORAK_NORMAL: [[&'static str; 10]; 3] = [
+pub const DVORAK_NORMAL: [[&str; 10]; 3] = [
     ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
     ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
     [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
 ];
 
-pub const DVORAK_SHIFTED: [[&'static str; 10]; 3] = [
+pub const DVORAK_SHIFTED: [[&str; 10]; 3] = [
     ["\"", "<", ">", "P", "Y", "F", "G", "C", "R", "L"],
     ["A", "O", "E", "I", "U", "D", "H", "T", "N", "S"],
     [":", "Q", "J", "K", "X", "B", "M", "W", "V", "Z"],
 ];
 
-pub const DVORAK_CONTROL: [[&'static str; 10]; 3] = [
+pub const DVORAK_CONTROL: [[&str; 10]; 3] = [
     [
         "ctrl+'", "ctrl+,", "ctrl+.", "ctrl+p", "ctrl+y", "ctrl+f", "ctrl+g", "ctrl+c", "ctrl+r",
         "ctrl+l",
@@ -56,19 +56,19 @@ pub const DVORAK_CONTROL: [[&'static str; 10]; 3] = [
 
 // -- COLEMAK --
 
-pub const COLEMAK_NORMAL: [[&'static str; 10]; 3] = [
+pub const COLEMAK_NORMAL: [[&str; 10]; 3] = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
 ];
 
-pub const COLEMAK_SHIFTED: [[&'static str; 10]; 3] = [
+pub const COLEMAK_SHIFTED: [[&str; 10]; 3] = [
     ["Q", "W", "F", "P", "B", "J", "L", "U", "Y", ":"],
     ["A", "R", "S", "T", "G", "M", "N", "E", "I", "O"],
     ["Z", "X", "C", "D", "V", "K", "H", "<", ">", "?"],
 ];
 
-pub const COLEMAK_CONTROL: [[&'static str; 10]; 3] = [
+pub const COLEMAK_CONTROL: [[&str; 10]; 3] = [
     [
         "ctrl+q", "ctrl+w", "ctrl+f", "ctrl+p", "ctrl+b", "ctrl+j", "ctrl+l", "ctrl+u", "ctrl+y",
         "ctrl+;",
@@ -85,19 +85,19 @@ pub const COLEMAK_CONTROL: [[&'static str; 10]; 3] = [
 
 // -- COLEMAK_DH --
 
-pub const COLEMAK_DH_NORMAL: [[&'static str; 10]; 3] = [
+pub const COLEMAK_DH_NORMAL: [[&str; 10]; 3] = [
     ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
     ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
 ];
 
-pub const COLEMAK_DH_SHIFTED: [[&'static str; 10]; 3] = [
+pub const COLEMAK_DH_SHIFTED: [[&str; 10]; 3] = [
     ["Q", "W", "F", "P", "B", "J", "L", "U", "Y", ":"],
     ["A", "R", "S", "T", "G", "M", "N", "E", "I", "O"],
     ["Z", "X", "C", "D", "V", "K", "H", "<", ">", "?"],
 ];
 
-pub const COLEMAK_DH_CONTROL: [[&'static str; 10]; 3] = [
+pub const COLEMAK_DH_CONTROL: [[&str; 10]; 3] = [
     [
         "ctrl+q", "ctrl+w", "ctrl+f", "ctrl+p", "ctrl+b", "ctrl+j", "ctrl+l", "ctrl+u", "ctrl+y",
         "ctrl+;",
