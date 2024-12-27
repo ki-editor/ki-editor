@@ -93,7 +93,7 @@ impl Editor {
             title: "Movements (Other)".to_string(),
             keymaps: Keymaps::new(&[
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::XAnchr),
+                    KEYBOARD_LAYOUT.get_key(&Meaning::XAchr),
                     "Swap cursor with anchor".to_string(),
                     Dispatch::ToEditor(DispatchEditor::SwapCursorWithAnchor),
                 ),

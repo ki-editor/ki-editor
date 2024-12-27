@@ -1,120 +1,7 @@
-pub const QWERTY_NORMAL: [[&str; 10]; 3] = [
-    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
-    ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
-    ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
-];
-
-pub const QWERTY_SHIFTED: [[&str; 10]; 3] = [
-    ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-    ["A", "S", "D", "F", "G", "H", "J", "K", "L", ":"],
-    ["Z", "X", "C", "V", "B", "N", "M", "<", ">", "?"],
-];
-
-pub const QWERTY_CONTROL: [[&str; 10]; 3] = [
-    [
-        "ctrl+q", "ctrl+w", "ctrl+e", "ctrl+r", "ctrl+t", "ctrl+y", "ctrl+u", "ctrl+i", "ctrl+o",
-        "ctrl+p",
-    ],
-    [
-        "ctrl+a", "ctrl+s", "ctrl+d", "ctrl+f", "ctrl+g", "ctrl+h", "ctrl+j", "ctrl+k", "ctrl+l",
-        "ctrl+;",
-    ],
-    [
-        "ctrl+z", "ctrl+x", "ctrl+c", "ctrl+v", "ctrl+b", "ctrl+n", "ctrl+m", "ctrl+,", "ctrl+.",
-        "ctrl+/",
-    ],
-];
-
-// -- DVORAK --
-
-pub const DVORAK_NORMAL: [[&str; 10]; 3] = [
-    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
-    ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
-    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
-];
-
-pub const DVORAK_SHIFTED: [[&str; 10]; 3] = [
-    ["\"", "<", ">", "P", "Y", "F", "G", "C", "R", "L"],
-    ["A", "O", "E", "I", "U", "D", "H", "T", "N", "S"],
-    [":", "Q", "J", "K", "X", "B", "M", "W", "V", "Z"],
-];
-
-pub const DVORAK_CONTROL: [[&str; 10]; 3] = [
-    [
-        "ctrl+'", "ctrl+,", "ctrl+.", "ctrl+p", "ctrl+y", "ctrl+f", "ctrl+g", "ctrl+c", "ctrl+r",
-        "ctrl+l",
-    ],
-    [
-        "ctrl+a", "ctrl+o", "ctrl+e", "ctrl+i", "ctrl+u", "ctrl+d", "ctrl+h", "ctrl+t", "ctrl+n",
-        "ctrl+s",
-    ],
-    [
-        "ctrl+;", "ctrl+q", "ctrl+j", "ctrl+k", "ctrl+x", "ctrl+b", "ctrl+m", "ctrl+w", "ctrl+v",
-        "ctrl+z",
-    ],
-];
-
-// -- COLEMAK --
-
-pub const COLEMAK_NORMAL: [[&str; 10]; 3] = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
-];
-
-pub const COLEMAK_SHIFTED: [[&str; 10]; 3] = [
-    ["Q", "W", "F", "P", "B", "J", "L", "U", "Y", ":"],
-    ["A", "R", "S", "T", "G", "M", "N", "E", "I", "O"],
-    ["Z", "X", "C", "D", "V", "K", "H", "<", ">", "?"],
-];
-
-pub const COLEMAK_CONTROL: [[&str; 10]; 3] = [
-    [
-        "ctrl+q", "ctrl+w", "ctrl+f", "ctrl+p", "ctrl+b", "ctrl+j", "ctrl+l", "ctrl+u", "ctrl+y",
-        "ctrl+;",
-    ],
-    [
-        "ctrl+a", "ctrl+r", "ctrl+s", "ctrl+t", "ctrl+g", "ctrl+m", "ctrl+n", "ctrl+e", "ctrl+i",
-        "ctrl+o",
-    ],
-    [
-        "ctrl+z", "ctrl+x", "ctrl+c", "ctrl+d", "ctrl+v", "ctrl+k", "ctrl+h", "ctrl+,", "ctrl+.",
-        "ctrl+/",
-    ],
-];
-
-// -- COLEMAK_DH --
-
-pub const COLEMAK_DH_NORMAL: [[&str; 10]; 3] = [
-    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
-    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
-    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
-];
-
-pub const COLEMAK_DH_SHIFTED: [[&str; 10]; 3] = [
-    ["Q", "W", "F", "P", "B", "J", "L", "U", "Y", ":"],
-    ["A", "R", "S", "T", "G", "M", "N", "E", "I", "O"],
-    ["Z", "X", "C", "D", "V", "K", "H", "<", ">", "?"],
-];
-
-pub const COLEMAK_DH_CONTROL: [[&str; 10]; 3] = [
-    [
-        "ctrl+q", "ctrl+w", "ctrl+f", "ctrl+p", "ctrl+b", "ctrl+j", "ctrl+l", "ctrl+u", "ctrl+y",
-        "ctrl+;",
-    ],
-    [
-        "ctrl+a", "ctrl+r", "ctrl+s", "ctrl+t", "ctrl+g", "ctrl+m", "ctrl+n", "ctrl+e", "ctrl+i",
-        "ctrl+o",
-    ],
-    [
-        "ctrl+z", "ctrl+x", "ctrl+c", "ctrl+d", "ctrl+v", "ctrl+k", "ctrl+h", "ctrl+,", "ctrl+.",
-        "ctrl+/",
-    ],
-];
-
-use std::collections::HashMap;
-
+use itertools::Itertools as _;
 use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use strum::IntoEnumIterator as _;
 use Meaning::*;
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
@@ -129,7 +16,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     ],
 ];
 
-pub const KEYMAP_SHIFTED: [[Meaning; 10]; 3] = [
+pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
         Char_, DeDnt, ChngX, Indnt, LstNc, /****/ FileP, OpenP, Join_, OpenN, FileN,
     ],
@@ -137,7 +24,7 @@ pub const KEYMAP_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, Raise, StyxF, DeltP, SrchP, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
-        Redo_, XAnchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, XAnchr, GForw, GrsrN,
+        Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, XAchr, GForw, GrsrN,
     ],
 ];
 
@@ -153,168 +40,120 @@ pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
     ],
 ];
 
-static QWERTY_NORMAL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL
-            .into_iter()
-            .flatten()
-            .zip(QWERTY_NORMAL.into_iter().flatten()),
-    )
-});
+type KeyboardLayout = [[&'static str; 10]; 3];
 
-static QWERTY_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_SHIFTED
-            .into_iter()
-            .flatten()
-            .zip(QWERTY_SHIFTED.into_iter().flatten()),
-    )
-});
+pub const QWERTY: KeyboardLayout = [
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l", ";"],
+    ["z", "x", "c", "v", "b", "n", "m", ",", ".", "/"],
+];
 
-static QWERTY_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL_CONTROL
-            .into_iter()
-            .flatten()
-            .zip(QWERTY_CONTROL.into_iter().flatten()),
-    )
-});
+pub const DVORAK: KeyboardLayout = [
+    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
+    ["a", "o", "e", "u", "i", "d", "h", "t", "n", "s"],
+    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
+];
 
-static DVORAK_NORMAL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL
-            .into_iter()
-            .flatten()
-            .zip(DVORAK_NORMAL.into_iter().flatten()),
-    )
-});
+/// I and U swapped.
+/// Refer https://www.reddit.com/r/dvorak/comments/tfz53r/have_anyone_tried_swapping_u_with_i/
+pub const DVORAK_IU: KeyboardLayout = [
+    ["'", ",", ".", "p", "y", "f", "g", "c", "r", "l"],
+    ["a", "o", "e", "i", "u", "d", "h", "t", "n", "s"],
+    [";", "q", "j", "k", "x", "b", "m", "w", "v", "z"],
+];
 
-static DVORAK_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_SHIFTED
-            .into_iter()
-            .flatten()
-            .zip(DVORAK_SHIFTED.into_iter().flatten()),
-    )
-});
+pub const COLEMAK: KeyboardLayout = [
+    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
+    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+];
 
-static DVORAK_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL_CONTROL
-            .into_iter()
-            .flatten()
-            .zip(DVORAK_CONTROL.into_iter().flatten()),
-    )
-});
+/// Refer https://colemakmods.github.io/mod-dh/
+pub const COLEMAK_DH: KeyboardLayout = [
+    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
+    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+];
 
-static COLEMAK_NORMAL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL
-            .into_iter()
-            .flatten()
-            .zip(COLEMAK_NORMAL.into_iter().flatten()),
-    )
-});
+struct KeySet {
+    normal: HashMap<Meaning, &'static str>,
+    normal_shifted: HashMap<Meaning, &'static str>,
+    normal_control: HashMap<Meaning, &'static str>,
+}
 
-static COLEMAK_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_SHIFTED
-            .into_iter()
-            .flatten()
-            .zip(COLEMAK_SHIFTED.into_iter().flatten()),
-    )
-});
+impl KeySet {
+    fn from(layout: KeyboardLayout) -> Self {
+        Self {
+            normal: HashMap::from_iter(
+                KEYMAP_NORMAL
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten()),
+            ),
+            normal_shifted: HashMap::from_iter(
+                KEYMAP_NORMAL_SHIFTED
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten().map(shifted)),
+            ),
+            normal_control: HashMap::from_iter(
+                KEYMAP_NORMAL_CONTROL
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten().map(controlled)),
+            ),
+        }
+    }
+}
 
-static COLEMAK_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL_CONTROL
-            .into_iter()
-            .flatten()
-            .zip(COLEMAK_CONTROL.into_iter().flatten()),
-    )
-});
+static QWERTY_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(QWERTY));
+static COLEMAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK));
+static COLEMAK_DH_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_DH));
+static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
+static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 
-static COLEMAK_DH_NORMAL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL
-            .into_iter()
-            .flatten()
-            .zip(COLEMAK_DH_NORMAL.into_iter().flatten()),
-    )
-});
-
-static COLEMAK_DH_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_SHIFTED
-            .into_iter()
-            .flatten()
-            .zip(COLEMAK_DH_SHIFTED.into_iter().flatten()),
-    )
-});
-
-static COLEMAK_DH_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
-    HashMap::from_iter(
-        KEYMAP_NORMAL_CONTROL
-            .into_iter()
-            .flatten()
-            .zip(COLEMAK_DH_CONTROL.into_iter().flatten()),
-    )
-});
-
-pub(crate) static KEYBOARD_LAYOUT: Lazy<KeyboardLayout> = Lazy::new(|| {
-    use KeyboardLayout::*;
+pub(crate) static KEYBOARD_LAYOUT: Lazy<KeyboardLayoutKind> = Lazy::new(|| {
+    use KeyboardLayoutKind::*;
     crate::env::parse_env(
         "KI_EDITOR_KEYBOARD",
-        &[Qwerty, Dvorak, Colemak, ColemakDh],
+        &KeyboardLayoutKind::iter().collect_vec(),
         |layout| layout.as_str(),
         Qwerty,
     )
 });
 
-#[derive(Debug, Clone)]
-pub(crate) enum KeyboardLayout {
+#[derive(Debug, Clone, strum_macros::EnumIter)]
+pub(crate) enum KeyboardLayoutKind {
     Qwerty,
     Dvorak,
+    DvorakIU,
     Colemak,
     ColemakDh,
 }
 
-impl KeyboardLayout {
+impl KeyboardLayoutKind {
     const fn as_str(&self) -> &'static str {
         match self {
-            KeyboardLayout::Qwerty => "QWERTY",
-            KeyboardLayout::Dvorak => "DVORAK",
-            KeyboardLayout::Colemak => "COLEMAK",
-            KeyboardLayout::ColemakDh => "COLEMAK_DH",
+            KeyboardLayoutKind::Qwerty => "QWERTY",
+            KeyboardLayoutKind::Dvorak => "DVORAK",
+            KeyboardLayoutKind::Colemak => "COLEMAK",
+            KeyboardLayoutKind::ColemakDh => "COLEMAK_DH",
+            KeyboardLayoutKind::DvorakIU => "DVORAK_IU",
         }
     }
     pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
-        let (normal, shifted, control) = match self {
-            KeyboardLayout::Qwerty => (
-                &QWERTY_NORMAL_KEYS,
-                &QWERTY_SHIFTED_KEYS,
-                &QWERTY_NORMAL_CONTROL_KEYS,
-            ),
-            KeyboardLayout::Dvorak => (
-                &DVORAK_NORMAL_KEYS,
-                &DVORAK_SHIFTED_KEYS,
-                &DVORAK_NORMAL_CONTROL_KEYS,
-            ),
-            KeyboardLayout::Colemak => (
-                &COLEMAK_NORMAL_KEYS,
-                &COLEMAK_SHIFTED_KEYS,
-                &COLEMAK_NORMAL_CONTROL_KEYS,
-            ),
-            KeyboardLayout::ColemakDh => (
-                &COLEMAK_DH_NORMAL_KEYS,
-                &COLEMAK_DH_SHIFTED_KEYS,
-                &COLEMAK_DH_NORMAL_CONTROL_KEYS,
-            ),
+        let keyset = match self {
+            KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
+            KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
+            KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
+            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
         };
-        normal
+        keyset
+            .normal
             .get(meaning)
-            .or_else(|| shifted.get(meaning))
-            .or_else(|| control.get(meaning))
+            .or_else(|| keyset.normal_shifted.get(meaning))
+            .or_else(|| keyset.normal_control.get(meaning))
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
@@ -376,7 +215,7 @@ pub enum Meaning {
     /// Cycle primary select next
     GrsrN,
     /// Swap cursor with anchor
-    XAnchr,
+    XAchr,
     /// Undo
     Undo_,
     /// Replace with pattern
@@ -464,4 +303,133 @@ pub enum Meaning {
     Sytx_,
     /// Configure Search
     CSrch,
+}
+
+fn shifted(c: &'static str) -> &'static str {
+    match c {
+        "." => ">",
+        "," => "<",
+        "/" => "?",
+        ";" => ":",
+        "\"" => "\"",
+        "[" => "{",
+        "]" => "}",
+        "1" => "!",
+        "2" => "@",
+        "3" => "#",
+        "4" => "$",
+        "5" => "%",
+        "6" => "^",
+        "7" => "&",
+        "8" => "*",
+        "9" => "(",
+        "0" => ")",
+        "-" => "_",
+        "=" => "+",
+        "a" => "A",
+        "b" => "B",
+        "c" => "C",
+        "d" => "D",
+        "e" => "E",
+        "f" => "F",
+        "g" => "G",
+        "h" => "H",
+        "i" => "I",
+        "j" => "J",
+        "k" => "K",
+        "l" => "L",
+        "m" => "M",
+        "n" => "N",
+        "o" => "O",
+        "p" => "P",
+        "q" => "Q",
+        "r" => "R",
+        "s" => "S",
+        "t" => "T",
+        "u" => "U",
+        "v" => "V",
+        "w" => "W",
+        "x" => "X",
+        "y" => "Y",
+        "z" => "Z",
+        // Uppercase letters remain unchanged when shifted
+        "A" => "A",
+        "B" => "B",
+        "C" => "C",
+        "D" => "D",
+        "E" => "E",
+        "F" => "F",
+        "G" => "G",
+        "H" => "H",
+        "I" => "I",
+        "J" => "J",
+        "K" => "K",
+        "L" => "L",
+        "M" => "M",
+        "N" => "N",
+        "O" => "O",
+        "P" => "P",
+        "Q" => "Q",
+        "R" => "R",
+        "S" => "S",
+        "T" => "T",
+        "U" => "U",
+        "V" => "V",
+        "W" => "W",
+        "X" => "X",
+        "Y" => "Y",
+        "Z" => "Z",
+        c => c, // return unchanged if no shift mapping exists
+    }
+}
+
+fn controlled(c: &'static str) -> &'static str {
+    match c {
+        "." => "ctrl+.",
+        "," => "ctrl+,",
+        "/" => "ctrl+/",
+        ";" => "ctrl+;",
+        "\"" => "ctrl+\"",
+        "[" => "ctrl+[",
+        "]" => "ctrl+]",
+        "1" => "ctrl+1",
+        "2" => "ctrl+2",
+        "3" => "ctrl+3",
+        "4" => "ctrl+4",
+        "5" => "ctrl+5",
+        "6" => "ctrl+6",
+        "7" => "ctrl+7",
+        "8" => "ctrl+8",
+        "9" => "ctrl+9",
+        "0" => "ctrl+0",
+        "-" => "ctrl+-",
+        "=" => "ctrl+=",
+        "a" => "ctrl+a",
+        "b" => "ctrl+b",
+        "c" => "ctrl+c",
+        "d" => "ctrl+d",
+        "e" => "ctrl+e",
+        "f" => "ctrl+f",
+        "g" => "ctrl+g",
+        "h" => "ctrl+h",
+        "i" => "ctrl+i",
+        "j" => "ctrl+j",
+        "k" => "ctrl+k",
+        "l" => "ctrl+l",
+        "m" => "ctrl+m",
+        "n" => "ctrl+n",
+        "o" => "ctrl+o",
+        "p" => "ctrl+p",
+        "q" => "ctrl+q",
+        "r" => "ctrl+r",
+        "s" => "ctrl+s",
+        "t" => "ctrl+t",
+        "u" => "ctrl+u",
+        "v" => "ctrl+v",
+        "w" => "ctrl+w",
+        "x" => "ctrl+x",
+        "y" => "ctrl+y",
+        "z" => "ctrl+z",
+        c => c, // return unchanged if no shift mapping exists
+    }
 }
