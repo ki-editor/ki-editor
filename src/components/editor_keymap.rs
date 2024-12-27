@@ -83,6 +83,35 @@ pub const COLEMAK_CONTROL: [[&'static str; 10]; 3] = [
     ],
 ];
 
+// -- COLEMAK_DH --
+
+pub const COLEMAK_DH_NORMAL: [[&'static str; 10]; 3] = [
+    ["q", "w", "f", "p", "b", "j", "l", "u", "y", ";"],
+    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
+    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+];
+
+pub const COLEMAK_DH_SHIFTED: [[&'static str; 10]; 3] = [
+    ["Q", "W", "F", "P", "B", "J", "L", "U", "Y", ":"],
+    ["A", "R", "S", "T", "G", "M", "N", "E", "I", "O"],
+    ["Z", "X", "C", "D", "V", "K", "H", "<", ">", "?"],
+];
+
+pub const COLEMAK_DH_CONTROL: [[&'static str; 10]; 3] = [
+    [
+        "ctrl+q", "ctrl+w", "ctrl+f", "ctrl+p", "ctrl+b", "ctrl+j", "ctrl+l", "ctrl+u", "ctrl+y",
+        "ctrl+;",
+    ],
+    [
+        "ctrl+a", "ctrl+r", "ctrl+s", "ctrl+t", "ctrl+g", "ctrl+m", "ctrl+n", "ctrl+e", "ctrl+i",
+        "ctrl+o",
+    ],
+    [
+        "ctrl+z", "ctrl+x", "ctrl+c", "ctrl+d", "ctrl+v", "ctrl+k", "ctrl+h", "ctrl+,", "ctrl+.",
+        "ctrl+/",
+    ],
+];
+
 use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
@@ -205,11 +234,38 @@ static COLEMAK_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| 
     )
 });
 
+static COLEMAK_DH_NORMAL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
+    HashMap::from_iter(
+        KEYMAP_NORMAL
+            .into_iter()
+            .flatten()
+            .zip(COLEMAK_DH_NORMAL.into_iter().flatten()),
+    )
+});
+
+static COLEMAK_DH_SHIFTED_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
+    HashMap::from_iter(
+        KEYMAP_SHIFTED
+            .into_iter()
+            .flatten()
+            .zip(COLEMAK_DH_SHIFTED.into_iter().flatten()),
+    )
+});
+
+static COLEMAK_DH_NORMAL_CONTROL_KEYS: Lazy<HashMap<Meaning, &str>> = Lazy::new(|| {
+    HashMap::from_iter(
+        KEYMAP_NORMAL_CONTROL
+            .into_iter()
+            .flatten()
+            .zip(COLEMAK_DH_CONTROL.into_iter().flatten()),
+    )
+});
+
 pub(crate) static KEYBOARD_LAYOUT: Lazy<KeyboardLayout> = Lazy::new(|| {
     use KeyboardLayout::*;
     crate::env::parse_env(
         "KI_EDITOR_KEYBOARD",
-        &[QWERTY, DVORAK, COLEMAK],
+        &[QWERTY, DVORAK, COLEMAK, COLEMAK_DH],
         |layout| layout.as_str(),
         QWERTY,
     )
@@ -220,6 +276,7 @@ pub(crate) enum KeyboardLayout {
     QWERTY,
     DVORAK,
     COLEMAK,
+    COLEMAK_DH,
 }
 
 impl KeyboardLayout {
@@ -228,6 +285,7 @@ impl KeyboardLayout {
             KeyboardLayout::QWERTY => "QWERTY",
             KeyboardLayout::DVORAK => "DVORAK",
             KeyboardLayout::COLEMAK => "COLEMAK",
+            KeyboardLayout::COLEMAK_DH => "COLEMAK_DH",
         }
     }
     pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
@@ -246,6 +304,11 @@ impl KeyboardLayout {
                 &COLEMAK_NORMAL_KEYS,
                 &COLEMAK_SHIFTED_KEYS,
                 &COLEMAK_NORMAL_CONTROL_KEYS,
+            ),
+            KeyboardLayout::COLEMAK_DH => (
+                &COLEMAK_DH_NORMAL_KEYS,
+                &COLEMAK_DH_SHIFTED_KEYS,
+                &COLEMAK_DH_NORMAL_CONTROL_KEYS,
             ),
         };
         normal
