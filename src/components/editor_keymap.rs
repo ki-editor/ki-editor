@@ -412,7 +412,7 @@ fn controlled(c: &'static str) -> &'static str {
         "f" => "ctrl+f",
         "g" => "ctrl+g",
         "h" => "ctrl+h",
-        "i" => "ctrl+i",
+        "i" => "tab", // Lookup ASCII Control Character 9, where ctrl+i means tab
         "j" => "ctrl+j",
         "k" => "ctrl+k",
         "l" => "ctrl+l",
