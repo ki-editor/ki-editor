@@ -10,10 +10,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Build and fetch tree-sitter grammar files
     Grammar {
         #[command(subcommand)]
         command: Grammar,
     },
+    /// Manage cached tree-sitter highlight files
     HighlightQuery {
         #[command(subcommand)]
         command: HighlightQuery,
@@ -36,7 +38,9 @@ struct InArgs {
 }
 #[derive(Subcommand)]
 enum Grammar {
+    /// Build existing tree-sitter grammar files
     Build,
+    /// Fetch new tree-sitter grammar files
     Fetch,
 }
 
