@@ -6,10 +6,10 @@ use Meaning::*;
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, VMode, Chng_, MultC, SrchC, /****/ Mark_, InstP, Up___, InstN, CSrch,
+        Word_, Token, SrchC, SrchN, MultC, /****/ Mark_, InstP, Up___, InstN, CSrch,
     ],
     [
-        Line_, Token, Sytx_, DeltN, SrchN, /****/ Prev_, Left_, Down_, Right, Next_,
+        Line_, Sytx_, DeltN, Chng_, VMode, /****/ Prev_, Left_, Down_, Right, Next_,
     ],
     [
         Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, Trsfm,
@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, Raise, StyxF, DeltP, SrchP, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
-        Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, _____, GForw, GrsrN,
+        Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, _____, GForw, CrsrN,
     ],
 ];
 
@@ -213,7 +213,7 @@ pub enum Meaning {
     /// Cycle primary selection prev
     CrsrP,
     /// Cycle primary select next
-    GrsrN,
+    CrsrN,
     /// Swap cursor with anchor
     XAchr,
     /// Undo

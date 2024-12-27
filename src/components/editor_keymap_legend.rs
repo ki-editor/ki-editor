@@ -103,7 +103,7 @@ impl Editor {
                     Dispatch::ToEditor(CyclePrimarySelection(Direction::Start)),
                 ),
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::GrsrN),
+                    KEYBOARD_LAYOUT.get_key(&Meaning::CrsrN),
                     Direction::End.format_action("Cycle primary selection"),
                     Dispatch::ToEditor(CyclePrimarySelection(Direction::End)),
                 ),
