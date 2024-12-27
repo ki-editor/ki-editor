@@ -60,3 +60,10 @@ Keybindings:
 
 - `{`: Go to previously opened file
 - `}`: Go to the next opened file
+
+## Go to the previous/next buffer
+
+Keybindings:
+
+- `-`: Go to previous buffer
+- `=`: Go to next buffer
