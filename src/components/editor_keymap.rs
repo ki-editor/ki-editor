@@ -265,47 +265,47 @@ pub(crate) static KEYBOARD_LAYOUT: Lazy<KeyboardLayout> = Lazy::new(|| {
     use KeyboardLayout::*;
     crate::env::parse_env(
         "KI_EDITOR_KEYBOARD",
-        &[QWERTY, DVORAK, COLEMAK, COLEMAK_DH],
+        &[Qwerty, Dvorak, Colemak, ColemakDh],
         |layout| layout.as_str(),
-        QWERTY,
+        Qwerty,
     )
 });
 
 #[derive(Debug, Clone)]
 pub(crate) enum KeyboardLayout {
-    QWERTY,
-    DVORAK,
-    COLEMAK,
-    COLEMAK_DH,
+    Qwerty,
+    Dvorak,
+    Colemak,
+    ColemakDh,
 }
 
 impl KeyboardLayout {
     const fn as_str(&self) -> &'static str {
         match self {
-            KeyboardLayout::QWERTY => "QWERTY",
-            KeyboardLayout::DVORAK => "DVORAK",
-            KeyboardLayout::COLEMAK => "COLEMAK",
-            KeyboardLayout::COLEMAK_DH => "COLEMAK_DH",
+            KeyboardLayout::Qwerty => "QWERTY",
+            KeyboardLayout::Dvorak => "DVORAK",
+            KeyboardLayout::Colemak => "COLEMAK",
+            KeyboardLayout::ColemakDh => "COLEMAK_DH",
         }
     }
     pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
         let (normal, shifted, control) = match self {
-            KeyboardLayout::QWERTY => (
+            KeyboardLayout::Qwerty => (
                 &QWERTY_NORMAL_KEYS,
                 &QWERTY_SHIFTED_KEYS,
                 &QWERTY_NORMAL_CONTROL_KEYS,
             ),
-            KeyboardLayout::DVORAK => (
+            KeyboardLayout::Dvorak => (
                 &DVORAK_NORMAL_KEYS,
                 &DVORAK_SHIFTED_KEYS,
                 &DVORAK_NORMAL_CONTROL_KEYS,
             ),
-            KeyboardLayout::COLEMAK => (
+            KeyboardLayout::Colemak => (
                 &COLEMAK_NORMAL_KEYS,
                 &COLEMAK_SHIFTED_KEYS,
                 &COLEMAK_NORMAL_CONTROL_KEYS,
             ),
-            KeyboardLayout::COLEMAK_DH => (
+            KeyboardLayout::ColemakDh => (
                 &COLEMAK_DH_NORMAL_KEYS,
                 &COLEMAK_DH_SHIFTED_KEYS,
                 &COLEMAK_DH_NORMAL_CONTROL_KEYS,
