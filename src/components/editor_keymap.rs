@@ -119,37 +119,37 @@ use Meaning::*;
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        WORD_, VMODE, CHNG_, MULTC, SRCHC, /****/ MARK_, INSTP, UP___, INSTN, CSRCH,
+        Word_, VMode, Chng_, MultC, SrchC, /****/ Mark_, InstP, Up___, InstN, CSrch,
     ],
     [
-        LINE_, TOKEN, SYTX_, DELTN, SRCHN, /****/ PREV_, LEFT_, DOWN_, RIGHT, NEXT_,
+        Line_, Token, Sytx_, DeltN, SrchN, /****/ Prev_, Left_, Down_, Right, Next_,
     ],
     [
-        UNDO_, EXCHG, COPY_, PSTEN, RPLC_, /****/ GLOBL, FIRST, JUMP_, LAST_, TRSFM,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, Trsfm,
     ],
 ];
 
 pub const KEYMAP_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        CHAR_, DEDNT, CHNGX, INDNT, LSTNC, /****/ FILEP, OPENP, JOIN_, OPENN, FILEN,
+        Char_, DeDnt, ChngX, Indnt, LstNc, /****/ FileP, OpenP, Join_, OpenN, FileN,
     ],
     [
-        LINEF, RAISE, SYTXF, DELTP, SRCHP, /****/ BUFFP, FINDP, BREAK, FINDN, BUFFN,
+        LineF, Raise, StyxF, DeltP, SrchP, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
-        REDO_, XACHR, TOIDX, PSTEP, RPLCX, /****/ CRSRP, GBACK, XACHR, GFORW, CRSRN,
+        Redo_, XAnchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, XAnchr, GForw, GrsrN,
     ],
 ];
 
 pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, RPLCP, SCRLU, RPLCN, SVIEW,
+        _____, _____, _____, _____, _____, /****/ _____, RplcP, ScrlU, RplcN, SView,
     ],
     [
-        _____, _____, _____, WCLSE, _____, /****/ _____, _____, SCRLD, _____, _____,
+        _____, _____, _____, WClse, _____, /****/ _____, _____, ScrlD, _____, _____,
     ],
     [
-        UNDO_, _____, _____, UPSTE, PRPLC, /****/ _____, _____, WSWTH, _____, _____,
+        Undo_, _____, _____, UPstE, PRplc, /****/ _____, _____, WSwth, _____, _____,
     ],
 ];
 
@@ -328,140 +328,140 @@ pub enum Meaning {
     /// Empty, not assigned
     _____,
     /// GoToIndex
-    TOIDX,
+    ToIdx,
     /// Indent
-    INDNT,
+    Indnt,
     /// Paste (End)
-    UPSTE,
+    UPstE,
     /// Dedent
-    DEDNT,
+    DeDnt,
     /// Open (Prev)
-    OPENP,
+    OpenP,
     /// Open (Next)
-    OPENN,
+    OpenN,
     /// Join
-    JOIN_,
+    Join_,
     /// Switch view alignment
-    SVIEW,
+    SView,
     /// Select full line
-    LINEF,
+    LineF,
     /// Buffer next
-    BUFFN,
+    BuffN,
     /// Buffer previous
-    BUFFP,
+    BuffP,
     /// Select Syntax Node
-    SYTXF,
+    StyxF,
     /// Raise
-    RAISE,
+    Raise,
     /// File previous
-    FILEP,
+    FileP,
     /// File next
-    FILEN,
+    FileN,
     /// Local find backward
-    FINDP,
+    FindP,
     /// Go back
-    GBACK,
+    GBack,
     /// Go forward
-    GFORW,
+    GForw,
     /// Close current window
-    WCLSE,
+    WClse,
     /// Switch window
-    WSWTH,
+    WSwth,
     /// Local find forward
-    FINDN,
+    FindN,
     /// Break line
-    BREAK,
+    Break,
     /// Cycle primary selection prev
-    CRSRP,
+    CrsrP,
     /// Cycle primary select next
-    CRSRN,
+    GrsrN,
     /// Swap cursor with anchor
-    XACHR,
+    XAnchr,
     /// Undo
-    UNDO_,
+    Undo_,
     /// Replace with pattern
-    PRPLC,
+    PRplc,
     /// Replace (with previous copied text)
-    RPLCP,
+    RplcP,
     /// Replace (with next copied text)
-    RPLCN,
+    RplcN,
     /// Scroll up
-    SCRLU,
+    ScrlU,
     /// Scroll down
-    SCRLD,
+    ScrlD,
     /// Select last non-contiguous selection mode
-    LSTNC,
+    LstNc,
     /// Redo
-    REDO_,
+    Redo_,
     /// Switch extended selection end
-    EXCHG,
+    Exchg,
     /// Copy
-    COPY_,
+    Copy_,
     /// Paste end
-    PSTEN,
+    PsteN,
     /// Paste previous
-    PSTEP,
+    PsteP,
     /// Replace
-    RPLC_,
+    Rplc_,
     /// Replace cut
-    RPLCX,
+    RplcX,
     /// Left
-    LEFT_,
+    Left_,
     /// Right
-    RIGHT,
+    Right,
     /// Delete start
-    DELTP,
+    DeltP,
     /// Delete end
-    DELTN,
+    DeltN,
     /// Search (local) next
-    SRCHN,
+    SrchN,
     /// Search (local) previous
-    SRCHP,
+    SrchP,
     /// Previous
-    PREV_,
+    Prev_,
     /// Next
-    NEXT_,
+    Next_,
     /// Down
-    DOWN_,
+    Down_,
     /// Find (global)
-    GLOBL,
+    Globl,
     /// First
-    FIRST,
+    First,
     /// Jump
-    JUMP_,
+    Jump_,
     /// Last
-    LAST_,
+    Last_,
     /// Transform
-    TRSFM,
+    Trsfm,
     /// Mark
-    MARK_,
+    Mark_,
     /// Keep selections matching search
-    INSTP,
+    InstP,
     /// Remove selections matching search
-    INSTN,
+    InstN,
     /// Up
-    UP___,
+    Up___,
 
     /// Select Word
-    WORD_,
+    Word_,
     /// V-mode
-    VMODE,
+    VMode,
     /// Change Surround
-    CHNG_,
+    Chng_,
     /// Change Cut
-    CHNGX,
+    ChngX,
     /// Multi Cursor
-    MULTC,
+    MultC,
     /// Search current selection
-    SRCHC,
+    SrchC,
     /// Select Character
-    CHAR_,
+    Char_,
     /// Select Line
-    LINE_,
+    Line_,
     /// Select Token
-    TOKEN,
+    Token,
     /// Select Syntax
-    SYTX_,
+    Sytx_,
     /// Configure Search
-    CSRCH,
+    CSrch,
 }
