@@ -31,8 +31,7 @@ enum Commands {
 }
 #[derive(Args, Default)]
 struct EditArgs {
-    #[arg(default_value = "")]
-    path: String,
+    path: Option<String>,
 }
 #[derive(Args)]
 struct InArgs {
@@ -53,22 +52,27 @@ enum HighlightQuery {
 }
 
 fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
-    let path = std::path::PathBuf::from(args.path.clone());
-    if !path.exists() {
-        std::fs::write(path, "")?;
+    match args.path {
+        Some(path) => {
+            let tmp_path = std::path::PathBuf::from(path.clone());
+            if !tmp_path.exists() {
+                std::fs::write(tmp_path, "")?;
+            }
+
+            let path: Option<CanonicalizedPath> = Some(path.try_into()?);
+            let working_directory = match path.clone() {
+                Some(value) if value.is_dir() => Some(value),
+                Some(value) => value.parent()?,
+                _ => Default::default(),
+            };
+
+            crate::run(crate::RunConfig {
+                entry_path: path,
+                working_directory,
+            })
+        }
+        None => crate::run(Default::default()),
     }
-
-    let path: Option<CanonicalizedPath> = Some(args.path.try_into()?);
-    let working_directory = match path.clone() {
-        Some(value) if value.is_dir() => Some(value),
-        Some(value) => value.parent()?,
-        _ => Default::default(),
-    };
-
-    crate::run(crate::RunConfig {
-        entry_path: path,
-        working_directory,
-    })
 }
 
 pub(crate) fn cli() -> anyhow::Result<()> {
@@ -105,8 +109,6 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 ..Default::default()
             }),
         }
-    } else if cli.edit.path == "" {
-        crate::run(Default::default())
     } else {
         run_edit_command(cli.edit)
     }
