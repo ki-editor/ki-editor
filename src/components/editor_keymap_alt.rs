@@ -91,7 +91,6 @@ pub const ACTION_DELETE_END: &str = "delete";
 pub const ACTION_DELETE_START: &str = "shift+delete";
 pub const ACTION_SAVE: &str = "enter";
 
-
 // Multi-cursor
 pub const ACTION_MC_DELETE_PRIMARY_CURSOR_START: &str = "d";
 pub const ACTION_MC_DELETE_PRIMARY_CURSOR_END: &str = "D";

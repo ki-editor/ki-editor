@@ -10,7 +10,7 @@ use strum::IntoEnumIterator as _;
 pub(crate) use vscode_dark::vscode_dark;
 pub(crate) use vscode_light::vscode_light;
 
-use crate::{grid::StyleKey, style::Style};
+use crate::{env::parse_env, grid::StyleKey, style::Style};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub(crate) struct Theme {
@@ -93,30 +93,12 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        let desired_theme_name = std::env::var("KI_EDITOR_THEME")
-            .unwrap_or_else(|_| "VS Code (Light)".to_string())
-            .to_lowercase();
-        let mut available_themes = themes().unwrap();
-        available_themes.sort_by(|a, b| a.name.cmp(&b.name));
-        available_themes
-            .iter()
-            .find(|theme| theme.name.to_lowercase() == desired_theme_name)
-            .unwrap_or_else(|| {
-                let theme_names: Vec<String> = available_themes
-                    .iter()
-                    .map(|theme| format!("  * {}", theme.name))
-                    .collect();
-                let themes_list = theme_names.join("\n");
-                panic!(
-                    "
-{} theme was not found. Please update your KI_EDITOR_THEME environment variable.
-
-Available themes are:
-{}",
-                    desired_theme_name, themes_list
-                );
-            })
-            .clone()
+        parse_env(
+            "KI_EDITOR_THEME",
+            &themes().unwrap(),
+            |theme| &theme.name,
+            vscode_light(),
+        )
     }
 }
 

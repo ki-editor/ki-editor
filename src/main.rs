@@ -44,6 +44,7 @@ pub(crate) mod ui_tree;
 pub(crate) mod undo_tree;
 mod utils;
 
+mod env;
 use std::{rc::Rc, sync::Mutex};
 
 use anyhow::Context;
