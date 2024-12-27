@@ -18,10 +18,10 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, DeDnt, ChngX, Indnt, LstNc, /****/ FileP, OpenP, Join_, OpenN, FileN,
+        Char_, DeDnt, Raise, SrchP, LstNc, /****/ FileP, OpenP, Join_, OpenN, FileN,
     ],
     [
-        LineF, Raise, StyxF, DeltP, SrchP, /****/ BuffP, FindP, Break, FindN, BuffN,
+        LineF, StyxF, DeltP, ChngX, Indnt, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
         Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, _____, GForw, CrsrN,
@@ -33,7 +33,7 @@ pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
         _____, _____, _____, _____, _____, /****/ _____, RplcP, ScrlU, RplcN, SView,
     ],
     [
-        _____, _____, _____, WClse, _____, /****/ _____, _____, ScrlD, _____, _____,
+        _____, _____, WClse, _____, _____, /****/ _____, _____, ScrlD, _____, _____,
     ],
     [
         Undo_, WSwth, _____, UPstE, PRplc, /****/ _____, _____, _____, _____, _____,
