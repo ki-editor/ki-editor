@@ -264,73 +264,141 @@ impl KeyboardLayout {
 pub enum Meaning {
     /// Empty, not assigned
     _____,
+    /// GoToIndex
     TOIDX,
+    /// Indent
     INDNT,
+    /// Paste (End)
     UPSTE,
+    /// Dedent
     DEDNT,
+    /// Open (Prev)
     OPENP,
+    /// Open (Next)
     OPENN,
+    /// Join
     JOIN_,
+    /// Switch view alignment
     SVIEW,
+    /// Select full line
     LINEF,
+    /// Buffer next
     BUFFN,
+    /// Buffer previous
     BUFFP,
+    /// Select Syntax Node
     SYTXF,
+    /// Raise
     RAISE,
+    /// File previous
     FILEP,
+    /// File next
     FILEN,
+    /// Local find backward
     FINDP,
+    /// Go back
     GBACK,
+    /// Go forward
     GFORW,
+    /// Close current window
     WCLSE,
+    /// Switch window
     WSWTH,
+    /// Local find forward
     FINDN,
+    /// Break line
     BREAK,
+    /// Cycle primary selection prev
     CRSRP,
+    /// Cycle primary select next
     CRSRN,
+    /// Swap cursor with anchor
     XACHR,
+    /// Undo
     UNDO_,
+    /// Replace with pattern
     PRPLC,
+    /// Replace (with previous copied text)
     RPLCP,
+    /// Replace (with next copied text)
     RPLCN,
+    /// Scroll up
     SCRLU,
+    /// Scroll down
     SCRLD,
+    /// Select last non-contiguous selection mode
     LSTNC,
+    /// Redo
     REDO_,
+    /// Switch extended selection end
     EXCHG,
+    /// Copy
     COPY_,
+    /// Paste end
     PSTEN,
+    /// Paste previous
     PSTEP,
+    /// Replace
     RPLC_,
+    /// Replace cut
     RPLCX,
+    /// Left
     LEFT_,
+    /// Right
     RIGHT,
+    /// Delete start
     DELTP,
+    /// Delete end
     DELTN,
+    /// Search (local) next
     SRCHN,
+    /// Search (local) previous
     SRCHP,
+    /// Previous
     PREV_,
+    /// Next
     NEXT_,
+    /// Down
     DOWN_,
+    /// Find (global)
     GLOBL,
+    /// First
     FIRST,
+    /// Jump
     JUMP_,
+    /// Last
     LAST_,
+    /// Transform
     TRSFM,
+    /// Mark
     MARK_,
+    /// Keep selections matching search
     INSTP,
+    /// Remove selections matching search
     INSTN,
+    /// Up
     UP___,
 
+    /// Select Word
     WORD_,
+    /// V-mode
     VMODE,
+    /// Change Surround
     CHNG_,
+    /// Change Cut
     CHNGX,
+    /// Multi Cursor
     MULTC,
+    /// Search current selection
     SRCHC,
+    /// Select Character
     CHAR_,
+    /// Select Line
     LINE_,
+    /// Select Token
     TOKEN,
+    /// Select Syntax
     SYTX_,
+    /// Configure Search
     CSRCH,
 }
