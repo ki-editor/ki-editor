@@ -420,14 +420,14 @@ impl Editor {
                 .chain(Some(if self.selection_set.is_extended() {
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
-                        "Enter V Mode".to_string(),
-                        Dispatch::ToEditor(EnterVMode),
+                        "Select all".to_string(),
+                        Dispatch::ToEditor(SelectAll),
                     )
                 } else {
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
-                        "Select all".to_string(),
-                        Dispatch::ToEditor(SelectAll),
+                        "Enter V Mode".to_string(),
+                        Dispatch::ToEditor(EnterVMode),
                     )
                 }))
                 .chain(
