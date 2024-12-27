@@ -24,7 +24,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         LineF, Raise, StyxF, DeltP, SrchP, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
-        Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, XAchr, GForw, GrsrN,
+        Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, _____, GForw, GrsrN,
     ],
 ];
 
@@ -36,7 +36,7 @@ pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
         _____, _____, _____, WClse, _____, /****/ _____, _____, ScrlD, _____, _____,
     ],
     [
-        Undo_, _____, _____, UPstE, PRplc, /****/ _____, _____, WSwth, _____, _____,
+        Undo_, WSwth, _____, UPstE, PRplc, /****/ _____, _____, _____, _____, _____,
     ],
 ];
 
