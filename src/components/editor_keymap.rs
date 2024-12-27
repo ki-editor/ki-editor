@@ -316,7 +316,7 @@ impl KeyboardLayout {
             .or_else(|| shifted.get(meaning))
             .or_else(|| control.get(meaning))
             .cloned()
-            .expect(&format!("Unable to find key binding of {meaning:#?}"))
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
 }
 
