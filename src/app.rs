@@ -306,9 +306,12 @@ impl<T: Frontend> App<T> {
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
-                        StatusLineComponent::CurrentWorkingDirectory => {
-                            Some(self.working_directory.display_absolute())
-                        }
+                        StatusLineComponent::CurrentWorkingDirectory => Some(
+                            self.working_directory
+                                .display_relative_to_home()
+                                .ok()
+                                .unwrap_or_else(|| self.working_directory.display_absolute()),
+                        ),
                         StatusLineComponent::GitBranch => self.current_branch(),
                         StatusLineComponent::Mode => Some(
                             self.context
