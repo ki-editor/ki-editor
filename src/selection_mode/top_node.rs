@@ -14,7 +14,7 @@ impl SelectionMode for TopNode {
         ))?;
         let root_node_id = tree.root_node().id();
         Ok(Box::new(
-            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Pre)
+            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
                 .filter(|node| node.id() != root_node_id)
                 .group_by(|node| node.byte_range().start)
                 .into_iter()

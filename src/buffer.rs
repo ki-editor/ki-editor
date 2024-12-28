@@ -23,7 +23,7 @@ use shared::{
 };
 use std::{collections::HashSet, ops::Range};
 use tree_sitter::{Node, Parser, Tree};
-use tree_sitter_traversal::{traverse, Order};
+use tree_sitter_traversal2::{traverse, Order};
 
 #[derive(Clone)]
 pub(crate) struct Buffer {
