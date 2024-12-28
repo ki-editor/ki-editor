@@ -26,6 +26,7 @@ Contextual actions are actions that are only applicable within a specific contex
 | Keybinding | Action                                                           |
 | ---------- | ---------------------------------------------------------------- |
 | `a`        | Add a new file/folder under the current path [^1]                |
+| `c`        | Copy current file to a new path                                  |
 | `d`        | Delete current file/folder                                       |
 | `m`        | Move (or rename) the current file/folder [^2]                    |
 | `r`        | Refresh the [file explorer](../components/file-explorer.md) [^3] |

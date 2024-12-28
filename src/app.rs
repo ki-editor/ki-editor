@@ -306,9 +306,12 @@ impl<T: Frontend> App<T> {
                 self.status_line_components
                     .iter()
                     .filter_map(|component| match component {
-                        StatusLineComponent::CurrentWorkingDirectory => {
-                            Some(self.working_directory.display_absolute())
-                        }
+                        StatusLineComponent::CurrentWorkingDirectory => Some(
+                            self.working_directory
+                                .display_relative_to_home()
+                                .ok()
+                                .unwrap_or_else(|| self.working_directory.display_absolute()),
+                        ),
                         StatusLineComponent::GitBranch => self.current_branch(),
                         StatusLineComponent::Mode => Some(
                             self.context
@@ -619,12 +622,14 @@ impl<T: Frontend> App<T> {
             Dispatch::RevealInExplorer(path) => self.reveal_path_in_explorer(&path)?,
             Dispatch::OpenYesNoPrompt(prompt) => self.open_yes_no_prompt(prompt)?,
             Dispatch::OpenMoveFilePrompt(path) => self.open_move_file_prompt(path)?,
+            Dispatch::OpenCopyFilePrompt(path) => self.open_copy_file_prompt(path)?,
             Dispatch::OpenAddPathPrompt(path) => self.open_add_path_prompt(path)?,
             Dispatch::DeletePath(path) => self.delete_path(&path)?,
             Dispatch::Null => {
                 // do nothing
             }
             Dispatch::MoveFile { from, to } => self.move_file(from, to)?,
+            Dispatch::CopyFile { from, to } => self.copy_file(from, to)?,
             Dispatch::AddPath(path) => self.add_path(path)?,
             Dispatch::RefreshFileExplorer => {
                 self.layout.refresh_file_explorer(&self.working_directory)?
@@ -860,6 +865,21 @@ impl<T: Frontend> App<T> {
                 fire_dispatches_on_change: None,
             },
             PromptHistoryKey::MovePath,
+            Some(path.display_absolute()),
+        )
+    }
+
+    fn open_copy_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
+        self.open_prompt(
+            PromptConfig {
+                title: "Copy current file to a new path".to_string(),
+                on_enter: DispatchPrompt::CopyFile { from: path.clone() },
+                items: Vec::new(),
+                enter_selects_first_matching_item: false,
+                leaves_current_line_empty: false,
+                fire_dispatches_on_change: None,
+            },
+            PromptHistoryKey::CopyFile,
             Some(path.display_absolute()),
         )
     }
@@ -1348,6 +1368,22 @@ impl<T: Frontend> App<T> {
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
+
+    fn copy_file(&mut self, from: CanonicalizedPath, to: PathBuf) -> anyhow::Result<()> {
+        use std::fs;
+        self.add_path_parent(&to)?;
+        fs::copy(from.clone(), to.clone())?;
+        self.layout.refresh_file_explorer(&self.working_directory)?;
+        let to = to.try_into()?;
+        self.reveal_path_in_explorer(&to)?;
+        self.lsp_manager.send_message(
+            from.clone(),
+            FromEditor::WorkspaceDidCreateFiles { file_path: to },
+        )?;
+        self.layout.remove_suggestive_editor(&from);
+        Ok(())
+    }
+
     fn add_path_parent(&self, path: &Path) -> anyhow::Result<()> {
         if let Some(new_dir) = path.parent() {
             std::fs::create_dir_all(new_dir)?;
@@ -1367,8 +1403,12 @@ impl<T: Frontend> App<T> {
             std::fs::File::create(&path)?;
         }
         self.layout.refresh_file_explorer(&self.working_directory)?;
-        self.reveal_path_in_explorer(&path.try_into()?)?;
-
+        let path: CanonicalizedPath = path.try_into()?;
+        self.reveal_path_in_explorer(&path)?;
+        self.lsp_manager.send_message(
+            path.clone(),
+            FromEditor::WorkspaceDidCreateFiles { file_path: path },
+        )?;
         Ok(())
     }
 
@@ -2253,10 +2293,15 @@ pub(crate) enum Dispatch {
     RevealInExplorer(CanonicalizedPath),
     OpenYesNoPrompt(YesNoPrompt),
     OpenMoveFilePrompt(CanonicalizedPath),
+    OpenCopyFilePrompt(CanonicalizedPath),
     OpenAddPathPrompt(CanonicalizedPath),
     DeletePath(CanonicalizedPath),
     Null,
     MoveFile {
+        from: CanonicalizedPath,
+        to: PathBuf,
+    },
+    CopyFile {
         from: CanonicalizedPath,
         to: PathBuf,
     },
@@ -2446,6 +2491,9 @@ pub(crate) enum DispatchPrompt {
     MovePath {
         from: CanonicalizedPath,
     },
+    CopyFile {
+        from: CanonicalizedPath,
+    },
     Null,
     // TODO: remove the following variants
     // Because the following action already embeds dispatches
@@ -2506,6 +2554,13 @@ impl DispatchPrompt {
             }
             DispatchPrompt::MovePath { from } => Ok(Dispatches::new(
                 [Dispatch::MoveFile {
+                    from,
+                    to: text.into(),
+                }]
+                .to_vec(),
+            )),
+            DispatchPrompt::CopyFile { from } => Ok(Dispatches::new(
+                [Dispatch::CopyFile {
                     from,
                     to: text.into(),
                 }]

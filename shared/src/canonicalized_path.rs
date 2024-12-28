@@ -118,6 +118,20 @@ impl CanonicalizedPath {
         Ok(relative.display().to_string())
     }
 
+    /// If the path is relative to home, format it relative to the home directory with
+    /// a leading ~ character. Otherwise it will be displayed as an absolute path.
+    pub fn display_relative_to_home(&self) -> anyhow::Result<String> {
+        let home_dir: CanonicalizedPath = match etcetera::home_dir() {
+            Ok(dir) => dir.try_into()?,
+            Err(_) => return Ok(self.display_absolute()),
+        };
+
+        match self.0.strip_prefix(&home_dir.0) {
+            Ok(path) => Ok(format!("~{}{}", std::path::MAIN_SEPARATOR, path.display())),
+            _ => Ok(self.display_absolute()),
+        }
+    }
+
     pub fn display_absolute(&self) -> String {
         self.0.display().to_string()
     }
