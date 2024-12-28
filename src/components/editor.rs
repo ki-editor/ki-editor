@@ -691,6 +691,8 @@ impl Editor {
     }
 
     fn jump_characters() -> Vec<char> {
+        // TODO: rank the characters by their accessibility based on the
+        // chosen keyboard layout
         ('a'..='z').chain('A'..='Z').chain('0'..='9').collect_vec()
     }
 

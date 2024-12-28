@@ -77,6 +77,9 @@ impl Component for SuggestiveEditor {
     ) -> anyhow::Result<Dispatches> {
         if self.editor.mode == Mode::Insert && self.completion_dropdown_opened() {
             match event {
+                // TODO: up/down and prev-item/next-item should have different keybindings
+                // so that the user can still move the cursor up/down in insert mode
+                // even when they are more than zero completion items
                 key!("ctrl+n") | key!("down") => {
                     self.completion_dropdown.next_item();
                     return Ok(self.render_completion_dropdown(false));
