@@ -1227,7 +1227,7 @@ fn f(
 
         use super::*;
         fn run_test(old: &str, new: &str) -> anyhow::Result<EditTransaction> {
-            let mut buffer = Buffer::new(Some(tree_sitter_md::language()), old);
+            let mut buffer = Buffer::new(Some(tree_sitter_md::LANGUAGE.into()), old);
 
             let edit_transaction = buffer.get_edit_transaction(new)?;
 

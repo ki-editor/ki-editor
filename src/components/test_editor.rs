@@ -1910,7 +1910,7 @@ fn delete_backward() -> anyhow::Result<()> {
 #[test]
 fn tree_sitter_should_not_reparse_in_insert_mode() -> anyhow::Result<()> {
     let mut editor = crate::components::editor::Editor::from_text(
-        Some(tree_sitter_md::language()),
+        Some(tree_sitter_md::LANGUAGE.into()),
         "fn main() {}",
     );
     let _ = editor.enter_insert_mode(Direction::End)?;

@@ -41,7 +41,7 @@ mod test_token {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(Some(tree_sitter_rust::language()), "fn main() {}");
+        let buffer = Buffer::new(Some(tree_sitter_rust::LANGUAGE.into()), "fn main() {}");
         SyntaxToken.assert_all_selections(
             &buffer,
             Selection::default(),

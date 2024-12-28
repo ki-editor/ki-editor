@@ -42,7 +42,7 @@ mod test_top_node {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = 1; }",
         );
         TopNode.assert_all_selections(
