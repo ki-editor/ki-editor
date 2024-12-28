@@ -295,12 +295,7 @@ impl LspServerProcess {
             None,
             InitializeParams {
                 process_id: None,
-                root_uri: Some(Url::parse(&format!(
-                    "file://{}",
-                    self.current_working_directory.display_absolute()
-                ))?),
                 initialization_options: self.language.initialization_options(),
-
                 capabilities: ClientCapabilities {
                     workspace: Some(WorkspaceClientCapabilities {
                         apply_edit: Some(true),
@@ -399,7 +394,13 @@ impl LspServerProcess {
                     }),
                     ..ClientCapabilities::default()
                 },
-                workspace_folders: None,
+                workspace_folders: Some(vec![WorkspaceFolder {
+                    uri: Url::parse(&format!(
+                        "file://{}",
+                        self.current_working_directory.display_absolute()
+                    ))?,
+                    name: "root".to_string(),
+                }]),
                 ..InitializeParams::default()
             },
         )?;
