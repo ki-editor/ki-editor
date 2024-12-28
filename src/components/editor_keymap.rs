@@ -9,7 +9,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
         Word_, Token, SrchC, MultC, OpenN, /****/ Mark_, InstP, Up___, InstN, CSrch,
     ],
     [
-        Line_, Sytx_, DeltN, Chng_, VMode, /****/ Prev_, Left_, Down_, Right, Next_,
+        Line_, Sytx_, Chng_, DeltN, VMode, /****/ Prev_, Left_, Down_, Right, Next_,
     ],
     [
         Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, SrchN,
@@ -33,7 +33,7 @@ pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
         _____, _____, _____, _____, _____, /****/ _____, RplcP, ScrlU, RplcN, _____,
     ],
     [
-        _____, _____, WClse, _____, _____, /****/ _____, _____, ScrlD, SView, _____,
+        _____, _____, _____, WClse, _____, /****/ _____, _____, ScrlD, SView, _____,
     ],
     [
         Undo_, WSwth, _____, UPstE, PRplc, /****/ _____, _____, _____, _____, _____,
