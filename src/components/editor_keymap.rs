@@ -6,34 +6,34 @@ use Meaning::*;
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, Token, SrchC, SrchN, MultC, /****/ Mark_, InstP, Up___, InstN, CSrch,
+        Word_, Token, SrchC, MultC, OpenN, /****/ Mark_, InstP, Up___, InstN, CSrch,
     ],
     [
         Line_, Sytx_, DeltN, Chng_, VMode, /****/ Prev_, Left_, Down_, Right, Next_,
     ],
     [
-        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, Trsfm,
+        Undo_, Exchg, Copy_, PsteN, Rplc_, /****/ Globl, First, Jump_, Last_, SrchN,
     ],
 ];
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, DeDnt, Raise, SrchP, LstNc, /****/ FileP, OpenP, Join_, OpenN, FileN,
+        Char_, _____, Raise, _____, OpenP, /****/ Indnt, CrsrP, Join_, CrsrN, DeDnt,
     ],
     [
-        LineF, StyxF, DeltP, ChngX, Indnt, /****/ BuffP, FindP, Break, FindN, BuffN,
+        LineF, StyxF, DeltP, ChngX, LstNc, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
-        Redo_, XAchr, ToIdx, PsteP, RplcX, /****/ CrsrP, GBack, _____, GForw, CrsrN,
+        Redo_, XAchr, _____, PsteP, RplcX, /****/ Trsfm, GBack, ToIdx, GForw, SrchP,
     ],
 ];
 
 pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
     [
-        _____, _____, _____, _____, _____, /****/ _____, RplcP, ScrlU, RplcN, SView,
+        _____, _____, _____, _____, _____, /****/ _____, RplcP, ScrlU, RplcN, _____,
     ],
     [
-        _____, _____, WClse, _____, _____, /****/ _____, _____, ScrlD, _____, _____,
+        _____, _____, WClse, _____, _____, /****/ _____, _____, ScrlD, SView, _____,
     ],
     [
         Undo_, WSwth, _____, UPstE, PRplc, /****/ _____, _____, _____, _____, _____,

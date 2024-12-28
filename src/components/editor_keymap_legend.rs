@@ -128,16 +128,6 @@ impl Editor {
                     Dispatch::ToEditor(GoForward),
                 ),
                 Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::FileP),
-                    "Go to previous file".to_string(),
-                    Dispatch::GoToPreviousFile,
-                ),
-                Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::FileN),
-                    "Go to next file".to_string(),
-                    Dispatch::GoToNextFile,
-                ),
-                Keymap::new(
                     KEYBOARD_LAYOUT.get_key(&Meaning::BuffP),
                     "Go to previous buffer".to_string(),
                     Dispatch::CycleBuffer(Direction::Start),
