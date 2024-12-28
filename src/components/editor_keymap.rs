@@ -21,7 +21,7 @@ pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
         Char_, _____, Raise, _____, OpenP, /****/ Indnt, CrsrP, Join_, CrsrN, DeDnt,
     ],
     [
-        LineF, StyxF, DeltP, ChngX, LstNc, /****/ BuffP, FindP, Break, FindN, BuffN,
+        LineF, StyxF, ChngX, DeltP, LstNc, /****/ BuffP, FindP, Break, FindN, BuffN,
     ],
     [
         Redo_, XAchr, _____, PsteP, RplcX, /****/ Trsfm, GBack, ToIdx, GForw, SrchP,
