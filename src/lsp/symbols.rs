@@ -124,6 +124,10 @@ impl From<Symbol> for DropdownItem {
             .set_group(Some(
                 symbol.container_name.unwrap_or("[TOP LEVEL]".to_string()),
             ))
+            .set_rank(Some(Box::new([
+                symbol.location.range.start.line,
+                symbol.location.range.start.column,
+            ])))
             .set_dispatches(dispatches)
     }
 }
