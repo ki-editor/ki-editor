@@ -1380,6 +1380,7 @@ impl<T: Frontend> App<T> {
         self.layout.remove_suggestive_editor(&from);
         Ok(())
     }
+
     fn add_path_parent(&self, path: &Path) -> anyhow::Result<()> {
         if let Some(new_dir) = path.parent() {
             std::fs::create_dir_all(new_dir)?;
@@ -1399,8 +1400,12 @@ impl<T: Frontend> App<T> {
             std::fs::File::create(&path)?;
         }
         self.layout.refresh_file_explorer(&self.working_directory)?;
-        self.reveal_path_in_explorer(&path.try_into()?)?;
-
+        let path: CanonicalizedPath = path.try_into()?;
+        self.reveal_path_in_explorer(&path)?;
+        self.lsp_manager.send_message(
+            path.clone(),
+            FromEditor::WorkspaceDidCreateFiles { file_path: path },
+        )?;
         Ok(())
     }
 
