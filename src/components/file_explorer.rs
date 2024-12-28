@@ -338,6 +338,11 @@ impl Component for FileExplorer {
                         Dispatch::OpenAddPathPrompt(node.path.clone()),
                     ),
                     Keymap::new(
+                        "c",
+                        "Copy file".to_string(),
+                        Dispatch::OpenCopyFilePrompt(node.path.clone()),
+                    ),
+                    Keymap::new(
                         "d",
                         "Delete path".to_string(),
                         Dispatch::OpenYesNoPrompt(YesNoPrompt {
