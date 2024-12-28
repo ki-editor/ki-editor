@@ -4,6 +4,9 @@ use shared::canonicalized_path::CanonicalizedPath;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
+    /// Run a command, such as grammar, highlight-query, ...
+    #[arg(long, action=clap::ArgAction::SetTrue)]
+    run: bool,
     #[command(subcommand)]
     command: Option<Commands>,
     #[command(flatten)]
@@ -31,14 +34,17 @@ enum Commands {
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
 }
+
 #[derive(Args, Default)]
 struct EditArgs {
     path: Option<String>,
 }
+
 #[derive(Args)]
 struct InArgs {
     path: String,
 }
+
 #[derive(Subcommand)]
 enum Grammar {
     /// Build existing tree-sitter grammar files
@@ -82,16 +88,19 @@ fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
 pub(crate) fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    if let Some(command) = cli.command {
-        match command {
-            Commands::Grammar { command } => {
+    if !cli.run {
+        run_edit_command(cli.edit)
+    } else {
+        match cli.command {
+            Some(Commands::Edit(_)) => run_edit_command(cli.edit),
+            Some(Commands::Grammar { command }) => {
                 match command {
                     Grammar::Build => shared::grammar::build_grammars(),
                     Grammar::Fetch => shared::grammar::fetch_grammars(),
                 };
                 Ok(())
             }
-            Commands::HighlightQuery { command } => {
+            Some(Commands::HighlightQuery { command }) => {
                 match command {
                     HighlightQuery::Clean => shared::ts_highlight_query::clear_cache()?,
                     HighlightQuery::CachePath => {
@@ -100,20 +109,24 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 };
                 Ok(())
             }
-            Commands::Edit(args) => run_edit_command(args),
-            Commands::Log => {
+            Some(Commands::Log) => {
                 println!(
                     "{}",
                     CanonicalizedPath::try_from(grammar::default_log_file())?.display_absolute(),
                 );
                 Ok(())
             }
-            Commands::In(args) => crate::run(crate::RunConfig {
+            Some(Commands::In(args)) => crate::run(crate::RunConfig {
                 working_directory: Some(args.path.try_into()?),
                 ..Default::default()
             }),
+            None => {
+                eprintln!(
+                    "Error: --run requires the command name you wish to execute. See --help."
+                );
+
+                std::process::exit(1);
+            }
         }
-    } else {
-        run_edit_command(cli.edit)
     }
 }
