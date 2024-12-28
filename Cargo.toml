@@ -3,7 +3,7 @@ name = "ki"
 version = "0.1.0"
 edition = "2021"
 build = "build.rs"
-rust-version = "1.81"
+rust-version = "1.83"
 
 [workspace]
 members = [
