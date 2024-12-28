@@ -869,7 +869,7 @@ impl<T: Frontend> App<T> {
     fn open_copy_file_prompt(&mut self, path: CanonicalizedPath) -> anyhow::Result<()> {
         self.open_prompt(
             PromptConfig {
-                title: "Copy path".to_string(),
+                title: "Copy current file to a new path".to_string(),
                 on_enter: DispatchPrompt::CopyFile { from: path.clone() },
                 items: Vec::new(),
                 enter_selects_first_matching_item: false,
