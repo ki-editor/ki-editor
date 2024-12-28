@@ -128,7 +128,7 @@ pub(crate) enum KeyboardLayoutKind {
     Dvorak,
     DvorakIU,
     Colemak,
-    ColemakDh,
+    ColemakDH,
 }
 
 impl KeyboardLayoutKind {
@@ -137,7 +137,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => "QWERTY",
             KeyboardLayoutKind::Dvorak => "DVORAK",
             KeyboardLayoutKind::Colemak => "COLEMAK",
-            KeyboardLayoutKind::ColemakDh => "COLEMAK_DH",
+            KeyboardLayoutKind::ColemakDH => "COLEMAK_DH",
             KeyboardLayoutKind::DvorakIU => "DVORAK_IU",
         }
     }
@@ -146,7 +146,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
             KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
             KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
-            KeyboardLayoutKind::ColemakDh => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
         };
         keyset
