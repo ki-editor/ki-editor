@@ -6,7 +6,6 @@ use shared::canonicalized_path::CanonicalizedPath;
 struct Cli {
     #[command(subcommand)]
     command: Option<CommandPlaceholder>,
-    edit: EditArgs,
 }
 
 #[derive(Subcommand)]
@@ -41,7 +40,7 @@ enum Commands {
     In(InArgs),
 }
 
-#[derive(Args, Default)]
+#[derive(Args, Default, Clone)]
 struct EditArgs {
     path: Option<String>,
 }
@@ -95,7 +94,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(CommandPlaceholder::Edit(_)) => run_edit_command(cli.edit),
+        Some(CommandPlaceholder::Edit(args)) => run_edit_command(args),
         Some(CommandPlaceholder::At { command }) => match command {
             Commands::Grammar { command } => {
                 match command {
