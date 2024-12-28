@@ -6,6 +6,9 @@ use shared::canonicalized_path::CanonicalizedPath;
 struct Cli {
     #[command(subcommand)]
     command: Option<CommandPlaceholder>,
+
+    #[command(flatten)]
+    edit: EditArgs,
 }
 
 #[derive(Subcommand)]
@@ -124,6 +127,6 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 ..Default::default()
             }),
         },
-        None => crate::run(Default::default()),
+        None => run_edit_command(cli.edit),
     }
 }
