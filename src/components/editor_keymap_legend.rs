@@ -534,42 +534,42 @@ impl Editor {
                         title: "GNU Readline movements".to_string(),
                         keymaps: Keymaps::new(&[
                             Keymap::new(
-                                "ctrl+b",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::CharP),
                                 "Move back a character".to_string(),
                                 Dispatch::ToEditor(MoveCharacterBack),
                             ),
                             Keymap::new(
-                                "ctrl+f",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::CharN),
                                 "Move forward a character".to_string(),
                                 Dispatch::ToEditor(MoveCharacterForward),
                             ),
                             Keymap::new(
-                                "ctrl+a",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::LineP),
                                 "Move to line start".to_string(),
                                 Dispatch::ToEditor(MoveToLineStart),
                             ),
                             Keymap::new(
-                                "ctrl+e",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::LineN),
                                 "Move to line end".to_string(),
                                 Dispatch::ToEditor(MoveToLineEnd),
                             ),
                             Keymap::new(
-                                "ctrl+k",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::KilLN),
                                 Direction::End.format_action("Kill line"),
                                 Dispatch::ToEditor(KillLine(Direction::End)),
                             ),
                             Keymap::new(
-                                "ctrl+u",
-                                Direction::Start.format_action("Kill line"),
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::KilLP),
+                                Direction::End.format_action("Kill line"),
                                 Dispatch::ToEditor(KillLine(Direction::Start)),
                             ),
                             Keymap::new(
-                                "ctrl+w",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::DTknP),
                                 "Delete token backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: false }),
                             ),
                             Keymap::new(
-                                "alt+backspace",
+                                KEYBOARD_LAYOUT.get_insert_key(&Meaning::DWrdP),
                                 "Delete word backward".to_string(),
                                 Dispatch::ToEditor(DeleteWordBackward { short: true }),
                             ),

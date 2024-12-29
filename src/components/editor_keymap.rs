@@ -40,6 +40,18 @@ pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
     ],
 ];
 
+pub const KEYMAP_INSERT_ALT: [[Meaning; 10]; 3] = [
+    [
+        _____, _____, _____, _____, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
+    ],
+    [
+        _____, _____, _____, WClse, _____, /****/ WordP, CharP, Down_, CharN, WordN,
+    ],
+    [
+        Undo_, WSwth, _____, UPstE, _____, /****/ KilLP, LineP, _____, LineN, KilLN,
+    ],
+];
+
 type KeyboardLayout = [[&'static str; 10]; 3];
 
 pub const QWERTY: KeyboardLayout = [
@@ -77,8 +89,9 @@ pub const COLEMAK_DH: KeyboardLayout = [
 
 struct KeySet {
     normal: HashMap<Meaning, &'static str>,
-    normal_shifted: HashMap<Meaning, &'static str>,
+    shifted: HashMap<Meaning, &'static str>,
     normal_control: HashMap<Meaning, &'static str>,
+    insert_control: HashMap<Meaning, &'static str>,
 }
 
 impl KeySet {
@@ -90,7 +103,7 @@ impl KeySet {
                     .flatten()
                     .zip(layout.into_iter().flatten()),
             ),
-            normal_shifted: HashMap::from_iter(
+            shifted: HashMap::from_iter(
                 KEYMAP_NORMAL_SHIFTED
                     .into_iter()
                     .flatten()
@@ -101,6 +114,12 @@ impl KeySet {
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten().map(controlled)),
+            ),
+            insert_control: HashMap::from_iter(
+                KEYMAP_INSERT_ALT
+                    .into_iter()
+                    .flatten()
+                    .zip(layout.into_iter().flatten().map(alted)),
             ),
         }
     }
@@ -152,8 +171,23 @@ impl KeyboardLayoutKind {
         keyset
             .normal
             .get(meaning)
-            .or_else(|| keyset.normal_shifted.get(meaning))
+            .or_else(|| keyset.shifted.get(meaning))
             .or_else(|| keyset.normal_control.get(meaning))
+            .cloned()
+            .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
+    }
+
+    pub(crate) fn get_insert_key(&self, meaning: &Meaning) -> &'static str {
+        let keyset = match self {
+            KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
+            KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
+            KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
+            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
+        };
+        keyset
+            .insert_control
+            .get(meaning)
             .cloned()
             .unwrap_or_else(|| panic!("Unable to find key binding of {meaning:#?}"))
     }
@@ -303,6 +337,30 @@ pub enum Meaning {
     Sytx_,
     /// Configure Search
     CSrch,
+    /// Delete token backward
+    DTknP,
+    /// Delete word backward
+    DWrdP,
+    /// Delete word forward
+    DWrdN,
+    /// Delete token forward
+    DTknN,
+    /// Move to previous word
+    WordP,
+    /// Move to previous char
+    CharP,
+    /// Move to next char
+    CharN,
+    /// Move to next word
+    WordN,
+    /// Kill to line end
+    KilLN,
+    /// Move to line end
+    LineN,
+    /// Move to line start
+    LineP,
+    /// Kill to line start
+    KilLP,
 }
 
 fn shifted(c: &'static str) -> &'static str {
@@ -430,6 +488,57 @@ fn controlled(c: &'static str) -> &'static str {
         "x" => "ctrl+x",
         "y" => "ctrl+y",
         "z" => "ctrl+z",
+        c => c, // return unchanged if no shift mapping exists
+    }
+}
+
+fn alted(c: &'static str) -> &'static str {
+    match c {
+        "." => "alt+.",
+        "," => "alt+,",
+        "/" => "alt+/",
+        ";" => "alt+;",
+        "\"" => "alt+\"",
+        "[" => "alt+[",
+        "]" => "alt+]",
+        "1" => "alt+1",
+        "2" => "alt+2",
+        "3" => "alt+3",
+        "4" => "alt+4",
+        "5" => "alt+5",
+        "6" => "alt+6",
+        "7" => "alt+7",
+        "8" => "alt+8",
+        "9" => "alt+9",
+        "0" => "alt+0",
+        "-" => "alt+-",
+        "=" => "alt+=",
+        "a" => "alt+a",
+        "b" => "alt+b",
+        "c" => "alt+c",
+        "d" => "alt+d",
+        "e" => "alt+e",
+        "f" => "alt+f",
+        "g" => "alt+g",
+        "h" => "alt+h",
+        "i" => "tab", // Lookup ASCII Control Character 9, where alt+i means tab
+        "j" => "alt+j",
+        "k" => "alt+k",
+        "l" => "alt+l",
+        "m" => "alt+m",
+        "n" => "alt+n",
+        "o" => "alt+o",
+        "p" => "alt+p",
+        "q" => "alt+q",
+        "r" => "alt+r",
+        "s" => "alt+s",
+        "t" => "alt+t",
+        "u" => "alt+u",
+        "v" => "alt+v",
+        "w" => "alt+w",
+        "x" => "alt+x",
+        "y" => "alt+y",
+        "z" => "alt+z",
         c => c, // return unchanged if no shift mapping exists
     }
 }
