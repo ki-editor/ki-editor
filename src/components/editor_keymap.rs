@@ -18,7 +18,7 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, _____, Raise, _____, OpenP, /****/ Indnt, CrsrP, Join_, CrsrN, DeDnt,
+        Char_, _____, Raise, _____, OpenP, /****/ DeDnt, CrsrP, Join_, CrsrN, Indnt,
     ],
     [
         LineF, StyxF, ChngX, DeltP, LstNc, /****/ BuffP, FindP, Break, FindN, BuffN,
