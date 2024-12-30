@@ -118,12 +118,15 @@ use crate::components::editor_keymap::{
 fn write_keymap_drawer() -> anyhow::Result<()> {
     println!("layout:");
     println!("  qmk_keyboard: corne_rotated");
-    println!("  layout_name: LAYOUT_split_3x6_3");
+    println!("  layout_name: LAYOUT_split_3x5_3");
     println!("layers:");
 
     print_keymap("Normal", KEYMAP_NORMAL)?;
     print_keymap("Shifted", KEYMAP_NORMAL_SHIFTED)?;
     print_keymap("Control", KEYMAP_CONTROL)?;
+
+    println!("draw_config:");
+    println!("  footer_text: Keymap for the <a href=\"https://ki-editor.github.io/ki-editor/\">Ki editor</a>");
 
     Ok(())
 }
@@ -136,13 +139,14 @@ fn print_keymap(name: &str, keymap: [[Meaning; 10]; 3]) -> anyhow::Result<()> {
             .map(|meaning| meaning_to_string(meaning))
             .collect();
 
-        println!("    - [\"\", \"{}\", \"\"]", row_strings.join("\", \""));
+        println!("    - [\"{}\"]", row_strings.join("\", \""));
     }
 
     println!("    - [\"\", \"\", \"\", \"\", \"\", \"\"]");
 
     Ok(())
 }
+
 fn meaning_to_string(meaning: &Meaning) -> &'static str {
     match meaning {
         Meaning::Break => "break",
