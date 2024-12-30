@@ -14,9 +14,9 @@ impl SelectionMode for TopNode {
         ))?;
         let root_node_id = tree.root_node().id();
         Ok(Box::new(
-            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Pre)
+            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Pre)
                 .filter(|node| node.id() != root_node_id)
-                .group_by(|node| node.byte_range().start)
+                .chunk_by(|node| node.byte_range().start)
                 .into_iter()
                 .map(|(_, group)| {
                     ByteRange::new(
@@ -42,7 +42,7 @@ mod test_top_node {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = 1; }",
         );
         TopNode.assert_all_selections(

@@ -20,13 +20,13 @@ pub(crate) struct Hunk {
     content: String,
     decorations: Vec<Decoration>,
 }
+
 impl Hunk {
     pub(crate) fn get(old: &str, new: &str) -> Vec<Hunk> {
         let diff = TextDiff::from_lines(old, new);
 
         let context_len = 0;
-        return diff
-            .grouped_ops(context_len)
+        diff.grouped_ops(context_len)
             .iter()
             .filter_map(|group| {
                 // I'm going to assume each group only has one change (i.e. Delete/Insert/Replace), while the other diff_ops are Equal
@@ -114,8 +114,9 @@ impl Hunk {
                     decorations,
                 })
             })
-            .collect_vec();
+            .collect_vec()
     }
+
     pub(crate) fn line_range(&self) -> &Range<usize> {
         &self.new_line_range
     }

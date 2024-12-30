@@ -138,7 +138,7 @@ pub trait SelectionMode {
     ) -> anyhow::Result<Box<dyn Iterator<Item = ByteRange> + 'a>> {
         Ok(Box::new(
             self.iter(params)?
-                .group_by(|item| item.range.clone())
+                .chunk_by(|item| item.range.clone())
                 .into_iter()
                 .map(|(range, items)| {
                     let infos = items.into_iter().filter_map(|item| item.info).collect_vec();
@@ -462,7 +462,7 @@ pub trait SelectionMode {
             .collect_vec();
         let jumps = if jumps
             .iter()
-            .group_by(|jump| jump.character)
+            .chunk_by(|jump| jump.character)
             .into_iter()
             .count()
             > 1

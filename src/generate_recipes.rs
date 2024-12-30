@@ -48,7 +48,7 @@ fn generate_recipes() -> anyhow::Result<()> {
                                     let temp_path = s
                                         .temp_dir()
                                         .to_path_buf()
-                                        .join(&format!("temp.{}", recipe.file_extension))
+                                        .join(format!("temp.{}", recipe.file_extension))
                                         .to_str()
                                         .expect("Failed to create temp _path")
                                         .to_string();

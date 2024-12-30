@@ -77,7 +77,7 @@ impl Screen {
     pub(crate) fn stringify(&mut self) -> String {
         self.get_positioned_cells()
             .into_iter()
-            .group_by(|cell| cell.position.line)
+            .chunk_by(|cell| cell.position.line)
             .into_iter()
             .map(|(_, cells)| {
                 let cells = cells

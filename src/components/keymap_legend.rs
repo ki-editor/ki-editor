@@ -170,7 +170,7 @@ impl KeymapLegendConfig {
         {
             let conflicting_keymaps = keymaps
                 .iter()
-                .group_by(|keymap| keymap.key)
+                .chunk_by(|keymap| keymap.key)
                 .into_iter()
                 .map(|(key, keymaps)| (key, keymaps.collect_vec()))
                 .filter(|(_, keymaps)| keymaps.len() > 1)

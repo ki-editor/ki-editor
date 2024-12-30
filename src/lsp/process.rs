@@ -140,6 +140,9 @@ pub(crate) enum FromEditor {
         old: CanonicalizedPath,
         new: CanonicalizedPath,
     },
+    WorkspaceDidCreateFiles {
+        file_path: CanonicalizedPath,
+    },
     WorkspaceExecuteCommand {
         params: RequestParams,
         command: super::code_action::Command,
@@ -292,12 +295,7 @@ impl LspServerProcess {
             None,
             InitializeParams {
                 process_id: None,
-                root_uri: Some(Url::parse(&format!(
-                    "file://{}",
-                    self.current_working_directory.display_absolute()
-                ))?),
                 initialization_options: self.language.initialization_options(),
-
                 capabilities: ClientCapabilities {
                     workspace: Some(WorkspaceClientCapabilities {
                         apply_edit: Some(true),
@@ -316,6 +314,7 @@ impl LspServerProcess {
                         }),
                         file_operations: Some(WorkspaceFileOperationsClientCapabilities {
                             did_rename: Some(true),
+                            did_create: Some(true),
                             ..Default::default()
                         }),
                         execute_command: Some(DynamicRegistrationClientCapabilities {
@@ -395,7 +394,13 @@ impl LspServerProcess {
                     }),
                     ..ClientCapabilities::default()
                 },
-                workspace_folders: None,
+                workspace_folders: Some(vec![WorkspaceFolder {
+                    uri: Url::parse(&format!(
+                        "file://{}",
+                        self.current_working_directory.display_absolute()
+                    ))?,
+                    name: "root".to_string(),
+                }]),
                 ..InitializeParams::default()
             },
         )?;
@@ -1078,6 +1083,18 @@ impl LspServerProcess {
         })
     }
 
+    fn workspace_did_create_files(
+        &mut self,
+        file_path: CanonicalizedPath,
+    ) -> Result<(), anyhow::Error> {
+        self.send_notification::<lsp_notification!("workspace/didCreateFiles")>(CreateFilesParams {
+            files: [FileCreate {
+                uri: file_path.display_absolute(),
+            }]
+            .to_vec(),
+        })
+    }
+
     fn has_capability(&self, f: impl Fn(&ServerCapabilities) -> bool) -> bool {
         self.server_capabilities.as_ref().map(f).unwrap_or(false)
     }
@@ -1447,6 +1464,9 @@ impl LspServerProcess {
             }
             FromEditor::WorkspaceDidRenameFiles { old, new } => {
                 self.workspace_did_rename_files(old, new)
+            }
+            FromEditor::WorkspaceDidCreateFiles { file_path } => {
+                self.workspace_did_create_files(file_path)
             }
             FromEditor::WorkspaceExecuteCommand { params, command } => {
                 self.workspace_execute_command(params, command)

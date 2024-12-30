@@ -16,7 +16,7 @@ pub(crate) struct UiTree {
 impl UiTree {
     pub(crate) fn new() -> UiTree {
         let mut tree = nary_tree::Tree::new();
-        let mut editor = Editor::from_text(Some(tree_sitter_md::language()), "");
+        let mut editor = Editor::from_text(Some(tree_sitter_md::LANGUAGE.into()), "");
         editor.set_title("[ROOT] (Cannot be saved)".to_string());
         let focused_component_id = tree.set_root(KindedComponent::new(
             ComponentKind::Root,
