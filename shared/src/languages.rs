@@ -107,7 +107,10 @@ const fn cpp() -> Language {
             command: Command("clangd", &[]),
             ..LspCommand::default()
         }),
-        extensions: &["cpp", "hpp"],
+        extensions: &[
+            "cc", "hh", "c++", "cpp", "hpp", "h", "ipp", "tpp", "cxx", "hxx", "ixx", "txx", "ino",
+            "cu", "cuh", "cppm", "h++", "ii", "inl",
+        ],
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "cpp",
             url: "https://github.com/tree-sitter/tree-sitter-cpp",
@@ -539,7 +542,7 @@ const fn rust() -> Language {
 const fn sql() -> Language {
     Language {
         lsp_language_id: Some(LanguageId::new("sql")),
-        extensions: &["sql"],
+        extensions: &["sql", "pgsql", "mssql", "mysql"],
         lsp_command: None,
         tree_sitter_grammar_config: Some(GrammarConfig {
             id: "sql",
