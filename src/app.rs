@@ -1194,7 +1194,7 @@ impl<T: Frontend> App<T> {
                 self.layout.clear_quickfix_list_items();
                 items
                     .into_iter()
-                    .group_by(|item| item.location().path.clone())
+                    .chunk_by(|item| item.location().path.clone())
                     .into_iter()
                     .map(|(path, items)| -> anyhow::Result<()> {
                         let editor = self.open_file(&path, OpenFileOption::Background)?;

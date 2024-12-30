@@ -14,7 +14,7 @@ impl SelectionMode for SyntaxToken {
             .tree()
             .ok_or(anyhow::anyhow!("Unable to find Treesitter language"))?;
         Ok(Box::new(
-            tree_sitter_traversal::traverse(tree.walk(), tree_sitter_traversal::Order::Post)
+            tree_sitter_traversal2::traverse(tree.walk(), tree_sitter_traversal2::Order::Post)
                 .filter(|node| node.child_count() == 0)
                 .map(|node| ByteRange::new(node.byte_range())),
         ))
@@ -41,7 +41,7 @@ mod test_token {
 
     #[test]
     fn case_1() {
-        let buffer = Buffer::new(Some(tree_sitter_rust::language()), "fn main() {}");
+        let buffer = Buffer::new(Some(tree_sitter_rust::LANGUAGE.into()), "fn main() {}");
         SyntaxToken.assert_all_selections(
             &buffer,
             Selection::default(),

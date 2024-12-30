@@ -300,7 +300,7 @@ impl Dropdown {
             .into_iter()
             .sorted_by_key(|(item, _)| item.group.clone())
             // Sort by group first
-            .group_by(|(item, _)| item.group.clone())
+            .chunk_by(|(item, _)| item.group.clone())
             .into_iter()
             .map(|(group_key, items)| {
                 let items = items.collect_vec();

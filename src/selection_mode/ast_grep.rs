@@ -58,7 +58,7 @@ mod test_ast_grep {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main(x: usize) { let x = f(f(x)); }",
         );
         AstGrep::new(&buffer, "f($Y)")

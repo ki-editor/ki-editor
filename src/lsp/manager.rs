@@ -71,7 +71,6 @@ impl LspManager {
     /// 1. Start a new LSP server process if it is not started yet.
     /// 2. Notify the LSP server process that a new file is opened.
     /// 3. Do nothing if the LSP server process is spawned but not yet initialized.
-
     pub(crate) fn open_file(&mut self, path: CanonicalizedPath) -> Result<(), anyhow::Error> {
         let Some(language) = language::from_path(&path) else {
             return Ok(());

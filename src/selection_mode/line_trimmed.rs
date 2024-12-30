@@ -197,7 +197,7 @@ mod test_line {
     #[test]
     fn to_parent_line() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "
 fn f() {
     fn g() {

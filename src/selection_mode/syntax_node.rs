@@ -221,7 +221,7 @@ mod test_syntax_node {
     #[test]
     fn case_1() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = X {z,b,c:d} }",
         );
         SyntaxNode { coarse: true }.assert_all_selections(
@@ -247,7 +247,7 @@ mod test_syntax_node {
     #[test]
     fn case_2() {
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = S(a); }",
         );
         SyntaxNode { coarse: true }.assert_all_selections(
@@ -261,7 +261,7 @@ mod test_syntax_node {
     fn parent() {
         let expected_parent: &str = "z.b";
         let buffer = Buffer::new(
-            Some(tree_sitter_rust::language()),
+            Some(tree_sitter_rust::LANGUAGE.into()),
             "fn main() { let x = z.b(); }",
         );
 
@@ -285,7 +285,7 @@ mod test_syntax_node {
     fn first_child() {
         fn test(coarse: bool, expected_child: &str) {
             let buffer = Buffer::new(
-                Some(tree_sitter_rust::language()),
+                Some(tree_sitter_rust::LANGUAGE.into()),
                 "fn main() { let x = {z}; }",
             );
 
@@ -312,7 +312,7 @@ mod test_syntax_node {
     fn current_prioritize_same_line() {
         fn test(coarse: bool, expected_selection: &str) {
             let buffer = Buffer::new(
-                Some(tree_sitter_rust::language()),
+                Some(tree_sitter_rust::LANGUAGE.into()),
                 "
 fn main() {
   let x = X;
