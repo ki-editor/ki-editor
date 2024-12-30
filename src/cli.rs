@@ -23,6 +23,8 @@ enum Commands {
     Edit(EditArgs),
     /// Prints the log file path
     Log,
+    /// Display the keymap in various formats
+    Keymap,
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
 }
@@ -94,6 +96,11 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 );
                 Ok(())
             }
+            Commands::Keymap => {
+                write_keymap_drawer()?;
+
+                Ok(())
+            }
             Commands::In(args) => crate::run(crate::RunConfig {
                 working_directory: Some(args.path.try_into()?),
                 ..Default::default()
@@ -101,5 +108,124 @@ pub(crate) fn cli() -> anyhow::Result<()> {
         }
     } else {
         crate::run(Default::default())
+    }
+}
+
+use crate::components::editor_keymap::{
+    Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED,
+};
+
+fn write_keymap_drawer() -> anyhow::Result<()> {
+    println!("layout:");
+    println!("  qmk_keyboard: corne_rotated");
+    println!("  layout_name: LAYOUT_split_3x6_3");
+    println!("layers:");
+
+    print_keymap("Normal", KEYMAP_NORMAL)?;
+    print_keymap("Shifted", KEYMAP_NORMAL_SHIFTED)?;
+    print_keymap("Control", KEYMAP_CONTROL)?;
+
+    Ok(())
+}
+
+fn print_keymap(name: &str, keymap: [[Meaning; 10]; 3]) -> anyhow::Result<()> {
+    println!("  {}:", name);
+    for row in keymap.iter() {
+        let row_strings: Vec<&str> = row
+            .iter()
+            .map(|meaning| meaning_to_string(meaning))
+            .collect();
+
+        println!("    - [\"\", \"{}\", \"\"]", row_strings.join("\", \""));
+    }
+
+    println!("    - [\"\", \"\", \"\", \"\", \"\", \"\"]");
+
+    Ok(())
+}
+fn meaning_to_string(meaning: &Meaning) -> &'static str {
+    match meaning {
+        Meaning::ToIdx => "to idx",
+        Meaning::Indnt => "indent",
+        Meaning::UPstE => "paste >",
+        Meaning::DeDnt => "dedent",
+        Meaning::OpenP => "open <",
+        Meaning::OpenN => "open >",
+        Meaning::Join_ => "join",
+        Meaning::SView => "switch view",
+        Meaning::LineF => "line full",
+        Meaning::BuffN => "buff >",
+        Meaning::BuffP => "buff <",
+        Meaning::StyxF => "fine syntax",
+        Meaning::Raise => "raise",
+        Meaning::FileP => "file <",
+        Meaning::FileN => "file >",
+        Meaning::FindP => "find <",
+        Meaning::GBack => "<|",
+        Meaning::GForw => "|>",
+        Meaning::WClse => "close window",
+        Meaning::WSwth => "switch window",
+        Meaning::FindN => "find >",
+        Meaning::Break => "break",
+        Meaning::CrsrP => "curs <",
+        Meaning::CrsrN => "curs >",
+        Meaning::XAchr => "xchng anchor",
+        Meaning::Undo_ => "undo",
+        Meaning::PRplc => "rplace pat",
+        Meaning::RplcP => "rplace prev",
+        Meaning::RplcN => "rplace >",
+        Meaning::ScrlU => "scroll ^",
+        Meaning::ScrlD => "scroll v",
+        Meaning::LstNc => "last non contig",
+        Meaning::Redo_ => "redo",
+        Meaning::Exchg => "exchng",
+        Meaning::Copy_ => "copy",
+        Meaning::PsteN => "paste >",
+        Meaning::PsteP => "paste <",
+        Meaning::Rplc_ => "rplace",
+        Meaning::RplcX => "rplace xut",
+        Meaning::Left_ => "<",
+        Meaning::Right => ">",
+        Meaning::DeltP => "del <",
+        Meaning::DeltN => "del >",
+        Meaning::SrchN => "srch >",
+        Meaning::SrchP => "srch <",
+        Meaning::Prev_ => "prev",
+        Meaning::Next_ => "next",
+        Meaning::Down_ => "v",
+        Meaning::Globl => "glb find",
+        Meaning::First => "first",
+        Meaning::Jump_ => "jump",
+        Meaning::Last_ => "last",
+        Meaning::Trsfm => "trnsfrm",
+        Meaning::Mark_ => "mark",
+        Meaning::InstP => "keep match",
+        Meaning::InstN => "remove match",
+        Meaning::Up___ => "^",
+        Meaning::Word_ => "word",
+        Meaning::VMode => "v-mode",
+        Meaning::Chng_ => "change",
+        Meaning::ChngX => "change cut",
+        Meaning::MultC => "multi cursor",
+        Meaning::SrchC => "search cur",
+        Meaning::Char_ => "char",
+        Meaning::Line_ => "line",
+        Meaning::Token => "token",
+        Meaning::Sytx_ => "syntax",
+        Meaning::CSrch => "cfg search",
+        Meaning::DTknP => "del token <",
+        Meaning::DWrdP => "del word <",
+        Meaning::DWrdN => "del word >",
+        Meaning::DTknN => "del token >",
+        Meaning::WordP => "word <",
+        Meaning::CharP => "<",
+        Meaning::CharN => ">",
+        Meaning::WordN => "word >",
+        Meaning::KilLN => "kill line >",
+        Meaning::LineN => "end",
+        Meaning::LineP => "home",
+        Meaning::KilLP => "kill line <",
+        Meaning::_____ => "",
+        _ => "?",
     }
 }
