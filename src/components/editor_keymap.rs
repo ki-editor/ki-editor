@@ -203,167 +203,166 @@ impl KeyboardLayoutKind {
 pub(crate) enum Meaning {
     /// Empty, not assigned
     _____,
-    /// GoToIndex
-    ToIdx,
-    /// Indent
-    Indnt,
-    /// Paste (End)
-    UPstE,
+    /// Break line
+    Break,
+    /// Move to next buffer
+    BuffN,
+    /// Move to previous buffer
+    BuffP,
+    /// Configure Search
+    CSrch,
+    /// Move to next char
+    CharN,
+    /// Move to previous char
+    CharP,
+    /// Select Character
+    Char_,
+    /// Change Cut
+    ChngX,
+    /// Change Surround
+    Chng_,
+    /// Copy
+    Copy_,
+    /// Cycle primary select next
+    CrsrN,
+    /// Cycle primary selection prev
+    CrsrP,
+    /// Delete token forward
+    DTknN,
+    /// Delete token backward
+    DTknP,
+    /// Delete word forward
+    DWrdN,
+    /// Delete word backward
+    DWrdP,
     /// Dedent
     DeDnt,
-    /// Open (Prev)
-    OpenP,
-    /// Open (Next)
-    OpenN,
-    /// Join
-    Join_,
-    /// Switch view alignment
-    SView,
-    /// Select full line
-    LineF,
-    /// Buffer next
-    BuffN,
-    /// Buffer previous
-    BuffP,
-    /// Select Syntax Node
-    StyxF,
-    /// Raise
-    Raise,
-    /// File previous
-    FileP,
+    /// Delete end
+    DeltN,
+    /// Delete start
+    DeltP,
+    /// Down
+    Down_,
+    /// Switch extended selection end
+    Exchg,
     /// File next
     FileN,
+    /// File previous
+    FileP,
+    /// Local find forward
+    FindN,
     /// Local find backward
     FindP,
+    /// First
+    First,
     /// Go back
     GBack,
     /// Go forward
     GForw,
-    /// Close current window
-    WClse,
-    /// Switch window
-    WSwth,
-    /// Local find forward
-    FindN,
-    /// Break line
-    Break,
-    /// Cycle primary selection prev
-    CrsrP,
-    /// Cycle primary select next
-    CrsrN,
-    /// Swap cursor with anchor
-    XAchr,
-    /// Undo
-    Undo_,
-    /// Replace with pattern
-    PRplc,
-    /// Replace (with previous copied text)
-    RplcP,
-    /// Replace (with next copied text)
-    RplcN,
-    /// Scroll up
-    ScrlU,
-    /// Scroll down
-    ScrlD,
-    /// Select last non-contiguous selection mode
-    LstNc,
-    /// Redo
-    Redo_,
-    /// Switch extended selection end
-    Exchg,
-    /// Copy
-    Copy_,
-    /// Paste end
-    PsteN,
-    /// Paste previous
-    PsteP,
-    /// Replace
-    Rplc_,
-    /// Replace cut
-    RplcX,
-    /// Left
-    Left_,
-    /// Right
-    Right,
-    /// Delete start
-    DeltP,
-    /// Delete end
-    DeltN,
-    /// Search (local) next
-    SrchN,
-    /// Search (local) previous
-    SrchP,
-    /// Previous
-    Prev_,
-    /// Next
-    Next_,
-    /// Down
-    Down_,
     /// Find (global)
     Globl,
-    /// First
-    First,
-    /// Jump
-    Jump_,
-    /// Last
-    Last_,
-    /// Transform
-    Trsfm,
-    /// Mark
-    Mark_,
-    /// Keep selections matching search
-    InstP,
+    /// Indent
+    Indnt,
     /// Remove selections matching search
     InstN,
-    /// Up
-    Up___,
-
-    /// Select Word
-    Word_,
-    /// V-mode
-    VMode,
-    /// Change Surround
-    Chng_,
-    /// Change Cut
-    ChngX,
-    /// Multi Cursor
-    MultC,
-    /// Search current selection
-    SrchC,
-    /// Select Character
-    Char_,
-    /// Select Line
-    Line_,
-    /// Select Token
-    Token,
-    /// Select Syntax
-    Sytx_,
-    /// Configure Search
-    CSrch,
-    /// Delete token backward
-    DTknP,
-    /// Delete word backward
-    DWrdP,
-    /// Delete word forward
-    DWrdN,
-    /// Delete token forward
-    DTknN,
-    /// Move to previous word
-    WordP,
-    /// Move to previous char
-    CharP,
-    /// Move to next char
-    CharN,
-    /// Move to next word
-    WordN,
+    /// Keep selections matching search
+    InstP,
+    /// Join
+    Join_,
+    /// Jump
+    Jump_,
     /// Kill to line end
     KilLN,
+    /// Kill to line start
+    KilLP,
+    /// Last
+    Last_,
+    /// Left
+    Left_,
+    /// Select full line
+    LineF,
     /// Move to line end
     LineN,
     /// Move to line start
     LineP,
-    /// Kill to line start
-    KilLP,
+    /// Select Line
+    Line_,
+    /// Select last non-contiguous selection mode
+    LstNc,
+    /// Mark
+    Mark_,
+    /// Multi Cursor
+    MultC,
+    /// Next
+    Next_,
+    /// Open (Next)
+    OpenN,
+    /// Open (Prev)
+    OpenP,
+    /// Replace with pattern
+    PRplc,
+    /// Previous
+    Prev_,
+    /// Paste end
+    PsteN,
+    /// Paste previous
+    PsteP,
+    /// Raise
+    Raise,
+    /// Redo
+    Redo_,
+    /// Right
+    Right,
+    /// Replace (with next copied text)
+    RplcN,
+    /// Replace (with previous copied text)
+    RplcP,
+    /// Replace cut
+    RplcX,
+    /// Replace
+    Rplc_,
+    /// Switch view alignment
+    SView,
+    /// Scroll down
+    ScrlD,
+    /// Scroll up
+    ScrlU,
+    /// Search current selection
+    SrchC,
+    /// Search (local) next
+    SrchN,
+    /// Search (local) previous
+    SrchP,
+    /// Select Syntax Node
+    StyxF,
+    /// Select Syntax
+    Sytx_,
+    /// GoToIndex
+    ToIdx,
+    /// Select Token
+    Token,
+    /// Transform
+    Trsfm,
+    /// Paste (End)
+    UPstE,
+    /// Undo
+    Undo_,
+    /// Up
+    Up___,
+    /// V-mode
+    VMode,
+    /// Close current window
+    WClse,
+    /// Switch window
+    WSwth,
+    /// Move to next word
+    WordN,
+    /// Move to previous word
+    WordP,
+    /// Select Word
+    Word_,
+    /// Swap cursor with anchor
+    XAchr,
 }
 
 fn shifted(c: &'static str) -> &'static str {
