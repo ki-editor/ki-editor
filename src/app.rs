@@ -5,6 +5,7 @@ use crate::{
         component::{Component, ComponentId, GetGridResult},
         dropdown::{DropdownItem, DropdownRender},
         editor::{Direction, DispatchEditor, Editor, IfCurrentNotFound, Movement},
+        editor_keymap::{Meaning, KEYBOARD_LAYOUT},
         keymap_legend::{
             Keymap, KeymapLegendBody, KeymapLegendConfig, KeymapLegendSection, Keymaps,
         },
@@ -1586,7 +1587,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(
                             &[
                                 Keymap::new(
-                                    "/",
+                                    KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
                                     format!("Search = {}", local_search_config.search()),
                                     Dispatch::OpenUpdateSearchPrompt {
                                         scope,

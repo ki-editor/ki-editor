@@ -3,7 +3,7 @@ pub(crate) mod dropdown;
 pub(crate) mod prompt;
 
 pub(crate) mod editor;
-mod editor_keymap;
+pub(crate) mod editor_keymap;
 mod editor_keymap_legend;
 pub(crate) mod file_explorer;
 pub(crate) mod keymap_legend;

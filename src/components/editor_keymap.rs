@@ -197,7 +197,7 @@ impl KeyboardLayoutKind {
 /// X means Swap/Cut
 /// Prefix W means Window
 #[derive(Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum Meaning {
+pub(crate) enum Meaning {
     /// Empty, not assigned
     _____,
     /// GoToIndex
