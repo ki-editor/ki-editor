@@ -358,14 +358,6 @@ impl Editor {
                         Dispatch::ShowKeymapLegend(self.transform_keymap_legend_config()),
                     ),
                     Keymap::new(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
-                        "Configure Search".to_string(),
-                        Dispatch::ShowSearchConfig {
-                            scope: Scope::Local,
-                            if_current_not_found: IfCurrentNotFound::LookForward,
-                        },
-                    ),
-                    Keymap::new(
                         "$",
                         Direction::End.format_action("Collapse selection"),
                         Dispatch::ToEditor(DispatchEditor::CollapseSelection(Direction::End)),
@@ -374,22 +366,6 @@ impl Editor {
                         "|",
                         "Pipe to shell".to_string(),
                         Dispatch::OpenPipeToShellPrompt,
-                    ),
-                    Keymap::new(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
-                        Direction::End.format_action("Search"),
-                        Dispatch::OpenSearchPrompt {
-                            scope: Scope::Local,
-                            if_current_not_found: IfCurrentNotFound::LookForward,
-                        },
-                    ),
-                    Keymap::new(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::SrchP),
-                        Direction::Start.format_action("Search"),
-                        Dispatch::OpenSearchPrompt {
-                            scope: Scope::Local,
-                            if_current_not_found: IfCurrentNotFound::LookBackward,
-                        },
                     ),
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::Indnt),
@@ -1028,7 +1004,7 @@ impl Editor {
                 keymaps: Keymaps::new(
                     &[
                         Keymap::new(
-                            KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                            KEYBOARD_LAYOUT.get_key(&Meaning::Up___),
                             "Configure Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 scope,
@@ -1036,7 +1012,7 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
+                            KEYBOARD_LAYOUT.get_key(&Meaning::FindN),
                             "Search".to_string(),
                             Dispatch::OpenSearchPrompt {
                                 scope,
