@@ -322,11 +322,6 @@ impl Editor {
                 }))
                 .chain([
                     Keymap::new(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
-                        Direction::End.format_action("Open"),
-                        Dispatch::ToEditor(Open(Direction::End)),
-                    ),
-                    Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::OpenP),
                         Direction::Start.format_action("Open"),
                         Dispatch::ToEditor(Open(Direction::Start)),
@@ -407,6 +402,19 @@ impl Editor {
                         Dispatch::ToEditor(Dedent),
                     ),
                 ])
+                .chain(Some(if self.selection_set.is_extended() {
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
+                        "Surround".to_string(),
+                        Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
+                    )
+                } else {
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::OpenN),
+                        Direction::End.format_action("Open"),
+                        Dispatch::ToEditor(Open(Direction::End)),
+                    )
+                }))
                 .chain(Some(if self.selection_set.is_extended() {
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::VMode),
@@ -692,13 +700,7 @@ impl Editor {
                     Dispatch::ToEditor(EnterReplaceMode),
                 )]
                 .into_iter()
-                .chain(Some(if self.selection_set.is_extended() {
-                    Keymap::new(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::MultC),
-                        "Surround".to_string(),
-                        Dispatch::ShowKeymapLegend(self.surround_keymap_legend_config()),
-                    )
-                } else if self.mode == Mode::MultiCursor {
+                .chain(Some(if self.mode == Mode::MultiCursor {
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::MultC),
                         "Add cursor to all selections".to_string(),
