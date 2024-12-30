@@ -75,6 +75,14 @@ pub const COLEMAK_DH: KeyboardLayout = [
     ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
 ];
 
+/// Semi-colon and Quote are swapped
+/// Refer https://colemakmods.github.io/mod-dh/
+pub const COLEMAK_DH_SEMI_QUOTE: KeyboardLayout = [
+    ["q", "w", "f", "p", "b", "j", "l", "u", "y", "'"],
+    ["a", "r", "s", "t", "g", "m", "n", "e", "i", "o"],
+    ["z", "x", "c", "d", "v", "k", "h", ",", ".", "/"],
+];
+
 struct KeySet {
     normal: HashMap<Meaning, &'static str>,
     shifted: HashMap<Meaning, &'static str>,
@@ -116,6 +124,8 @@ impl KeySet {
 static QWERTY_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(QWERTY));
 static COLEMAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK));
 static COLEMAK_DH_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(COLEMAK_DH));
+static COLEMAK_DH_SEMI_QUOTE_KEYSET: Lazy<KeySet> =
+    Lazy::new(|| KeySet::from(COLEMAK_DH_SEMI_QUOTE));
 static DVORAK_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK));
 static DVORAK_IU_KEYSET: Lazy<KeySet> = Lazy::new(|| KeySet::from(DVORAK_IU));
 
@@ -136,6 +146,7 @@ pub(crate) enum KeyboardLayoutKind {
     DvorakIU,
     Colemak,
     ColemakDH,
+    ColemakDHSemiQuote,
 }
 
 impl KeyboardLayoutKind {
@@ -145,15 +156,18 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Dvorak => "DVORAK",
             KeyboardLayoutKind::Colemak => "COLEMAK",
             KeyboardLayoutKind::ColemakDH => "COLEMAK_DH",
+            KeyboardLayoutKind::ColemakDHSemiQuote => "COLEMAK_DH_SEMI_QUOTE",
             KeyboardLayoutKind::DvorakIU => "DVORAK_IU",
         }
     }
+
     pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = match self {
             KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
             KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
             KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
             KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
         };
         keyset
@@ -171,6 +185,7 @@ impl KeyboardLayoutKind {
             KeyboardLayoutKind::Dvorak => &DVORAK_KEYSET,
             KeyboardLayoutKind::Colemak => &COLEMAK_KEYSET,
             KeyboardLayoutKind::ColemakDH => &COLEMAK_DH_KEYSET,
+            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE_KEYSET,
             KeyboardLayoutKind::DvorakIU => &DVORAK_IU_KEYSET,
         };
         keyset
