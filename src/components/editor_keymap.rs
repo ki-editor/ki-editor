@@ -18,37 +18,25 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, _____, Raise, _____, OpenP, /****/ DeDnt, CrsrP, Join_, CrsrN, Indnt,
+        Char_, _____, Raise, _____, OpenP, /****/ DeDnt, RplcP, Join_, RplcN, Indnt,
     ],
     [
-        LineF, StyxF, ChngX, DeltP, LstNc, /****/ BuffP, FindP, Break, FindN, BuffN,
+        LineF, StyxF, ChngX, DeltP, LstNc, /****/ CrsrP, FindP, Break, FindN, CrsrN,
     ],
     [
-        Redo_, XAchr, _____, PsteP, RplcX, /****/ Trsfm, GBack, ToIdx, GForw, SrchP,
-    ],
-];
-
-pub const KEYMAP_NORMAL_CONTROL: [[Meaning; 10]; 3] = [
-    [
-        _____, _____, _____, _____, _____, /****/ _____, RplcP, ScrlU, RplcN, _____,
-    ],
-    [
-        _____, _____, _____, WClse, _____, /****/ _____, _____, ScrlD, SView, _____,
-    ],
-    [
-        Undo_, WSwth, _____, UPstE, PRplc, /****/ _____, _____, _____, _____, _____,
+        Redo_, XAchr, RplcX, PsteP, PRplc, /****/ Trsfm, _____, ToIdx, _____, SrchP,
     ],
 ];
 
-pub const KEYMAP_INSERT_ALT: [[Meaning; 10]; 3] = [
+pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
     [
-        _____, _____, _____, _____, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
+        _____, GBack, ScrlU, GForw, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
     ],
     [
-        _____, _____, _____, WClse, _____, /****/ WordP, CharP, Down_, CharN, WordN,
+        SView, BuffP, ScrlD, BuffN, _____, /****/ WordP, CharP, Down_, CharN, WordN,
     ],
     [
-        Undo_, WSwth, _____, UPstE, _____, /****/ KilLP, LineP, _____, LineN, KilLN,
+        Undo_, WSwth, WClse, UPstE, _____, /****/ KilLP, LineP, _____, LineN, KilLN,
     ],
 ];
 
@@ -110,13 +98,13 @@ impl KeySet {
                     .zip(layout.into_iter().flatten().map(shifted)),
             ),
             normal_control: HashMap::from_iter(
-                KEYMAP_NORMAL_CONTROL
+                KEYMAP_CONTROL
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten().map(controlled)),
             ),
             insert_control: HashMap::from_iter(
-                KEYMAP_INSERT_ALT
+                KEYMAP_CONTROL
                     .into_iter()
                     .flatten()
                     .zip(layout.into_iter().flatten().map(alted)),
