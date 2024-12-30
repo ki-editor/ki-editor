@@ -458,7 +458,7 @@ fn controlled(c: &'static str) -> &'static str {
         "f" => "ctrl+f",
         "g" => "ctrl+g",
         "h" => "ctrl+h",
-        "i" => "tab", // Lookup ASCII Control Character 9, where ctrl+i means tab
+        "i" => "ctrl+i",
         "j" => "ctrl+j",
         "k" => "ctrl+k",
         "l" => "ctrl+l",
@@ -509,7 +509,7 @@ fn alted(c: &'static str) -> &'static str {
         "f" => "alt+f",
         "g" => "alt+g",
         "h" => "alt+h",
-        "i" => "tab", // Lookup ASCII Control Character 9, where alt+i means tab
+        "i" => "alt+i",
         "j" => "alt+j",
         "k" => "alt+k",
         "l" => "alt+l",
