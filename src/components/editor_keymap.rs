@@ -101,7 +101,7 @@ impl KeySet {
                 KEYMAP_CONTROL
                     .into_iter()
                     .flatten()
-                    .zip(layout.into_iter().flatten().map(controlled)),
+                    .zip(layout.into_iter().flatten().map(alted)),
             ),
             insert_control: HashMap::from_iter(
                 KEYMAP_CONTROL
