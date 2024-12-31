@@ -40,7 +40,10 @@ enum Commands {
     /// Prints the log file path
     Log,
     /// Display the keymap in various formats
-    Keymap,
+    Keymap {
+        #[command(subcommand)]
+        command: KeymapFormat,
+    },
     /// Run Ki in the given path, treating the path as the working directory
     In(InArgs),
 }
@@ -69,6 +72,14 @@ enum HighlightQuery {
     Clean,
     /// Prints the cache path
     CachePath,
+}
+
+#[derive(Subcommand)]
+enum KeymapFormat {
+    /// Display as YAML for use with Keymap Drawer
+    KeymapDrawer,
+    /// Display as an ASCII table
+    Table,
 }
 
 fn run_edit_command(args: EditArgs) -> anyhow::Result<()> {
@@ -124,8 +135,11 @@ pub(crate) fn cli() -> anyhow::Result<()> {
                 );
                 Ok(())
             }
-            Commands::Keymap => {
-                write_keymap_drawer()?;
+            Commands::Keymap { command } => {
+                match command {
+                    KeymapFormat::Table => write_keymap_table()?,
+                    KeymapFormat::KeymapDrawer => write_keymap_drawer()?,
+                }
 
                 Ok(())
             }
@@ -141,6 +155,58 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 use crate::components::editor_keymap::{
     Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED,
 };
+use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
+
+fn write_keymap_table() -> anyhow::Result<()> {
+    print_keymap_table("Normal", KEYMAP_NORMAL)?;
+    print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
+    print_keymap_table("Control", KEYMAP_CONTROL)?;
+
+    Ok(())
+}
+fn print_keymap_table(name: &str, keymap: [[Meaning; 10]; 3]) -> anyhow::Result<()> {
+    let mut table = Table::new();
+
+    println!("{}:", name);
+
+    for row in keymap.iter() {
+        table.add_row(vec![
+            Cell::new(meaning_to_string(&row[0])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[1])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[2])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[3])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[4])).set_alignment(CellAlignment::Center),
+            Cell::new(""),
+            Cell::new(meaning_to_string(&row[5])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[6])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[7])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[8])).set_alignment(CellAlignment::Center),
+            Cell::new(meaning_to_string(&row[9])).set_alignment(CellAlignment::Center),
+        ]);
+    }
+
+    table
+        .set_constraints(vec![
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(0)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+        ])
+        .load_preset(comfy_table::presets::UTF8_FULL)
+        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+
+    println!("{}", table);
+    println!("");
+
+    Ok(())
+}
 
 fn write_keymap_drawer() -> anyhow::Result<()> {
     println!("layout:");
@@ -233,7 +299,7 @@ fn meaning_to_string(meaning: &Meaning) -> &'static str {
         Meaning::Right => "→",
         Meaning::RplcN => "rplace →",
         Meaning::RplcP => "rplace ←",
-        Meaning::RplcX => "rplace xut",
+        Meaning::RplcX => "rplace cut",
         Meaning::Rplc_ => "rplace",
         Meaning::SView => "switch view",
         Meaning::ScrlD => "scroll ↓",
