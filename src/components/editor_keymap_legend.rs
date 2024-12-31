@@ -1028,7 +1028,7 @@ impl Editor {
                 keymaps: Keymaps::new(
                     &[
                         Keymap::new(
-                            KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                            "f",
                             "Configure Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 scope,
@@ -1036,7 +1036,7 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
+                            "s",
                             "Search".to_string(),
                             Dispatch::OpenSearchPrompt {
                                 scope,
