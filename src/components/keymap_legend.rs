@@ -248,7 +248,8 @@ impl KeymapLegendConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Keymap {
     key: &'static str,
-    description: String,
+    pub short_description: Option<String>,
+    pub description: String,
     event: KeyEvent,
     dispatch: Dispatch,
 }
@@ -257,6 +258,22 @@ impl Keymap {
     pub(crate) fn new(key: &'static str, description: String, dispatch: Dispatch) -> Keymap {
         Keymap {
             key,
+            short_description: None,
+            description,
+            dispatch,
+            event: parse_key_event(key).unwrap(),
+        }
+    }
+
+    pub(crate) fn new_extended(
+        key: &'static str,
+        short_description: String,
+        description: String,
+        dispatch: Dispatch,
+    ) -> Keymap {
+        Keymap {
+            key,
+            short_description: Some(short_description),
             description,
             dispatch,
             event: parse_key_event(key).unwrap(),

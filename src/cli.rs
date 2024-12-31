@@ -152,18 +152,101 @@ pub(crate) fn cli() -> anyhow::Result<()> {
     }
 }
 
+use crate::components::editor::Editor;
 use crate::components::editor_keymap::{
-    Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED,
+    Meaning, KEYBOARD_LAYOUT, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
 };
+use crate::components::keymap_legend::Keymaps;
+use crate::context::Context;
 use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width::Fixed};
+use crossterm::event::KeyCode;
+use event::{KeyEvent, KeyModifiers};
 
 fn write_keymap_table() -> anyhow::Result<()> {
-    print_keymap_table("Normal", KEYMAP_NORMAL)?;
-    print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
-    print_keymap_table("Control", KEYMAP_CONTROL)?;
+    let context = Context::default();
+    let editor = Editor::from_text(None, "");
+
+    //print_keymap_table("Normal", KEYMAP_NORMAL)?;
+    //print_keymap_table("Shifted", KEYMAP_NORMAL_SHIFTED)?;
+    //print_keymap_table("Control", KEYMAP_CONTROL)?;
+
+    try_me(
+        "Normal",
+        KeyModifiers::None,
+        editor.normal_mode_keymaps(&context),
+    );
+
+    try_me(
+        "Shift",
+        KeyModifiers::Shift,
+        editor.normal_mode_keymaps(&context),
+    );
+
+    try_me(
+        "Control",
+        KeyModifiers::Ctrl,
+        editor.normal_mode_keymaps(&context),
+    );
+
+    try_me(
+        "Alternate",
+        KeyModifiers::Alt,
+        editor.normal_mode_keymaps(&context),
+    );
 
     Ok(())
 }
+
+fn try_me(name: &str, modifiers: KeyModifiers, keymaps: Keymaps) {
+    println!("{}:", name);
+
+    let mut table = Table::new();
+    let rows = QWERTY.iter().map(|row| {
+        row.iter().map(|key| {
+            let ke = match modifiers {
+                KeyModifiers::Shift => KeyEvent {
+                    code: KeyCode::Char(key.to_uppercase().chars().next().unwrap()),
+                    modifiers: KeyModifiers::Shift,
+                },
+                _ => KeyEvent {
+                    code: KeyCode::Char(key.chars().next().unwrap()),
+                    modifiers: modifiers.clone(),
+                },
+            };
+
+            let display = match keymaps.get(&ke) {
+                Some(keymap) => match &keymap.short_description {
+                    Some(short) => short.to_string(),
+                    None => "".to_string(),
+                },
+                None => "".to_string(),
+            };
+
+            Cell::new(display).set_alignment(CellAlignment::Center)
+        })
+    });
+
+    table
+        .add_rows(rows)
+        .set_constraints(vec![
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+            Absolute(Fixed(8)),
+        ])
+        .load_preset(comfy_table::presets::UTF8_FULL)
+        .apply_modifier(comfy_table::modifiers::UTF8_ROUND_CORNERS);
+
+    println!("{}", table);
+    println!("");
+}
+
 fn print_keymap_table(name: &str, keymap: [[Meaning; 10]; 3]) -> anyhow::Result<()> {
     let mut table = Table::new();
 
@@ -323,6 +406,5 @@ fn meaning_to_string(meaning: &Meaning) -> &'static str {
         Meaning::Word_ => "word",
         Meaning::XAchr => "xchng anchor",
         Meaning::_____ => "",
-        _ => "?",
     }
 }
