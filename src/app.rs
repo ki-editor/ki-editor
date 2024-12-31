@@ -1627,7 +1627,7 @@ impl<T: Frontend> App<T> {
                         keymaps: Keymaps::new(
                             &[
                                 Keymap::new(
-                                    KEYBOARD_LAYOUT.get_key(&Meaning::FindN),
+                                    KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
                                     format!("Search = {}", local_search_config.search()),
                                     Dispatch::OpenUpdateSearchPrompt {
                                         scope,

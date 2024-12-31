@@ -246,6 +246,30 @@ impl Editor {
                         "Toggle Mark".to_string(),
                         Dispatch::ToEditor(ToggleMark),
                     ),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                        "Configure Search".to_string(),
+                        Dispatch::ShowSearchConfig {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookForward,
+                        },
+                    ),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
+                        Direction::End.format_action("Search"),
+                        Dispatch::OpenSearchPrompt {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookForward,
+                        },
+                    ),
+                    Keymap::new(
+                        KEYBOARD_LAYOUT.get_key(&Meaning::SrchP),
+                        Direction::Start.format_action("Search"),
+                        Dispatch::OpenSearchPrompt {
+                            scope: Scope::Local,
+                            if_current_not_found: IfCurrentNotFound::LookBackward,
+                        },
+                    ),
                 ]
                 .into_iter()
                 .chain(if self.mode == Mode::MultiCursor {
@@ -1004,7 +1028,7 @@ impl Editor {
                 keymaps: Keymaps::new(
                     &[
                         Keymap::new(
-                            KEYBOARD_LAYOUT.get_key(&Meaning::Up___),
+                            KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
                             "Configure Search".to_string(),
                             Dispatch::ShowSearchConfig {
                                 scope,
@@ -1012,7 +1036,7 @@ impl Editor {
                             },
                         ),
                         Keymap::new(
-                            KEYBOARD_LAYOUT.get_key(&Meaning::FindN),
+                            KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
                             "Search".to_string(),
                             Dispatch::OpenSearchPrompt {
                                 scope,
