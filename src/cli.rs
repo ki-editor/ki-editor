@@ -154,9 +154,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 
 use crate::components::{
     editor::{Editor, Mode},
-    editor_keymap::{
-        shifted, Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
-    },
+    editor_keymap::{shifted, QWERTY},
     keymap_legend::Keymaps,
 };
 use crate::context::Context;
@@ -164,40 +162,31 @@ use comfy_table::{Cell, CellAlignment, ColumnConstraint::Absolute, Table, Width:
 use crossterm::event::KeyCode;
 use event::{KeyEvent, KeyModifiers};
 
-fn write_keymap_table() -> anyhow::Result<()> {
-    let context = Context::default();
-    let mut editor = Editor::from_text(None, "");
-    let normal_keymaps: Vec<Keymaps> = editor.normal_mode_keymap_legend_config(&context).into();
-
-    editor.mode = Mode::MultiCursor;
-    let multicursor_keymaps: Vec<Keymaps> =
-        editor.normal_mode_keymap_legend_config(&context).into();
-
-    let mut vmode_keymaps = normal_keymaps.clone();
-    vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
-
-    print_single_keymap_table("Normal", KeyModifiers::None, &normal_keymaps);
-    print_single_keymap_table("Normal Shift", KeyModifiers::Shift, &normal_keymaps);
-    print_single_keymap_table("Normal Control", KeyModifiers::Ctrl, &normal_keymaps);
-    print_single_keymap_table("Normal Alternate", KeyModifiers::Alt, &normal_keymaps);
-    print_single_keymap_table("Multi-Cursor", KeyModifiers::None, &multicursor_keymaps);
-    print_single_keymap_table(
-        "Multi-Cursor Shift",
-        KeyModifiers::Shift,
-        &multicursor_keymaps,
-    );
-    print_single_keymap_table("V-mode", KeyModifiers::None, &vmode_keymaps);
-    print_single_keymap_table(
-        "Insert",
-        KeyModifiers::Alt,
-        &editor.insert_mode_keymap_legend_config().into(),
-    );
-
-    Ok(())
+struct KeymapPrintSection {
+    name: String,
+    key_meanings: Vec<Vec<Option<String>>>,
 }
 
-fn print_single_keymap_table(name: &str, modifiers: KeyModifiers, keymaps: &Vec<Keymaps>) {
-    let rows: Vec<Vec<Option<String>>> = QWERTY
+impl KeymapPrintSection {
+    fn new(name: &str, modifiers: KeyModifiers, keymaps: &Vec<Keymaps>) -> Self {
+        KeymapPrintSection {
+            name: name.to_string(),
+            key_meanings: keyboard_layout_to_keymaps(modifiers, keymaps),
+        }
+    }
+
+    fn has_content(&self) -> bool {
+        self.key_meanings
+            .iter()
+            .any(|v| v.iter().any(Option::is_some))
+    }
+}
+
+fn keyboard_layout_to_keymaps(
+    modifiers: KeyModifiers,
+    keymaps: &Vec<Keymaps>,
+) -> Vec<Vec<Option<String>>> {
+    QWERTY
         .iter()
         .map(|row| {
             row.iter()
@@ -220,13 +209,55 @@ fn print_single_keymap_table(name: &str, modifiers: KeyModifiers, keymaps: &Vec<
                 })
                 .collect()
         })
-        .collect();
+        .collect()
+}
 
-    if rows.iter().any(|v| v.iter().any(Option::is_some)) {
-        println!("{}:", name);
+fn collect_keymap_sections() -> Vec<KeymapPrintSection> {
+    let context = Context::default();
+    let mut editor = Editor::from_text(None, "");
+    let normal_keymaps: Vec<Keymaps> = editor.normal_mode_keymap_legend_config(&context).into();
+
+    editor.mode = Mode::MultiCursor;
+    let multicursor_keymaps: Vec<Keymaps> =
+        editor.normal_mode_keymap_legend_config(&context).into();
+
+    let mut vmode_keymaps = normal_keymaps.clone();
+    vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
+
+    vec![
+        KeymapPrintSection::new("Normal", KeyModifiers::None, &normal_keymaps),
+        KeymapPrintSection::new("Normal Shift", KeyModifiers::Shift, &normal_keymaps),
+        KeymapPrintSection::new("Normal Control", KeyModifiers::Ctrl, &normal_keymaps),
+        KeymapPrintSection::new("Normal Alternate", KeyModifiers::Alt, &normal_keymaps),
+        KeymapPrintSection::new("Multi-Cursor", KeyModifiers::None, &multicursor_keymaps),
+        KeymapPrintSection::new(
+            "Multi-Cursor Shift",
+            KeyModifiers::Shift,
+            &multicursor_keymaps,
+        ),
+        KeymapPrintSection::new("V-mode", KeyModifiers::None, &vmode_keymaps),
+        KeymapPrintSection::new(
+            "Insert",
+            KeyModifiers::Alt,
+            &editor.insert_mode_keymap_legend_config().into(),
+        ),
+    ]
+}
+
+fn write_keymap_table() -> anyhow::Result<()> {
+    collect_keymap_sections()
+        .iter()
+        .for_each(print_single_keymap_table);
+
+    Ok(())
+}
+
+fn print_single_keymap_table(keymap: &KeymapPrintSection) {
+    if keymap.has_content() {
+        println!("{}:", keymap.name);
 
         let mut table = Table::new();
-        let table_rows = rows.iter().map(|row| {
+        let table_rows = keymap.key_meanings.iter().map(|row| {
             let mut cols: Vec<Cell> = row
                 .into_iter()
                 .map(|value| {
@@ -273,9 +304,9 @@ fn write_keymap_drawer() -> anyhow::Result<()> {
     println!("  layout_name: LAYOUT_split_3x5_3");
     println!("layers:");
 
-    print_keymap("Normal", KEYMAP_NORMAL)?;
-    print_keymap("Shifted", KEYMAP_NORMAL_SHIFTED)?;
-    print_keymap("Control", KEYMAP_CONTROL)?;
+    collect_keymap_sections()
+        .iter()
+        .for_each(print_keymap_drawer);
 
     println!("draw_config:");
     println!("  footer_text: Keymap for the <a href=\"https://ki-editor.github.io/ki-editor/\">Ki editor</a>");
@@ -283,104 +314,21 @@ fn write_keymap_drawer() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_keymap(name: &str, keymap: [[Meaning; 10]; 3]) -> anyhow::Result<()> {
-    println!("  {}:", name);
-    for row in keymap.iter() {
+fn print_keymap_drawer(section: &KeymapPrintSection) {
+    let safe_name = section.name.replace(" ", "_").replace("-", "_");
+
+    println!("  {}:", safe_name);
+    for row in section.key_meanings.iter() {
         let row_strings: Vec<&str> = row
             .iter()
-            .map(|meaning| meaning_to_string(meaning))
+            .map(|meaning| match meaning {
+                Some(display) => display,
+                None => "",
+            })
             .collect();
 
         println!("    - [\"{}\"]", row_strings.join("\", \""));
     }
 
     println!("    - [\"\", \"\", \"\", \"\", \"\", \"\"]");
-
-    Ok(())
-}
-
-fn meaning_to_string(meaning: &Meaning) -> &'static str {
-    match meaning {
-        Meaning::Break => "break",
-        Meaning::BuffN => "buff →",
-        Meaning::BuffP => "buff ←",
-        Meaning::CSrch => "cfg search",
-        Meaning::CharN => "→",
-        Meaning::CharP => "←",
-        Meaning::Char_ => "char",
-        Meaning::ChngX => "change cut",
-        Meaning::Chng_ => "change",
-        Meaning::Copy_ => "copy",
-        Meaning::CrsrN => "curs →",
-        Meaning::CrsrP => "curs ←",
-        Meaning::DTknN => "del token →",
-        Meaning::DTknP => "del token ←",
-        Meaning::DWrdN => "del word →",
-        Meaning::DWrdP => "del word ←",
-        Meaning::DeDnt => "dedent",
-        Meaning::DeltN => "del →",
-        Meaning::DeltP => "del ←",
-        Meaning::Down_ => "↓",
-        Meaning::Exchg => "exchng",
-        Meaning::FileN => "file →",
-        Meaning::FileP => "file ←",
-        Meaning::FindN => "find →",
-        Meaning::FindP => "find ←",
-        Meaning::First => "first",
-        Meaning::GBack => "⇤",
-        Meaning::GForw => "⇥",
-        Meaning::Globl => "glb find",
-        Meaning::Indnt => "indent",
-        Meaning::InstN => "insert →",
-        Meaning::InstP => "insert ←",
-        Meaning::Join_ => "join",
-        Meaning::Jump_ => "jump",
-        Meaning::KilLN => "kill line →",
-        Meaning::KilLP => "kill line ←",
-        Meaning::Last_ => "last",
-        Meaning::Left_ => "←",
-        Meaning::LineF => "line full",
-        Meaning::LineN => "end",
-        Meaning::LineP => "home",
-        Meaning::Line_ => "line",
-        Meaning::LstNc => "last non contig",
-        Meaning::Mark_ => "mark",
-        Meaning::MultC => "multi cursor",
-        Meaning::Next_ => "⇥",
-        Meaning::OpenN => "open →",
-        Meaning::OpenP => "open ←",
-        Meaning::PRplc => "rplace pat",
-        Meaning::Prev_ => "⇤",
-        Meaning::PsteN => "paste →",
-        Meaning::PsteP => "paste ←",
-        Meaning::Raise => "raise",
-        Meaning::Redo_ => "redo",
-        Meaning::Right => "→",
-        Meaning::RplcN => "rplace →",
-        Meaning::RplcP => "rplace ←",
-        Meaning::RplcX => "rplace cut",
-        Meaning::Rplc_ => "rplace",
-        Meaning::SView => "switch view",
-        Meaning::ScrlD => "scroll ↓",
-        Meaning::ScrlU => "scroll ↑",
-        Meaning::SrchC => "search cur",
-        Meaning::SrchN => "srch →",
-        Meaning::SrchP => "srch ←",
-        Meaning::StyxF => "fine syntax",
-        Meaning::Sytx_ => "syntax",
-        Meaning::ToIdx => "to index",
-        Meaning::Token => "token",
-        Meaning::Trsfm => "trnsfrm",
-        Meaning::UPstE => "paste →",
-        Meaning::Undo_ => "undo",
-        Meaning::Up___ => "↑",
-        Meaning::VMode => "visual mode",
-        Meaning::WClse => "close window",
-        Meaning::WSwth => "switch window",
-        Meaning::WordN => "word →",
-        Meaning::WordP => "word ←",
-        Meaning::Word_ => "word",
-        Meaning::XAchr => "xchng anchor",
-        Meaning::_____ => "",
-    }
 }
