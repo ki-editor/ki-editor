@@ -331,13 +331,13 @@ impl Editor {
                         ),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::InstP),
-                            "keep matching".to_string(),
+                            "keep match".to_string(),
                             "Keep selections matching search".to_string(),
                             Dispatch::OpenFilterSelectionsPrompt { maintain: true },
                         ),
                         Keymap::new_extended(
                             KEYBOARD_LAYOUT.get_key(&Meaning::InstN),
-                            "remove matching".to_string(),
+                            "remove match".to_string(),
                             "Remove selections matching search".to_string(),
                             Dispatch::OpenFilterSelectionsPrompt { maintain: false },
                         ),

@@ -153,7 +153,7 @@ pub(crate) fn cli() -> anyhow::Result<()> {
 }
 
 use crate::components::{
-    editor::Editor,
+    editor::{Editor, Mode},
     editor_keymap::{
         shifted, Meaning, KEYMAP_CONTROL, KEYMAP_NORMAL, KEYMAP_NORMAL_SHIFTED, QWERTY,
     },
@@ -166,13 +166,23 @@ use event::{KeyEvent, KeyModifiers};
 
 fn write_keymap_table() -> anyhow::Result<()> {
     let context = Context::default();
-    let editor = Editor::from_text(None, "");
+    let mut editor = Editor::from_text(None, "");
     let normal_keymaps: Vec<Keymaps> = editor.normal_mode_keymap_legend_config(&context).into();
 
     print_single_keymap_table("Normal", KeyModifiers::None, &normal_keymaps);
-    print_single_keymap_table("Shift", KeyModifiers::Shift, &normal_keymaps);
-    print_single_keymap_table("Control", KeyModifiers::Ctrl, &normal_keymaps);
-    print_single_keymap_table("Alternate", KeyModifiers::Alt, &normal_keymaps);
+    print_single_keymap_table("Normal Shift", KeyModifiers::Shift, &normal_keymaps);
+    print_single_keymap_table("Normal Control", KeyModifiers::Ctrl, &normal_keymaps);
+    print_single_keymap_table("Normal Alternate", KeyModifiers::Alt, &normal_keymaps);
+
+    editor.mode = Mode::MultiCursor;
+    let multicursor_keymaps: Vec<Keymaps> =
+        editor.normal_mode_keymap_legend_config(&context).into();
+    print_single_keymap_table("Multi-Cursor", KeyModifiers::None, &multicursor_keymaps);
+    print_single_keymap_table(
+        "Multi-Cursor Shift",
+        KeyModifiers::Shift,
+        &multicursor_keymaps,
+    );
 
     let mut vmode_keymaps = normal_keymaps.clone();
     vmode_keymaps.insert(0, editor.visual_mode_initialized_keymaps());
