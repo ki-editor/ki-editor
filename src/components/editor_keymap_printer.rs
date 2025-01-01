@@ -1,6 +1,6 @@
 use crate::components::{
     editor::{Editor, Mode},
-    editor_keymap::{shifted, KeyboardLayout, QWERTY},
+    editor_keymap::{shifted, KeyboardLayout, KEYBOARD_LAYOUT},
     keymap_legend::Keymaps,
 };
 use crate::context::Context;
@@ -145,7 +145,7 @@ fn collect_keymap_print_sections(layout: &KeyboardLayout) -> KeymapPrintSections
 
 /// Print an ASCII representation of the keymap.
 pub fn print_keymap_table() -> anyhow::Result<()> {
-    collect_keymap_print_sections(&QWERTY)
+    collect_keymap_print_sections(KEYBOARD_LAYOUT.as_keyboard_layout())
         .iter()
         .for_each(print_single_keymap_table);
 
@@ -206,7 +206,7 @@ pub fn print_keymap_drawer_yaml() -> anyhow::Result<()> {
     println!("  layout_name: LAYOUT_split_3x5_3");
     println!("layers:");
 
-    collect_keymap_print_sections(&QWERTY)
+    collect_keymap_print_sections(KEYBOARD_LAYOUT.as_keyboard_layout())
         .iter()
         .for_each(print_keymap_drawer);
 

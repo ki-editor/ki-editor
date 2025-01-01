@@ -161,6 +161,17 @@ impl KeyboardLayoutKind {
         }
     }
 
+    pub(crate) const fn as_keyboard_layout(&self) -> &'static KeyboardLayout {
+        match self {
+            KeyboardLayoutKind::Qwerty => &QWERTY,
+            KeyboardLayoutKind::Dvorak => &DVORAK,
+            KeyboardLayoutKind::DvorakIU => &DVORAK_IU,
+            KeyboardLayoutKind::Colemak => &COLEMAK,
+            KeyboardLayoutKind::ColemakDH => &COLEMAK_DH,
+            KeyboardLayoutKind::ColemakDHSemiQuote => &COLEMAK_DH_SEMI_QUOTE,
+        }
+    }
+
     pub(crate) fn get_key(&self, meaning: &Meaning) -> &'static str {
         let keyset = match self {
             KeyboardLayoutKind::Qwerty => &QWERTY_KEYSET,
