@@ -49,7 +49,7 @@ impl KeymapPrintSection {
                         let ke = match modifiers {
                             KeyModifiers::Shift => KeyEvent {
                                 code: KeyCode::Char(shifted(key).chars().next().unwrap()),
-                                modifiers: KeyModifiers::Shift,
+                                modifiers: KeymapPrintSection::shifted_modifier(key),
                             },
                             _ => KeyEvent {
                                 code: KeyCode::Char(key.chars().next().unwrap()),
@@ -65,6 +65,17 @@ impl KeymapPrintSection {
                     .collect()
             })
             .collect()
+    }
+
+    fn shifted_modifier(key: &'static str) -> KeyModifiers {
+        match key {
+            "," => KeyModifiers::None,
+            "." => KeyModifiers::None,
+            "/" => KeyModifiers::None,
+            ";" => KeyModifiers::None,
+            "'" => KeyModifiers::None,
+            _ => KeyModifiers::Shift,
+        }
     }
 }
 
