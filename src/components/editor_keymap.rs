@@ -6,7 +6,7 @@ use Meaning::*;
 
 pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
     [
-        Word_, Token, SrchC, MultC, OpenN, /****/ Mark_, InstP, Up___, InstN, CSrch,
+        Word_, Token, SrchC, MultC, OpenN, /****/ FindP, InstP, Up___, InstN, FindN,
     ],
     [
         Line_, Sytx_, Chng_, DeltN, VMode, /****/ Prev_, Left_, Down_, Right, Next_,
@@ -18,13 +18,13 @@ pub const KEYMAP_NORMAL: [[Meaning; 10]; 3] = [
 
 pub const KEYMAP_NORMAL_SHIFTED: [[Meaning; 10]; 3] = [
     [
-        Char_, Trsfm, LstNc, Raise, OpenP, /****/ _____, RplcP, Join_, RplcN, _____,
+        Char_, Trsfm, Mark_, Raise, OpenP, /****/ _____, RplcP, Join_, RplcN, _____,
     ],
     [
-        LineF, StyxF, ChngX, DeltP, _____, /****/ CrsrP, FindP, Break, FindN, CrsrN,
+        LineF, StyxF, ChngX, DeltP, _____, /****/ _____, DeDnt, Break, Indnt, _____,
     ],
     [
-        Redo_, XAchr, RplcX, PsteP, PRplc, /****/ _____, DeDnt, ToIdx, Indnt, SrchP,
+        Redo_, XAchr, RplcX, PsteP, PRplc, /****/ _____, CrsrP, ToIdx, CrsrN, SrchP,
     ],
 ];
 
@@ -33,10 +33,10 @@ pub const KEYMAP_CONTROL: [[Meaning; 10]; 3] = [
         _____, GBack, ScrlU, GForw, _____, /****/ DTknP, DWrdP, Up___, DWrdN, DTknN,
     ],
     [
-        SView, BuffP, ScrlD, BuffN, _____, /****/ WordP, CharP, Down_, CharN, WordN,
+        SView, BuffP, ScrlD, BuffN, _____, /****/ KilLP, CharP, Down_, CharN, KilLN,
     ],
     [
-        Undo_, WSwth, WClse, UPstE, _____, /****/ KilLP, LineP, _____, LineN, KilLN,
+        Undo_, WSwth, WClse, UPstE, _____, /****/ _____, LineP, _____, LineN, CSrch,
     ],
 ];
 
