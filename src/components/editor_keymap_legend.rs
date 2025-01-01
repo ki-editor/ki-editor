@@ -213,11 +213,6 @@ impl Editor {
                         IfCurrentNotFound::LookForward,
                     )),
                 ),
-                Keymap::new(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::LstNc),
-                    "Select last non-contiguous selection mode".to_string(),
-                    Dispatch::UseLastNonContiguousSelectionMode(IfCurrentNotFound::LookForward),
-                ),
             ]),
         }
     }
@@ -245,14 +240,6 @@ impl Editor {
                         KEYBOARD_LAYOUT.get_key(&Meaning::Mark_),
                         "Toggle Mark".to_string(),
                         Dispatch::ToEditor(ToggleMark),
-                    ),
-                    Keymap::new(
-                        KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
-                        "Configure Search".to_string(),
-                        Dispatch::ShowSearchConfig {
-                            scope: Scope::Local,
-                            if_current_not_found: IfCurrentNotFound::LookForward,
-                        },
                     ),
                     Keymap::new(
                         KEYBOARD_LAYOUT.get_key(&Meaning::SrchN),
@@ -429,7 +416,7 @@ impl Editor {
                     )
                 }))
                 .chain(self.search_current_selection_keymap(
-                    KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                    KEYBOARD_LAYOUT.get_key(&Meaning::SrchC),
                     Scope::Local,
                     IfCurrentNotFound::LookForward,
                 ))
@@ -527,6 +514,14 @@ impl Editor {
                         direction: Direction::End,
                         use_system_clipboard: false,
                     }),
+                ),
+                Keymap::new(
+                    KEYBOARD_LAYOUT.get_key(&Meaning::CSrch),
+                    "Configure Search".to_string(),
+                    Dispatch::ShowSearchConfig {
+                        scope: Scope::Local,
+                        if_current_not_found: IfCurrentNotFound::LookForward,
+                    },
                 ),
             ]),
         }
@@ -1093,6 +1088,11 @@ impl Editor {
                             )),
                         },
                     ),
+                    Keymap::new(
+                        "l",
+                        Direction::End.format_action("Last non-contiguous selection mode"),
+                        Dispatch::UseLastNonContiguousSelectionMode(if_current_not_found),
+                    ),
                 ]
                 .into_iter()
                 .chain(
@@ -1213,21 +1213,11 @@ impl Editor {
                             ));
                             Keymap::new(key, description.to_string(), dispatch)
                         })
-                        .chain([
-                            Keymap::new(
-                                "o",
-                                "One character".to_string(),
-                                Dispatch::ToEditor(FindOneChar(if_current_not_found)),
-                            ),
-                            Keymap::new(
-                                "space",
-                                "Empty line".to_string(),
-                                Dispatch::ToEditor(SetSelectionMode(
-                                    if_current_not_found,
-                                    EmptyLine,
-                                )),
-                            ),
-                        ])
+                        .chain([Keymap::new(
+                            "o",
+                            "One character".to_string(),
+                            Dispatch::ToEditor(FindOneChar(if_current_not_found)),
+                        )])
                         .collect_vec(),
                 ),
             }),
